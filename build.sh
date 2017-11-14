@@ -23,6 +23,10 @@ fi
 
 #[ -x $workdir/repopick.sh ] && $workdir/
 
+rm -rf $workdir/out/target/product/kltechnduo/system
+rm -rf $workdir/out/target/product/kltechnduo/root
+rm -rf $workdir/out/target/product/kltechnduo/lineage_kltechnduo-ota-*.zip
+
 brunch kltechnduo
 
 if [ -x $workdir/out/host/linux-x86/bin/jack-admin ]; then
