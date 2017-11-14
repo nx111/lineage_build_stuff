@@ -14,21 +14,23 @@ export CCACHE_DIR=$workdir/.ccache
 $workdir/prebuilts/misc/linux-x86/ccache/ccache -M 30G
 
 export JACK_SERVER_VM_ARGUMENTS="-Dfile.encoding=UTF-8 -XX:+TieredCompilation -Xmx4096m"
-#if [ -x $workdir/out/host/linux-x86/bin/jack-admin ]; then
-#   $workdir/out/host/linux-x86/bin/jack-admin kill-server
-#   $workdir/out/host/linux-x86/bin/jack-admin start-server
-#fi
+if [ -x $workdir/out/host/linux-x86/bin/jack-admin ]; then
+   $workdir/out/host/linux-x86/bin/jack-admin kill-server
+   $workdir/out/host/linux-x86/bin/jack-admin start-server
+fi
 
 . $workdir/build/envsetup.sh
-breakfast kltechnduo
 
 #[ -x $workdir/repopick.sh ] && $workdir/
 
 if [ $# -ge 1 -a "$1" = "addonsu" ]; then
+	breakfast kltechnduo
 	[ -f $workdir/.mypatches/superuser.rc -a ! -f $workdir/system/extras/su/superuser.rc ] \
 		&& cp $workdir/.mypatches/superuser.rc $workdir/system/extras/su/
 	make addonsu
 else
+	breakfast kltechnduo >/dev/null 2>/dev/null
+
 	rm -rf $workdir/out/target/product/kltechnduo/system
 	rm -rf $workdir/out/target/product/kltechnduo/root
 	rm -rf $workdir/out/target/product/kltechnduo/lineage_kltechnduo-ota-*.zip
