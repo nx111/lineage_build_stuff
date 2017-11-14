@@ -53,7 +53,7 @@ repopick -t oreo-adb-usb-legacy; ## https://review.lineageos.org/#/q/oreo-adb-us
 # Topic: LineageOS Features
 #repopick 193540; ## https://review.lineageos.org/#/c/193540
 #repopick 191921 187592; ## https://review.lineageos.org/#/q/change:191921+OR+change:187592
-#repopick -Q 'status:open+topic:oreo-powermenu'; ## https://review.lineageos.org/#/q/status:open+topic:oreo-powermenu
+repopick -Q 'status:open+topic:oreo-powermenu'; ## https://review.lineageos.org/#/q/status:open+topic:oreo-powermenu
 #repopick 193249 193258 191905; ## https://review.lineageos.org/#/q/change:193249+OR+change:193258+OR+change:191905
 #repopick 193025 191736; ## https://review.lineageos.org/#/q/change:193025+OR+change:191736
 #repopick -Q 'status:open+topic:oreo-tiles'; ## https://review.lineageos.org/#/q/status:open+topic:oreo-tiles
