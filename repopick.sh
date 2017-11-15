@@ -3,7 +3,7 @@
 source build/envsetup.sh
 
 # vendor/lineage
-#repopick 188834 # repopick: Support overriding the default commits count to check
+repopick 188834 # repopick: Support overriding the default commits count to check
 
 # build/make
 repopick 190430 # Allow setting the recovery density separately from the aapt config
@@ -28,14 +28,14 @@ repopick 186687; ## https://review.lineageos.org/#/c/186687
 
 # Bionic and native
 #repopick -f 185639 # Restore android_alarm.h kernel uapi header
-#repopick 185640; ## https://review.lineageos.org/#/c/185640
-#repopick 185671; ## https://review.lineageos.org/#/c/185671
+#repopick 185640; ## https://review.lineageos.org/#/c/185640  #Add support for dynamic SHIM libraries 
+#repopick 185671; ## https://review.lineageos.org/#/c/185671  #native: Increase ART heap limit to 192MB for 1024MB RAM devices 
 #repopick 190614 # linker: allow the linker to shim executables
 
 # Apps updates
-#repopick 188389 188518-188526 191605; ## https://review.lineageos.org/#/q/project:LineageOS/android_packages_apps_Camera2+branch:lineage-15.0
-#repopick 188527-188529; ## https://review.lineageos.org/#/q/project:LineageOS/android_packages_apps_Gallery2+branch:lineage-15.0
-#repopick 186688; ## https://review.lineageos.org/#/c/186688
+repopick 188389 188518-188526 191605; ## https://review.lineageos.org/#/q/project:LineageOS/android_packages_apps_Camera2+branch:lineage-15.0
+repopick 188527-188529; ## https://review.lineageos.org/#/q/project:LineageOS/android_packages_apps_Gallery2+branch:lineage-15.0
+#repopick 186688; ## https://review.lineageos.org/#/c/186688      #FMRadio: jni: Add missing liblog dependency
 
 # Legacy ADB
 repopick -t oreo-adb-usb-legacy; ## https://review.lineageos.org/#/q/oreo-adb-usb-legacy
@@ -64,6 +64,11 @@ repopick -Q 'status:open+topic:oreo-powermenu'; ## https://review.lineageos.org/
 #cd $(gettop)/frameworks/base/; rm -rf .git/rebase-apply; curl https://github.com/AdrianDC/lineage_development_sony8960/commit/fbbac8c497fe3b036226a38421eb6a94f32b1ec0.patch | git am -3; cd $(gettop)/;
 #repopick -Q 'status:open+topic:oreo-lights'; ## https://review.lineageos.org/#/q/status:open+topic:oreo-lights
 
-#repopick -t 'samsung-libril-oreo'; ## https://review.lineageos.org/#/q/status:open+topic:samsung-libril-oreo
+repopick -t 'samsung-libril-oreo'; ## https://review.lineageos.org/#/q/status:open+topic:samsung-libril-oreo
 
-#repopick 195736 195731 195655 195649 195648;
+
+repopick 195736 ## Move QCOM mm codecs to vendor partition
+#repopick 195731 
+repopick 195655 ## macloader: Move device dependent modules to /vendor
+repopick 195649  ## liblights: Move device dependent modules to /vendor
+repopick 195648 ## consumerir: Move device dependent modules to /vendor
