@@ -29,7 +29,6 @@ if [ $# -ge 1 -a "$1" = "addonsu" ]; then
 		&& cp $workdir/.mypatches/superuser.rc $workdir/system/extras/su/
 	make addonsu
 else
-	breakfast kltechnduo >/dev/null 2>/dev/null
 
 	rm -rf $workdir/out/target/product/kltechnduo/system
 	rm -rf $workdir/out/target/product/kltechnduo/root
