@@ -73,3 +73,8 @@ repopick 195731 ## Move QCOM HALs to vendor partition
 repopick 195655 ## macloader: Move device dependent modules to /vendor
 repopick 195649  ## liblights: Move device dependent modules to /vendor
 repopick 195648 ## consumerir: Move device dependent modules to /vendor
+
+
+########### patch ####################
+cd $(gettop)/hardware/qcom/audio-caf/msm8974; git am ${TOPDIR}/.mypatches/hardware_qcom_audio-caf_mxie_paths.diff; cd $(gettop)/
+
