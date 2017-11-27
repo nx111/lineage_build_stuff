@@ -75,7 +75,5 @@ repopick 195649  ## liblights: Move device dependent modules to /vendor
 repopick 195648 ## consumerir: Move device dependent modules to /vendor
 
 
-########### patch ####################
-cd $(gettop)/hardware/qcom/audio-caf/msm8974; git am ${TOPDIR}/.mypatches/hardware_qcom_audio-caf_mxie_paths.diff; cd $(gettop)/
-cd $(gettop)/hardware/qcom/audio-caf/msm8974; git am ${TOPDIR}/.mypatches/hardware_qcom_audio-caf_platform_info_paths.diff; cd $(gettop)/
-
+########### my patches ####################
+repopick 197367 197368 ## https://review.lineageos.org/#/q/change:197367+OR+change:197368
