@@ -54,7 +54,7 @@ repopick -f 188388; ## https://review.lineageos.org/#/c/188388
 repopick 193540; ## https://review.lineageos.org/#/c/193540 ,  #  Apply LineageOS rebrand
 #repopick 191921; ## https://review.lineageos.org/#/q/change:191921 ,# settings: Kill night mode if we have LiveDisplay
 repopick 187592; ## https://review.lineageos.org/#/q/change:187592 ,# settings: Add developer setting for root access
-repopick 193812 192516 192517 ; ## https://review.lineageos.org/#/q/status:open+topic:oreo-powermenu
+repopick 191942 193188 193812 192510 191922 192516 192517 ; ## https://review.lineageos.org/#/q/status:open+topic:oreo-powermenu
 #repopick 193249 193258;  ## https://review.lineageos.org/#/q/change:193249+OR+change:193258
 repopick 191905; ## https://review.lineageos.org/#/q/change:191905
 repopick 193025 191736; ## https://review.lineageos.org/#/q/change:193025+OR+change:191736
