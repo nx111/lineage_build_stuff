@@ -77,4 +77,3 @@ repopick 195648 ## consumerir: Move device dependent modules to /vendor
 
 
 ########### my patches ####################
-repopick 197367 197368 ## https://review.lineageos.org/#/q/change:197367+OR+change:197368
