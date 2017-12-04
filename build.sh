@@ -33,10 +33,10 @@ elif [ $# -ge 1 -a "$1" = "boot" ]; then
 	make -B bootimage
 elif [ $# -ge 1 -a "$1" = "multirom" ]; then
 	lunch omni_kltechnduo-eng
-	make multirom_zip
+	make -j4 multirom_zip
 elif [ $# -ge 1 -a "$1" = "twrp-mrom" ]; then
-	lunch omni_kltechnduo_eng
-	make recoveryimage
+	lunch omni_kltechnduo-eng
+	make -j4 recoveryimage
 else
 
 	rm -rf $workdir/out/target/product/kltechnduo/system
