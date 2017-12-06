@@ -21,6 +21,8 @@ fi
 
 . $workdir/build/envsetup.sh
 
+cd $(gettop)/external/iw; rm -rf .git/rebase-apply;echo $(gettop)/.mypatches/external_iw-check_version_in_project_directory.diff | git am -3 -q;cd $(gettop)
+
 #[ -x $workdir/repopick.sh ] && $workdir/
 
 if [ $# -ge 1 -a "$1" = "addonsu" ]; then
