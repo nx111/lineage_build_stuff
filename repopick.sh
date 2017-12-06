@@ -77,5 +77,5 @@ repopick -t 'samsung-libril-oreo'; ## https://review.lineageos.org/#/q/status:op
 
 
 ########### my patches ####################
-repopick 197825 ; ### fix headset silence.
+
 cd $(gettop)/external/iw; rm -rf .git/rebase-apply;echo $(gettop)/.mypatches/external_iw-check_version_in_project_directory.diff | git am -3 -q;cd $(gettop)
