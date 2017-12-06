@@ -17,10 +17,10 @@ source build/envsetup.sh
 #repopick 185806 # mm-video: venc: Correct a typo in variable name
 
 # system/bt
-#repopick 185858 # btm_inq: fix build with BTA_HOST_INTERLEAVE_SEARCH
+repopick 185858 # btm_inq: fix build with BTA_HOST_INTERLEAVE_SEARCH
 
 # Recovery updates
-repopick 186687; ## https://review.lineageos.org/#/c/186687
+#repopick 186687; ## https://review.lineageos.org/#/c/186687
 #repopick 187332 187374; ## https://review.lineageos.org/#/q/change:187332+OR+change:187374
 #repopick 187155; ## https://review.lineageos.org/#/c/187155
 
@@ -28,7 +28,7 @@ repopick 186687; ## https://review.lineageos.org/#/c/186687
 #repopick -f 185639 # Restore android_alarm.h kernel uapi header
 repopick 185640; ## https://review.lineageos.org/#/c/185640  #Add support for dynamic SHIM libraries 
 #repopick 185671; ## https://review.lineageos.org/#/c/185671  #native: Increase ART heap limit to 192MB for 1024MB RAM devices 
-#repopick 190614 # linker: allow the linker to shim executables
+repopick 190614 # linker: allow the linker to shim executables
 
 # Apps updates
 #repopick 188389 188518-188526 191605; ## https://review.lineageos.org/#/q/project:LineageOS/android_packages_apps_Camera2+branch:lineage-15.0
@@ -66,7 +66,7 @@ repopick -Q 'status:open+topic:oreo-powermenu' ; ## https://review.lineageos.org
 #cd $(gettop)/frameworks/base/; rm -rf .git/rebase-apply; curl https://github.com/AdrianDC/lineage_development_sony8960/commit/fbbac8c497fe3b036226a38421eb6a94f32b1ec0.patch | git am -3; cd $(gettop)/;
 #repopick -Q 'status:open+topic:oreo-lights'; ## https://review.lineageos.org/#/q/status:open+topic:oreo-lights
 
-#repopick -t 'samsung-libril-oreo'; ## https://review.lineageos.org/#/q/status:open+topic:samsung-libril-oreo
+repopick -t 'samsung-libril-oreo'; ## https://review.lineageos.org/#/q/status:open+topic:samsung-libril-oreo
 
 
 #repopick 195736 ## Move QCOM mm codecs to vendor partition
@@ -78,3 +78,4 @@ repopick -Q 'status:open+topic:oreo-powermenu' ; ## https://review.lineageos.org
 
 ########### my patches ####################
 repopick 197825 ; ### fix headset silence.
+cd $(gettop)/external/iw; rm -rf .git/rebase-apply;echo $(gettop)/.mypatches/external_iw-check_version_in_project_directory.diff | git am -3 -q;cd $(gettop)
