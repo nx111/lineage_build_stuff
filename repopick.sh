@@ -78,5 +78,8 @@ repopick -t 'samsung-libril-oreo'; ## https://review.lineageos.org/#/q/status:op
 
 ########### my patches ####################
 
-repopick -f 193212 193213; ## allow home button wakeup.
+## allow home button wakeup.
+cd $(gettop)/frameworks/base; rm -rf .git/rebase-apply;echo $(gettop)/.mypatches/0001-fw-base-Enable-home-button-wake.patch | git am -3 -q;cd $(gettop)
+
+## fix external/iw/version.sh
 cd $(gettop)/external/iw; rm -rf .git/rebase-apply;echo $(gettop)/.mypatches/external_iw-check_version_in_project_directory.diff | git am -3 -q;cd $(gettop)
