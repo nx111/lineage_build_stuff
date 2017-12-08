@@ -66,7 +66,7 @@ repopick -Q 'status:open+topic:oreo-powermenu' ; ## https://review.lineageos.org
 #cd $(gettop)/frameworks/base/; rm -rf .git/rebase-apply; curl https://github.com/AdrianDC/lineage_development_sony8960/commit/fbbac8c497fe3b036226a38421eb6a94f32b1ec0.patch | git am -3; cd $(gettop)/;
 #repopick -Q 'status:open+topic:oreo-lights'; ## https://review.lineageos.org/#/q/status:open+topic:oreo-lights
 
-repopick -t 'samsung-libril-oreo'; ## https://review.lineageos.org/#/q/status:open+topic:samsung-libril-oreo
+#repopick -t 'samsung-libril-oreo'; ## https://review.lineageos.org/#/q/status:open+topic:samsung-libril-oreo
 
 
 #repopick 195736 ## Move QCOM mm codecs to vendor partition
