@@ -68,14 +68,6 @@ repopick -Q 'status:open+topic:oreo-lights'; ## https://review.lineageos.org/#/q
 
 #repopick -t 'samsung-libril-oreo'; ## https://review.lineageos.org/#/q/status:open+topic:samsung-libril-oreo
 
-
-#repopick 195736 ## Move QCOM mm codecs to vendor partition
-#repopick 195731 ## Move QCOM HALs to vendor partition
-#repopick 195655 ## macloader: Move device dependent modules to /vendor
-#repopick 195649  ## liblights: Move device dependent modules to /vendor
-#repopick 195648 ## consumerir: Move device dependent modules to /vendor
-
-
 ########### my patches ####################
 
 ## allow home button wakeup.
