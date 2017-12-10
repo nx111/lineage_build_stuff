@@ -41,7 +41,7 @@ repopick 190614 # linker: allow the linker to shim executables
 # Apps and UI updates
 repopick 188389 188518-188526; ## https://review.lineageos.org/#/q/project:LineageOS/android_packages_apps_Camera2+branch:lineage-15.0 [Review]
 repopick 188527-188529; ## https://review.lineageos.org/#/q/project:LineageOS/android_packages_apps_Gallery2+branch:lineage-15.0 [Review]
-repopick -c 30 193830 194226; ## https://review.lineageos.org/#/q/change:193830+OR+change:194226 [ToFinish]
+repopick -c 30 193830; ## https://review.lineageos.org/#/q/change:193830 [ToFinish]
 
 # Camera HAL1
 repopick -Q 'status:open+topic:android-o-camera-hal1'; ## https://review.lineageos.org/#/q/status:open+topic:android-o-camera-hal1 [WIP]
