@@ -21,7 +21,13 @@ fi
 
 . $workdir/build/envsetup.sh
 
-cd $(gettop)/external/iw; rm -rf .git/rebase-apply;echo $(gettop)/.mypatches/external_iw-check_version_in_project_directory.diff | git am -3 -q;cd $(gettop)
+#### apply some patch #######
+cd $(gettop)/external/iw; rm -rf .git/rebase-apply;cat $(gettop)/.mypatches/external_iw-check_version_in_project_directory.diff | git am -3 -q;cd $(gettop)
+
+cd $(gettop)/frameworks/base; rm -rf .git/rebase-apply;cat $(gettop)/.mypatches/0001-telephony-fix-RilDataRadioTechnology-which-great-tha.patch | git am -3 -q;cd $(gettop)
+
+
+###############################
 
 #[ -x $workdir/repopick.sh ] && $workdir/
 
