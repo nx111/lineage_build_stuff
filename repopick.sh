@@ -1,6 +1,48 @@
 #!/bin/bash
-
 source build/envsetup.sh
+
+##### apply patch saved first ########
+function patch_saved()
+{
+    cd $(gettop)
+    topdir=$(gettop)
+
+    find .mypatches -type f | sed -e "s/\.mypatches\///" |sort -n | while read f; do
+         patchfile=$(basename $f)
+         project=$(echo $f | sed "s/\/[^\/]*$//")
+         if [ "$f" != "$project" ]; then
+             if [ `pwd` != "$topdir/$project" ]; then
+                  cd $topdir/$project
+                  echo ""
+                  echo "==== try apply to $project: "
+                  rm -rf .git/rebase-apply
+             fi
+             ext=${patchfile##*.}
+             rm -rf .git/rebase-apply
+             if [ "$ext" = "patch" -o "$ext" = "diff" ]; then
+                  changeid=$(grep "Change-Id: " $topdir/.mypatches/$f | tail -n 1 | sed -e "s/ \{1,\}/ /g" -e "s/^ //g" | cut -d' ' -f2)
+                  if [ "$changeid" != "" ]; then
+                      if ! git log  -100 | grep "Change-Id: $changeid" >/dev/null 2>/dev/null; then 
+                          echo "    patching: $f ..."
+                          git am -3 -q < $topdir/.mypatches/$f
+                          [ $? -ne 0 ] && exit -1
+                      else
+                          echo "    skipping: $f ...(applied always)"
+                      fi
+                  fi
+             fi
+         fi
+    done
+    cd $topdir
+}
+
+if [ $# -ge 1 -a "$1" = "-p" ]; then
+    patch_saved
+    exit 0
+fi
+
+######################################
+
 
 # fw/base: Enable home button wake
 repopick 191580;
@@ -57,13 +99,3 @@ repopick -c 30 -Q 'status:open+topic:dt2s'; ## https://review.lineageos.org/#/q/
 repopick -c 30 -Q 'status:open+topic:oreo-network-traffic'; ## https://review.lineageos.org/#/q/status:open+topic:oreo-network-traffic [ToFinish]
 repopick -c 30 -Q 'status:open+topic:oreo-proximity-check'; ## https://review.lineageos.org/#/q/status:open+topic:oreo-proximity-check [Review]
 
-########### my patches ####################
-
-## allow home button wakeup.
-#cd $(gettop)/frameworks/base; rm -rf .git/rebase-apply;echo $(gettop)/.mypatches/0001-fw-base-Enable-home-button-wake.patch | git am -3 -q;cd $(gettop)
-
-## add fallback captive urls for chain
-cd $(gettop)/frameworks/base; rm -rf .git/rebase-apply;cat $(gettop)/.mypatches/frameworks_base-add_fallback_captive_urls_for_china.diff | git am -3 -q;cd $(gettop)
-
-## fix external/iw/version.sh
-cd $(gettop)/external/iw; rm -rf .git/rebase-apply;cat $(gettop)/.mypatches/external_iw-check_version_in_project_directory.diff | git am -3 -q;cd $(gettop)

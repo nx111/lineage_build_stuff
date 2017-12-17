@@ -1,0 +1,285 @@
+From 0b6dc3c0929fc057be4b34d9034cf0239416f9f9 Mon Sep 17 00:00:00 2001
+From: Scott Warner <Tortel1210@gmail.com>
+Date: Sat, 25 Apr 2015 18:20:16 +0200
+Subject: [PATCH 3/3] Gallery2: Add Storage preference (2/2)
+
+Based on CM11, this patch adds an intent listener to listen for
+storage path changes from the camera app and set the default camera folder.
+
+Change-Id: I5efec988136c6daaffe9d209278b6aa4ca29116b
+
+Forward-port to AOSP
+
+Change-Id: I66b7d9c66e5172789ace19435ad1208803bbcf0f
+Signed-off-by: Adrian DC <radian.dc@gmail.com>
+---
+ Android.mk                                         |  2 +-
+ AndroidManifest.xml                                | 11 ++++++
+ .../gallery3d/app/AbstractGalleryActivity.java     | 21 ++++++++++++
+ .../android/gallery3d/app/PhotoDataAdapter.java    |  2 +-
+ .../gallery3d/app/StorageChangeReceiver.java       | 39 ++++++++++++++++++++++
+ src/com/android/gallery3d/data/LocalAlbum.java     |  6 ++--
+ src/com/android/gallery3d/data/LocalAlbumSet.java  |  2 +-
+ src/com/android/gallery3d/data/SecureAlbum.java    |  2 +-
+ src/com/android/gallery3d/util/MediaSetUtils.java  | 21 +++++++-----
+ 9 files changed, 90 insertions(+), 16 deletions(-)
+ create mode 100644 src/com/android/gallery3d/app/StorageChangeReceiver.java
+
+diff --git a/Android.mk b/Android.mk
+index 74e992d..d4e6c2a 100644
+--- a/Android.mk
++++ b/Android.mk
+@@ -28,7 +28,7 @@ LOCAL_PRIVILEGED_MODULE := true
+ 
+ LOCAL_OVERRIDES_PACKAGES := Gallery Gallery3D GalleryNew3D
+ 
+-LOCAL_SDK_VERSION := current
++#LOCAL_SDK_VERSION := current
+ 
+ LOCAL_JNI_SHARED_LIBRARIES := libjni_eglfence libjni_filtershow_filters libjni_jpegstream
+ 
+diff --git a/AndroidManifest.xml b/AndroidManifest.xml
+index 248f607..2502812 100644
+--- a/AndroidManifest.xml
++++ b/AndroidManifest.xml
+@@ -12,6 +12,9 @@
+     <permission android:name="com.android.gallery3d.permission.GALLERY_PROVIDER"
+             android:protectionLevel="signatureOrSystem" />
+ 
++    <permission android:name="com.android.gallery3d.permission.STORAGE_CHANGE"
++            android:protectionLevel="signatureOrSystem" />
++
+     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+@@ -348,6 +351,14 @@
+             </intent-filter>
+         </receiver>
+ 
++        <!-- Receiver to keep the storage path for the camera in sync -->
++        <receiver android:name="com.android.gallery3d.app.StorageChangeReceiver"
++            android:permission="com.android.gallery3d.permission.STORAGE_CHANGE" >
++            <intent-filter>
++                <action android:name="com.android.gallery3d.STORAGE_CHANGE" />
++            </intent-filter>
++        </receiver>
++
+         <service android:name="com.android.camera.MediaSaveService" />
+     </application>
+ </manifest>
+diff --git a/src/com/android/gallery3d/app/AbstractGalleryActivity.java b/src/com/android/gallery3d/app/AbstractGalleryActivity.java
+index 9af1fb8..e4a3fd2 100644
+--- a/src/com/android/gallery3d/app/AbstractGalleryActivity.java
++++ b/src/com/android/gallery3d/app/AbstractGalleryActivity.java
+@@ -28,10 +28,14 @@ import android.content.DialogInterface.OnClickListener;
+ import android.content.Intent;
+ import android.content.IntentFilter;
+ import android.content.ServiceConnection;
++import android.content.SharedPreferences;
+ import android.content.res.Configuration;
+ import android.net.Uri;
+ import android.os.Bundle;
++import android.os.Environment;
+ import android.os.IBinder;
++import android.os.storage.StorageManager;
++import android.preference.PreferenceManager;
+ import android.support.v4.print.PrintHelper;
+ import android.view.Menu;
+ import android.view.MenuItem;
+@@ -45,6 +49,7 @@ import com.android.gallery3d.data.MediaItem;
+ import com.android.gallery3d.filtershow.cache.ImageLoader;
+ import com.android.gallery3d.ui.GLRoot;
+ import com.android.gallery3d.ui.GLRootView;
++import com.android.gallery3d.util.MediaSetUtils;
+ import com.android.gallery3d.util.PanoramaViewHelper;
+ import com.android.gallery3d.util.ThreadPool;
+ import com.android.photos.data.GalleryBitmapPool;
+@@ -73,6 +78,7 @@ public class AbstractGalleryActivity extends Activity implements GalleryContext
+     @Override
+     protected void onCreate(Bundle savedInstanceState) {
+         super.onCreate(savedInstanceState);
++        setStoragePath();
+         mOrientationManager = new OrientationManager(this);
+         toggleStatusBarByOrientation();
+         getWindow().setBackgroundDrawable(null);
+@@ -81,6 +87,21 @@ public class AbstractGalleryActivity extends Activity implements GalleryContext
+         doBindBatchService();
+     }
+ 
++    private void setStoragePath() {
++        final String defaultStoragePath = Environment.getExternalStorageDirectory().toString();
++        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(this);
++        String storagePath = prefs.getString(StorageChangeReceiver.KEY_STORAGE,
++                defaultStoragePath);
++
++        // Check if volume is mounted
++        StorageManager sm = (StorageManager) getSystemService(Context.STORAGE_SERVICE);
++        if (!sm.getVolumeState(storagePath).equals(Environment.MEDIA_MOUNTED)) {
++            storagePath = defaultStoragePath;
++        }
++
++        MediaSetUtils.setRoot(storagePath);
++    }
++
+     @Override
+     protected void onSaveInstanceState(Bundle outState) {
+         mGLRootView.lockRenderThread();
+diff --git a/src/com/android/gallery3d/app/PhotoDataAdapter.java b/src/com/android/gallery3d/app/PhotoDataAdapter.java
+index fd3a7cf..6fca527 100644
+--- a/src/com/android/gallery3d/app/PhotoDataAdapter.java
++++ b/src/com/android/gallery3d/app/PhotoDataAdapter.java
+@@ -747,7 +747,7 @@ public class PhotoDataAdapter implements PhotoPage.Model {
+         // Must be an item in camera roll.
+         if (!(mediaItem instanceof LocalMediaItem)) return false;
+         LocalMediaItem item = (LocalMediaItem) mediaItem;
+-        if (item.getBucketId() != MediaSetUtils.CAMERA_BUCKET_ID) return false;
++        if (item.getBucketId() != MediaSetUtils.getCameraBucketId()) return false;
+         // Must have no size, but must have width and height information
+         if (item.getSize() != 0) return false;
+         if (item.getWidth() == 0) return false;
+diff --git a/src/com/android/gallery3d/app/StorageChangeReceiver.java b/src/com/android/gallery3d/app/StorageChangeReceiver.java
+new file mode 100644
+index 0000000..f42179c
+--- /dev/null
++++ b/src/com/android/gallery3d/app/StorageChangeReceiver.java
+@@ -0,0 +1,39 @@
++/*
++ * Copyright (C) 2015 The CyanogenMod Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ * http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++package com.android.gallery3d.app;
++
++import android.content.BroadcastReceiver;
++import android.content.Context;
++import android.content.Intent;
++import android.content.SharedPreferences;
++import android.preference.PreferenceManager;
++
++public class StorageChangeReceiver extends BroadcastReceiver {
++    public static final String KEY_STORAGE = "pref_camera_storage_key";
++
++    @Override
++    public void onReceive(Context context, Intent intent) {
++        String storagePath = intent.getExtras().getString(KEY_STORAGE, null);
++        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(context);
++
++        if ((storagePath != null) && !storagePath.equals(prefs.getString(KEY_STORAGE, null))) {
++            SharedPreferences.Editor editor = prefs.edit();
++            editor.putString(KEY_STORAGE, storagePath);
++            editor.apply();
++        }
++    }
++}
+diff --git a/src/com/android/gallery3d/data/LocalAlbum.java b/src/com/android/gallery3d/data/LocalAlbum.java
+index 7b7015a..0757d88 100644
+--- a/src/com/android/gallery3d/data/LocalAlbum.java
++++ b/src/com/android/gallery3d/data/LocalAlbum.java
+@@ -95,7 +95,7 @@ public class LocalAlbum extends MediaSet {
+ 
+     @Override
+     public boolean isCameraRoll() {
+-        return mBucketId == MediaSetUtils.CAMERA_BUCKET_ID;
++        return mBucketId == MediaSetUtils.getCameraBucketId();
+     }
+ 
+     @Override
+@@ -279,7 +279,7 @@ public class LocalAlbum extends MediaSet {
+ 
+     public static String getLocalizedName(Resources res, int bucketId,
+             String name) {
+-        if (bucketId == MediaSetUtils.CAMERA_BUCKET_ID) {
++        if (bucketId == MediaSetUtils.getCameraBucketId()) {
+             return res.getString(R.string.folder_camera);
+         } else if (bucketId == MediaSetUtils.DOWNLOAD_BUCKET_ID) {
+             return res.getString(R.string.folder_download);
+@@ -297,7 +297,7 @@ public class LocalAlbum extends MediaSet {
+     // Relative path is the absolute path minus external storage path
+     public static String getRelativePath(int bucketId) {
+         String relativePath = "/";
+-        if (bucketId == MediaSetUtils.CAMERA_BUCKET_ID) {
++        if (bucketId == MediaSetUtils.getCameraBucketId()) {
+             relativePath += BucketNames.CAMERA;
+         } else if (bucketId == MediaSetUtils.DOWNLOAD_BUCKET_ID) {
+             relativePath += BucketNames.DOWNLOAD;
+diff --git a/src/com/android/gallery3d/data/LocalAlbumSet.java b/src/com/android/gallery3d/data/LocalAlbumSet.java
+index b2b4b8c..877eaff 100644
+--- a/src/com/android/gallery3d/data/LocalAlbumSet.java
++++ b/src/com/android/gallery3d/data/LocalAlbumSet.java
+@@ -113,7 +113,7 @@ public class LocalAlbumSet extends MediaSet
+             int offset = 0;
+             // Move camera and download bucket to the front, while keeping the
+             // order of others.
+-            int index = findBucket(entries, MediaSetUtils.CAMERA_BUCKET_ID);
++            int index = findBucket(entries, MediaSetUtils.getCameraBucketId());
+             if (index != -1) {
+                 circularShiftRight(entries, offset++, index);
+             }
+diff --git a/src/com/android/gallery3d/data/SecureAlbum.java b/src/com/android/gallery3d/data/SecureAlbum.java
+index 204f848..bb505a5 100644
+--- a/src/com/android/gallery3d/data/SecureAlbum.java
++++ b/src/com/android/gallery3d/data/SecureAlbum.java
+@@ -151,7 +151,7 @@ public class SecureAlbum extends MediaSet implements StitchingChangeListener {
+     private boolean isCameraBucketEmpty(Uri baseUri) {
+         Uri uri = baseUri.buildUpon()
+                 .appendQueryParameter("limit", "1").build();
+-        String[] selection = {String.valueOf(MediaSetUtils.CAMERA_BUCKET_ID)};
++        String[] selection = {String.valueOf(MediaSetUtils.getCameraBucketId())};
+         Cursor cursor = mContext.getContentResolver().query(uri, PROJECTION,
+                 "bucket_id = ?", selection, null);
+         if (cursor == null) return true;
+diff --git a/src/com/android/gallery3d/util/MediaSetUtils.java b/src/com/android/gallery3d/util/MediaSetUtils.java
+index 0438005..35a4dff 100644
+--- a/src/com/android/gallery3d/util/MediaSetUtils.java
++++ b/src/com/android/gallery3d/util/MediaSetUtils.java
+@@ -28,9 +28,12 @@ import java.util.Comparator;
+ public class MediaSetUtils {
+     public static final Comparator<MediaSet> NAME_COMPARATOR = new NameComparator();
+ 
+-    public static final int CAMERA_BUCKET_ID = GalleryUtils.getBucketId(
+-            Environment.getExternalStorageDirectory().toString() + "/"
+-            + BucketNames.CAMERA);
++    private static String mRoot = Environment.getExternalStorageDirectory().toString();
++
++    public static void setRoot(String root) {
++        mRoot = root;
++    }
++
+     public static final int DOWNLOAD_BUCKET_ID = GalleryUtils.getBucketId(
+             Environment.getExternalStorageDirectory().toString() + "/"
+             + BucketNames.DOWNLOAD);
+@@ -44,14 +47,14 @@ public class MediaSetUtils {
+             Environment.getExternalStorageDirectory().toString() +
+             "/" + BucketNames.SCREENSHOTS);
+ 
+-    private static final Path[] CAMERA_PATHS = {
+-            Path.fromString("/local/all/" + CAMERA_BUCKET_ID),
+-            Path.fromString("/local/image/" + CAMERA_BUCKET_ID),
+-            Path.fromString("/local/video/" + CAMERA_BUCKET_ID)};
++    public static int getCameraBucketId() {
++        return GalleryUtils.getBucketId(mRoot + "/" + BucketNames.CAMERA);
++    }
+ 
+     public static boolean isCameraSource(Path path) {
+-        return CAMERA_PATHS[0] == path || CAMERA_PATHS[1] == path
+-                || CAMERA_PATHS[2] == path;
++        return path.equalsIgnoreCase("/local/all/" + getCameraBucketId())
++            || path.equalsIgnoreCase("/local/image/" + getCameraBucketId())
++            || path.equalsIgnoreCase("/local/video/" + getCameraBucketId());
+     }
+ 
+     // Sort MediaSets by name
+-- 
+2.7.4
+

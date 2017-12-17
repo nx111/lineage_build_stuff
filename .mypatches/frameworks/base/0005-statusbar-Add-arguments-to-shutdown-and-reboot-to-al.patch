@@ -1,0 +1,145 @@
+From a32d7644c8940b354ccd252a08119b2d2f4ebff9 Mon Sep 17 00:00:00 2001
+From: Rashed Abdel-Tawab <rashed@linux.com>
+Date: Fri, 13 Oct 2017 17:17:56 -0400
+Subject: [PATCH 05/20] statusbar: Add arguments to shutdown and reboot to
+ allow confirmation
+
+The current functions always passes "false" as the confirmation parameter,
+so add an additional argument for passing confirmation.
+
+Change-Id: Ibd77c4b1c96ca8aa195b078e2ca34b13b2cbf45c
+---
+ .../android/internal/statusbar/IStatusBarService.aidl  |  4 ++--
+ .../com/android/systemui/plugins/GlobalActions.java    |  2 ++
+ .../systemui/globalactions/GlobalActionsComponent.java | 18 ++++++++++++++----
+ .../server/statusbar/StatusBarManagerService.java      | 18 +++++++++++++-----
+ 4 files changed, 31 insertions(+), 11 deletions(-)
+
+diff --git a/core/java/com/android/internal/statusbar/IStatusBarService.aidl b/core/java/com/android/internal/statusbar/IStatusBarService.aidl
+index 20db499..2620865 100644
+--- a/core/java/com/android/internal/statusbar/IStatusBarService.aidl
++++ b/core/java/com/android/internal/statusbar/IStatusBarService.aidl
+@@ -69,8 +69,8 @@ interface IStatusBarService
+     /**
+      * These methods are needed for global actions control which the UI is shown in sysui.
+      */
+-    void shutdown();
+-    void reboot(boolean safeMode);
++    void shutdown(boolean confirm);
++    void reboot(boolean safeMode, boolean confirm);
+ 
+     void addTile(in ComponentName tile);
+     void remTile(in ComponentName tile);
+diff --git a/packages/SystemUI/plugin/src/com/android/systemui/plugins/GlobalActions.java b/packages/SystemUI/plugin/src/com/android/systemui/plugins/GlobalActions.java
+index bb21fb3..5b698a4 100644
+--- a/packages/SystemUI/plugin/src/com/android/systemui/plugins/GlobalActions.java
++++ b/packages/SystemUI/plugin/src/com/android/systemui/plugins/GlobalActions.java
+@@ -34,7 +34,9 @@ public interface GlobalActions extends Plugin {
+         void onGlobalActionsShown();
+         void onGlobalActionsHidden();
+ 
++        void shutdown(boolean confirm);
+         void shutdown();
++        void reboot(boolean safeMode, boolean confirm);
+         void reboot(boolean safeMode);
+     }
+ }
+diff --git a/packages/SystemUI/src/com/android/systemui/globalactions/GlobalActionsComponent.java b/packages/SystemUI/src/com/android/systemui/globalactions/GlobalActionsComponent.java
+index f07027e..5e920ee 100644
+--- a/packages/SystemUI/src/com/android/systemui/globalactions/GlobalActionsComponent.java
++++ b/packages/SystemUI/src/com/android/systemui/globalactions/GlobalActionsComponent.java
+@@ -67,18 +67,28 @@ public class GlobalActionsComponent extends SystemUI implements Callbacks, Globa
+     }
+ 
+     @Override
+-    public void shutdown() {
++    public void shutdown(boolean confirm) {
+         try {
+-            mBarService.shutdown();
++            mBarService.shutdown(confirm);
+         } catch (RemoteException e) {
+         }
+     }
+ 
+     @Override
+-    public void reboot(boolean safeMode) {
++    public void shutdown() {
++        shutdown(false);
++    }
++
++    @Override
++    public void reboot(boolean safeMode, boolean confirm) {
+         try {
+-            mBarService.reboot(safeMode);
++            mBarService.reboot(safeMode, confirm);
+         } catch (RemoteException e) {
+         }
+     }
++
++    @Override
++    public void reboot(boolean safeMode) {
++        reboot(safeMode, false);
++    }
+ }
+diff --git a/services/core/java/com/android/server/statusbar/StatusBarManagerService.java b/services/core/java/com/android/server/statusbar/StatusBarManagerService.java
+index 32871bb..3faaa95 100644
+--- a/services/core/java/com/android/server/statusbar/StatusBarManagerService.java
++++ b/services/core/java/com/android/server/statusbar/StatusBarManagerService.java
+@@ -759,34 +759,38 @@ public class StatusBarManagerService extends IStatusBarService.Stub {
+      * Allows the status bar to shutdown the device.
+      */
+     @Override
+-    public void shutdown() {
++    public void shutdown(boolean confirm) {
+         enforceStatusBarService();
+         long identity = Binder.clearCallingIdentity();
+         try {
+             // ShutdownThread displays UI, so give it a UI context.
+             mHandler.post(() ->
+                     ShutdownThread.shutdown(getUiContext(),
+-                        PowerManager.SHUTDOWN_USER_REQUESTED, false));
++                        PowerManager.SHUTDOWN_USER_REQUESTED, confirm));
+         } finally {
+             Binder.restoreCallingIdentity(identity);
+         }
+     }
+ 
++    public void shutdown() {
++        shutdown(false);
++    }
++
+     /**
+      * Allows the status bar to reboot the device.
+      */
+     @Override
+-    public void reboot(boolean safeMode) {
++    public void reboot(boolean safeMode, boolean confirm) {
+         enforceStatusBarService();
+         long identity = Binder.clearCallingIdentity();
+         try {
+             mHandler.post(() -> {
+                 // ShutdownThread displays UI, so give it a UI context.
+                 if (safeMode) {
+-                    ShutdownThread.rebootSafeMode(getUiContext(), false);
++                    ShutdownThread.rebootSafeMode(getUiContext(), confirm);
+                 } else {
+                     ShutdownThread.reboot(getUiContext(),
+-                            PowerManager.SHUTDOWN_USER_REQUESTED, false);
++                            PowerManager.SHUTDOWN_USER_REQUESTED, confirm);
+                 }
+             });
+         } finally {
+@@ -794,6 +798,10 @@ public class StatusBarManagerService extends IStatusBarService.Stub {
+         }
+     }
+ 
++    public void reboot(boolean safeMode) {
++        reboot(safeMode, false);
++    }
++
+     @Override
+     public void onGlobalActionsShown() {
+         enforceStatusBarService();
+-- 
+2.7.4
+
