@@ -16,6 +16,9 @@ function patch_saved()
                   echo ""
                   echo "==== try apply to $project: "
                   rm -rf .git/rebase-apply
+                  basebranch=$(git branch -a | grep '\->' | sed -n 1p | sed -e "s/.*\-> //")
+                  basecommit=$(git log --pretty=short -1 $basebranch | sed -n 1p | cut -d' ' -f2)
+                  git reset --hard $basecommit
              fi
              ext=${patchfile##*.}
              rm -rf .git/rebase-apply
@@ -45,7 +48,7 @@ fi
 
 
 # fw/base: Enable home button wake
-repopick 191580;
+#repopick 191580;
 
 # hardware/qcom/audio
 repopick 196377;
