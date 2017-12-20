@@ -6,6 +6,7 @@ function patch_saved()
 {
     cd $(gettop)
     topdir=$(gettop)
+    default_branch=$(cat .repo/manifest.xml | grep "default revision" | cut -d= -f2 | sed -e "s/\"//g" -e "s/refs\/heads\///")
 
     find .mypatches -type f | sed -e "s/\.mypatches\///" |sort -n | while read f; do
          patchfile=$(basename $f)
@@ -16,7 +17,7 @@ function patch_saved()
                   echo ""
                   echo "==== try apply to $project: "
                   rm -rf .git/rebase-apply
-                  basebranch=$(git branch -a | grep '\->' | sed -n 1p | sed -e "s/.*\-> //")
+                  basebranch=$(git branch -a | grep '\->' | grep "$defualt_branch" | sed -e "s/.*\-> //")
                   basecommit=$(git log --pretty=short -1 $basebranch | sed -n 1p | cut -d' ' -f2)
                   git reset --hard $basecommit
              fi
@@ -27,7 +28,7 @@ function patch_saved()
                   if [ "$changeid" != "" ]; then
                       if ! git log  -100 | grep "Change-Id: $changeid" >/dev/null 2>/dev/null; then 
                           echo "    patching: $f ..."
-                          git am -3 -q < $topdir/.mypatches/$f
+                          #git am -3 -q < $topdir/.mypatches/$f
                           [ $? -ne 0 ] && exit -1
                       else
                           echo "    skipping: $f ...(applied always)"
