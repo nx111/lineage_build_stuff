@@ -2,13 +2,14 @@
 source build/envsetup.sh
 branch_reset=0
 patch_diff=0
-
+save_patch=0
 
 ########## main ###################
 
 for op in $*; do
     [ "$op" = "-p" ] && patch_diff=1
     [ "$op" = "-r" ] && branch_reset=1
+    [ "$op" = "-s" ] && save_patch=1
     if [ "$op" = "-rp" -o "$op" = "-pr" ]; then
         patch_diff=1
         branch_reset=1
@@ -56,8 +57,33 @@ function patch_saved()
     cd $topdir
 }
 
+function save_patches()
+{
+    cd $(gettop)
+    topdir=$(gettop)
+    default_branch=$(cat .repo/manifest.xml | grep "default revision" | cut -d= -f2 | sed -e "s/\"//g" -e "s/refs\/heads\///")
+
+    find .mypatches -type d | sed -e "s/\.mypatches\///" |sort -n | while read project; do
+         [ "$f" = ".mypatches" ] && continue
+         if ! grep -q "^$project\$" $topdir/.repo/project.list; then
+              continue
+         fi
+         rm -rf $topdir/.mypatches/$project/*
+
+         cd $topdir/$project
+         echo ""
+         echo "==== save patches for $project: "
+         basebranch=$(git branch -a | grep '\->' | grep "$default_branch" | sed -e "s/.*\-> //")
+         git format-patch "$basebranch" -o $(gettop)/.mypatches/$project/
+    done
+    cd $topdir
+}
+
 if [ $patch_diff -eq 1 ]; then
     patch_saved
+    exit 0
+elif [ $save_patch -eq 1 ]; then
+    save_patches
     exit 0
 fi
 
@@ -65,34 +91,30 @@ fi
 
 
 # fw/base: Enable home button wake
-#repopick 191580;
+repopick 191580;
 
 # hardware/qcom/audio
 repopick 196377;
 
 # hardware/qcom/display
-repopick 196378 196380 196381;
+repopick 196378 196379 196380 196381;
 
 # hardware/qcom/gps
-repopick 185676 # Revert "msm8974: remove from top level makefile"
-repopick 185675 # Revert "msm8974: deprecate msm8974"
+#repopick 187702 # msm8974: Add missing liblog dependency
+#repopick 185676 # Revert "msm8974: remove from top level makefile"
+#repopick 185675 # Revert "msm8974: deprecate msm8974"
 
 # hardware/qcom/media
 repopick 185806 # mm-video: venc: Correct a typo in variable name
 
 # Topic: samsung-libril-oreo
-#repopick -t 'samsung-libril-oreo'; ## https://review.lineageos.org/#/q/status:open+topic:samsung-libril-oreo
+repopick -c 30 -Q 'status:open+topic:samsung-libril-oreo+branch:lineage-15.0'; ## https://review.lineageos.org/#/q/status:open+topic:samsung-libril-oreo
 
 # macloader: Move device dependent modules to /vendor
 repopick 195655;
 
-# system/bt
-repopick 185858 # btm_inq: fix build with BTA_HOST_INTERLEAVE_SEARCH
-
 # Recovery updates
-#repopick 186687; ## https://review.lineageos.org/#/c/186687 [DNM]
-#repopick 187332 187374; ## https://review.lineageos.org/#/q/change:187332+OR+change:187374 [DNM]
-#repopick 187155; ## https://review.lineageos.org/#/c/187155 [WIP]
+repopick 187155; ## https://review.lineageos.org/#/c/187155 [WIP]
 
 # Native and core updates
 repopick -f 185639 # Restore android_alarm.h kernel uapi header
@@ -103,19 +125,14 @@ repopick 190614 # linker: allow the linker to shim executables
 # Apps and UI updates
 repopick 188389 188518-188526; ## https://review.lineageos.org/#/q/project:LineageOS/android_packages_apps_Camera2+branch:lineage-15.0 [Review]
 repopick 188527-188529; ## https://review.lineageos.org/#/q/project:LineageOS/android_packages_apps_Gallery2+branch:lineage-15.0 [Review]
-repopick -c 30 193830; ## https://review.lineageos.org/#/q/change:193830 [ToFinish]
 
 # Camera HAL1
-repopick -Q 'status:open+topic:android-o-camera-hal1'; ## https://review.lineageos.org/#/q/status:open+topic:android-o-camera-hal1 [WIP]
+repopick -Q 'status:open+topic:android-o-camera-hal1+branch:lineage-15.0'; ## https://review.lineageos.org/#/q/status:open+topic:android-o-camera-hal1+branch:lineage-15.0 [WIP]
 
 # LineageOS Additions
-repopick 191921 187592; ## https://review.lineageos.org/#/q/change:191921+OR+change:187592 [ToFinish]
-repopick -c 30 -Q 'status:open+topic:oreo-powermenu'; ## https://review.lineageos.org/#/q/status:open+topic:oreo-powermenu [ToFinish]
-repopick -c 30 193025 191736; ## https://review.lineageos.org/#/q/change:193025+OR+change:191736 [ToMerge]
-repopick -c 30 -Q 'status:open+topic:oreo-tiles'; ## https://review.lineageos.org/#/q/status:open+topic:oreo-tiles [ToFinish]
-repopick -c 30 191940 193758 193249 193258 191905; ## https://review.lineageos.org/#/q/change:191940+OR+change:193758+OR+change:193249+OR+change:193258+OR+change:191905 [Review]
+repopick -c 30 -Q 'status:open+topic:oreo-powermenu+branch:lineage-15.0'; ## https://review.lineageos.org/#/q/status:open+topic:oreo-powermenu+branch:lineage-15.0 [ToFinish]
+repopick -c 30 193025 193758; ## https://review.lineageos.org/#/q/change:193025 [ToMerge]
+repopick -f -c 30 197765; ## https://review.lineageos.org/#/q/change:197765 [ToMerge]
+repopick -c 30 191736 193029-193031 193033 193026 193027 193032; ## https://review.lineageos.org/#/q/change:191736+OR+change:193029+OR+change:193030+OR+change:193031+OR+change:193033+OR+change:193026+OR+change:193027+OR+change:193032 [ToMerge]
+repopick -c 30 193758 193249 193258; ## https://review.lineageos.org/#/q/change:193758+OR+change:193249+OR+change:193258 [Review]
 repopick 193544 193770; ## https://review.lineageos.org/#/q/change:193544+OR+change:193770 [ToFinish]
-repopick -c 30 -Q 'status:open+topic:dt2s'; ## https://review.lineageos.org/#/q/status:open+topic:dt2s [Review]
-repopick -c 30 -Q 'status:open+topic:oreo-network-traffic'; ## https://review.lineageos.org/#/q/status:open+topic:oreo-network-traffic [ToFinish]
-repopick -c 30 -Q 'status:open+topic:oreo-proximity-check'; ## https://review.lineageos.org/#/q/status:open+topic:oreo-proximity-check [Review]
-
