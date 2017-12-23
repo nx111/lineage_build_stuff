@@ -1,5 +1,19 @@
 #!/bin/bash
 source build/envsetup.sh
+branch_reset=0
+patch_diff=0
+
+
+########## main ###################
+
+for op in $*; do
+    [ "$op" = "-p" ] && patch_diff=1
+    [ "$op" = "-r" ] && branch_reset=1
+    if [ "$op" = "-rp" -o "$op" = "-pr" ]; then
+        patch_diff=1
+        branch_reset=1
+    fi
+done
 
 ##### apply patch saved first ########
 function patch_saved()
@@ -17,9 +31,11 @@ function patch_saved()
                   echo ""
                   echo "==== try apply to $project: "
                   rm -rf .git/rebase-apply
-                  basebranch=$(git branch -a | grep '\->' | grep "$defualt_branch" | sed -e "s/.*\-> //")
-                  basecommit=$(git log --pretty=short -1 $basebranch | sed -n 1p | cut -d' ' -f2)
-                  git reset --hard $basecommit
+                  if [ $branch_reset -eq 1 ]; then
+                      basebranch=$(git branch -a | grep '\->' | grep "$defualt_branch" | sed -e "s/.*\-> //")
+                      basecommit=$(git log --pretty=short -1 $basebranch | sed -n 1p | cut -d' ' -f2)
+                      git reset --hard $basecommit
+                   fi
              fi
              ext=${patchfile##*.}
              rm -rf .git/rebase-apply
@@ -28,7 +44,7 @@ function patch_saved()
                   if [ "$changeid" != "" ]; then
                       if ! git log  -100 | grep "Change-Id: $changeid" >/dev/null 2>/dev/null; then 
                           echo "    patching: $f ..."
-                          #git am -3 -q < $topdir/.mypatches/$f
+                          git am -3 -q < $topdir/.mypatches/$f
                           [ $? -ne 0 ] && exit -1
                       else
                           echo "    skipping: $f ...(applied always)"
@@ -40,7 +56,7 @@ function patch_saved()
     cd $topdir
 }
 
-if [ $# -ge 1 -a "$1" = "-p" ]; then
+if [ $patch_diff -eq 1 ]; then
     patch_saved
     exit 0
 fi
