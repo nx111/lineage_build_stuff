@@ -32,11 +32,6 @@ function patch_saved()
                   echo ""
                   echo "==== try apply to $project: "
                   rm -rf .git/rebase-apply
-                  if [ $branch_reset -eq 1 ]; then
-                      basebranch=$(git branch -a | grep '\->' | grep "$defualt_branch" | sed -e "s/.*\-> //")
-                      basecommit=$(git log --pretty=short -1 $basebranch | sed -n 1p | cut -d' ' -f2)
-                      git reset --hard $basecommit
-                   fi
              fi
              ext=${patchfile##*.}
              rm -rf .git/rebase-apply
@@ -53,6 +48,28 @@ function patch_saved()
                   fi
              fi
          fi
+    done
+    cd $topdir
+}
+function reset_branches()
+{
+    cd $(gettop)
+    topdir=$(gettop)
+    default_branch=$(cat .repo/manifest.xml | grep "default revision" | cut -d= -f2 | sed -e "s/\"//g" -e "s/refs\/heads\///")
+
+    find .mypatches -type d | sed -e "s/\.mypatches\///" |sort -n | while read project; do
+         [ "$f" = ".mypatches" ] && continue
+         if ! grep -q "^$project\$" $topdir/.repo/project.list; then
+              continue
+         fi
+         rm -rf $topdir/.mypatches/$project/*
+
+         cd $topdir/$project
+         echo ""
+         echo "==== reset $project to $basebranch "
+         basebranch=$(git branch -a | grep '\->' | grep "$default_branch" | sed -e "s/.*\-> //")
+         basecommit=$(git log --pretty=short -1 $basebranch | sed -n 1p | cut -d' ' -f2)
+         git reset --hard $basecommit
     done
     cd $topdir
 }
@@ -79,12 +96,11 @@ function save_patches()
     cd $topdir
 }
 
-if [ $patch_diff -eq 1 ]; then
-    patch_saved
-    exit 0
-elif [ $save_patch -eq 1 ]; then
-    save_patches
-    exit 0
+if [ $# -gt 1 ]; then
+   [ $save_patch -eq 1 ] && save_patches
+   [ $branch_reset -eq 1 ] && reset_branches
+   [ $patch_diff -eq 1 ] && patch_saved
+   exit 0
 fi
 
 ######################################
@@ -100,9 +116,9 @@ repopick 196377;
 repopick 196378 196379 196380 196381;
 
 # hardware/qcom/gps
-#repopick 187702 # msm8974: Add missing liblog dependency
-#repopick 185676 # Revert "msm8974: remove from top level makefile"
-#repopick 185675 # Revert "msm8974: deprecate msm8974"
+repopick 185675 # Revert "msm8974: deprecate msm8974"
+repopick 185676 # Revert "msm8974: remove from top level makefile"
+repopick 187702 # msm8974: Add missing liblog dependency
 
 # hardware/qcom/media
 repopick 185806 # mm-video: venc: Correct a typo in variable name
@@ -130,6 +146,7 @@ repopick 188527-188529; ## https://review.lineageos.org/#/q/project:LineageOS/an
 repopick -Q 'status:open+topic:android-o-camera-hal1+branch:lineage-15.0'; ## https://review.lineageos.org/#/q/status:open+topic:android-o-camera-hal1+branch:lineage-15.0 [WIP]
 
 # LineageOS Additions
+repopick -f -c 30 197655
 repopick -c 30 -Q 'status:open+topic:oreo-powermenu+branch:lineage-15.0'; ## https://review.lineageos.org/#/q/status:open+topic:oreo-powermenu+branch:lineage-15.0 [ToFinish]
 repopick -c 30 193025 193758; ## https://review.lineageos.org/#/q/change:193025 [ToMerge]
 repopick -f -c 30 197765; ## https://review.lineageos.org/#/q/change:197765 [ToMerge]
