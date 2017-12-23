@@ -36,6 +36,7 @@ else
 	rm -rf $workdir/out/target/product/kltechnduo/root
 	rm -rf $workdir/out/target/product/kltechnduo/lineage_kltechnduo-ota-*.zip
 	rm -rf $workdir/out/target/product/kltechnduo/obj/PACKAGING/*
+        ALLOW_MISSING_DEPENDENCIES=true \
 	brunch kltechnduo
 fi
 
