@@ -71,7 +71,7 @@ fi
 repopick 196377;
 
 # hardware/qcom/display
-repopick 196378 196379 196380 196381;
+repopick 196378 196380 196381;
 
 # hardware/qcom/gps
 repopick 185676 # Revert "msm8974: remove from top level makefile"
