@@ -8,12 +8,11 @@ op_restore_snap=0
 ########## main ###################
 
 for op in $*; do
-    [ "$op" = "-pl " -o "$op" = "--patch_local" ] && op_patch_local=1
+    [ "$op" = "-pl" -o "$op" = "--patch_local" ] && op_patch_local=1
     [ "$op" = "--reset" -o "$op" = "-r" ] && op_reset_projects=1
     [ "$op" = "--snap" -o "$op" = "-s" ] && op_snap_projects=1
     [ "$op" = "--restor" -o "$op" = "--restore-snap" ] && op_restore_snap=1
     if [ "$op" = "-rp" -o "$op" = "-pr" ]; then
-        op_patch_local=1
         op_reset_projects=1
     fi
 done
