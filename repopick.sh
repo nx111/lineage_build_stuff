@@ -2,22 +2,40 @@
 source build/envsetup.sh
 op_reset_projects=0
 op_patch_local=0
-op_snap_projects=0
-op_restore_snap=0
+op_project_snapshot=0
+op_restore_snapshot=0
+
+default_remote="github"
 
 ########## main ###################
 
 for op in $*; do
     [ "$op" = "-pl" -o "$op" = "--patch_local" ] && op_patch_local=1
     [ "$op" = "--reset" -o "$op" = "-r" ] && op_reset_projects=1
-    [ "$op" = "--snap" -o "$op" = "-s" ] && op_snap_projects=1
-    [ "$op" = "--restor" -o "$op" = "--restore-snap" ] && op_restore_snap=1
+    [ "$op" = "--snap" -o "$op" = "-s" ] && op_project_snapshot=1
+    [ "$op" = "--restore" -o "$op" = "--restore-snap" ] && op_restore_snapshot=1
     if [ "$op" = "-rp" -o "$op" = "-pr" ]; then
         op_reset_projects=1
     fi
 done
 
 ##### apply patch saved first ########
+function get_defaul_remote()
+{
+      manifest=$(gettop)/.repo/manifest.xml
+      lineno=$(grep -n "<default revision=" $manifest | cut -d: -f1)
+      for ((n=$lineno;n < lineno + 6; n++)) do
+          if sed -n ${n}p $manifest | grep -q " remote="; then
+              remote=$(sed -n ${n}p $manifest | sed -e "s/ remote=\"\([^\"]*\)\".*/\1/")
+              if [ "$remote" != "" ]; then
+                  default_remote=$remote
+                  break
+              fi
+           fi
+      done
+}
+get_defaul_remote
+
 function patch_local()
 {
     cd $(gettop)
@@ -74,53 +92,80 @@ function projects_reset()
     cd $topdir
 }
 
-function projects_snap()
+function projects_snapshot()
 {
     cd $(gettop)
     topdir=$(gettop)
-    default_branch=$(cat .repo/manifest.xml | grep "default revision" | cut -d= -f2 | sed -e "s/\"//g" -e "s/refs\/heads\///")
-    snap_file=$topdir/.mypatches/projects_snap.list
-    rm -f $snap_file.new
+    snapshot_file=$topdir/.mypatches/snapshot.list
+    rm -f $snapshot_file.new
     cat $topdir/.repo/project.list | while read project; do
          cd $topdir/$project
-         basebranch=$(git branch -a | grep '\->' | grep "$default_branch" | sed -e "s/.*\-> //")
-         basecommit=$(git log --pretty=short -1 $basebranch | sed -n 1p | cut -d' ' -f2)
-         echo "$project, $basebranch, $basecommit" >> $snap_file.new
+         echo ">>>  project: $project ... "
+
+         commit_id=""
+         url=""
+
+         git log --pretty=oneline --max-count=250 > /tmp/gitlog.txt
+         while read line; do
+             commit_id=$(echo $line | cut -d' ' -f1)
+             rbranch=$(git branch --all --contain $commit_id | grep "remotes" | sed -e "s/^ *remotes\///")
+             [ "$rbranch" = "" ] && continue
+             remote=$(echo $rbranch | cut -d/ -f1)
+             branch=$(echo $rbranch | cut -d/ -f2)
+             if [ "$remote" = "m" ]; then
+                remotetmp=/tmp/projects_snapshot_$(basename $project).list
+                git remote show > $remotetmp
+                local count=$(cat $remotetmp | wc -l)
+                if grep -qw $default_remote $remotetmp; then
+                     remote=$default_remote
+                else
+                     remote=$(sed -n 1p $remotetmp)
+                fi
+                rm -f $remotetmp
+             fi
+             url=$(git remote get-url $remote)
+             if [ "$remote" != "" ]; then
+                  break
+             fi
+         done < /tmp/gitlog.txt
+         rm -f /tmp/gitlog.txt
+
+         echo "$project, $commit_id, $url" >> $snapshot_file.new
 
          [ -d $topdir/.mypatches/$project ] || mkdir -p $topdir/.mypatches/$project
          rm -rf $topdir/.mypatches/$project/*.patch
          rm -rf $topdir/.mypatches/$project/*.diff
 
-         echo ">>>  project: $project ... "
-         basebranch=$(git branch -a | grep '\->' | grep "$default_branch" | sed -e "s/.*\-> //")
-         git format-patch "$basebranch" -o $(gettop)/.mypatches/$project/
+         git format-patch "$commit_id" -o $(gettop)/.mypatches/$project/
          patches_count=$(find $topdir/.mypatches/$project -name "*.patch" -o -name "*.diff" | wc -l)
          [ $patches_count -eq 0 ] && rmdir -p --ignore-fail-on-non-empty $topdir/.mypatches/$project
 
     done
-    mv $snap_file.new $snap_file
+    mv $snapshot_file.new $snapshot_file
     cd $topdir
 }
 
-function restore_snap()
+function restore_snapshot()
 {
     cd $(gettop)
     topdir=$(gettop)
-    default_branch=$(cat .repo/manifest.xml | grep "default revision" | cut -d= -f2 | sed -e "s/\"//g" -e "s/refs\/heads\///")
-    snap_file=$topdir/.mypatches/projects_snap.list
-    [ -f "$snap_file" ] || return -1
-    cat $snap_file | while read line; do
+    snapshot_file=$topdir/.mypatches/snapshot.list
+    [ -f "$snapshot_file" ] || return -1
+    cat $snapshot_file | while read line; do
          project=$(echo $line | cut -d, -f1 | sed -e "s/^ *//g" -e "s/ *$//g")
-         basebranch=$(echo $line | cut -d, -f2 | sed -e "s/^ *//g" -e "s/ *$//g")
-         basecommit=$(echo $line | cut -d, -f3 | sed -e "s/^ *//g" -e "s/ *$//g")
+         basecommit=$(echo $line | cut -d, -f2 | sed -e "s/^ *//g" -e "s/ *$//g")
+         remoteurl=$(echo $line | cut -d, -f3 | sed -e "s/^ *//g" -e "s/ *$//g")
 
          cd $topdir/$project
 
 
-         echo ">>>  restore snapped project: $project ... "
+         echo ">>>  restore project: $project ... "
          git stash; git clean -xdf
-         git checkout --detach $basebranch
-         git reset --hard $basecommit
+         if git log -n0 $basecommit 2>/dev/null; then
+             git checkout --detach $basecommit
+         else
+             git fetch $remoteurl $basecommit && git checkout FETCH_HEAD
+         fi 
 
          find .mypatches/$project -type f | sed -e "s/\.mypatches\///" |sort -n | while read f; do
              patchfile=$(basename $f)
@@ -145,10 +190,10 @@ function restore_snap()
 }
 
 if [ $# -ge 1 ]; then
-   [ $op_snap_projects -eq 1 ] && projects_snap
+   [ $op_project_snapshot -eq 1 ] && projects_snapshot
    [ $op_reset_projects -eq 1 ] && projects_reset
    [ $op_patch_local -eq 1 ] && patch_local
-   [ $op_restore_snap -eq 1 ] && restore_snap
+   [ $op_restore_snapshot -eq 1 ] && restore_snapshot
    exit 0
 fi
 
@@ -159,8 +204,7 @@ function kpick() {
   repopick $1 
 }
 
-#if false; then
-
+:<<_COMMENT_
 CAF_HALS="audio display media"
 for hal in $CAF_HALS; do
   d=`pwd`
@@ -171,6 +215,7 @@ for hal in $CAF_HALS; do
   git checkout bgcngm/staging/lineage-15.1-caf-8974-rebase-LA.BF.1.1.3_rb1.15 || exit 1
   cd $d
 done
+_COMMENT_
 
 kpick 199120 # tinycompress: HAXXX: Move libtinycompress_vendor back to Android.mk
 
@@ -225,8 +270,6 @@ kpick 200133 # macloader: Stop allowing G and O write perms to the cidfile
 
 # system/sepolicy
 kpick 199664 # sepolicy: Fix up exfat and ntfs support
-
-#fi
 
 ########## more picks ################
 
