@@ -1,0 +1,137 @@
+From 41217dce71dc3b003ac318ce64c14356e4c8d982 Mon Sep 17 00:00:00 2001
+From: Steve Kondik <shade@chemlab.org>
+Date: Tue, 6 Aug 2013 22:34:12 -0700
+Subject: [PATCH 03/11] libbt: Add support for using two stop bits
+
+ * This improves reliability on chips such as BCM4335.
+ * Also externalize some configuration.
+
+Change-Id: I1271f0c1c3e602c8bfe9f816f57c9cb6add04b3a
+---
+ include/bt_vendor_brcm.h |  5 +++++
+ src/conf.c               |  5 +++++
+ src/hardware.c           | 19 +++++++++++++++++++
+ src/userial_vendor.c     | 26 +++++++++++++++++++++++---
+ 4 files changed, 52 insertions(+), 3 deletions(-)
+
+diff --git a/include/bt_vendor_brcm.h b/include/bt_vendor_brcm.h
+index fde9c32..5fc9bf8 100644
+--- a/include/bt_vendor_brcm.h
++++ b/include/bt_vendor_brcm.h
+@@ -76,6 +76,11 @@
+ #define FW_PRE_PATCH ""
+ #endif
+ 
++/* Force use of two stop bits */
++#ifndef UART_FORCE_TWO_STOPBITS
++#define UART_FORCE_TWO_STOPBITS FALSE
++#endif
++
+ /* The millisecond delay pauses on HCI transport after firmware patches
+  * were downloaded. This gives some time for firmware to restart with
+  * patches before host attempts to send down any HCI commands.
+diff --git a/src/conf.c b/src/conf.c
+index 39ac12e..8800991 100644
+--- a/src/conf.c
++++ b/src/conf.c
+@@ -37,6 +37,8 @@
+ int userial_set_port(char *p_conf_name, char *p_conf_value, int param);
+ int hw_set_patch_file_path(char *p_conf_name, char *p_conf_value, int param);
+ int hw_set_patch_file_name(char *p_conf_name, char *p_conf_value, int param);
++int hw_set_pre_patch_file_name(char *p_conf_name, char *p_conf_value, int param);
++int userial_set_force_use_2_stop_bits(char *p_conf_name, char *p_conf_value, int param);
+ #if (VENDOR_LIB_RUNTIME_TUNING_ENABLED == TRUE)
+ int hw_set_patch_settlement_delay(char *p_conf_name, char *p_conf_value, int param);
+ #endif
+@@ -70,6 +72,9 @@ static const conf_entry_t conf_table[] = {
+     {"UartPort", userial_set_port, 0},
+     {"FwPatchFilePath", hw_set_patch_file_path, 0},
+     {"FwPatchFileName", hw_set_patch_file_name, 0},
++    {"FwPrePatchFileName", hw_set_pre_patch_file_name, 0},
++    {"UartForceUse2StopBits", userial_set_force_use_2_stop_bits, 0},
++
+ #if (VENDOR_LIB_RUNTIME_TUNING_ENABLED == TRUE)
+     {"FwPatchSettlementDelay", hw_set_patch_settlement_delay, 0},
+ #endif
+diff --git a/src/hardware.c b/src/hardware.c
+index c5a8f39..88449ef 100644
+--- a/src/hardware.c
++++ b/src/hardware.c
+@@ -1626,6 +1626,25 @@ int hw_set_patch_file_name(char *p_conf_name, char *p_conf_value, int param)
+     return 0;
+ }
+ 
++/*******************************************************************************
++**
++** Function        hw_set_pre_patch_file_name
++**
++** Description     Give the specific firmware pre-patch filename
++**
++** Returns         0 : Success
++**                 Otherwise : Fail
++**
++*******************************************************************************/
++int hw_set_pre_patch_file_name(char *p_conf_name, char *p_conf_value, int param)
++{
++
++    strcpy(fw_prepatch_name, p_conf_value);
++
++    return 0;
++}
++
++
+ #if (VENDOR_LIB_RUNTIME_TUNING_ENABLED == TRUE)
+ /*******************************************************************************
+ **
+diff --git a/src/userial_vendor.c b/src/userial_vendor.c
+index 3ff518b..5d0ae9b 100644
+--- a/src/userial_vendor.c
++++ b/src/userial_vendor.c
+@@ -69,6 +69,7 @@ typedef struct
+ ******************************************************************************/
+ 
+ static vnd_userial_cb_t vnd_userial;
++static int vnd_userial_force_2stopbits = UART_FORCE_TWO_STOPBITS;
+ 
+ /*****************************************************************************
+ **   Helper Functions
+@@ -229,10 +230,10 @@ int userial_vendor_open(tUSERIAL_CFG *p_cfg)
+         return -1;
+     }
+ 
+-    if(p_cfg->fmt & USERIAL_STOPBITS_1)
+-        stop_bits = 0;
+-    else if(p_cfg->fmt & USERIAL_STOPBITS_2)
++    if(vnd_userial_force_2stopbits || (p_cfg->fmt & USERIAL_STOPBITS_2))
+         stop_bits = CSTOPB;
++    else if(p_cfg->fmt & USERIAL_STOPBITS_1)
++        stop_bits = 0;
+     else
+     {
+         ALOGE("userial vendor open: unsupported stop bits");
+@@ -374,3 +375,22 @@ int userial_set_port(char *p_conf_name, char *p_conf_value, int param)
+     return 0;
+ }
+ 
++/*******************************************************************************
++**
++** Function        userial_set_force_use_2_stop_bits
++**
++** Description     Configure UART port name
++**
++** Returns         0 : Success
++**                 Otherwise : Fail
++**
++*******************************************************************************/
++int userial_set_force_use_2_stop_bits(char *p_conf_name, char *p_conf_value, int param)
++{
++    if (strcmp(p_conf_value, "true") == 0)
++        vnd_userial_force_2stopbits = TRUE;
++    else
++        vnd_userial_force_2stopbits = FALSE;
++    return 0;
++}
++
+-- 
+2.7.4
+

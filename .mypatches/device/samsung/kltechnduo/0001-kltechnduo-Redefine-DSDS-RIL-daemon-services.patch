@@ -1,0 +1,159 @@
+From 8e5a9ddf30391c0c7f60c97cbdb703233f79eda5 Mon Sep 17 00:00:00 2001
+From: nx111 <gd.zhangdz@gmail.com>
+Date: Wed, 3 Jan 2018 09:45:13 +0800
+Subject: [PATCH] kltechnduo: Redefine DSDS RIL daemon services.
+
+* Get rid of support script that starts/stops daemons based on
+  device type.
+* Set property in libinit that specifies CDMA vs. GSM.
+* Start the service with the appropriate RIL library based on
+  that property value.
+* Rename the .rc script that holds these daemon declarations to
+  something corresponds to their purpose.
+
+Change-Id: I744703d95b1ccfc796869adf5371475cdeb08b6c
+---
+ init/init_klte.cpp           |  2 ++
+ rootdir/Android.mk           | 13 ++-----------
+ rootdir/etc/init.dsds.rc     | 28 ++++++++++++++++++++++++++++
+ rootdir/etc/init.qcom.ril.sh | 10 ----------
+ rootdir/etc/init.target.rc   | 30 ------------------------------
+ 5 files changed, 32 insertions(+), 51 deletions(-)
+ create mode 100644 rootdir/etc/init.dsds.rc
+ delete mode 100644 rootdir/etc/init.qcom.ril.sh
+ delete mode 100644 rootdir/etc/init.target.rc
+
+diff --git a/init/init_klte.cpp b/init/init_klte.cpp
+index 0d1d0a1..0439630 100644
+--- a/init/init_klte.cpp
++++ b/init/init_klte.cpp
+@@ -57,6 +57,7 @@ void gsm_properties(char const default_network[],
+     set_rild_libpath(rild_lib_variant);
+ 
+     property_set("telephony.lteOnGsmDevice", "1");
++    property_set("rild.lib2_type", "gsm");
+     property_set("ro.telephony.default_network", default_network);
+ }
+ 
+@@ -68,6 +69,7 @@ void cdma_properties(char const default_cdma_sub[], char const operator_numeric[
+     set_rild_libpath(rild_lib_variant);
+ 
+     property_set("ril.subscription.types", "NV,RUIM");
++    property_set("rild.lib2_type", "cdma");
+     property_set("ro.cdma.home.operator.numeric", operator_numeric);
+     property_set("ro.cdma.home.operator.alpha", operator_alpha);
+     property_set("ro.telephony.default_cdma_sub", default_cdma_sub);
+diff --git a/rootdir/Android.mk b/rootdir/Android.mk
+index 59aed72..ebf7bc3 100644
+--- a/rootdir/Android.mk
++++ b/rootdir/Android.mk
+@@ -2,18 +2,9 @@ LOCAL_PATH:= $(call my-dir)
+ include $(CLEAR_VARS)
+ 
+ include $(CLEAR_VARS)
+-LOCAL_MODULE       := init.target.rc
++LOCAL_MODULE       := init.dsds.rc
+ LOCAL_MODULE_TAGS  := optional eng
+ LOCAL_MODULE_CLASS := ETC
+-LOCAL_SRC_FILES    := etc/init.target.rc
++LOCAL_SRC_FILES    := etc/init.dsds.rc
+ LOCAL_MODULE_PATH  := $(TARGET_ROOT_OUT)
+ include $(BUILD_PREBUILT)
+-
+-include $(CLEAR_VARS)
+-LOCAL_MODULE := init.qcom.ril.sh
+-LOCAL_MODULE_TAGS := optional eng
+-LOCAL_MODULE_CLASS := ETC
+-LOCAL_SRC_FILES := etc/init.qcom.ril.sh
+-LOCAL_MODULE_PATH := $(TARGET_ROOT_OUT)
+-include $(BUILD_PREBUILT)
+-
+diff --git a/rootdir/etc/init.dsds.rc b/rootdir/etc/init.dsds.rc
+new file mode 100644
+index 0000000..a3303b2
+--- /dev/null
++++ b/rootdir/etc/init.dsds.rc
+@@ -0,0 +1,28 @@
++# Copyright (C) 2015 The Android Open Source Project
++# Copyright (C) 2017 The LineageOS Project
++#
++# IMPORTANT: Do not create world writable files or directories.
++# This is a common source of Android security bugs.
++#
++
++# Second RIL daemon for CDMA (SM-G9009W) device
++service ril-daemon2-cdma /vendor/bin/hw/rild -l /vendor/lib/libsec-ril-dsds.09w.so -c 2
++    class main
++    user radio
++    disabled
++    group radio cache inet misc audio log readproc wakelock oem_2901
++    capabilities BLOCK_SUSPEND NET_ADMIN NET_RAW
++
++# Second RIL daemon for GSM devices
++service ril-daemon2-gsm /vendor/bin/hw/rild -l /vendor/lib/libsec-ril-dsds.06w.so -c 2
++    class main
++    user radio
++    disabled
++    group radio cache inet misc audio log readproc wakelock oem_2901
++    capabilities BLOCK_SUSPEND NET_ADMIN NET_RAW
++
++on property:rild.lib2_type=cdma
++    start ril-daemon2-cdma
++
++on property:rild.lib2_type=gsm
++    start ril-daemon2-gsm
+diff --git a/rootdir/etc/init.qcom.ril.sh b/rootdir/etc/init.qcom.ril.sh
+deleted file mode 100644
+index db88baa..0000000
+--- a/rootdir/etc/init.qcom.ril.sh
++++ /dev/null
+@@ -1,10 +0,0 @@
+-#!/system/bin/sh
+-export PATH=/system/xbin:$PATH
+-
+-device=`getprop ro.product.device`
+-
+-if [ "$device" = "klteduosctc" ]; then
+-    stop ril-daemon2
+-    start ril-daemon2-09w
+-fi
+-
+diff --git a/rootdir/etc/init.target.rc b/rootdir/etc/init.target.rc
+deleted file mode 100644
+index c2cbf35..0000000
+--- a/rootdir/etc/init.target.rc
++++ /dev/null
+@@ -1,30 +0,0 @@
+-# Copyright (C) 2015 The Android Open Source Project
+-# Copyright (C) 2017 The LineageOS Project
+-#
+-# IMPORTANT: Do not create world writable files or directories.
+-# This is a common source of Android security bugs.
+-#
+-
+-# for multi rild
+-service ril-daemon2 /system/bin/rild -l /system/vendor/lib/libsec-ril-dsds.06w.so -c 2
+-    class main
+-    user radio
+-    disabled
+-    group radio cache inet misc audio log readproc wakelock oem_2901
+-    capabilities BLOCK_SUSPEND NET_ADMIN NET_RAW
+-
+-# for G9009W
+-service ril-daemon2-09w /system/bin/rild -l /system/vendor/lib/libsec-ril-dsds.09w.so -c 2
+-    class main
+-    user radio
+-    disabled
+-    group radio cache inet misc audio log readproc wakelock oem_2901
+-    capabilities BLOCK_SUSPEND NET_ADMIN NET_RAW
+-
+-service qcom-ril-sh /system/bin/sh /init.qcom.ril.sh
+-    class late_start
+-    user root
+-    group root
+-    oneshot
+-
+-
+-- 
+2.7.4
+

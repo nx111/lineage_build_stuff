@@ -1,0 +1,90 @@
+From e42aa2756bb3a191160b6c7bcc9b4fdc73f6bbe3 Mon Sep 17 00:00:00 2001
+From: LuK1337 <priv.luk@gmail.com>
+Date: Wed, 20 Sep 2017 15:51:47 +0200
+Subject: [PATCH 01/14] sepolicy: qcom: Import bluetooth_loader/hci_attach
+ rules
+
+Change-Id: Ie38b286f29398d87d9b1344250e46ac7a9b3ce99
+---
+ qcom/bluetooth_loader.te | 40 ++++++++++++++++++++++++++++++++++++++++
+ qcom/file_contexts       |  4 ++++
+ qcom/hci_attach.te       |  9 +++++++++
+ 3 files changed, 53 insertions(+)
+ create mode 100644 qcom/bluetooth_loader.te
+ create mode 100644 qcom/file_contexts
+ create mode 100644 qcom/hci_attach.te
+
+diff --git a/qcom/bluetooth_loader.te b/qcom/bluetooth_loader.te
+new file mode 100644
+index 0000000..c74e171
+--- /dev/null
++++ b/qcom/bluetooth_loader.te
+@@ -0,0 +1,40 @@
++# Bluetooth executables and scripts
++type bluetooth_loader, domain;
++type bluetooth_loader_exec, exec_type, file_type;
++
++# Start bdAddrLoader from init
++init_daemon_domain(bluetooth_loader)
++
++# Run init.qcom.bt.sh
++allow bluetooth_loader shell_exec:file rx_file_perms;
++allow bluetooth_loader bluetooth_loader_exec:file rx_file_perms;
++
++# init.qcom.bt.sh needs /system/bin/log access
++allow bluetooth_loader devpts:chr_file rw_file_perms;
++
++# Run hci_qcomm_init from init.qcom.bt.sh
++domain_auto_trans(bluetooth_loader, hci_attach_exec, hci_attach)
++allow hci_attach bluetooth_loader:fd use;
++
++# Set persist.service.bdroid.* and bluetooth.* property values
++set_prop(bluetooth_loader, bluetooth_prop)
++
++# Allow getprop/setprop for init.qcom.bt.sh
++allow bluetooth_loader system_file:file execute_no_trans;
++allow bluetooth_loader toolbox_exec:file rx_file_perms;
++
++# Allow hci_qcomm_init /persist/.bt_nv.bin access
++r_dir_file(bluetooth_loader, persist_file);
++allow bluetooth_loader bluetooth_data_file:file r_file_perms;
++
++# Access the smd device
++allow bluetooth_loader hci_attach_dev:chr_file rw_file_perms;
++
++# And qmuxd
++allow bluetooth_loader qmuxd_socket:dir create_dir_perms;
++allow bluetooth_loader qmuxd_socket:sock_file create_file_perms;
++allow bluetooth_loader qmuxd:unix_stream_socket connectto;
++
++userdebug_or_eng(`
++  diag_use(bluetooth_loader)
++')
+diff --git a/qcom/file_contexts b/qcom/file_contexts
+new file mode 100644
+index 0000000..e4153d6
+--- /dev/null
++++ b/qcom/file_contexts
+@@ -0,0 +1,4 @@
++# Bluetooth
++/dev/smd3                                       u:object_r:hci_attach_dev:s0
++/persist/\.bt_nv\.bin                           u:object_r:bluetooth_data_file:s0
++/system/etc/init\.qcom\.bt\.sh                  u:object_r:bluetooth_loader_exec:s0
+diff --git a/qcom/hci_attach.te b/qcom/hci_attach.te
+new file mode 100644
+index 0000000..3cb0953
+--- /dev/null
++++ b/qcom/hci_attach.te
+@@ -0,0 +1,9 @@
++type hci_attach, domain;
++type hci_attach_exec, exec_type, file_type;
++
++init_daemon_domain(hci_attach)
++
++allow hci_attach kernel:system module_request;
++allow hci_attach hci_attach_dev:chr_file rw_file_perms;
++allow hci_attach bluetooth_efs_file:dir r_dir_perms;
++allow hci_attach bluetooth_efs_file:file r_file_perms;
+-- 
+2.7.4
+
