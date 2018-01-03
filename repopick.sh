@@ -162,11 +162,12 @@ function restore_snapshot()
          echo ">>>  restore project: $project ... "
          git stash; git clean -xdf
          if git log -n0 $basecommit 2>/dev/null; then
-             git checkout --detach $basecommit
+             git -q checkout --detach $basecommit
          else
-             git fetch $remoteurl $basecommit && git checkout FETCH_HEAD
+             git fetch $remoteurl $basecommit && git checkout -q FETCH_HEAD
          fi 
 
+         [ -d .mypatches/$project ] && \
          find .mypatches/$project -type f | sed -e "s/\.mypatches\///" |sort -n | while read f; do
              patchfile=$(basename $f)
              ext=${patchfile##*.}
