@@ -137,7 +137,7 @@ function projects_snapshot()
 
          echo "$project, $commit_id, $url" >> $snapshot_file.new
 
-         [ -d $topdir/.mypatches/$project ] || mkdir -p $topdir/.mypatches/$project
+         [ -d $topdir/.mypatches/pick/$project ] || mkdir -p $topdir/.mypatches/pick/$project
          rm -rf $topdir/.mypatches/pick/$project/*.patch
          rm -rf $topdir/.mypatches/pick/$project/*.diff
 
@@ -149,8 +149,8 @@ function projects_snapshot()
               find $topdir/.mypatches/pick/$project -type f -name "*.patch" -o -name "*.diff" | while read patchfile; do
                    patch_file_name=$(basename $patchfile)
                    changeid=$(grep "Change-Id: " $f | tail -n 1 | sed -e "s/ \{1,\}/ /g" -e "s/^ //g" | cut -d' ' -f2)
-                   if grep -q "Change-Id: $changid" $topdir/.mypatches/extra/$project; then
-                       extra_patch=$(grep -H "Change-Id: $changid" $topdir/.mypatches/extra/$project | sed -n 1p | cut -d: -f1)
+                   if [ -d $topdir/.mypatches/extra/$project ] && grep -q "Change-Id: $changid" -r $topdir/.mypatches/extra/$project; then
+                       extra_patch=$(grep -H "Change-Id: $changid" -r $topdir/.mypatches/extra/$project | sed -n 1p | cut -d: -f1)
                        rm -f $extra_patch
                        mv $patchfile $topdir/.mypatches/extra/$project/$patch_file_name
                    fi
