@@ -4,7 +4,7 @@ op_reset_projects=0
 op_patch_local=0
 op_project_snapshot=0
 op_restore_snapshot=0
-
+op_patches_dir=""
 default_remote="github"
 
 ########## main ###################
@@ -16,6 +16,9 @@ for op in $*; do
     [ "$op" = "--restore" -o "$op" = "--restore-snap" ] && op_restore_snapshot=1
     if [ "$op" = "-rp" -o "$op" = "-pr" ]; then
         op_reset_projects=1
+    fi
+    if [ $op_patch_local -eq 1 ] && [ "$op" = "pick" -o "$op" = "extra" ]; then
+        op_patches_dir="$op"
     fi
 done
 
@@ -40,9 +43,13 @@ function patch_local()
 {
     cd $(gettop)
     topdir=$(gettop)
-    default_branch=$(cat .repo/manifest.xml | grep "default revision" | cut -d= -f2 | sed -e "s/\"//g" -e "s/refs\/heads\///")
+    va_patches_dir=$1
+    search_dir=".mypatches"
 
-    find .mypatches -type f | sed -e "s/\.mypatches\///" |sort -n | while read f; do
+    [ "$va_patches_dir" = "extra" ] && search_dir=".mypatches/extra"
+    [ "$va_patches_dir" = "pick" ] && search_dir=".mypatches/pick"
+
+    find $search_dir -type f -name "*.patch" -o -name "*.diff" | sed -e "s/\.mypatches\///" |sort -n | while read f; do
          patchfile=$(basename $f)
          project=$(echo $f | sed "s/\/[^\/]*$//")
          if [ "$f" != "$project" ]; then
@@ -54,16 +61,14 @@ function patch_local()
              fi
              ext=${patchfile##*.}
              rm -rf .git/rebase-apply
-             if [ "$ext" = "patch" -o "$ext" = "diff" ]; then
-                  changeid=$(grep "Change-Id: " $topdir/.mypatches/$f | tail -n 1 | sed -e "s/ \{1,\}/ /g" -e "s/^ //g" | cut -d' ' -f2)
-                  if [ "$changeid" != "" ]; then
-                      if ! git log  -100 | grep "Change-Id: $changeid" >/dev/null 2>/dev/null; then 
-                          echo "    patching: $f ..."
-                          git am -3 -q < $topdir/.mypatches/$f
-                          [ $? -ne 0 ] && exit -1
-                      else
-                          echo "    skipping: $f ...(applied always)"
-                      fi
+             changeid=$(grep "Change-Id: " $topdir/.mypatches/$f | tail -n 1 | sed -e "s/ \{1,\}/ /g" -e "s/^ //g" | cut -d' ' -f2)
+             if [ "$changeid" != "" ]; then
+                  if ! git log  -100 | grep "Change-Id: $changeid" >/dev/null 2>/dev/null; then 
+                       echo "    patching: $f ..."
+                       git am -3 -q < $topdir/.mypatches/$f
+                       [ $? -ne 0 ] && exit -1
+                  else
+                       echo "    skipping: $f ...(applied always)"
                   fi
              fi
          fi
@@ -133,13 +138,20 @@ function projects_snapshot()
          echo "$project, $commit_id, $url" >> $snapshot_file.new
 
          [ -d $topdir/.mypatches/$project ] || mkdir -p $topdir/.mypatches/$project
-         rm -rf $topdir/.mypatches/$project/*.patch
-         rm -rf $topdir/.mypatches/$project/*.diff
+         rm -rf $topdir/.mypatches/pick/$project/*.patch
+         rm -rf $topdir/.mypatches/pick/$project/*.diff
 
-         git format-patch "$commit_id" -o $(gettop)/.mypatches/$project/
-         patches_count=$(find $topdir/.mypatches/$project -name "*.patch" -o -name "*.diff" | wc -l)
-         [ $patches_count -eq 0 ] && rmdir -p --ignore-fail-on-non-empty $topdir/.mypatches/$project
-
+         git format-patch "$commit_id" -o $(gettop)/.mypatches/pick/$project/
+         patches_count=$(find $topdir/.mypatches/pick/$project -name "*.patch" -o -name "*.diff" | wc -l)
+         if [ $patches_count -eq 0 ]; then
+              rmdir -p --ignore-fail-on-non-empty $topdir/.mypatches/pick/$project
+         else
+              find $topdir/.mypatches/pick/$project -type f -name "*.patch" -o -name "*.diff" | while read patchfile; do
+                   patch_file_name=$(basename $patchfile)
+                   [ -f $topdir/.mypatches/extra/$project/$patch_file_name ] && \
+                       mv $patchfile $topdir/.mypatches/extra/$project/$patch_file_name
+              done
+         fi
     done
     mv $snapshot_file.new $snapshot_file
     cd $topdir
@@ -167,23 +179,22 @@ function restore_snapshot()
              git fetch $remoteurl $basecommit && git checkout -q FETCH_HEAD
          fi 
 
-         [ -d .mypatches/$project ] && \
-         find .mypatches/$project -type f | sed -e "s/\.mypatches\///" |sort -n | while read f; do
-             patchfile=$(basename $f)
-             ext=${patchfile##*.}
+         searchdir=""
+         [ -d .mypatches/pick/$project ] && searchdir="$searchdir .mypatches/pick/$project"
+         [ -d .mypatches/extra/$project ] && searchdir="$searchdir .mypatches/extra/$project"
+
+         find $searchdir -type f -name "*.patch" -o -name "*.diff" | sed -e "s/\.mypatches\///" |sort -n | while read f; do
              rm -rf .git/rebase-apply
-             if [ "$ext" = "patch" -o "$ext" = "diff" ]; then
-                  changeid=$(grep "Change-Id: " $topdir/.mypatches/$f | tail -n 1 | sed -e "s/ \{1,\}/ /g" -e "s/^ //g" | cut -d' ' -f2)
-                  if [ "$changeid" != "" ]; then
-                      if ! git log  -100 | grep "Change-Id: $changeid" >/dev/null 2>/dev/null; then 
-                          echo "          apply patch: $f ..."
-                          git am -3 -q < $topdir/.mypatches/$f
-                          [ $? -ne 0 ] && exit -1
-                      else
-                          echo "          skip patch: $f ...(applied always)"
-                      fi
+             changeid=$(grep "Change-Id: " $topdir/.mypatches/$f | tail -n 1 | sed -e "s/ \{1,\}/ /g" -e "s/^ //g" | cut -d' ' -f2)
+             if [ "$changeid" != "" ]; then
+                  if ! git log  -100 | grep "Change-Id: $changeid" >/dev/null 2>/dev/null; then 
+                      echo "          apply patch: $f ..."
+                      git am -3 -q < $topdir/.mypatches/$f
+                      [ $? -ne 0 ] && exit -1
+                  else
+                      echo "          skip patch: $f ...(applied always)"
                   fi
-             fi
+              fi
          done
 
     done
@@ -193,7 +204,7 @@ function restore_snapshot()
 if [ $# -ge 1 ]; then
    [ $op_project_snapshot -eq 1 ] && projects_snapshot
    [ $op_reset_projects -eq 1 ] && projects_reset
-   [ $op_patch_local -eq 1 ] && patch_local
+   [ $op_patch_local -eq 1 ] && patch_local $op_patches_dir
    [ $op_restore_snapshot -eq 1 ] && restore_snapshot
    exit 0
 fi
