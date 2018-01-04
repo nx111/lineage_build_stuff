@@ -214,80 +214,8 @@ if [ $# -ge 1 ]; then
 fi
 
 ######################################
-#### repicks from haggertk #####
 
-:<<_COMMENT_
-CAF_HALS="audio display media"
-for hal in $CAF_HALS; do
-  d=`pwd`
-  cd hardware/qcom/${hal}-caf/msm8974 || exit 1
-  git remote remove bgcngm 2>/dev/null
-  git remote add bgcngm https://github.com/bgcngm/android_hardware_qcom_${hal}.git || exit 1
-  git fetch bgcngm staging/lineage-15.1-caf-8974-rebase-LA.BF.1.1.3_rb1.15  || exit 1
-  git checkout bgcngm/staging/lineage-15.1-caf-8974-rebase-LA.BF.1.1.3_rb1.15 || exit 1
-  cd $d
-done
-_COMMENT_
-
-repopick 199120 # tinycompress: HAXXX: Move libtinycompress_vendor back to Android.mk
-
-# device/lineage/sepolicy
-repopick 198594 # sepolicy: qcom: Import bluetooth_loader/hci_attach rules
-repopick 199347 # sepolicy: Set the context for fsck.exfat/ntfs to fsck_exec
-repopick 199348 # sepolicy: Add domain for mkfs binaries
-repopick 199349 # sepolicy: label exfat and ntfs mkfs executables
-repopick 199350 # sepolicy: treat fuseblk as sdcard_external
-repopick 199351 # sepolicy: fix denials for external storage
-repopick 199352 # sepolicy: Allow vold to `getattr` on mkfs_exec
-repopick 199353 # sepolicy: allow vold to mount fuse-based sdcard
-repopick 199515 # sepolicy: Add policy for sysinit
-repopick 199516 # sepolicy: allow userinit to set its property
-repopick 199517 # sepolicy: Permissions for userinit
-repopick 199518 # sepolicy: Fix sysinit denials
-repopick 199571 # sepolicy: Move fingerprint 2.0 service out of private sepolicy
-repopick 199572 # sepolicy: SELinux policy for persistent properties API
-
-# device/qcom/sepolicy
-repopick 198620 # sepolicy: Let keystore load firmware
-repopick 198703 # Revert "sepolicy: Allow platform app to find nfc service"
-repopick 198707 # sepolicy: Include legacy rild policies
-repopick 198141 # Use set_prop() macro for property sets
-repopick 198303 # sepolicy: Add sysfs labels for devices using 'soc.0'
-repopick 199557 # sepolicy: Readd perfd policies
-repopick 199558 # sepolicy: Allow system_app to connect to time_daemon socket
-repopick 199559 # sepolicy: Allow dataservice_app to read/write to IPA device
-repopick 199560 # sepolicy: Allow bluetooth to connect to wcnss_filter socket
-repopick 199562 # sepolicy: Allow netmgrd to communicate with netd
-repopick 199562 # sepolicy: Allow netmgrd to communicate with netd
-repopick 199564 # sepolicy: Allow energyawareness to read sysfs files
-repopick 199565 # sepolicy: Label pre-O location data and socket file paths
-repopick 199554 # sepolicy: Add /data/vendor/time label for old oreo blobs
-repopick 199600 # sepolicy: Allow 'sys_admin' capability for rmt_storage
-
-# hardware/broadcom/libbt
-repopick 200115 # libbt: Add btlock support
-repopick 200116 # libbt: Add prepatch support
-repopick 200117 # libbt: Add support for using two stop bits
-repopick 200118 # libbt-vendor: add support for samsung bluetooth
-repopick 200119 # libbt-vendor: Add support for Samsung wisol flavor
-repopick 200121 # libbt-vendor: Fix Samsung patchfile detection.
-repopick 200122 # Avoid an annoying bug that only hits BCM chips running at less than 3MBps
-repopick 200123 # libbt-vendor: add support for Samsung semco
-repopick 200124 # Broadcom BT: Add support fm/bt via v4l2.
-repopick 200126 # libbt: Import CID_PATH from samsung_macloader.h
-repopick 200127 # libbt: Only allow upio_start_stop_timer on 32bit arm
-
-# hardware/samsung
-repopick 200133 # macloader: Stop allowing G and O write perms to the cidfile
-
-# system/sepolicy
-repopick 199664 # sepolicy: Fix up exfat and ntfs support
-
-########## more picks ################
-
-#exit 0
-
-######## repopicks from afaneh92 ##############
+### invisiblek picks
 
 repopick 198544 # SystemUI: Add visualizer feature
 repopick 198556 # Settings: Add lockscreen visualizer toggle
@@ -310,8 +238,6 @@ repopick 198559 # LineageParts: Network Traffic [3/3]
 
 #repopick 198622 # Add back increasing ring feature (2/3)
 #repopick 198624 # Add back increasing ring feature (3/3)
-
-repopick 198902 # Remove include for dtbhtool
 
 repopick 200153 # StatusBar: Add dark theme toggle
 repopick 200154 # LineageSettings: Add dark theme toggle
@@ -358,4 +284,138 @@ repopick 198967 # InputMethodManagerService: adjust grip mode for input enable/d
 #repopick 198110 # sdk: Add DisplayUtils for global display matrix setting
 #repopick 198111 # livedisplay: Use new DisplayTransformManager API to set color overlay
 
+###  haggertk picks
+:<<__COMMENT__
+CAF_HALS="audio display media"
+for hal in $CAF_HALS; do
+  d=`pwd`
+  cd hardware/qcom/${hal}-caf/msm8974 || exit 1
+  git remote remove bgcngm > /dev/null 2>&1
+  git remote add bgcngm https://github.com/bgcngm/android_hardware_qcom_${hal}.git || exit 1
+  git fetch bgcngm staging/lineage-15.1-caf-8974-rebase-LA.BF.1.1.3_rb1.15  || exit 1
+  git checkout bgcngm/staging/lineage-15.1-caf-8974-rebase-LA.BF.1.1.3_rb1.15 || exit 1
+  cd $d
+done
+__COMMENT__
 
+# external/tinycompress
+repopick 199120 # tinycompress: HAXXX: Move libtinycompress_vendor back to Android.mk
+
+# device/lineage/sepolicy
+repopick 198594 # sepolicy: qcom: Import bluetooth_loader/hci_attach rules
+repopick 199347 # sepolicy: Set the context for fsck.exfat/ntfs to fsck_exec
+repopick 199348 # sepolicy: Add domain for mkfs binaries
+repopick 199349 # sepolicy: label exfat and ntfs mkfs executables
+repopick 199350 # sepolicy: treat fuseblk as sdcard_external
+repopick 199351 # sepolicy: fix denials for external storage
+repopick 199352 # sepolicy: Allow vold to `getattr` on mkfs_exec
+repopick 199353 # sepolicy: allow vold to mount fuse-based sdcard
+repopick 199515 # sepolicy: Add policy for sysinit
+repopick 199516 # sepolicy: allow userinit to set its property
+repopick 199517 # sepolicy: Permissions for userinit
+repopick 199518 # sepolicy: Fix sysinit denials
+repopick 199571 # sepolicy: Move fingerprint 2.0 service out of private sepolicy
+repopick 199572 # sepolicy: SELinux policy for persistent properties API
+
+# device/qcom/sepolicy
+repopick 198620 # sepolicy: Let keystore load firmware
+repopick 198703 # Revert "sepolicy: Allow platform app to find nfc service"
+repopick 198707 # sepolicy: Include legacy rild policies
+repopick 198141 # Use set_prop() macro for property sets
+repopick 198303 # sepolicy: Add sysfs labels for devices using 'soc.0'
+repopick 199557 # sepolicy: Readd perfd policies
+repopick 199558 # sepolicy: Allow system_app to connect to time_daemon socket
+repopick 199559 # sepolicy: Allow dataservice_app to read/write to IPA device
+repopick 199560 # sepolicy: Allow bluetooth to connect to wcnss_filter socket
+repopick 199562 # sepolicy: Allow netmgrd to communicate with netd
+repopick 199562 # sepolicy: Allow netmgrd to communicate with netd
+repopick 199564 # sepolicy: Allow energyawareness to read sysfs files
+repopick 199565 # sepolicy: Label pre-O location data and socket file paths
+repopick 199554 # sepolicy: Add /data/vendor/time label for old oreo blobs
+repopick 199600 # sepolicy: Allow 'sys_admin' capability for rmt_storage
+
+# system/sepolicy
+repopick 199664 # sepolicy: Fix up exfat and ntfs support
+
+# hardware/broadcom/libbt
+repopick 200115 # libbt: Add btlock support
+repopick 200116 # libbt: Add prepatch support
+repopick 200117 # libbt: Add support for using two stop bits
+repopick 200118 # libbt-vendor: add support for samsung bluetooth
+repopick 200119 # libbt-vendor: Add support for Samsung wisol flavor
+repopick 200121 # libbt-vendor: Fix Samsung patchfile detection.
+repopick 200122 # Avoid an annoying bug that only hits BCM chips running at less than 3MBps
+repopick 200123 # libbt-vendor: add support for Samsung semco
+repopick 200124 # Broadcom BT: Add support fm/bt via v4l2.
+repopick 200126 # libbt: Import CID_PATH from samsung_macloader.h
+repopick 200127 # libbt: Only allow upio_start_stop_timer on 32bit arm
+
+# frameworks/base
+repopick 199835 # Runtime toggle of navbar
+repopick 198564 # Long-press power while display is off for torch
+repopick 199897 # Reimplement hardware keys custom rebinding
+repopick 199860 # Reimplement device hardware wake keys support
+repopick 199199 # PhoneWindowManager: add LineageButtons volumekey hook
+repopick 199200 # Framework: Volume key cursor control
+repopick 199203 # Forward port 'Swap volume buttons' (1/3)
+repopick 199865 # PhoneWindowManager: Tap volume buttons to answer call
+repopick 199906 # PhoneWindowManager: Implement press home to answer call
+repopick 199982 # SystemUI: add left and right virtual buttons while typing
+repopick 200112 # Framework: Forward port Long press back to kill app (2/2)
+repopick 200188 # Allow screen unpinning on devices without navbar
+repopick 199947 # PowerManager: Re-integrate button brightness
+
+# frameworks/native
+repopick 199204 # Forward port 'Swap volume buttons' (2/3)
+
+# packages/apps/Settings
+repopick 200113 # Settings: Add kill app back button toggle
+
+# packages/apps/LineageParts
+repopick 200069 # LineageParts: Deprecate few button settings
+repopick 199198 # LineageParts: Bring up buttons settings
+repopick 199948 # LineageParts: Bring up button backlight settings
+
+# lineage-sdk
+repopick 199898 # lineage-sdk: Import device keys custom rebinding configs and add helpers
+repopick 199196 # lineage-sdk internal: add LineageButtons
+repopick 199197 # lineage-sdk: Import device hardware keys configs and constants
+repopick 200106 # lineage-sdk: Import ActionUtils class
+repopick 200114 # lineage-sdk: Add kill app back button configs and strings
+
+### Afaneh92 picks
+
+repopick 198902 # Remove include for dtbhtool
+
+:<<__COMMENT__
+repopick 200533 # klte: Inherit single-SIM radio support from -common
+
+repopick 199932 # [DO NOT MERGE] klte-common: import libril from hardware/ril-caf
+repopick 199933 # [DO NOT MERGE] klte-common: libril: Add Samsung changes
+repopick 199934 # klte-common: libril: Fix RIL_Call structure
+repopick 199935 # klte-common: libril: Fix SMS on certain variants
+repopick 199936 # klte-common: libril: fix network operator search and attach
+repopick 199937 # klte-common: Update RIL_REQUEST_QUERY_AVAILABLE_NETWORKS response prop
+repopick 199938 # klte-common: Set system property to fix network attach on search
+repopick 199939 # klte-common: libril: Support custom number of data registration response strings
+repopick 199940 # klte-common: Properly parse RIL_REQUEST_DATA_REGISTRATION_STATE response
+repopick 199941 # klte-common: libril: Fix RIL_UNSOL_NITZ_TIME_RECEIVED Parcel
+repopick 200495 # klte-common: Fixup RIL_Call structure
+
+repopick 199943 # [DO NOT MERGE] klte-common: selinux permissive for O bringup
+repopick 199944 # [DO NOT MERGE] klte-common: Kill blur overlay
+#repopick 199945 # [DO NOT MERGE] klte-common: Kill hardware key overlays
+repopick 199946 # [DO NOT MERGE] klte-common: sepolicy: Rewrite for O
+repopick 200496 # klte-common: Enable single/dual SIM support with fragments
+repopick 199942 # klte-common: Enable radio service 1.1
+repopick 200547 # klte-common: power: Update power hal extension for new qti hal
+repopick 200631 # klte-common: Drop shared blobs from proprietary files list
+repopick 200632 # klte-common: Chain extract-files and setup-makefiles to msm8974-common
+repopick 200643 # klte-common: Move hardware key overlays from fw/b to lineage-sdk
+
+__COMMENT__
+repopick 200634 # msm8974-common: Setup extractors for shared blobs
+repopick 200635 # msm8974-common: Use shared blobs from vendor/
+repopick 200636 # msm8974-common: Ship RenderScript HAL
+repopick 200637 # msm8974-common: Enable boot and system server dex-preopt
+repopick 200538 # msm8974-common: Use QTI power hal
