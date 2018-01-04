@@ -51,7 +51,7 @@ function patch_local()
 
     find $search_dir -type f -name "*.patch" -o -name "*.diff" | sed -e "s/\.mypatches\///" |sort -n | while read f; do
          patchfile=$(basename $f)
-         project=$(echo $f | sed "s/\/[^\/]*$//")
+         project=$(echo $f |  sed -e "s/^pick\///" -e "s/^extra\///"  | sed "s/\/[^\/]*$//")
          if [ "$f" != "$project" ]; then
              if [ `pwd` != "$topdir/$project" ]; then
                   cd $topdir/$project
@@ -148,8 +148,12 @@ function projects_snapshot()
          else
               find $topdir/.mypatches/pick/$project -type f -name "*.patch" -o -name "*.diff" | while read patchfile; do
                    patch_file_name=$(basename $patchfile)
-                   [ -f $topdir/.mypatches/extra/$project/$patch_file_name ] && \
+                   changeid=$(grep "Change-Id: " $f | tail -n 1 | sed -e "s/ \{1,\}/ /g" -e "s/^ //g" | cut -d' ' -f2)
+                   if grep -q "Change-Id: $changid" $topdir/.mypatches/extra/$project; then
+                       extra_patch=$(grep -H "Change-Id: $changid" $topdir/.mypatches/extra/$project | sed -n 1p | cut -d: -f1)
+                       rm -f $extra_patch
                        mv $patchfile $topdir/.mypatches/extra/$project/$patch_file_name
+                   fi
               done
          fi
     done
