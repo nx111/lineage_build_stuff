@@ -49,7 +49,8 @@ function patch_local()
     [ "$va_patches_dir" = "extra" ] && search_dir=".mypatches/extra"
     [ "$va_patches_dir" = "pick" ] && search_dir=".mypatches/pick"
 
-    find $search_dir -type f -name "*.patch" -o -name "*.diff" | sed -e "s/\.mypatches\///" |sort -n | while read f; do
+    find $search_dir -type f -name "*.patch" -o -name "*.diff" | sed -e "s/\.mypatches\///" -e "s/\//:/" |sort -t : -k 2 | while read line; do
+         f=$(echo $line | sed -e "s/:/\//")
          patchfile=$(basename $f)
          project=$(echo $f |  sed -e "s/^pick\///" -e "s/^extra\///"  | sed "s/\/[^\/]*$//")
          if [ "$f" != "$project" ]; then
@@ -187,8 +188,9 @@ function restore_snapshot()
          [ -d .mypatches/pick/$project ] && searchdir="$searchdir .mypatches/pick/$project"
          [ -d .mypatches/extra/$project ] && searchdir="$searchdir .mypatches/extra/$project"
 
-         find $searchdir -type f -name "*.patch" -o -name "*.diff" | sed -e "s/\.mypatches\///" |sort -n | while read f; do
+         find $searchdir -type f -name "*.patch" -o -name "*.diff" | sed -e "s/\.mypatches\///"  -e "s/\//:/" |sort -t : -k 2 | while read line; do
              rm -rf .git/rebase-apply
+             f=$(echo $line | sed -e "s/:/\//")
              changeid=$(grep "Change-Id: " $topdir/.mypatches/$f | tail -n 1 | sed -e "s/ \{1,\}/ /g" -e "s/^ //g" | cut -d' ' -f2)
              if [ "$changeid" != "" ]; then
                   if ! git log  -100 | grep "Change-Id: $changeid" >/dev/null 2>/dev/null; then 
