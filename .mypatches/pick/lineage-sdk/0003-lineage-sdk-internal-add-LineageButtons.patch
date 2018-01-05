@@ -1,0 +1,237 @@
+From 741603ec851ed19680d77c514218134dfbc7d89b Mon Sep 17 00:00:00 2001
+From: Simon Shields <simon@lineageos.org>
+Date: Fri, 24 Nov 2017 15:59:49 +1100
+Subject: [PATCH 3/7] lineage-sdk internal: add LineageButtons
+
+This class will be the new home for all the buttons logic currently
+in fw/b. Currently, it only implements the "long press volume keys to
+skip" feature.
+
+Based on the following commits from cm-14.1:
+
+commit 1296fb316946ca1361b2d32557b6c9e028f509c8
+Author: Dark Eyes <dark_eyes_@hotmail.com>
+Date:   Sat Nov 5 12:09:31 2016 -0400
+
+    Fix long press volume buttons skip tracks
+
+    Without that patch, the volume changes up or down prior
+    to skipping tracks because the sendvolumekeyevent doesn't
+    have the mayChangeVolume condition. Also, that part is
+    useless cause the mUseTvRouting condition is taken care
+    of correctly later.
+
+    Change-Id: I88757315f135f013e7692861d46b3a07fbfc07d5
+
+commit 61cebe2fea95f799b7b4edc540f6c38d3c13fbde
+Author: Michael Bestas <mikeioannina@gmail.com>
+Date:   Thu Dec 18 14:43:22 2014 +0200
+
+    Fix volume key music controls and wake up
+
+    - Forward port code from cm-11.0 and adjust for 5.0
+    - Fix not being able to adjust volume when music control is on
+    - Disable screen off volume/music control when wake key is enabled
+
+    Change-Id: Ie0ad83965c41fd33120490c25a4ff3d9b2cbeb37
+
+commit f41ba8af1796b4903dba3d134e56e8148f3b4808
+Author: Austin T. Conn <atc3030dev@gmail.com>
+Date:   Wed Dec 17 13:28:00 2014 -0500
+
+    Settings: Forward Port Volume Long Press Skip Tracks (1/2)
+
+    Bring Forward Volume Rocker Track Change
+
+    Requires Settings Change
+    http://review.cyanogenmod.org/#/c/82222/
+
+    Change-Id: I70b00e08fe48707110725dd1daa56b1e48d15a03
+
+Change-Id: I5c7f733913242bba822cf3f9f7e1e3320c2bedf7
+---
+ .../lineageos/internal/buttons/LineageButtons.java | 172 +++++++++++++++++++++
+ 1 file changed, 172 insertions(+)
+ create mode 100644 sdk/src/java/org/lineageos/internal/buttons/LineageButtons.java
+
+diff --git a/sdk/src/java/org/lineageos/internal/buttons/LineageButtons.java b/sdk/src/java/org/lineageos/internal/buttons/LineageButtons.java
+new file mode 100644
+index 0000000..fa98242
+--- /dev/null
++++ b/sdk/src/java/org/lineageos/internal/buttons/LineageButtons.java
+@@ -0,0 +1,172 @@
++/**
++ * Copyright (C) 2017 The LineageOS Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++package org.lineageos.internal.buttons;
++
++import android.content.ContentResolver;
++import android.content.Context;
++import android.content.res.Resources;
++import android.database.ContentObserver;
++import android.media.AudioManager;
++import android.media.session.MediaSessionLegacyHelper;
++import android.os.Handler;
++import android.os.Message;
++import android.os.UserHandle;
++import android.util.Slog;
++import android.view.KeyEvent;
++import android.view.ViewConfiguration;
++
++import lineageos.providers.LineageSettings;
++
++public final class LineageButtons {
++    private final String TAG = "LineageButtons";
++    private final boolean DEBUG = false;
++
++    private static final int MSG_DISPATCH_VOLKEY_WITH_WAKELOCK = 1;
++
++    private final Context mContext;
++    private ButtonHandler mHandler;
++
++    private boolean mIsLongPress = false;
++
++    private boolean mVolBtnMusicControls = false;
++
++    private class ButtonHandler extends Handler {
++        @Override
++        public void handleMessage(Message msg) {
++            switch (msg.what) {
++                case MSG_DISPATCH_VOLKEY_WITH_WAKELOCK:
++                    KeyEvent ev = (KeyEvent)msg.obj;
++                    mIsLongPress = true;
++                    if (DEBUG) {
++                        Slog.d(TAG, "Dispatching key to audio service");
++                    }
++                    dispatchMediaKeyToAudioService(ev);
++                    dispatchMediaKeyToAudioService(KeyEvent.changeAction(ev, KeyEvent.ACTION_UP));
++                    break;
++            }
++        }
++    }
++
++    public LineageButtons(Context context) {
++        mContext = context;
++        mHandler = new ButtonHandler();
++
++        SettingsObserver observer = new SettingsObserver(new Handler());
++        observer.observe();
++    }
++
++    public boolean handleVolumeKey(KeyEvent event, boolean isInteractive) {
++        final boolean down = event.getAction() == KeyEvent.ACTION_DOWN;
++        final int keyCode = event.getKeyCode();
++
++        if (isInteractive) {
++            // nothing to do here for now
++            if (DEBUG) {
++                Slog.d(TAG, "Skipping because interactive");
++            }
++            return false;
++        }
++
++        switch (keyCode) {
++            case KeyEvent.KEYCODE_VOLUME_DOWN:
++            case KeyEvent.KEYCODE_VOLUME_UP:
++                if (!mVolBtnMusicControls) {
++                    return false;
++                }
++
++                if (down) {
++                    mIsLongPress = false;
++                    // queue skip event
++                    int newKeyCode = (keyCode == KeyEvent.KEYCODE_VOLUME_DOWN
++                            ? KeyEvent.KEYCODE_MEDIA_PREVIOUS
++                            : KeyEvent.KEYCODE_MEDIA_NEXT);
++
++                    KeyEvent newEvent = new KeyEvent(event.getDownTime(), event.getEventTime(),
++                            event.getAction(), newKeyCode, 0);
++                    if (DEBUG) {
++                        Slog.d(TAG, "Queueing media " +
++                                (keyCode == KeyEvent.KEYCODE_VOLUME_DOWN ? "previous" : "next") +
++                                " event " + newEvent);
++                    }
++                    Message msg = mHandler.obtainMessage(MSG_DISPATCH_VOLKEY_WITH_WAKELOCK,
++                            newEvent);
++                    msg.setAsynchronous(true);
++                    mHandler.sendMessageDelayed(msg, ViewConfiguration.getLongPressTimeout());
++                } else {
++                    // cancel skip event
++                    mHandler.removeMessages(MSG_DISPATCH_VOLKEY_WITH_WAKELOCK);
++
++                    if (mIsLongPress) {
++                        // if key was long pressed,
++                        // media next/prev action has been performed
++                        // so don't change volume
++                        break;
++                    }
++                    // sendVolumeKeyEvent will only change the volume on ACTION_DOWN,
++                    // so fake the ACTION_DOWN event.
++                    KeyEvent newEvent = new KeyEvent(KeyEvent.ACTION_DOWN, keyCode);
++                    MediaSessionLegacyHelper.getHelper(mContext).sendVolumeKeyEvent(newEvent,
++                            AudioManager.USE_DEFAULT_STREAM_TYPE, true);
++                }
++                break;
++            default:
++                // key unhandled
++                return false;
++        }
++        return true;
++    }
++
++    void dispatchMediaKeyToAudioService(KeyEvent ev) {
++        if (DEBUG) {
++            Slog.d(TAG, "Dispatching KeyEvent " + ev + " to audio service");
++        }
++        MediaSessionLegacyHelper.getHelper(mContext).sendMediaButtonEvent(ev, true);
++    }
++
++    class SettingsObserver extends ContentObserver {
++        SettingsObserver(Handler handler) {
++            super(handler);
++        }
++
++        void observe() {
++            ContentResolver resolver = mContext.getContentResolver();
++
++            resolver.registerContentObserver(LineageSettings.System.getUriFor(
++                    LineageSettings.System.VOLBTN_MUSIC_CONTROLS),
++                            false, this, UserHandle.USER_ALL);
++
++            update();
++        }
++
++        @Override
++        public void onChange(boolean selfChange) {
++            update();
++        }
++
++        private void update() {
++            ContentResolver resolver = mContext.getContentResolver();
++            Resources res = mContext.getResources();
++
++            mVolBtnMusicControls = LineageSettings.System.getInt(resolver,
++                    LineageSettings.System.VOLBTN_MUSIC_CONTROLS, 0) != 0;
++
++            if (DEBUG) {
++                Slog.d(TAG, "music controls enabled = " + mVolBtnMusicControls);
++            }
++        }
++    }
++}
+-- 
+2.7.4
+

@@ -1,0 +1,145 @@
+From a28a2e67175f4cded4bca81d26b56e9cb54afaca Mon Sep 17 00:00:00 2001
+From: Steve Kondik <shade@chemlab.org>
+Date: Fri, 5 Jul 2013 10:40:01 -0700
+Subject: [PATCH 01/11] libbt: Add btlock support
+
+ * Concurrent WiFi/BT firmware loading can cause a chip crash.
+ * Kernel supports a btlock device which is a simple semaphore that can
+   protect from this situation.
+ * Add support in the Bluedroid vendor lib for this on the BT side, as
+   WiFi is already done directly in the kernel.
+
+Change-Id: I8b9d3b1ccd06cc5d5528c7d6d685048c258d9887
+---
+ include/bt_vendor_brcm.h |  4 ++++
+ src/bt_vendor_brcm.c     |  6 +++++
+ src/hardware.c           | 60 ++++++++++++++++++++++++++++++++++++++++++++++++
+ 3 files changed, 70 insertions(+)
+
+diff --git a/include/bt_vendor_brcm.h b/include/bt_vendor_brcm.h
+index 545e76e..24df19e 100644
+--- a/include/bt_vendor_brcm.h
++++ b/include/bt_vendor_brcm.h
+@@ -49,6 +49,10 @@
+ #define VENDOR_LIB_RUNTIME_TUNING_ENABLED   FALSE
+ #endif
+ 
++#ifndef USE_AXI_BRIDGE_LOCK
++#define USE_AXI_BRIDGE_LOCK FALSE
++#endif
++
+ /* Run-time configuration file */
+ #ifndef VENDOR_LIB_CONF_FILE
+ #define VENDOR_LIB_CONF_FILE "/etc/bluetooth/bt_vendor.conf"
+diff --git a/src/bt_vendor_brcm.c b/src/bt_vendor_brcm.c
+index 01e89a2..d95c398 100644
+--- a/src/bt_vendor_brcm.c
++++ b/src/bt_vendor_brcm.c
+@@ -57,6 +57,9 @@ void vnd_load_conf(const char *p_path);
+ #if (HW_END_WITH_HCI_RESET == TRUE)
+ void hw_epilog_process(void);
+ #endif
++#if (USE_AXI_BRIDGE_LOCK == TRUE)
++void axi_bridge_lock(int locked);
++#endif
+ 
+ #if (BRCM_A2DP_OFFLOAD == TRUE)
+ void brcm_vnd_a2dp_init(bt_vendor_callbacks_t *callback);
+@@ -151,6 +154,9 @@ static int op(bt_vendor_opcode_t opcode, void *param)
+                 upio_set_bluetooth_power(UPIO_BT_POWER_OFF);
+                 if (*state == BT_VND_PWR_ON)
+                 {
++#if (USE_AXI_BRIDGE_LOCK == TRUE)
++                    axi_bridge_lock(1);
++#endif
+                     ALOGW("NOTE: BT_VND_PWR_ON now forces power-off first");
+                     upio_set_bluetooth_power(UPIO_BT_POWER_ON);
+                 } else {
+diff --git a/src/hardware.c b/src/hardware.c
+index 93def07..e29a572 100644
+--- a/src/hardware.c
++++ b/src/hardware.c
+@@ -107,6 +107,15 @@
+       next 2 bytes are for codec type */
+ #define SCO_CODEC_PARAM_SIZE                    3
+ 
++#if (USE_AXI_BRIDGE_LOCK == TRUE)
++#define BTLOCK_DEV "/dev/btlock"
++static int btlock_cookie = 'B' | 'T'<<8 | '3'<<16 | '5'<<24;
++struct btlock {
++    int lock;
++    int cookie;
++};
++#endif
++
+ /******************************************************************************
+ **  Local type definitions
+ ******************************************************************************/
+@@ -605,6 +614,53 @@ static uint8_t hw_config_read_bdaddr(HC_BT_HDR *p_buf)
+ }
+ #endif // (USE_CONTROLLER_BDADDR == TRUE)
+ 
++#if (USE_AXI_BRIDGE_LOCK == TRUE)
++/*******************************************************************************
++**
++** Function         axi_bridge_lock
++**
++** Description      Take semaphore to prevent concurrent BT/WiFi firmware loading
++**
++*******************************************************************************/
++void axi_bridge_lock(int locked)
++{
++    int fd = -1;
++    struct btlock lock;
++    int ret = 0;
++
++    ALOGI("axi_bridge_lock: locked=%d", locked);
++
++    fd = open(BTLOCK_DEV, O_WRONLY);
++    if (fd < 0)
++    {
++        ALOGE("axi_bridge_lock open failed: %s (%d)",
++                strerror(errno), errno);
++        return;
++    }
++
++    lock.lock = locked;
++    lock.cookie = btlock_cookie;
++
++    if (locked)
++    {
++        while ((ret = write(fd, &lock, sizeof(lock))) != 0) {
++            ALOGE("axi_bridge_lock acquire: %s (%d)",
++                    strerror(errno), errno);
++            usleep(10000);
++        }
++    } else {
++        if (write(fd, &lock, sizeof(lock)) < 0)
++        {
++            ALOGE("axi_bridge_lock write failed: %s (%d)",
++                    strerror(errno), errno);
++        }
++    }
++
++    if (fd >= 0)
++        close(fd);
++}
++#endif // USE_AXI_BRIDGE_LOCK
++
+ /*******************************************************************************
+ **
+ ** Function         hw_config_cback
+@@ -760,6 +816,10 @@ void hw_config_cback(void *p_mem)
+                 close(hw_cfg_cb.fw_fd);
+                 hw_cfg_cb.fw_fd = -1;
+ 
++#if (USE_AXI_BRIDGE_LOCK == TRUE)
++                axi_bridge_lock(0);
++#endif
++
+                 /* Normally the firmware patch configuration file
+                  * sets the new starting baud rate at 115200.
+                  * So, we need update host's baud rate accordingly.
+-- 
+2.7.4
+

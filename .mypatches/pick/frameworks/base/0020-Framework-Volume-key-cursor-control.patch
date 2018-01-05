@@ -1,0 +1,116 @@
+From 5732b06e68ae5f137b5db99ed807991018f23f51 Mon Sep 17 00:00:00 2001
+From: Konsta <konsta09@gmail.com>
+Date: Mon, 20 Aug 2012 10:39:57 +0300
+Subject: [PATCH 20/27] Framework: Volume key cursor control
+
+This feature is moved to framework so it also works with third
+party keyboards.
+
+Change-Id: I8e20240e7bee5351ab20bb3d701eb95a5fd3e112
+---
+ .../inputmethodservice/InputMethodService.java     | 33 ++++++++++++++++++++++
+ core/java/android/provider/Settings.java           |  9 ++++++
+ 2 files changed, 42 insertions(+)
+
+diff --git a/core/java/android/inputmethodservice/InputMethodService.java b/core/java/android/inputmethodservice/InputMethodService.java
+index 7a20943..5a14fec 100644
+--- a/core/java/android/inputmethodservice/InputMethodService.java
++++ b/core/java/android/inputmethodservice/InputMethodService.java
+@@ -339,6 +339,11 @@ public class InputMethodService extends AbstractInputMethodService {
+     final Insets mTmpInsets = new Insets();
+     final int[] mTmpLocation = new int[2];
+ 
++    int mVolumeKeyCursorControl;
++    private static final int VOLUME_CURSOR_OFF = 0;
++    private static final int VOLUME_CURSOR_ON = 1;
++    private static final int VOLUME_CURSOR_ON_REVERSE = 2;
++
+     final ViewTreeObserver.OnComputeInternalInsetsListener mInsetsComputer =
+             new ViewTreeObserver.OnComputeInternalInsetsListener() {
+         public void onComputeInternalInsets(ViewTreeObserver.InternalInsetsInfo info) {
+@@ -718,6 +723,9 @@ public class InputMethodService extends AbstractInputMethodService {
+             service.getContentResolver().registerContentObserver(
+                     Settings.Secure.getUriFor(Settings.Secure.SHOW_IME_WITH_HARD_KEYBOARD),
+                     false, observer);
++            service.getContentResolver().registerContentObserver(
++                    Settings.System.getUriFor(Settings.System.VOLUME_KEY_CURSOR_CONTROL),
++                    false, observer);
+             return observer;
+         }
+ 
+@@ -757,6 +765,9 @@ public class InputMethodService extends AbstractInputMethodService {
+                 // state as if configuration was changed.
+                 mService.resetStateForNewConfiguration();
+             }
++
++            mService.mVolumeKeyCursorControl = Settings.System.getInt(mService.getContentResolver(),
++                    Settings.System.VOLUME_KEY_CURSOR_CONTROL, 0);
+         }
+ 
+         @Override
+@@ -817,6 +828,8 @@ public class InputMethodService extends AbstractInputMethodService {
+         super.onCreate();
+         mImm = (InputMethodManager)getSystemService(INPUT_METHOD_SERVICE);
+         mSettingsObserver = SettingsObserver.createAndRegister(this);
++        mVolumeKeyCursorControl = Settings.System.getInt(getContentResolver(),
++                Settings.System.VOLUME_KEY_CURSOR_CONTROL, 0);
+         // If the previous IME has occupied non-empty inset in the screen, we need to decide whether
+         // we continue to use the same size of the inset or update it
+         mShouldClearInsetOfPreviousIme = (mImm.getInputMethodWindowVisibleHeight() > 0);
+@@ -2032,6 +2045,22 @@ public class InputMethodService extends AbstractInputMethodService {
+             }
+             return false;
+         }
++        if (event.getKeyCode() == KeyEvent.KEYCODE_VOLUME_UP) {
++            if (isInputViewShown() && mVolumeKeyCursorControl != VOLUME_CURSOR_OFF) {
++                sendDownUpKeyEvents(mVolumeKeyCursorControl == VOLUME_CURSOR_ON_REVERSE
++                        ? KeyEvent.KEYCODE_DPAD_RIGHT : KeyEvent.KEYCODE_DPAD_LEFT);
++                return true;
++            }
++            return false;
++        }
++        if (event.getKeyCode() == KeyEvent.KEYCODE_VOLUME_DOWN) {
++            if (isInputViewShown() && mVolumeKeyCursorControl != VOLUME_CURSOR_OFF) {
++                sendDownUpKeyEvents(mVolumeKeyCursorControl == VOLUME_CURSOR_ON_REVERSE
++                        ? KeyEvent.KEYCODE_DPAD_LEFT : KeyEvent.KEYCODE_DPAD_RIGHT);
++                return true;
++            }
++            return false;
++        }
+         return doMovementKey(keyCode, event, MOVEMENT_DOWN);
+     }
+ 
+@@ -2082,6 +2111,10 @@ public class InputMethodService extends AbstractInputMethodService {
+                 return handleBack(true);
+             }
+         }
++        if (event.getKeyCode() == KeyEvent.KEYCODE_VOLUME_UP
++                 || keyCode == KeyEvent.KEYCODE_VOLUME_DOWN) {
++            return isInputViewShown() && mVolumeKeyCursorControl != VOLUME_CURSOR_OFF;
++        }
+         return doMovementKey(keyCode, event, MOVEMENT_UP);
+     }
+ 
+diff --git a/core/java/android/provider/Settings.java b/core/java/android/provider/Settings.java
+index ba62b47..2ea9e1c 100755
+--- a/core/java/android/provider/Settings.java
++++ b/core/java/android/provider/Settings.java
+@@ -3936,6 +3936,15 @@ public final class Settings {
+          */
+ 
+         /**
++          * Volume keys control cursor in text fields (default is 0)
++          * 0 - Disabled
++          * 1 - Volume up/down moves cursor left/right
++          * 2 - Volume up/down moves cursor right/left
++          * @hide
++          */
++         public static final String VOLUME_KEY_CURSOR_CONTROL = "volume_key_cursor_control";
++
++        /**
+          * Settings to backup. This is here so that it's in the same place as the settings
+          * keys and easy to update.
+          *
+-- 
+2.7.4
+

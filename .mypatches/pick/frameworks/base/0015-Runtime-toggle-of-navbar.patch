@@ -1,0 +1,335 @@
+From 4aa06fe8a3dac315f882700c7b41f3d05836b04c Mon Sep 17 00:00:00 2001
+From: Timo Wendt <timo@tjwendt.de>
+Date: Thu, 30 Aug 2012 12:18:41 +0300
+Subject: [PATCH 15/27] Runtime toggle of navbar
+
+This adds the framework support for enabling the Navigation bar
+on devices with hardware keys. It is toggled from Settings, and
+depends on device-specific support for the KeyDisabler hardware
+control
+
+Change-Id: I88fecb2ca1e8613591c327a93f53909b00239cd8
+
+wm: Nullify hardkey function assignments if enabling the navbar
+
+This caused erroneous (and sometimes duplicate) events being generated
+due to the regular key function assignments. The navbar does its
+own action management, so don't try to derive from the actions
+usually present in hard keys.
+
+Change-Id: I82866e24547f8145cac4f07820ae90aacce09281
+
+Update DEV_FORCE_SHOW_NAVBAR constant.
+
+Change-Id: Ie5b4317162c514d22276956f81007e064a3d0f32
+
+Settings: Move DEV_FORCE_SHOW_NAVBAR load to loadSecureSettings.
+
+Change-Id: I6ac53b8c9f7fce6f9ca6b4ad7bf31a1c1e896863
+---
+ core/java/android/view/IWindowManager.aidl         |  5 ++
+ core/java/android/view/WindowManagerPolicy.java    |  5 ++
+ .../systemui/statusbar/phone/StatusBar.java        | 53 ++++++++++++++++++++++
+ .../android/server/policy/PhoneWindowManager.java  | 33 ++++++++++++--
+ .../android/server/power/PowerManagerService.java  |  9 +++-
+ .../android/server/wm/WindowManagerService.java    |  5 ++
+ 6 files changed, 105 insertions(+), 5 deletions(-)
+
+diff --git a/core/java/android/view/IWindowManager.aidl b/core/java/android/view/IWindowManager.aidl
+index e576a0f..8c213ed 100644
+--- a/core/java/android/view/IWindowManager.aidl
++++ b/core/java/android/view/IWindowManager.aidl
+@@ -295,6 +295,11 @@ interface IWindowManager
+     boolean hasNavigationBar();
+ 
+     /**
++     * Device needs a software navigation bar (because it has no hardware keys).
++     */
++    boolean needsNavigationBar();
++
++    /**
+      * Lock the device immediately with the specified options (can be null).
+      */
+     void lockNow(in Bundle options);
+diff --git a/core/java/android/view/WindowManagerPolicy.java b/core/java/android/view/WindowManagerPolicy.java
+index c4ffb4c..3c02fb0 100644
+--- a/core/java/android/view/WindowManagerPolicy.java
++++ b/core/java/android/view/WindowManagerPolicy.java
+@@ -1585,6 +1585,11 @@ public interface WindowManagerPolicy {
+     public boolean hasNavigationBar();
+ 
+     /**
++     * Specifies whether the device needs a navigation bar (because it has no hardware buttons)
++     */
++    public boolean needsNavigationBar();
++
++    /**
+      * Lock the device now.
+      */
+     public void lockNow(Bundle options);
+diff --git a/packages/SystemUI/src/com/android/systemui/statusbar/phone/StatusBar.java b/packages/SystemUI/src/com/android/systemui/statusbar/phone/StatusBar.java
+index d68ad73..37aa4dd 100644
+--- a/packages/SystemUI/src/com/android/systemui/statusbar/phone/StatusBar.java
++++ b/packages/SystemUI/src/com/android/systemui/statusbar/phone/StatusBar.java
+@@ -54,6 +54,7 @@ import android.app.admin.DevicePolicyManager;
+ import android.content.BroadcastReceiver;
+ import android.content.ComponentCallbacks2;
+ import android.content.ComponentName;
++import android.content.ContentResolver;
+ import android.content.Context;
+ import android.content.Intent;
+ import android.content.IntentFilter;
+@@ -197,6 +198,7 @@ import com.android.systemui.recents.events.EventBus;
+ import com.android.systemui.recents.events.activity.AppTransitionFinishedEvent;
+ import com.android.systemui.recents.events.activity.UndockingTaskEvent;
+ import com.android.systemui.recents.misc.SystemServicesProxy;
++import com.android.systemui.settings.CurrentUserTracker;
+ import com.android.systemui.stackdivider.Divider;
+ import com.android.systemui.stackdivider.WindowManagerProxy;
+ import com.android.systemui.statusbar.ActivatableNotificationView;
+@@ -468,6 +470,7 @@ public class StatusBar extends SystemUI implements DemoMode,
+ 
+     // settings
+     private QSPanel mQSPanel;
++    private DevForceNavbarObserver mDevForceNavbarObserver;
+ 
+     // top bar
+     protected KeyguardStatusBarView mKeyguardStatusBar;
+@@ -545,6 +548,45 @@ public class StatusBar extends SystemUI implements DemoMode,
+         }
+     };
+ 
++    class DevForceNavbarObserver extends ContentObserver {
++        DevForceNavbarObserver(Handler handler) {
++            super(handler);
++        }
++
++        void observe() {
++            ContentResolver resolver = mContext.getContentResolver();
++            resolver.registerContentObserver(LineageSettings.Global.getUriFor(
++                    LineageSettings.Global.DEV_FORCE_SHOW_NAVBAR), false, this,
++                    UserHandle.USER_ALL);
++
++            CurrentUserTracker userTracker = new CurrentUserTracker(mContext) {
++                @Override
++                public void onUserSwitched(int newUserId) {
++                    update();
++                }
++            };
++            userTracker.startTracking();
++        }
++
++        @Override
++        public void onChange(boolean selfChange) {
++            super.onChange(selfChange);
++            update();
++        }
++
++        private void update() {
++            boolean visible = LineageSettings.Global.getIntForUser(mContext.getContentResolver(),
++                    LineageSettings.Global.DEV_FORCE_SHOW_NAVBAR, 0, UserHandle.USER_CURRENT) == 1;
++
++            if (visible) {
++                createNavigationBar();
++            } else {
++                mWindowManager.removeViewImmediate(mNavigationBarView);
++                mNavigationBarView = null;
++            }
++        }
++    }
++
+     // ensure quick settings is disabled until the current user makes it through the setup wizard
+     private boolean mUserSetup = false;
+     private DeviceProvisionedListener mUserSetupObserver = new DeviceProvisionedListener() {
+@@ -1009,6 +1051,17 @@ public class StatusBar extends SystemUI implements DemoMode,
+         // TODO: use MediaSessionManager.SessionListener to hook us up to future updates
+         // in session state
+ 
++        // Developer options - Force Navigation bar
++        try {
++            boolean needsNav = mWindowManagerService.needsNavigationBar();
++            if (!needsNav) {
++                final DevForceNavbarObserver observer = new DevForceNavbarObserver(mHandler);
++                observer.observe();
++            }
++        } catch (RemoteException ex) {
++            // no window manager? good luck with that
++        }
++
+         Dependency.get(TunerService.class).addTunable(this,
+                 SCREEN_BRIGHTNESS_MODE,
+                 STATUS_BAR_BRIGHTNESS_CONTROL,
+diff --git a/services/core/java/com/android/server/policy/PhoneWindowManager.java b/services/core/java/com/android/server/policy/PhoneWindowManager.java
+index 63382f5..764250a 100644
+--- a/services/core/java/com/android/server/policy/PhoneWindowManager.java
++++ b/services/core/java/com/android/server/policy/PhoneWindowManager.java
+@@ -249,6 +249,7 @@ import com.android.server.statusbar.StatusBarManagerInternal;
+ import com.android.server.vr.VrManagerInternal;
+ import com.android.server.wm.AppTransition;
+ 
++import lineageos.hardware.LineageHardwareManager;
+ import lineageos.providers.LineageSettings;
+ 
+ import java.io.File;
+@@ -715,6 +716,8 @@ public class PhoneWindowManager implements WindowManagerPolicy {
+     int mInitialMetaState;
+     boolean mForceShowSystemBars;
+ 
++    boolean mDevForceNavbar;
++
+     // support for activating the lock screen while the screen is on
+     boolean mAllowLockscreenWhenOn;
+     int mLockScreenTimeout;
+@@ -845,6 +848,8 @@ public class PhoneWindowManager implements WindowManagerPolicy {
+     private static final int MSG_REQUEST_TRANSIENT_BARS_ARG_STATUS = 0;
+     private static final int MSG_REQUEST_TRANSIENT_BARS_ARG_NAVIGATION = 1;
+ 
++    private LineageHardwareManager mLineageHardware;
++
+     private class PolicyHandler extends Handler {
+         @Override
+         public void handleMessage(Message msg) {
+@@ -991,6 +996,9 @@ public class PhoneWindowManager implements WindowManagerPolicy {
+             resolver.registerContentObserver(LineageSettings.System.getUriFor(
+                     LineageSettings.System.ACCELEROMETER_ROTATION_ANGLES), false, this,
+                     UserHandle.USER_ALL);
++            resolver.registerContentObserver(LineageSettings.Global.getUriFor(
++                    LineageSettings.Global.DEV_FORCE_SHOW_NAVBAR), false, this,
++                    UserHandle.USER_ALL);
+             updateSettings();
+         }
+ 
+@@ -1926,7 +1934,6 @@ public class PhoneWindowManager implements WindowManagerPolicy {
+             mOrientationListener.setCurrentRotation(windowManager.getDefaultDisplayRotation());
+         } catch (RemoteException ex) { }
+         mSettingsObserver = new SettingsObserver(mHandler);
+-        mSettingsObserver.observe();
+         mShortcutManager = new ShortcutManager(context);
+         mUiMode = context.getResources().getInteger(
+                 com.android.internal.R.integer.config_defaultUiModeType);
+@@ -2309,7 +2316,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
+      *         navigation bar and touch exploration is not enabled
+      */
+     private boolean canHideNavigationBar() {
+-        return mHasNavigationBar;
++        return hasNavigationBar();
+     }
+ 
+     @Override
+@@ -2354,6 +2361,15 @@ public class PhoneWindowManager implements WindowManagerPolicy {
+                 updateWakeGestureListenerLp();
+             }
+ 
++            boolean devForceNavbar = LineageSettings.Global.getIntForUser(resolver,
++                    LineageSettings.Global.DEV_FORCE_SHOW_NAVBAR, 0, UserHandle.USER_CURRENT) == 1;
++            if (devForceNavbar != mDevForceNavbar) {
++                mDevForceNavbar = devForceNavbar;
++                if (mLineageHardware.isSupported(LineageHardwareManager.FEATURE_KEY_DISABLE)) {
++                    mLineageHardware.set(LineageHardwareManager.FEATURE_KEY_DISABLE, mDevForceNavbar);
++                }
++            }
++
+             // Configure rotation lock.
+             int userRotation = Settings.System.getIntForUser(resolver,
+                     Settings.System.USER_ROTATION, Surface.ROTATION_0,
+@@ -2776,7 +2792,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
+     public int getNonDecorDisplayWidth(int fullWidth, int fullHeight, int rotation, int uiMode,
+             int displayId) {
+         // TODO(multi-display): Support navigation bar on secondary displays.
+-        if (displayId == DEFAULT_DISPLAY && mHasNavigationBar) {
++        if (displayId == DEFAULT_DISPLAY && hasNavigationBar()) {
+             // For a basic navigation bar, when we are in landscape mode we place
+             // the navigation bar to the side.
+             if (mNavigationBarCanMove && fullWidth > fullHeight) {
+@@ -2798,7 +2814,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
+     public int getNonDecorDisplayHeight(int fullWidth, int fullHeight, int rotation, int uiMode,
+             int displayId) {
+         // TODO(multi-display): Support navigation bar on secondary displays.
+-        if (displayId == DEFAULT_DISPLAY && mHasNavigationBar) {
++        if (displayId == DEFAULT_DISPLAY && hasNavigationBar()) {
+             // For a basic navigation bar, when we are in portrait mode we place
+             // the navigation bar to the bottom.
+             if (!mNavigationBarCanMove || fullWidth < fullHeight) {
+@@ -7454,6 +7470,11 @@ public class PhoneWindowManager implements WindowManagerPolicy {
+             mVrManagerInternal.addPersistentVrModeStateListener(mPersistentVrModeListener);
+         }
+ 
++        mLineageHardware = LineageHardwareManager.getInstance(mContext);
++        // Ensure observe happens in systemReady() since we need
++        // LineageHardwareService to be up and running
++        mSettingsObserver.observe();
++
+         readCameraLensCoverState();
+         updateUiMode();
+         synchronized (mLock) {
+@@ -8304,6 +8325,10 @@ public class PhoneWindowManager implements WindowManagerPolicy {
+     // overridden by qemu.hw.mainkeys in the emulator.
+     @Override
+     public boolean hasNavigationBar() {
++        return mHasNavigationBar || mDevForceNavbar;
++    }
++
++    public boolean needsNavigationBar() {
+         return mHasNavigationBar;
+     }
+ 
+diff --git a/services/core/java/com/android/server/power/PowerManagerService.java b/services/core/java/com/android/server/power/PowerManagerService.java
+index 2896d22..b09efa3 100644
+--- a/services/core/java/com/android/server/power/PowerManagerService.java
++++ b/services/core/java/com/android/server/power/PowerManagerService.java
+@@ -663,6 +663,8 @@ public final class PowerManagerService extends SystemService
+     private SensorEventListener mProximityListener;
+     private android.os.PowerManager.WakeLock mProximityWakeLock;
+ 
++    private boolean mDevForceNavbar;
++
+     public PowerManagerService(Context context) {
+         super(context);
+         mContext = context;
+@@ -848,6 +850,9 @@ public final class PowerManagerService extends SystemService
+         resolver.registerContentObserver(LineageSettings.System.getUriFor(
+                 LineageSettings.System.PROXIMITY_ON_WAKE),
+                 false, mSettingsObserver, UserHandle.USER_ALL);
++        resolver.registerContentObserver(LineageSettings.Global.getUriFor(
++                LineageSettings.Global.DEV_FORCE_SHOW_NAVBAR),
++                false, mSettingsObserver, UserHandle.USER_ALL);
+         IVrManager vrManager = (IVrManager) getBinderService(Context.VR_SERVICE);
+         if (vrManager != null) {
+             try {
+@@ -1011,6 +1016,8 @@ public final class PowerManagerService extends SystemService
+         mProximityWakeEnabled = LineageSettings.System.getInt(resolver,
+                 LineageSettings.System.PROXIMITY_ON_WAKE,
+                 mProximityWakeEnabledByDefaultConfig ? 1 : 0) == 1;
++        mDevForceNavbar = LineageSettings.Global.getIntForUser(resolver,
++                LineageSettings.Global.DEV_FORCE_SHOW_NAVBAR, 0, UserHandle.USER_CURRENT) == 1;
+ 
+         mDirty |= DIRTY_SETTINGS;
+     }
+@@ -1998,7 +2005,7 @@ public final class PowerManagerService extends SystemService
+                     nextTimeout = mLastUserActivityTime
+                             + screenOffTimeout - screenDimDuration;
+                     if (now < nextTimeout) {
+-                        if (now > mLastUserActivityTime + BUTTON_ON_DURATION) {
++                        if (mDevForceNavbar || now > mLastUserActivityTime + BUTTON_ON_DURATION) {
+                             mButtonsLight.setBrightness(0);
+                         } else {
+                             if (!mProximityPositive) {
+diff --git a/services/core/java/com/android/server/wm/WindowManagerService.java b/services/core/java/com/android/server/wm/WindowManagerService.java
+index f5cc43b..a1d1077 100644
+--- a/services/core/java/com/android/server/wm/WindowManagerService.java
++++ b/services/core/java/com/android/server/wm/WindowManagerService.java
+@@ -6387,6 +6387,11 @@ public class WindowManagerService extends IWindowManager.Stub
+     }
+ 
+     @Override
++    public boolean needsNavigationBar() {
++        return mPolicy.needsNavigationBar();
++    }
++
++    @Override
+     public void lockNow(Bundle options) {
+         mPolicy.lockNow(options);
+     }
+-- 
+2.7.4
+
