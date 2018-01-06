@@ -17,7 +17,7 @@ for op in $*; do
     if [ "$op" = "-rp" -o "$op" = "-pr" ]; then
         op_reset_projects=1
     fi
-    if [ $op_patch_local -eq 1 ] && [ "$op" = "pick" -o "$op" = "extra" ]; then
+    if [ $op_patch_local -eq 1 ] && [ "$op" = "pick" -o "$op" = "local" ]; then
         op_patches_dir="$op"
     fi
 done
@@ -46,13 +46,13 @@ function patch_local()
     va_patches_dir=$1
     search_dir=".mypatches"
 
-    [ "$va_patches_dir" = "extra" ] && search_dir=".mypatches/extra"
+    [ "$va_patches_dir" = "local" ] && search_dir=".mypatches/local"
     [ "$va_patches_dir" = "pick" ] && search_dir=".mypatches/pick"
 
     find $search_dir -type f -name "*.patch" -o -name "*.diff" | sed -e "s/\.mypatches\///" -e "s/\//:/" |sort -t : -k 2 | while read line; do
          f=$(echo $line | sed -e "s/:/\//")
          patchfile=$(basename $f)
-         project=$(echo $f |  sed -e "s/^pick\///" -e "s/^extra\///"  | sed "s/\/[^\/]*$//")
+         project=$(echo $f |  sed -e "s/^pick\///" -e "s/^local\///"  | sed "s/\/[^\/]*$//")
          if [ "$f" != "$project" ]; then
              if [ `pwd` != "$topdir/$project" ]; then
                   cd $topdir/$project
@@ -146,16 +146,20 @@ function projects_snapshot()
          patches_count=$(find $topdir/.mypatches/pick/$project -name "*.patch" -o -name "*.diff" | wc -l)
          if [ $patches_count -eq 0 ]; then
               rmdir -p --ignore-fail-on-non-empty $topdir/.mypatches/pick/$project
-         else
-              find $topdir/.mypatches/pick/$project -type f -name "*.patch" -o -name "*.diff" | while read patchfile; do
+         elif [ -d $topdir/.mypatches/local/$project ]; then
+              find $topdir/.mypatches/local/$project -type f -name "*.patch" -o -name "*.diff" | while read patchfile; do
                    patch_file_name=$(basename $patchfile)
                    changeid=$(grep "Change-Id: " $f | tail -n 1 | sed -e "s/ \{1,\}/ /g" -e "s/^ //g" | cut -d' ' -f2)
-                   if [ -d $topdir/.mypatches/extra/$project ] && grep -q "Change-Id: $changid" -r $topdir/.mypatches/extra/$project; then
-                       extra_patch=$(grep -H "Change-Id: $changid" -r $topdir/.mypatches/extra/$project | sed -n 1p | cut -d: -f1)
-                       rm -f $extra_patch
-                       mv $patchfile $topdir/.mypatches/extra/$project/$patch_file_name
+                   if [ "$changeid" != "" ]; then
+                       rm -f $patchfile
+                       if grep -q "Change-Id: $changid" -r $topdir/.mypatches/pick/$project; then
+                           pick_patch=$(grep -H "Change-Id: $changid" -r $topdir/.mypatches/pick/$project | sed -n 1p | cut -d: -f1)
+                           mv $pick_patch $topdir/.mypatches/local/$project/
+                       fi
                    fi
               done
+              ex_patches_count=$(find $topdir/.mypatches/local/$project -name "*.patch" -o -name "*.diff" | wc -l)
+              [ $ex_patches_count -eq 0 ] && rmdir -p --ignore-fail-on-non-empty $topdir/.mypatches/local/$project
          fi
     done
     mv $snapshot_file.new $snapshot_file
@@ -186,7 +190,7 @@ function restore_snapshot()
 
          searchdir=""
          [ -d .mypatches/pick/$project ] && searchdir="$searchdir .mypatches/pick/$project"
-         [ -d .mypatches/extra/$project ] && searchdir="$searchdir .mypatches/extra/$project"
+         [ -d .mypatches/local/$project ] && searchdir="$searchdir .mypatches/local/$project"
 
          find $searchdir -type f -name "*.patch" -o -name "*.diff" | sed -e "s/\.mypatches\///"  -e "s/\//:/" |sort -t : -k 2 | while read line; do
              rm -rf .git/rebase-apply
@@ -219,7 +223,17 @@ fi
 
 function pick()
 {
-    repopick $* || exit -1
+    tmpfile=/tmp/__repopick_tmp.log
+    rm -f $tmpfile
+    repopick -c 20 $* 2>$tmpfile
+    if [ $? -eq 1 -a -f $tmpfile ] ; then
+          #cat  $tmpfile
+          if ! grep -q "allow-empty" $tmpfile; then
+              rm -f $tmpfile
+              exit -1
+          fi
+    fi
+    rm -f $tmpfile
 }
 
 ### invisiblek picks
