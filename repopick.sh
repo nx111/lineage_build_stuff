@@ -222,7 +222,7 @@ fi
 
 ######################################
 
-function pick()
+function kpick()
 {
     tmpfile=/tmp/__repopick_tmp.log
     rm -f $tmpfile
@@ -237,208 +237,170 @@ function pick()
     rm -f $tmpfile
 }
 
-### invisiblek picks
-
-pick 201146 # DeskClock: Add back flip and shake actions
-pick 201147 # DeskClock: Use accelerometer instead of orientation sensor
-
-pick 200035 # Camera: CameraHardwareInterface changes to support Extended FD
-pick 200040 # Camed HAL extension: Added support in HIDL for Extended FD
-#pick 198713 # Updater: Add notification channels
 
 
-pick 199120 # tinycompress: HAXXX: Move libtinycompress_vendor back to Android.mk
-
-pick 198546 # SystemUI: enable NFC tile
-pick 198547 # SystemUI: add caffeine qs tile
-pick 198548 # SystemUI: Add heads up tile
-pick 198549 # QS: add Sync tile
-pick 198550 # Added show volume panel tile to QS
-pick 198551 # SystemUI: Add adb over network tile
-pick 198552 # SystemUI: Readd AmbientDisplayTile.
-pick 198553 # SystemUI: add USB Tether tile
-
-pick 198554 # SystemUI: Network Traffic [1/3]
-pick 198558 # lineage-sdk: Add Network Traffic [2/3]
-pick 198559 # LineageParts: Network Traffic [3/3]
-
-#198622 # Add back increasing ring feature (2/3)
-#198624 # Add back increasing ring feature (3/3)
-
-pick 200113 # Settings: Add kill app back button toggle
-
-pick 200153 # StatusBar: Add dark theme toggle
-pick 200154 # LineageSettings: Add dark theme toggle
-pick 200155 # Settings: Add toggle for dark theme
-pick 201327 # overlays: Overlay Settings for Dark UI [1/2]
-
-pick 198959 # PackageManager: Add configuration to specify vendor platform signatures
-pick 198950 # Enable NSRM (Network Socket Request Manager).
-pick 198951 # CamcorderProfiles: Add new camcorder profiles
-pick 198952 # HAX: add LPCM to list
-pick 198954 # build: Make systemimage depend on installed kernel if system is root
-pick 198960 # update_verifier: skip verity to determine successful on lineage builds
-pick 198955 # init: don't reboot to bootloader on panic
-pick 198958 # init: I hate safety net
-
-#198962 # Init: Support bootdevice symlink for early mount.
-
-pick 198961 # frameworks/base: Support for third party NFC features and extensions
-pick 198957 # NFC: Adding new vendor specific interface to NFC Service
-pick 198050 # nxp: NativeNfcManager: Implement missing inherited abstract methods
-pick 198967 # InputMethodManagerService: adjust grip mode for input enable/disable
-pick 200945 # [HAX] remove stylus shit from touchscreen input
-
-#198956 # envsetup: Update default path for SDCLANG 4.0
-#200167 # Add support for building with proprietary compiler
-#200168 # Control building shared libs, static libs and executables with SDLLVM LTO
-#200169 # Add support for using the secondary SDLLVM toolchain
-#200170 # Turn off sdclang for cfi sanitizer
-#200171 # build: Require devices to opt-in for SDCLANG
-#200172 # binary: Append cc/cxx wrapper to sdclang
-#200173 # dumpvar: Dump TARGET_USE_SDCLANG
-#198109 # lineagehw: Use color matricies for HWC2 color calibration
-#198110 # sdk: Add DisplayUtils for global display matrix setting
-#198111 # livedisplay: Use new DisplayTransformManager API to set color overlay
-
-# buttons
-# lineage parts
-pick 199204 # Forward port 'Swap volume buttons' (2/3)
-pick 200069 # LineageParts: Deprecate few button settings
-pick 199198 # LineageParts: Bring up buttons settings
-pick 199948 # LineageParts: Bring up button backlight settings
-# lineage-sdk
-pick 199196 # lineage-sdk internal: add LineageButtons
-pick 199197 # lineage-sdk: Import device hardware keys configs and constants
-pick 199898 # lineage-sdk: Import device keys custom rebinding configs and add helpers
-pick 200114 # lineage-sdk: Add kill app back button configs and strings
-pick 200106 # lineage-sdk: Import ActionUtils class
-pick 201311 # lineage-sdk: Add broadcast action for power menu update
-# fw/b
-pick 199835 # Runtime toggle of navbar
-pick 198564 # Long-press power while display is off for torch
-pick 199897 # Reimplement hardware keys custom rebinding
-pick 199860 # Reimplement device hardware wake keys support
-pick 199199 # PhoneWindowManager: add LineageButtons volumekey hook
-pick 199200 # Framework: Volume key cursor control
-pick 199203 # Forward port 'Swap volume buttons' (1/3)
-pick 199865 # PhoneWindowManager: Tap volume buttons to answer call
-pick 199906 # PhoneWindowManager: Implement press home to answer call
-pick 199947 # PowerManager: Re-integrate button brightness
-pick 200112 # Framework: Forward port Long press back to kill app (2/2)
-pick 199982 # SystemUI: add left and right virtual buttons while typing
-pick 200188 # Allow screen unpinning on devices without navbar
-
-###  haggertk picks
-:<<__COMMENT__
-CAF_HALS="audio display media"
-for hal in $CAF_HALS; do
+if [ $USER != haggertk ]; then
   d=`pwd`
-  cd hardware/qcom/${hal}-caf/msm8974 || exit 1
-  git remote remove bgcngm > /dev/null 2>&1
-  git remote add bgcngm https://github.com/bgcngm/android_hardware_qcom_${hal}.git || exit 1
-  git fetch bgcngm staging/lineage-15.1-caf-8974-rebase-LA.BF.1.1.3_rb1.15  || exit 1
-  git checkout bgcngm/staging/lineage-15.1-caf-8974-rebase-LA.BF.1.1.3_rb1.15 || exit 1
+  cd vendor/samsung || exit 1
+  git remote remove haggertk > /dev/null 2>&1
+  git remote add haggertk https://github.com/haggertk/proprietary_vendor_samsung.git || exit 1
+  git fetch haggertk lineage-15.1 || exit 1
+  git checkout haggertk/lineage-15.1 || exit 1
   cd "$d"
-done
-__COMMENT__
+fi
+
+# device/samsung/klte-common
+kpick 199932 # [DNM] klte-common: import libril from hardware/ril-caf
+kpick 199933 # [DNM] klte-common: libril: Add Samsung changes
+kpick 199934 # klte-common: libril: Fix RIL_Call structure
+kpick 199935 # klte-common: libril: Fix SMS on certain variants
+kpick 199936 # klte-common: libril: fix network operator search
+kpick 199937 # klte-common: Update RIL_REQUEST_QUERY_AVAILABLE_NETWORKS response prop
+kpick 200757 # klte-common: libril: Add workaround for "ring of death" bug
+kpick 199941 # klte-common: libril: Fix RIL_UNSOL_NITZ_TIME_RECEIVED Parcel
+kpick 200495 # klte-common: Fixup RIL_Call structure
+kpick 201182 # klte-common: libril: Get off my back
+kpick 199943 # [DNM] klte-common: selinux permissive for O bringup
+kpick 199944 # [DNM] klte-common: Kill blur overlay
+kpick 199946 # [DNM] klte-common: sepolicy: Rewrite for O
+kpick 200643 # klte-common: Move hardware key overlays from fw/b to lineage-sdk
+kpick 200805 # klte-common: Fragment NFC support to chip type
+kpick 201051 # klte-common: Move charger service into the charger domain
+
+# device/samsung/kltechnduo
+kpick 200524 # kltechnduo: Rework launch of second RIL daemon
+kpick 200736 # kltechnduo: Use rild2.libpath property for ril-daemon2
+kpick 200874 # kltechnduo: Use fragmented NFC support from -common
+
+# device/samsung/msm8974
+kpick 200634 # msm8974-common: Setup localctors for shared blobs
+kpick 200635 # msm8974-common: Use shared blobs from vendor/
+kpick 200636 # msm8974-common: Ship RenderScript HAL
+kpick 200637 # msm8974-common: Enable boot and system server dex-preopt
+kpick 200538 # msm8974-common: Use QTI power hal
+kpick 201237 # msm8974-common: Add seccomp policy
+
+# external/tinycompress
+kpick 199120 # tinycompress: HAXXX: Move libtinycompress_vendor back to Android.mk
+
+# hardware/samsung
+kpick 200068 # AdvancedDisplay: cyanogenmod -> lineageos
 
 # device/lineage/sepolicy
-pick 198594 # sepolicy: qcom: Import bluetooth_loader/hci_attach rules
-pick 199347 # sepolicy: Set the context for fsck.exfat/ntfs to fsck_exec
-pick 199348 # sepolicy: Add domain for mkfs binaries
-pick 199349 # sepolicy: label exfat and ntfs mkfs executables
-pick 199350 # sepolicy: treat fuseblk as sdcard_external
-pick 199351 # sepolicy: fix denials for external storage
-pick 199352 # sepolicy: Allow vold to `getattr` on mkfs_exec
-pick 199353 # sepolicy: allow vold to mount fuse-based sdcard
-pick 199515 # sepolicy: Add policy for sysinit
-pick 199516 # sepolicy: allow userinit to set its property
-pick 199517 # sepolicy: Permissions for userinit
-pick 199518 # sepolicy: Fix sysinit denials
-pick 199571 # sepolicy: Move fingerprint 2.0 service out of private sepolicy
-pick 199572 # sepolicy: SELinux policy for persistent properties API
+kpick 198594 # sepolicy: qcom: Import bluetooth_loader/hci_attach rules
+kpick 199347 # sepolicy: Set the context for fsck.exfat/ntfs to fsck_exec
+kpick 199348 # sepolicy: Add domain for mkfs binaries
+kpick 199349 # sepolicy: label exfat and ntfs mkfs executables
+kpick 199350 # sepolicy: treat fuseblk as sdcard_external
+kpick 199351 # sepolicy: fix denials for external storage
+kpick 199352 # sepolicy: Allow vold to `getattr` on mkfs_exec
+kpick 199353 # sepolicy: allow vold to mount fuse-based sdcard
+kpick 199515 # sepolicy: Add policy for sysinit
+kpick 199516 # sepolicy: allow userinit to set its property
+kpick 199517 # sepolicy: Permissions for userinit
+kpick 199518 # sepolicy: Fix sysinit denials
+kpick 199571 # sepolicy: Move fingerprint 2.0 service out of private sepolicy
+kpick 199572 # sepolicy: SELinux policy for persistent properties API
+
+# device/qcom/common
+kpick 201274 # power: Update power hal extension for new qti hal
 
 # device/qcom/sepolicy
-pick 198620 # sepolicy: Let keystore load firmware
-pick 198703 # Revert "sepolicy: Allow platform app to find nfc service"
-pick 198707 # sepolicy: Include legacy rild policies
-pick 198141 # Use set_prop() macro for property sets
-pick 198303 # sepolicy: Add sysfs labels for devices using 'soc.0'
-pick 199557 # sepolicy: Readd perfd policies
-pick 199558 # sepolicy: Allow system_app to connect to time_daemon socket
-pick 199559 # sepolicy: Allow dataservice_app to read/write to IPA device
-pick 199560 # sepolicy: Allow bluetooth to connect to wcnss_filter socket
-pick 199562 # sepolicy: Allow netmgrd to communicate with netd
-pick 199562 # sepolicy: Allow netmgrd to communicate with netd
-pick 199564 # sepolicy: Allow energyawareness to read sysfs files
-pick 199565 # sepolicy: Label pre-O location data and socket file paths
-pick 199554 # sepolicy: Add /data/vendor/time label for old oreo blobs
-pick 199600 # sepolicy: Allow 'sys_admin' capability for rmt_storage
+kpick 198620 # sepolicy: Let keystore load firmware
+kpick 198703 # Revert "sepolicy: Allow platform app to find nfc service"
+kpick 198707 # sepolicy: Include legacy rild policies
+kpick 198141 # Use set_prop() macro for property sets
+kpick 198303 # sepolicy: Add sysfs labels for devices using 'soc.0'
+kpick 199557 # sepolicy: Readd perfd policies
+kpick 199558 # sepolicy: Allow system_app to connect to time_daemon socket
+kpick 199559 # sepolicy: Allow dataservice_app to read/write to IPA device
+kpick 199560 # sepolicy: Allow bluetooth to connect to wcnss_filter socket
+kpick 199562 # sepolicy: Allow netmgrd to communicate with netd
+kpick 199562 # sepolicy: Allow netmgrd to communicate with netd
+kpick 199564 # sepolicy: Allow energyawareness to read sysfs files
+kpick 199565 # sepolicy: Label pre-O location data and socket file paths
+kpick 199554 # sepolicy: Add /data/vendor/time label for old oreo blobs
+kpick 199600 # sepolicy: Allow 'sys_admin' capability for rmt_storage
 
 # system/sepolicy
-pick 199664 # sepolicy: Fix up exfat and ntfs support
+kpick 199664 # sepolicy: Fix up exfat and ntfs support
 
-# hardware/broadcom/libbt
-pick 200115 # libbt: Add btlock support
-pick 200116 # libbt: Add prepatch support
-pick 200117 # libbt: Add support for using two stop bits
-pick 200118 # libbt-vendor: add support for samsung bluetooth
-pick 200119 # libbt-vendor: Add support for Samsung wisol flavor
-pick 200121 # libbt-vendor: Fix Samsung patchfile detection.
-pick 200122 # Avoid an annoying bug that only hits BCM chips running at less than 3MBps
-pick 200123 # libbt-vendor: add support for Samsung semco
-pick 200124 # Broadcom BT: Add support fm/bt via v4l2.
-pick 200126 # libbt: Import CID_PATH from samsung_macloader.h
-pick 200127 # libbt: Only allow upio_start_stop_timer on 32bit arm
+# system/core
+d=`pwd`
+cd system/core || exit 1
+curl https://github.com/invisiblek/android_system_core/commit/96c4433e.patch | git am || exit 1
+cd "$d" || exit 1
 
-### Afaneh92 picks
+# frameworks/base
+kpick 199835 # Runtime toggle of navbar
+kpick 198564 # Long-press power while display is off for torch
+kpick 199897 # Reimplement hardware keys custom rebinding
+kpick 199860 # Reimplement device hardware wake keys support
+kpick 199199 # PhoneWindowManager: add LineageButtons volumekey hook
+kpick 199200 # Framework: Volume key cursor control
+kpick 199203 # Forward port 'Swap volume buttons' (1/3)
+kpick 199865 # PhoneWindowManager: Tap volume buttons to answer call
+kpick 199906 # PhoneWindowManager: Implement press home to answer call
+kpick 199982 # SystemUI: add left and right virtual buttons while typing
+kpick 200112 # Framework: Forward port Long press back to kill app (2/2)
+kpick 200188 # Allow screen unpinning on devices without navbar
+kpick 199947 # PowerManager: Re-integrate button brightness
+kpick 200968 # statusbar: Add arguments to shutdown and reboot to allow confirmation
+kpick 200969 # SystemUI: Power menu customizations
 
-pick 198902 # Remove include for dtbhtool
-pick 200068 # AdvancedDisplay: cyanogenmod -> lineageos
-pick 200082 # AdvancedDisplay: Re-integrate into Settings
-pick 200083 # AdvancedDisplay: Restore back button to the action bar
-pick 199839 # Settings: Add advanced restart switch
-pick 200968 # statusbar: Add arguments to shutdown and reboot to allow confirmation
-pick 200969 # SystemUI: Power menu customizations
-pick 200970 # sdk: Move isAdvancedRebootEnabled to SDK from global access
-pick 201274 # power: Update power hal extension for new qti hal
-pick 201309 # LineageParts: Re-enable PowerMenuActions and adapt to SDK updates
+# frameworks/native
+kpick 199204 # Forward port 'Swap volume buttons' (2/3)
 
-#:<<__COMMENT__
-#pick 200533 # klte: Inherit single-SIM radio support from -common
-#pick 200807 # klte: Use fragmented NFC support from -common
+# packages/apps/Settings
+kpick 200113 # Settings: Add kill app back button toggle
+kpick 199839 # Settings: Add advanced restart switch
 
-pick 200524 # kltechnduo: Rework launch of second RIL daemon
-pick 200736 # kltechnduo: Use rild2.libpath property for ril-daemon2
-pick 200874 # kltechnduo: Use fragmented NFC support from -common
+# packages/apps/LineageParts
+kpick 200069 # LineageParts: Deprecate few button settings
+kpick 199198 # LineageParts: Bring up buttons settings
+kpick 199948 # LineageParts: Bring up button backlight settings
+kpick 201309 # LineageParts: Re-enable PowerMenuActions and adapt to SDK updates
 
-pick 199932 # [DO NOT MERGE] klte-common: import libril from hardware/ril-caf
-pick 199933 # [DO NOT MERGE] klte-common: libril: Add Samsung changes
-pick 199934 # klte-common: libril: Fix RIL_Call structure
-pick 199935 # klte-common: libril: Fix SMS on certain variants
-pick 199936 # klte-common: libril: fix network operator search and attach
-pick 199937 # klte-common: Update RIL_REQUEST_QUERY_AVAILABLE_NETWORKS response prop
-pick 199941 # klte-common: libril: Fix RIL_UNSOL_NITZ_TIME_RECEIVED Parcel
-pick 200495 # klte-common: Fixup RIL_Call structure
-pick 200757 # klte-common: libril: Add workaround for "ring of death" bug
-pick 201182 # klte-common: libril: Get off my back
+# lineage-sdk
+kpick 199196 # lineage-sdk internal: add LineageButtons
+kpick 199197 # lineage-sdk: Import device hardware keys configs and constants
+kpick 199898 # lineage-sdk: Import device keys custom rebinding configs and add helpers
+kpick 200106 # lineage-sdk: Import ActionUtils class
+kpick 200114 # lineage-sdk: Add kill app back button configs and strings
+kpick 200970 # sdk: Move isAdvancedRebootEnabled to SDK from global access
+kpick 201311 # lineage-sdk: Add broadcast action for power menu update
 
-pick 199943 # [DO NOT MERGE] klte-common: selinux permissive for O bringup
-pick 199944 # [DO NOT MERGE] klte-common: Kill blur overlay
-#pick 199945 # [DO NOT MERGE] klte-common: Kill hardware key overlays
-pick 199946 # [DO NOT MERGE] klte-common: sepolicy: Rewrite for O
-pick 200547 # klte-common: power: Update power hal extension for new qti hal
-pick 200643 # klte-common: Move hardware key overlays from fw/b to lineage-sdk
-pick 200805 # klte-common: Fragment NFC support to chip type
-pick 201051 # klte-common: Move charger service into the charger domain
-#__COMMENT__
+:<<__COMMENT__
+exit 0
 
-pick 200634 # msm8974-common: Setup localctors for shared blobs
-pick 200635 # msm8974-common: Use shared blobs from vendor/
-pick 200636 # msm8974-common: Ship RenderScript HAL
-pick 200637 # msm8974-common: Enable boot and system server dex-preopt
-pick 200538 # msm8974-common: Use QTI power hal
-pick 201237 # msm8974-common: Add seccomp policy
+d=`pwd`
+cd frameworks/opt/telephony || exit 1
+git remote remove paul > /dev/null 2>&1
+git remote add paul https://github.com/randomstuffpaul/android_frameworks_opt_telephony.git || exit 1
+git fetch paul lineage-15.1 || exit 1
+git checkout paul/lineage-15.1 || exit 1
+cd "$d"
 
+exit 0
 
+# frameworks/opt/telephony
+kpick 200781 # Telephony: Enable data call on CSIM.
+kpick 200783 # Support Fetching IMSI MCC and MNC for RuimRecords.
+kpick 200784 # Get default from CdmaSubscriptionSourceManager
+kpick 200785 # Telephony: Reduce back to back same APN activation delay.
+kpick 200786 # Fix the roaming searching text display in standby screen
+kpick 200787 # Telephony: Fix RUIM app mcc/mnc issue.
+kpick 200788 # Fix copying SMS into RUIM with failure
+kpick 200793 # Mms: Add the retrieve conf type support in MMS PDU composer.
+kpick 200797 # PhoneFactory: fix creating a cdma phone type
+kpick 200796 # Telephony: Enable NV based CDMA data call.
+kpick 200798 # For NV-based devices like CDMA only devices, ignore ICC Card status change EVENT.
+kpick 200799 # Send EVENT_NV_READY to GsmCdmaPhone
+kpick 200800 # Add dummy SUB record in CDMA NV mode
+kpick 200801 # Update carrier services on EVENT_NV_READY
+kpick 200802 # GsmCdmaPhone: Return dummy ICCID serial for NV sub
+kpick 200803 # GsmCdmaPhone: Fix GSM SIM card ICCID on NV sub CDMA devices
+kpick 200804 # Create cdma dummy apns.
+__COMMENT__
+
+patch_local local

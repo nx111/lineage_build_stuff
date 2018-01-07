@@ -1,0 +1,178 @@
+From 9c36a7fdb3eb76f13084f86aa6c8ba39a7a46e7b Mon Sep 17 00:00:00 2001
+From: nadlabak <pavel@doshaska.net>
+Date: Sat, 20 Dec 2014 23:56:55 +0200
+Subject: [PATCH 07/16] Forward port 'Swap volume buttons' (1/3)
+
+[mikeioannina]: Adjust for 5.0 changes
+
+Change-Id: I1b45da63b815aa1b3ddf7cda2b7afb0872ab433f
+---
+ .../android/server/input/InputManagerService.java  | 33 ++++++++++++++++++++++
+ ...om_android_server_input_InputManagerService.cpp | 31 ++++++++++++++++++++
+ 2 files changed, 64 insertions(+)
+
+diff --git a/services/core/java/com/android/server/input/InputManagerService.java b/services/core/java/com/android/server/input/InputManagerService.java
+index fa9b107..d7b9fe1 100644
+--- a/services/core/java/com/android/server/input/InputManagerService.java
++++ b/services/core/java/com/android/server/input/InputManagerService.java
+@@ -117,6 +117,8 @@ import java.util.HashSet;
+ import java.util.List;
+ import java.util.Locale;
+ 
++import lineageos.providers.LineageSettings;
++
+ import libcore.io.IoUtils;
+ import libcore.io.Streams;
+ import libcore.util.Objects;
+@@ -226,6 +228,7 @@ public class InputManagerService extends IInputManager.Stub
+             InputChannel fromChannel, InputChannel toChannel);
+     private static native void nativeSetPointerSpeed(long ptr, int speed);
+     private static native void nativeSetShowTouches(long ptr, boolean enabled);
++    private static native void nativeSetVolumeKeysRotation(long ptr, int mode);
+     private static native void nativeSetInteractive(long ptr, boolean interactive);
+     private static native void nativeReloadCalibration(long ptr);
+     private static native void nativeVibrate(long ptr, int deviceId, long[] pattern,
+@@ -352,6 +355,7 @@ public class InputManagerService extends IInputManager.Stub
+         registerPointerSpeedSettingObserver();
+         registerShowTouchesSettingObserver();
+         registerAccessibilityLargePointerSettingObserver();
++        registerVolumeKeysRotationSettingObserver();
+ 
+         mContext.registerReceiver(new BroadcastReceiver() {
+             @Override
+@@ -359,12 +363,14 @@ public class InputManagerService extends IInputManager.Stub
+                 updatePointerSpeedFromSettings();
+                 updateShowTouchesFromSettings();
+                 updateAccessibilityLargePointerFromSettings();
++                updateVolumeKeysRotationFromSettings();
+             }
+         }, new IntentFilter(Intent.ACTION_USER_SWITCHED), null, mHandler);
+ 
+         updatePointerSpeedFromSettings();
+         updateShowTouchesFromSettings();
+         updateAccessibilityLargePointerFromSettings();
++        updateVolumeKeysRotationFromSettings();
+     }
+ 
+     // TODO(BT) Pass in paramter for bluetooth system
+@@ -1717,6 +1723,33 @@ public class InputManagerService extends IInputManager.Stub
+         return result;
+     }
+ 
++    public void updateVolumeKeysRotationFromSettings() {
++        int mode = getVolumeKeysRotationSetting(0);
++        nativeSetVolumeKeysRotation(mPtr, mode);
++    }
++
++    public void registerVolumeKeysRotationSettingObserver() {
++        mContext.getContentResolver().registerContentObserver(
++                LineageSettings.System.getUriFor(
++                        LineageSettings.System.SWAP_VOLUME_KEYS_ON_ROTATION), false,
++                new ContentObserver(mHandler) {
++                    @Override
++                    public void onChange(boolean selfChange) {
++                        updateVolumeKeysRotationFromSettings();
++                    }
++                });
++    }
++
++    private int getVolumeKeysRotationSetting(int defaultValue) {
++        int result = defaultValue;
++        try {
++            result = LineageSettings.System.getIntForUser(mContext.getContentResolver(),
++                    LineageSettings.System.SWAP_VOLUME_KEYS_ON_ROTATION, UserHandle.USER_CURRENT);
++        } catch (LineageSettings.LineageSettingNotFoundException snfe) {
++        }
++        return result;
++    }
++
+     // Binder call
+     @Override
+     public void vibrate(int deviceId, long[] pattern, int repeat, IBinder token) {
+diff --git a/services/core/jni/com_android_server_input_InputManagerService.cpp b/services/core/jni/com_android_server_input_InputManagerService.cpp
+index 21300ed..4742c5b 100644
+--- a/services/core/jni/com_android_server_input_InputManagerService.cpp
++++ b/services/core/jni/com_android_server_input_InputManagerService.cpp
+@@ -214,6 +214,7 @@ public:
+     void setPointerSpeed(int32_t speed);
+     void setInputDeviceEnabled(uint32_t deviceId, bool enabled);
+     void setShowTouches(bool enabled);
++    void setVolumeKeysRotation(int mode);
+     void setInteractive(bool interactive);
+     void reloadCalibration();
+     void setPointerIconType(int32_t iconId);
+@@ -293,6 +294,9 @@ private:
+         // Pointer capture feature enable/disable.
+         bool pointerCapture;
+ 
++        // Volume keys rotation mode (0 - off, 1 - phone, 2 - tablet)
++        int32_t volumeKeysRotationMode;
++
+         // Sprite controller singleton, created on first use.
+         sp<SpriteController> spriteController;
+ 
+@@ -333,6 +337,7 @@ NativeInputManager::NativeInputManager(jobject contextObj,
+         mLocked.pointerGesturesEnabled = true;
+         mLocked.showTouches = false;
+         mLocked.pointerCapture = false;
++        mLocked.volumeKeysRotationMode = 0;
+     }
+     mInteractive = true;
+ 
+@@ -520,6 +525,7 @@ void NativeInputManager::getReaderConfiguration(InputReaderConfiguration* outCon
+         outConfig->pointerGesturesEnabled = mLocked.pointerGesturesEnabled;
+ 
+         outConfig->showTouches = mLocked.showTouches;
++        outConfig->volumeKeysRotationMode = mLocked.volumeKeysRotationMode;
+ 
+         outConfig->pointerCapture = mLocked.pointerCapture;
+ 
+@@ -878,6 +884,22 @@ void NativeInputManager::setPointerCapture(bool enabled) {
+             InputReaderConfiguration::CHANGE_POINTER_CAPTURE);
+ }
+ 
++void NativeInputManager::setVolumeKeysRotation(int mode) {
++    { // acquire lock
++        AutoMutex _l(mLock);
++
++        if (mLocked.volumeKeysRotationMode == mode) {
++            return;
++        }
++
++        ALOGI("Volume keys: rotation mode set to %d.", mode);
++        mLocked.volumeKeysRotationMode = mode;
++    } // release lock
++
++    mInputManager->getReader()->requestRefreshConfiguration(
++            InputReaderConfiguration::CHANGE_VOLUME_KEYS_ROTATION);
++}
++
+ void NativeInputManager::setInteractive(bool interactive) {
+     mInteractive = interactive;
+ }
+@@ -1512,6 +1534,13 @@ static void nativeSetShowTouches(JNIEnv* /* env */,
+     im->setShowTouches(enabled);
+ }
+ 
++static void nativeSetVolumeKeysRotation(JNIEnv* env,
++        jclass clazz, jlong ptr, int mode) {
++    NativeInputManager* im = reinterpret_cast<NativeInputManager*>(ptr);
++
++    im->setVolumeKeysRotation(mode);
++}
++
+ static void nativeSetInteractive(JNIEnv* env,
+         jclass clazz, jlong ptr, jboolean interactive) {
+     NativeInputManager* im = reinterpret_cast<NativeInputManager*>(ptr);
+@@ -1691,6 +1720,8 @@ static const JNINativeMethod gInputManagerMethods[] = {
+             (void*) nativeSetPointerSpeed },
+     { "nativeSetShowTouches", "(JZ)V",
+             (void*) nativeSetShowTouches },
++    { "nativeSetVolumeKeysRotation", "(JI)V",
++            (void*) nativeSetVolumeKeysRotation },
+     { "nativeSetInteractive", "(JZ)V",
+             (void*) nativeSetInteractive },
+     { "nativeReloadCalibration", "(J)V",
+-- 
+2.7.4
+
