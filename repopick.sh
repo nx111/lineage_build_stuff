@@ -142,7 +142,8 @@ function projects_snapshot()
          rm -rf $topdir/.mypatches/pick/$project/*.patch
          rm -rf $topdir/.mypatches/pick/$project/*.diff
 
-         git format-patch "$commit_id" -o $(gettop)/.mypatches/pick/$project/
+         git format-patch "$commit_id" -o $topdir/.mypatches/pick/$project/ | sed -e "s:.*/:              :"
+
          patches_count=$(find $topdir/.mypatches/pick/$project -name "*.patch" -o -name "*.diff" | wc -l)
          if [ $patches_count -eq 0 ]; then
               rmdir -p --ignore-fail-on-non-empty $topdir/.mypatches/pick/$project
@@ -152,8 +153,8 @@ function projects_snapshot()
                    changeid=$(grep "Change-Id: " $f | tail -n 1 | sed -e "s/ \{1,\}/ /g" -e "s/^ //g" | cut -d' ' -f2)
                    if [ "$changeid" != "" ]; then
                        rm -f $patchfile
-                       if grep -q "Change-Id: $changid" -r $topdir/.mypatches/pick/$project; then
-                           pick_patch=$(grep -H "Change-Id: $changid" -r $topdir/.mypatches/pick/$project | sed -n 1p | cut -d: -f1)
+                       if grep -q "Change-Id: $changeid" -r $topdir/.mypatches/pick/$project; then
+                           pick_patch=$(grep -H "Change-Id: $changeid" -r $topdir/.mypatches/pick/$project | sed -n 1p | cut -d: -f1)
                            mv $pick_patch $topdir/.mypatches/local/$project/
                        fi
                    fi
