@@ -230,6 +230,7 @@ function kpick()
     if [ $? -eq 1 -a -f $tmpfile ] ; then
           #cat  $tmpfile
           if ! grep -q "allow-empty" $tmpfile; then
+              cat $tmpfile
               rm -f $tmpfile
               exit -1
           fi
@@ -270,7 +271,7 @@ kpick 201051 # klte-common: Move charger service into the charger domain
 # device/samsung/kltechnduo
 kpick 200524 # kltechnduo: Rework launch of second RIL daemon
 kpick 200736 # kltechnduo: Use rild2.libpath property for ril-daemon2
-kpick 200874 # kltechnduo: Use fragmented NFC support from -common
+#kpick 200874 # kltechnduo: Use fragmented NFC support from -common
 
 # device/samsung/msm8974
 kpick 200634 # msm8974-common: Setup localctors for shared blobs
@@ -325,12 +326,6 @@ kpick 199600 # sepolicy: Allow 'sys_admin' capability for rmt_storage
 # system/sepolicy
 kpick 199664 # sepolicy: Fix up exfat and ntfs support
 
-# system/core
-d=`pwd`
-cd system/core || exit 1
-curl https://github.com/invisiblek/android_system_core/commit/96c4433e.patch | git am || exit 1
-cd "$d" || exit 1
-
 # frameworks/base
 kpick 199835 # Runtime toggle of navbar
 kpick 198564 # Long-press power while display is off for torch
@@ -350,16 +345,20 @@ kpick 200969 # SystemUI: Power menu customizations
 
 # frameworks/native
 kpick 199204 # Forward port 'Swap volume buttons' (2/3)
+#kpick 201530 # AppOpsManager: Update with the new ops
 
 # packages/apps/Settings
 kpick 200113 # Settings: Add kill app back button toggle
 kpick 199839 # Settings: Add advanced restart switch
+#kpick 201529 # Settings: Privacy Guard
 
 # packages/apps/LineageParts
 kpick 200069 # LineageParts: Deprecate few button settings
 kpick 199198 # LineageParts: Bring up buttons settings
 kpick 199948 # LineageParts: Bring up button backlight settings
 kpick 201309 # LineageParts: Re-enable PowerMenuActions and adapt to SDK updates
+#kpick 201528 # PrivacyGuard: Bring up and inject into Settings
+
 
 # lineage-sdk
 kpick 199196 # lineage-sdk internal: add LineageButtons
@@ -370,37 +369,12 @@ kpick 200114 # lineage-sdk: Add kill app back button configs and strings
 kpick 200970 # sdk: Move isAdvancedRebootEnabled to SDK from global access
 kpick 201311 # lineage-sdk: Add broadcast action for power menu update
 
-:<<__COMMENT__
-exit 0
+# packages/apps/Dialer
+kpick 201346
+kpick 201634
 
-d=`pwd`
-cd frameworks/opt/telephony || exit 1
-git remote remove paul > /dev/null 2>&1
-git remote add paul https://github.com/randomstuffpaul/android_frameworks_opt_telephony.git || exit 1
-git fetch paul lineage-15.1 || exit 1
-git checkout paul/lineage-15.1 || exit 1
-cd "$d"
-
-exit 0
-
-# frameworks/opt/telephony
-kpick 200781 # Telephony: Enable data call on CSIM.
-kpick 200783 # Support Fetching IMSI MCC and MNC for RuimRecords.
-kpick 200784 # Get default from CdmaSubscriptionSourceManager
-kpick 200785 # Telephony: Reduce back to back same APN activation delay.
-kpick 200786 # Fix the roaming searching text display in standby screen
-kpick 200787 # Telephony: Fix RUIM app mcc/mnc issue.
-kpick 200788 # Fix copying SMS into RUIM with failure
-kpick 200793 # Mms: Add the retrieve conf type support in MMS PDU composer.
-kpick 200797 # PhoneFactory: fix creating a cdma phone type
-kpick 200796 # Telephony: Enable NV based CDMA data call.
-kpick 200798 # For NV-based devices like CDMA only devices, ignore ICC Card status change EVENT.
-kpick 200799 # Send EVENT_NV_READY to GsmCdmaPhone
-kpick 200800 # Add dummy SUB record in CDMA NV mode
-kpick 200801 # Update carrier services on EVENT_NV_READY
-kpick 200802 # GsmCdmaPhone: Return dummy ICCID serial for NV sub
-kpick 200803 # GsmCdmaPhone: Fix GSM SIM card ICCID on NV sub CDMA devices
-kpick 200804 # Create cdma dummy apns.
-__COMMENT__
+# vendor/lineage
+kpick 201560
 
 patch_local local
+
