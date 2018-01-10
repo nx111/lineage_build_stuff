@@ -289,6 +289,9 @@ kpick 199120 # tinycompress: HAXXX: Move libtinycompress_vendor back to Android.
 # hardware/samsung
 kpick 200068 # AdvancedDisplay: cyanogenmod -> lineageos
 
+# hardware/qcom/power
+kpick 201924 # power: Fix up some legacy stats code
+
 # device/lineage/sepolicy
 kpick 198594 # sepolicy: qcom: Import bluetooth_loader/hci_attach rules
 kpick 199347 # sepolicy: Set the context for fsck.exfat/ntfs to fsck_exec
