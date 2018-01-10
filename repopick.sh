@@ -4,6 +4,7 @@ op_reset_projects=0
 op_patch_local=0
 op_project_snapshot=0
 op_restore_snapshot=0
+op_pick_remote_only=0
 op_patches_dir=""
 default_remote="github"
 
@@ -14,6 +15,7 @@ for op in $*; do
     [ "$op" = "--reset" -o "$op" = "-r" ] && op_reset_projects=1
     [ "$op" = "--snap" -o "$op" = "-s" ] && op_project_snapshot=1
     [ "$op" = "--restore" -o "$op" = "--restore-snap" ] && op_restore_snapshot=1
+    [ "$op" = "--remote-only" -o "$op" = "-ro" ] && op_pick_remote_only=1
     if [ "$op" = "-rp" -o "$op" = "-pr" ]; then
         op_reset_projects=1
     fi
@@ -219,7 +221,7 @@ if [ $# -ge 1 ]; then
    [ $op_reset_projects -eq 1 ] && projects_reset
    [ $op_patch_local -eq 1 ] && patch_local $op_patches_dir
    [ $op_restore_snapshot -eq 1 ] && restore_snapshot
-   exit 0
+   [ $op_pick_remote_only -eq 0 ] && exit 0
 fi
 
 ######################################
@@ -381,5 +383,5 @@ kpick 201634
 # vendor/lineage
 kpick 201560
 
-patch_local local
+[ $op_pick_remote_only -eq 0 ] && patch_local local
 
