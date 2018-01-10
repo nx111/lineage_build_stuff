@@ -169,8 +169,8 @@ function projects_snapshot()
 
 function restore_snapshot()
 {
-    cd $(gettop)
     topdir=$(gettop)
+    cd $topdir
     snapshot_file=$topdir/.mypatches/snapshot.list
     [ -f "$snapshot_file" ] || return -1
     cat $snapshot_file | while read line; do
@@ -182,28 +182,30 @@ function restore_snapshot()
 
 
          echo ">>>  restore project: $project ... "
-         git stash; git clean -xdf
-         if git log -n0 $basecommit 2>/dev/null; then
-             git -q checkout --detach $basecommit
+         git stash -q
+         git clean -xdf
+         if git log -n0 $basecommit >/dev/null 2>/dev/null; then
+             git checkout -q --detach $basecommit>/dev/null 2>/dev/null
          else
-             git fetch $remoteurl $basecommit && git checkout -q FETCH_HEAD
+             repo sync .
+             git fetch $remoteurl $basecommit && git checkout -q FETCH_HEAD >/dev/null 2>/dev/null
          fi 
 
          searchdir=""
-         [ -d .mypatches/pick/$project ] && searchdir="$searchdir .mypatches/pick/$project"
-         [ -d .mypatches/local/$project ] && searchdir="$searchdir .mypatches/local/$project"
-
-         find $searchdir -type f -name "*.patch" -o -name "*.diff" | sed -e "s/\.mypatches\///"  -e "s/\//:/" |sort -t : -k 2 | while read line; do
-             rm -rf .git/rebase-apply
+         [ -d $topdir/.mypatches/pick/$project ] && searchdir="$searchdir $topdir/.mypatches/pick/$project"
+         [ -d $topdir/.mypatches/local/$project ] && searchdir="$searchdir $topdir/.mypatches/local/$project"
+         [ "$searchdir" != "" ] && \
+         find $searchdir -type f -name "*.patch" -o -name "*.diff" | sed -e "s:$topdir/.mypatches/::"  -e "s|\/|:|" |sort -t : -k 2 | while read line; do
+             rm -rf $topdir/$project/.git/rebase-apply
              f=$(echo $line | sed -e "s/:/\//")
              changeid=$(grep "Change-Id: " $topdir/.mypatches/$f | tail -n 1 | sed -e "s/ \{1,\}/ /g" -e "s/^ //g" | cut -d' ' -f2)
              if [ "$changeid" != "" ]; then
                   if ! git log  -100 | grep "Change-Id: $changeid" >/dev/null 2>/dev/null; then 
-                      echo "          apply patch: $f ..."
+                      echo "         apply patch: $f ..."
                       git am -3 -q < $topdir/.mypatches/$f
                       [ $? -ne 0 ] && exit -1
                   else
-                      echo "          skip patch: $f ...(applied always)"
+                      echo "         skip  patch: $f ...(applied always)"
                   fi
               fi
          done
