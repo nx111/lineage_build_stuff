@@ -269,7 +269,6 @@ kpick 199943 # [DNM] klte-common: selinux permissive for O bringup
 kpick 199944 # [DNM] klte-common: Kill blur overlay
 kpick 199946 # [DNM] klte-common: sepolicy: Rewrite for O
 kpick 200643 # klte-common: Move hardware key overlays from fw/b to lineage-sdk
-kpick 200805 # klte-common: Fragment NFC support to chip type
 kpick 201051 # klte-common: Move charger service into the charger domain
 
 # device/samsung/kltechnduo
@@ -278,12 +277,7 @@ kpick 200736 # kltechnduo: Use rild2.libpath property for ril-daemon2
 #kpick 200874 # kltechnduo: Use fragmented NFC support from -common
 
 # device/samsung/msm8974
-kpick 200634 # msm8974-common: Setup localctors for shared blobs
-kpick 200635 # msm8974-common: Use shared blobs from vendor/
-kpick 200636 # msm8974-common: Ship RenderScript HAL
-kpick 200637 # msm8974-common: Enable boot and system server dex-preopt
 kpick 200538 # msm8974-common: Use QTI power hal
-kpick 201237 # msm8974-common: Add seccomp policy
 
 # external/tinycompress
 kpick 199120 # tinycompress: HAXXX: Move libtinycompress_vendor back to Android.mk
@@ -315,7 +309,6 @@ kpick 201274 # power: Update power hal extension for new qti hal
 
 # device/qcom/sepolicy
 kpick 198620 # sepolicy: Let keystore load firmware
-kpick 198703 # Revert "sepolicy: Allow platform app to find nfc service"
 kpick 198707 # sepolicy: Include legacy rild policies
 kpick 198141 # Use set_prop() macro for property sets
 kpick 198303 # sepolicy: Add sysfs labels for devices using 'soc.0'
@@ -352,19 +345,19 @@ kpick 200969 # SystemUI: Power menu customizations
 
 # frameworks/native
 kpick 199204 # Forward port 'Swap volume buttons' (2/3)
-#kpick 201530 # AppOpsManager: Update with the new ops
+kpick 201530 # AppOpsManager: Update with the new ops
 
 # packages/apps/Settings
 kpick 200113 # Settings: Add kill app back button toggle
 kpick 199839 # Settings: Add advanced restart switch
-#kpick 201529 # Settings: Privacy Guard
+kpick 201529 # Settings: Privacy Guard
 
 # packages/apps/LineageParts
 kpick 200069 # LineageParts: Deprecate few button settings
 kpick 199198 # LineageParts: Bring up buttons settings
 kpick 199948 # LineageParts: Bring up button backlight settings
 kpick 201309 # LineageParts: Re-enable PowerMenuActions and adapt to SDK updates
-#kpick 201528 # PrivacyGuard: Bring up and inject into Settings
+kpick 201528 # PrivacyGuard: Bring up and inject into Settings
 
 
 # lineage-sdk
@@ -380,8 +373,7 @@ kpick 201311 # lineage-sdk: Add broadcast action for power menu update
 kpick 201346
 kpick 201634
 
-# vendor/lineage
-kpick 201560
+##################################
 
 [ $op_pick_remote_only -eq 0 ] && patch_local local
 
