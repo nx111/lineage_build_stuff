@@ -169,6 +169,20 @@ function projects_snapshot()
     cd $topdir
 }
 
+function resync_project()
+{
+    [ $# -lt 1 ] && return -1
+    project=$1
+    topdir=$(gettop)
+    curdir=`pwd`
+    cd $topdir
+    rm -rf $topdir/$project
+    [ -d $topdir/.repo/projects/$project.git/object ] && rm -rf $(dirname $(realpath $topdir/.repo/projects/$project.git/object))
+    [ -d $topdir/.repo/projects/$project.git ] && rm -rf $topdir/.repo/projects/$project.git
+    repo sync $project
+    cd $curdir
+}
+
 function restore_snapshot()
 {
     topdir=$(gettop)
@@ -180,16 +194,15 @@ function restore_snapshot()
          basecommit=$(echo $line | cut -d, -f2 | sed -e "s/^ *//g" -e "s/ *$//g")
          remoteurl=$(echo $line | cut -d, -f3 | sed -e "s/^ *//g" -e "s/ *$//g")
 
-         cd $topdir/$project
-
+         cd $topdir/$project || resync_project $project;cd $topdir/$project
 
          echo ">>>  restore project: $project ... "
-         git stash -q
+         git stash -q || resync_project $project;cd $topdir/$project
          git clean -xdf
          if git log -n0 $basecommit >/dev/null 2>/dev/null; then
              git checkout -q --detach $basecommit>/dev/null 2>/dev/null
          else
-             repo sync .
+             resync_project $project;cd $topdir/$project
              git fetch $remoteurl $basecommit && git checkout -q FETCH_HEAD >/dev/null 2>/dev/null
          fi 
 
