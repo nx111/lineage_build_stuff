@@ -152,7 +152,7 @@ function projects_snapshot()
          elif [ -d $topdir/.mypatches/local/$project ]; then
               find $topdir/.mypatches/local/$project -type f -name "*.patch" -o -name "*.diff" | while read patchfile; do
                    patch_file_name=$(basename $patchfile)
-                   changeid=$(grep "Change-Id: " $f | tail -n 1 | sed -e "s/ \{1,\}/ /g" -e "s/^ //g" | cut -d' ' -f2)
+                   changeid=$(grep "Change-Id: " $patchfile | tail -n 1 | sed -e "s/ \{1,\}/ /g" -e "s/^ //g" | cut -d' ' -f2)
                    if [ "$changeid" != "" ]; then
                        rm -f $patchfile
                        if grep -q "Change-Id: $changeid" -r $topdir/.mypatches/pick/$project; then
