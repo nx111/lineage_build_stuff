@@ -1,0 +1,165 @@
+From 3cd5a50ad55ba9fe15230d6f324631931ad2575b Mon Sep 17 00:00:00 2001
+From: "Christopher N. Hesse" <raymanfx@gmail.com>
+Date: Sun, 7 Jan 2018 22:49:06 +0100
+Subject: [PATCH 15/16] Squashed import of superuser SELinux policies
+
+Add selinux policies for superuser
+
+Change-Id: I878eaa9d25feaedf46e89083f91d6a21f4aff37a
+
+SELinux: su: Remove extra quote in a comment
+
+* Fixes
+  vendor/cm/sepolicy/su.te:46:WARNING 'unrecognized character' at token '''
+
+Change-Id: I3957ba7ac05062766cbf6c8f3c3975f20c95532e
+
+selinux: Workaround for devices with PR_SET_NO_NEW_PRIVS enforcement
+
+PR_SET_NO_NEW_PRIVS blocks domain transitions from within app_process,
+unless the new domain is bounded by the app's context. So we can't
+switch to a domain that has perms not available to untrusted_app :(
+
+This means any app can talk to the daemon, bypassing the su executable
+client. That's not a good thing, and needs to be resolved.
+
+Change-Id: I85b74f90b8737caaa193a0555b5262e7392519b2
+
+sepolicy: Add policies for the new superuser sockets.
+
+Change-Id: Ia3e1044616bee95eb4774254fb098487d983b5db
+
+sepolicy: remove sudaemon type declaration
+
+* this is already defined in external/sepolicy
+
+Change-Id: I541b5de5bb6057f4fa3d88b6e9b9425b65f9963e
+
+sepolicy: Make superuser_device and sudaemon mlstrustedobjects
+
+Address:
+avc: denied { write } for pid=8782 comm="su" name="su-daemon" dev="tmpfs" ino=9462
+scontext=u:r:untrusted_app:s0:c512,c768 tcontext=u:object_r:superuser_device:s0
+tclass=sock_file permissive=0
+
+avc: denied { connectto } for pid=6666 comm="su" path="/dev/socket/su-daemon/su-daemon"
+scontext=u:r:untrusted_app:s0:c512,c768 tcontext=u:r:sudaemon:s0
+tclass=unix_stream_socket permissive=0
+
+And thus fix su.
+
+Change-Id: I666277067c5ff9f2a985c243075c63fd87090b27
+
+sepolicy: fix denial for sudaemon
+
+fixes root access for apps
+
+Change-Id: Iff443bf4cbea817917da72bbfc58f9fe42acceb5
+
+cm: sepolicy: allow kernel to read storage
+
+This fixes issues where the kernel would need to read and write
+files from internal or external storage. More specifically, the
+kernel needs these rules for USB mass storage to work correctly.
+
+Change-Id: I8cb0307727bc0c464d5470e55275ad808e748ee0
+
+sepolicy: Clean up policy for N
+
+Change-Id: I39ddec0f60a9995de13b82f09705d246d7e0f454
+---
+ common/public/file_contexts |  2 ++
+ common/public/su.te         | 72 +++++++++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 74 insertions(+)
+ create mode 100644 common/public/file_contexts
+ create mode 100644 common/public/su.te
+
+diff --git a/common/public/file_contexts b/common/public/file_contexts
+new file mode 100644
+index 0000000..5e64c94
+--- /dev/null
++++ b/common/public/file_contexts
+@@ -0,0 +1,2 @@
++# Superuser's control sockets
++/dev/socket/su-daemon(/.*)?   u:object_r:superuser_device:s0
+diff --git a/common/public/su.te b/common/public/su.te
+new file mode 100644
+index 0000000..1a2a2b3
+--- /dev/null
++++ b/common/public/su.te
+@@ -0,0 +1,72 @@
++type superuser_device, file_type, mlstrustedobject;
++
++## Perms for the daemon
++
++userdebug_or_eng(`
++  domain_trans(init, su_exec, sudaemon)
++
++  typeattribute sudaemon domain, mlstrustedsubject;
++
++  type_transition sudaemon socket_device:sock_file superuser_device;
++  # The userspace app uses /dev sockets to control per-app access
++  allow sudaemon superuser_device:dir { create rw_dir_perms setattr unlink };
++  allow sudaemon superuser_device:sock_file { create setattr unlink write };
++
++  # sudaemon is also permissive to permit setenforce.
++  permissive sudaemon;
++
++  # Add sudaemon to various domains
++  net_domain(sudaemon)
++  app_domain(sudaemon)
++
++  dontaudit sudaemon self:capability_class_set *;
++  dontaudit sudaemon kernel:security *;
++  dontaudit sudaemon kernel:system *;
++  dontaudit sudaemon self:memprotect *;
++  dontaudit sudaemon domain:process *;
++  dontaudit sudaemon domain:fd *;
++  dontaudit sudaemon domain:dir *;
++  dontaudit sudaemon domain:lnk_file *;
++  dontaudit sudaemon domain:{ fifo_file file } *;
++  dontaudit sudaemon domain:socket_class_set *;
++  dontaudit sudaemon domain:ipc_class_set *;
++  dontaudit sudaemon domain:key *;
++  dontaudit sudaemon fs_type:filesystem *;
++  dontaudit sudaemon {fs_type dev_type file_type}:dir_file_class_set *;
++  dontaudit sudaemon node_type:node *;
++  dontaudit sudaemon node_type:{ tcp_socket udp_socket rawip_socket } *;
++  dontaudit sudaemon netif_type:netif *;
++  dontaudit sudaemon port_type:socket_class_set *;
++  dontaudit sudaemon port_type:{ tcp_socket dccp_socket } *;
++  dontaudit sudaemon domain:peer *;
++  dontaudit sudaemon domain:binder *;
++  dontaudit sudaemon property_type:property_service *;
++  dontaudit sudaemon appops_service:service_manager *;
++')
++
++## Perms for the app
++
++userdebug_or_eng(`
++  # Translate user apps to the shell domain when using su
++  #
++  # PR_SET_NO_NEW_PRIVS blocks this :(
++  # we need to find a way to narrow this down to the actual exec.
++  # typealias shell alias suclient;
++  # domain_auto_trans(untrusted_app, su_exec, suclient)
++
++  allow untrusted_app su_exec:file { execute_no_trans getattr open read execute };
++  allow untrusted_app sudaemon:unix_stream_socket { connectto read write setopt ioctl };
++  allow untrusted_app superuser_device:dir { r_dir_perms };
++  allow untrusted_app superuser_device:sock_file { write };
++
++
++  # For Settings control of access
++  allow system_app superuser_device:sock_file { read write create setattr unlink getattr };
++  allow system_app sudaemon:unix_stream_socket { connectto read write setopt ioctl };
++  allow system_app superuser_device:dir { create rw_dir_perms setattr unlink };
++
++  allow kernel sudaemon:fd { use };
++
++')
++
++neverallow { domain userdebug_or_eng(`-dumpstate -shell -su -untrusted_app -init -sudaemon') } su_exec:file no_x_file_perms;
+-- 
+2.7.4
+

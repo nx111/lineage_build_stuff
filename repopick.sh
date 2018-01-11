@@ -316,6 +316,9 @@ kpick 199517 # sepolicy: Permissions for userinit
 kpick 199518 # sepolicy: Fix sysinit denials
 kpick 199571 # sepolicy: Move fingerprint 2.0 service out of private sepolicy
 kpick 199572 # sepolicy: SELinux policy for persistent properties API
+kpick 201552 # Squashed import of superuser SELinux policies
+kpick 201582 # sepolicy: adapt sudaemon policy for O
+
 
 # device/qcom/common
 kpick 201274 # power: Update power hal extension for new qti hal
@@ -338,6 +341,14 @@ kpick 199600 # sepolicy: Allow 'sys_admin' capability for rmt_storage
 
 # system/sepolicy
 kpick 199664 # sepolicy: Fix up exfat and ntfs support
+kpick 201554 # sepolicy: We need to declare before referencing
+kpick 201732 # sepilocy: add sudaemon to ignore list
+kpick 201583 # sepolicy: Allow su by apps on userdebug_or_eng
+kpick 201584 # sepolicy: update policies for sudaemon on O
+
+# system/extra/su
+kpick 201990 # su: Remove EUID vs UID check
+kpick 202051 # rc: Ensure su binary is world executable
 
 # frameworks/base
 kpick 199835 # Runtime toggle of navbar
