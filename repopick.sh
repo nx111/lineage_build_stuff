@@ -339,17 +339,6 @@ kpick 199565 # sepolicy: Label pre-O location data and socket file paths
 kpick 199554 # sepolicy: Add /data/vendor/time label for old oreo blobs
 kpick 199600 # sepolicy: Allow 'sys_admin' capability for rmt_storage
 
-# system/sepolicy
-kpick 199664 # sepolicy: Fix up exfat and ntfs support
-kpick 201554 # sepolicy: We need to declare before referencing
-kpick 201732 # sepilocy: add sudaemon to ignore list
-kpick 201583 # sepolicy: Allow su by apps on userdebug_or_eng
-kpick 201584 # sepolicy: update policies for sudaemon on O
-
-# system/extra/su
-kpick 201990 # su: Remove EUID vs UID check
-kpick 202051 # rc: Ensure su binary is world executable
-
 # frameworks/base
 kpick 199835 # Runtime toggle of navbar
 kpick 198564 # Long-press power while display is off for torch
@@ -366,23 +355,13 @@ kpick 200188 # Allow screen unpinning on devices without navbar
 kpick 199947 # PowerManager: Re-integrate button brightness
 kpick 200968 # statusbar: Add arguments to shutdown and reboot to allow confirmation
 kpick 200969 # SystemUI: Power menu customizations
+kpick 201879 # frameworks: Privacy Guard for O
+kpick 202153 # Camera button support
 
 # frameworks/native
 kpick 199204 # Forward port 'Swap volume buttons' (2/3)
 kpick 201530 # AppOpsManager: Update with the new ops
-
-# packages/apps/Settings
-kpick 200113 # Settings: Add kill app back button toggle
-kpick 199839 # Settings: Add advanced restart switch
-kpick 201529 # Settings: Privacy Guard
-
-# packages/apps/LineageParts
-kpick 200069 # LineageParts: Deprecate few button settings
-kpick 199198 # LineageParts: Bring up buttons settings
-kpick 199948 # LineageParts: Bring up button backlight settings
-kpick 201309 # LineageParts: Re-enable PowerMenuActions and adapt to SDK updates
-kpick 201528 # PrivacyGuard: Bring up and inject into Settings
-
+kpick 201893 # sensor: Skip additional permission request checks
 
 # lineage-sdk
 kpick 199196 # lineage-sdk internal: add LineageButtons
@@ -392,10 +371,42 @@ kpick 200106 # lineage-sdk: Import ActionUtils class
 kpick 200114 # lineage-sdk: Add kill app back button configs and strings
 kpick 200970 # sdk: Move isAdvancedRebootEnabled to SDK from global access
 kpick 201311 # lineage-sdk: Add broadcast action for power menu update
+kpick 202152 # lineage-sdk: Add config to define camera key type
 
 # packages/apps/Dialer
-kpick 201346
-kpick 201634
+kpick 201346 # Re-add dialer lookup.
+kpick 201634 # Allow using private framework API. 
+kpick 201337 # Dialer: disable anti-falsing for call answer screen
+
+# packages/apps/LineageParts
+kpick 200069 # LineageParts: Deprecate few button settings
+kpick 199198 # LineageParts: Bring up buttons settings
+kpick 199948 # LineageParts: Bring up button backlight settings
+kpick 201309 # LineageParts: Re-enable PowerMenuActions and adapt to SDK updates
+kpick 201528 # PrivacyGuard: Bring up and inject into Settings
+
+# packages/apps/Settings
+kpick 200113 # Settings: Add kill app back button toggle
+kpick 199839 # Settings: Add advanced restart switch
+kpick 201529 # Settings: Privacy Guard
+kpick 201531 # Settings: Add developer setting for root access
+
+#packages/apps/Snap
+kpick 201220 # Snap: check tags before using them
+
+# system/extra/su
+kpick 201990 # su: Remove EUID vs UID check
+kpick 202051 # rc: Ensure su binary is world executable
+
+# system/sepolicy
+kpick 199664 # sepolicy: Fix up exfat and ntfs support
+kpick 201554 # sepolicy: We need to declare before referencing
+kpick 201732 # sepilocy: add sudaemon to ignore list
+kpick 201583 # sepolicy: Allow su by apps on userdebug_or_eng
+kpick 201584 # sepolicy: update policies for sudaemon on O
+
+#vendor/lineage
+kpick 201931 # overlay: Disable SystemUI anti-falsing on lockscreen
 
 ##################################
 

@@ -1,7 +1,7 @@
-From 3675c1d4d62725cc07c787968ab5eea67d97551b Mon Sep 17 00:00:00 2001
+From 08a2b78fff590a498b7fa575fd3b643b295ef14f Mon Sep 17 00:00:00 2001
 From: Phil Tunstall <ptunstall@gmail.com>
 Date: Fri, 14 Nov 2014 09:44:49 -0800
-Subject: [PATCH 03/18] Reimplement hardware keys custom rebinding
+Subject: [PATCH 03/19] Reimplement hardware keys custom rebinding
 
 This is a squash of the following commits:
 
@@ -44,11 +44,43 @@ Date:   Mon Dec 25 22:10:28 2017 +0000
 
 Change-Id: I2e2234e3d01d943e0cadd23898288f8a88936a47
 ---
- .../android/server/policy/PhoneWindowManager.java  | 351 ++++++++++++++++-----
- 1 file changed, 280 insertions(+), 71 deletions(-)
+ .../statusbar/phone/NavigationBarFragment.java     |  13 +-
+ .../android/server/policy/PhoneWindowManager.java  | 350 ++++++++++++++++-----
+ 2 files changed, 283 insertions(+), 80 deletions(-)
 
+diff --git a/packages/SystemUI/src/com/android/systemui/statusbar/phone/NavigationBarFragment.java b/packages/SystemUI/src/com/android/systemui/statusbar/phone/NavigationBarFragment.java
+index c44e1db..3c113e3 100644
+--- a/packages/SystemUI/src/com/android/systemui/statusbar/phone/NavigationBarFragment.java
++++ b/packages/SystemUI/src/com/android/systemui/statusbar/phone/NavigationBarFragment.java
+@@ -395,6 +395,7 @@ public class NavigationBarFragment extends Fragment implements Callbacks {
+ 
+         ButtonDispatcher homeButton = mNavigationBarView.getHomeButton();
+         homeButton.setOnTouchListener(this::onHomeTouch);
++        homeButton.setLongClickable(true);
+         homeButton.setOnLongClickListener(this::onHomeLongClick);
+ 
+         ButtonDispatcher accessibilityButton = mNavigationBarView.getAccessibilityButton();
+@@ -443,15 +444,9 @@ public class NavigationBarFragment extends Fragment implements Callbacks {
+ 
+     @VisibleForTesting
+     boolean onHomeLongClick(View v) {
+-        if (shouldDisableNavbarGestures()) {
+-            return false;
+-        }
+-        MetricsLogger.action(getContext(), MetricsEvent.ACTION_ASSIST_LONG_PRESS);
+-        mAssistManager.startAssist(new Bundle() /* args */);
+-        mStatusBar.awakenDreams();
+-        if (mNavigationBarView != null) {
+-            mNavigationBarView.abortCurrentGesture();
+-        }
++        KeyButtonView keyButtonView = (KeyButtonView) v;
++        keyButtonView.sendEvent(KeyEvent.ACTION_DOWN, KeyEvent.FLAG_LONG_PRESS);
++        keyButtonView.sendAccessibilityEvent(AccessibilityEvent.TYPE_VIEW_LONG_CLICKED);
+         return true;
+     }
+ 
 diff --git a/services/core/java/com/android/server/policy/PhoneWindowManager.java b/services/core/java/com/android/server/policy/PhoneWindowManager.java
-index d43e5bd..c62b94a 100644
+index d43e5bd..23cd884 100644
 --- a/services/core/java/com/android/server/policy/PhoneWindowManager.java
 +++ b/services/core/java/com/android/server/policy/PhoneWindowManager.java
 @@ -257,6 +257,9 @@ import com.android.server.wm.AppTransition;
@@ -174,7 +206,7 @@ index d43e5bd..c62b94a 100644
      }
  
      private void launchAllAppsAction() {
-@@ -1890,11 +1918,11 @@ public class PhoneWindowManager implements WindowManagerPolicy {
+@@ -1890,11 +1918,10 @@ public class PhoneWindowManager implements WindowManagerPolicy {
          startActivityAsUser(intent, UserHandle.CURRENT);
      }
  
@@ -185,13 +217,12 @@ index d43e5bd..c62b94a 100644
 -        }
 +    private void launchCameraAction() {
 +        sendCloseSystemWindows();
-+        Intent intent = new Intent(Intent.ACTION_CAMERA_BUTTON, null);
-+        mContext.sendOrderedBroadcastAsUser(intent, UserHandle.CURRENT_OR_SELF,
-+                null, null, null, 0, null, null);
++        Intent intent = new Intent(lineageos.content.Intent.ACTION_SCREEN_CAMERA_GESTURE);
++        mContext.sendBroadcast(intent, android.Manifest.permission.STATUS_BAR_SERVICE);
      }
  
      private void showPictureInPictureMenu(KeyEvent event) {
-@@ -1912,6 +1940,42 @@ public class PhoneWindowManager implements WindowManagerPolicy {
+@@ -1912,6 +1939,42 @@ public class PhoneWindowManager implements WindowManagerPolicy {
          }
      }
  
@@ -234,7 +265,7 @@ index d43e5bd..c62b94a 100644
      private final Runnable mHomeDoubleTapTimeoutRunnable = new Runnable() {
          @Override
          public void run() {
-@@ -2085,7 +2149,10 @@ public class PhoneWindowManager implements WindowManagerPolicy {
+@@ -2085,7 +2148,10 @@ public class PhoneWindowManager implements WindowManagerPolicy {
          mHandleVolumeKeysInWM = mContext.getResources().getBoolean(
                  com.android.internal.R.bool.config_handleVolumeKeysInWindowManager);
  
@@ -246,7 +277,7 @@ index d43e5bd..c62b94a 100644
  
          mAccessibilityManager = (AccessibilityManager) context.getSystemService(
                  Context.ACCESSIBILITY_SERVICE);
-@@ -2267,26 +2334,78 @@ public class PhoneWindowManager implements WindowManagerPolicy {
+@@ -2267,26 +2333,78 @@ public class PhoneWindowManager implements WindowManagerPolicy {
          context.registerReceiver(torchReceiver, filter);
      }
  
@@ -342,7 +373,7 @@ index d43e5bd..c62b94a 100644
          }
  
          mShortPressWindowBehavior = SHORT_PRESS_WINDOW_NOTHING;
-@@ -2448,6 +2567,8 @@ public class PhoneWindowManager implements WindowManagerPolicy {
+@@ -2448,6 +2566,8 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                  }
              }
  
@@ -351,7 +382,7 @@ index d43e5bd..c62b94a 100644
              // Configure rotation lock.
              int userRotation = Settings.System.getIntForUser(resolver,
                      Settings.System.USER_ROTATION, Surface.ROTATION_0,
-@@ -2790,7 +2911,6 @@ public class PhoneWindowManager implements WindowManagerPolicy {
+@@ -2790,7 +2910,6 @@ public class PhoneWindowManager implements WindowManagerPolicy {
              int navigationPresence) {
          mHaveBuiltInKeyboard = (keyboardPresence & PRESENCE_INTERNAL) != 0;
  
@@ -359,7 +390,7 @@ index d43e5bd..c62b94a 100644
          readLidState();
  
          if (config.keyboard == Configuration.KEYBOARD_NOKEYS
-@@ -3465,6 +3585,8 @@ public class PhoneWindowManager implements WindowManagerPolicy {
+@@ -3465,6 +3584,8 @@ public class PhoneWindowManager implements WindowManagerPolicy {
          final int flags = event.getFlags();
          final boolean down = event.getAction() == KeyEvent.ACTION_DOWN;
          final boolean canceled = event.isCanceled();
@@ -368,7 +399,7 @@ index d43e5bd..c62b94a 100644
  
          if (DEBUG_INPUT) {
              Log.d(TAG, "interceptKeyTi keyCode=" + keyCode + " down=" + down + " repeatCount="
-@@ -3539,7 +3661,9 @@ public class PhoneWindowManager implements WindowManagerPolicy {
+@@ -3539,7 +3660,9 @@ public class PhoneWindowManager implements WindowManagerPolicy {
              // If we have released the home key, and didn't do anything else
              // while it was pressed, then it is time to go home!
              if (!down) {
@@ -379,7 +410,7 @@ index d43e5bd..c62b94a 100644
  
                  mHomePressed = false;
                  if (mHomeConsumed) {
-@@ -3553,7 +3677,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
+@@ -3553,7 +3676,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                  }
  
                  // Delay handling home if a double-tap is possible.
@@ -388,7 +419,7 @@ index d43e5bd..c62b94a 100644
                      mHandler.removeCallbacks(mHomeDoubleTapTimeoutRunnable); // just in case
                      mHomeDoubleTapPending = true;
                      mHandler.postDelayed(mHomeDoubleTapTimeoutRunnable,
-@@ -3590,26 +3714,70 @@ public class PhoneWindowManager implements WindowManagerPolicy {
+@@ -3590,26 +3713,70 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                  if (mHomeDoubleTapPending) {
                      mHomeDoubleTapPending = false;
                      mHandler.removeCallbacks(mHomeDoubleTapTimeoutRunnable);
@@ -470,7 +501,7 @@ index d43e5bd..c62b94a 100644
                  }
              }
          } else if (keyCode == KeyEvent.KEYCODE_SEARCH) {
-@@ -3628,10 +3796,34 @@ public class PhoneWindowManager implements WindowManagerPolicy {
+@@ -3628,10 +3795,34 @@ public class PhoneWindowManager implements WindowManagerPolicy {
              return 0;
          } else if (keyCode == KeyEvent.KEYCODE_APP_SWITCH) {
              if (!keyguardOn) {
@@ -509,7 +540,7 @@ index d43e5bd..c62b94a 100644
                  }
              }
              return -1;
-@@ -3661,20 +3853,31 @@ public class PhoneWindowManager implements WindowManagerPolicy {
+@@ -3661,20 +3852,31 @@ public class PhoneWindowManager implements WindowManagerPolicy {
              }
          } else if (keyCode == KeyEvent.KEYCODE_ASSIST) {
              if (down) {
@@ -547,7 +578,7 @@ index d43e5bd..c62b94a 100644
                      }
                  }
              }
-@@ -4267,6 +4470,13 @@ public class PhoneWindowManager implements WindowManagerPolicy {
+@@ -4267,6 +4469,13 @@ public class PhoneWindowManager implements WindowManagerPolicy {
          }
      }
  
@@ -561,7 +592,7 @@ index d43e5bd..c62b94a 100644
      @Override
      public void showRecentApps(boolean fromHome) {
          mHandler.removeMessages(MSG_DISPATCH_SHOW_RECENTS);
-@@ -8683,7 +8893,6 @@ public class PhoneWindowManager implements WindowManagerPolicy {
+@@ -8683,7 +8892,6 @@ public class PhoneWindowManager implements WindowManagerPolicy {
          pw.print(prefix); pw.print("mEndcallBehavior="); pw.print(mEndcallBehavior);
                  pw.print(" mIncallPowerBehavior="); pw.print(mIncallPowerBehavior);
                  pw.print(" mIncallBackBehavior="); pw.print(mIncallBackBehavior);
