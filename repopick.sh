@@ -245,9 +245,9 @@ function kpick()
     errfile=$(echo $logfile | sed -e "s/\.log$/\.err/")
 
     rm -f $errfile
+    echo ""
     LANG=en_US repopick -c 20 $* >$logfile 2>$errfile
     rc=$?
-    echo ""
     cat $logfile | sed -e "/ERROR: git command failed/d"
     local tries=0
     local breakout=0
@@ -263,21 +263,21 @@ function kpick()
           grep -q -E "nothing to commit|allow-empty" $errfile && breakout=1 && break
 
           if grep -q -E "error EOF occurred|httplib\.BadStatusLine" $errfile; then
+              echo "  >> pick was interrupted, retry..."
+              echo ""
               LANG=en_US repopick -c 20 $* >$logfile 2>$errfile
               rc=$?
-              echo
               cat $logfile | sed -e "/ERROR: git command failed/d"
               tries=$(expr $tries + 1)
-              echo "  >> pick was interrupted, retry..."
               continue
           fi
           if grep -q "conflicts" $errfile; then
               cat $errfile
               echo  "  >> pick changes conflict, please resolv it, then press ENTER to continue ..."
               sed -n q </dev/tty
+              echo ""
               LANG=en_US repopick -c 20 $* >$logfile 2>$errfile
               rc=$?
-              echo
               cat $logfile | sed -e "/ERROR: git command failed/d"
               tries=$(expr $tries + 1)
               continue
@@ -307,25 +307,14 @@ kpick 201182 # klte-common: libril: Get off my back
 kpick 199943 # [DNM] klte-common: selinux permissive for O bringup
 kpick 199944 # [DNM] klte-common: Kill blur overlay
 kpick 199946 # [DNM] klte-common: sepolicy: Rewrite for O
-#kpick 200643 # klte-common: Move hardware key overlays from fw/b to lineage-sdk
 kpick 201051 # klte-common: Move charger service into the charger domain
 
 # device/samsung/kltechnduo
 kpick 200524 # kltechnduo: Rework launch of second RIL daemon
 kpick 200736 # kltechnduo: Use rild2.libpath property for ril-daemon2
-#kpick 200874 # kltechnduo: Use fragmented NFC support from -common
 
 # device/samsung/msm8974
 kpick 200538 # msm8974-common: Use QTI power hal
-
-# external/tinycompress
-#kpick 199120 # tinycompress: HAXXX: Move libtinycompress_vendor back to Android.mk
-
-# hardware/samsung
-kpick 200068 # AdvancedDisplay: cyanogenmod -> lineageos
-
-# hardware/qcom/power
-kpick 201924 # power: Fix up some legacy stats code
 
 # device/lineage/sepolicy
 kpick 198594 # sepolicy: qcom: Import bluetooth_loader/hci_attach rules
@@ -351,19 +340,26 @@ kpick 201274 # power: Update power hal extension for new qti hal
 
 # device/qcom/sepolicy
 kpick 198620 # sepolicy: Let keystore load firmware
-kpick 198707 # sepolicy: Include legacy rild policies
 kpick 198141 # Use set_prop() macro for property sets
+kpick 202377 # Revert "sepolicy: Address netmgrd denials on non-fully trebelized devices"
+kpick 202378 # legacy: add back perfd sepolicy 
+kpick 202379 # legacy: add back radio rules
+kpick 202380 # legacy: add back nfc rules
+kpick 202381 # legacy: add back rules for non-treble devices
+kpick 202382 # legacy: allow rmt_storage sys_admin capability
+kpick 202383 # legacy: let rfs_access do msm ipc ioctls
+kpick 202384 # legacy: label old hardcoded data paths
+kpick 202385 # legacy: label old msm_irqbalance prop
+kpick 202386 # legacy: add back ipacm rules
+kpick 202387 # legacy: add back imscm support into ims
+kpick 202388 # legacy: allow rild to access radio data files
+kpick 202389 # legacy: Fix labeling the thermal sockets
+kpick 202390 # legacy: let audioserver connect to thermal engine sockets
+kpick 202391 # legacy: label per_mgr as a binder service
+
 kpick 198303 # sepolicy: Add sysfs labels for devices using 'soc.0'
-kpick 199557 # sepolicy: Readd perfd policies
-kpick 199558 # sepolicy: Allow system_app to connect to time_daemon socket
 kpick 199559 # sepolicy: Allow dataservice_app to read/write to IPA device
-kpick 199560 # sepolicy: Allow bluetooth to connect to wcnss_filter socket
-kpick 199562 # sepolicy: Allow netmgrd to communicate with netd
-kpick 199562 # sepolicy: Allow netmgrd to communicate with netd
 kpick 199564 # sepolicy: Allow energyawareness to read sysfs files
-kpick 199565 # sepolicy: Label pre-O location data and socket file paths
-kpick 199554 # sepolicy: Add /data/vendor/time label for old oreo blobs
-kpick 199600 # sepolicy: Allow 'sys_admin' capability for rmt_storage
 
 # frameworks/base
 kpick 199835 # Runtime toggle of navbar
@@ -388,6 +384,12 @@ kpick 201879 # frameworks: Privacy Guard for O
 kpick 199204 # Forward port 'Swap volume buttons' (2/3)
 kpick 201530 # AppOpsManager: Update with the new ops
 kpick 201893 # sensor: Skip additional permission request checks
+
+# hardware/samsung
+kpick 200068 # AdvancedDisplay: cyanogenmod -> lineageos
+
+# hardware/qcom/power
+kpick 201924 # power: Fix up some legacy stats code
 
 # lineage-sdk
 kpick 199196 # lineage-sdk internal: add LineageButtons
@@ -417,7 +419,7 @@ kpick 199839 # Settings: Add advanced restart switch
 kpick 201529 # Settings: Privacy Guard
 kpick 201531 # Settings: Add developer setting for root access
 
-#packages/apps/Snap
+# packages/apps/Snap
 kpick 201220 # Snap: check tags before using them
 
 # system/extra/su
