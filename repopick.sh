@@ -60,10 +60,10 @@ function patch_local()
                   cd $topdir/$project
                   echo ""
                   echo "==== try apply to $project: "
-                  rm -rf .git/rebase-apply
+                  #rm -rf .git/rebase-apply
              fi
              ext=${patchfile##*.}
-             rm -rf .git/rebase-apply
+             #rm -rf .git/rebase-apply
              changeid=$(grep "Change-Id: " $topdir/.mypatches/$f | tail -n 1 | sed -e "s/ \{1,\}/ /g" -e "s/^ //g" | cut -d' ' -f2)
              if [ "$changeid" != "" ]; then
                   if ! git log  -100 | grep "Change-Id: $changeid" >/dev/null 2>/dev/null; then 
@@ -241,31 +241,57 @@ fi
 
 function kpick()
 {
-    tmpfile=/tmp/__repopick_tmp.log
-    rm -f $tmpfile
-    repopick -c 20 $* 2>$tmpfile
-    if [ $? -eq 1 -a -f $tmpfile ] ; then
-          #cat  $tmpfile
-          if ! grep -q "allow-empty" $tmpfile; then
-              cat $tmpfile
-              rm -f $tmpfile
-              exit -1
+    logfile=/tmp/__repopick_tmp.log
+    errfile=$(echo $logfile | sed -e "s/\.log$/\.err/")
+
+    rm -f $errfile
+    LANG=en_US repopick -c 20 $* >$logfile 2>$errfile
+    rc=$?
+    echo ""
+    cat $logfile | sed -e "/ERROR: git command failed/d"
+    local tries=0
+    local breakout=0
+    while [ $rc -ne 0 -a -f $errfile ] ; do
+          #cat  $errfile
+          if [ $tries -ge 30 ]; then
+                echo "    >> pick faild !!!!!"
+                cat $errfile
+                breakout=-1
+                break
+           fi
+
+          grep -q -E "nothing to commit|allow-empty" $errfile && breakout=1 && break
+
+          if grep -q -E "error EOF occurred|httplib\.BadStatusLine" $errfile; then
+              LANG=en_US repopick -c 20 $* >$logfile 2>$errfile
+              rc=$?
+              echo
+              cat $logfile | sed -e "/ERROR: git command failed/d"
+              tries=$(expr $tries + 1)
+              echo "  >> pick was interrupted, retry..."
+              continue
           fi
-    fi
-    rm -f $tmpfile
+          if grep -q "conflicts" $errfile; then
+              cat $errfile
+              echo  "  >> pick changes conflict, please resolv it, then press ENTER to continue ..."
+              sed -n q </dev/tty
+              LANG=en_US repopick -c 20 $* >$logfile 2>$errfile
+              rc=$?
+              echo
+              cat $logfile | sed -e "/ERROR: git command failed/d"
+              tries=$(expr $tries + 1)
+              continue
+          fi
+
+          echo "  >>**** repopick failed !"
+          cat $errfile
+          rm -f $errfile
+          exit -1
+
+    done
+    rm -f $errfile
+    [ $breakout -lt 0 ] && cat $errfile && exit $breakouit
 }
-
-
-
-if [ $USER != haggertk ]; then
-  d=`pwd`
-  cd vendor/samsung || exit 1
-  git remote remove haggertk > /dev/null 2>&1
-  git remote add haggertk https://github.com/haggertk/proprietary_vendor_samsung.git || exit 1
-  git fetch haggertk lineage-15.1 || exit 1
-  git checkout haggertk/lineage-15.1 || exit 1
-  cd "$d"
-fi
 
 # device/samsung/klte-common
 kpick 199932 # [DNM] klte-common: import libril from hardware/ril-caf
