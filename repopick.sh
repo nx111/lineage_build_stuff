@@ -281,7 +281,7 @@ kpick 201182 # klte-common: libril: Get off my back
 kpick 199943 # [DNM] klte-common: selinux permissive for O bringup
 kpick 199944 # [DNM] klte-common: Kill blur overlay
 kpick 199946 # [DNM] klte-common: sepolicy: Rewrite for O
-kpick 200643 # klte-common: Move hardware key overlays from fw/b to lineage-sdk
+#kpick 200643 # klte-common: Move hardware key overlays from fw/b to lineage-sdk
 kpick 201051 # klte-common: Move charger service into the charger domain
 
 # device/samsung/kltechnduo
@@ -293,7 +293,7 @@ kpick 200736 # kltechnduo: Use rild2.libpath property for ril-daemon2
 kpick 200538 # msm8974-common: Use QTI power hal
 
 # external/tinycompress
-kpick 199120 # tinycompress: HAXXX: Move libtinycompress_vendor back to Android.mk
+#kpick 199120 # tinycompress: HAXXX: Move libtinycompress_vendor back to Android.mk
 
 # hardware/samsung
 kpick 200068 # AdvancedDisplay: cyanogenmod -> lineageos
@@ -355,8 +355,8 @@ kpick 200188 # Allow screen unpinning on devices without navbar
 kpick 199947 # PowerManager: Re-integrate button brightness
 kpick 200968 # statusbar: Add arguments to shutdown and reboot to allow confirmation
 kpick 200969 # SystemUI: Power menu customizations
-kpick 201879 # frameworks: Privacy Guard for O
 kpick 202153 # Camera button support
+kpick 201879 # frameworks: Privacy Guard for O
 
 # frameworks/native
 kpick 199204 # Forward port 'Swap volume buttons' (2/3)
@@ -400,7 +400,7 @@ kpick 202051 # rc: Ensure su binary is world executable
 
 # system/sepolicy
 kpick 199664 # sepolicy: Fix up exfat and ntfs support
-kpick 201554 # sepolicy: We need to declare before referencing
+kpick 201553 # sepolicy: We need to declare before referencing
 kpick 201732 # sepilocy: add sudaemon to ignore list
 kpick 201583 # sepolicy: Allow su by apps on userdebug_or_eng
 kpick 201584 # sepolicy: update policies for sudaemon on O
