@@ -267,9 +267,14 @@ function kpick()
               echo ""
               LANG=en_US repopick -c 20 $* >$logfile 2>$errfile
               rc=$?
-              cat $logfile | sed -e "/ERROR: git command failed/d"
-              tries=$(expr $tries + 1)
-              continue
+              if [ $rc -ne 0 ]; then
+                  cat $logfile | sed -e "/ERROR: git command failed/d"
+                  tries=$(expr $tries + 1)
+                  continue
+              else
+                  breakout=0
+                  break
+              fi
           fi
           if grep -q "conflicts" $errfile; then
               cat $errfile
@@ -278,9 +283,15 @@ function kpick()
               echo ""
               LANG=en_US repopick -c 20 $* >$logfile 2>$errfile
               rc=$?
-              cat $logfile | sed -e "/ERROR: git command failed/d"
-              tries=$(expr $tries + 1)
-              continue
+              if [ $rc -eq 0 ]; then
+                  echo "  conflicts resolved,continue ..."
+                  breakout=0
+                  break
+              else
+                  cat $logfile | sed -e "/ERROR: git command failed/d"
+                  tries=$(expr $tries + 1)
+                  continue
+              fi
           fi
 
           echo "  >>**** repopick failed !"
@@ -305,9 +316,9 @@ kpick 199941 # klte-common: libril: Fix RIL_UNSOL_NITZ_TIME_RECEIVED Parcel
 kpick 200495 # klte-common: Fixup RIL_Call structure
 kpick 201182 # klte-common: libril: Get off my back
 kpick 199943 # [DNM] klte-common: selinux permissive for O bringup
-kpick 199944 # [DNM] klte-common: Kill blur overlay
 kpick 199946 # [DNM] klte-common: sepolicy: Rewrite for O
 kpick 201051 # klte-common: Move charger service into the charger domain
+kpick 202457 # klte-common: HAXX: Fix seeming RIL start race condition
 
 # device/samsung/kltechnduo
 kpick 200524 # kltechnduo: Rework launch of second RIL daemon
@@ -329,7 +340,6 @@ kpick 199515 # sepolicy: Add policy for sysinit
 kpick 199516 # sepolicy: allow userinit to set its property
 kpick 199517 # sepolicy: Permissions for userinit
 kpick 199518 # sepolicy: Fix sysinit denials
-kpick 199571 # sepolicy: Move fingerprint 2.0 service out of private sepolicy
 kpick 199572 # sepolicy: SELinux policy for persistent properties API
 kpick 201552 # Squashed import of superuser SELinux policies
 kpick 201582 # sepolicy: adapt sudaemon policy for O
@@ -362,26 +372,13 @@ kpick 199559 # sepolicy: Allow dataservice_app to read/write to IPA device
 kpick 199564 # sepolicy: Allow energyawareness to read sysfs files
 
 # frameworks/base
-kpick 199835 # Runtime toggle of navbar
-kpick 198564 # Long-press power while display is off for torch
-kpick 199897 # Reimplement hardware keys custom rebinding
-kpick 199860 # Reimplement device hardware wake keys support
-kpick 199199 # PhoneWindowManager: add LineageButtons volumekey hook
-kpick 199200 # Framework: Volume key cursor control
-kpick 199203 # Forward port 'Swap volume buttons' (1/3)
-kpick 199865 # PhoneWindowManager: Tap volume buttons to answer call
-kpick 199906 # PhoneWindowManager: Implement press home to answer call
-kpick 199982 # SystemUI: add left and right virtual buttons while typing
-kpick 200112 # Framework: Forward port Long press back to kill app (2/2)
-kpick 200188 # Allow screen unpinning on devices without navbar
 kpick 199947 # PowerManager: Re-integrate button brightness
 kpick 200968 # statusbar: Add arguments to shutdown and reboot to allow confirmation
 kpick 200969 # SystemUI: Power menu customizations
-kpick 202153 # Camera button support
 kpick 201879 # frameworks: Privacy Guard for O
+#kpick 202423 # Screenshot: append app name to filename
 
 # frameworks/native
-kpick 199204 # Forward port 'Swap volume buttons' (2/3)
 kpick 201530 # AppOpsManager: Update with the new ops
 kpick 201893 # sensor: Skip additional permission request checks
 
@@ -392,11 +389,6 @@ kpick 200068 # AdvancedDisplay: cyanogenmod -> lineageos
 kpick 201924 # power: Fix up some legacy stats code
 
 # lineage-sdk
-kpick 199196 # lineage-sdk internal: add LineageButtons
-kpick 199197 # lineage-sdk: Import device hardware keys configs and constants
-kpick 199898 # lineage-sdk: Import device keys custom rebinding configs and add helpers
-kpick 200106 # lineage-sdk: Import ActionUtils class
-kpick 200114 # lineage-sdk: Add kill app back button configs and strings
 kpick 200970 # sdk: Move isAdvancedRebootEnabled to SDK from global access
 kpick 201311 # lineage-sdk: Add broadcast action for power menu update
 kpick 202152 # lineage-sdk: Add config to define camera key type
@@ -407,24 +399,21 @@ kpick 201634 # Allow using private framework API.
 kpick 201337 # Dialer: disable anti-falsing for call answer screen
 
 # packages/apps/LineageParts
-kpick 200069 # LineageParts: Deprecate few button settings
-kpick 199198 # LineageParts: Bring up buttons settings
+#kpick 200069 # LineageParts: Deprecate few button settings
+#kpick 199198 # LineageParts: Bring up buttons settings
 kpick 199948 # LineageParts: Bring up button backlight settings
 kpick 201309 # LineageParts: Re-enable PowerMenuActions and adapt to SDK updates
 kpick 201528 # PrivacyGuard: Bring up and inject into Settings
 
 # packages/apps/Settings
-kpick 200113 # Settings: Add kill app back button toggle
+#kpick 200113 # Settings: Add kill app back button toggle
 kpick 199839 # Settings: Add advanced restart switch
 kpick 201529 # Settings: Privacy Guard
 kpick 201531 # Settings: Add developer setting for root access
 
-# packages/apps/Snap
-kpick 201220 # Snap: check tags before using them
-
 # system/extra/su
 kpick 201990 # su: Remove EUID vs UID check
-kpick 202051 # rc: Ensure su binary is world executable
+# kpick 202051 # rc: Ensure su binary is world executable
 
 # system/sepolicy
 kpick 199664 # sepolicy: Fix up exfat and ntfs support
