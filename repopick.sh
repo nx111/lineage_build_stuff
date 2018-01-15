@@ -411,6 +411,12 @@ kpick 199839 # Settings: Add advanced restart switch
 kpick 201529 # Settings: Privacy Guard
 kpick 201531 # Settings: Add developer setting for root access
 
+# system/core
+kpick 202493 # init: add detection of charging mode
+kpick 202495 # init: define BOARD_CHARGING_CMDLINE parameters
+kpick 202495 # init: Bring back support for arbitrary chargermode cmdlines
+kpick 202596 # fs_config: fix fileperms for su-binary
+
 # system/extra/su
 kpick 201990 # su: Remove EUID vs UID check
 # kpick 202051 # rc: Ensure su binary is world executable

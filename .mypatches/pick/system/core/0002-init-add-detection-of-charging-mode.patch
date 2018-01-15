@@ -1,0 +1,85 @@
+From f0b9d0a31cae1f74cc642a463cbab4e5695aef79 Mon Sep 17 00:00:00 2001
+From: Pawit Pornkitprasan <p.pawit@gmail.com>
+Date: Sat, 17 Dec 2011 17:26:54 -0500
+Subject: [PATCH 2/5] init: add detection of charging mode
+
+Based on Prashant Somashekar's patch which is in turn based on techomancer's
+patch http://goo.gl/I19GG.
+
+When BOARD_CHARGING_MODE_BOOTING_LPM is set, init will read that
+value (usually from /sys) and enable charging mode when set to 1.
+
+This differs from the original patch in that Samsung-specific lpm.rc
+is not loaded, but instead, init.rc is loaded using the "charger" class,
+which is how AOSP devices handle charging.
+
+The change is because the either the SELinux or the init.rc changes is
+causing lpm.rc to not work, and porting lpm.rc to the Android system
+is easier than trying to fix it.
+
+Change-Id: Ice7a074da7e982f9a64aaa97de28bfcbccdc8b91
+---
+ init/Android.mk |  8 ++++++++
+ init/init.cpp   | 20 +++++++++++++++++++-
+ 2 files changed, 27 insertions(+), 1 deletion(-)
+
+diff --git a/init/Android.mk b/init/Android.mk
+index 1ec5a62..c4e9a25 100644
+--- a/init/Android.mk
++++ b/init/Android.mk
+@@ -56,6 +56,14 @@ LOCAL_SRC_FILES:= \
+     watchdogd.cpp \
+     vendor_init.cpp
+ 
++SYSTEM_CORE_INIT_DEFINES := BOARD_CHARGING_MODE_BOOTING_LPM
++
++$(foreach system_core_init_define,$(SYSTEM_CORE_INIT_DEFINES), \
++  $(if $($(system_core_init_define)), \
++    $(eval LOCAL_CFLAGS += -D$(system_core_init_define)=\"$($(system_core_init_define))\") \
++  ) \
++)
++
+ LOCAL_MODULE:= init
+ LOCAL_C_INCLUDES += \
+     system/core/mkbootimg
+diff --git a/init/init.cpp b/init/init.cpp
+index 26d5710..c9fd7c2 100644
+--- a/init/init.cpp
++++ b/init/init.cpp
+@@ -992,6 +992,24 @@ static void InstallRebootSignalHandlers() {
+     sigaction(SIGTRAP, &action, nullptr);
+ }
+ 
++static int charging_mode_booting(void) {
++#ifndef BOARD_CHARGING_MODE_BOOTING_LPM
++    return 0;
++#else
++    int f;
++    char cmb;
++    f = open(BOARD_CHARGING_MODE_BOOTING_LPM, O_RDONLY);
++    if (f < 0)
++        return 0;
++
++    if (1 != read(f, (void *)&cmb,1))
++        return 0;
++
++    close(f);
++    return ('1' == cmb);
++#endif
++}
++
+ int main(int argc, char** argv) {
+     if (!strcmp(basename(argv[0]), "ueventd")) {
+         return ueventd_main(argc, argv);
+@@ -1175,7 +1193,7 @@ int main(int argc, char** argv) {
+ 
+     // Don't mount filesystems or start core system services in charger mode.
+     std::string bootmode = GetProperty("ro.bootmode", "");
+-    if (bootmode == "charger") {
++    if (bootmode == "charger" || charging_mode_booting()) {
+         am.QueueEventTrigger("charger");
+     } else {
+         am.QueueEventTrigger("late-init");
+-- 
+2.7.4
+
