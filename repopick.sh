@@ -71,8 +71,18 @@ function patch_local()
                        git am -3 -q < $topdir/.mypatches/$f
                        rc=$?
                        if [ $rc -ne 0 ]; then
-                             echo  "  >> git am conflict, please resolv it, exit ..."
-                             exit -1
+                             first=0
+                             echo  "  >> git am conflict, please resolv it, then press ENTER to continue,or press 's' skip it ..."
+                             while ! git log -100 | grep "Change-Id: $changeid" >/dev/null 2>/dev/null; do
+                                 [ $first -ne 0 ] && echo "conflicts not resolved,please fix it,then press ENTER to continue,or press 's' skip it ..."
+                                 first=1
+                                 ch=$(sed q </dev/tty)
+                                 if [ "$ch" = "s" ]; then
+                                    echo "skip it ..."
+                                    git am --skip
+                                    break
+                                  fi
+                             done
                        fi
                   else
                        echo "    skipping: $f ...(applied always)"
@@ -222,7 +232,21 @@ function restore_snapshot()
                   if ! git log  -100 | grep "Change-Id: $changeid" >/dev/null 2>/dev/null; then 
                       echo "         apply patch: $f ..."
                       git am -3 -q < $topdir/.mypatches/$f
-                      [ $? -ne 0 ] && exit -1
+                      rc=$?
+                      if [ $rc -ne 0 ]; then
+                             first=0
+                             echo  "  >> git am conflict, please resolv it, then press ENTER to continue,or press 's' skip it ..."
+                             while ! git log -100 | grep "Change-Id: $changeid" >/dev/null 2>/dev/null; do
+                                 [ $first -ne 0 ] && echo "conflicts not resolved,please fix it,then press ENTER to continue,or press 's' skip it ..."
+                                 first=1
+                                 ch=$(sed q </dev/tty)
+                                 if [ "$ch" = "s" ]; then
+                                    echo "skip it ..."
+                                    git am --skip
+                                    break
+                                  fi
+                             done
+                      fi
                   else
                       echo "         skip  patch: $f ...(applied always)"
                   fi
