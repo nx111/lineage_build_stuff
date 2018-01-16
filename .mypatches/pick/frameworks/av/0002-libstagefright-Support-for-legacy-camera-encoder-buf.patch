@@ -1,0 +1,126 @@
+From d51016fbe5d3010fbf755adf3ab9fe8e54fd0b46 Mon Sep 17 00:00:00 2001
+From: "Christopher N. Hesse" <raymanfx@gmail.com>
+Date: Tue, 18 Oct 2016 20:56:33 +0200
+Subject: [PATCH 2/4] libstagefright: Support for legacy camera/encoder buffers
+
+Since Android 7.0, the default way of passing buffers
+between camera HAL, encoder and framework is via
+Android Native Window (ANW) buffers.
+
+Pre 7.0 devices did this using buffer_handle_t buffers
+allocated by gralloc HAL.
+Since many devices do not have the source code for their
+camera HALs or the encoder libraries available, introduce
+this hack.
+
+[AdrianDC]
+ * Forward-port to AOSP 8.0.0 stragefright changes
+ * Convert to Android.bp product variables
+
+Change-Id: I202051ab5d7273a33be0aa32b0bfdbbb1f53693f
+Signed-off-by: Adrian DC <radian.dc@gmail.com>
+---
+ media/libstagefright/Android.bp             |  6 +++++
+ media/libstagefright/CameraSource.cpp       |  4 ++++
+ media/libstagefright/SurfaceMediaSource.cpp | 37 +++++++++++++++++++++++++++++
+ 3 files changed, 47 insertions(+)
+
+diff --git a/media/libstagefright/Android.bp b/media/libstagefright/Android.bp
+index c8d4e4a..96dbcf7 100644
+--- a/media/libstagefright/Android.bp
++++ b/media/libstagefright/Android.bp
+@@ -146,6 +146,12 @@ cc_library_shared {
+             // enable experiments only in userdebug and eng builds
+             cflags: ["-DENABLE_STAGEFRIGHT_EXPERIMENTS"],
+         },
++        lineage: {
++            has_legacy_camera_hal1: {
++                // enable legacy camera HAL1 product option
++                cflags: ["-DCAMCORDER_GRALLOC_SOURCE"],
++            },
++        },
+     },
+ 
+     sanitize: {
+diff --git a/media/libstagefright/CameraSource.cpp b/media/libstagefright/CameraSource.cpp
+index 36a2d3f..3899816 100644
+--- a/media/libstagefright/CameraSource.cpp
++++ b/media/libstagefright/CameraSource.cpp
+@@ -1402,6 +1402,10 @@ void CameraSource::processBufferQueueFrame(BufferItem& buffer) {
+ MetadataBufferType CameraSource::metaDataStoredInVideoBuffers() const {
+     ALOGV("metaDataStoredInVideoBuffers");
+ 
++#ifdef CAMCORDER_GRALLOC_SOURCE
++    return kMetadataBufferTypeGrallocSource;
++#endif
++
+     // Output buffers will contain metadata if camera sends us buffer in metadata mode or via
+     // buffer queue.
+     switch (mVideoBufferMode) {
+diff --git a/media/libstagefright/SurfaceMediaSource.cpp b/media/libstagefright/SurfaceMediaSource.cpp
+index c1ef653..f589b37 100644
+--- a/media/libstagefright/SurfaceMediaSource.cpp
++++ b/media/libstagefright/SurfaceMediaSource.cpp
+@@ -128,7 +128,11 @@ status_t SurfaceMediaSource::setFrameRate(int32_t fps)
+ 
+ MetadataBufferType SurfaceMediaSource::metaDataStoredInVideoBuffers() const {
+     ALOGV("isMetaDataStoredInVideoBuffers");
++#ifdef CAMCORDER_GRALLOC_SOURCE
++    return kMetadataBufferTypeGrallocSource;
++#else
+     return kMetadataBufferTypeANWBuffer;
++#endif
+ }
+ 
+ int32_t SurfaceMediaSource::getFrameRate( ) const {
+@@ -249,6 +253,35 @@ sp<MetaData> SurfaceMediaSource::getFormat()
+     return meta;
+ }
+ 
++#ifdef CAMCORDER_GRALLOC_SOURCE
++// Pass the data to the MediaBuffer. Pass in only the metadata
++// The metadata passed consists of two parts:
++// 1. First, there is an integer indicating that it is a GRAlloc
++// source (kMetadataBufferTypeGrallocSource)
++// 2. This is followed by the buffer_handle_t that is a handle to the
++// GRalloc buffer. The encoder needs to interpret this GRalloc handle
++// and encode the frames.
++// --------------------------------------------------------------
++// |  kMetadataBufferTypeGrallocSource | sizeof(buffer_handle_t) |
++// --------------------------------------------------------------
++// Note: Call only when you have the lock
++static void passMetadataBuffer(MediaBuffer **buffer,
++        buffer_handle_t bufferHandle) {
++    *buffer = new MediaBuffer(4 + sizeof(buffer_handle_t));
++    char *data = (char *)(*buffer)->data();
++    if (data == NULL) {
++        ALOGE("Cannot allocate memory for metadata buffer!");
++        return;
++    }
++    OMX_U32 type = kMetadataBufferTypeGrallocSource;
++    memcpy(data, &type, 4);
++    memcpy(data + 4, &bufferHandle, sizeof(buffer_handle_t));
++
++    ALOGV("handle = %p, , offset = %zu, length = %zu",
++            bufferHandle, (*buffer)->range_length(), (*buffer)->range_offset());
++}
++#endif
++
+ // Pass the data to the MediaBuffer. Pass in only the metadata
+ // Note: Call only when you have the lock
+ void SurfaceMediaSource::passMetadataBuffer_l(MediaBuffer **buffer,
+@@ -351,7 +384,11 @@ status_t SurfaceMediaSource::read(
+     mNumFramesEncoded++;
+     // Pass the data to the MediaBuffer. Pass in only the metadata
+ 
++#ifdef CAMCORDER_GRALLOC_SOURCE
++    passMetadataBuffer(buffer, mSlots[mCurrentSlot].mGraphicBuffer->handle);
++#else
+     passMetadataBuffer_l(buffer, mSlots[mCurrentSlot].mGraphicBuffer->getNativeBuffer());
++#endif
+ 
+     (*buffer)->setObserver(this);
+     (*buffer)->add_ref();
+-- 
+2.7.4
+

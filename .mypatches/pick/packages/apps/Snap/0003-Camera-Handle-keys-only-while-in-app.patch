@@ -1,0 +1,131 @@
+From 972ec5f0f86dd57c5547966fed27c77fc041bc52 Mon Sep 17 00:00:00 2001
+From: Michael Bestas <mikeioannina@gmail.com>
+Date: Tue, 28 Jan 2014 00:44:30 +0200
+Subject: [PATCH 3/7] Camera: Handle keys only while in app
+
+Thanks to Lars Greiss (SlimRoms)
+
+Change-Id: I63f757d25260fba4683f494f8b4daf178a2b4e13
+---
+ src/com/android/camera/CameraActivity.java          | 11 ++++++++++-
+ src/com/android/camera/PhotoModule.java             | 17 +++++++----------
+ src/com/android/camera/WideAnglePanoramaModule.java |  8 ++++++++
+ 3 files changed, 25 insertions(+), 11 deletions(-)
+
+diff --git a/src/com/android/camera/CameraActivity.java b/src/com/android/camera/CameraActivity.java
+index 5951cd8..e796d3c 100644
+--- a/src/com/android/camera/CameraActivity.java
++++ b/src/com/android/camera/CameraActivity.java
+@@ -227,6 +227,7 @@ public class CameraActivity extends Activity
+     private final Object mStorageSpaceLock = new Object();
+     private long mStorageSpaceBytes = Storage.LOW_STORAGE_THRESHOLD_BYTES;
+     private boolean mSecureCamera;
++    private boolean mInCameraApp = true;
+     // Keep track of powershutter state
+     public static boolean mPowerShutter = false;
+     private int mLastRawOrientation;
+@@ -2049,7 +2050,7 @@ public class CameraActivity extends Activity
+         if (!CameraUtil.hasCameraKey()) {
+             mPowerShutter = val.equals(CameraSettings.VALUE_ON);
+         }
+-        if (mPowerShutter /*TODO: && mShowCameraAppView*/) {
++        if (mPowerShutter && mInCameraApp) {
+             getWindow().addPrivateFlags(
+                     WindowManager.LayoutParams.PRIVATE_FLAG_PREVENT_POWER_KEY);
+         } else {
+@@ -2116,6 +2117,10 @@ public class CameraActivity extends Activity
+         return mForceReleaseCamera;
+     }
+ 
++    public boolean isInCameraApp() {
++        return mInCameraApp;
++    }
++
+     @Override
+     public void onModuleSelected(int moduleIndex) {
+         if (moduleIndex == ModuleSwitcher.QR_MODULE_INDEX) {
+@@ -2411,6 +2416,10 @@ public class CameraActivity extends Activity
+      */
+     private void setPreviewControlsVisibility(boolean showControls) {
+         mCurrentModule.onPreviewFocusChanged(showControls);
++
++        // controls are only shown when the camera app is active
++        // so we can assume to fetch this information from here
++        mInCameraApp = showControls;
+     }
+ 
+     // Accessor methods for getting latency times used in performance testing
+diff --git a/src/com/android/camera/PhotoModule.java b/src/com/android/camera/PhotoModule.java
+index 8a6f403..7c35be2 100644
+--- a/src/com/android/camera/PhotoModule.java
++++ b/src/com/android/camera/PhotoModule.java
+@@ -3068,13 +3068,14 @@ public class PhotoModule
+ 
+     @Override
+     public boolean onKeyDown(int keyCode, KeyEvent event) {
+-        /*TODO: if (!mActivity.mShowCameraAppView) {
++        // Do not handle any key if the activity is
++        // not in active camera/video mode
++        if (!mActivity.isInCameraApp()) {
+             return false;
+-        }*/
++        }
+         switch (keyCode) {
+             case KeyEvent.KEYCODE_VOLUME_UP:
+-                if (/*TODO: mActivity.isInCameraApp() &&*/ mFirstTimeInitialized
+-                    && (mUI.mMenuInitialized)) {
++                if (mFirstTimeInitialized && (mUI.mMenuInitialized)) {
+                     if (!CameraActivity.mPowerShutter && !CameraUtil.hasCameraKey()) {
+                         onShutterButtonFocus(true);
+                     } else {
+@@ -3083,8 +3084,7 @@ public class PhotoModule
+                 }
+                 return true;
+             case KeyEvent.KEYCODE_VOLUME_DOWN:
+-                if (/*TODO: mActivity.isInCameraApp() &&*/ mFirstTimeInitialized
+-                    && (mUI.mMenuInitialized)) {
++                if (mFirstTimeInitialized && (mUI.mMenuInitialized)) {
+                     if (!CameraActivity.mPowerShutter && !CameraUtil.hasCameraKey()) {
+                         onShutterButtonFocus(true);
+                     } else {
+@@ -3093,7 +3093,7 @@ public class PhotoModule
+                 }
+                 return true;
+             case KeyEvent.KEYCODE_FOCUS:
+-                if (/*TODO: mActivity.isInCameraApp() &&*/ mFirstTimeInitialized) {
++                if (mFirstTimeInitialized) {
+                     if (event.getRepeatCount() == 0) {
+                         onShutterButtonFocus(true);
+                     }
+@@ -3128,9 +3128,6 @@ public class PhotoModule
+ 
+     @Override
+     public boolean onKeyUp(int keyCode, KeyEvent event) {
+-        /*TODO: if (!mActivity.mShowCameraAppView) {
+-            return false;
+-        }*/
+         switch (keyCode) {
+             case KeyEvent.KEYCODE_VOLUME_UP:
+             case KeyEvent.KEYCODE_VOLUME_DOWN:
+diff --git a/src/com/android/camera/WideAnglePanoramaModule.java b/src/com/android/camera/WideAnglePanoramaModule.java
+index f95c141..adb2f7b 100644
+--- a/src/com/android/camera/WideAnglePanoramaModule.java
++++ b/src/com/android/camera/WideAnglePanoramaModule.java
+@@ -1276,6 +1276,14 @@ public class WideAnglePanoramaModule
+ 
+     @Override
+     public boolean onKeyDown(int keyCode, KeyEvent event) {
++        // Do not handle any key if the activity is paused
++        // or not in active camera/video mode
++        if (mPaused) {
++            return true;
++        } else if (!mActivity.isInCameraApp()) {
++            return false;
++        }
++
+         switch (keyCode) {
+             case KeyEvent.KEYCODE_VOLUME_UP:
+             case KeyEvent.KEYCODE_VOLUME_DOWN:
+-- 
+2.7.4
+

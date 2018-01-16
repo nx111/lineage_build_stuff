@@ -1,0 +1,326 @@
+From f171ca724e07007e8c7ad36d2a24523f5af100b5 Mon Sep 17 00:00:00 2001
+From: Michael Bestas <mikeioannina@gmail.com>
+Date: Tue, 5 Nov 2013 16:43:50 +0200
+Subject: [PATCH 2/7] Camera: Cleanup hardware key handling
+
+* Fix power shutter behaviour in camcorder mode
+* Disable volume change while in panorama mode, volume buttons should only
+handle camera operations while in the camera
+* Add camera/power/volume key shutter handling in panorama mode
+
+On devices with a hardware camera key:
+* Disable power & volume shutter features
+* Volume buttons control the zoom
+
+On devices without a hardware camera key:
+* When power shutter is disabled, volume buttons control the shutter (like AOSP)
+* When power shutter is enabled, volume buttons control the zoom
+
+Change-Id: I141946d5b6f5aec8b1e9a9f99270d30295596079
+---
+ Android.mk                                         |  2 ++
+ src/com/android/camera/CameraActivity.java         |  4 ++-
+ src/com/android/camera/CameraSettings.java         |  4 +++
+ src/com/android/camera/PhotoModule.java            | 21 ++++++++---
+ src/com/android/camera/VideoModule.java            | 41 +++++++++++++++++-----
+ .../android/camera/WideAnglePanoramaModule.java    | 33 ++++++++++++++++-
+ src/com/android/camera/util/CameraUtil.java        | 12 +++++++
+ 7 files changed, 102 insertions(+), 15 deletions(-)
+
+diff --git a/Android.mk b/Android.mk
+index 8848048..8778cf9 100644
+--- a/Android.mk
++++ b/Android.mk
+@@ -31,6 +31,8 @@ LOCAL_STATIC_JAVA_AAR_LIBRARIES += \
+     qreader-core \
+     qreader-zxing
+ 
++LOCAL_JAVA_LIBRARIES := org.lineageos.platform.internal
++
+ LOCAL_PACKAGE_NAME := Snap
+ LOCAL_PRIVILEGED_MODULE := true
+ 
+diff --git a/src/com/android/camera/CameraActivity.java b/src/com/android/camera/CameraActivity.java
+index 83a254d..5951cd8 100644
+--- a/src/com/android/camera/CameraActivity.java
++++ b/src/com/android/camera/CameraActivity.java
+@@ -2046,7 +2046,9 @@ public class CameraActivity extends Activity
+     protected void initPowerShutter(ComboPreferences prefs) {
+         String val = prefs.getString(CameraSettings.KEY_POWER_SHUTTER,
+                 getResources().getString(R.string.pref_camera_power_shutter_default));
+-        mPowerShutter = val.equals(CameraSettings.VALUE_ON);
++        if (!CameraUtil.hasCameraKey()) {
++            mPowerShutter = val.equals(CameraSettings.VALUE_ON);
++        }
+         if (mPowerShutter /*TODO: && mShowCameraAppView*/) {
+             getWindow().addPrivateFlags(
+                     WindowManager.LayoutParams.PRIVATE_FLAG_PREVENT_POWER_KEY);
+diff --git a/src/com/android/camera/CameraSettings.java b/src/com/android/camera/CameraSettings.java
+index ff990ae..dd843b0 100644
+--- a/src/com/android/camera/CameraSettings.java
++++ b/src/com/android/camera/CameraSettings.java
+@@ -1062,6 +1062,7 @@ public class CameraSettings {
+         ListPreference cameraHdr = group.findPreference(KEY_CAMERA_HDR);
+         ListPreference disMode = group.findPreference(KEY_DIS);
+         ListPreference cameraHdrPlus = group.findPreference(KEY_CAMERA_HDR_PLUS);
++        ListPreference powerShutter = group.findPreference(KEY_POWER_SHUTTER);
+         ListPreference videoHfrMode =
+                 group.findPreference(KEY_VIDEO_HIGH_FRAME_RATE);
+         ListPreference seeMoreMode = group.findPreference(KEY_SEE_MORE);
+@@ -1187,6 +1188,9 @@ public class CameraSettings {
+                 !GcamHelper.hasGcamCapture() || isFrontCamera)) {
+             removePreference(group, cameraHdrPlus.getKey());
+         }
++        if (powerShutter != null && CameraUtil.hasCameraKey()) {
++            removePreference(group, powerShutter.getKey());
++        }
+ 
+         if (PersistUtil.isSaveInSdEnabled()) {
+             final String CAMERA_SAVEPATH_SDCARD = "1";
+diff --git a/src/com/android/camera/PhotoModule.java b/src/com/android/camera/PhotoModule.java
+index 1b7762b..8a6f403 100644
+--- a/src/com/android/camera/PhotoModule.java
++++ b/src/com/android/camera/PhotoModule.java
+@@ -3075,13 +3075,21 @@ public class PhotoModule
+             case KeyEvent.KEYCODE_VOLUME_UP:
+                 if (/*TODO: mActivity.isInCameraApp() &&*/ mFirstTimeInitialized
+                     && (mUI.mMenuInitialized)) {
+-                    mUI.onScaleStepResize(true);
++                    if (!CameraActivity.mPowerShutter && !CameraUtil.hasCameraKey()) {
++                        onShutterButtonFocus(true);
++                    } else {
++                        mUI.onScaleStepResize(true);
++                    }
+                 }
+                 return true;
+             case KeyEvent.KEYCODE_VOLUME_DOWN:
+                 if (/*TODO: mActivity.isInCameraApp() &&*/ mFirstTimeInitialized
+                     && (mUI.mMenuInitialized)) {
+-                    mUI.onScaleStepResize(false);
++                    if (!CameraActivity.mPowerShutter && !CameraUtil.hasCameraKey()) {
++                        onShutterButtonFocus(true);
++                    } else {
++                        mUI.onScaleStepResize(false);
++                    }
+                 }
+                 return true;
+             case KeyEvent.KEYCODE_FOCUS:
+@@ -3110,7 +3118,7 @@ public class PhotoModule
+                 return true;
+             case KeyEvent.KEYCODE_POWER:
+                 if (mFirstTimeInitialized && event.getRepeatCount() == 0
+-                        && CameraActivity.mPowerShutter) {
++                        && CameraActivity.mPowerShutter && !CameraUtil.hasCameraKey()) {
+                     onShutterButtonFocus(true);
+                 }
+                 return true;
+@@ -3126,6 +3134,10 @@ public class PhotoModule
+         switch (keyCode) {
+             case KeyEvent.KEYCODE_VOLUME_UP:
+             case KeyEvent.KEYCODE_VOLUME_DOWN:
++                if (!CameraActivity.mPowerShutter && !CameraUtil.hasCameraKey()
++                        && mFirstTimeInitialized) {
++                    onShutterButtonClick();
++                }
+                 return true;
+             case KeyEvent.KEYCODE_FOCUS:
+                 if (mFirstTimeInitialized) {
+@@ -3133,7 +3145,8 @@ public class PhotoModule
+                 }
+                 return true;
+             case KeyEvent.KEYCODE_POWER:
+-                if (CameraActivity.mPowerShutter && mFirstTimeInitialized) {
++                if (CameraActivity.mPowerShutter && !CameraUtil.hasCameraKey()
++                        && mFirstTimeInitialized) {
+                     onShutterButtonClick();
+                 }
+                 return true;
+diff --git a/src/com/android/camera/VideoModule.java b/src/com/android/camera/VideoModule.java
+index 819f136..a8af81c 100644
+--- a/src/com/android/camera/VideoModule.java
++++ b/src/com/android/camera/VideoModule.java
+@@ -1513,25 +1513,41 @@ public class VideoModule implements CameraModule,
+ 
+         switch (keyCode) {
+             case KeyEvent.KEYCODE_VOLUME_UP:
+-                mUI.onScaleStepResize(true);
++                if (event.getRepeatCount() == 0 && !CameraActivity.mPowerShutter &&
++                        !CameraUtil.hasCameraKey()) {
++                    mUI.clickShutter();
++                } else {
++                    mUI.onScaleStepResize(true);
++                }
+                 return true;
+             case KeyEvent.KEYCODE_VOLUME_DOWN:
+-                mUI.onScaleStepResize(false);
++                if (event.getRepeatCount() == 0 && !CameraActivity.mPowerShutter &&
++                        !CameraUtil.hasCameraKey()) {
++                    mUI.clickShutter();
++                } else {
++                    mUI.onScaleStepResize(false);
++                }
+                 return true;
+             case KeyEvent.KEYCODE_CAMERA:
+                 if (event.getRepeatCount() == 0) {
+                     mUI.clickShutter();
+-                    return true;
+                 }
+-                break;
++                return true;
+             case KeyEvent.KEYCODE_DPAD_CENTER:
+                 if (event.getRepeatCount() == 0) {
+                     mUI.clickShutter();
+-                    return true;
+                 }
+-                break;
++                return true;
++            case KeyEvent.KEYCODE_POWER:
++                if (event.getRepeatCount() == 0 && CameraActivity.mPowerShutter &&
++                        !CameraUtil.hasCameraKey()) {
++                    mUI.clickShutter();
++                }
++                return true;
+             case KeyEvent.KEYCODE_MENU:
+-                if (mMediaRecorderRecording) return true;
++                if (mMediaRecorderRecording) {
++                    return true;
++                }
+                 break;
+         }
+         return false;
+@@ -1541,14 +1557,21 @@ public class VideoModule implements CameraModule,
+     public boolean onKeyUp(int keyCode, KeyEvent event) {
+         switch (keyCode) {
+             case KeyEvent.KEYCODE_VOLUME_UP:
++                if (!CameraActivity.mPowerShutter && !CameraUtil.hasCameraKey()) {
++                    mUI.pressShutter(false);
++                }
++                return true;
+             case KeyEvent.KEYCODE_VOLUME_DOWN:
++                if (!CameraActivity.mPowerShutter && !CameraUtil.hasCameraKey()) {
++                    mUI.pressShutter(false);
++                }
+                 return true;
+             case KeyEvent.KEYCODE_CAMERA:
+                 mUI.pressShutter(false);
+                 return true;
+             case KeyEvent.KEYCODE_POWER:
+-                if (CameraActivity.mPowerShutter) {
+-                    onShutterButtonClick();
++                if (CameraActivity.mPowerShutter && !CameraUtil.hasCameraKey()) {
++                    mUI.pressShutter(false);
+                 }
+                 return true;
+         }
+diff --git a/src/com/android/camera/WideAnglePanoramaModule.java b/src/com/android/camera/WideAnglePanoramaModule.java
+index 06320da..f95c141 100644
+--- a/src/com/android/camera/WideAnglePanoramaModule.java
++++ b/src/com/android/camera/WideAnglePanoramaModule.java
+@@ -309,6 +309,9 @@ public class WideAnglePanoramaModule
+         CameraSettings.upgradeGlobalPreferences(mPreferences.getGlobal(), activity);
+         mLocationManager = new LocationManager(mActivity, null);
+ 
++        // Power shutter
++        mActivity.initPowerShutter(mPreferences);
++
+         mMainHandler = new Handler() {
+             @Override
+             public void handleMessage(Message msg) {
+@@ -968,6 +971,10 @@ public class WideAnglePanoramaModule
+         }
+         mUI.showPreviewCover();
+         releaseCamera();
++
++        // Load the power shutter
++        mActivity.initPowerShutter(mPreferences);
++
+         synchronized (mRendererLock) {
+             mCameraTexture = null;
+ 
+@@ -1267,14 +1274,38 @@ public class WideAnglePanoramaModule
+     public void onActivityResult(int requestCode, int resultCode, Intent data) {
+     }
+ 
+-
+     @Override
+     public boolean onKeyDown(int keyCode, KeyEvent event) {
++        switch (keyCode) {
++            case KeyEvent.KEYCODE_VOLUME_UP:
++            case KeyEvent.KEYCODE_VOLUME_DOWN:
++                return true;
++            case KeyEvent.KEYCODE_CAMERA:
++                if (event.getRepeatCount() == 0) {
++                    onShutterButtonClick();
++                }
++                return true;
++            case KeyEvent.KEYCODE_POWER:
++                return true;
++        }
+         return false;
+     }
+ 
+     @Override
+     public boolean onKeyUp(int keyCode, KeyEvent event) {
++        switch (keyCode) {
++            case KeyEvent.KEYCODE_VOLUME_UP:
++            case KeyEvent.KEYCODE_VOLUME_DOWN:
++                if (!CameraActivity.mPowerShutter && !CameraUtil.hasCameraKey()) {
++                    onShutterButtonClick();
++                }
++                return true;
++            case KeyEvent.KEYCODE_POWER:
++                if (CameraActivity.mPowerShutter && !CameraUtil.hasCameraKey()) {
++                    onShutterButtonClick();
++                }
++                return true;
++        }
+         return false;
+     }
+ 
+diff --git a/src/com/android/camera/util/CameraUtil.java b/src/com/android/camera/util/CameraUtil.java
+index a71a38a..8835661 100644
+--- a/src/com/android/camera/util/CameraUtil.java
++++ b/src/com/android/camera/util/CameraUtil.java
+@@ -146,6 +146,9 @@ public class CameraUtil {
+     public static final String TRUE = "true";
+     public static final String FALSE = "false";
+ 
++    // Hardware camera key mask
++    private static final int KEY_MASK_CAMERA = 0x20;
++
+     // Fields for the show-on-maps-functionality
+     private static final String MAPS_PACKAGE_NAME = "com.google.android.apps.maps";
+     private static final String MAPS_CLASS_NAME = "com.google.android.maps.MapsActivity";
+@@ -190,6 +193,10 @@ public class CameraUtil {
+         return (supported != null) && supported.contains(SCENE_MODE_HDR);
+     }
+ 
++    public static boolean hasCameraKey() {
++        return (sDeviceKeysPresent & KEY_MASK_CAMERA) != 0;
++    }
++
+     public static boolean isMeteringAreaSupported(Parameters params) {
+         return params.getMaxNumMeteringAreas() > 0;
+     }
+@@ -223,6 +230,9 @@ public class CameraUtil {
+     private static float sPixelDensity = 1;
+     private static ImageFileNamer sImageFileNamer;
+ 
++    // Get available hardware keys
++    private static int sDeviceKeysPresent;
++
+     private CameraUtil() {
+     }
+ 
+@@ -234,6 +244,8 @@ public class CameraUtil {
+         sPixelDensity = metrics.density;
+         sImageFileNamer = new ImageFileNamer(
+                 context.getString(R.string.image_file_name_format));
++        sDeviceKeysPresent = context.getResources().getInteger(
++                org.lineageos.platform.internal.R.integer.config_deviceHardwareKeys);
+     }
+ 
+     public static int dpToPixel(int dp) {
+-- 
+2.7.4
+

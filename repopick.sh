@@ -69,7 +69,11 @@ function patch_local()
                   if ! git log  -100 | grep "Change-Id: $changeid" >/dev/null 2>/dev/null; then 
                        echo "    patching: $f ..."
                        git am -3 -q < $topdir/.mypatches/$f
-                       [ $? -ne 0 ] && exit -1
+                       rc=$?
+                       if [ $rc -ne 0 ]; then
+                             echo  "  >> git am conflict, please resolv it, exit ..."
+                             exit -1
+                       fi
                   else
                        echo "    skipping: $f ...(applied always)"
                   fi
@@ -315,9 +319,7 @@ kpick 200757 # klte-common: libril: Add workaround for "ring of death" bug
 kpick 199941 # klte-common: libril: Fix RIL_UNSOL_NITZ_TIME_RECEIVED Parcel
 kpick 200495 # klte-common: Fixup RIL_Call structure
 kpick 201182 # klte-common: libril: Get off my back
-kpick 199943 # [DNM] klte-common: selinux permissive for O bringup
 kpick 199946 # [DNM] klte-common: sepolicy: Rewrite for O
-kpick 201051 # klte-common: Move charger service into the charger domain
 kpick 202457 # klte-common: HAXX: Fix seeming RIL start race condition
 
 # device/samsung/kltechnduo
@@ -371,12 +373,17 @@ kpick 198303 # sepolicy: Add sysfs labels for devices using 'soc.0'
 kpick 199559 # sepolicy: Allow dataservice_app to read/write to IPA device
 kpick 199564 # sepolicy: Allow energyawareness to read sysfs files
 
+# frameworks/av
+kpick 198113 # camera/media: Support for legacy camera HALv1
+kpick 198114 # libstagefright: Support for legacy camera/encoder buffers
+kpick 198116 # CameraService: Fix deadlock in binder death cleanup.
+
 # frameworks/base
 kpick 199947 # PowerManager: Re-integrate button brightness
 kpick 200968 # statusbar: Add arguments to shutdown and reboot to allow confirmation
 kpick 200969 # SystemUI: Power menu customizations
 kpick 201879 # frameworks: Privacy Guard for O
-#kpick 202423 # Screenshot: append app name to filename
+kpick 202423 # Screenshot: append app name to filename
 
 # frameworks/native
 kpick 201530 # AppOpsManager: Update with the new ops
@@ -387,6 +394,8 @@ kpick 200068 # AdvancedDisplay: cyanogenmod -> lineageos
 
 # hardware/qcom/power
 kpick 201924 # power: Fix up some legacy stats code
+kpick 202609 # power: Update perf hint ID's for display on off
+
 
 # lineage-sdk
 kpick 200970 # sdk: Move isAdvancedRebootEnabled to SDK from global access
@@ -411,6 +420,15 @@ kpick 199839 # Settings: Add advanced restart switch
 kpick 201529 # Settings: Privacy Guard
 kpick 201531 # Settings: Add developer setting for root access
 
+# packages/apps/Snap
+kpick 202561 # QuickReader: Match switch icon size and fill color with other icons
+kpick 202562 # Camera: Cleanup hardware key handling
+kpick 202563 # Camera: Handle keys only while in app
+kpick 202564 # Camera2: Headset shutter mode
+kpick 202565 # Camera2: Add option to set max screen brightness
+kpick 202566 # Snap: Make developer menu more accessible
+kpick 202685 # Snap: Rebrand to org.lineageos.snap
+
 # system/core
 kpick 202493 # init: add detection of charging mode
 kpick 202495 # init: define BOARD_CHARGING_CMDLINE parameters
@@ -422,6 +440,9 @@ kpick 201990 # su: Remove EUID vs UID check
 # kpick 202051 # rc: Ensure su binary is world executable
 
 # system/sepolicy
+kpick 198106 # Add rules required for TARGET_HAS_LEGACY_CAMERA_HAL1
+kpick 198107 # Adapt add_service uses for TARGET_HAS_LEGACY_CAMERA_HAL1
+kpick 198108 # mediaserver: Allow finding the hal_camera hardware service
 kpick 199664 # sepolicy: Fix up exfat and ntfs support
 kpick 201553 # sepolicy: We need to declare before referencing
 kpick 201732 # sepilocy: add sudaemon to ignore list
@@ -429,6 +450,7 @@ kpick 201583 # sepolicy: Allow su by apps on userdebug_or_eng
 kpick 201584 # sepolicy: update policies for sudaemon on O
 
 #vendor/lineage
+kpick 201336 # soong_config: Add TARGET_HAS_LEGACY_CAMERA_HAL1 variable
 kpick 201931 # overlay: Disable SystemUI anti-falsing on lockscreen
 
 ##################################
