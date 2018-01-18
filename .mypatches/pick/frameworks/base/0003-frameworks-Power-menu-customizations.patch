@@ -1,7 +1,7 @@
-From e432004df4742f7fdb81ce899c35ad75373d5ad4 Mon Sep 17 00:00:00 2001
+From 118bc9520882f3bbd289923fe58cfc2b52c1c535 Mon Sep 17 00:00:00 2001
 From: Rashed Abdel-Tawab <rashed@linux.com>
 Date: Wed, 4 Oct 2017 00:18:13 -0400
-Subject: [PATCH 3/9] frameworks: Power menu customizations
+Subject: [PATCH 03/10] frameworks: Power menu customizations
 
  * Forward-ported to Oreo, based on the following changes from previous branches.
    Reduced footprint in the frameworks, after moving some stuff to our SDK.
@@ -155,6 +155,13 @@ Date:   Sat Nov 7 23:52:26 2015 +0200
 
     Change-Id: I09a04cc82d48539e8086fd55c30d6160c292bc08
 
+Author: "longyu.huang" <longyu.huang2014@gmail.com>
+Date:   Thu, 9 Apr 2015 00:09:43 -0700
+
+    The DUT can't screen shot in guest mode
+
+    Change-Id: I6c40f8b5399ed1a8f9d52ddf0ed28266eea8f48c
+
 Change-Id: Id561b0111e8cc7a80c345668d79a363ec0ec389c
 ---
  .../drawable/ic_lock_airplane_mode_disabled.xml    |  29 +++
@@ -164,11 +171,10 @@ Change-Id: Id561b0111e8cc7a80c345668d79a363ec0ec389c
  core/res/res/values/cm_strings.xml                 |  29 +++
  core/res/res/values/lineage_arrays.xml             |  36 +++
  core/res/res/values/lineage_dimens.xml             |  20 ++
- core/res/res/values/lineage_symbols.xml            |  19 ++
- .../globalactions/GlobalActionsDialog.java         | 262 ++++++++++++++++++---
+ .../globalactions/GlobalActionsDialog.java         | 263 ++++++++++++++++++---
  .../systemui/keyguard/KeyguardViewMediator.java    |  28 ++-
- .../com/android/server/power/ShutdownThread.java   | 122 +++++++++-
- 11 files changed, 578 insertions(+), 52 deletions(-)
+ .../com/android/server/power/ShutdownThread.java   | 126 +++++++++-
+ 10 files changed, 564 insertions(+), 52 deletions(-)
  create mode 100644 core/res/res/drawable/ic_lock_airplane_mode_disabled.xml
  create mode 100644 core/res/res/drawable/ic_lock_airplane_mode_enabled.xml
  create mode 100644 core/res/res/drawable/ic_lock_screenshot.xml
@@ -420,36 +426,8 @@ index 0000000..2ab30c4
 +    <!-- Largest size an avatar might need to be drawn in the power menu user picker -->
 +    <dimen name="global_actions_avatar_size">24dp</dimen>
 +</resources>
-diff --git a/core/res/res/values/lineage_symbols.xml b/core/res/res/values/lineage_symbols.xml
-index 3d7a199..69b1458 100644
---- a/core/res/res/values/lineage_symbols.xml
-+++ b/core/res/res/values/lineage_symbols.xml
-@@ -39,4 +39,23 @@
-     <!-- Button backlight -->
-     <java-symbol type="integer" name="config_buttonBrightnessSettingDefault" />
-     <java-symbol type="bool" name="config_deviceHasVariableButtonBrightness" />
-+
-+    <!-- Power menu -->
-+    <java-symbol type="array" name="shutdown_reboot_options" />
-+    <java-symbol type="array" name="shutdown_reboot_actions" />
-+
-+    <java-symbol type="drawable" name="ic_lock_airplane_mode_disabled" />
-+    <java-symbol type="drawable" name="ic_lock_airplane_mode_enabled" />
-+    <java-symbol type="drawable" name="ic_lock_screenshot" />
-+    <java-symbol type="drawable" name="ic_lock_user" />
-+
-+    <java-symbol type="string" name="global_action_screenshot" />
-+    <java-symbol type="string" name="global_action_current_user" />
-+
-+    <java-symbol type="dimen" name="global_actions_avatar_size" />
-+
-+    <!-- Advanced reboot -->
-+    <java-symbol type="string" name="reboot_title" />
-+    <java-symbol type="string" name="reboot_confirm" />
-+    <java-symbol type="string" name="reboot_progress" />
- </resources>
 diff --git a/packages/SystemUI/src/com/android/systemui/globalactions/GlobalActionsDialog.java b/packages/SystemUI/src/com/android/systemui/globalactions/GlobalActionsDialog.java
-index 26e3ecf..3294806 100644
+index 26e3ecf..beac71f 100644
 --- a/packages/SystemUI/src/com/android/systemui/globalactions/GlobalActionsDialog.java
 +++ b/packages/SystemUI/src/com/android/systemui/globalactions/GlobalActionsDialog.java
 @@ -1,5 +1,7 @@
@@ -539,17 +517,20 @@ index 26e3ecf..3294806 100644
  
      private final Context mContext;
      private final GlobalActionsManager mWindowManagerFuncs;
-@@ -144,6 +153,9 @@ class GlobalActionsDialog implements DialogInterface.OnDismissListener, DialogIn
+@@ -144,6 +153,12 @@ class GlobalActionsDialog implements DialogInterface.OnDismissListener, DialogIn
      private BitSet mAirplaneModeBits;
      private final List<PhoneStateListener> mPhoneStateListeners = new ArrayList<>();
  
 +    // Power menu customizations
-+    String mActions;
++    private String mActions;
++    private static final String SYSUI_PACKAGE = "com.android.systemui";
++    private static final String SYSUI_SCREENSHOT_SERVICE =
++            "com.android.systemui.screenshot.TakeScreenshotService";
 +
      /**
       * @param context everything needs a context :(
       */
-@@ -158,6 +170,7 @@ class GlobalActionsDialog implements DialogInterface.OnDismissListener, DialogIn
+@@ -158,6 +173,7 @@ class GlobalActionsDialog implements DialogInterface.OnDismissListener, DialogIn
          IntentFilter filter = new IntentFilter();
          filter.addAction(Intent.ACTION_CLOSE_SYSTEM_DIALOGS);
          filter.addAction(Intent.ACTION_SCREEN_OFF);
@@ -557,7 +538,7 @@ index 26e3ecf..3294806 100644
          filter.addAction(TelephonyIntents.ACTION_EMERGENCY_CALLBACK_MODE_CHANGED);
          context.registerReceiver(mBroadcastReceiver, filter);
  
-@@ -185,6 +198,11 @@ class GlobalActionsDialog implements DialogInterface.OnDismissListener, DialogIn
+@@ -185,6 +201,11 @@ class GlobalActionsDialog implements DialogInterface.OnDismissListener, DialogIn
                  R.bool.config_useFixedVolume);
  
          mEmergencyAffordanceManager = new EmergencyAffordanceManager(context);
@@ -569,7 +550,7 @@ index 26e3ecf..3294806 100644
      }
  
      /**
-@@ -302,8 +320,8 @@ class GlobalActionsDialog implements DialogInterface.OnDismissListener, DialogIn
+@@ -302,8 +323,8 @@ class GlobalActionsDialog implements DialogInterface.OnDismissListener, DialogIn
              mSilentModeAction = new SilentModeTriStateAction(mContext, mAudioManager, mHandler);
          }
          mAirplaneModeOn = new ToggleAction(
@@ -580,7 +561,7 @@ index 26e3ecf..3294806 100644
                  R.string.global_actions_toggle_airplane_mode,
                  R.string.global_actions_airplane_mode_on_status,
                  R.string.global_actions_airplane_mode_off_status) {
-@@ -345,18 +363,28 @@ class GlobalActionsDialog implements DialogInterface.OnDismissListener, DialogIn
+@@ -345,18 +366,28 @@ class GlobalActionsDialog implements DialogInterface.OnDismissListener, DialogIn
          onAirplaneModeChanged();
  
          mItems = new ArrayList<Action>();
@@ -614,7 +595,7 @@ index 26e3ecf..3294806 100644
              } else if (GLOBAL_ACTION_KEY_AIRPLANE.equals(actionKey)) {
                  mItems.add(mAirplaneModeOn);
              } else if (GLOBAL_ACTION_KEY_BUGREPORT.equals(actionKey)) {
-@@ -369,7 +397,9 @@ class GlobalActionsDialog implements DialogInterface.OnDismissListener, DialogIn
+@@ -369,7 +400,9 @@ class GlobalActionsDialog implements DialogInterface.OnDismissListener, DialogIn
                      mItems.add(mSilentModeAction);
                  }
              } else if (GLOBAL_ACTION_KEY_USERS.equals(actionKey)) {
@@ -625,7 +606,7 @@ index 26e3ecf..3294806 100644
                      addUsersToMenu(mItems);
                  }
              } else if (GLOBAL_ACTION_KEY_SETTINGS.equals(actionKey)) {
-@@ -476,10 +506,39 @@ class GlobalActionsDialog implements DialogInterface.OnDismissListener, DialogIn
+@@ -476,10 +509,39 @@ class GlobalActionsDialog implements DialogInterface.OnDismissListener, DialogIn
  
          @Override
          public void onPress() {
@@ -666,7 +647,7 @@ index 26e3ecf..3294806 100644
  
      private class BugReportAction extends SinglePressAction implements LongPressAction {
  
-@@ -678,16 +737,24 @@ class GlobalActionsDialog implements DialogInterface.OnDismissListener, DialogIn
+@@ -678,16 +740,24 @@ class GlobalActionsDialog implements DialogInterface.OnDismissListener, DialogIn
          if (um.isUserSwitcherEnabled()) {
              List<UserInfo> users = um.getUsers();
              UserInfo currentUser = getCurrentUser();
@@ -696,7 +677,7 @@ index 26e3ecf..3294806 100644
                          public void onPress() {
                              try {
                                  ActivityManager.getService().switchUser(user.id);
-@@ -704,12 +771,95 @@ class GlobalActionsDialog implements DialogInterface.OnDismissListener, DialogIn
+@@ -704,12 +774,93 @@ class GlobalActionsDialog implements DialogInterface.OnDismissListener, DialogIn
                              return false;
                          }
                      };
@@ -733,8 +714,7 @@ index 26e3ecf..3294806 100644
 +            if (mScreenshotConnection != null) {
 +                return;
 +            }
-+            ComponentName cn = new ComponentName("com.android.systemui",
-+                    "com.android.systemui.screenshot.TakeScreenshotService");
++            ComponentName cn = new ComponentName(SYSUI_PACKAGE, SYSUI_SCREENSHOT_SERVICE);
 +            Intent intent = new Intent();
 +            intent.setComponent(cn);
 +            ServiceConnection conn = new ServiceConnection() {
@@ -764,25 +744,24 @@ index 26e3ecf..3294806 100644
 +                        msg.replyTo = new Messenger(h);
 +                        msg.arg1 = msg.arg2 = 0;
 +
-+                        /* wait for the dialog box to close */
-+                        try {
-+                            Thread.sleep(1000);
-+                        } catch (InterruptedException ie) {
-+                            // Do nothing
-+                        }
-+
-+                        /* take the screenshot */
-+                        try {
-+                            messenger.send(msg);
-+                        } catch (RemoteException e) {
-+                            // Do nothing
-+                        }
++                        /* wait for the dialog box to close and take screenshot */
++                        h.postDelayed(new Runnable() {
++                            @Override
++                            public void run() {
++                                try {
++                                     messenger.send(msg);
++                                } catch (RemoteException e) {
++                                     //  Do nothing
++                                }
++                            }
++                        }, 1000);
 +                    }
 +                }
 +                @Override
 +                public void onServiceDisconnected(ComponentName name) {}
 +            };
-+            if (mContext.bindService(intent, conn, Context.BIND_AUTO_CREATE)) {
++            if (mContext.bindServiceAsUser(
++                        intent, conn, Context.BIND_AUTO_CREATE, UserHandle.CURRENT)) {
 +                mScreenshotConnection = conn;
 +                mHandler.postDelayed(mScreenshotTimeout, 10000);
 +            }
@@ -792,7 +771,7 @@ index 26e3ecf..3294806 100644
      private void prepareDialog() {
          refreshSilentMode();
          mAirplaneModeOn.updateState(mAirplaneState);
-@@ -877,6 +1027,7 @@ class GlobalActionsDialog implements DialogInterface.OnDismissListener, DialogIn
+@@ -877,6 +1028,7 @@ class GlobalActionsDialog implements DialogInterface.OnDismissListener, DialogIn
          private final Drawable mIcon;
          private final int mMessageResId;
          private final CharSequence mMessage;
@@ -800,7 +779,7 @@ index 26e3ecf..3294806 100644
  
          protected SinglePressAction(int iconResId, int messageResId) {
              mIconResId = iconResId;
-@@ -896,8 +1047,12 @@ class GlobalActionsDialog implements DialogInterface.OnDismissListener, DialogIn
+@@ -896,8 +1048,12 @@ class GlobalActionsDialog implements DialogInterface.OnDismissListener, DialogIn
              return true;
          }
  
@@ -815,7 +794,7 @@ index 26e3ecf..3294806 100644
          }
  
          abstract public void onPress();
-@@ -919,7 +1074,7 @@ class GlobalActionsDialog implements DialogInterface.OnDismissListener, DialogIn
+@@ -919,7 +1075,7 @@ class GlobalActionsDialog implements DialogInterface.OnDismissListener, DialogIn
              TextView messageView = (TextView) v.findViewById(R.id.message);
  
              TextView statusView = (TextView) v.findViewById(R.id.status);
@@ -824,7 +803,7 @@ index 26e3ecf..3294806 100644
              if (!TextUtils.isEmpty(status)) {
                  statusView.setText(status);
              } else {
-@@ -927,7 +1082,7 @@ class GlobalActionsDialog implements DialogInterface.OnDismissListener, DialogIn
+@@ -927,7 +1083,7 @@ class GlobalActionsDialog implements DialogInterface.OnDismissListener, DialogIn
              }
              if (mIcon != null) {
                  icon.setImageDrawable(mIcon);
@@ -833,7 +812,7 @@ index 26e3ecf..3294806 100644
              } else if (mIconResId != 0) {
                  icon.setImageDrawable(context.getDrawable(mIconResId));
              }
-@@ -1009,7 +1164,7 @@ class GlobalActionsDialog implements DialogInterface.OnDismissListener, DialogIn
+@@ -1009,7 +1165,7 @@ class GlobalActionsDialog implements DialogInterface.OnDismissListener, DialogIn
                  LayoutInflater inflater) {
              willCreate();
  
@@ -842,7 +821,7 @@ index 26e3ecf..3294806 100644
                      .layout.global_actions_item, parent, false);
  
              ImageView icon = (ImageView) v.findViewById(R.id.icon);
-@@ -1030,10 +1185,9 @@ class GlobalActionsDialog implements DialogInterface.OnDismissListener, DialogIn
+@@ -1030,12 +1186,10 @@ class GlobalActionsDialog implements DialogInterface.OnDismissListener, DialogIn
              }
  
              if (statusView != null) {
@@ -851,10 +830,12 @@ index 26e3ecf..3294806 100644
 -                statusView.setEnabled(enabled);
 +                statusView.setVisibility(View.GONE);
              }
-+
-             v.setEnabled(enabled);
+-            v.setEnabled(enabled);
  
++            v.setEnabled(enabled);
              return v;
+         }
+ 
 @@ -1186,10 +1340,18 @@ class GlobalActionsDialog implements DialogInterface.OnDismissListener, DialogIn
                      mIsWaitingForEcmExit = false;
                      changeAirplaneModeSystemSetting(true);
@@ -874,7 +855,7 @@ index 26e3ecf..3294806 100644
      private BroadcastReceiver mRingerModeReceiver = new BroadcastReceiver() {
          @Override
          public void onReceive(Context context, Intent intent) {
-@@ -1262,9 +1424,35 @@ class GlobalActionsDialog implements DialogInterface.OnDismissListener, DialogIn
+@@ -1262,6 +1424,33 @@ class GlobalActionsDialog implements DialogInterface.OnDismissListener, DialogIn
          }
      }
  
@@ -907,10 +888,7 @@ index 26e3ecf..3294806 100644
 +
      private static final class ActionsDialog extends Dialog implements DialogInterface,
              ColorExtractor.OnColorsChangedListener {
--
-         private final Context mContext;
-         private final MyAdapter mAdapter;
-         private final LinearLayout mListView;
+ 
 diff --git a/packages/SystemUI/src/com/android/systemui/keyguard/KeyguardViewMediator.java b/packages/SystemUI/src/com/android/systemui/keyguard/KeyguardViewMediator.java
 index 28adca9..d1dc0db 100644
 --- a/packages/SystemUI/src/com/android/systemui/keyguard/KeyguardViewMediator.java
@@ -986,7 +964,7 @@ index 28adca9..d1dc0db 100644
                  if (DEBUG) Log.d(TAG, "doKeyguard: not showing because lockscreen is off");
                  return;
 diff --git a/services/core/java/com/android/server/power/ShutdownThread.java b/services/core/java/com/android/server/power/ShutdownThread.java
-index 853e1b2..b9581ae 100644
+index 853e1b2..a23536b 100644
 --- a/services/core/java/com/android/server/power/ShutdownThread.java
 +++ b/services/core/java/com/android/server/power/ShutdownThread.java
 @@ -1,5 +1,7 @@
@@ -1028,19 +1006,23 @@ index 853e1b2..b9581ae 100644
  import java.io.File;
  import java.io.FileOutputStream;
  import java.io.IOException;
-@@ -90,7 +98,11 @@ public final class ShutdownThread extends Thread {
+@@ -90,7 +98,15 @@ public final class ShutdownThread extends Thread {
      private static final Object sIsStartedGuard = new Object();
      private static boolean sIsStarted = false;
  
 +    // recovery command
 +    private static File RECOVERY_COMMAND_FILE = new File("/cache/recovery/command");
 +
++    // global actions
++    private static final String GLOBAL_ACTION_KEY_RESTART = "restart";
++    private static final String GLOBAL_ACTION_KEY_SOFT_REBOOT = "soft_reboot";
++
      private static boolean mReboot;
 +    private static boolean mRebootWipe = false;
      private static boolean mRebootSafeMode;
      private static boolean mRebootHasProgressBar;
      private static String mReason;
-@@ -172,33 +184,88 @@ public final class ShutdownThread extends Thread {
+@@ -172,33 +188,88 @@ public final class ShutdownThread extends Thread {
              }
          }
  
@@ -1057,7 +1039,7 @@ index 853e1b2..b9581ae 100644
 +        }
 +
 +        for (int i = 0; i < actionsArray.length; i++) {
-+            if (actionsArray[i].equals("restart")) {
++            if (actionsArray[i].equals(GLOBAL_ACTION_KEY_RESTART)) {
 +                showRebootOption = true;
 +                break;
 +            }
@@ -1117,7 +1099,7 @@ index 853e1b2..b9581ae 100644
 +                                            com.android.internal.R.array.shutdown_reboot_actions);
 +                                    if (selected >= 0 && selected < actions.length) {
 +                                        mReason = actions[selected];
-+                                        if (mReason.equals("soft_reboot")) {
++                                        if (mReason.equals(GLOBAL_ACTION_KEY_SOFT_REBOOT)) {
 +                                            doSoftReboot();
 +                                            return;
 +                                        }
@@ -1137,7 +1119,7 @@ index 853e1b2..b9581ae 100644
              closer.dialog = sConfirmDialog;
              sConfirmDialog.setOnDismissListener(closer);
              sConfirmDialog.getWindow().setType(WindowManager.LayoutParams.TYPE_KEYGUARD_DIALOG);
-@@ -208,6 +275,18 @@ public final class ShutdownThread extends Thread {
+@@ -208,6 +279,18 @@ public final class ShutdownThread extends Thread {
          }
      }
  
@@ -1156,7 +1138,7 @@ index 853e1b2..b9581ae 100644
      private static class CloseDialogReceiver extends BroadcastReceiver
              implements DialogInterface.OnDismissListener {
          private Context mContext;
-@@ -296,6 +375,13 @@ public final class ShutdownThread extends Thread {
+@@ -296,6 +379,13 @@ public final class ShutdownThread extends Thread {
  
          // mReason could be "recovery-update" or "recovery-update,quiescent".
          if (mReason != null && mReason.startsWith(PowerManager.REBOOT_RECOVERY_UPDATE)) {
@@ -1170,7 +1152,7 @@ index 853e1b2..b9581ae 100644
              // We need the progress bar if uncrypt will be invoked during the
              // reboot, which might be time-consuming.
              mRebootHasProgressBar = RecoverySystem.UNCRYPT_PACKAGE_FILE.exists()
-@@ -317,13 +403,18 @@ public final class ShutdownThread extends Thread {
+@@ -317,13 +407,18 @@ public final class ShutdownThread extends Thread {
                  pd.setMessage(context.getText(
                              com.android.internal.R.string.reboot_to_update_reboot));
              }
@@ -1192,7 +1174,7 @@ index 853e1b2..b9581ae 100644
                  pd.setIndeterminate(true);
              } else {
                  // Factory reset path. Set the dialog message accordingly.
-@@ -336,8 +427,13 @@ public final class ShutdownThread extends Thread {
+@@ -336,8 +431,13 @@ public final class ShutdownThread extends Thread {
              if (showSysuiReboot()) {
                  return null;
              }

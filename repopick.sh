@@ -54,6 +54,10 @@ function patch_local()
     find $search_dir -type f -name "*.patch" -o -name "*.diff" | sed -e "s/\.mypatches\///" -e "s/\//:/" |sort -t : -k 2 | while read line; do
          f=$(echo $line | sed -e "s/:/\//")
          patchfile=$(basename $f)
+         if [ "${patchfile:0:1}" = "-" ]; then
+             echo "  skip patch: $f"
+             continue
+         fi
          project=$(echo $f |  sed -e "s/^pick\///" -e "s/^local\///"  | sed "s/\/[^\/]*$//")
          if [ "$f" != "$project" ]; then
              if [ `pwd` != "$topdir/$project" ]; then
@@ -168,10 +172,13 @@ function projects_snapshot()
                    patch_file_name=$(basename $patchfile)
                    changeid=$(grep "Change-Id: " $patchfile | tail -n 1 | sed -e "s/ \{1,\}/ /g" -e "s/^ //g" | cut -d' ' -f2)
                    if [ "$changeid" != "" ]; then
-                       rm -f $patchfile
+                       [ "${patch_file_name:0:1}" != "-" ] && rm -f $patchfile
                        if grep -q "Change-Id: $changeid" -r $topdir/.mypatches/pick/$project; then
                            pick_patch=$(grep -H "Change-Id: $changeid" -r $topdir/.mypatches/pick/$project | sed -n 1p | cut -d: -f1)
+                           rm -f $patchfile
                            mv $pick_patch $topdir/.mypatches/local/$project/
+                       elif [ "${patch_file_name:0:1}" != "-" ]; then
+                           rm -f $patchfile
                        fi
                    fi
               done
@@ -339,16 +346,15 @@ kpick 199934 # klte-common: libril: Fix RIL_Call structure
 kpick 199935 # klte-common: libril: Fix SMS on certain variants
 kpick 199936 # klte-common: libril: fix network operator search
 kpick 199937 # klte-common: Update RIL_REQUEST_QUERY_AVAILABLE_NETWORKS response prop
-kpick 200757 # klte-common: libril: Add workaround for "ring of death" bug
 kpick 199941 # klte-common: libril: Fix RIL_UNSOL_NITZ_TIME_RECEIVED Parcel
-kpick 200495 # klte-common: Fixup RIL_Call structure
-kpick 201182 # klte-common: libril: Get off my back
 kpick 199946 # [DNM] klte-common: sepolicy: Rewrite for O
+kpick 200495 # klte-common: Fixup RIL_Call structure
+kpick 200757 # klte-common: libril: Add workaround for "ring of death" bug
+kpick 201182 # klte-common: libril: Get off my back
 kpick 202457 # klte-common: HAXX: Fix seeming RIL start race condition
 
 # device/samsung/kltechnduo
 kpick 200524 # kltechnduo: Rework launch of second RIL daemon
-kpick 200736 # kltechnduo: Use rild2.libpath property for ril-daemon2
 
 # device/samsung/msm8974
 kpick 200538 # msm8974-common: Use QTI power hal
@@ -375,12 +381,11 @@ kpick 201582 # sepolicy: adapt sudaemon policy for O
 kpick 201274 # power: Update power hal extension for new qti hal
 
 # device/qcom/sepolicy
-kpick 198620 # sepolicy: Let keystore load firmware
 kpick 198141 # Use set_prop() macro for property sets
-kpick 202377 # Revert "sepolicy: Address netmgrd denials on non-fully trebelized devices"
-kpick 202378 # legacy: add back perfd sepolicy 
+kpick 198303 # sepolicy: Add sysfs labels for devices using 'soc.0'
+kpick 199557 # legacy: add back perfd sepolicy
+kpick 199559 # sepolicy: Allow dataservice_app to read/write to IPA device
 kpick 202379 # legacy: add back radio rules
-kpick 202380 # legacy: add back nfc rules
 kpick 202381 # legacy: add back rules for non-treble devices
 kpick 202382 # legacy: allow rmt_storage sys_admin capability
 kpick 202383 # legacy: let rfs_access do msm ipc ioctls
@@ -392,10 +397,15 @@ kpick 202388 # legacy: allow rild to access radio data files
 kpick 202389 # legacy: Fix labeling the thermal sockets
 kpick 202390 # legacy: let audioserver connect to thermal engine sockets
 kpick 202391 # legacy: label per_mgr as a binder service
-
-kpick 198303 # sepolicy: Add sysfs labels for devices using 'soc.0'
-kpick 199559 # sepolicy: Allow dataservice_app to read/write to IPA device
-kpick 199564 # sepolicy: Allow energyawareness to read sysfs files
+kpick 202824 # legacy: Readd support for old perfd socket
+kpick 202825 # legacy: Add back old fdAlbum rule
+kpick 202826 # sepolicy: Label boot/recovery/cache/system partitions
+kpick 202827 # legacy: Label old UIO sysfs
+kpick 202828 # legacy: Allow qmuxd access diag
+kpick 202829 # legacy: Label old SSR sysfs
+kpick 202830 # legacy: Add back legacy sensors rules
+kpick 202831 # legacy: Label old kgsl sysfs nodes
+kpick 202995 # legacy: Address mpdecision denials
 
 # frameworks/av
 kpick 198113 # camera/media: Support for legacy camera HALv1
@@ -408,28 +418,24 @@ kpick 200968 # statusbar: Add arguments to shutdown and reboot to allow confirma
 kpick 200969 # SystemUI: Power menu customizations
 kpick 201879 # frameworks: Privacy Guard for O
 kpick 202423 # Screenshot: append app name to filename
+kpick 203053 # perf: Add plumbing for PerformanceManager
+kpick 203054 # perf: Adapt for HIDL Lineage power hal
 
 # frameworks/native
 kpick 201530 # AppOpsManager: Update with the new ops
-kpick 201893 # sensor: Skip additional permission request checks
 
-# hardware/samsung
-kpick 200068 # AdvancedDisplay: cyanogenmod -> lineageos
+# hardware/lineage/interfaces
+kpick 203061 # lineage/interfaces: power: Add binderized service
 
 # hardware/qcom/power
 kpick 201924 # power: Fix up some legacy stats code
-kpick 202609 # power: Update perf hint ID's for display on off
-
 
 # lineage-sdk
 kpick 200970 # sdk: Move isAdvancedRebootEnabled to SDK from global access
-kpick 201311 # lineage-sdk: Add broadcast action for power menu update
-kpick 202152 # lineage-sdk: Add config to define camera key type
 
 # packages/apps/Dialer
 kpick 201346 # Re-add dialer lookup.
 kpick 201634 # Allow using private framework API. 
-kpick 201337 # Dialer: disable anti-falsing for call answer screen
 
 # packages/apps/LineageParts
 #kpick 200069 # LineageParts: Deprecate few button settings
@@ -439,7 +445,6 @@ kpick 201309 # LineageParts: Re-enable PowerMenuActions and adapt to SDK updates
 kpick 201528 # PrivacyGuard: Bring up and inject into Settings
 
 # packages/apps/Settings
-#kpick 200113 # Settings: Add kill app back button toggle
 kpick 199839 # Settings: Add advanced restart switch
 kpick 201529 # Settings: Privacy Guard
 kpick 201531 # Settings: Add developer setting for root access
@@ -460,7 +465,7 @@ kpick 202495 # init: Bring back support for arbitrary chargermode cmdlines
 kpick 202596 # fs_config: fix fileperms for su-binary
 
 # system/extra/su
-kpick 201990 # su: Remove EUID vs UID check
+# kpick 201990 # su: Remove EUID vs UID check
 # kpick 202051 # rc: Ensure su binary is world executable
 
 # system/sepolicy
@@ -469,13 +474,12 @@ kpick 198107 # Adapt add_service uses for TARGET_HAS_LEGACY_CAMERA_HAL1
 kpick 198108 # mediaserver: Allow finding the hal_camera hardware service
 kpick 199664 # sepolicy: Fix up exfat and ntfs support
 kpick 201553 # sepolicy: We need to declare before referencing
-kpick 201732 # sepilocy: add sudaemon to ignore list
 kpick 201583 # sepolicy: Allow su by apps on userdebug_or_eng
 kpick 201584 # sepolicy: update policies for sudaemon on O
+kpick 201732 # sepilocy: add sudaemon to ignore list
 
 #vendor/lineage
 kpick 201336 # soong_config: Add TARGET_HAS_LEGACY_CAMERA_HAL1 variable
-kpick 201931 # overlay: Disable SystemUI anti-falsing on lockscreen
 
 ##################################
 

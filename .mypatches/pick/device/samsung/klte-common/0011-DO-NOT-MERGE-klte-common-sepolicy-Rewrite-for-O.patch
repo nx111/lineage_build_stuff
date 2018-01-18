@@ -1,7 +1,7 @@
-From dbf4fdeb7ac514070b4ebb6c875b1d26760c4705 Mon Sep 17 00:00:00 2001
+From 1964df55a1aa3e296bd654ab3158809e1d8af699 Mon Sep 17 00:00:00 2001
 From: "Kevin F. Haggerty" <haggertk@lineageos.org>
 Date: Mon, 25 Dec 2017 15:30:21 -0700
-Subject: [PATCH 11/17] [DO NOT MERGE] klte-common: sepolicy: Rewrite for O
+Subject: [PATCH 11/16] [DO NOT MERGE] klte-common: sepolicy: Rewrite for O
 
 * WIP
 * KILL that sepolicy/old/ before merging
@@ -19,7 +19,7 @@ Change-Id: I6694567fa1c834b262941b9be362c96cbd16625e
  sepolicy/common/device.te                      |  2 +
  sepolicy/common/dontaudit.te                   | 25 ++++++++++
  sepolicy/common/file.te                        | 16 +++++++
- sepolicy/common/file_contexts                  | 64 ++++++++++++++++++++++++++
+ sepolicy/common/file_contexts                  | 60 ++++++++++++++++++++++++
  sepolicy/common/fsck.te                        |  2 +
  sepolicy/common/genfs_contexts                 |  1 +
  sepolicy/common/hal_fingerprint_default.te     |  6 +++
@@ -31,7 +31,7 @@ Change-Id: I6694567fa1c834b262941b9be362c96cbd16625e
  sepolicy/common/mediaprovider.te               |  2 +
  sepolicy/common/mediaserver.te                 |  4 ++
  sepolicy/common/mm-qcamerad.te                 |  8 ++++
- sepolicy/common/mpdecision.te                  |  7 +++
+ sepolicy/common/mpdecision.te                  |  2 +
  sepolicy/common/nfc.te                         |  1 +
  sepolicy/common/priv_app.te                    |  5 ++
  sepolicy/common/property_contexts              |  1 +
@@ -42,7 +42,7 @@ Change-Id: I6694567fa1c834b262941b9be362c96cbd16625e
  sepolicy/common/vold.te                        |  2 +
  sepolicy/device.te                             |  1 -
  sepolicy/file.te                               |  8 ----
- sepolicy/file_contexts                         | 63 -------------------------
+ sepolicy/file_contexts                         | 63 --------------------------
  sepolicy/fingerprintd.te                       | 14 ------
  sepolicy/fsck.te                               |  1 -
  sepolicy/genfs_contexts                        |  1 -
@@ -82,7 +82,7 @@ Change-Id: I6694567fa1c834b262941b9be362c96cbd16625e
  sepolicy/private/mediaextractor.te             |  2 +
  sepolicy/property_contexts                     | 10 ----
  sepolicy/rild.te                               |  5 --
- sepolicy/sepolicy.mk                           | 28 +++++++++++
+ sepolicy/sepolicy.mk                           | 28 ++++++++++++
  sepolicy/shell.te                              |  4 --
  sepolicy/system_server.te                      | 10 ----
  sepolicy/tee.te                                |  2 -
@@ -91,7 +91,7 @@ Change-Id: I6694567fa1c834b262941b9be362c96cbd16625e
  sepolicy/untrusted_app.te                      |  5 --
  sepolicy/vold.te                               |  1 -
  sepolicy/wpa.te                                |  4 --
- 82 files changed, 357 insertions(+), 200 deletions(-)
+ 82 files changed, 348 insertions(+), 200 deletions(-)
  delete mode 100644 sepolicy/bluetooth.te
  delete mode 100644 sepolicy/cameraserver.te
  create mode 100644 sepolicy/common/bluetooth.te
@@ -366,12 +366,11 @@ index 0000000..ce827f8
 +#type sysfs_vibeamp, fs_type, sysfs_type;
 diff --git a/sepolicy/common/file_contexts b/sepolicy/common/file_contexts
 new file mode 100644
-index 0000000..a61c227
+index 0000000..86f7091
 --- /dev/null
 +++ b/sepolicy/common/file_contexts
-@@ -0,0 +1,64 @@
+@@ -0,0 +1,60 @@
 +# block devices
-+/dev/block/platform/msm_sdcc\.1/by-name/cache           u:object_r:cache_block_device:s0
 +/dev/block/platform/msm_sdcc\.1/by-name/efs             u:object_r:efs_block_device:s0
 +/dev/block/platform/msm_sdcc\.1/by-name/fota            u:object_r:misc_block_device:s0
 +
@@ -407,9 +406,6 @@ index 0000000..a61c227
 +
 +# sysfs
 +/sys/devices/battery.[0-9]+/power_supply/battery(/.*)?           u:object_r:sysfs_batteryinfo:s0
-+/sys/devices/[a-z0-9]+.rmtfs_sharedmem/uio(/.*)?                 u:object_r:sysfs_uio:s0
-+/sys/devices/[a-z0-9]+.qcom,kgsl-3d0/kgsl/kgsl-3d0/gpuclk        u:object_r:sysfs_thermal:s0
-+/sys/devices/[a-z0-9]+.qcom,kgsl-3d0/kgsl/kgsl-3d0/reset_count   u:object_r:sysfs_thermal:s0
 +/sys/module/dhd/parameters/firmware_path                         u:object_r:sysfs_wifi_fw_path:s0
 +/sys/module/dhd/parameters/nvram_path                            u:object_r:sysfs_wifi_nv_path:s0
 +/sys/devices/platform/bcm4354_bluetooth/rfkill/rfkill0/state     u:object_r:sysfs_bt_rfkill_state:s0
@@ -550,15 +546,10 @@ index 0000000..a004dc5
 +allow mm-qcamerad vendor_file:file execmod;
 diff --git a/sepolicy/common/mpdecision.te b/sepolicy/common/mpdecision.te
 new file mode 100644
-index 0000000..8a218e5
+index 0000000..94d3f08
 --- /dev/null
 +++ b/sepolicy/common/mpdecision.te
-@@ -0,0 +1,7 @@
-+get_prop(mpdecision, freq_prop)
-+
-+# /dev/cpuctl/cpu.notify_on_migrate
-+allow mpdecision cgroup:file read;
-+
+@@ -0,0 +1,2 @@
 +allow mpdecision mpctl_data_file:dir w_dir_perms;
 +allow mpdecision mpctl_data_file:sock_file create_file_perms;
 diff --git a/sepolicy/common/nfc.te b/sepolicy/common/nfc.te
