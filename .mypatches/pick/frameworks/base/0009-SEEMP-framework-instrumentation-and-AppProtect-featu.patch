@@ -1,0 +1,2842 @@
+From 94b05e3e328cdaf3ab6a5ffd75ffef288c8602e3 Mon Sep 17 00:00:00 2001
+From: Yida Wang <yidaw@codeaurora.org>
+Date: Fri, 17 Feb 2017 17:14:56 -0500
+Subject: [PATCH 09/12] SEEMP: framework instrumentation and AppProtect
+ features
+
+- Instrument framework files to log events of interest for QSSP.
+- Fix the String out of boundary.
+- Add optional package verifier to PackageManagerService
+  - In additional to the required and sufficient package verifiers,
+    add support for an optional verifier in PackageManager. The
+    optional verifier will act as a required verifier if a required
+    verifier is not found in the system. It will act as a secondary
+    verifier if a required verifier is present.
+- Add auth framework for outgoing SMS messages.
+  - Add the APIs required to register an authorization agent in order
+    to allow/reject outgoing SMS messages and the core service that
+    implements the sms security model.
+- Do not connect to seempdw socket in zygote
+  - Do not connect to seempdw socket in zygote. The socket
+    initialization is skipped if the parent process id is 1, which is
+    always the case for zygote.
+
+Change-Id: I38a8ace9943fae0ad2ac7bc2932f3deb790359a6
+---
+ Android.mk                                         |   2 +
+ core/java/android/accounts/AccountManager.java     |  26 +
+ core/java/android/app/Instrumentation.java         |   7 +
+ core/java/android/bluetooth/BluetoothAdapter.java  |  10 +
+ core/java/android/content/ContentResolver.java     |   3 +
+ core/java/android/hardware/Camera.java             |   5 +
+ .../java/android/hardware/SystemSensorManager.java |   2 +
+ core/java/android/provider/Browser.java            |   6 +
+ core/java/android/provider/CalendarContract.java   |   8 +
+ core/java/android/provider/ContactsContract.java   |   7 +
+ core/java/android/provider/Settings.java           |   2 +
+ core/java/android/speech/SpeechRecognizer.java     |   1 +
+ core/java/android/util/SeempLog.java               | 754 +++++++++++++++++++++
+ core/java/android/view/View.java                   |   4 +
+ core/java/android/view/WindowManagerImpl.java      |   2 +
+ core/java/android/webkit/WebChromeClient.java      |   4 +-
+ core/jni/Android.bp                                |   1 +
+ core/jni/AndroidRuntime.cpp                        |   2 +
+ core/jni/android_util_SeempLog.cpp                 | 217 ++++++
+ core/res/AndroidManifest.xml                       |   5 +
+ core/res/res/values/config.xml                     |   9 +
+ core/res/res/values/symbols.xml                    |   4 +
+ .../java/android/location/LocationManager.java     |  17 +
+ media/java/android/media/AudioRecord.java          |   2 +
+ .../server/accounts/AccountManagerService.java     |   8 +
+ .../android/server/am/ActivityManagerService.java  |  12 +
+ .../java/com/android/server/am/ProcessRecord.java  |  24 +
+ .../android/server/pm/PackageManagerService.java   |  49 +-
+ .../server/pm/PackageVerificationState.java        |  31 +
+ telephony/java/android/telephony/SmsManager.java   |   7 +
+ telephony/java/android/telephony/Telephony.java    |   4 +
+ .../java/android/telephony/TelephonyManager.java   |   6 +
+ .../com/android/internal/telephony/CallerInfo.java |   2 +
+ .../internal/telephony/ISmsSecurityAgent.aidl      |  51 ++
+ .../internal/telephony/ISmsSecurityService.aidl    |  73 ++
+ .../telephony/SmsAuthorizationRequest.aidl         |  33 +
+ .../telephony/SmsAuthorizationRequest.java         | 122 ++++
+ wifi/java/android/net/wifi/WifiManager.java        |   1 +
+ 38 files changed, 1521 insertions(+), 2 deletions(-)
+ mode change 100755 => 100644 core/java/android/provider/Settings.java
+ create mode 100644 core/java/android/util/SeempLog.java
+ create mode 100644 core/jni/android_util_SeempLog.cpp
+ create mode 100644 telephony/java/com/android/internal/telephony/ISmsSecurityAgent.aidl
+ create mode 100644 telephony/java/com/android/internal/telephony/ISmsSecurityService.aidl
+ create mode 100644 telephony/java/com/android/internal/telephony/SmsAuthorizationRequest.aidl
+ create mode 100644 telephony/java/com/android/internal/telephony/SmsAuthorizationRequest.java
+
+diff --git a/Android.mk b/Android.mk
+index 07bef10..73dc9dc 100644
+--- a/Android.mk
++++ b/Android.mk
+@@ -556,6 +556,8 @@ LOCAL_SRC_FILES += \
+ 	packages/services/Proxy/com/android/net/IProxyPortListener.aidl \
+ 	core/java/android/service/quicksettings/IQSService.aidl \
+ 	core/java/android/service/quicksettings/IQSTileService.aidl \
++	telephony/java/com/android/internal/telephony/ISmsSecurityService.aidl \
++	telephony/java/com/android/internal/telephony/ISmsSecurityAgent.aidl \
+ 
+ # The following are native binders that need to go with the native component
+ # at system/update_engine/binder_bindings/. Use relative path to refer to them.
+diff --git a/core/java/android/accounts/AccountManager.java b/core/java/android/accounts/AccountManager.java
+index dd6ad55..a35c1f3 100644
+--- a/core/java/android/accounts/AccountManager.java
++++ b/core/java/android/accounts/AccountManager.java
+@@ -474,6 +474,7 @@ public class AccountManager {
+      * @return The account's password, null if none or if the account doesn't exist
+      */
+     public String getPassword(final Account account) {
++        android.util.SeempLog.record(22);
+         if (account == null) throw new IllegalArgumentException("account is null");
+         try {
+             return mService.getPassword(account);
+@@ -504,6 +505,7 @@ public class AccountManager {
+      * @return The user data, null if the account or key doesn't exist
+      */
+     public String getUserData(final Account account, final String key) {
++        android.util.SeempLog.record(23);
+         if (account == null) throw new IllegalArgumentException("account is null");
+         if (key == null) throw new IllegalArgumentException("key is null");
+         try {
+@@ -725,6 +727,7 @@ public class AccountManager {
+         return new Future2Task<String>(handler, callback) {
+             @Override
+             public void doWork() throws RemoteException {
++                android.util.SeempLog.record(31);
+                 mService.getAuthTokenLabel(mResponse, accountType, authTokenType);
+             }
+ 
+@@ -769,6 +772,7 @@ public class AccountManager {
+         return new Future2Task<Boolean>(handler, callback) {
+             @Override
+             public void doWork() throws RemoteException {
++                android.util.SeempLog.record(31);
+                 mService.hasFeatures(mResponse, account, features, mContext.getOpPackageName());
+             }
+             @Override
+@@ -829,6 +833,7 @@ public class AccountManager {
+         return new Future2Task<Account[]>(handler, callback) {
+             @Override
+             public void doWork() throws RemoteException {
++                android.util.SeempLog.record(31);
+                 mService.getAccountsByFeatures(mResponse, type, features,
+                         mContext.getOpPackageName());
+             }
+@@ -873,6 +878,7 @@ public class AccountManager {
+      *         already exists, the account is null, or another error occurs.
+      */
+     public boolean addAccountExplicitly(Account account, String password, Bundle userdata) {
++        android.util.SeempLog.record(24);
+         if (account == null) throw new IllegalArgumentException("account is null");
+         try {
+             return mService.addAccountExplicitly(account, password, userdata);
+@@ -1090,6 +1096,7 @@ public class AccountManager {
+         return new Future2Task<Account>(handler, callback) {
+             @Override
+             public void doWork() throws RemoteException {
++                android.util.SeempLog.record(31);
+                 mService.renameAccount(mResponse, account, newName);
+             }
+             @Override
+@@ -1150,10 +1157,12 @@ public class AccountManager {
+     @Deprecated
+     public AccountManagerFuture<Boolean> removeAccount(final Account account,
+             AccountManagerCallback<Boolean> callback, Handler handler) {
++        android.util.SeempLog.record(25);
+         if (account == null) throw new IllegalArgumentException("account is null");
+         return new Future2Task<Boolean>(handler, callback) {
+             @Override
+             public void doWork() throws RemoteException {
++                android.util.SeempLog.record(31);
+                 mService.removeAccount(mResponse, account, false);
+             }
+             @Override
+@@ -1209,10 +1218,12 @@ public class AccountManager {
+      */
+     public AccountManagerFuture<Bundle> removeAccount(final Account account,
+             final Activity activity, AccountManagerCallback<Bundle> callback, Handler handler) {
++        android.util.SeempLog.record(28);
+         if (account == null) throw new IllegalArgumentException("account is null");
+         return new AmsTask(activity, handler, callback) {
+             @Override
+             public void doWork() throws RemoteException {
++                android.util.SeempLog.record(34);
+                 mService.removeAccount(mResponse, account, activity != null);
+             }
+         }.start();
+@@ -1234,6 +1245,7 @@ public class AccountManager {
+         return new Future2Task<Boolean>(handler, callback) {
+             @Override
+             public void doWork() throws RemoteException {
++                android.util.SeempLog.record(31);
+                 mService.removeAccountAsUser(mResponse, account, false, userHandle.getIdentifier());
+             }
+             @Override
+@@ -1260,6 +1272,7 @@ public class AccountManager {
+         return new AmsTask(activity, handler, callback) {
+             @Override
+             public void doWork() throws RemoteException {
++                android.util.SeempLog.record(34);
+                 mService.removeAccountAsUser(mResponse, account, activity != null,
+                         userHandle.getIdentifier());
+             }
+@@ -1373,6 +1386,7 @@ public class AccountManager {
+      * @param password The password to set, null to clear the password
+      */
+     public void setPassword(final Account account, final String password) {
++        android.util.SeempLog.record(26);
+         if (account == null) throw new IllegalArgumentException("account is null");
+         try {
+             mService.setPassword(account, password);
+@@ -1401,6 +1415,7 @@ public class AccountManager {
+      * @param account The account whose password to clear
+      */
+     public void clearPassword(final Account account) {
++        android.util.SeempLog.record(27);
+         if (account == null) throw new IllegalArgumentException("account is null");
+         try {
+             mService.clearPassword(account);
+@@ -1428,6 +1443,7 @@ public class AccountManager {
+      * @param value String value to set, {@code null} to clear this user data key
+      */
+     public void setUserData(final Account account, final String key, final String value) {
++        android.util.SeempLog.record(28);
+         if (account == null) throw new IllegalArgumentException("account is null");
+         if (key == null) throw new IllegalArgumentException("key is null");
+         try {
+@@ -1578,6 +1594,7 @@ public class AccountManager {
+         return new AmsTask(activity, handler, callback) {
+             @Override
+             public void doWork() throws RemoteException {
++                android.util.SeempLog.record(31);
+                 mService.getAuthToken(mResponse, account, authTokenType,
+                         false /* notifyOnAuthFailure */, true /* expectActivityLaunch */,
+                         optionsIn);
+@@ -1749,6 +1766,7 @@ public class AccountManager {
+         return new AmsTask(null, handler, callback) {
+             @Override
+             public void doWork() throws RemoteException {
++                android.util.SeempLog.record(31);
+                 mService.getAuthToken(mResponse, account, authTokenType,
+                         notifyAuthFailure, false /* expectActivityLaunch */, optionsIn);
+             }
+@@ -1809,6 +1827,7 @@ public class AccountManager {
+             final String authTokenType, final String[] requiredFeatures,
+             final Bundle addAccountOptions,
+             final Activity activity, AccountManagerCallback<Bundle> callback, Handler handler) {
++        android.util.SeempLog.record(29);
+         if (accountType == null) throw new IllegalArgumentException("accountType is null");
+         final Bundle optionsIn = new Bundle();
+         if (addAccountOptions != null) {
+@@ -1819,6 +1838,7 @@ public class AccountManager {
+         return new AmsTask(activity, handler, callback) {
+             @Override
+             public void doWork() throws RemoteException {
++                android.util.SeempLog.record(31);
+                 mService.addAccount(mResponse, accountType, authTokenType,
+                         requiredFeatures, activity != null, optionsIn);
+             }
+@@ -1844,6 +1864,7 @@ public class AccountManager {
+         return new AmsTask(activity, handler, callback) {
+             @Override
+             public void doWork() throws RemoteException {
++                android.util.SeempLog.record(31);
+                 mService.addAccountAsUser(mResponse, accountType, authTokenType,
+                         requiredFeatures, activity != null, optionsIn, userHandle.getIdentifier());
+             }
+@@ -1893,6 +1914,7 @@ public class AccountManager {
+         return new Future2Task<Boolean>(handler, callback) {
+             @Override
+             public void doWork() throws RemoteException {
++                android.util.SeempLog.record(34);
+                 mService.copyAccountToUser(
+                         mResponse, account, fromUser.getIdentifier(), toUser.getIdentifier());
+             }
+@@ -2019,6 +2041,7 @@ public class AccountManager {
+         return new AmsTask(activity, handler, callback) {
+             @Override
+             public void doWork() throws RemoteException {
++                android.util.SeempLog.record(31);
+                 mService.confirmCredentialsAsUser(mResponse, account, options, activity != null,
+                         userId);
+             }
+@@ -2132,10 +2155,12 @@ public class AccountManager {
+     public AccountManagerFuture<Bundle> editProperties(final String accountType,
+             final Activity activity, final AccountManagerCallback<Bundle> callback,
+             final Handler handler) {
++        android.util.SeempLog.record(30);
+         if (accountType == null) throw new IllegalArgumentException("accountType is null");
+         return new AmsTask(activity, handler, callback) {
+             @Override
+             public void doWork() throws RemoteException {
++                android.util.SeempLog.record(31);
+                 mService.editProperties(mResponse, accountType, activity != null);
+             }
+         }.start();
+@@ -2552,6 +2577,7 @@ public class AccountManager {
+ 
+         @Override
+         public void doWork() throws RemoteException {
++            android.util.SeempLog.record(31);
+             getAccountByTypeAndFeatures(mAccountType, mFeatures,
+                     new AccountManagerCallback<Bundle>() {
+                         @Override
+diff --git a/core/java/android/app/Instrumentation.java b/core/java/android/app/Instrumentation.java
+index e260967..008ce0e 100644
+--- a/core/java/android/app/Instrumentation.java
++++ b/core/java/android/app/Instrumentation.java
+@@ -429,6 +429,7 @@ public class Instrumentation {
+      * @see Context#startActivity
+      */
+     public Activity startActivitySync(Intent intent) {
++        android.util.SeempLog.record_str(376, intent.toString());
+         validateNotAppThread();
+ 
+         synchronized (mSync) {
+@@ -1578,6 +1579,7 @@ public class Instrumentation {
+     public ActivityResult execStartActivity(
+             Context who, IBinder contextThread, IBinder token, Activity target,
+             Intent intent, int requestCode, Bundle options) {
++        android.util.SeempLog.record_str(377, intent.toString());
+         IApplicationThread whoThread = (IApplicationThread) contextThread;
+         Uri referrer = target != null ? target.onProvideReferrer() : null;
+         if (referrer != null) {
+@@ -1645,6 +1647,7 @@ public class Instrumentation {
+     public void execStartActivitiesAsUser(Context who, IBinder contextThread,
+             IBinder token, Activity target, Intent[] intents, Bundle options,
+             int userId) {
++        android.util.SeempLog.record_str(378, intents.toString());
+         IApplicationThread whoThread = (IApplicationThread) contextThread;
+         if (mActivityMonitors != null) {
+             synchronized (mSync) {
+@@ -1715,6 +1718,7 @@ public class Instrumentation {
+     public ActivityResult execStartActivity(
+         Context who, IBinder contextThread, IBinder token, String target,
+         Intent intent, int requestCode, Bundle options) {
++        android.util.SeempLog.record_str(377, intent.toString());
+         IApplicationThread whoThread = (IApplicationThread) contextThread;
+         if (mActivityMonitors != null) {
+             synchronized (mSync) {
+@@ -1782,6 +1786,7 @@ public class Instrumentation {
+     public ActivityResult execStartActivity(
+             Context who, IBinder contextThread, IBinder token, String resultWho,
+             Intent intent, int requestCode, Bundle options, UserHandle user) {
++        android.util.SeempLog.record_str(377, intent.toString());
+         IApplicationThread whoThread = (IApplicationThread) contextThread;
+         if (mActivityMonitors != null) {
+             synchronized (mSync) {
+@@ -1828,6 +1833,7 @@ public class Instrumentation {
+             Context who, IBinder contextThread, IBinder token, Activity target,
+             Intent intent, int requestCode, Bundle options, boolean ignoreTargetSecurity,
+             int userId) {
++        android.util.SeempLog.record_str(379, intent.toString());
+         IApplicationThread whoThread = (IApplicationThread) contextThread;
+         if (mActivityMonitors != null) {
+             synchronized (mSync) {
+@@ -1873,6 +1879,7 @@ public class Instrumentation {
+     public void execStartActivityFromAppTask(
+             Context who, IBinder contextThread, IAppTask appTask,
+             Intent intent, Bundle options) {
++        android.util.SeempLog.record_str(380, intent.toString());
+         IApplicationThread whoThread = (IApplicationThread) contextThread;
+         if (mActivityMonitors != null) {
+             synchronized (mSync) {
+diff --git a/core/java/android/bluetooth/BluetoothAdapter.java b/core/java/android/bluetooth/BluetoothAdapter.java
+index fc3a724..4df21d7 100644
+--- a/core/java/android/bluetooth/BluetoothAdapter.java
++++ b/core/java/android/bluetooth/BluetoothAdapter.java
+@@ -616,6 +616,7 @@ public final class BluetoothAdapter {
+      * @throws IllegalArgumentException if address is invalid
+      */
+     public BluetoothDevice getRemoteDevice(String address) {
++        android.util.SeempLog.record(62);
+         return new BluetoothDevice(address);
+     }
+ 
+@@ -631,6 +632,7 @@ public final class BluetoothAdapter {
+      * @throws IllegalArgumentException if address is invalid
+      */
+     public BluetoothDevice getRemoteDevice(byte[] address) {
++        android.util.SeempLog.record(62);
+         if (address == null || address.length != 6) {
+             throw new IllegalArgumentException("Bluetooth address must have 6 bytes");
+         }
+@@ -841,6 +843,7 @@ public final class BluetoothAdapter {
+     @RequiresPermission(Manifest.permission.BLUETOOTH)
+     @AdapterState
+     public int getState() {
++        android.util.SeempLog.record(63);
+         int state = BluetoothAdapter.STATE_OFF;
+ 
+         try {
+@@ -938,6 +941,7 @@ public final class BluetoothAdapter {
+      */
+     @RequiresPermission(Manifest.permission.BLUETOOTH_ADMIN)
+     public boolean enable() {
++        android.util.SeempLog.record(56);
+         if (isEnabled()) {
+             if (DBG) Log.d(TAG, "enable(): BT already enabled!");
+             return true;
+@@ -972,6 +976,7 @@ public final class BluetoothAdapter {
+      */
+     @RequiresPermission(Manifest.permission.BLUETOOTH_ADMIN)
+     public boolean disable() {
++        android.util.SeempLog.record(57);
+         try {
+             return mManagerService.disable(ActivityThread.currentPackageName(), true);
+         } catch (RemoteException e) {Log.e(TAG, "", e);}
+@@ -989,6 +994,7 @@ public final class BluetoothAdapter {
+      * @hide
+      */
+     public boolean disable(boolean persist) {
++        android.util.SeempLog.record(57);
+ 
+         try {
+             return mManagerService.disable(ActivityThread.currentPackageName(), persist);
+@@ -1253,6 +1259,7 @@ public final class BluetoothAdapter {
+      */
+     @RequiresPermission(Manifest.permission.BLUETOOTH_ADMIN)
+     public boolean startDiscovery() {
++        android.util.SeempLog.record(58);
+         if (getState() != STATE_ON) return false;
+         try {
+             mServiceLock.readLock().lock();
+@@ -1581,6 +1588,7 @@ public final class BluetoothAdapter {
+      */
+     @RequiresPermission(Manifest.permission.BLUETOOTH)
+     public Set<BluetoothDevice> getBondedDevices() {
++        android.util.SeempLog.record(61);
+         if (getState() != STATE_ON) {
+             return toDeviceSet(new BluetoothDevice[0]);
+         }
+@@ -1668,6 +1676,7 @@ public final class BluetoothAdapter {
+      */
+     @RequiresPermission(Manifest.permission.BLUETOOTH)
+     public int getProfileConnectionState(int profile) {
++        android.util.SeempLog.record(64);
+         if (getState() != STATE_ON) return BluetoothProfile.STATE_DISCONNECTED;
+         try {
+             mServiceLock.readLock().lock();
+@@ -1789,6 +1798,7 @@ public final class BluetoothAdapter {
+     @RequiresPermission(Manifest.permission.BLUETOOTH)
+     public BluetoothServerSocket listenUsingInsecureRfcommWithServiceRecord(String name, UUID uuid)
+             throws IOException {
++        android.util.SeempLog.record(59);
+         return createNewRfcommSocketAndRecord(name, uuid, false, false);
+     }
+ 
+diff --git a/core/java/android/content/ContentResolver.java b/core/java/android/content/ContentResolver.java
+index 9ccc552..73266fa 100644
+--- a/core/java/android/content/ContentResolver.java
++++ b/core/java/android/content/ContentResolver.java
+@@ -659,6 +659,7 @@ public abstract class ContentResolver {
+     public final @Nullable Cursor query(@RequiresPermission.Read @NonNull Uri uri,
+             @Nullable String[] projection, @Nullable String selection,
+             @Nullable String[] selectionArgs, @Nullable String sortOrder) {
++        android.util.SeempLog.record_uri(13, uri);
+         return query(uri, projection, selection, selectionArgs, sortOrder, null);
+     }
+ 
+@@ -734,6 +735,7 @@ public abstract class ContentResolver {
+     public final @Nullable Cursor query(final @RequiresPermission.Read @NonNull Uri uri,
+             @Nullable String[] projection, @Nullable Bundle queryArgs,
+             @Nullable CancellationSignal cancellationSignal) {
++        android.util.SeempLog.record_uri(13, uri);
+         Preconditions.checkNotNull(uri, "uri");
+         IContentProvider unstableProvider = acquireUnstableProvider(uri);
+         if (unstableProvider == null) {
+@@ -1529,6 +1531,7 @@ public abstract class ContentResolver {
+      */
+     public final @Nullable Uri insert(@RequiresPermission.Write @NonNull Uri url,
+                 @Nullable ContentValues values) {
++        android.util.SeempLog.record_uri(37, url);
+         Preconditions.checkNotNull(url, "url");
+         IContentProvider provider = acquireProvider(url);
+         if (provider == null) {
+diff --git a/core/java/android/hardware/Camera.java b/core/java/android/hardware/Camera.java
+index 61ce4c9..437b457 100644
+--- a/core/java/android/hardware/Camera.java
++++ b/core/java/android/hardware/Camera.java
+@@ -835,6 +835,7 @@ public class Camera {
+      * @see android.media.MediaActionSound
+      */
+     public final void setPreviewCallback(PreviewCallback cb) {
++        android.util.SeempLog.record(66);
+         mPreviewCallback = cb;
+         mOneShot = false;
+         mWithBuffer = false;
+@@ -863,6 +864,7 @@ public class Camera {
+      * @see android.media.MediaActionSound
+      */
+     public final void setOneShotPreviewCallback(PreviewCallback cb) {
++        android.util.SeempLog.record(68);
+         mPreviewCallback = cb;
+         mOneShot = true;
+         mWithBuffer = false;
+@@ -903,6 +905,7 @@ public class Camera {
+      * @see android.media.MediaActionSound
+      */
+     public final void setPreviewCallbackWithBuffer(PreviewCallback cb) {
++        android.util.SeempLog.record(67);
+         mPreviewCallback = cb;
+         mOneShot = false;
+         mWithBuffer = true;
+@@ -1474,6 +1477,7 @@ public class Camera {
+      */
+     public final void takePicture(ShutterCallback shutter, PictureCallback raw,
+             PictureCallback jpeg) {
++        android.util.SeempLog.record(65);
+         takePicture(shutter, raw, null, jpeg);
+     }
+     private native final void native_takePicture(int msgType);
+@@ -1512,6 +1516,7 @@ public class Camera {
+      */
+     public final void takePicture(ShutterCallback shutter, PictureCallback raw,
+             PictureCallback postview, PictureCallback jpeg) {
++        android.util.SeempLog.record(65);
+         mShutterCallback = shutter;
+         mRawImageCallback = raw;
+         mPostviewCallback = postview;
+diff --git a/core/java/android/hardware/SystemSensorManager.java b/core/java/android/hardware/SystemSensorManager.java
+index 607788d..3df370d 100644
+--- a/core/java/android/hardware/SystemSensorManager.java
++++ b/core/java/android/hardware/SystemSensorManager.java
+@@ -143,6 +143,7 @@ public class SystemSensorManager extends SensorManager {
+     @Override
+     protected boolean registerListenerImpl(SensorEventListener listener, Sensor sensor,
+             int delayUs, Handler handler, int maxBatchReportLatencyUs, int reservedFlags) {
++        android.util.SeempLog.record_sensor_rate(381, sensor, delayUs);
+         if (listener == null || sensor == null) {
+             Log.e(TAG, "sensor or listener is null");
+             return false;
+@@ -189,6 +190,7 @@ public class SystemSensorManager extends SensorManager {
+     /** @hide */
+     @Override
+     protected void unregisterListenerImpl(SensorEventListener listener, Sensor sensor) {
++        android.util.SeempLog.record_sensor(382, sensor);
+         // Trigger Sensors should use the cancelTriggerSensor call.
+         if (sensor != null && sensor.getReportingMode() == Sensor.REPORTING_MODE_ONE_SHOT) {
+             return;
+diff --git a/core/java/android/provider/Browser.java b/core/java/android/provider/Browser.java
+index 7d05522..299a95c 100644
+--- a/core/java/android/provider/Browser.java
++++ b/core/java/android/provider/Browser.java
+@@ -244,6 +244,7 @@ public class Browser {
+      */
+     public static final Cursor getAllBookmarks(ContentResolver cr) throws
+             IllegalStateException {
++        android.util.SeempLog.record(32);
+         return new MatrixCursor(new String[]{Bookmarks.URL}, 0);
+     }
+ 
+@@ -256,6 +257,7 @@ public class Browser {
+      */
+     public static final Cursor getAllVisitedUrls(ContentResolver cr) throws
+             IllegalStateException {
++        android.util.SeempLog.record(33);
+         return new MatrixCursor(new String[]{Combined.URL}, 0);
+     }
+ 
+@@ -264,6 +266,7 @@ public class Browser {
+     }
+ 
+     private static final Cursor getVisitedLike(ContentResolver cr, String url) {
++        android.util.SeempLog.record(34);
+         boolean secure = false;
+         String compareString = url;
+         if (compareString.startsWith("http://")) {
+@@ -324,6 +327,7 @@ public class Browser {
+      */
+     @Deprecated
+     public static final String[] getVisitedHistory(ContentResolver cr) {
++        android.util.SeempLog.record(35);
+         return new String[0];
+     }
+ 
+@@ -359,6 +363,7 @@ public class Browser {
+      *  @removed
+      */
+     public static final void clearHistory(ContentResolver cr) {
++    android.util.SeempLog.record(37);
+ 
+     }
+ 
+@@ -420,6 +425,7 @@ public class Browser {
+      */
+     public static final void requestAllIcons(ContentResolver cr, String where,
+             WebIconDatabase.IconListener listener) {
++        android.util.SeempLog.record(36);
+         // Do nothing: this is no longer used.
+     }
+ 
+diff --git a/core/java/android/provider/CalendarContract.java b/core/java/android/provider/CalendarContract.java
+index d9ce57a..8cb0bb8 100644
+--- a/core/java/android/provider/CalendarContract.java
++++ b/core/java/android/provider/CalendarContract.java
+@@ -871,6 +871,7 @@ public final class CalendarContract {
+          * @return A Cursor containing all attendees for the event
+          */
+         public static final Cursor query(ContentResolver cr, long eventId, String[] projection) {
++            android.util.SeempLog.record(54);
+             String[] attArgs = {Long.toString(eventId)};
+             return cr.query(CONTENT_URI, projection, ATTENDEES_WHERE, attArgs /* selection args */,
+                     null /* sort order */);
+@@ -1750,6 +1751,7 @@ public final class CalendarContract {
+          */
+         public static final Cursor query(ContentResolver cr, String[] projection,
+                                          long begin, long end) {
++            android.util.SeempLog.record(54);
+             Uri.Builder builder = CONTENT_URI.buildUpon();
+             ContentUris.appendId(builder, begin);
+             ContentUris.appendId(builder, end);
+@@ -1779,6 +1781,7 @@ public final class CalendarContract {
+          */
+         public static final Cursor query(ContentResolver cr, String[] projection,
+                                          long begin, long end, String searchQuery) {
++            android.util.SeempLog.record(54);
+             Uri.Builder builder = CONTENT_SEARCH_URI.buildUpon();
+             ContentUris.appendId(builder, begin);
+             ContentUris.appendId(builder, end);
+@@ -2029,6 +2032,7 @@ public final class CalendarContract {
+          */
+         public static final Cursor query(ContentResolver cr, int startDay, int numDays,
+                 String[] projection) {
++            android.util.SeempLog.record(54);
+             if (numDays < 1) {
+                 return null;
+             }
+@@ -2112,6 +2116,7 @@ public final class CalendarContract {
+          * @return A Cursor containing all reminders for the event
+          */
+         public static final Cursor query(ContentResolver cr, long eventId, String[] projection) {
++            android.util.SeempLog.record(54);
+             String[] remArgs = {Long.toString(eventId)};
+             return cr.query(CONTENT_URI, projection, REMINDERS_WHERE, remArgs /*selection args*/,
+                     null /* sort order */);
+@@ -2262,6 +2267,7 @@ public final class CalendarContract {
+          */
+         public static final Uri insert(ContentResolver cr, long eventId,
+                 long begin, long end, long alarmTime, int minutes) {
++            android.util.SeempLog.record(51);
+             ContentValues values = new ContentValues();
+             values.put(CalendarAlerts.EVENT_ID, eventId);
+             values.put(CalendarAlerts.BEGIN, begin);
+@@ -2289,6 +2295,7 @@ public final class CalendarContract {
+          * @hide
+          */
+         public static final long findNextAlarmTime(ContentResolver cr, long millis) {
++            android.util.SeempLog.record(53);
+             String selection = ALARM_TIME + ">=" + millis;
+             // TODO: construct an explicit SQL query so that we can add
+             // "LIMIT 1" to the end and get just one result.
+@@ -2413,6 +2420,7 @@ public final class CalendarContract {
+          */
+         public static final boolean alarmExists(ContentResolver cr, long eventId,
+                 long begin, long alarmTime) {
++            android.util.SeempLog.record(52);
+             // TODO: construct an explicit SQL query so that we can add
+             // "LIMIT 1" to the end and get just one result.
+             String[] projection = new String[] { ALARM_TIME };
+diff --git a/core/java/android/provider/ContactsContract.java b/core/java/android/provider/ContactsContract.java
+index cc1c067..673e261 100644
+--- a/core/java/android/provider/ContactsContract.java
++++ b/core/java/android/provider/ContactsContract.java
+@@ -1623,6 +1623,7 @@ public final class ContactsContract {
+          *            {@link #CONTENT_LOOKUP_URI} to attempt refreshing.
+          */
+         public static Uri getLookupUri(ContentResolver resolver, Uri contactUri) {
++            android.util.SeempLog.record(86);
+             final Cursor c = resolver.query(contactUri, new String[] {
+                     Contacts.LOOKUP_KEY, Contacts._ID
+             }, null, null, null);
+@@ -1650,6 +1651,7 @@ public final class ContactsContract {
+          * provided parameters.
+          */
+         public static Uri getLookupUri(long contactId, String lookupKey) {
++            android.util.SeempLog.record(86);
+             if (TextUtils.isEmpty(lookupKey)) {
+                 return null;
+             }
+@@ -1663,6 +1665,7 @@ public final class ContactsContract {
+          * Returns null if the contact cannot be found.
+          */
+         public static Uri lookupContact(ContentResolver resolver, Uri lookupUri) {
++            android.util.SeempLog.record(87);
+             if (lookupUri == null) {
+                 return null;
+             }
+@@ -2132,6 +2135,7 @@ public final class ContactsContract {
+          */
+         public static InputStream openContactPhotoInputStream(ContentResolver cr, Uri contactUri,
+                 boolean preferHighres) {
++            android.util.SeempLog.record(88);
+             if (preferHighres) {
+                 final Uri displayPhotoUri = Uri.withAppendedPath(contactUri,
+                         Contacts.Photo.DISPLAY_PHOTO);
+@@ -2180,6 +2184,7 @@ public final class ContactsContract {
+          * of the thumbnail the high-res picture is preferred
+          */
+         public static InputStream openContactPhotoInputStream(ContentResolver cr, Uri contactUri) {
++            android.util.SeempLog.record(88);
+             return openContactPhotoInputStream(cr, contactUri, false);
+         }
+     }
+@@ -2877,6 +2882,7 @@ public final class ContactsContract {
+          * entry of the given {@link RawContacts} entry.
+          */
+         public static Uri getContactLookupUri(ContentResolver resolver, Uri rawContactUri) {
++            android.util.SeempLog.record(89);
+             // TODO: use a lighter query by joining rawcontacts with contacts in provider
+             final Uri dataUri = Uri.withAppendedPath(rawContactUri, Data.CONTENT_DIRECTORY);
+             final Cursor cursor = resolver.query(dataUri, new String[] {
+@@ -4835,6 +4841,7 @@ public final class ContactsContract {
+          * </p>
+          */
+         public static Uri getContactLookupUri(ContentResolver resolver, Uri dataUri) {
++            android.util.SeempLog.record(89);
+             final Cursor cursor = resolver.query(dataUri, new String[] {
+                     RawContacts.CONTACT_ID, Contacts.LOOKUP_KEY
+             }, null, null, null);
+diff --git a/core/java/android/provider/Settings.java b/core/java/android/provider/Settings.java
+old mode 100755
+new mode 100644
+index b5d28a5..752e482
+--- a/core/java/android/provider/Settings.java
++++ b/core/java/android/provider/Settings.java
+@@ -2248,6 +2248,7 @@ public final class Settings {
+         /** @hide */
+         public static String getStringForUser(ContentResolver resolver, String name,
+                 int userHandle) {
++            android.util.SeempLog.record(android.util.SeempLog.getSeempGetApiIdFromValue(name));
+             if (MOVED_TO_SECURE.contains(name)) {
+                 Log.w(TAG, "Setting " + name + " has moved from android.provider.Settings.System"
+                         + " to android.provider.Settings.Secure, returning read-only value.");
+@@ -2275,6 +2276,7 @@ public final class Settings {
+         /** @hide */
+         public static boolean putStringForUser(ContentResolver resolver, String name, String value,
+                 int userHandle) {
++            android.util.SeempLog.record(android.util.SeempLog.getSeempPutApiIdFromValue(name));
+             if (MOVED_TO_SECURE.contains(name)) {
+                 Log.w(TAG, "Setting " + name + " has moved from android.provider.Settings.System"
+                         + " to android.provider.Settings.Secure, value is unchanged.");
+diff --git a/core/java/android/speech/SpeechRecognizer.java b/core/java/android/speech/SpeechRecognizer.java
+index 88e2ede..3eb24e4 100644
+--- a/core/java/android/speech/SpeechRecognizer.java
++++ b/core/java/android/speech/SpeechRecognizer.java
+@@ -260,6 +260,7 @@ public class SpeechRecognizer {
+      *        not set explicitly, default values will be used by the recognizer.
+      */
+     public void startListening(final Intent recognizerIntent) {
++        android.util.SeempLog.record(72);
+         if (recognizerIntent == null) {
+             throw new IllegalArgumentException("intent must not be null");
+         }
+diff --git a/core/java/android/util/SeempLog.java b/core/java/android/util/SeempLog.java
+new file mode 100644
+index 0000000..3764882
+--- /dev/null
++++ b/core/java/android/util/SeempLog.java
+@@ -0,0 +1,754 @@
++/*
++ * Copyright (c) 2015, The Linux Foundation. All rights reserved.
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions are
++ * met:
++ *   * Redistributions of source code must retain the above copyright
++ *     notice, this list of conditions and the following disclaimer.
++ *   * Redistributions in binary form must reproduce the above
++ *     copyright notice, this list of conditions and the following
++ *     disclaimer in the documentation and/or other materials provided
++ *     with the distribution.
++ *   * Neither the name of The Linux Foundation nor the names of its
++ *     contributors may be used to endorse or promote products derived
++ *     from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED "AS IS" AND ANY EXPRESS OR IMPLIED
++ * WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
++ * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT
++ * ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS
++ * BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
++ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
++ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR
++ * BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
++ * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
++ * OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
++ * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++package android.util;
++
++import com.android.internal.os.RuntimeInit;
++
++import java.io.PrintWriter;
++import java.io.StringWriter;
++import java.net.UnknownHostException;
++import java.util.Hashtable;
++import java.util.Map;
++import java.util.List;
++import java.util.Iterator;
++import android.util.Log;
++import android.provider.Settings;
++
++/**
++ * SeempLog
++ *
++ * @hide
++ */
++public final class SeempLog {
++    private SeempLog() {
++    }
++
++    /**
++     * Send a log message to the seemp log.
++     * @param api The api triggering this message.
++     */
++    public static int record(int api) {
++        return seemp_println_native(api, "");
++    }
++
++    /**
++    * Send a log message to the seemp log.
++    * @param api The api triggering this message.
++    * @param msg The message you would like logged.
++    */
++    public static int record_str(int api, String msg) {
++        if ( msg != null ) {
++            return seemp_println_native(api, msg);
++        }
++        else {
++            return seemp_println_native(api, "");
++        }
++    }
++
++    public static int record_sensor(int api,
++            android.hardware.Sensor sensor) {
++        if ( sensor != null ) {
++            return seemp_println_native(api, "sensor="+sensor.getType());
++        }
++        else {
++            return seemp_println_native(api, "sensor=-1");
++        }
++    }
++
++    public static int record_sensor_rate(int api,
++            android.hardware.Sensor sensor, int rate) {
++        if ( sensor != null ) {
++            return seemp_println_native(api,
++                    "sensor="+sensor.getType() + ",rate="+rate);
++        }
++        else {
++            return seemp_println_native(api, "sensor=-1,rate=" + rate);
++        }
++    }
++
++    public static int record_uri(int api, android.net.Uri uri) {
++        if ( uri != null ) {
++            return seemp_println_native(api, "uri, " + uri.toString());
++        }
++        else {
++            return seemp_println_native(api, "uri, null" );
++        }
++    }
++
++    public static int record_vg_layout(int api,
++            android.view.ViewGroup.LayoutParams params) {
++        try {
++            android.view.WindowManager.LayoutParams p =
++                (android.view.WindowManager.LayoutParams) params;
++            if ( p != null ) {
++                return seemp_println_native(api,
++                    "window_type=" + p.type + ",window_flag=" + p.flags);
++            }
++            else {
++                return seemp_println_native(api, "");
++            }
++        } catch (ClassCastException cce) {
++            return seemp_println_native(api, "");
++        }
++    }
++
++    /** @hide */ public static native int seemp_println_native(int api, String msg);
++
++    public static final int SEEMP_API_android_provider_Settings__get_ANDROID_ID_                                                 =     7;
++    public static final int SEEMP_API_android_provider_Settings__get_ACCELEROMETER_ROTATION_                                     =    96;
++    public static final int SEEMP_API_android_provider_Settings__get_USER_ROTATION_                                              =    97;
++    public static final int SEEMP_API_android_provider_Settings__get_ADB_ENABLED_                                                =    98;
++    public static final int SEEMP_API_android_provider_Settings__get_DEBUG_APP_                                                  =    99;
++    public static final int SEEMP_API_android_provider_Settings__get_WAIT_FOR_DEBUGGER_                                          =   100;
++    public static final int SEEMP_API_android_provider_Settings__get_AIRPLANE_MODE_ON_                                           =   101;
++    public static final int SEEMP_API_android_provider_Settings__get_AIRPLANE_MODE_RADIOS_                                       =   102;
++    public static final int SEEMP_API_android_provider_Settings__get_ALARM_ALERT_                                                =   103;
++    public static final int SEEMP_API_android_provider_Settings__get_NEXT_ALARM_FORMATTED_                                       =   104;
++    public static final int SEEMP_API_android_provider_Settings__get_ALWAYS_FINISH_ACTIVITIES_                                   =   105;
++    public static final int SEEMP_API_android_provider_Settings__get_LOGGING_ID_                                                 =   106;
++    public static final int SEEMP_API_android_provider_Settings__get_ANIMATOR_DURATION_SCALE_                                    =   107;
++    public static final int SEEMP_API_android_provider_Settings__get_WINDOW_ANIMATION_SCALE_                                     =   108;
++    public static final int SEEMP_API_android_provider_Settings__get_FONT_SCALE_                                                 =   109;
++    public static final int SEEMP_API_android_provider_Settings__get_SCREEN_BRIGHTNESS_                                          =   110;
++    public static final int SEEMP_API_android_provider_Settings__get_SCREEN_BRIGHTNESS_MODE_                                     =   111;
++    public static final int SEEMP_API_android_provider_Settings__get_SCREEN_BRIGHTNESS_MODE_AUTOMATIC_                           =   112;
++    public static final int SEEMP_API_android_provider_Settings__get_SCREEN_BRIGHTNESS_MODE_MANUAL_                              =   113;
++    public static final int SEEMP_API_android_provider_Settings__get_SCREEN_OFF_TIMEOUT_                                         =   114;
++    public static final int SEEMP_API_android_provider_Settings__get_DIM_SCREEN_                                                 =   115;
++    public static final int SEEMP_API_android_provider_Settings__get_TRANSITION_ANIMATION_SCALE_                                 =   116;
++    public static final int SEEMP_API_android_provider_Settings__get_STAY_ON_WHILE_PLUGGED_IN_                                   =   117;
++    public static final int SEEMP_API_android_provider_Settings__get_WALLPAPER_ACTIVITY_                                         =   118;
++    public static final int SEEMP_API_android_provider_Settings__get_SHOW_PROCESSES_                                             =   119;
++    public static final int SEEMP_API_android_provider_Settings__get_SHOW_WEB_SUGGESTIONS_                                       =   120;
++    public static final int SEEMP_API_android_provider_Settings__get_SHOW_GTALK_SERVICE_STATUS_                                  =   121;
++    public static final int SEEMP_API_android_provider_Settings__get_USE_GOOGLE_MAIL_                                            =   122;
++    public static final int SEEMP_API_android_provider_Settings__get_AUTO_TIME_                                                  =   123;
++    public static final int SEEMP_API_android_provider_Settings__get_AUTO_TIME_ZONE_                                             =   124;
++    public static final int SEEMP_API_android_provider_Settings__get_DATE_FORMAT_                                                =   125;
++    public static final int SEEMP_API_android_provider_Settings__get_TIME_12_24_                                                 =   126;
++    public static final int SEEMP_API_android_provider_Settings__get_BLUETOOTH_DISCOVERABILITY_                                  =   127;
++    public static final int SEEMP_API_android_provider_Settings__get_BLUETOOTH_DISCOVERABILITY_TIMEOUT_                          =   128;
++    public static final int SEEMP_API_android_provider_Settings__get_BLUETOOTH_ON_                                               =   129;
++    public static final int SEEMP_API_android_provider_Settings__get_DEVICE_PROVISIONED_                                         =   130;
++    public static final int SEEMP_API_android_provider_Settings__get_SETUP_WIZARD_HAS_RUN_                                       =   131;
++    public static final int SEEMP_API_android_provider_Settings__get_DTMF_TONE_WHEN_DIALING_                                     =   132;
++    public static final int SEEMP_API_android_provider_Settings__get_END_BUTTON_BEHAVIOR_                                        =   133;
++    public static final int SEEMP_API_android_provider_Settings__get_RINGTONE_                                                   =   134;
++    public static final int SEEMP_API_android_provider_Settings__get_MODE_RINGER_                                                =   135;
++    public static final int SEEMP_API_android_provider_Settings__get_INSTALL_NON_MARKET_APPS_                                    =   136;
++    public static final int SEEMP_API_android_provider_Settings__get_LOCATION_PROVIDERS_ALLOWED_                                 =   137;
++    public static final int SEEMP_API_android_provider_Settings__get_LOCK_PATTERN_ENABLED_                                       =   138;
++    public static final int SEEMP_API_android_provider_Settings__get_LOCK_PATTERN_TACTILE_FEEDBACK_ENABLED_                      =   139;
++    public static final int SEEMP_API_android_provider_Settings__get_LOCK_PATTERN_VISIBLE_                                       =   140;
++    public static final int SEEMP_API_android_provider_Settings__get_NETWORK_PREFERENCE_                                         =   141;
++    public static final int SEEMP_API_android_provider_Settings__get_DATA_ROAMING_                                               =   142;
++    public static final int SEEMP_API_android_provider_Settings__get_HTTP_PROXY_                                                 =   143;
++    public static final int SEEMP_API_android_provider_Settings__get_PARENTAL_CONTROL_ENABLED_                                   =   144;
++    public static final int SEEMP_API_android_provider_Settings__get_PARENTAL_CONTROL_LAST_UPDATE_                               =   145;
++    public static final int SEEMP_API_android_provider_Settings__get_PARENTAL_CONTROL_REDIRECT_URL_                              =   146;
++    public static final int SEEMP_API_android_provider_Settings__get_RADIO_BLUETOOTH_                                            =   147;
++    public static final int SEEMP_API_android_provider_Settings__get_RADIO_CELL_                                                 =   148;
++    public static final int SEEMP_API_android_provider_Settings__get_RADIO_NFC_                                                  =   149;
++    public static final int SEEMP_API_android_provider_Settings__get_RADIO_WIFI_                                                 =   150;
++    public static final int SEEMP_API_android_provider_Settings__get_SYS_PROP_SETTING_VERSION_                                   =   151;
++    public static final int SEEMP_API_android_provider_Settings__get_SETTINGS_CLASSNAME_                                         =   152;
++    public static final int SEEMP_API_android_provider_Settings__get_TEXT_AUTO_CAPS_                                             =   153;
++    public static final int SEEMP_API_android_provider_Settings__get_TEXT_AUTO_PUNCTUATE_                                        =   154;
++    public static final int SEEMP_API_android_provider_Settings__get_TEXT_AUTO_REPLACE_                                          =   155;
++    public static final int SEEMP_API_android_provider_Settings__get_TEXT_SHOW_PASSWORD_                                         =   156;
++    public static final int SEEMP_API_android_provider_Settings__get_USB_MASS_STORAGE_ENABLED_                                   =   157;
++    public static final int SEEMP_API_android_provider_Settings__get_VIBRATE_ON_                                                 =   158;
++    public static final int SEEMP_API_android_provider_Settings__get_HAPTIC_FEEDBACK_ENABLED_                                    =   159;
++    public static final int SEEMP_API_android_provider_Settings__get_VOLUME_ALARM_                                               =   160;
++    public static final int SEEMP_API_android_provider_Settings__get_VOLUME_BLUETOOTH_SCO_                                       =   161;
++    public static final int SEEMP_API_android_provider_Settings__get_VOLUME_MUSIC_                                               =   162;
++    public static final int SEEMP_API_android_provider_Settings__get_VOLUME_NOTIFICATION_                                        =   163;
++    public static final int SEEMP_API_android_provider_Settings__get_VOLUME_RING_                                                =   164;
++    public static final int SEEMP_API_android_provider_Settings__get_VOLUME_SYSTEM_                                              =   165;
++    public static final int SEEMP_API_android_provider_Settings__get_VOLUME_VOICE_                                               =   166;
++    public static final int SEEMP_API_android_provider_Settings__get_SOUND_EFFECTS_ENABLED_                                      =   167;
++    public static final int SEEMP_API_android_provider_Settings__get_MODE_RINGER_STREAMS_AFFECTED_                               =   168;
++    public static final int SEEMP_API_android_provider_Settings__get_MUTE_STREAMS_AFFECTED_                                      =   169;
++    public static final int SEEMP_API_android_provider_Settings__get_NOTIFICATION_SOUND_                                         =   170;
++    public static final int SEEMP_API_android_provider_Settings__get_APPEND_FOR_LAST_AUDIBLE_                                    =   171;
++    public static final int SEEMP_API_android_provider_Settings__get_WIFI_MAX_DHCP_RETRY_COUNT_                                  =   172;
++    public static final int SEEMP_API_android_provider_Settings__get_WIFI_MOBILE_DATA_TRANSITION_WAKELOCK_TIMEOUT_MS_            =   173;
++    public static final int SEEMP_API_android_provider_Settings__get_WIFI_NETWORKS_AVAILABLE_NOTIFICATION_ON_                    =   174;
++    public static final int SEEMP_API_android_provider_Settings__get_WIFI_NETWORKS_AVAILABLE_REPEAT_DELAY_                       =   175;
++    public static final int SEEMP_API_android_provider_Settings__get_WIFI_NUM_OPEN_NETWORKS_KEPT_                                =   176;
++    public static final int SEEMP_API_android_provider_Settings__get_WIFI_ON_                                                    =   177;
++    public static final int SEEMP_API_android_provider_Settings__get_WIFI_SLEEP_POLICY_                                          =   178;
++    public static final int SEEMP_API_android_provider_Settings__get_WIFI_SLEEP_POLICY_DEFAULT_                                  =   179;
++    public static final int SEEMP_API_android_provider_Settings__get_WIFI_SLEEP_POLICY_NEVER_                                    =   180;
++    public static final int SEEMP_API_android_provider_Settings__get_WIFI_SLEEP_POLICY_NEVER_WHILE_PLUGGED_                      =   181;
++    public static final int SEEMP_API_android_provider_Settings__get_WIFI_STATIC_DNS1_                                           =   182;
++    public static final int SEEMP_API_android_provider_Settings__get_WIFI_STATIC_DNS2_                                           =   183;
++    public static final int SEEMP_API_android_provider_Settings__get_WIFI_STATIC_GATEWAY_                                        =   184;
++    public static final int SEEMP_API_android_provider_Settings__get_WIFI_STATIC_IP_                                             =   185;
++    public static final int SEEMP_API_android_provider_Settings__get_WIFI_STATIC_NETMASK_                                        =   186;
++    public static final int SEEMP_API_android_provider_Settings__get_WIFI_USE_STATIC_IP_                                         =   187;
++    public static final int SEEMP_API_android_provider_Settings__get_WIFI_WATCHDOG_ACCEPTABLE_PACKET_LOSS_PERCENTAGE_            =   188;
++    public static final int SEEMP_API_android_provider_Settings__get_WIFI_WATCHDOG_AP_COUNT_                                     =   189;
++    public static final int SEEMP_API_android_provider_Settings__get_WIFI_WATCHDOG_BACKGROUND_CHECK_DELAY_MS_                    =   190;
++    public static final int SEEMP_API_android_provider_Settings__get_WIFI_WATCHDOG_BACKGROUND_CHECK_ENABLED_                     =   191;
++    public static final int SEEMP_API_android_provider_Settings__get_WIFI_WATCHDOG_BACKGROUND_CHECK_TIMEOUT_MS_                  =   192;
++    public static final int SEEMP_API_android_provider_Settings__get_WIFI_WATCHDOG_INITIAL_IGNORED_PING_COUNT_                   =   193;
++    public static final int SEEMP_API_android_provider_Settings__get_WIFI_WATCHDOG_MAX_AP_CHECKS_                                =   194;
++    public static final int SEEMP_API_android_provider_Settings__get_WIFI_WATCHDOG_ON_                                           =   195;
++    public static final int SEEMP_API_android_provider_Settings__get_WIFI_WATCHDOG_PING_COUNT_                                   =   196;
++    public static final int SEEMP_API_android_provider_Settings__get_WIFI_WATCHDOG_PING_DELAY_MS_                                =   197;
++    public static final int SEEMP_API_android_provider_Settings__get_WIFI_WATCHDOG_PING_TIMEOUT_MS_                              =   198;
++    public static final int SEEMP_API_android_provider_Settings__put_ACCELEROMETER_ROTATION_                                     =   199;
++    public static final int SEEMP_API_android_provider_Settings__put_USER_ROTATION_                                              =   200;
++    public static final int SEEMP_API_android_provider_Settings__put_ADB_ENABLED_                                                =   201;
++    public static final int SEEMP_API_android_provider_Settings__put_DEBUG_APP_                                                  =   202;
++    public static final int SEEMP_API_android_provider_Settings__put_WAIT_FOR_DEBUGGER_                                          =   203;
++    public static final int SEEMP_API_android_provider_Settings__put_AIRPLANE_MODE_ON_                                           =   204;
++    public static final int SEEMP_API_android_provider_Settings__put_AIRPLANE_MODE_RADIOS_                                       =   205;
++    public static final int SEEMP_API_android_provider_Settings__put_ALARM_ALERT_                                                =   206;
++    public static final int SEEMP_API_android_provider_Settings__put_NEXT_ALARM_FORMATTED_                                       =   207;
++    public static final int SEEMP_API_android_provider_Settings__put_ALWAYS_FINISH_ACTIVITIES_                                   =   208;
++    public static final int SEEMP_API_android_provider_Settings__put_ANDROID_ID_                                                 =   209;
++    public static final int SEEMP_API_android_provider_Settings__put_LOGGING_ID_                                                 =   210;
++    public static final int SEEMP_API_android_provider_Settings__put_ANIMATOR_DURATION_SCALE_                                    =   211;
++    public static final int SEEMP_API_android_provider_Settings__put_WINDOW_ANIMATION_SCALE_                                     =   212;
++    public static final int SEEMP_API_android_provider_Settings__put_FONT_SCALE_                                                 =   213;
++    public static final int SEEMP_API_android_provider_Settings__put_SCREEN_BRIGHTNESS_                                          =   214;
++    public static final int SEEMP_API_android_provider_Settings__put_SCREEN_BRIGHTNESS_MODE_                                     =   215;
++    public static final int SEEMP_API_android_provider_Settings__put_SCREEN_BRIGHTNESS_MODE_AUTOMATIC_                           =   216;
++    public static final int SEEMP_API_android_provider_Settings__put_SCREEN_BRIGHTNESS_MODE_MANUAL_                              =   217;
++    public static final int SEEMP_API_android_provider_Settings__put_SCREEN_OFF_TIMEOUT_                                         =   218;
++    public static final int SEEMP_API_android_provider_Settings__put_DIM_SCREEN_                                                 =   219;
++    public static final int SEEMP_API_android_provider_Settings__put_TRANSITION_ANIMATION_SCALE_                                 =   220;
++    public static final int SEEMP_API_android_provider_Settings__put_STAY_ON_WHILE_PLUGGED_IN_                                   =   221;
++    public static final int SEEMP_API_android_provider_Settings__put_WALLPAPER_ACTIVITY_                                         =   222;
++    public static final int SEEMP_API_android_provider_Settings__put_SHOW_PROCESSES_                                             =   223;
++    public static final int SEEMP_API_android_provider_Settings__put_SHOW_WEB_SUGGESTIONS_                                       =   224;
++    public static final int SEEMP_API_android_provider_Settings__put_SHOW_GTALK_SERVICE_STATUS_                                  =   225;
++    public static final int SEEMP_API_android_provider_Settings__put_USE_GOOGLE_MAIL_                                            =   226;
++    public static final int SEEMP_API_android_provider_Settings__put_AUTO_TIME_                                                  =   227;
++    public static final int SEEMP_API_android_provider_Settings__put_AUTO_TIME_ZONE_                                             =   228;
++    public static final int SEEMP_API_android_provider_Settings__put_DATE_FORMAT_                                                =   229;
++    public static final int SEEMP_API_android_provider_Settings__put_TIME_12_24_                                                 =   230;
++    public static final int SEEMP_API_android_provider_Settings__put_BLUETOOTH_DISCOVERABILITY_                                  =   231;
++    public static final int SEEMP_API_android_provider_Settings__put_BLUETOOTH_DISCOVERABILITY_TIMEOUT_                          =   232;
++    public static final int SEEMP_API_android_provider_Settings__put_BLUETOOTH_ON_                                               =   233;
++    public static final int SEEMP_API_android_provider_Settings__put_DEVICE_PROVISIONED_                                         =   234;
++    public static final int SEEMP_API_android_provider_Settings__put_SETUP_WIZARD_HAS_RUN_                                       =   235;
++    public static final int SEEMP_API_android_provider_Settings__put_DTMF_TONE_WHEN_DIALING_                                     =   236;
++    public static final int SEEMP_API_android_provider_Settings__put_END_BUTTON_BEHAVIOR_                                        =   237;
++    public static final int SEEMP_API_android_provider_Settings__put_RINGTONE_                                                   =   238;
++    public static final int SEEMP_API_android_provider_Settings__put_MODE_RINGER_                                                =   239;
++    public static final int SEEMP_API_android_provider_Settings__put_INSTALL_NON_MARKET_APPS_                                    =   240;
++    public static final int SEEMP_API_android_provider_Settings__put_LOCATION_PROVIDERS_ALLOWED_                                 =   241;
++    public static final int SEEMP_API_android_provider_Settings__put_LOCK_PATTERN_ENABLED_                                       =   242;
++    public static final int SEEMP_API_android_provider_Settings__put_LOCK_PATTERN_TACTILE_FEEDBACK_ENABLED_                      =   243;
++    public static final int SEEMP_API_android_provider_Settings__put_LOCK_PATTERN_VISIBLE_                                       =   244;
++    public static final int SEEMP_API_android_provider_Settings__put_NETWORK_PREFERENCE_                                         =   245;
++    public static final int SEEMP_API_android_provider_Settings__put_DATA_ROAMING_                                               =   246;
++    public static final int SEEMP_API_android_provider_Settings__put_HTTP_PROXY_                                                 =   247;
++    public static final int SEEMP_API_android_provider_Settings__put_PARENTAL_CONTROL_ENABLED_                                   =   248;
++    public static final int SEEMP_API_android_provider_Settings__put_PARENTAL_CONTROL_LAST_UPDATE_                               =   249;
++    public static final int SEEMP_API_android_provider_Settings__put_PARENTAL_CONTROL_REDIRECT_URL_                              =   250;
++    public static final int SEEMP_API_android_provider_Settings__put_RADIO_BLUETOOTH_                                            =   251;
++    public static final int SEEMP_API_android_provider_Settings__put_RADIO_CELL_                                                 =   252;
++    public static final int SEEMP_API_android_provider_Settings__put_RADIO_NFC_                                                  =   253;
++    public static final int SEEMP_API_android_provider_Settings__put_RADIO_WIFI_                                                 =   254;
++    public static final int SEEMP_API_android_provider_Settings__put_SYS_PROP_SETTING_VERSION_                                   =   255;
++    public static final int SEEMP_API_android_provider_Settings__put_SETTINGS_CLASSNAME_                                         =   256;
++    public static final int SEEMP_API_android_provider_Settings__put_TEXT_AUTO_CAPS_                                             =   257;
++    public static final int SEEMP_API_android_provider_Settings__put_TEXT_AUTO_PUNCTUATE_                                        =   258;
++    public static final int SEEMP_API_android_provider_Settings__put_TEXT_AUTO_REPLACE_                                          =   259;
++    public static final int SEEMP_API_android_provider_Settings__put_TEXT_SHOW_PASSWORD_                                         =   260;
++    public static final int SEEMP_API_android_provider_Settings__put_USB_MASS_STORAGE_ENABLED_                                   =   261;
++    public static final int SEEMP_API_android_provider_Settings__put_VIBRATE_ON_                                                 =   262;
++    public static final int SEEMP_API_android_provider_Settings__put_HAPTIC_FEEDBACK_ENABLED_                                    =   263;
++    public static final int SEEMP_API_android_provider_Settings__put_VOLUME_ALARM_                                               =   264;
++    public static final int SEEMP_API_android_provider_Settings__put_VOLUME_BLUETOOTH_SCO_                                       =   265;
++    public static final int SEEMP_API_android_provider_Settings__put_VOLUME_MUSIC_                                               =   266;
++    public static final int SEEMP_API_android_provider_Settings__put_VOLUME_NOTIFICATION_                                        =   267;
++    public static final int SEEMP_API_android_provider_Settings__put_VOLUME_RING_                                                =   268;
++    public static final int SEEMP_API_android_provider_Settings__put_VOLUME_SYSTEM_                                              =   269;
++    public static final int SEEMP_API_android_provider_Settings__put_VOLUME_VOICE_                                               =   270;
++    public static final int SEEMP_API_android_provider_Settings__put_SOUND_EFFECTS_ENABLED_                                      =   271;
++    public static final int SEEMP_API_android_provider_Settings__put_MODE_RINGER_STREAMS_AFFECTED_                               =   272;
++    public static final int SEEMP_API_android_provider_Settings__put_MUTE_STREAMS_AFFECTED_                                      =   273;
++    public static final int SEEMP_API_android_provider_Settings__put_NOTIFICATION_SOUND_                                         =   274;
++    public static final int SEEMP_API_android_provider_Settings__put_APPEND_FOR_LAST_AUDIBLE_                                    =   275;
++    public static final int SEEMP_API_android_provider_Settings__put_WIFI_MAX_DHCP_RETRY_COUNT_                                  =   276;
++    public static final int SEEMP_API_android_provider_Settings__put_WIFI_MOBILE_DATA_TRANSITION_WAKELOCK_TIMEOUT_MS_            =   277;
++    public static final int SEEMP_API_android_provider_Settings__put_WIFI_NETWORKS_AVAILABLE_NOTIFICATION_ON_                    =   278;
++    public static final int SEEMP_API_android_provider_Settings__put_WIFI_NETWORKS_AVAILABLE_REPEAT_DELAY_                       =   279;
++    public static final int SEEMP_API_android_provider_Settings__put_WIFI_NUM_OPEN_NETWORKS_KEPT_                                =   280;
++    public static final int SEEMP_API_android_provider_Settings__put_WIFI_ON_                                                    =   281;
++    public static final int SEEMP_API_android_provider_Settings__put_WIFI_SLEEP_POLICY_                                          =   282;
++    public static final int SEEMP_API_android_provider_Settings__put_WIFI_SLEEP_POLICY_DEFAULT_                                  =   283;
++    public static final int SEEMP_API_android_provider_Settings__put_WIFI_SLEEP_POLICY_NEVER_                                    =   284;
++    public static final int SEEMP_API_android_provider_Settings__put_WIFI_SLEEP_POLICY_NEVER_WHILE_PLUGGED_                      =   285;
++    public static final int SEEMP_API_android_provider_Settings__put_WIFI_STATIC_DNS1_                                           =   286;
++    public static final int SEEMP_API_android_provider_Settings__put_WIFI_STATIC_DNS2_                                           =   287;
++    public static final int SEEMP_API_android_provider_Settings__put_WIFI_STATIC_GATEWAY_                                        =   288;
++    public static final int SEEMP_API_android_provider_Settings__put_WIFI_STATIC_IP_                                             =   289;
++    public static final int SEEMP_API_android_provider_Settings__put_WIFI_STATIC_NETMASK_                                        =   290;
++    public static final int SEEMP_API_android_provider_Settings__put_WIFI_USE_STATIC_IP_                                         =   291;
++    public static final int SEEMP_API_android_provider_Settings__put_WIFI_WATCHDOG_ACCEPTABLE_PACKET_LOSS_PERCENTAGE_            =   292;
++    public static final int SEEMP_API_android_provider_Settings__put_WIFI_WATCHDOG_AP_COUNT_                                     =   293;
++    public static final int SEEMP_API_android_provider_Settings__put_WIFI_WATCHDOG_BACKGROUND_CHECK_DELAY_MS_                    =   294;
++    public static final int SEEMP_API_android_provider_Settings__put_WIFI_WATCHDOG_BACKGROUND_CHECK_ENABLED_                     =   295;
++    public static final int SEEMP_API_android_provider_Settings__put_WIFI_WATCHDOG_BACKGROUND_CHECK_TIMEOUT_MS_                  =   296;
++    public static final int SEEMP_API_android_provider_Settings__put_WIFI_WATCHDOG_INITIAL_IGNORED_PING_COUNT_                   =   297;
++    public static final int SEEMP_API_android_provider_Settings__put_WIFI_WATCHDOG_MAX_AP_CHECKS_                                =   298;
++    public static final int SEEMP_API_android_provider_Settings__put_WIFI_WATCHDOG_ON_                                           =   299;
++    public static final int SEEMP_API_android_provider_Settings__put_WIFI_WATCHDOG_PING_COUNT_                                   =   300;
++    public static final int SEEMP_API_android_provider_Settings__put_WIFI_WATCHDOG_PING_DELAY_MS_                                =   301;
++    public static final int SEEMP_API_android_provider_Settings__put_WIFI_WATCHDOG_PING_TIMEOUT_MS_                              =   302;
++
++    private final static java.util.Map<String,Integer> value_to_get_map;
++    static {
++        value_to_get_map = new java.util.HashMap<String,Integer>( 198 );
++        value_to_get_map.put(Settings.System.NOTIFICATION_SOUND,
++                SEEMP_API_android_provider_Settings__get_NOTIFICATION_SOUND_);
++        value_to_get_map.put(Settings.System.DTMF_TONE_WHEN_DIALING,
++                SEEMP_API_android_provider_Settings__get_DTMF_TONE_WHEN_DIALING_);
++        value_to_get_map.put(Settings.System.LOCK_PATTERN_ENABLED,
++                SEEMP_API_android_provider_Settings__get_LOCK_PATTERN_ENABLED_);
++        value_to_get_map.put(Settings.System.WIFI_MAX_DHCP_RETRY_COUNT,
++                SEEMP_API_android_provider_Settings__get_WIFI_MAX_DHCP_RETRY_COUNT_);
++        value_to_get_map.put(Settings.System.AUTO_TIME,
++                SEEMP_API_android_provider_Settings__get_AUTO_TIME_);
++        value_to_get_map.put(Settings.System.SETUP_WIZARD_HAS_RUN,
++                SEEMP_API_android_provider_Settings__get_SETUP_WIZARD_HAS_RUN_);
++        value_to_get_map.put(Settings.System.WIFI_WATCHDOG_BACKGROUND_CHECK_TIMEOUT_MS,
++                SEEMP_API_android_provider_Settings__get_WIFI_WATCHDOG_BACKGROUND_CHECK_TIMEOUT_MS_);
++        value_to_get_map.put(Settings.System.LOCATION_PROVIDERS_ALLOWED,
++                SEEMP_API_android_provider_Settings__get_LOCATION_PROVIDERS_ALLOWED_);
++        value_to_get_map.put(Settings.System.ALARM_ALERT,
++                SEEMP_API_android_provider_Settings__get_ALARM_ALERT_);
++        value_to_get_map.put(Settings.System.VIBRATE_ON,
++                SEEMP_API_android_provider_Settings__get_VIBRATE_ON_);
++        value_to_get_map.put(Settings.System.USB_MASS_STORAGE_ENABLED,
++                SEEMP_API_android_provider_Settings__get_USB_MASS_STORAGE_ENABLED_);
++        value_to_get_map.put(Settings.System.WIFI_WATCHDOG_PING_DELAY_MS,
++                SEEMP_API_android_provider_Settings__get_WIFI_WATCHDOG_PING_DELAY_MS_);
++        value_to_get_map.put(Settings.System.FONT_SCALE,
++                SEEMP_API_android_provider_Settings__get_FONT_SCALE_);
++        value_to_get_map.put(Settings.System.WIFI_WATCHDOG_AP_COUNT,
++                SEEMP_API_android_provider_Settings__get_WIFI_WATCHDOG_AP_COUNT_);
++        value_to_get_map.put(Settings.System.ALWAYS_FINISH_ACTIVITIES,
++                SEEMP_API_android_provider_Settings__get_ALWAYS_FINISH_ACTIVITIES_);
++        value_to_get_map.put(Settings.System.ACCELEROMETER_ROTATION,
++                SEEMP_API_android_provider_Settings__get_ACCELEROMETER_ROTATION_);
++        value_to_get_map.put(Settings.System.WIFI_WATCHDOG_PING_TIMEOUT_MS,
++                SEEMP_API_android_provider_Settings__get_WIFI_WATCHDOG_PING_TIMEOUT_MS_);
++        value_to_get_map.put(Settings.System.VOLUME_NOTIFICATION,
++                SEEMP_API_android_provider_Settings__get_VOLUME_NOTIFICATION_);
++        value_to_get_map.put(Settings.System.AIRPLANE_MODE_ON,
++                SEEMP_API_android_provider_Settings__get_AIRPLANE_MODE_ON_);
++        value_to_get_map.put(Settings.System.WIFI_WATCHDOG_BACKGROUND_CHECK_DELAY_MS,
++                SEEMP_API_android_provider_Settings__get_WIFI_WATCHDOG_BACKGROUND_CHECK_DELAY_MS_);
++        value_to_get_map.put(Settings.System.WIFI_STATIC_IP,
++                SEEMP_API_android_provider_Settings__get_WIFI_STATIC_IP_);
++        value_to_get_map.put(Settings.System.RADIO_BLUETOOTH,
++                SEEMP_API_android_provider_Settings__get_RADIO_BLUETOOTH_);
++        value_to_get_map.put(Settings.System.BLUETOOTH_DISCOVERABILITY_TIMEOUT,
++                SEEMP_API_android_provider_Settings__get_BLUETOOTH_DISCOVERABILITY_TIMEOUT_);
++        value_to_get_map.put(Settings.System.VOLUME_RING,
++                SEEMP_API_android_provider_Settings__get_VOLUME_RING_);
++        value_to_get_map.put(Settings.System.MODE_RINGER_STREAMS_AFFECTED,
++                SEEMP_API_android_provider_Settings__get_MODE_RINGER_STREAMS_AFFECTED_);
++        value_to_get_map.put(Settings.System.VOLUME_SYSTEM,
++                SEEMP_API_android_provider_Settings__get_VOLUME_SYSTEM_);
++        value_to_get_map.put(Settings.System.SCREEN_OFF_TIMEOUT,
++                SEEMP_API_android_provider_Settings__get_SCREEN_OFF_TIMEOUT_);
++        value_to_get_map.put(Settings.System.RADIO_WIFI,
++                SEEMP_API_android_provider_Settings__get_RADIO_WIFI_);
++        value_to_get_map.put(Settings.System.AUTO_TIME_ZONE,
++                SEEMP_API_android_provider_Settings__get_AUTO_TIME_ZONE_);
++        value_to_get_map.put(Settings.System.TEXT_AUTO_CAPS,
++                SEEMP_API_android_provider_Settings__get_TEXT_AUTO_CAPS_);
++        value_to_get_map.put(Settings.System.WALLPAPER_ACTIVITY,
++                SEEMP_API_android_provider_Settings__get_WALLPAPER_ACTIVITY_);
++        value_to_get_map.put(Settings.System.ANIMATOR_DURATION_SCALE,
++                SEEMP_API_android_provider_Settings__get_ANIMATOR_DURATION_SCALE_);
++        value_to_get_map.put(Settings.System.WIFI_NUM_OPEN_NETWORKS_KEPT,
++                SEEMP_API_android_provider_Settings__get_WIFI_NUM_OPEN_NETWORKS_KEPT_);
++        value_to_get_map.put(Settings.System.LOCK_PATTERN_VISIBLE,
++                SEEMP_API_android_provider_Settings__get_LOCK_PATTERN_VISIBLE_);
++        value_to_get_map.put(Settings.System.VOLUME_VOICE,
++                SEEMP_API_android_provider_Settings__get_VOLUME_VOICE_);
++        value_to_get_map.put(Settings.System.DEBUG_APP,
++                SEEMP_API_android_provider_Settings__get_DEBUG_APP_);
++        value_to_get_map.put(Settings.System.WIFI_ON,
++                SEEMP_API_android_provider_Settings__get_WIFI_ON_);
++        value_to_get_map.put(Settings.System.TEXT_SHOW_PASSWORD,
++                SEEMP_API_android_provider_Settings__get_TEXT_SHOW_PASSWORD_);
++        value_to_get_map.put(Settings.System.WIFI_NETWORKS_AVAILABLE_REPEAT_DELAY,
++                SEEMP_API_android_provider_Settings__get_WIFI_NETWORKS_AVAILABLE_REPEAT_DELAY_);
++        value_to_get_map.put(Settings.System.WIFI_SLEEP_POLICY,
++                SEEMP_API_android_provider_Settings__get_WIFI_SLEEP_POLICY_);
++        value_to_get_map.put(Settings.System.VOLUME_MUSIC,
++                SEEMP_API_android_provider_Settings__get_VOLUME_MUSIC_);
++        value_to_get_map.put(Settings.System.PARENTAL_CONTROL_LAST_UPDATE,
++                SEEMP_API_android_provider_Settings__get_PARENTAL_CONTROL_LAST_UPDATE_);
++        value_to_get_map.put(Settings.System.DEVICE_PROVISIONED,
++                SEEMP_API_android_provider_Settings__get_DEVICE_PROVISIONED_);
++        value_to_get_map.put(Settings.System.HTTP_PROXY,
++                SEEMP_API_android_provider_Settings__get_HTTP_PROXY_);
++        value_to_get_map.put(Settings.System.ANDROID_ID,
++                SEEMP_API_android_provider_Settings__get_ANDROID_ID_);
++        value_to_get_map.put(Settings.System.WIFI_WATCHDOG_MAX_AP_CHECKS,
++                SEEMP_API_android_provider_Settings__get_WIFI_WATCHDOG_MAX_AP_CHECKS_);
++        value_to_get_map.put(Settings.System.END_BUTTON_BEHAVIOR,
++                SEEMP_API_android_provider_Settings__get_END_BUTTON_BEHAVIOR_);
++        value_to_get_map.put(Settings.System.NEXT_ALARM_FORMATTED,
++                SEEMP_API_android_provider_Settings__get_NEXT_ALARM_FORMATTED_);
++        value_to_get_map.put(Settings.System.RADIO_CELL,
++                SEEMP_API_android_provider_Settings__get_RADIO_CELL_);
++        value_to_get_map.put(Settings.System.PARENTAL_CONTROL_ENABLED,
++                SEEMP_API_android_provider_Settings__get_PARENTAL_CONTROL_ENABLED_);
++        value_to_get_map.put(Settings.System.BLUETOOTH_ON,
++                SEEMP_API_android_provider_Settings__get_BLUETOOTH_ON_);
++        value_to_get_map.put(Settings.System.WINDOW_ANIMATION_SCALE,
++                SEEMP_API_android_provider_Settings__get_WINDOW_ANIMATION_SCALE_);
++        value_to_get_map.put(Settings.System.WIFI_WATCHDOG_BACKGROUND_CHECK_ENABLED,
++                SEEMP_API_android_provider_Settings__get_WIFI_WATCHDOG_BACKGROUND_CHECK_ENABLED_);
++        value_to_get_map.put(Settings.System.BLUETOOTH_DISCOVERABILITY,
++                SEEMP_API_android_provider_Settings__get_BLUETOOTH_DISCOVERABILITY_);
++        value_to_get_map.put(Settings.System.WIFI_STATIC_DNS1,
++                SEEMP_API_android_provider_Settings__get_WIFI_STATIC_DNS1_);
++        value_to_get_map.put(Settings.System.WIFI_STATIC_DNS2,
++                SEEMP_API_android_provider_Settings__get_WIFI_STATIC_DNS2_);
++        value_to_get_map.put(Settings.System.HAPTIC_FEEDBACK_ENABLED,
++                SEEMP_API_android_provider_Settings__get_HAPTIC_FEEDBACK_ENABLED_);
++        value_to_get_map.put(Settings.System.SHOW_WEB_SUGGESTIONS,
++                SEEMP_API_android_provider_Settings__get_SHOW_WEB_SUGGESTIONS_);
++        value_to_get_map.put(Settings.System.PARENTAL_CONTROL_REDIRECT_URL,
++                SEEMP_API_android_provider_Settings__get_PARENTAL_CONTROL_REDIRECT_URL_);
++        value_to_get_map.put(Settings.System.DATE_FORMAT,
++                SEEMP_API_android_provider_Settings__get_DATE_FORMAT_);
++        value_to_get_map.put(Settings.System.RADIO_NFC,
++                SEEMP_API_android_provider_Settings__get_RADIO_NFC_);
++        value_to_get_map.put(Settings.System.AIRPLANE_MODE_RADIOS,
++                SEEMP_API_android_provider_Settings__get_AIRPLANE_MODE_RADIOS_);
++        value_to_get_map.put(Settings.System.LOCK_PATTERN_TACTILE_FEEDBACK_ENABLED,
++                SEEMP_API_android_provider_Settings__get_LOCK_PATTERN_TACTILE_FEEDBACK_ENABLED_);
++        value_to_get_map.put(Settings.System.TIME_12_24,
++                SEEMP_API_android_provider_Settings__get_TIME_12_24_);
++        value_to_get_map.put(Settings.System.WIFI_WATCHDOG_INITIAL_IGNORED_PING_COUNT,
++                SEEMP_API_android_provider_Settings__get_WIFI_WATCHDOG_INITIAL_IGNORED_PING_COUNT_);
++        value_to_get_map.put(Settings.System.VOLUME_BLUETOOTH_SCO,
++                SEEMP_API_android_provider_Settings__get_VOLUME_BLUETOOTH_SCO_);
++        value_to_get_map.put(Settings.System.USER_ROTATION,
++                SEEMP_API_android_provider_Settings__get_USER_ROTATION_);
++        value_to_get_map.put(Settings.System.WIFI_STATIC_GATEWAY,
++                SEEMP_API_android_provider_Settings__get_WIFI_STATIC_GATEWAY_);
++        value_to_get_map.put(Settings.System.STAY_ON_WHILE_PLUGGED_IN,
++                SEEMP_API_android_provider_Settings__get_STAY_ON_WHILE_PLUGGED_IN_);
++        value_to_get_map.put(Settings.System.SOUND_EFFECTS_ENABLED,
++                SEEMP_API_android_provider_Settings__get_SOUND_EFFECTS_ENABLED_);
++        value_to_get_map.put(Settings.System.WIFI_WATCHDOG_PING_COUNT,
++                SEEMP_API_android_provider_Settings__get_WIFI_WATCHDOG_PING_COUNT_);
++        value_to_get_map.put(Settings.System.DATA_ROAMING,
++                SEEMP_API_android_provider_Settings__get_DATA_ROAMING_);
++        value_to_get_map.put(Settings.System.SETTINGS_CLASSNAME,
++                SEEMP_API_android_provider_Settings__get_SETTINGS_CLASSNAME_);
++        value_to_get_map.put(Settings.System.TRANSITION_ANIMATION_SCALE,
++                SEEMP_API_android_provider_Settings__get_TRANSITION_ANIMATION_SCALE_);
++        value_to_get_map.put(Settings.System.WAIT_FOR_DEBUGGER,
++                SEEMP_API_android_provider_Settings__get_WAIT_FOR_DEBUGGER_);
++        value_to_get_map.put(Settings.System.INSTALL_NON_MARKET_APPS,
++                SEEMP_API_android_provider_Settings__get_INSTALL_NON_MARKET_APPS_);
++        value_to_get_map.put(Settings.System.ADB_ENABLED,
++                SEEMP_API_android_provider_Settings__get_ADB_ENABLED_);
++        value_to_get_map.put(Settings.System.WIFI_USE_STATIC_IP,
++                SEEMP_API_android_provider_Settings__get_WIFI_USE_STATIC_IP_);
++        value_to_get_map.put(Settings.System.DIM_SCREEN,
++                SEEMP_API_android_provider_Settings__get_DIM_SCREEN_);
++        value_to_get_map.put(Settings.System.VOLUME_ALARM,
++                SEEMP_API_android_provider_Settings__get_VOLUME_ALARM_);
++        value_to_get_map.put(Settings.System.WIFI_WATCHDOG_ON,
++                SEEMP_API_android_provider_Settings__get_WIFI_WATCHDOG_ON_);
++        value_to_get_map.put(Settings.System.WIFI_STATIC_NETMASK,
++                SEEMP_API_android_provider_Settings__get_WIFI_STATIC_NETMASK_);
++        value_to_get_map.put(Settings.System.NETWORK_PREFERENCE,
++                SEEMP_API_android_provider_Settings__get_NETWORK_PREFERENCE_);
++        value_to_get_map.put(Settings.System.SHOW_PROCESSES,
++                SEEMP_API_android_provider_Settings__get_SHOW_PROCESSES_);
++        value_to_get_map.put(Settings.System.TEXT_AUTO_REPLACE,
++                SEEMP_API_android_provider_Settings__get_TEXT_AUTO_REPLACE_);
++        value_to_get_map.put(Settings.System.WIFI_NETWORKS_AVAILABLE_NOTIFICATION_ON,
++                SEEMP_API_android_provider_Settings__get_WIFI_NETWORKS_AVAILABLE_NOTIFICATION_ON_);
++        value_to_get_map.put(Settings.System.APPEND_FOR_LAST_AUDIBLE,
++                SEEMP_API_android_provider_Settings__get_APPEND_FOR_LAST_AUDIBLE_);
++        value_to_get_map.put(Settings.System.SHOW_GTALK_SERVICE_STATUS,
++                SEEMP_API_android_provider_Settings__get_SHOW_GTALK_SERVICE_STATUS_);
++        value_to_get_map.put(Settings.System.SCREEN_BRIGHTNESS,
++                SEEMP_API_android_provider_Settings__get_SCREEN_BRIGHTNESS_);
++        value_to_get_map.put(Settings.System.USE_GOOGLE_MAIL,
++                SEEMP_API_android_provider_Settings__get_USE_GOOGLE_MAIL_);
++        value_to_get_map.put(Settings.System.RINGTONE,
++                SEEMP_API_android_provider_Settings__get_RINGTONE_);
++        value_to_get_map.put(Settings.System.LOGGING_ID,
++                SEEMP_API_android_provider_Settings__get_LOGGING_ID_);
++        value_to_get_map.put(Settings.System.MODE_RINGER,
++                SEEMP_API_android_provider_Settings__get_MODE_RINGER_);
++        value_to_get_map.put(Settings.System.MUTE_STREAMS_AFFECTED,
++                SEEMP_API_android_provider_Settings__get_MUTE_STREAMS_AFFECTED_);
++        value_to_get_map.put(Settings.System.WIFI_WATCHDOG_ACCEPTABLE_PACKET_LOSS_PERCENTAGE,
++                SEEMP_API_android_provider_Settings__get_WIFI_WATCHDOG_ACCEPTABLE_PACKET_LOSS_PERCENTAGE_);
++        value_to_get_map.put(Settings.System.TEXT_AUTO_PUNCTUATE,
++                SEEMP_API_android_provider_Settings__get_TEXT_AUTO_PUNCTUATE_);
++        value_to_get_map.put(Settings.System.WIFI_MOBILE_DATA_TRANSITION_WAKELOCK_TIMEOUT_MS,
++                SEEMP_API_android_provider_Settings__get_WIFI_MOBILE_DATA_TRANSITION_WAKELOCK_TIMEOUT_MS_);
++        value_to_get_map.put(Settings.System.SCREEN_BRIGHTNESS_MODE,
++                SEEMP_API_android_provider_Settings__get_SCREEN_BRIGHTNESS_MODE_);
++    }
++
++    public static int getSeempGetApiIdFromValue( String v )
++    {
++        Integer result = value_to_get_map.get( v );
++        if (result == null)
++        {
++            result = -1;
++        }
++        return result;
++    }
++
++    private final static java.util.Map<String,Integer> value_to_put_map;
++    static {
++        value_to_put_map = new java.util.HashMap<String,Integer>( 198 );
++        value_to_put_map.put(Settings.System.NOTIFICATION_SOUND,
++                SEEMP_API_android_provider_Settings__put_NOTIFICATION_SOUND_);
++        value_to_put_map.put(Settings.System.DTMF_TONE_WHEN_DIALING,
++                SEEMP_API_android_provider_Settings__put_DTMF_TONE_WHEN_DIALING_);
++        value_to_put_map.put(Settings.System.LOCK_PATTERN_ENABLED,
++                SEEMP_API_android_provider_Settings__put_LOCK_PATTERN_ENABLED_);
++        value_to_put_map.put(Settings.System.WIFI_MAX_DHCP_RETRY_COUNT,
++                SEEMP_API_android_provider_Settings__put_WIFI_MAX_DHCP_RETRY_COUNT_);
++        value_to_put_map.put(Settings.System.AUTO_TIME,
++                SEEMP_API_android_provider_Settings__put_AUTO_TIME_);
++        value_to_put_map.put(Settings.System.SETUP_WIZARD_HAS_RUN,
++                SEEMP_API_android_provider_Settings__put_SETUP_WIZARD_HAS_RUN_);
++        value_to_put_map.put(Settings.System.WIFI_WATCHDOG_BACKGROUND_CHECK_TIMEOUT_MS,
++                SEEMP_API_android_provider_Settings__put_WIFI_WATCHDOG_BACKGROUND_CHECK_TIMEOUT_MS_);
++        value_to_put_map.put(Settings.System.LOCATION_PROVIDERS_ALLOWED,
++                SEEMP_API_android_provider_Settings__put_LOCATION_PROVIDERS_ALLOWED_);
++        value_to_put_map.put(Settings.System.ALARM_ALERT,
++                SEEMP_API_android_provider_Settings__put_ALARM_ALERT_);
++        value_to_put_map.put(Settings.System.VIBRATE_ON,
++                SEEMP_API_android_provider_Settings__put_VIBRATE_ON_);
++        value_to_put_map.put(Settings.System.USB_MASS_STORAGE_ENABLED,
++                SEEMP_API_android_provider_Settings__put_USB_MASS_STORAGE_ENABLED_);
++        value_to_put_map.put(Settings.System.WIFI_WATCHDOG_PING_DELAY_MS,
++                SEEMP_API_android_provider_Settings__put_WIFI_WATCHDOG_PING_DELAY_MS_);
++        value_to_put_map.put(Settings.System.FONT_SCALE,
++                SEEMP_API_android_provider_Settings__put_FONT_SCALE_);
++        value_to_put_map.put(Settings.System.WIFI_WATCHDOG_AP_COUNT,
++                SEEMP_API_android_provider_Settings__put_WIFI_WATCHDOG_AP_COUNT_);
++        value_to_put_map.put(Settings.System.ALWAYS_FINISH_ACTIVITIES,
++                SEEMP_API_android_provider_Settings__put_ALWAYS_FINISH_ACTIVITIES_);
++        value_to_put_map.put(Settings.System.ACCELEROMETER_ROTATION,
++                SEEMP_API_android_provider_Settings__put_ACCELEROMETER_ROTATION_);
++        value_to_put_map.put(Settings.System.WIFI_WATCHDOG_PING_TIMEOUT_MS,
++                SEEMP_API_android_provider_Settings__put_WIFI_WATCHDOG_PING_TIMEOUT_MS_);
++        value_to_put_map.put(Settings.System.VOLUME_NOTIFICATION,
++                SEEMP_API_android_provider_Settings__put_VOLUME_NOTIFICATION_);
++        value_to_put_map.put(Settings.System.AIRPLANE_MODE_ON,
++                SEEMP_API_android_provider_Settings__put_AIRPLANE_MODE_ON_);
++        value_to_put_map.put(Settings.System.WIFI_WATCHDOG_BACKGROUND_CHECK_DELAY_MS,
++                SEEMP_API_android_provider_Settings__put_WIFI_WATCHDOG_BACKGROUND_CHECK_DELAY_MS_);
++        value_to_put_map.put(Settings.System.WIFI_STATIC_IP,
++                SEEMP_API_android_provider_Settings__put_WIFI_STATIC_IP_);
++        value_to_put_map.put(Settings.System.RADIO_BLUETOOTH,
++                SEEMP_API_android_provider_Settings__put_RADIO_BLUETOOTH_);
++        value_to_put_map.put(Settings.System.BLUETOOTH_DISCOVERABILITY_TIMEOUT,
++                SEEMP_API_android_provider_Settings__put_BLUETOOTH_DISCOVERABILITY_TIMEOUT_);
++        value_to_put_map.put(Settings.System.VOLUME_RING,
++                SEEMP_API_android_provider_Settings__put_VOLUME_RING_);
++        value_to_put_map.put(Settings.System.MODE_RINGER_STREAMS_AFFECTED,
++                SEEMP_API_android_provider_Settings__put_MODE_RINGER_STREAMS_AFFECTED_);
++        value_to_put_map.put(Settings.System.VOLUME_SYSTEM,
++                SEEMP_API_android_provider_Settings__put_VOLUME_SYSTEM_);
++        value_to_put_map.put(Settings.System.SCREEN_OFF_TIMEOUT,
++                SEEMP_API_android_provider_Settings__put_SCREEN_OFF_TIMEOUT_);
++        value_to_put_map.put(Settings.System.RADIO_WIFI,
++                SEEMP_API_android_provider_Settings__put_RADIO_WIFI_);
++        value_to_put_map.put(Settings.System.AUTO_TIME_ZONE,
++                SEEMP_API_android_provider_Settings__put_AUTO_TIME_ZONE_);
++        value_to_put_map.put(Settings.System.TEXT_AUTO_CAPS,
++                SEEMP_API_android_provider_Settings__put_TEXT_AUTO_CAPS_);
++        value_to_put_map.put(Settings.System.WALLPAPER_ACTIVITY,
++                SEEMP_API_android_provider_Settings__put_WALLPAPER_ACTIVITY_);
++        value_to_put_map.put(Settings.System.ANIMATOR_DURATION_SCALE,
++                SEEMP_API_android_provider_Settings__put_ANIMATOR_DURATION_SCALE_);
++        value_to_put_map.put(Settings.System.WIFI_NUM_OPEN_NETWORKS_KEPT,
++                SEEMP_API_android_provider_Settings__put_WIFI_NUM_OPEN_NETWORKS_KEPT_);
++        value_to_put_map.put(Settings.System.LOCK_PATTERN_VISIBLE,
++                SEEMP_API_android_provider_Settings__put_LOCK_PATTERN_VISIBLE_);
++        value_to_put_map.put(Settings.System.VOLUME_VOICE,
++                SEEMP_API_android_provider_Settings__put_VOLUME_VOICE_);
++        value_to_put_map.put(Settings.System.DEBUG_APP,
++                SEEMP_API_android_provider_Settings__put_DEBUG_APP_);
++        value_to_put_map.put(Settings.System.WIFI_ON,
++                SEEMP_API_android_provider_Settings__put_WIFI_ON_);
++        value_to_put_map.put(Settings.System.TEXT_SHOW_PASSWORD,
++                SEEMP_API_android_provider_Settings__put_TEXT_SHOW_PASSWORD_);
++        value_to_put_map.put(Settings.System.WIFI_NETWORKS_AVAILABLE_REPEAT_DELAY,
++                SEEMP_API_android_provider_Settings__put_WIFI_NETWORKS_AVAILABLE_REPEAT_DELAY_);
++        value_to_put_map.put(Settings.System.WIFI_SLEEP_POLICY,
++                SEEMP_API_android_provider_Settings__put_WIFI_SLEEP_POLICY_);
++        value_to_put_map.put(Settings.System.VOLUME_MUSIC,
++                SEEMP_API_android_provider_Settings__put_VOLUME_MUSIC_);
++        value_to_put_map.put(Settings.System.PARENTAL_CONTROL_LAST_UPDATE,
++                SEEMP_API_android_provider_Settings__put_PARENTAL_CONTROL_LAST_UPDATE_);
++        value_to_put_map.put(Settings.System.DEVICE_PROVISIONED,
++                SEEMP_API_android_provider_Settings__put_DEVICE_PROVISIONED_);
++        value_to_put_map.put(Settings.System.HTTP_PROXY,
++                SEEMP_API_android_provider_Settings__put_HTTP_PROXY_);
++        value_to_put_map.put(Settings.System.ANDROID_ID,
++                SEEMP_API_android_provider_Settings__put_ANDROID_ID_);
++        value_to_put_map.put(Settings.System.WIFI_WATCHDOG_MAX_AP_CHECKS,
++                SEEMP_API_android_provider_Settings__put_WIFI_WATCHDOG_MAX_AP_CHECKS_);
++        value_to_put_map.put(Settings.System.END_BUTTON_BEHAVIOR,
++                SEEMP_API_android_provider_Settings__put_END_BUTTON_BEHAVIOR_);
++        value_to_put_map.put(Settings.System.NEXT_ALARM_FORMATTED,
++                SEEMP_API_android_provider_Settings__put_NEXT_ALARM_FORMATTED_);
++        value_to_put_map.put(Settings.System.RADIO_CELL,
++                SEEMP_API_android_provider_Settings__put_RADIO_CELL_);
++        value_to_put_map.put(Settings.System.PARENTAL_CONTROL_ENABLED,
++                SEEMP_API_android_provider_Settings__put_PARENTAL_CONTROL_ENABLED_);
++        value_to_put_map.put(Settings.System.BLUETOOTH_ON,
++                SEEMP_API_android_provider_Settings__put_BLUETOOTH_ON_);
++        value_to_put_map.put(Settings.System.WINDOW_ANIMATION_SCALE,
++                SEEMP_API_android_provider_Settings__put_WINDOW_ANIMATION_SCALE_);
++        value_to_put_map.put(Settings.System.WIFI_WATCHDOG_BACKGROUND_CHECK_ENABLED,
++                SEEMP_API_android_provider_Settings__put_WIFI_WATCHDOG_BACKGROUND_CHECK_ENABLED_);
++        value_to_put_map.put(Settings.System.BLUETOOTH_DISCOVERABILITY,
++                SEEMP_API_android_provider_Settings__put_BLUETOOTH_DISCOVERABILITY_);
++        value_to_put_map.put(Settings.System.WIFI_STATIC_DNS1,
++                SEEMP_API_android_provider_Settings__put_WIFI_STATIC_DNS1_);
++        value_to_put_map.put(Settings.System.WIFI_STATIC_DNS2,
++                SEEMP_API_android_provider_Settings__put_WIFI_STATIC_DNS2_);
++        value_to_put_map.put(Settings.System.HAPTIC_FEEDBACK_ENABLED,
++                SEEMP_API_android_provider_Settings__put_HAPTIC_FEEDBACK_ENABLED_);
++        value_to_put_map.put(Settings.System.SHOW_WEB_SUGGESTIONS,
++                SEEMP_API_android_provider_Settings__put_SHOW_WEB_SUGGESTIONS_);
++        value_to_put_map.put(Settings.System.PARENTAL_CONTROL_REDIRECT_URL,
++                SEEMP_API_android_provider_Settings__put_PARENTAL_CONTROL_REDIRECT_URL_);
++        value_to_put_map.put(Settings.System.DATE_FORMAT,
++                SEEMP_API_android_provider_Settings__put_DATE_FORMAT_);
++        value_to_put_map.put(Settings.System.RADIO_NFC,
++                SEEMP_API_android_provider_Settings__put_RADIO_NFC_);
++        value_to_put_map.put(Settings.System.AIRPLANE_MODE_RADIOS,
++                SEEMP_API_android_provider_Settings__put_AIRPLANE_MODE_RADIOS_);
++        value_to_put_map.put(Settings.System.LOCK_PATTERN_TACTILE_FEEDBACK_ENABLED,
++                SEEMP_API_android_provider_Settings__put_LOCK_PATTERN_TACTILE_FEEDBACK_ENABLED_);
++        value_to_put_map.put(Settings.System.TIME_12_24,
++                SEEMP_API_android_provider_Settings__put_TIME_12_24_);
++        value_to_put_map.put(Settings.System.WIFI_WATCHDOG_INITIAL_IGNORED_PING_COUNT,
++                SEEMP_API_android_provider_Settings__put_WIFI_WATCHDOG_INITIAL_IGNORED_PING_COUNT_);
++        value_to_put_map.put(Settings.System.VOLUME_BLUETOOTH_SCO,
++                SEEMP_API_android_provider_Settings__put_VOLUME_BLUETOOTH_SCO_);
++        value_to_put_map.put(Settings.System.USER_ROTATION,
++                SEEMP_API_android_provider_Settings__put_USER_ROTATION_);
++        value_to_put_map.put(Settings.System.WIFI_STATIC_GATEWAY,
++                SEEMP_API_android_provider_Settings__put_WIFI_STATIC_GATEWAY_);
++        value_to_put_map.put(Settings.System.STAY_ON_WHILE_PLUGGED_IN,
++                SEEMP_API_android_provider_Settings__put_STAY_ON_WHILE_PLUGGED_IN_);
++        value_to_put_map.put(Settings.System.SOUND_EFFECTS_ENABLED,
++                SEEMP_API_android_provider_Settings__put_SOUND_EFFECTS_ENABLED_);
++        value_to_put_map.put(Settings.System.WIFI_WATCHDOG_PING_COUNT,
++                SEEMP_API_android_provider_Settings__put_WIFI_WATCHDOG_PING_COUNT_);
++        value_to_put_map.put(Settings.System.DATA_ROAMING,
++                SEEMP_API_android_provider_Settings__put_DATA_ROAMING_);
++        value_to_put_map.put(Settings.System.SETTINGS_CLASSNAME,
++                SEEMP_API_android_provider_Settings__put_SETTINGS_CLASSNAME_);
++        value_to_put_map.put(Settings.System.TRANSITION_ANIMATION_SCALE,
++                SEEMP_API_android_provider_Settings__put_TRANSITION_ANIMATION_SCALE_);
++        value_to_put_map.put(Settings.System.WAIT_FOR_DEBUGGER,
++                SEEMP_API_android_provider_Settings__put_WAIT_FOR_DEBUGGER_);
++        value_to_put_map.put(Settings.System.INSTALL_NON_MARKET_APPS,
++                SEEMP_API_android_provider_Settings__put_INSTALL_NON_MARKET_APPS_);
++        value_to_put_map.put(Settings.System.ADB_ENABLED,
++                SEEMP_API_android_provider_Settings__put_ADB_ENABLED_);
++        value_to_put_map.put(Settings.System.WIFI_USE_STATIC_IP,
++                SEEMP_API_android_provider_Settings__put_WIFI_USE_STATIC_IP_);
++        value_to_put_map.put(Settings.System.DIM_SCREEN,
++                SEEMP_API_android_provider_Settings__put_DIM_SCREEN_);
++        value_to_put_map.put(Settings.System.VOLUME_ALARM,
++                SEEMP_API_android_provider_Settings__put_VOLUME_ALARM_);
++        value_to_put_map.put(Settings.System.WIFI_WATCHDOG_ON,
++                SEEMP_API_android_provider_Settings__put_WIFI_WATCHDOG_ON_);
++        value_to_put_map.put(Settings.System.WIFI_STATIC_NETMASK,
++                SEEMP_API_android_provider_Settings__put_WIFI_STATIC_NETMASK_);
++        value_to_put_map.put(Settings.System.NETWORK_PREFERENCE,
++                SEEMP_API_android_provider_Settings__put_NETWORK_PREFERENCE_);
++        value_to_put_map.put(Settings.System.SHOW_PROCESSES,
++                SEEMP_API_android_provider_Settings__put_SHOW_PROCESSES_);
++        value_to_put_map.put(Settings.System.TEXT_AUTO_REPLACE,
++                SEEMP_API_android_provider_Settings__put_TEXT_AUTO_REPLACE_);
++        value_to_put_map.put(Settings.System.WIFI_NETWORKS_AVAILABLE_NOTIFICATION_ON,
++                SEEMP_API_android_provider_Settings__put_WIFI_NETWORKS_AVAILABLE_NOTIFICATION_ON_);
++        value_to_put_map.put(Settings.System.APPEND_FOR_LAST_AUDIBLE,
++                SEEMP_API_android_provider_Settings__put_APPEND_FOR_LAST_AUDIBLE_);
++        value_to_put_map.put(Settings.System.SHOW_GTALK_SERVICE_STATUS,
++                SEEMP_API_android_provider_Settings__put_SHOW_GTALK_SERVICE_STATUS_);
++        value_to_put_map.put(Settings.System.SCREEN_BRIGHTNESS,
++                SEEMP_API_android_provider_Settings__put_SCREEN_BRIGHTNESS_);
++        value_to_put_map.put(Settings.System.USE_GOOGLE_MAIL,
++                SEEMP_API_android_provider_Settings__put_USE_GOOGLE_MAIL_);
++        value_to_put_map.put(Settings.System.RINGTONE,
++                SEEMP_API_android_provider_Settings__put_RINGTONE_);
++        value_to_put_map.put(Settings.System.LOGGING_ID,
++                SEEMP_API_android_provider_Settings__put_LOGGING_ID_);
++        value_to_put_map.put(Settings.System.MODE_RINGER,
++                SEEMP_API_android_provider_Settings__put_MODE_RINGER_);
++        value_to_put_map.put(Settings.System.MUTE_STREAMS_AFFECTED,
++                SEEMP_API_android_provider_Settings__put_MUTE_STREAMS_AFFECTED_);
++        value_to_put_map.put(Settings.System.WIFI_WATCHDOG_ACCEPTABLE_PACKET_LOSS_PERCENTAGE,
++                SEEMP_API_android_provider_Settings__put_WIFI_WATCHDOG_ACCEPTABLE_PACKET_LOSS_PERCENTAGE_);
++        value_to_put_map.put(Settings.System.TEXT_AUTO_PUNCTUATE,
++                SEEMP_API_android_provider_Settings__put_TEXT_AUTO_PUNCTUATE_);
++        value_to_put_map.put(Settings.System.WIFI_MOBILE_DATA_TRANSITION_WAKELOCK_TIMEOUT_MS,
++                SEEMP_API_android_provider_Settings__put_WIFI_MOBILE_DATA_TRANSITION_WAKELOCK_TIMEOUT_MS_);
++        value_to_put_map.put(Settings.System.SCREEN_BRIGHTNESS_MODE,
++                SEEMP_API_android_provider_Settings__put_SCREEN_BRIGHTNESS_MODE_);
++    }
++
++    public static int getSeempPutApiIdFromValue( String v )
++    {
++        Integer result = value_to_put_map.get( v );
++        if (result == null)
++        {
++            result = -1;
++        }
++        return result;
++    }
++}
+diff --git a/core/java/android/view/View.java b/core/java/android/view/View.java
+index 166d6b7..2265429 100644
+--- a/core/java/android/view/View.java
++++ b/core/java/android/view/View.java
+@@ -11757,6 +11757,7 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
+ 
+         final int actionMasked = event.getActionMasked();
+         if (actionMasked == MotionEvent.ACTION_DOWN) {
++            android.util.SeempLog.record(3);
+             // Defensive cleanup for new gesture
+             stopNestedScroll();
+         }
+@@ -12404,6 +12405,7 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
+      * @param event the KeyEvent object that defines the button action
+      */
+     public boolean onKeyDown(int keyCode, KeyEvent event) {
++        android.util.SeempLog.record(4);
+         if (KeyEvent.isConfirmKey(keyCode)) {
+             if ((mViewFlags & ENABLED_MASK) == DISABLED) {
+                 return true;
+@@ -12456,6 +12458,7 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
+      * @param event   The KeyEvent object that defines the button action.
+      */
+     public boolean onKeyUp(int keyCode, KeyEvent event) {
++        android.util.SeempLog.record(5);
+         if (KeyEvent.isConfirmKey(keyCode)) {
+             if ((mViewFlags & ENABLED_MASK) == DISABLED) {
+                 return true;
+@@ -12970,6 +12973,7 @@ public class View implements Drawable.Callback, KeyEvent.Callback,
+      * @return True if the event was handled, false otherwise.
+      */
+     public boolean onTouchEvent(MotionEvent event) {
++        android.util.SeempLog.record(3);
+         final float x = event.getX();
+         final float y = event.getY();
+         final int viewFlags = mViewFlags;
+diff --git a/core/java/android/view/WindowManagerImpl.java b/core/java/android/view/WindowManagerImpl.java
+index a8722f1..724859c 100644
+--- a/core/java/android/view/WindowManagerImpl.java
++++ b/core/java/android/view/WindowManagerImpl.java
+@@ -89,12 +89,14 @@ public final class WindowManagerImpl implements WindowManager {
+ 
+     @Override
+     public void addView(@NonNull View view, @NonNull ViewGroup.LayoutParams params) {
++        android.util.SeempLog.record_vg_layout(383,params);
+         applyDefaultToken(params);
+         mGlobal.addView(view, params, mContext.getDisplay(), mParentWindow);
+     }
+ 
+     @Override
+     public void updateViewLayout(@NonNull View view, @NonNull ViewGroup.LayoutParams params) {
++        android.util.SeempLog.record_vg_layout(384,params);
+         applyDefaultToken(params);
+         mGlobal.updateViewLayout(view, params);
+     }
+diff --git a/core/java/android/webkit/WebChromeClient.java b/core/java/android/webkit/WebChromeClient.java
+index b6c453d..a48ba0a 100644
+--- a/core/java/android/webkit/WebChromeClient.java
++++ b/core/java/android/webkit/WebChromeClient.java
+@@ -306,7 +306,9 @@ public class WebChromeClient {
+      *                 origin.
+      */
+     public void onGeolocationPermissionsShowPrompt(String origin,
+-            GeolocationPermissions.Callback callback) {}
++            GeolocationPermissions.Callback callback) {
++            android.util.SeempLog.record(54);
++            }
+ 
+     /**
+      * Notify the host application that a request for Geolocation permissions,
+diff --git a/core/jni/Android.bp b/core/jni/Android.bp
+index c629341..f1a9306 100644
+--- a/core/jni/Android.bp
++++ b/core/jni/Android.bp
+@@ -30,6 +30,7 @@ cc_library_shared {
+     cppflags: ["-Wno-conversion-null"],
+ 
+     srcs: [
++        "android_util_SeempLog.cpp",
+         "AndroidRuntime.cpp",
+         "com_android_internal_content_NativeLibraryHelper.cpp",
+         "com_google_android_gles_jni_EGLImpl.cpp",
+diff --git a/core/jni/AndroidRuntime.cpp b/core/jni/AndroidRuntime.cpp
+index 4c137b1..749958a 100644
+--- a/core/jni/AndroidRuntime.cpp
++++ b/core/jni/AndroidRuntime.cpp
+@@ -103,6 +103,7 @@ extern int register_android_media_JetPlayer(JNIEnv *env);
+ extern int register_android_media_ToneGenerator(JNIEnv *env);
+ 
+ namespace android {
++extern int register_android_util_SeempLog(JNIEnv* env);
+ 
+ /*
+  * JNI-based registration functions.  Note these are properly contained in
+@@ -1320,6 +1321,7 @@ static int register_jni_procs(const RegJNIRec array[], size_t count, JNIEnv* env
+ }
+ 
+ static const RegJNIRec gRegJNI[] = {
++    REG_JNI(register_android_util_SeempLog),
+     REG_JNI(register_com_android_internal_os_RuntimeInit),
+     REG_JNI(register_com_android_internal_os_ZygoteInit_nativeZygoteInit),
+     REG_JNI(register_android_os_SystemClock),
+diff --git a/core/jni/android_util_SeempLog.cpp b/core/jni/android_util_SeempLog.cpp
+new file mode 100644
+index 0000000..7a049ba
+--- /dev/null
++++ b/core/jni/android_util_SeempLog.cpp
+@@ -0,0 +1,217 @@
++/*
++ * Copyright (c) 2015, The Linux Foundation. All rights reserved.
++ * Not a Contribution.
++ *
++ * Copyright (C) 2007-2014 The Android Open Source Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#include <errno.h>
++#include <fcntl.h>
++#include <stdarg.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++#include <sys/stat.h>
++#include <sys/types.h>
++#include <sys/socket.h>
++#include <sys/un.h>
++#include <unistd.h>
++#include <assert.h>
++#include <cutils/properties.h>
++#include <utils/String8.h>
++#include <android_runtime/Log.h>
++#include <utils/Log.h>
++#ifdef __BIONIC__
++#include <android/set_abort_message.h>
++#endif
++#include <utils/Log.h>
++
++
++#include "jni.h"
++#include "JNIHelp.h"
++#include "utils/misc.h"
++#include "android_runtime/AndroidRuntime.h"
++
++#define LOG_BUF_SIZE 1024
++#define SEEMP_SOCK_NAME "/dev/socket/seempdw"
++#define ZYGOTE_PARENT_PID 1
++#ifndef __unused
++#define __unused  __attribute__((__unused__))
++#endif
++
++static int __write_to_log_init(struct iovec *vec, size_t nr);
++static int (*write_to_log)(struct iovec *vec, size_t nr) = __write_to_log_init;
++static int logd_fd = -1;
++
++/* give up, resources too limited */
++static int __write_to_log_null(struct iovec *vec __unused,
++                               size_t nr __unused)
++{
++    return -1;
++}
++
++/* log_init_lock assumed */
++static int __write_to_log_initialize()
++{
++    int i, ret = 0;
++    if (logd_fd >= 0) {
++        i = logd_fd;
++        logd_fd = -1;
++        close(i);
++    }
++
++    i = socket(PF_UNIX, SOCK_DGRAM | SOCK_CLOEXEC, 0);
++    if (i < 0) {
++        ret = -errno;
++        write_to_log = __write_to_log_null;
++    } else if (fcntl(i, F_SETFL, O_NONBLOCK) < 0) {
++        ret = -errno;
++        close(i);
++        i = -1;
++        write_to_log = __write_to_log_null;
++    } else {
++        struct sockaddr_un un;
++        memset(&un, 0, sizeof(struct sockaddr_un));
++        un.sun_family = AF_UNIX;
++        strlcpy(un.sun_path, SEEMP_SOCK_NAME, sizeof(un.sun_path));
++        if (connect(i, (struct sockaddr *)&un, sizeof(struct sockaddr_un)) < 0) {
++            ret = -errno;
++            close(i);
++            i = -1;
++        }
++    }
++    logd_fd = i;
++    return ret;
++}
++
++static int __write_to_log_socket(struct iovec *vec, size_t nr)
++{
++    ssize_t ret;
++    if (logd_fd < 0) {
++        return -EBADF;
++    }
++
++    /*
++     * The write below could be lost, but will never block.
++     *
++     * ENOTCONN occurs if logd dies.
++     * EAGAIN occurs if logd is overloaded.
++     */
++    ret = writev(logd_fd, vec, nr);
++    if (ret < 0) {
++        ret = -errno;
++        if (ret == -ENOTCONN) {
++            ret = __write_to_log_initialize();
++            if (ret < 0) {
++                return ret;
++            }
++
++            ret = writev(logd_fd, vec, nr);
++            if (ret < 0) {
++                ret = -errno;
++            }
++        }
++    }
++
++    return ret;
++}
++
++static int __write_to_log_init(struct iovec *vec, size_t nr)
++{
++    if (write_to_log == __write_to_log_init) {
++
++        if (getppid() == ZYGOTE_PARENT_PID) {
++            return 0;
++        }
++
++        int ret;
++
++        ret = __write_to_log_initialize();
++        if (ret < 0) {
++            return ret;
++        }
++
++        write_to_log = __write_to_log_socket;
++    }
++    return write_to_log(vec, nr);
++}
++
++int __android_seemp_socket_write(int len, const char *msg)
++{
++     struct iovec vec;
++     vec.iov_base   = (void *) msg;
++     vec.iov_len  = len;
++
++     return write_to_log(&vec, 1);
++}
++
++namespace android {
++
++/*
++ * In class android.util.Log:
++ *  public static native int println_native(int buffer, int priority, String tag, String msg)
++ */
++static jint android_util_SeempLog_println_native(JNIEnv* env, jobject clazz,
++                                jint api, jstring msgObj)
++{
++    if (msgObj == NULL) {
++        jniThrowNullPointerException(env, "seemp_println needs a message");
++        return -1;
++    }
++
++    int  apiId    = (int)api;
++    int  apiIdLen = sizeof(apiId);
++    int  utf8MsgLen   = env->GetStringUTFLength(msgObj);
++    int  len      = apiIdLen + 1 + utf8MsgLen + 1;
++    char *msg     = (char*)malloc(len);
++    if ( NULL == msg )
++    {
++        return -1;
++    }
++    char *params  = msg + apiIdLen + 1; // api_id + encoding byte + params
++
++    *((int*)msg)  = apiId;                              // copy api id
++    //                                                  // skip encoding byte
++    env->GetStringUTFRegion(msgObj, 0, env->GetStringLength(msgObj), params); // copy message
++    msg[len - 1]  = 0;                                  // copy terminating zero
++
++    int  res      = __android_seemp_socket_write(len, msg); // send message
++
++    free(msg);
++
++    return res;
++}
++
++/*
++ * JNI registration.
++ */
++static JNINativeMethod gMethods[] = {
++    /* name, signature, funcPtr */
++    { "seemp_println_native",  "(ILjava/lang/String;)I",
++            (void*) android_util_SeempLog_println_native },
++};
++
++int register_android_util_SeempLog(JNIEnv* env)
++{
++    jclass clazz = env->FindClass("android/util/SeempLog");
++    if (clazz == NULL) {
++        return -1;
++    }
++
++    return AndroidRuntime::registerNativeMethods(env, "android/util/SeempLog", gMethods,
++            NELEM(gMethods));
++}
++
++}; // namespace android
+diff --git a/core/res/AndroidManifest.xml b/core/res/AndroidManifest.xml
+index 8c0da4f..9ebd541 100644
+--- a/core/res/AndroidManifest.xml
++++ b/core/res/AndroidManifest.xml
+@@ -1167,6 +1167,11 @@
+     <permission android:name="android.permission.MODIFY_CELL_BROADCASTS"
+                 android:protectionLevel="signature|privileged" />
+ 
++    <!-- Allows an application to authorize outgoing SMS messages.
++         @hide -->
++    <permission android:name="com.qti.permission.AUTHORIZE_OUTGOING_SMS"
++                android:protectionLevel="signature" />
++
+     <!-- =============================================================== -->
+     <!-- Permissions for setting the device alarm                        -->
+     <!-- =============================================================== -->
+diff --git a/core/res/res/values/config.xml b/core/res/res/values/config.xml
+index 2b2ebbf..a106bf9 100644
+--- a/core/res/res/values/config.xml
++++ b/core/res/res/values/config.xml
+@@ -2419,6 +2419,9 @@
+     <!-- Flag indicating which package name can access the persistent data partition -->
+     <string name="config_persistentDataPackageName" translatable="false"></string>
+ 
++    <!--  Define optional package verifier name -->
++    <string name="config_optionalPackageVerifierName" translatable="false"></string>
++
+     <!-- Flag indicating apps will skip sending hold request before merge. In this case
+         IMS service implementation will do both.i.e.hold followed by merge. -->
+     <bool name="skipHoldBeforeMerge">true</bool>
+@@ -3094,4 +3097,10 @@
+          booted.  -->
+     <integer name="config_stableDeviceDisplayWidth">-1</integer>
+     <integer name="config_stableDeviceDisplayHeight">-1</integer>
++
++    <!-- The duration (in milliseconds) for the outgoing sms authorization request to timeout.-->
++    <integer name="config_sms_authorization_timeout_ms">0</integer>
++
++    <!-- Enable sms authorization framework-->
++    <bool name="config_sms_authorization_enabled">false</bool>
+ </resources>
+diff --git a/core/res/res/values/symbols.xml b/core/res/res/values/symbols.xml
+index 1c9f69fac..108cfd7 100644
+--- a/core/res/res/values/symbols.xml
++++ b/core/res/res/values/symbols.xml
+@@ -2004,6 +2004,7 @@
+   <java-symbol type="string" name="config_customVpnConfirmDialogComponent" />
+   <java-symbol type="string" name="config_defaultNetworkScorerPackageName" />
+   <java-symbol type="string" name="config_persistentDataPackageName" />
++  <java-symbol type="string" name="config_optionalPackageVerifierName" />
+ 
+   <java-symbol type="layout" name="resolver_list" />
+   <java-symbol type="id" name="resolver_list" />
+@@ -3080,4 +3081,7 @@
+ 
+   <java-symbol type="integer" name="config_stableDeviceDisplayWidth" />
+   <java-symbol type="integer" name="config_stableDeviceDisplayHeight" />
++
++  <java-symbol type="integer" name="config_sms_authorization_timeout_ms" />
++  <java-symbol type="bool" name="config_sms_authorization_enabled" />
+ </resources>
+diff --git a/location/java/android/location/LocationManager.java b/location/java/android/location/LocationManager.java
+index 968f596..991d8e0 100644
+--- a/location/java/android/location/LocationManager.java
++++ b/location/java/android/location/LocationManager.java
+@@ -462,6 +462,7 @@ public class LocationManager {
+     @RequiresPermission(anyOf = {ACCESS_COARSE_LOCATION, ACCESS_FINE_LOCATION})
+     public void requestLocationUpdates(String provider, long minTime, float minDistance,
+             LocationListener listener) {
++        android.util.SeempLog.record(47);
+         checkProvider(provider);
+         checkListener(listener);
+ 
+@@ -494,6 +495,7 @@ public class LocationManager {
+     @RequiresPermission(anyOf = {ACCESS_COARSE_LOCATION, ACCESS_FINE_LOCATION})
+     public void requestLocationUpdates(String provider, long minTime, float minDistance,
+             LocationListener listener, Looper looper) {
++        android.util.SeempLog.record(47);
+         checkProvider(provider);
+         checkListener(listener);
+ 
+@@ -527,6 +529,7 @@ public class LocationManager {
+     @RequiresPermission(anyOf = {ACCESS_COARSE_LOCATION, ACCESS_FINE_LOCATION})
+     public void requestLocationUpdates(long minTime, float minDistance, Criteria criteria,
+             LocationListener listener, Looper looper) {
++        android.util.SeempLog.record(47);
+         checkCriteria(criteria);
+         checkListener(listener);
+ 
+@@ -555,6 +558,7 @@ public class LocationManager {
+     @RequiresPermission(anyOf = {ACCESS_COARSE_LOCATION, ACCESS_FINE_LOCATION})
+     public void requestLocationUpdates(String provider, long minTime, float minDistance,
+             PendingIntent intent) {
++        android.util.SeempLog.record(47);
+         checkProvider(provider);
+         checkPendingIntent(intent);
+ 
+@@ -657,6 +661,7 @@ public class LocationManager {
+     @RequiresPermission(anyOf = {ACCESS_COARSE_LOCATION, ACCESS_FINE_LOCATION})
+     public void requestLocationUpdates(long minTime, float minDistance, Criteria criteria,
+             PendingIntent intent) {
++        android.util.SeempLog.record(47);
+         checkCriteria(criteria);
+         checkPendingIntent(intent);
+ 
+@@ -686,6 +691,7 @@ public class LocationManager {
+      */
+     @RequiresPermission(anyOf = {ACCESS_COARSE_LOCATION, ACCESS_FINE_LOCATION})
+     public void requestSingleUpdate(String provider, LocationListener listener, Looper looper) {
++        android.util.SeempLog.record(64);
+         checkProvider(provider);
+         checkListener(listener);
+ 
+@@ -716,6 +722,7 @@ public class LocationManager {
+      */
+     @RequiresPermission(anyOf = {ACCESS_COARSE_LOCATION, ACCESS_FINE_LOCATION})
+     public void requestSingleUpdate(Criteria criteria, LocationListener listener, Looper looper) {
++        android.util.SeempLog.record(64);
+         checkCriteria(criteria);
+         checkListener(listener);
+ 
+@@ -739,6 +746,7 @@ public class LocationManager {
+      */
+     @RequiresPermission(anyOf = {ACCESS_COARSE_LOCATION, ACCESS_FINE_LOCATION})
+     public void requestSingleUpdate(String provider, PendingIntent intent) {
++        android.util.SeempLog.record(64);
+         checkProvider(provider);
+         checkPendingIntent(intent);
+ 
+@@ -763,6 +771,7 @@ public class LocationManager {
+      */
+     @RequiresPermission(anyOf = {ACCESS_COARSE_LOCATION, ACCESS_FINE_LOCATION})
+     public void requestSingleUpdate(Criteria criteria, PendingIntent intent) {
++        android.util.SeempLog.record(64);
+         checkCriteria(criteria);
+         checkPendingIntent(intent);
+ 
+@@ -832,6 +841,7 @@ public class LocationManager {
+     @RequiresPermission(anyOf = {ACCESS_COARSE_LOCATION, ACCESS_FINE_LOCATION})
+     public void requestLocationUpdates(LocationRequest request, LocationListener listener,
+             Looper looper) {
++        android.util.SeempLog.record(47);
+         checkListener(listener);
+         requestLocationUpdates(request, listener, looper, null);
+     }
+@@ -860,6 +870,7 @@ public class LocationManager {
+     @SystemApi
+     @RequiresPermission(anyOf = {ACCESS_COARSE_LOCATION, ACCESS_FINE_LOCATION})
+     public void requestLocationUpdates(LocationRequest request, PendingIntent intent) {
++        android.util.SeempLog.record(47);
+         checkPendingIntent(intent);
+         requestLocationUpdates(request, null, null, intent);
+     }
+@@ -878,6 +889,7 @@ public class LocationManager {
+ 
+     private void requestLocationUpdates(LocationRequest request, LocationListener listener,
+             Looper looper, PendingIntent intent) {
++        android.util.SeempLog.record(47);
+ 
+         String packageName = mContext.getPackageName();
+ 
+@@ -986,6 +998,7 @@ public class LocationManager {
+     @RequiresPermission(anyOf = {ACCESS_COARSE_LOCATION, ACCESS_FINE_LOCATION})
+     public void addProximityAlert(double latitude, double longitude, float radius, long expiration,
+             PendingIntent intent) {
++        android.util.SeempLog.record(45);
+         checkPendingIntent(intent);
+         if (expiration < 0) expiration = Long.MAX_VALUE;
+ 
+@@ -1197,6 +1210,7 @@ public class LocationManager {
+      */
+     @RequiresPermission(anyOf = {ACCESS_COARSE_LOCATION, ACCESS_FINE_LOCATION})
+     public Location getLastKnownLocation(String provider) {
++        android.util.SeempLog.record(46);
+         checkProvider(provider);
+         String packageName = mContext.getPackageName();
+         LocationRequest request = LocationRequest.createFromDeprecatedProvider(
+@@ -1602,6 +1616,7 @@ public class LocationManager {
+     @Deprecated
+     @RequiresPermission(ACCESS_FINE_LOCATION)
+     public boolean addGpsStatusListener(GpsStatus.Listener listener) {
++        android.util.SeempLog.record(43);
+         boolean result;
+ 
+         if (mGpsStatusListeners.get(listener) != null) {
+@@ -1713,6 +1728,7 @@ public class LocationManager {
+     @Deprecated
+     @RequiresPermission(ACCESS_FINE_LOCATION)
+     public boolean addNmeaListener(GpsStatus.NmeaListener listener) {
++        android.util.SeempLog.record(44);
+         boolean result;
+ 
+         if (mGpsNmeaListeners.get(listener) != null) {
+@@ -2073,6 +2089,7 @@ public class LocationManager {
+      * @return true if the command succeeds.
+      */
+     public boolean sendExtraCommand(String provider, String command, Bundle extras) {
++        android.util.SeempLog.record(48);
+         try {
+             return mService.sendExtraCommand(provider, command, extras);
+         } catch (RemoteException e) {
+diff --git a/media/java/android/media/AudioRecord.java b/media/java/android/media/AudioRecord.java
+index 0906ba5..5f0d99b 100644
+--- a/media/java/android/media/AudioRecord.java
++++ b/media/java/android/media/AudioRecord.java
+@@ -973,6 +973,7 @@ public class AudioRecord implements AudioRouting
+      */
+     public void startRecording()
+     throws IllegalStateException {
++        android.util.SeempLog.record(70);
+         if (mState != STATE_INITIALIZED) {
+             throw new IllegalStateException("startRecording() called on an "
+                     + "uninitialized AudioRecord.");
+@@ -996,6 +997,7 @@ public class AudioRecord implements AudioRouting
+      */
+     public void startRecording(MediaSyncEvent syncEvent)
+     throws IllegalStateException {
++        android.util.SeempLog.record(70);
+         if (mState != STATE_INITIALIZED) {
+             throw new IllegalStateException("startRecording() called on an "
+                     + "uninitialized AudioRecord.");
+diff --git a/services/core/java/com/android/server/accounts/AccountManagerService.java b/services/core/java/com/android/server/accounts/AccountManagerService.java
+index 24826bd..f1eb89d 100644
+--- a/services/core/java/com/android/server/accounts/AccountManagerService.java
++++ b/services/core/java/com/android/server/accounts/AccountManagerService.java
+@@ -1435,6 +1435,7 @@ public class AccountManagerService
+ 
+     @Override
+     public String getPassword(Account account) {
++        android.util.SeempLog.record(14);
+         int callingUid = Binder.getCallingUid();
+         if (Log.isLoggable(TAG, Log.VERBOSE)) {
+             Log.v(TAG, "getPassword: " + account
+@@ -1515,6 +1516,7 @@ public class AccountManagerService
+ 
+     @Override
+     public String getUserData(Account account, String key) {
++        android.util.SeempLog.record(15);
+         final int callingUid = Binder.getCallingUid();
+         if (Log.isLoggable(TAG, Log.VERBOSE)) {
+             String msg = String.format("getUserData( account: %s, key: %s, callerUid: %s, pid: %s",
+@@ -2088,6 +2090,7 @@ public class AccountManagerService
+     @Override
+     public void removeAccount(IAccountManagerResponse response, Account account,
+             boolean expectActivityLaunch) {
++        android.util.SeempLog.record(17);
+         removeAccountAsUser(
+                 response,
+                 account,
+@@ -2529,6 +2532,7 @@ public class AccountManagerService
+ 
+     @Override
+     public void setPassword(Account account, String password) {
++        android.util.SeempLog.record(18);
+         final int callingUid = Binder.getCallingUid();
+         if (Log.isLoggable(TAG, Log.VERBOSE)) {
+             Log.v(TAG, "setAuthToken: " + account
+@@ -2595,6 +2599,7 @@ public class AccountManagerService
+ 
+     @Override
+     public void clearPassword(Account account) {
++        android.util.SeempLog.record(19);
+         final int callingUid = Binder.getCallingUid();
+         if (Log.isLoggable(TAG, Log.VERBOSE)) {
+             Log.v(TAG, "clearPassword: " + account
+@@ -2621,6 +2626,7 @@ public class AccountManagerService
+ 
+     @Override
+     public void setUserData(Account account, String key, String value) {
++        android.util.SeempLog.record(20);
+         final int callingUid = Binder.getCallingUid();
+         if (Log.isLoggable(TAG, Log.VERBOSE)) {
+             Log.v(TAG, "setUserData: " + account
+@@ -3104,6 +3110,7 @@ public class AccountManagerService
+     public void addAccount(final IAccountManagerResponse response, final String accountType,
+             final String authTokenType, final String[] requiredFeatures,
+             final boolean expectActivityLaunch, final Bundle optionsIn) {
++        android.util.SeempLog.record(16);
+         Bundle.setDefusable(optionsIn, true);
+         if (Log.isLoggable(TAG, Log.VERBOSE)) {
+             Log.v(TAG, "addAccount: accountType " + accountType
+@@ -3857,6 +3864,7 @@ public class AccountManagerService
+     @Override
+     public void editProperties(IAccountManagerResponse response, final String accountType,
+             final boolean expectActivityLaunch) {
++        android.util.SeempLog.record(21);
+         final int callingUid = Binder.getCallingUid();
+         if (Log.isLoggable(TAG, Log.VERBOSE)) {
+             Log.v(TAG, "editProperties: accountType " + accountType
+diff --git a/services/core/java/com/android/server/am/ActivityManagerService.java b/services/core/java/com/android/server/am/ActivityManagerService.java
+index 5fb0687..65481c6 100644
+--- a/services/core/java/com/android/server/am/ActivityManagerService.java
++++ b/services/core/java/com/android/server/am/ActivityManagerService.java
+@@ -22069,6 +22069,18 @@ public class ActivityManagerService extends IActivityManager.Stub
+         boolean success = true;
+ 
+         if (app.curRawAdj != app.setRawAdj) {
++            String seempStr = "app_uid=" + app.uid
++                + ",app_pid=" + app.pid + ",oom_adj=" + app.curAdj
++                + ",setAdj=" + app.setAdj + ",hasShownUi=" + (app.hasShownUi ? 1 : 0)
++                + ",cached=" + (app.cached ? 1 : 0)
++                + ",fA=" + (app.foregroundActivities ? 1 : 0)
++                + ",fS=" + (app.foregroundServices ? 1 : 0)
++                + ",systemNoUi=" + (app.systemNoUi ? 1 : 0)
++                + ",curSchedGroup=" + app.curSchedGroup
++                + ",curProcState=" + app.curProcState + ",setProcState=" + app.setProcState
++                + ",killed=" + (app.killed ? 1 : 0) + ",killedByAm=" + (app.killedByAm ? 1 : 0)
++                + ",debugging=" + (app.debugging ? 1 : 0);
++            android.util.SeempLog.record_str(385, seempStr);
+             app.setRawAdj = app.curRawAdj;
+         }
+ 
+diff --git a/services/core/java/com/android/server/am/ProcessRecord.java b/services/core/java/com/android/server/am/ProcessRecord.java
+index 411e973..2a241c0 100644
+--- a/services/core/java/com/android/server/am/ProcessRecord.java
++++ b/services/core/java/com/android/server/am/ProcessRecord.java
+@@ -456,6 +456,18 @@ final class ProcessRecord {
+     }
+ 
+     public void makeActive(IApplicationThread _thread, ProcessStatsService tracker) {
++        String seempStr = "app_uid=" + uid
++                            + ",app_pid=" + pid + ",oom_adj=" + curAdj
++                            + ",setAdj=" + setAdj + ",hasShownUi=" + (hasShownUi ? 1 : 0)
++                            + ",cached=" + (cached ? 1 : 0)
++                            + ",fA=" + (foregroundActivities ? 1 : 0)
++                            + ",fS=" + (foregroundServices ? 1 : 0)
++                            + ",systemNoUi=" + (systemNoUi ? 1 : 0)
++                            + ",curSchedGroup=" + curSchedGroup
++                            + ",curProcState=" + curProcState + ",setProcState=" + setProcState
++                            + ",killed=" + (killed ? 1 : 0) + ",killedByAm=" + (killedByAm ? 1 : 0)
++                            + ",debugging=" + (debugging ? 1 : 0);
++        android.util.SeempLog.record_str(386, seempStr);
+         if (thread == null) {
+             final ProcessState origBase = baseProcessTracker;
+             if (origBase != null) {
+@@ -482,6 +494,18 @@ final class ProcessRecord {
+     }
+ 
+     public void makeInactive(ProcessStatsService tracker) {
++        String seempStr = "app_uid=" + uid
++                            + ",app_pid=" + pid + ",oom_adj=" + curAdj
++                            + ",setAdj=" + setAdj + ",hasShownUi=" + (hasShownUi ? 1 : 0)
++                            + ",cached=" + (cached ? 1 : 0)
++                            + ",fA=" + (foregroundActivities ? 1 : 0)
++                            + ",fS=" + (foregroundServices ? 1 : 0)
++                            + ",systemNoUi=" + (systemNoUi ? 1 : 0)
++                            + ",curSchedGroup=" + curSchedGroup
++                            + ",curProcState=" + curProcState + ",setProcState=" + setProcState
++                            + ",killed=" + (killed ? 1 : 0) + ",killedByAm=" + (killedByAm ? 1 : 0)
++                            + ",debugging=" + (debugging ? 1 : 0);
++        android.util.SeempLog.record_str(387, seempStr);
+         thread = null;
+         final ProcessState origBase = baseProcessTracker;
+         if (origBase != null) {
+diff --git a/services/core/java/com/android/server/pm/PackageManagerService.java b/services/core/java/com/android/server/pm/PackageManagerService.java
+index 8897dc6..a090bd0 100644
+--- a/services/core/java/com/android/server/pm/PackageManagerService.java
++++ b/services/core/java/com/android/server/pm/PackageManagerService.java
+@@ -1404,6 +1404,7 @@ public class PackageManagerService extends IPackageManager.Stub
+             | FLAG_PERMISSION_REVOKE_ON_UPGRADE;
+ 
+     final @Nullable String mRequiredVerifierPackage;
++    final @Nullable String mOptionalVerifierPackage;
+     final @NonNull String mRequiredInstallerPackage;
+     final @NonNull String mRequiredUninstallerPackage;
+     final @Nullable String mSetupWizardPackage;
+@@ -3080,6 +3081,7 @@ public class PackageManagerService extends IPackageManager.Stub
+ 
+             if (!mOnlyCore) {
+                 mRequiredVerifierPackage = getRequiredButNotReallyRequiredVerifierLPr();
++                mOptionalVerifierPackage = getOptionalVerifierLPr();
+                 mRequiredInstallerPackage = getRequiredInstallerLPr();
+                 mRequiredUninstallerPackage = getRequiredUninstallerLPr();
+                 mIntentFilterVerifierComponent = getIntentFilterVerifierComponentNameLPr();
+@@ -3097,6 +3099,7 @@ public class PackageManagerService extends IPackageManager.Stub
+                         SharedLibraryInfo.VERSION_UNDEFINED);
+             } else {
+                 mRequiredVerifierPackage = null;
++                mOptionalVerifierPackage = null;
+                 mRequiredInstallerPackage = null;
+                 mRequiredUninstallerPackage = null;
+                 mIntentFilterVerifierComponent = null;
+@@ -3463,6 +3466,14 @@ public class PackageManagerService extends IPackageManager.Stub
+                 UserHandle.USER_SYSTEM, false /*allowDynamicSplits*/);
+         if (matches.size() == 1) {
+             return matches.get(0).getComponentInfo().packageName;
++        } else if (matches.size() > 1) {
++                String optionalVerifierName = mContext.getResources().getString(R.string.config_optionalPackageVerifierName);
++                if (TextUtils.isEmpty(optionalVerifierName))
++                    return matches.get(0).getComponentInfo().packageName;
++            for (int i = 0; i < matches.size(); i++) {
++                if (!matches.get(i).getComponentInfo().packageName.contains(optionalVerifierName))
++                    return matches.get(i).getComponentInfo().packageName;
++            }
+         } else if (matches.size() == 0) {
+             Log.e(TAG, "There should probably be a verifier, but, none were found");
+             return null;
+@@ -3470,6 +3481,27 @@ public class PackageManagerService extends IPackageManager.Stub
+         throw new RuntimeException("There must be exactly one verifier; found " + matches);
+     }
+ 
++    private @Nullable String getOptionalVerifierLPr() {
++        final Intent intent = new Intent(Intent.ACTION_PACKAGE_NEEDS_VERIFICATION);
++
++        final List<ResolveInfo> matches = queryIntentReceiversInternal(intent, PACKAGE_MIME_TYPE,
++                MATCH_SYSTEM_ONLY | MATCH_DIRECT_BOOT_AWARE | MATCH_DIRECT_BOOT_UNAWARE,
++                UserHandle.USER_SYSTEM, false /*allowDynamicSplits*/);
++        if (matches.size() == 1) {
++            //if there's one verifier it will be used as the required verifier
++            return null;
++        } else if (matches.size() > 1) {
++            String optionalVerifierName = mContext.getResources().getString(R.string.config_optionalPackageVerifierName);
++            if (TextUtils.isEmpty(optionalVerifierName))
++                return null;
++            for (int i = 0; i < matches.size(); i++) {
++                if (matches.get(i).getComponentInfo().packageName.contains(optionalVerifierName))
++                    return matches.get(i).getComponentInfo().packageName;
++            }
++        }
++        return null;
++    }
++
+     private @NonNull String getRequiredSharedLibraryLPr(String name, int version) {
+         synchronized (mPackages) {
+             SharedLibraryEntry libraryEntry = getSharedLibraryEntryLPr(name, version);
+@@ -14744,6 +14776,7 @@ public class PackageManagerService extends IPackageManager.Stub
+     @Override
+     public void installPackageAsUser(String originPath, IPackageInstallObserver2 observer,
+             int installFlags, String installerPackageName, int userId) {
++        android.util.SeempLog.record(90);
+         mContext.enforceCallingOrSelfPermission(android.Manifest.permission.INSTALL_PACKAGES, null);
+ 
+         final int callingUid = Binder.getCallingUid();
+@@ -16471,7 +16504,12 @@ public class PackageManagerService extends IPackageManager.Stub
+                                 verifierUser.getIdentifier());
+                 final int installerUid =
+                         verificationInfo == null ? -1 : verificationInfo.installerUid;
+-                if (!origin.existing && requiredUid != -1
++
++                final int optionalUid = mOptionalVerifierPackage == null ? -1
++                        : getPackageUid(mOptionalVerifierPackage, MATCH_DEBUG_TRIAGED_MISSING,
++                                verifierUser.getIdentifier());
++
++                if (!origin.existing && (requiredUid != -1 || optionalUid != -1)
+                         && isVerificationEnabled(
+                                 verifierUser.getIdentifier(), installFlags, installerUid)) {
+                     final Intent verification = new Intent(
+@@ -16561,6 +16599,15 @@ public class PackageManagerService extends IPackageManager.Stub
+                         }
+                     }
+ 
++                    if (mOptionalVerifierPackage != null) {
++                        final Intent optionalIntent = new Intent(verification);
++                        final ComponentName optionalVerifierComponent = matchComponentForVerifier(
++                            mOptionalVerifierPackage, receivers);
++                        optionalIntent.setComponent(optionalVerifierComponent);
++                        verificationState.addOptionalVerifier(optionalUid);
++                        mContext.sendBroadcastAsUser(optionalIntent, verifierUser, android.Manifest.permission.PACKAGE_VERIFICATION_AGENT);
++                    }
++
+                     final ComponentName requiredVerifierComponent = matchComponentForVerifier(
+                             mRequiredVerifierPackage, receivers);
+                     if (ret == PackageManager.INSTALL_SUCCEEDED
+diff --git a/services/core/java/com/android/server/pm/PackageVerificationState.java b/services/core/java/com/android/server/pm/PackageVerificationState.java
+index 3214e88..7c516d1 100644
+--- a/services/core/java/com/android/server/pm/PackageVerificationState.java
++++ b/services/core/java/com/android/server/pm/PackageVerificationState.java
+@@ -43,6 +43,14 @@ class PackageVerificationState {
+ 
+     private boolean mRequiredVerificationPassed;
+ 
++    private int mOptionalVerifierUid;
++
++    private boolean mHasOptionalVerifier;
++
++    private boolean mOptionalVerificationComplete;
++
++    private boolean mOptionalVerificationPassed;
++
+     private boolean mExtendedTimeout;
+ 
+     /**
+@@ -73,6 +81,11 @@ class PackageVerificationState {
+         mSufficientVerifierUids.put(uid, true);
+     }
+ 
++    public void addOptionalVerifier(int uid) {
++        mOptionalVerifierUid = uid;
++        mHasOptionalVerifier = true;
++    }
++
+     /**
+      * Should be called when a verification is received from an agent so the
+      * state of the package verification can be tracked.
+@@ -94,6 +107,16 @@ class PackageVerificationState {
+                     mRequiredVerificationPassed = false;
+             }
+             return true;
++        } else if (mHasOptionalVerifier && uid == mOptionalVerifierUid) {
++            mOptionalVerificationComplete = true;
++            switch (code) {
++                case PackageManager.VERIFICATION_ALLOW:
++                    mOptionalVerificationPassed = true;
++                    break;
++                default:
++                    mOptionalVerificationPassed = false;
++            }
++            return true;
+         } else {
+             if (mSufficientVerifierUids.get(uid)) {
+                 if (code == PackageManager.VERIFICATION_ALLOW) {
+@@ -125,6 +148,10 @@ class PackageVerificationState {
+             return false;
+         }
+ 
++        if (mHasOptionalVerifier && !mOptionalVerificationComplete) {
++            return false;
++        }
++
+         if (mSufficientVerifierUids.size() == 0) {
+             return true;
+         }
+@@ -143,6 +170,10 @@ class PackageVerificationState {
+             return false;
+         }
+ 
++        if (mHasOptionalVerifier && !mOptionalVerificationPassed) {
++            return false;
++        }
++
+         if (mSufficientVerificationComplete) {
+             return mSufficientVerificationPassed;
+         }
+diff --git a/telephony/java/android/telephony/SmsManager.java b/telephony/java/android/telephony/SmsManager.java
+index 6029995..dc0b5cd 100644
+--- a/telephony/java/android/telephony/SmsManager.java
++++ b/telephony/java/android/telephony/SmsManager.java
+@@ -309,6 +309,7 @@ public final class SmsManager {
+     public void sendTextMessage(
+             String destinationAddress, String scAddress, String text,
+             PendingIntent sentIntent, PendingIntent deliveryIntent) {
++        android.util.SeempLog.record_str(75, destinationAddress);
+         sendTextMessageInternal(destinationAddress, scAddress, text, sentIntent, deliveryIntent,
+                 true /* persistMessage*/);
+     }
+@@ -367,6 +368,7 @@ public final class SmsManager {
+     public void sendTextMessageWithSelfPermissions(
+             String destinationAddress, String scAddress, String text,
+             PendingIntent sentIntent, PendingIntent deliveryIntent, boolean persistMessage) {
++        android.util.SeempLog.record_str(75, destinationAddress);
+         if (TextUtils.isEmpty(destinationAddress)) {
+             throw new IllegalArgumentException("Invalid destinationAddress");
+         }
+@@ -573,6 +575,7 @@ public final class SmsManager {
+     public void sendDataMessage(
+             String destinationAddress, String scAddress, short destinationPort,
+             byte[] data, PendingIntent sentIntent, PendingIntent deliveryIntent) {
++        android.util.SeempLog.record_str(73, destinationAddress);
+         if (TextUtils.isEmpty(destinationAddress)) {
+             throw new IllegalArgumentException("Invalid destinationAddress");
+         }
+@@ -600,6 +603,7 @@ public final class SmsManager {
+     public void sendDataMessageWithSelfPermissions(
+             String destinationAddress, String scAddress, short destinationPort,
+             byte[] data, PendingIntent sentIntent, PendingIntent deliveryIntent) {
++        android.util.SeempLog.record_str(73, destinationAddress);
+         if (TextUtils.isEmpty(destinationAddress)) {
+             throw new IllegalArgumentException("Invalid destinationAddress");
+         }
+@@ -733,6 +737,7 @@ public final class SmsManager {
+      * {@hide}
+      */
+     public boolean copyMessageToIcc(byte[] smsc, byte[] pdu,int status) {
++        android.util.SeempLog.record(79);
+         boolean success = false;
+ 
+         if (null == pdu) {
+@@ -764,6 +769,7 @@ public final class SmsManager {
+      */
+     public boolean
+     deleteMessageFromIcc(int messageIndex) {
++        android.util.SeempLog.record(80);
+         boolean success = false;
+         byte[] pdu = new byte[SMS_RECORD_LENGTH-1];
+         Arrays.fill(pdu, (byte)0xff);
+@@ -797,6 +803,7 @@ public final class SmsManager {
+      * {@hide}
+      */
+     public boolean updateMessageOnIcc(int messageIndex, int newStatus, byte[] pdu) {
++        android.util.SeempLog.record(81);
+         boolean success = false;
+ 
+         try {
+diff --git a/telephony/java/android/telephony/Telephony.java b/telephony/java/android/telephony/Telephony.java
+index 216d28c..0271e75 100644
+--- a/telephony/java/android/telephony/Telephony.java
++++ b/telephony/java/android/telephony/Telephony.java
+@@ -302,6 +302,7 @@ public final class Telephony {
+          * @hide
+          */
+         public static Cursor query(ContentResolver cr, String[] projection) {
++            android.util.SeempLog.record(10);
+             return cr.query(CONTENT_URI, projection, null, null, DEFAULT_SORT_ORDER);
+         }
+ 
+@@ -311,6 +312,7 @@ public final class Telephony {
+          */
+         public static Cursor query(ContentResolver cr, String[] projection,
+                 String where, String orderBy) {
++            android.util.SeempLog.record(10);
+             return cr.query(CONTENT_URI, projection, where,
+                     null, orderBy == null ? DEFAULT_SORT_ORDER : orderBy);
+         }
+@@ -1999,6 +2001,7 @@ public final class Telephony {
+          */
+         public static Cursor query(
+                 ContentResolver cr, String[] projection) {
++            android.util.SeempLog.record(10);
+             return cr.query(CONTENT_URI, projection, null, null, DEFAULT_SORT_ORDER);
+         }
+ 
+@@ -2009,6 +2012,7 @@ public final class Telephony {
+         public static Cursor query(
+                 ContentResolver cr, String[] projection,
+                 String where, String orderBy) {
++            android.util.SeempLog.record(10);
+             return cr.query(CONTENT_URI, projection,
+                     where, null, orderBy == null ? DEFAULT_SORT_ORDER : orderBy);
+         }
+diff --git a/telephony/java/android/telephony/TelephonyManager.java b/telephony/java/android/telephony/TelephonyManager.java
+index 96dbbed..08a269d 100644
+--- a/telephony/java/android/telephony/TelephonyManager.java
++++ b/telephony/java/android/telephony/TelephonyManager.java
+@@ -1029,6 +1029,7 @@ public class TelephonyManager {
+     @RequiresPermission(android.Manifest.permission.READ_PHONE_STATE)
+     public String getDeviceId(int slotIndex) {
+         // FIXME this assumes phoneId == slotIndex
++        android.util.SeempLog.record_str(8, ""+slotIndex);
+         try {
+             IPhoneSubInfo info = getSubscriberInfo();
+             if (info == null)
+@@ -1147,6 +1148,7 @@ public class TelephonyManager {
+             android.Manifest.permission.ACCESS_FINE_LOCATION
+     })
+     public CellLocation getCellLocation() {
++        android.util.SeempLog.record(49);
+         try {
+             ITelephony telephony = getITelephony();
+             if (telephony == null) {
+@@ -1236,6 +1238,7 @@ public class TelephonyManager {
+     @Deprecated
+     @RequiresPermission(android.Manifest.permission.ACCESS_COARSE_LOCATION)
+     public List<NeighboringCellInfo> getNeighboringCellInfo() {
++        android.util.SeempLog.record(50);
+         try {
+             ITelephony telephony = getITelephony();
+             if (telephony == null)
+@@ -2269,6 +2272,7 @@ public class TelephonyManager {
+      */
+     @RequiresPermission(android.Manifest.permission.READ_PHONE_STATE)
+     public String getSimSerialNumber(int subId) {
++        android.util.SeempLog.record_str(388, ""+subId);
+         try {
+             IPhoneSubInfo info = getSubscriberInfo();
+             if (info == null)
+@@ -2348,6 +2352,7 @@ public class TelephonyManager {
+      */
+     @RequiresPermission(android.Manifest.permission.READ_PHONE_STATE)
+     public String getSubscriberId(int subId) {
++        android.util.SeempLog.record_str(389, ""+subId);
+         try {
+             IPhoneSubInfo info = getSubscriberInfo();
+             if (info == null)
+@@ -2541,6 +2546,7 @@ public class TelephonyManager {
+             android.Manifest.permission.READ_PHONE_NUMBERS
+     })
+     public String getLine1Number(int subId) {
++        android.util.SeempLog.record_str(9, ""+subId);
+         String number = null;
+         try {
+             ITelephony telephony = getITelephony();
+diff --git a/telephony/java/com/android/internal/telephony/CallerInfo.java b/telephony/java/com/android/internal/telephony/CallerInfo.java
+index f646028..93bf4ab 100644
+--- a/telephony/java/com/android/internal/telephony/CallerInfo.java
++++ b/telephony/java/com/android/internal/telephony/CallerInfo.java
+@@ -171,6 +171,7 @@ public class CallerInfo {
+      * number. The returned CallerInfo is null if no number is supplied.
+      */
+     public static CallerInfo getCallerInfo(Context context, Uri contactRef, Cursor cursor) {
++        android.util.SeempLog.record_uri(12, contactRef);
+         CallerInfo info = new CallerInfo();
+         info.photoResource = 0;
+         info.phoneLabel = null;
+@@ -343,6 +344,7 @@ public class CallerInfo {
+      * with all relevant fields empty or null.
+      */
+     public static CallerInfo getCallerInfo(Context context, String number, int subId) {
++        android.util.SeempLog.record_str(12, "number="+number+",subId="+subId);
+ 
+         if (TextUtils.isEmpty(number)) {
+             return null;
+diff --git a/telephony/java/com/android/internal/telephony/ISmsSecurityAgent.aidl b/telephony/java/com/android/internal/telephony/ISmsSecurityAgent.aidl
+new file mode 100644
+index 0000000..3b52529
+--- /dev/null
++++ b/telephony/java/com/android/internal/telephony/ISmsSecurityAgent.aidl
+@@ -0,0 +1,51 @@
++/*
++ * Copyright (c) 2016, The Linux Foundation. All rights reserved.
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions are
++ * met:
++ *   * Redistributions of source code must retain the above copyright
++ *     notice, this list of conditions and the following disclaimer.
++ *   * Redistributions in binary form must reproduce the above
++ *     copyright notice, this list of conditions and the following
++ *     disclaimer in the documentation and/or other materials provided
++ *     with the distribution.
++ *   * Neither the name of The Linux Foundation nor the names of its
++ *     contributors may be used to endorse or promote products derived
++ *     from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED "AS IS" AND ANY EXPRESS OR IMPLIED
++ * WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
++ * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT
++ * ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS
++ * BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
++ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
++ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR
++ * BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
++ * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
++ * OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
++ * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++package com.android.internal.telephony;
++
++import com.android.internal.telephony.SmsAuthorizationRequest;
++
++/**
++ * ISmsSecurityAgent enhances the security of outgoing SMS messages by allowing trusted system
++ * components to inspect and authorize or reject outgoing SMS messages.
++ *
++ * @hide
++ **/
++interface ISmsSecurityAgent {
++    /**
++     * Called when a SMS message is queued for dispatch allowing a registered
++     * agent to decide on whether to accept/reject the request to send an SMS message.
++     * <b>Unless the agent rejects the request within the OEM specific timeout, the SMS
++     * will be sent.</b>
++     * @param request the object containing information regarding the message and
++     *                through which the agent can accept/reject the request.
++     */
++    void onAuthorize(in SmsAuthorizationRequest request);
++
++}
+diff --git a/telephony/java/com/android/internal/telephony/ISmsSecurityService.aidl b/telephony/java/com/android/internal/telephony/ISmsSecurityService.aidl
+new file mode 100644
+index 0000000..e479f0c
+--- /dev/null
++++ b/telephony/java/com/android/internal/telephony/ISmsSecurityService.aidl
+@@ -0,0 +1,73 @@
++/*
++ * Copyright (c) 2016, The Linux Foundation. All rights reserved.
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions are
++ * met:
++ *   * Redistributions of source code must retain the above copyright
++ *     notice, this list of conditions and the following disclaimer.
++ *   * Redistributions in binary form must reproduce the above
++ *     copyright notice, this list of conditions and the following
++ *     disclaimer in the documentation and/or other materials provided
++ *     with the distribution.
++ *   * Neither the name of The Linux Foundation nor the names of its
++ *     contributors may be used to endorse or promote products derived
++ *     from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED "AS IS" AND ANY EXPRESS OR IMPLIED
++ * WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
++ * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT
++ * ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS
++ * BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
++ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
++ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR
++ * BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
++ * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
++ * OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
++ * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++package com.android.internal.telephony;
++
++import com.android.internal.telephony.ISmsSecurityAgent;
++import com.android.internal.telephony.SmsAuthorizationRequest;
++
++/**
++ * ISmsSecurityService exposes a service that monitors the dispatch of outgoing SMS messages
++ * and notifies a registered ISmsSecurityAgent in order to authorize or reject the dispatch
++ * of each outgoing SMS message.
++ *
++ * @hide
++ */
++interface ISmsSecurityService {
++    /**
++     * Registers an agent in order to receive requests for outgoing SMS messages on which
++     * it can accept or reject the request for the dispatch of each SMS message.
++     * <b>Only one agent can be registered at one time.</b>
++     * @param agent the agent to be registered.
++     * @return true if the registration succeeds, false otherwise.
++     */
++    boolean register(in ISmsSecurityAgent agent);
++
++    /**
++     * Unregisters the previously registered agent and causes the security
++     * service to no longer rely on the agent for a decision regarding
++     * successive SMS messages being dispatched allowing all successive messages to be dispatched.
++     *
++     * @param agent the agent to be unregistered.
++     * @return true if the unregistration succeeds, false otherwise.
++     */
++    boolean unregister(in ISmsSecurityAgent agent);
++
++    /**
++     * Allows the registered ISmsSecurityAgent implementation to asynchronously send a response
++     * on whether it will accept/reject the dispatch of the SMS message.
++     * <b>If the agent responds after the OEM defined timeout it may not be able to
++     * interfere on whether the SMS was sent or not.</b>
++     * @param request the request related to an outgoing SMS message to accept/reject.
++     * @param accepted true to accept, false to reject.
++     * return true if the response took effect, false if a response has already been sent for this
++     * request or an OEM specific timeout already happened.
++     */
++    boolean sendResponse(in SmsAuthorizationRequest request, boolean authorized);
++}
+diff --git a/telephony/java/com/android/internal/telephony/SmsAuthorizationRequest.aidl b/telephony/java/com/android/internal/telephony/SmsAuthorizationRequest.aidl
+new file mode 100644
+index 0000000..a2f7020
+--- /dev/null
++++ b/telephony/java/com/android/internal/telephony/SmsAuthorizationRequest.aidl
+@@ -0,0 +1,33 @@
++/*
++ * Copyright (c) 2016, The Linux Foundation. All rights reserved.
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions are
++ * met:
++ *   * Redistributions of source code must retain the above copyright
++ *     notice, this list of conditions and the following disclaimer.
++ *   * Redistributions in binary form must reproduce the above
++ *     copyright notice, this list of conditions and the following
++ *     disclaimer in the documentation and/or other materials provided
++ *     with the distribution.
++ *   * Neither the name of The Linux Foundation nor the names of its
++ *     contributors may be used to endorse or promote products derived
++ *     from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED "AS IS" AND ANY EXPRESS OR IMPLIED
++ * WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
++ * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT
++ * ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS
++ * BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
++ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
++ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR
++ * BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
++ * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
++ * OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
++ * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++package com.android.internal.telephony;
++
++/** @hide */
++parcelable SmsAuthorizationRequest;
+diff --git a/telephony/java/com/android/internal/telephony/SmsAuthorizationRequest.java b/telephony/java/com/android/internal/telephony/SmsAuthorizationRequest.java
+new file mode 100644
+index 0000000..bc64fa8
+--- /dev/null
++++ b/telephony/java/com/android/internal/telephony/SmsAuthorizationRequest.java
+@@ -0,0 +1,122 @@
++/*
++ * Copyright (c) 2016, The Linux Foundation. All rights reserved.
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions are
++ * met:
++ *   * Redistributions of source code must retain the above copyright
++ *     notice, this list of conditions and the following disclaimer.
++ *   * Redistributions in binary form must reproduce the above
++ *     copyright notice, this list of conditions and the following
++ *     disclaimer in the documentation and/or other materials provided
++ *     with the distribution.
++ *   * Neither the name of The Linux Foundation nor the names of its
++ *     contributors may be used to endorse or promote products derived
++ *     from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED "AS IS" AND ANY EXPRESS OR IMPLIED
++ * WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
++ * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT
++ * ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS
++ * BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
++ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
++ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR
++ * BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
++ * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
++ * OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
++ * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++package com.android.internal.telephony;
++
++import android.os.IBinder;
++import android.os.Parcel;
++import android.os.Parcelable;
++import android.os.RemoteException;
++
++/**
++ * This class represents a request from the {@link ISmsSecurityService} to trusted parties
++ * in order to allow third party components to participate in the decision process to accept
++ * or reject a request to send an SMS message.
++ *
++ * @hide
++ */
++public class SmsAuthorizationRequest implements Parcelable {
++
++    private final ISmsSecurityService service;
++
++    private final IBinder token;
++
++    public final String packageName;
++
++    public final String destinationAddress;
++
++    public final String message;
++
++    public SmsAuthorizationRequest(final Parcel source) {
++        this.service = ISmsSecurityService.Stub.asInterface(source.readStrongBinder());
++        this.token = source.readStrongBinder();
++        this.packageName = source.readString();
++        this.destinationAddress = source.readString();
++        this.message = source.readString();
++    }
++
++    public SmsAuthorizationRequest(final ISmsSecurityService service,
++            final IBinder binderToken,
++            final String packageName,
++            final String destinationAddress,
++            final String message) {
++        this.service = service;
++        this.token = binderToken;
++        this.packageName = packageName;
++        this.destinationAddress = destinationAddress;
++        this.message = message;
++    }
++
++    @Override
++    public void writeToParcel(final Parcel dest, final int flags) {
++        dest.writeStrongBinder(service.asBinder());
++        dest.writeStrongBinder(token);
++        dest.writeString(packageName);
++        dest.writeString(destinationAddress);
++        dest.writeString(message);
++    }
++
++    @Override
++    public int describeContents() {
++        return 0;
++    }
++
++    public static Parcelable.Creator<SmsAuthorizationRequest> CREATOR =
++            new Creator<SmsAuthorizationRequest>() {
++        @Override
++        public SmsAuthorizationRequest[] newArray(final int size) {
++            return new SmsAuthorizationRequest[size];
++        }
++
++        @Override
++        public SmsAuthorizationRequest createFromParcel(final Parcel source) {
++            return new SmsAuthorizationRequest(source);
++        }
++    };
++
++    public void accept() throws RemoteException{
++        service.sendResponse(this, true);
++    }
++
++    public void reject() throws RemoteException {
++        service.sendResponse(this, false);
++    }
++
++    public IBinder getToken() {
++        return token;
++    }
++
++    @Override
++    public String toString() {
++        return String.format("[%s] (%s) # %s",
++                this.packageName,
++                this.destinationAddress,
++                this.message);
++    }
++}
+diff --git a/wifi/java/android/net/wifi/WifiManager.java b/wifi/java/android/net/wifi/WifiManager.java
+index 9c8ea88..715bd2d 100644
+--- a/wifi/java/android/net/wifi/WifiManager.java
++++ b/wifi/java/android/net/wifi/WifiManager.java
+@@ -1665,6 +1665,7 @@ public class WifiManager {
+      * returned.
+      */
+     public List<ScanResult> getScanResults() {
++        android.util.SeempLog.record(55);
+         try {
+             return mService.getScanResults(mContext.getOpPackageName());
+         } catch (RemoteException e) {
+-- 
+2.7.4
+

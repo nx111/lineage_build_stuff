@@ -1,0 +1,70 @@
+From be42aae16615c0334d600397ecf754355bc36e2f Mon Sep 17 00:00:00 2001
+From: Paul Keith <javelinanddart@gmail.com>
+Date: Sat, 13 Jan 2018 02:20:23 -0700
+Subject: [PATCH 12/18] klte-common: HAXX: "Fix" race condition in init
+
+* In particular, the RIL on CDMA variants seems to only work reliably
+  on first boot after flash, when things are all slowed down while
+  dexopting. After that first boot, it's hit and miss whether a
+  particular boot will have function RIL
+* Slow things down by limiting ourselves to a single CPU on boot,
+  bringing the rest online when boot has completed
+
+Change-Id: Ie194740cf0487268dc0dbd3377bbb790cdd1b04d
+---
+ BoardConfigCommon.mk     |  2 +-
+ rootdir/etc/init.qcom.rc | 18 +++++++++++-------
+ 2 files changed, 12 insertions(+), 8 deletions(-)
+
+diff --git a/BoardConfigCommon.mk b/BoardConfigCommon.mk
+index 9fa6517..6f51be1 100644
+--- a/BoardConfigCommon.mk
++++ b/BoardConfigCommon.mk
+@@ -54,7 +54,7 @@ DEVICE_MANIFEST_FILE += $(COMMON_PATH)/manifest.xml
+ 
+ # Kernel
+ BOARD_KERNEL_BASE := 0x00000000
+-BOARD_KERNEL_CMDLINE := console=null androidboot.hardware=qcom user_debug=31 msm_rtb.filter=0x37 ehci-hcd.park=3 zcache.enabled=1 zcache.compressor=lz4
++BOARD_KERNEL_CMDLINE := console=null androidboot.hardware=qcom user_debug=31 msm_rtb.filter=0x37 ehci-hcd.park=3 zcache.enabled=1 zcache.compressor=lz4 maxcpus=1
+ BOARD_KERNEL_IMAGE_NAME := zImage
+ BOARD_KERNEL_PAGESIZE := 2048
+ BOARD_KERNEL_SEPARATED_DT := true
+diff --git a/rootdir/etc/init.qcom.rc b/rootdir/etc/init.qcom.rc
+index 7f7c6ed..9d2631e 100644
+--- a/rootdir/etc/init.qcom.rc
++++ b/rootdir/etc/init.qcom.rc
+@@ -976,6 +976,17 @@ on property:sys.boot_completed=1
+     write /sys/module/msm_pm/modes/cpu3/retention/suspend_enabled 1
+     write /sys/module/msm_thermal/core_control/enabled 0
+ 
++    # Bring all CPUs online, and set node permissions
++    chmod 664 /sys/devices/system/cpu/cpu1/online
++    chmod 664 /sys/devices/system/cpu/cpu2/online
++    chmod 664 /sys/devices/system/cpu/cpu3/online
++    chown root system /sys/devices/system/cpu/cpu1/online
++    chown root system /sys/devices/system/cpu/cpu2/online
++    chown root system /sys/devices/system/cpu/cpu3/online
++    write /sys/devices/system/cpu/cpu1/online 1
++    write /sys/devices/system/cpu/cpu2/online 1
++    write /sys/devices/system/cpu/cpu3/online 1
++
+     # Configure the CPU governor
+     write /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor interactive
+     write /sys/devices/system/cpu/cpu1/cpufreq/scaling_governor interactive
+@@ -994,13 +1005,6 @@ on property:sys.boot_completed=1
+     write /sys/devices/system/cpu/cpu2/cpufreq/scaling_min_freq 300000
+     write /sys/devices/system/cpu/cpu3/cpufreq/scaling_min_freq 300000
+ 
+-    chown root system /sys/devices/system/cpu/cpu1/online
+-    chown root system /sys/devices/system/cpu/cpu2/online
+-    chown root system /sys/devices/system/cpu/cpu3/online
+-    chmod 664 /sys/devices/system/cpu/cpu1/online
+-    chmod 664 /sys/devices/system/cpu/cpu2/online
+-    chmod 664 /sys/devices/system/cpu/cpu3/online
+-
+     write /sys/module/msm_thermal/core_control/enabled 1
+ 
+     # Configure the cpu-boost module
+-- 
+2.7.4
+

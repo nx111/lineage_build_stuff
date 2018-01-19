@@ -54,7 +54,7 @@ function patch_local()
     find $search_dir -type f -name "*.patch" -o -name "*.diff" | sed -e "s/\.mypatches\///" -e "s/\//:/" |sort -t : -k 2 | while read line; do
          f=$(echo $line | sed -e "s/:/\//")
          patchfile=$(basename $f)
-         if [ "${patchfile:0:1}" = "-" ]; then
+         if [ "${patchfile:5:5}" = "[WIP]" -o "${patchfile:5:6}" = "[SKIP]" ]; then
              echo "  skip patch: $f"
              continue
          fi
@@ -172,12 +172,11 @@ function projects_snapshot()
                    patch_file_name=$(basename $patchfile)
                    changeid=$(grep "Change-Id: " $patchfile | tail -n 1 | sed -e "s/ \{1,\}/ /g" -e "s/^ //g" | cut -d' ' -f2)
                    if [ "$changeid" != "" ]; then
-                       [ "${patch_file_name:0:1}" != "-" ] && rm -f $patchfile
                        if grep -q "Change-Id: $changeid" -r $topdir/.mypatches/pick/$project; then
                            pick_patch=$(grep -H "Change-Id: $changeid" -r $topdir/.mypatches/pick/$project | sed -n 1p | cut -d: -f1)
                            rm -f $patchfile
                            mv $pick_patch $topdir/.mypatches/local/$project/
-                       elif [ "${patch_file_name:0:1}" != "-" ]; then
+                       elif [ "${patchfile:5:5}" != "[WIP]" -a "${patchfile:5:6}" != "[SKIP]" ]; then
                            rm -f $patchfile
                        fi
                    fi
@@ -234,6 +233,11 @@ function restore_snapshot()
          find $searchdir -type f -name "*.patch" -o -name "*.diff" | sed -e "s:$topdir/.mypatches/::"  -e "s|\/|:|" |sort -t : -k 2 | while read line; do
              rm -rf $topdir/$project/.git/rebase-apply
              f=$(echo $line | sed -e "s/:/\//")
+             patchfile=$(basename $f)
+             if [ "${patchfile:5:5}" = "[WIP]" -o "${patchfile:5:6}" = "[SKIP]" ]; then
+                  echo "         skip patch: $f"
+                  continue
+             fi
              changeid=$(grep "Change-Id: " $topdir/.mypatches/$f | tail -n 1 | sed -e "s/ \{1,\}/ /g" -e "s/^ //g" | cut -d' ' -f2)
              if [ "$changeid" != "" ]; then
                   if ! git log  -100 | grep "Change-Id: $changeid" >/dev/null 2>/dev/null; then 
@@ -352,12 +356,14 @@ kpick 200495 # klte-common: Fixup RIL_Call structure
 kpick 200757 # klte-common: libril: Add workaround for "ring of death" bug
 kpick 201182 # klte-common: libril: Get off my back
 kpick 202457 # klte-common: HAXX: Fix seeming RIL start race condition
+kpick 203116 # klte-common: Cleanup symlink code
 
 # device/samsung/kltechnduo
 kpick 200524 # kltechnduo: Rework launch of second RIL daemon
 
 # device/samsung/msm8974
 kpick 200538 # msm8974-common: Use QTI power hal
+kpick 203120 # msm8974: Enable full dex preopt
 
 # device/lineage/sepolicy
 kpick 198594 # sepolicy: qcom: Import bluetooth_loader/hci_attach rules
@@ -382,7 +388,6 @@ kpick 201274 # power: Update power hal extension for new qti hal
 
 # device/qcom/sepolicy
 kpick 198141 # Use set_prop() macro for property sets
-kpick 198303 # sepolicy: Add sysfs labels for devices using 'soc.0'
 kpick 199557 # legacy: add back perfd sepolicy
 kpick 199559 # sepolicy: Allow dataservice_app to read/write to IPA device
 kpick 202379 # legacy: add back radio rules
@@ -397,6 +402,7 @@ kpick 202388 # legacy: allow rild to access radio data files
 kpick 202389 # legacy: Fix labeling the thermal sockets
 kpick 202390 # legacy: let audioserver connect to thermal engine sockets
 kpick 202391 # legacy: label per_mgr as a binder service
+kpick 198303 # sepolicy: Add sysfs labels for devices using 'soc.0'
 kpick 202824 # legacy: Readd support for old perfd socket
 kpick 202825 # legacy: Add back old fdAlbum rule
 kpick 202826 # sepolicy: Label boot/recovery/cache/system partitions
@@ -413,6 +419,7 @@ kpick 198114 # libstagefright: Support for legacy camera/encoder buffers
 kpick 198116 # CameraService: Fix deadlock in binder death cleanup.
 
 # frameworks/base
+kpick 198701 # AppOps: track op persistence by name instead of id
 kpick 199947 # PowerManager: Re-integrate button brightness
 kpick 200968 # statusbar: Add arguments to shutdown and reboot to allow confirmation
 kpick 200969 # SystemUI: Power menu customizations
@@ -420,18 +427,30 @@ kpick 201879 # frameworks: Privacy Guard for O
 kpick 202423 # Screenshot: append app name to filename
 kpick 203053 # perf: Add plumbing for PerformanceManager
 kpick 203054 # perf: Adapt for HIDL Lineage power hal
+kpick 202701 # SEEMP: framework instrumentation and AppProtect features
+
 
 # frameworks/native
 kpick 201530 # AppOpsManager: Update with the new ops
+
+# hardware/libhardware-legacy
+kpick 202996 # Wifi: Add Qpower interface to libhardware_legacy
 
 # hardware/lineage/interfaces
 kpick 203061 # lineage/interfaces: power: Add binderized service
 
 # hardware/qcom/power
 kpick 201924 # power: Fix up some legacy stats code
+kpick 203055 # power: Prepare for power profile support
+kpick 203064 # power: Remove mutex to camera hints
+kpick 203066 # power: Add known perf hint IDs
+kpick 203067 # power: msm8996: Add support for power profile and cpu boost
+kpick 203115 # power: Enable interaction boost unconditionally
 
 # lineage-sdk
 kpick 200970 # sdk: Move isAdvancedRebootEnabled to SDK from global access
+kpick 203030 # lineage-sdk: Add overlay support for disabling hardware features
+kpick 203011 # lineage-sdk: Reenable performance profiles
 
 # packages/apps/Dialer
 kpick 201346 # Re-add dialer lookup.
@@ -443,11 +462,13 @@ kpick 201634 # Allow using private framework API.
 kpick 199948 # LineageParts: Bring up button backlight settings
 kpick 201309 # LineageParts: Re-enable PowerMenuActions and adapt to SDK updates
 kpick 201528 # PrivacyGuard: Bring up and inject into Settings
+kpick 203010 # LineageParts: enable perf profiles
 
 # packages/apps/Settings
 kpick 199839 # Settings: Add advanced restart switch
 kpick 201529 # Settings: Privacy Guard
 kpick 201531 # Settings: Add developer setting for root access
+kpick 203009 # Settings: battery: Add LineageParts perf profiles
 
 # packages/apps/Snap
 kpick 202561 # QuickReader: Match switch icon size and fill color with other icons
@@ -465,8 +486,8 @@ kpick 202495 # init: Bring back support for arbitrary chargermode cmdlines
 kpick 202596 # fs_config: fix fileperms for su-binary
 
 # system/extra/su
-# kpick 201990 # su: Remove EUID vs UID check
-# kpick 202051 # rc: Ensure su binary is world executable
+kpick -f 201990 # su: Remove EUID vs UID check
+kpick -f 202051 # rc: Ensure su binary is world executable
 
 # system/sepolicy
 kpick 198106 # Add rules required for TARGET_HAS_LEGACY_CAMERA_HAL1
