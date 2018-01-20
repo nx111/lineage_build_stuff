@@ -55,7 +55,7 @@ function patch_local()
          f=$(echo $line | sed -e "s/:/\//")
          patchfile=$(basename $f)
          if [ "${patchfile:5:5}" = "[WIP]" -o "${patchfile:5:6}" = "[SKIP]" ]; then
-             echo "  skip patch: $f"
+             echo "    skipping: $f"
              continue
          fi
          project=$(echo $f |  sed -e "s/^pick\///" -e "s/^local\///"  | sed "s/\/[^\/]*$//")
@@ -235,7 +235,7 @@ function restore_snapshot()
              f=$(echo $line | sed -e "s/:/\//")
              patchfile=$(basename $f)
              if [ "${patchfile:5:5}" = "[WIP]" -o "${patchfile:5:6}" = "[SKIP]" ]; then
-                  echo "         skip patch: $f"
+                  echo "         skipping: $f"
                   continue
              fi
              changeid=$(grep "Change-Id: " $topdir/.mypatches/$f | tail -n 1 | sed -e "s/ \{1,\}/ /g" -e "s/^ //g" | cut -d' ' -f2)
@@ -259,7 +259,7 @@ function restore_snapshot()
                              done
                       fi
                   else
-                      echo "         skip  patch: $f ...(applied always)"
+                      echo "         skipping: $f ...(applied always)"
                   fi
               fi
          done
@@ -285,7 +285,7 @@ function kpick()
 
     rm -f $errfile
     echo ""
-    LANG=en_US repopick -c 20 $* >$logfile 2>$errfile
+    LANG=en_US repopick -c 50 $* >$logfile 2>$errfile
     rc=$?
     cat $logfile | sed -e "/ERROR: git command failed/d"
     local tries=0
@@ -344,26 +344,13 @@ function kpick()
 }
 
 # device/samsung/klte-common
-kpick 199932 # [DNM] klte-common: import libril from hardware/ril-caf
-kpick 199933 # [DNM] klte-common: libril: Add Samsung changes
-kpick 199934 # klte-common: libril: Fix RIL_Call structure
-kpick 199935 # klte-common: libril: Fix SMS on certain variants
-kpick 199936 # klte-common: libril: fix network operator search
-kpick 199937 # klte-common: Update RIL_REQUEST_QUERY_AVAILABLE_NETWORKS response prop
-kpick 199941 # klte-common: libril: Fix RIL_UNSOL_NITZ_TIME_RECEIVED Parcel
-kpick 199946 # [DNM] klte-common: sepolicy: Rewrite for O
-kpick 200495 # klte-common: Fixup RIL_Call structure
-kpick 200757 # klte-common: libril: Add workaround for "ring of death" bug
-kpick 201182 # klte-common: libril: Get off my back
-kpick 202457 # klte-common: HAXX: Fix seeming RIL start race condition
-kpick 203116 # klte-common: Cleanup symlink code
+kpick 203304 # klte-common: power: Add legacy qcom HAL compat code
 
 # device/samsung/kltechnduo
-kpick 200524 # kltechnduo: Rework launch of second RIL daemon
 
 # device/samsung/msm8974
-kpick 200538 # msm8974-common: Use QTI power hal
 kpick 203120 # msm8974: Enable full dex preopt
+kpick 203303 # Revert "msm8974-common: Use QTI HIDL power HAL" 
 
 # device/lineage/sepolicy
 kpick 198594 # sepolicy: qcom: Import bluetooth_loader/hci_attach rules
@@ -432,6 +419,11 @@ kpick 202701 # SEEMP: framework instrumentation and AppProtect features
 
 # frameworks/native
 kpick 201530 # AppOpsManager: Update with the new ops
+kpick 203294 # surfaceflinger: set a prop when initialization is complete
+
+# frameworks/opt/Telephony
+kpick 203256 # MMS: Update apnProfileID for MMS only apn
+
 
 # hardware/libhardware-legacy
 kpick 202996 # Wifi: Add Qpower interface to libhardware_legacy
@@ -440,7 +432,6 @@ kpick 202996 # Wifi: Add Qpower interface to libhardware_legacy
 kpick 203061 # lineage/interfaces: power: Add binderized service
 
 # hardware/qcom/power
-kpick 201924 # power: Fix up some legacy stats code
 kpick 203055 # power: Prepare for power profile support
 kpick 203064 # power: Remove mutex to camera hints
 kpick 203066 # power: Add known perf hint IDs
@@ -448,7 +439,7 @@ kpick 203067 # power: msm8996: Add support for power profile and cpu boost
 kpick 203115 # power: Enable interaction boost unconditionally
 
 # lineage-sdk
-kpick 200970 # sdk: Move isAdvancedRebootEnabled to SDK from global access
+kpick 200970 # lineage-sdk: Import power menu related classes
 kpick 203030 # lineage-sdk: Add overlay support for disabling hardware features
 kpick 203011 # lineage-sdk: Reenable performance profiles
 
@@ -480,9 +471,6 @@ kpick 202566 # Snap: Make developer menu more accessible
 kpick 202685 # Snap: Rebrand to org.lineageos.snap
 
 # system/core
-kpick 202493 # init: add detection of charging mode
-kpick 202495 # init: define BOARD_CHARGING_CMDLINE parameters
-kpick 202495 # init: Bring back support for arbitrary chargermode cmdlines
 kpick 202596 # fs_config: fix fileperms for su-binary
 
 # system/extra/su
@@ -501,6 +489,7 @@ kpick 201732 # sepilocy: add sudaemon to ignore list
 
 #vendor/lineage
 kpick 201336 # soong_config: Add TARGET_HAS_LEGACY_CAMERA_HAL1 variable
+kpick 202692 # lineage: Enable boot and system server dex-preopt
 
 ##################################
 
