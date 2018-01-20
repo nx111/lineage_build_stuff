@@ -343,6 +343,9 @@ function kpick()
     [ $breakout -lt 0 ] && cat $errfile && exit $breakouit
 }
 
+# build/make
+kpick 202441 # core: config: Add inline kernel headers to AOSP kernel header path
+
 # device/samsung/klte-common
 kpick 203304 # klte-common: power: Add legacy qcom HAL compat code
 
