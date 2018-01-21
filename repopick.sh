@@ -472,6 +472,7 @@ kpick 202564 # Camera2: Headset shutter mode
 kpick 202565 # Camera2: Add option to set max screen brightness
 kpick 202566 # Snap: Make developer menu more accessible
 kpick 202685 # Snap: Rebrand to org.lineageos.snap
+kpick 203342 # Snap: update shutter buttons on CaptureUI
 
 # system/core
 kpick 202596 # fs_config: fix fileperms for su-binary
@@ -489,6 +490,7 @@ kpick 201553 # sepolicy: We need to declare before referencing
 kpick 201583 # sepolicy: Allow su by apps on userdebug_or_eng
 kpick 201584 # sepolicy: update policies for sudaemon on O
 kpick 201732 # sepilocy: add sudaemon to ignore list
+kpick 203330 # treble sepolicy tests: Workaround /sbin services labels
 
 #vendor/lineage
 kpick 201336 # soong_config: Add TARGET_HAS_LEGACY_CAMERA_HAL1 variable
