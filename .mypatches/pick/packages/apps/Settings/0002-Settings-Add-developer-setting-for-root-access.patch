@@ -1,0 +1,264 @@
+From 9f7ed2c12685fa90d26cc393fa15046648e22c68 Mon Sep 17 00:00:00 2001
+From: Steve Kondik <steve@cyngn.com>
+Date: Sun, 18 Oct 2015 23:46:41 -0700
+Subject: [PATCH 2/5] Settings: Add developer setting for root access
+
+Change-Id: If96219d893c0dfdcf4ad36e1cd8de3a413db0e8b
+---
+ res/values/cm_arrays.xml                           | 15 ++++
+ res/values/cm_strings.xml                          |  9 ++
+ res/xml/development_prefs.xml                      |  7 ++
+ .../settings/development/DevelopmentSettings.java  | 98 ++++++++++++++++++++++
+ 4 files changed, 129 insertions(+)
+
+diff --git a/res/values/cm_arrays.xml b/res/values/cm_arrays.xml
+index 1375777..4650b70 100644
+--- a/res/values/cm_arrays.xml
++++ b/res/values/cm_arrays.xml
+@@ -189,4 +189,19 @@
+         <item>@string/app_ops_permissions_ignored</item>
+         <item>@string/app_ops_permissions_always_ask</item>
+     </string-array>
++
++    <!-- Arrays for root access capability -->
++    <string-array name="root_access_entries" translatable="false">
++        <item>@string/root_access_none</item>
++        <item>@string/root_access_apps</item>
++        <item>@string/root_access_adb</item>
++        <item>@string/root_access_all</item>
++    </string-array>
++
++    <string-array name="root_access_values" translatable="false">
++        <item>0</item>
++        <item>1</item>
++        <item>2</item>
++        <item>3</item>
++    </string-array>
+ </resources>
+diff --git a/res/values/cm_strings.xml b/res/values/cm_strings.xml
+index 1747ddb..7ecf489 100644
+--- a/res/values/cm_strings.xml
++++ b/res/values/cm_strings.xml
+@@ -23,6 +23,15 @@
+     <string name="advanced_reboot_title">Advanced restart</string>
+     <string name="advanced_reboot_summary">When unlocked, include options in the power menu for restarting into recovery or bootloader</string>
+ 
++    <!-- Setting checkbox title for root access -->
++    <string name="root_access">Root access</string>
++    <string name="root_access_warning_title">Allow root access?</string>
++    <string name="root_access_warning_message">Allowing apps to request root access is very dangerous and could compromise the security of your system!</string>
++    <string name="root_access_none">Disabled</string>
++    <string name="root_access_apps">Apps only</string>
++    <string name="root_access_adb">ADB only</string>
++    <string name="root_access_all">Apps and ADB</string>
++
+     <!-- Double tap to sleep on status bar or lockscreen -->
+     <string name="status_bar_double_tap_to_sleep_title">Tap to sleep</string>
+     <string name="status_bar_double_tap_to_sleep_summary">Double-tap on the status bar or lockscreen to turn off the display</string>
+diff --git a/res/xml/development_prefs.xml b/res/xml/development_prefs.xml
+index ec1b947..f74d96d 100644
+--- a/res/xml/development_prefs.xml
++++ b/res/xml/development_prefs.xml
+@@ -121,6 +121,13 @@
+             android:targetClass="com.android.settings.qstile.DevelopmentTileConfigActivity" />
+     </Preference>
+ 
++    <ListPreference
++        android:key="root_access"
++        android:title="@string/root_access"
++        android:persistent="false"
++        android:entries="@array/root_access_entries"
++        android:entryValues="@array/root_access_values" />
++
+     <PreferenceCategory android:key="debug_debugging_category"
+             android:title="@string/debug_debugging_category">
+ 
+diff --git a/src/com/android/settings/development/DevelopmentSettings.java b/src/com/android/settings/development/DevelopmentSettings.java
+index 11cc580..501a7c5 100644
+--- a/src/com/android/settings/development/DevelopmentSettings.java
++++ b/src/com/android/settings/development/DevelopmentSettings.java
+@@ -231,6 +231,9 @@ public class DevelopmentSettings extends RestrictedSettingsFragment
+ 
+     private static final String INACTIVE_APPS_KEY = "inactive_apps";
+ 
++    private static final String ROOT_ACCESS_KEY = "root_access";
++    private static final String ROOT_ACCESS_PROPERTY = "persist.sys.root_access";
++
+     private static final String IMMEDIATELY_DESTROY_ACTIVITIES_KEY
+             = "immediately_destroy_activities";
+     private static final String APP_PROCESS_LIMIT_KEY = "app_process_limit";
+@@ -354,6 +357,8 @@ public class DevelopmentSettings extends RestrictedSettingsFragment
+     private SwitchPreference mColorTemperaturePreference;
+ 
+     private PreferenceScreen mDevelopmentTools;
++    private ListPreference mRootAccess;
++    private Object mSelectedRootValue;
+ 
+     private final ArrayList<Preference> mAllPrefs = new ArrayList<>();
+ 
+@@ -367,6 +372,7 @@ public class DevelopmentSettings extends RestrictedSettingsFragment
+     private Dialog mAdbTcpDialog;
+     private Dialog mAdbKeysDialog;
+     private boolean mUnavailable;
++    private Dialog mRootDialog;
+ 
+     private boolean mLogpersistCleared;
+     private Dialog mLogpersistClearDialog;
+@@ -611,6 +617,11 @@ public class DevelopmentSettings extends RestrictedSettingsFragment
+         mDevelopmentTools = (PreferenceScreen) findPreference(DEVELOPMENT_TOOLS);
+         mAllPrefs.add(mDevelopmentTools);
+ 
++        mRootAccess = (ListPreference) findPreference(ROOT_ACCESS_KEY);
++        mRootAccess.setOnPreferenceChangeListener(this);
++        if (!removeRootOptionsIfRequired()) {
++            mAllPrefs.add(mRootAccess);
++        }
+         addDashboardCategoryPreferences();
+     }
+ 
+@@ -651,6 +662,18 @@ public class DevelopmentSettings extends RestrictedSettingsFragment
+         return pref;
+     }
+ 
++    private boolean removeRootOptionsIfRequired() {
++        // user builds don't get root, and eng always gets root
++        if (!(Build.IS_DEBUGGABLE || "eng".equals(Build.TYPE))) {
++            if (mRootAccess != null) {
++                getPreferenceScreen().removePreference(mRootAccess);
++                return true;
++            }
++        }
++
++        return false;
++    }
++
+     @Override
+     public void onActivityCreated(Bundle savedInstanceState) {
+         super.onActivityCreated(savedInstanceState);
+@@ -879,6 +902,7 @@ public class DevelopmentSettings extends RestrictedSettingsFragment
+         updateBluetoothEnableInbandRingingOptions();
+         updateBluetoothA2dpConfigurationValues();
+         updateAdbOverNetwork();
++        updateRootAccessOptions();
+     }
+ 
+     private void updateAdbOverNetwork() {
+@@ -926,6 +950,7 @@ public class DevelopmentSettings extends RestrictedSettingsFragment
+         mEnableAdbController.resetPreference();
+         resetDebuggerOptions();
+         resetAdbNotifyOptions();
++        resetRootAccessOptions();
+         writeLogpersistOption(null, true);
+         writeLogdSizeOption(null);
+         writeAnimationScaleOption(0, mWindowAnimationScale, null);
+@@ -948,6 +973,47 @@ public class DevelopmentSettings extends RestrictedSettingsFragment
+                 LineageSettings.Secure.ADB_NOTIFY, 1);
+     }
+ 
++    private void updateRootAccessOptions() {
++        String value = SystemProperties.get(ROOT_ACCESS_PROPERTY, "0");
++        mRootAccess.setValue(value);
++        mRootAccess.setSummary(getResources()
++                .getStringArray(R.array.root_access_entries)[Integer.valueOf(value)]);
++    }
++
++    public static boolean isRootForAppsEnabled() {
++        int value = SystemProperties.getInt(ROOT_ACCESS_PROPERTY, 0);
++        boolean daemonState =
++                SystemProperties.get("init.svc.su_daemon", "absent").equals("running");
++        return daemonState && (value == 1 || value == 3);
++    }
++
++    private void writeRootAccessOptions(Object newValue) {
++        String oldValue = SystemProperties.get(ROOT_ACCESS_PROPERTY, "0");
++        SystemProperties.set(ROOT_ACCESS_PROPERTY, newValue.toString());
++        if (Integer.valueOf(newValue.toString()) < 2 && !oldValue.equals(newValue)
++                && "1".equals(SystemProperties.get("service.adb.root", "0"))) {
++            SystemProperties.set("service.adb.root", "0");
++            Settings.Secure.putInt(getActivity().getContentResolver(),
++                    Settings.Secure.ADB_ENABLED, 0);
++            Settings.Secure.putInt(getActivity().getContentResolver(),
++                    Settings.Secure.ADB_ENABLED, 1);
++        }
++        updateRootAccessOptions();
++    }
++
++    private void resetRootAccessOptions() {
++        String oldValue = SystemProperties.get(ROOT_ACCESS_PROPERTY, "0");
++        SystemProperties.set(ROOT_ACCESS_PROPERTY, "0");
++        if (!oldValue.equals("0") && "1".equals(SystemProperties.get("service.adb.root", "0"))) {
++            SystemProperties.set("service.adb.root", "0");
++            Settings.Secure.putInt(getActivity().getContentResolver(),
++                    Settings.Secure.ADB_ENABLED, 0);
++            Settings.Secure.putInt(getActivity().getContentResolver(),
++                    Settings.Secure.ADB_ENABLED, 1);
++        }
++        updateRootAccessOptions();
++    }
++
+     private void updateHdcpValues() {
+         ListPreference hdcpChecking = (ListPreference) findPreference(HDCP_CHECKING_KEY);
+         if (hdcpChecking != null) {
+@@ -2727,6 +2793,24 @@ public class DevelopmentSettings extends RestrictedSettingsFragment
+         } else if (preference == mSimulateColorSpace) {
+             writeSimulateColorSpace(newValue);
+             return true;
++        } else if (preference == mRootAccess) {
++            if ("0".equals(SystemProperties.get(ROOT_ACCESS_PROPERTY, "0"))
++                    && !"0".equals(newValue)) {
++                mSelectedRootValue = newValue;
++                mDialogClicked = false;
++                if (mRootDialog != null) {
++                    dismissDialogs();
++                }
++                mRootDialog = new AlertDialog.Builder(getActivity())
++                        .setMessage(getResources().getString(R.string.root_access_warning_message))
++                        .setTitle(R.string.root_access_warning_title)
++                        .setPositiveButton(android.R.string.yes, this)
++                        .setNegativeButton(android.R.string.no, this).show();
++                mRootDialog.setOnDismissListener(this);
++            } else {
++                writeRootAccessOptions(newValue);
++            }
++            return true;
+         }
+         return false;
+     }
+@@ -2749,6 +2833,10 @@ public class DevelopmentSettings extends RestrictedSettingsFragment
+             mAdbTcpDialog.dismiss();
+             mAdbTcpDialog = null;
+         }
++        if (mRootDialog != null) {
++            mRootDialog.dismiss();
++            mRootDialog = null;
++        }
+     }
+ 
+     public void onClick(DialogInterface dialog, int which) {
+@@ -2782,6 +2870,13 @@ public class DevelopmentSettings extends RestrictedSettingsFragment
+                 LineageSettings.Secure.putInt(getActivity().getContentResolver(),
+                         LineageSettings.Secure.ADB_PORT, 5555);
+             }
++        } else if (dialog == mRootDialog) {
++            if (which == DialogInterface.BUTTON_POSITIVE) {
++                writeRootAccessOptions(mSelectedRootValue);
++            } else {
++                // Reset the option
++                writeRootAccessOptions("0");
++            }
+         }
+     }
+ 
+@@ -2797,6 +2892,9 @@ public class DevelopmentSettings extends RestrictedSettingsFragment
+         } else if (dialog == mAdbTcpDialog) {
+             updateAdbOverNetwork();
+             mAdbTcpDialog = null;
++        } else if (dialog == mRootDialog) {
++            updateRootAccessOptions();
++            mRootDialog = null;
+         }
+     }
+ 
+-- 
+2.7.4
+
