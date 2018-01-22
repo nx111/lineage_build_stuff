@@ -363,7 +363,8 @@ kpick 199572 # sepolicy: SELinux policy for persistent properties API
 kpick 201552 # Squashed import of superuser SELinux policies
 kpick 201582 # sepolicy: adapt sudaemon policy for O
 kpick 203433 # sepolicy: Allow apps with API level <= 25 to access services
-kpick 203558 #sepolicy: Add policy for vendor.lineage.power HAL
+kpick 203558 # sepolicy: Add policy for vendor.lineage.power HAL
+kpick 203578 # qcom: Allow fsck to check /persist
 
 # device/qcom/common
 kpick 201274 # power: Update power hal extension for new qti hal
@@ -392,8 +393,10 @@ kpick 202423 # Screenshot: append app name to filename
 kpick 202874 # Show infinity for large notification counts
 kpick 203053 # perf: Add plumbing for PerformanceManager
 kpick 203054 # perf: Adapt for HIDL Lineage power hal
-#kpick 202701 # SEEMP: framework instrumentation and AppProtect features
 kpick 203441 # Fix double action performed when pressing menu key
+kpick 203457 # Add auth framework for outgoing SMS messages
+kpick 203583 # storage: Allow browseIntent for external storage
+kpick 203584 # storage: Allow to set sdcards to visible
 
 # frameworks/native
 kpick 201530 # AppOpsManager: Update with the new ops
@@ -407,6 +410,7 @@ kpick 203256 # MMS: Update apnProfileID for MMS only apn
 kpick 202996 # Wifi: Add Qpower interface to libhardware_legacy
 
 # hardware/lineage/interfaces
+kpick 201226 # gps.default.so: fix crash on access to unset AGpsRilCallbacks::request_refloc
 kpick 203061 # lineage/interfaces: power: Add binderized service
 
 # hardware/qcom/power
@@ -444,14 +448,9 @@ kpick 203342 # Snap: update shutter buttons on CaptureUI
 # system/core
 kpick 202596 # fs_config: fix fileperms for su-binary
 
-# system/extra/su
-#kpick -f 201990 # su: Remove EUID vs UID check
-#kpick -f 202051 # rc: Ensure su binary is world executable
-
 # system/sepolicy
 kpick 198106 # Add rules required for TARGET_HAS_LEGACY_CAMERA_HAL1
 kpick 198107 # Adapt add_service uses for TARGET_HAS_LEGACY_CAMERA_HAL1
-#kpick 198108 # mediaserver: Allow finding the hal_camera hardware service
 kpick 201553 # sepolicy: We need to declare before referencing
 kpick 201583 # sepolicy: Allow su by apps on userdebug_or_eng
 kpick 201584 # sepolicy: update policies for sudaemon on O
