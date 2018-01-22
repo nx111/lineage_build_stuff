@@ -1,4 +1,4 @@
-From e942d3b6a8990046606791320bc408559f51c886 Mon Sep 17 00:00:00 2001
+From 6e12c00ad86b3a9f733d8bd94dcce4fd856a595c Mon Sep 17 00:00:00 2001
 From: Rashed Abdel-Tawab <rashed@linux.com>
 Date: Wed, 18 Oct 2017 19:53:33 -0400
 Subject: [PATCH 1/4] lineage-sdk: Import power menu related classes
@@ -12,21 +12,51 @@ place them here from now on.
 
 Change-Id: Ic5a02b8118c702dced5a25d775a4cc84c92a3fc2
 ---
- .../internal/util/PowerMenuConstants.java          | 52 ++++++++++++++++++++++
- .../org/lineageos/internal/util/RebootUtils.java   | 35 +++++++++++++++
- 2 files changed, 87 insertions(+)
+ lineage/res/res/values/config.xml                  |  7 +++
+ lineage/res/res/values/symbols.xml                 |  3 ++
+ .../internal/util/PowerMenuConstants.java          | 58 ++++++++++++++++++++++
+ .../lineageos/internal/util/PowerMenuUtils.java    | 35 +++++++++++++
+ 4 files changed, 103 insertions(+)
  create mode 100644 sdk/src/java/org/lineageos/internal/util/PowerMenuConstants.java
- create mode 100644 sdk/src/java/org/lineageos/internal/util/RebootUtils.java
+ create mode 100644 sdk/src/java/org/lineageos/internal/util/PowerMenuUtils.java
 
+diff --git a/lineage/res/res/values/config.xml b/lineage/res/res/values/config.xml
+index c038066..8374e2b 100644
+--- a/lineage/res/res/values/config.xml
++++ b/lineage/res/res/values/config.xml
+@@ -240,4 +240,11 @@
+     <!-- Timeout in MS for how long you have to long-press the back key to
+          kill the foreground app. -->
+     <integer name="config_backKillTimeout">2000</integer>
++
++    <!-- Defines the actions shown in advanced reboot submenu -->
++    <string-array name="config_restartActionsList">
++        <item>restart</item>
++        <item>restart_recovery</item>
++        <item>restart_bootloader</item>
++     </string-array>
+ </resources>
+diff --git a/lineage/res/res/values/symbols.xml b/lineage/res/res/values/symbols.xml
+index 5b8f9e6..6710346 100644
+--- a/lineage/res/res/values/symbols.xml
++++ b/lineage/res/res/values/symbols.xml
+@@ -151,4 +151,7 @@
+     <!-- Back kill -->
+     <java-symbol type="string" name="app_killed_message" />
+     <java-symbol type="integer" name="config_backKillTimeout" />
++
++    <!-- Power menu -->
++    <java-symbol type="array" name="config_restartActionsList" />
+ </resources>
 diff --git a/sdk/src/java/org/lineageos/internal/util/PowerMenuConstants.java b/sdk/src/java/org/lineageos/internal/util/PowerMenuConstants.java
 new file mode 100644
-index 0000000..94d4011
+index 0000000..8a72827
 --- /dev/null
 +++ b/sdk/src/java/org/lineageos/internal/util/PowerMenuConstants.java
-@@ -0,0 +1,52 @@
+@@ -0,0 +1,58 @@
 +/*
 + * Copyright (C) 2015 The CyanogenMod Project
-+ * Copyright (C) 2017 The LineageOS Project
++ * Copyright (C) 2017-2018 The LineageOS Project
 + *
 + * Licensed under the Apache License, Version 2.0 (the "License");
 + * you may not use this file except in compliance with the License.
@@ -47,7 +77,6 @@ index 0000000..94d4011
 +public class PowerMenuConstants {
 +    public static final String GLOBAL_ACTION_KEY_POWER = "power";
 +    public static final String GLOBAL_ACTION_KEY_RESTART = "restart";
-+    public static final String GLOBAL_ACTION_KEY_SOFT_REBOOT = "soft_reboot";
 +    public static final String GLOBAL_ACTION_KEY_SCREENSHOT = "screenshot";
 +    public static final String GLOBAL_ACTION_KEY_AIRPLANE = "airplane";
 +    public static final String GLOBAL_ACTION_KEY_USERS = "users";
@@ -57,6 +86,13 @@ index 0000000..94d4011
 +    public static final String GLOBAL_ACTION_KEY_SILENT = "silent";
 +    public static final String GLOBAL_ACTION_KEY_VOICEASSIST = "voiceassist";
 +    public static final String GLOBAL_ACTION_KEY_ASSIST = "assist";
++
++    /**
++     * Advanced restart menu actions
++     */
++    public static final String GLOBAL_ACTION_KEY_RESTART_RECOVERY = "restart_recovery";
++    public static final String GLOBAL_ACTION_KEY_RESTART_BOOTLOADER = "restart_bootloader";
++    public static final String GLOBAL_ACTION_KEY_RESTART_DOWNLOAD = "restart_download";
 +
 +    private static String[] ALL_ACTIONS = {
 +        GLOBAL_ACTION_KEY_POWER,
@@ -76,11 +112,11 @@ index 0000000..94d4011
 +        return ALL_ACTIONS;
 +    }
 +}
-diff --git a/sdk/src/java/org/lineageos/internal/util/RebootUtils.java b/sdk/src/java/org/lineageos/internal/util/RebootUtils.java
+diff --git a/sdk/src/java/org/lineageos/internal/util/PowerMenuUtils.java b/sdk/src/java/org/lineageos/internal/util/PowerMenuUtils.java
 new file mode 100644
-index 0000000..ca0c925
+index 0000000..de2ea14
 --- /dev/null
-+++ b/sdk/src/java/org/lineageos/internal/util/RebootUtils.java
++++ b/sdk/src/java/org/lineageos/internal/util/PowerMenuUtils.java
 @@ -0,0 +1,35 @@
 +/*
 + * Copyright (C) 2017 The LineageOS Project
@@ -106,15 +142,15 @@ index 0000000..ca0c925
 +
 +import lineageos.providers.LineageSettings;
 +
-+public final class RebootUtils {
-+    public static boolean isAdvancedRebootPossible(final Context context) {
++public final class PowerMenuUtils {
++    public static boolean isAdvancedRestartPossible(final Context context) {
 +        KeyguardManager km = (KeyguardManager) context.getSystemService(Context.KEYGUARD_SERVICE);
 +        boolean keyguardLocked = km.inKeyguardRestrictedInputMode() && km.isKeyguardSecure();
-+        boolean advancedRebootEnabled = LineageSettings.Secure.getInt(context.getContentResolver(),
++        boolean advancedRestartEnabled = LineageSettings.Secure.getInt(context.getContentResolver(),
 +                LineageSettings.Secure.ADVANCED_REBOOT, 0) == 1;
 +        boolean isPrimaryUser = UserHandle.getCallingUserId() == UserHandle.USER_OWNER;
 +
-+        return advancedRebootEnabled && !keyguardLocked && isPrimaryUser;
++        return advancedRestartEnabled && !keyguardLocked && isPrimaryUser;
 +    }
 +}
 -- 

@@ -1,23 +1,24 @@
-From 2a7da724f306d695ed283a306cf1b5ed0d5ede56 Mon Sep 17 00:00:00 2001
+From b6d015e9a1c9fdfb5dabdfebf3969feb84e7d38d Mon Sep 17 00:00:00 2001
 From: Rashed Abdel-Tawab <rashed@linux.com>
 Date: Sun, 8 Oct 2017 21:41:34 -0400
-Subject: [PATCH 2/7] LineageParts: Re-enable PowerMenuActions and adapt to SDK
+Subject: [PATCH 2/8] LineageParts: Re-enable PowerMenuActions and adapt to SDK
  updates
 
 Also:
 * Add summary for screenshot long press action
 * Remove sound panel from available options
 * Disable airplane mode by default matching vendor overlay
+* Remove ability to disable restart option
 
 Change-Id: If09012dceddc66d641bf4aa7d3f0ab1e3e9347a7
 ---
  AndroidManifest.xml                                |  2 +-
  res/values/arrays.xml                              |  1 -
- res/values/strings.xml                             |  1 +
+ res/values/strings.xml                             |  2 +-
  res/xml/button_settings.xml                        |  2 --
- res/xml/power_menu_settings.xml                    |  3 ++-
- .../lineageparts/input/PowerMenuActions.java       | 22 +++-------------------
- 6 files changed, 7 insertions(+), 24 deletions(-)
+ res/xml/power_menu_settings.xml                    |  8 ++---
+ .../lineageparts/input/PowerMenuActions.java       | 37 +++-------------------
+ 6 files changed, 9 insertions(+), 43 deletions(-)
 
 diff --git a/AndroidManifest.xml b/AndroidManifest.xml
 index 8fd484f..f27ae25 100644
@@ -45,12 +46,14 @@ index d880d12..e3aea07 100644
  
      <!-- Volume key cursor control -->
 diff --git a/res/values/strings.xml b/res/values/strings.xml
-index 7d19582..bda5894 100644
+index 7d19582..1ea7548 100644
 --- a/res/values/strings.xml
 +++ b/res/values/strings.xml
-@@ -244,6 +244,7 @@
+@@ -242,8 +242,8 @@
+ 
+     <!-- Power menu -->
      <string name="power_menu_title">Power menu</string>
-     <string name="power_menu_reboot_title">Restart menu</string>
+-    <string name="power_menu_reboot_title">Restart menu</string>
      <string name="power_menu_screenshot_title">Screenshot</string>
 +    <string name="power_menu_screenshot_summary">Long-press for partial screenshot</string>
      <string name="power_menu_airplane_title">Airplane mode</string>
@@ -74,11 +77,18 @@ index b11b03e..f0efc41 100644
          <SwitchPreference
              android:key="power_end_call"
 diff --git a/res/xml/power_menu_settings.xml b/res/xml/power_menu_settings.xml
-index ef71d04..b868e4b 100644
+index ef71d04..1e8fc81 100644
 --- a/res/xml/power_menu_settings.xml
 +++ b/res/xml/power_menu_settings.xml
-@@ -27,12 +27,13 @@
+@@ -20,19 +20,15 @@
+     android:title="@string/power_menu_title">
+ 
      <CheckBoxPreference
+-        android:key="restart"
+-        android:title="@string/power_menu_reboot_title"
+-        android:defaultValue="true" />
+-
+-    <CheckBoxPreference
          android:key="screenshot"
          android:title="@string/power_menu_screenshot_title"
 +        android:summary="@string/power_menu_screenshot_summary"
@@ -93,7 +103,7 @@ index ef71d04..b868e4b 100644
      <CheckBoxPreference
          android:key="users"
 diff --git a/src/org/lineageos/lineageparts/input/PowerMenuActions.java b/src/org/lineageos/lineageparts/input/PowerMenuActions.java
-index 396df7b..9198647 100644
+index 396df7b..20afd4d 100644
 --- a/src/org/lineageos/lineageparts/input/PowerMenuActions.java
 +++ b/src/org/lineageos/lineageparts/input/PowerMenuActions.java
 @@ -27,10 +27,7 @@ import android.provider.Settings;
@@ -108,7 +118,7 @@ index 396df7b..9198647 100644
  import org.lineageos.lineageparts.R;
  import org.lineageos.lineageparts.SettingsPreferenceFragment;
  
-@@ -40,20 +37,8 @@ import java.util.List;
+@@ -40,24 +37,11 @@ import java.util.List;
  
  import lineageos.providers.LineageSettings;
  
@@ -130,7 +140,46 @@ index 396df7b..9198647 100644
  public class PowerMenuActions extends SettingsPreferenceFragment {
      final static String TAG = "PowerMenuActions";
  
-@@ -313,8 +298,7 @@ public class PowerMenuActions extends SettingsPreferenceFragment {
+-    private CheckBoxPreference mRebootPref;
+     private CheckBoxPreference mScreenshotPref;
+     private CheckBoxPreference mAirplanePref;
+     private CheckBoxPreference mUsersPref;
+@@ -91,9 +75,7 @@ public class PowerMenuActions extends SettingsPreferenceFragment {
+                 continue;
+             }
+ 
+-            if (action.equals(GLOBAL_ACTION_KEY_RESTART)) {
+-                mRebootPref = (CheckBoxPreference) findPreference(GLOBAL_ACTION_KEY_RESTART);
+-            } else if (action.equals(GLOBAL_ACTION_KEY_SCREENSHOT)) {
++            if (action.equals(GLOBAL_ACTION_KEY_SCREENSHOT)) {
+                 mScreenshotPref = (CheckBoxPreference) findPreference(GLOBAL_ACTION_KEY_SCREENSHOT);
+             } else if (action.equals(GLOBAL_ACTION_KEY_AIRPLANE)) {
+                 mAirplanePref = (CheckBoxPreference) findPreference(GLOBAL_ACTION_KEY_AIRPLANE);
+@@ -121,10 +103,6 @@ public class PowerMenuActions extends SettingsPreferenceFragment {
+     public void onStart() {
+         super.onStart();
+ 
+-        if (mRebootPref != null) {
+-            mRebootPref.setChecked(settingsArrayContains(GLOBAL_ACTION_KEY_RESTART));
+-        }
+-
+         if (mScreenshotPref != null) {
+             mScreenshotPref.setChecked(settingsArrayContains(GLOBAL_ACTION_KEY_SCREENSHOT));
+         }
+@@ -183,11 +161,7 @@ public class PowerMenuActions extends SettingsPreferenceFragment {
+     public boolean onPreferenceTreeClick(Preference preference) {
+         boolean value;
+ 
+-        if (preference == mRebootPref) {
+-            value = mRebootPref.isChecked();
+-            updateUserConfig(value, GLOBAL_ACTION_KEY_RESTART);
+-
+-        } else if (preference == mScreenshotPref) {
++        if (preference == mScreenshotPref) {
+             value = mScreenshotPref.isChecked();
+             updateUserConfig(value, GLOBAL_ACTION_KEY_SCREENSHOT);
+ 
+@@ -313,8 +287,7 @@ public class PowerMenuActions extends SettingsPreferenceFragment {
  
      private void updatePowerMenuDialog() {
          Intent u = new Intent();

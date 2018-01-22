@@ -185,6 +185,7 @@ function projects_snapshot()
               [ $ex_patches_count -eq 0 ] && rmdir -p --ignore-fail-on-non-empty $topdir/.mypatches/local/$project
          fi
     done
+    find $topdir/.mypatches -type d | xargs rmdir --ignore-fail-on-non-empty >/dev/null 2>/dev/null
     mv $snapshot_file.new $snapshot_file
     cd $topdir
 }
@@ -371,7 +372,7 @@ kpick 199518 # sepolicy: Fix sysinit denials
 kpick 199572 # sepolicy: SELinux policy for persistent properties API
 kpick 201552 # Squashed import of superuser SELinux policies
 kpick 201582 # sepolicy: adapt sudaemon policy for O
-
+kpick 203433 # sepolicy: Allow apps with API level <= 25 to access services
 
 # device/qcom/common
 kpick 201274 # power: Update power hal extension for new qti hal
@@ -410,15 +411,14 @@ kpick 198116 # CameraService: Fix deadlock in binder death cleanup.
 
 # frameworks/base
 kpick 198701 # AppOps: track op persistence by name instead of id
-kpick 199947 # PowerManager: Re-integrate button brightness
-kpick 200968 # statusbar: Add arguments to shutdown and reboot to allow confirmation
 kpick 200969 # SystemUI: Power menu customizations
 kpick 201879 # frameworks: Privacy Guard for O
+kpick 199947 # PowerManager: Re-integrate button brightness
 kpick 202423 # Screenshot: append app name to filename
 kpick 203053 # perf: Add plumbing for PerformanceManager
 kpick 203054 # perf: Adapt for HIDL Lineage power hal
 kpick 202701 # SEEMP: framework instrumentation and AppProtect features
-
+kpick 203441 # Fix double action performed when pressing menu key
 
 # frameworks/native
 kpick 201530 # AppOpsManager: Update with the new ops
@@ -457,6 +457,7 @@ kpick 199948 # LineageParts: Bring up button backlight settings
 kpick 201309 # LineageParts: Re-enable PowerMenuActions and adapt to SDK updates
 kpick 201528 # PrivacyGuard: Bring up and inject into Settings
 kpick 203010 # LineageParts: enable perf profiles
+kpick 203440 # LineageParts: Match default menu long press action with actual config
 
 # packages/apps/Settings
 kpick 199839 # Settings: Add advanced restart switch
@@ -478,8 +479,8 @@ kpick 203342 # Snap: update shutter buttons on CaptureUI
 kpick 202596 # fs_config: fix fileperms for su-binary
 
 # system/extra/su
-kpick -f 201990 # su: Remove EUID vs UID check
-kpick -f 202051 # rc: Ensure su binary is world executable
+#kpick -f 201990 # su: Remove EUID vs UID check
+#kpick -f 202051 # rc: Ensure su binary is world executable
 
 # system/sepolicy
 kpick 198106 # Add rules required for TARGET_HAS_LEGACY_CAMERA_HAL1
