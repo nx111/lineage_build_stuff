@@ -440,10 +440,17 @@ kpick 203550 # LineageParts: Fix up additional styles for O
 kpick 201529 # Settings: Privacy Guard
 kpick 201531 # Settings: Add developer setting for root access
 kpick 203009 # Settings: battery: Add LineageParts perf profiles
+kpick 203599 # Settings: port manual provisiong support
+kpick 203600 # SimSettings: Correctly disabling sim switch without sim card
+kpick 203626 # SimSettings: improve dialogs
 
 # packages/apps/Snap
 kpick 202685 # Snap: Rebrand to org.lineageos.snap
 kpick 203342 # Snap: update shutter buttons on CaptureUI
+
+# packages/service/Telephony
+kpick 199006 # Add TD-SCDMA related network mode options
+kpick 199007 # Telephony: Fix translatability of network modes
 
 # system/core
 kpick 202596 # fs_config: fix fileperms for su-binary
