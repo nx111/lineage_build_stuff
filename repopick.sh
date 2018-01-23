@@ -319,7 +319,12 @@ function kpick()
           if grep -q "conflicts" $errfile; then
               cat $errfile
               echo  "  >> pick changes conflict, please resolv it, then press ENTER to continue ..."
-              sed -n q </dev/tty
+              ch=$(sed q </dev/tty)
+              if [ "$ch" = "s" ]; then
+                    echo "skip it ..."
+                    git am --skip
+                    break
+              fi
               echo ""
               LANG=en_US repopick -c 20 $* >$logfile 2>$errfile
               rc=$?
@@ -434,6 +439,11 @@ kpick 201529 # Settings: Privacy Guard
 kpick 201531 # Settings: Add developer setting for root access
 kpick 202872 # Settings: forward port lock pattern grid size (2/2)
 kpick 203009 # Settings: battery: Add LineageParts perf profiles
+kpick 203599 # SimSettings: port manual provisiong support
+kpick 203600 # SimSettings: Correctly disabling sim switch without sim card
+kpick 203626 # SimSettings: improve dialogs
+kpick 203628 # SimSettings: Allow disabling all the SIMs
+kpick 203666 # MSIM: Fix user set DDS sub in hotswap cases.
 
 # packages/apps/Snap
 kpick 202685 # Snap: Rebrand to org.lineageos.snap
@@ -444,7 +454,7 @@ kpick 199006 # Add TD-SCDMA related network mode options
 kpick 199007 # Telephony: Fix translatability of network modes
 
 # system/core
-kpick 202596 # fs_config: fix fileperms for su-binary
+kpick 202849 # Update permissions to the superuser binary
 
 # system/sepolicy
 kpick 198106 # Add rules required for TARGET_HAS_LEGACY_CAMERA_HAL1

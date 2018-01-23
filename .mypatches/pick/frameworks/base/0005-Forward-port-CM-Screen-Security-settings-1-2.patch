@@ -1,0 +1,904 @@
+From 2773808807cf79e2c0e30c932476fb29d046fa18 Mon Sep 17 00:00:00 2001
+From: Michael Bestas <mikeioannina@gmail.com>
+Date: Fri, 3 Apr 2015 14:33:37 -0700
+Subject: [PATCH 05/13] Forward port CM Screen Security settings (1/2)
+
+ * Variable size pattern lockscreen
+ * Toggle dots/error pattern visibility
+
+Change-Id: Ie109e82c1fb2fd96b07e977e1cd76ae3acb865ff
+
+Fix pattern visibility settings (1/2)
+
+Change-Id: Ic627953c5df854c442671a98b5da539b994da18b
+
+LockPatternUtils: Use the actual user id to set pattern size
+
+Ticket: CYNGNOS-2462
+Change-Id: Ia68e26ec2dfc23317135d933bc25204c1380bb02
+
+LockSettings: fix build
+
+Change-Id: Ic65b1a2af398faffb83776ee4013d47f79ab6619
+Signed-off-by: Roman Birg <roman@cyngn.com>
+---
+ core/java/android/provider/Settings.java           |  21 ++
+ .../com/android/internal/widget/ILockSettings.aidl |   1 +
+ .../android/internal/widget/LockPatternUtils.java  |  73 ++++++-
+ .../android/internal/widget/LockPatternView.java   | 241 ++++++++++++++-------
+ .../android/providers/settings/DatabaseHelper.java |   6 +-
+ .../com/android/keyguard/KeyguardPatternView.java  |   9 +
+ .../server/locksettings/LockSettingsService.java   |  11 +-
+ .../locksettings/LockSettingsShellCommand.java     |   6 +-
+ .../server/locksettings/LockSettingsStorage.java   |  14 ++
+ 9 files changed, 292 insertions(+), 90 deletions(-)
+
+diff --git a/core/java/android/provider/Settings.java b/core/java/android/provider/Settings.java
+index b5d28a5..2009247 100755
+--- a/core/java/android/provider/Settings.java
++++ b/core/java/android/provider/Settings.java
+@@ -4551,6 +4551,9 @@ public final class Settings {
+             MOVED_TO_LOCK_SETTINGS.add(Secure.LOCK_PATTERN_ENABLED);
+             MOVED_TO_LOCK_SETTINGS.add(Secure.LOCK_PATTERN_VISIBLE);
+             MOVED_TO_LOCK_SETTINGS.add(Secure.LOCK_PATTERN_TACTILE_FEEDBACK_ENABLED);
++            MOVED_TO_LOCK_SETTINGS.add(Secure.LOCK_PATTERN_SIZE);
++            MOVED_TO_LOCK_SETTINGS.add(Secure.LOCK_DOTS_VISIBLE);
++            MOVED_TO_LOCK_SETTINGS.add(Secure.LOCK_SHOW_ERROR_PATH);
+ 
+             MOVED_TO_GLOBAL = new HashSet<>();
+             MOVED_TO_GLOBAL.add(Settings.Global.ADB_ENABLED);
+@@ -5484,6 +5487,24 @@ public final class Settings {
+                 LOCK_PATTERN_TACTILE_FEEDBACK_ENABLED = "lock_pattern_tactile_feedback_enabled";
+ 
+         /**
++         * Determines the width and height of the LockPatternView widget
++         * @hide
++         */
++        public static final String LOCK_PATTERN_SIZE = "lock_pattern_size";
++
++        /**
++         * Whether lock pattern will show dots (0 = false, 1 = true)
++         * @hide
++         */
++        public static final String LOCK_DOTS_VISIBLE = "lock_pattern_dotsvisible";
++
++        /**
++         * Whether lockscreen error pattern is visible (0 = false, 1 = true)
++         * @hide
++         */
++        public static final String LOCK_SHOW_ERROR_PATH = "lock_pattern_show_error_path";
++
++        /**
+          * This preference allows the device to be locked given time after screen goes off,
+          * subject to current DeviceAdmin policy limits.
+          * @hide
+diff --git a/core/java/com/android/internal/widget/ILockSettings.aidl b/core/java/com/android/internal/widget/ILockSettings.aidl
+index ee16ab6..7b0faac 100644
+--- a/core/java/com/android/internal/widget/ILockSettings.aidl
++++ b/core/java/com/android/internal/widget/ILockSettings.aidl
+@@ -34,6 +34,7 @@ interface ILockSettings {
+             in ICheckCredentialProgressCallback progressCallback);
+     VerifyCredentialResponse verifyCredential(in String credential, int type, long challenge, int userId);
+     VerifyCredentialResponse verifyTiedProfileChallenge(String credential, int type, long challenge, int userId);
++    byte getLockPatternSize(int userId);
+     boolean checkVoldPassword(int userId);
+     boolean havePattern(int userId);
+     boolean havePassword(int userId);
+diff --git a/core/java/com/android/internal/widget/LockPatternUtils.java b/core/java/com/android/internal/widget/LockPatternUtils.java
+index a027e1f..efb338d 100644
+--- a/core/java/com/android/internal/widget/LockPatternUtils.java
++++ b/core/java/com/android/internal/widget/LockPatternUtils.java
+@@ -102,6 +102,11 @@ public class LockPatternUtils {
+      */
+     public static final int MIN_LOCK_PASSWORD_SIZE = 4;
+ 
++    /*
++     * The default size of the pattern lockscreen. Ex: 3x3
++     */
++    public static final byte PATTERN_SIZE_DEFAULT = 3;
++
+     /**
+      * The minimum number of dots the user must include in a wrong pattern
+      * attempt for it to be counted against the counts that affect
+@@ -388,7 +393,7 @@ public class LockPatternUtils {
+     public byte[] verifyPattern(List<LockPatternView.Cell> pattern, long challenge, int userId)
+             throws RequestThrottledException {
+         throwIfCalledOnMainThread();
+-        return verifyCredential(patternToString(pattern), CREDENTIAL_TYPE_PATTERN, challenge,
++        return verifyCredential(patternToString(pattern, userId), CREDENTIAL_TYPE_PATTERN, challenge,
+                 userId);
+     }
+ 
+@@ -413,7 +418,7 @@ public class LockPatternUtils {
+             @Nullable CheckCredentialProgressCallback progressCallback)
+             throws RequestThrottledException {
+         throwIfCalledOnMainThread();
+-        return checkCredential(patternToString(pattern), CREDENTIAL_TYPE_PATTERN, userId,
++        return checkCredential(patternToString(pattern, userId), CREDENTIAL_TYPE_PATTERN, userId,
+                 progressCallback);
+     }
+ 
+@@ -677,7 +682,7 @@ public class LockPatternUtils {
+             }
+ 
+             setLong(PASSWORD_TYPE_KEY, DevicePolicyManager.PASSWORD_QUALITY_SOMETHING, userId);
+-            getLockSettings().setLockCredential(patternToString(pattern), CREDENTIAL_TYPE_PATTERN,
++            getLockSettings().setLockCredential(patternToString(pattern, userId), CREDENTIAL_TYPE_PATTERN,
+                     savedPattern, DevicePolicyManager.PASSWORD_QUALITY_SOMETHING, userId);
+ 
+             // Update the device encryption password.
+@@ -686,7 +691,7 @@ public class LockPatternUtils {
+                 if (!shouldEncryptWithCredentials(true)) {
+                     clearEncryptionPassword();
+                 } else {
+-                    String stringPattern = patternToString(pattern);
++                    String stringPattern = patternToString(pattern, userId);
+                     updateEncryptionPassword(StorageManager.CRYPT_TYPE_PATTERN, stringPattern);
+                 }
+             }
+@@ -989,17 +994,18 @@ public class LockPatternUtils {
+      * @param string The pattern serialized with {@link #patternToString}
+      * @return The pattern.
+      */
+-    public static List<LockPatternView.Cell> stringToPattern(String string) {
++    public static List<LockPatternView.Cell> stringToPattern(String string, byte gridSize) {
+         if (string == null) {
+             return null;
+         }
+-
+         List<LockPatternView.Cell> result = Lists.newArrayList();
+ 
++        LockPatternView.Cell.updateSize(gridSize);
++
+         final byte[] bytes = string.getBytes();
+         for (int i = 0; i < bytes.length; i++) {
+             byte b = (byte) (bytes[i] - '1');
+-            result.add(LockPatternView.Cell.of(b / 3, b % 3));
++            result.add(LockPatternView.Cell.of(b / gridSize, b % gridSize, gridSize));
+         }
+         return result;
+     }
+@@ -1009,16 +1015,26 @@ public class LockPatternUtils {
+      * @param pattern The pattern.
+      * @return The pattern in string form.
+      */
+-    public static String patternToString(List<LockPatternView.Cell> pattern) {
++    public String patternToString(List<LockPatternView.Cell> pattern, int userId) {
++        return patternToString(pattern, getLockPatternSize(userId));
++    }
++
++    /**
++     * Serialize a pattern.
++     * @param pattern The pattern.
++     * @return The pattern in string form.
++     */
++    public static String patternToString(List<LockPatternView.Cell> pattern, byte gridSize) {
+         if (pattern == null) {
+             return "";
+         }
+         final int patternSize = pattern.size();
++        LockPatternView.Cell.updateSize(gridSize);
+ 
+         byte[] res = new byte[patternSize];
+         for (int i = 0; i < patternSize; i++) {
+             LockPatternView.Cell cell = pattern.get(i);
+-            res[i] = (byte) (cell.getRow() * 3 + cell.getColumn() + '1');
++            res[i] = (byte) (cell.getRow() * gridSize + cell.getColumn() + '1');
+         }
+         return new String(res);
+     }
+@@ -1028,7 +1044,6 @@ public class LockPatternUtils {
+             return "";
+         }
+         final int patternSize = pattern.length();
+-
+         byte[] res = new byte[patternSize];
+         final byte[] bytes = pattern.getBytes();
+         for (int i = 0; i < patternSize; i++) {
+@@ -1044,7 +1059,7 @@ public class LockPatternUtils {
+      * @param pattern the gesture pattern.
+      * @return the hash of the pattern in a byte array.
+      */
+-    public static byte[] patternToHash(List<LockPatternView.Cell> pattern) {
++    public static byte[] patternToHash(List<LockPatternView.Cell> pattern, byte gridSize) {
+         if (pattern == null) {
+             return null;
+         }
+@@ -1053,7 +1068,7 @@ public class LockPatternUtils {
+         byte[] res = new byte[patternSize];
+         for (int i = 0; i < patternSize; i++) {
+             LockPatternView.Cell cell = pattern.get(i);
+-            res[i] = (byte) (cell.getRow() * 3 + cell.getColumn());
++            res[i] = (byte) (cell.getRow() * gridSize + cell.getColumn());
+         }
+         try {
+             MessageDigest md = MessageDigest.getInstance("SHA-1");
+@@ -1225,6 +1240,40 @@ public class LockPatternUtils {
+     }
+ 
+     /**
++     * @return the pattern lockscreen size
++     */
++    public byte getLockPatternSize(int userId) {
++        long size = getLong(Settings.Secure.LOCK_PATTERN_SIZE, -1, userId);
++        if (size > 0 && size < 128) {
++            return (byte) size;
++        }
++        return LockPatternUtils.PATTERN_SIZE_DEFAULT;
++    }
++
++    /**
++     * Set the pattern lockscreen size
++     */
++    public void setLockPatternSize(long size, int userId) {
++        setLong(Settings.Secure.LOCK_PATTERN_SIZE, size, userId);
++    }
++
++    public void setVisibleDotsEnabled(boolean enabled, int userId) {
++        setBoolean(Settings.Secure.LOCK_DOTS_VISIBLE, enabled, userId);
++    }
++
++    public boolean isVisibleDotsEnabled(int userId) {
++        return getBoolean(Settings.Secure.LOCK_DOTS_VISIBLE, true, userId);
++    }
++
++    public void setShowErrorPath(boolean enabled, int userId) {
++        setBoolean(Settings.Secure.LOCK_SHOW_ERROR_PATH, enabled, userId);
++    }
++
++    public boolean isShowErrorPath(int userId) {
++        return getBoolean(Settings.Secure.LOCK_SHOW_ERROR_PATH, true, userId);
++    }
++
++    /**
+      * Set and store the lockout deadline, meaning the user can't attempt his/her unlock
+      * pattern until the deadline has passed.
+      * @return the chosen deadline.
+diff --git a/core/java/com/android/internal/widget/LockPatternView.java b/core/java/com/android/internal/widget/LockPatternView.java
+index 32a7a2d..c2ff26d 100644
+--- a/core/java/com/android/internal/widget/LockPatternView.java
++++ b/core/java/com/android/internal/widget/LockPatternView.java
+@@ -53,13 +53,14 @@ import android.view.animation.AnimationUtils;
+ import android.view.animation.Interpolator;
+ 
+ import com.android.internal.R;
++import com.android.internal.widget.LockPatternUtils;
+ 
+ import java.util.ArrayList;
+ import java.util.List;
+ 
+ /**
+  * Displays and detects the user's unlock attempt, which is a drag of a finger
+- * across 9 regions of the screen.
++ * across regions of the screen.
+  *
+  * Is also capable of displaying a static pattern in "in progress", "wrong" or
+  * "correct" states.
+@@ -71,7 +72,7 @@ public class LockPatternView extends View {
+     private static final int ASPECT_LOCK_HEIGHT = 2; // Fixed height; width will be minimum of (w,h)
+ 
+     private static final boolean PROFILE_DRAWING = false;
+-    private final CellState[][] mCellStates;
++    private CellState[][] mCellStates;
+ 
+     private final int mDotSize;
+     private final int mDotSizeActivated;
+@@ -89,6 +90,8 @@ public class LockPatternView extends View {
+      */
+     private static final int MILLIS_PER_CIRCLE_ANIMATING = 700;
+ 
++    private byte mPatternSize = LockPatternUtils.PATTERN_SIZE_DEFAULT;
++
+     /**
+      * This can be used to avoid updating the display for very small motions or noisy panels.
+      * It didn't seem to have much impact on the devices tested, so currently set to 0.
+@@ -99,7 +102,7 @@ public class LockPatternView extends View {
+     private static final String TAG = "LockPatternView";
+ 
+     private OnPatternListener mOnPatternListener;
+-    private final ArrayList<Cell> mPattern = new ArrayList<Cell>(9);
++    private ArrayList<Cell> mPattern = new ArrayList<Cell>(mPatternSize * mPatternSize);
+ 
+     /**
+      * Lookup table for the circles of the pattern we are currently drawing.
+@@ -107,7 +110,7 @@ public class LockPatternView extends View {
+      * in which case we use this to hold the cells we are drawing for the in
+      * progress animation.
+      */
+-    private final boolean[][] mPatternDrawLookup = new boolean[3][3];
++    private boolean[][] mPatternDrawLookup = new boolean[mPatternSize][mPatternSize];
+ 
+     /**
+      * the in progress point:
+@@ -124,6 +127,8 @@ public class LockPatternView extends View {
+     private boolean mInStealthMode = false;
+     private boolean mEnableHapticFeedback = true;
+     private boolean mPatternInProgress = false;
++    private boolean mVisibleDots = true;
++    private boolean mShowErrorPath = true;
+ 
+     private float mHitFactor = 0.6f;
+ 
+@@ -148,32 +153,26 @@ public class LockPatternView extends View {
+     private Drawable mNotSelectedDrawable;
+     private boolean mUseLockPatternDrawable;
+ 
++    private LockPatternUtils mLockPatternUtils;
++
+     /**
+-     * Represents a cell in the 3 X 3 matrix of the unlock pattern view.
++     * Represents a cell in the matrix of the unlock pattern view.
+      */
+     public static final class Cell {
+         final int row;
+         final int column;
+ 
+-        // keep # objects limited to 9
+-        private static final Cell[][] sCells = createCells();
+-
+-        private static Cell[][] createCells() {
+-            Cell[][] res = new Cell[3][3];
+-            for (int i = 0; i < 3; i++) {
+-                for (int j = 0; j < 3; j++) {
+-                    res[i][j] = new Cell(i, j);
+-                }
+-            }
+-            return res;
++        static Cell[][] sCells;
++        static {
++            updateSize(LockPatternUtils.PATTERN_SIZE_DEFAULT);
+         }
+ 
+         /**
+          * @param row The row of the cell.
+          * @param column The column of the cell.
+          */
+-        private Cell(int row, int column) {
+-            checkRange(row, column);
++        private Cell(int row, int column, byte size) {
++            checkRange(row, column, size);
+             this.row = row;
+             this.column = column;
+         }
+@@ -186,17 +185,30 @@ public class LockPatternView extends View {
+             return column;
+         }
+ 
+-        public static Cell of(int row, int column) {
+-            checkRange(row, column);
++        /**
++         * @param row The row of the cell.
++         * @param column The column of the cell.
++         */
++        public static synchronized Cell of(int row, int column, byte size) {
++            checkRange(row, column, size);
+             return sCells[row][column];
+         }
+ 
+-        private static void checkRange(int row, int column) {
+-            if (row < 0 || row > 2) {
+-                throw new IllegalArgumentException("row must be in range 0-2");
++        public static void updateSize(byte size) {
++            sCells = new Cell[size][size];
++            for (int i = 0; i < size; i++) {
++                for (int j = 0; j < size; j++) {
++                    sCells[i][j] = new Cell(i, j, size);
++                }
+             }
+-            if (column < 0 || column > 2) {
+-                throw new IllegalArgumentException("column must be in range 0-2");
++        }
++
++        private static void checkRange(int row, int column, byte size) {
++            if (row < 0 || row > size - 1) {
++                throw new IllegalArgumentException("row must be in range 0-" + (size - 1));
++            }
++            if (column < 0 || column > size - 1) {
++                throw new IllegalArgumentException("column must be in range 0-" + (size - 1));
+             }
+         }
+ 
+@@ -326,9 +338,9 @@ public class LockPatternView extends View {
+         mPaint.setAntiAlias(true);
+         mPaint.setDither(true);
+ 
+-        mCellStates = new CellState[3][3];
+-        for (int i = 0; i < 3; i++) {
+-            for (int j = 0; j < 3; j++) {
++        mCellStates = new CellState[mPatternSize][mPatternSize];
++        for (int i = 0; i < mPatternSize; i++) {
++            for (int j = 0; j < mPatternSize; j++) {
+                 mCellStates[i][j] = new CellState();
+                 mCellStates[i][j].radius = mDotSize/2;
+                 mCellStates[i][j].row = i;
+@@ -365,6 +377,13 @@ public class LockPatternView extends View {
+     }
+ 
+     /**
++     * @return the current pattern lockscreen size.
++     */
++    public byte getLockPatternSize() {
++        return mPatternSize;
++    }
++
++    /**
+      * Set whether the view is in stealth mode.  If true, there will be no
+      * visible feedback as the user enters the pattern.
+      *
+@@ -374,6 +393,22 @@ public class LockPatternView extends View {
+         mInStealthMode = inStealthMode;
+     }
+ 
++    public void setVisibleDots(boolean visibleDots) {
++        mVisibleDots = visibleDots;
++    }
++
++    public boolean isVisibleDots() {
++        return mVisibleDots;
++    }
++
++    public void setShowErrorPath(boolean showErrorPath) {
++        mShowErrorPath = showErrorPath;
++    }
++
++    public boolean isShowErrorPath() {
++        return mShowErrorPath;
++    }
++
+     /**
+      * Set whether the view will use tactile feedback.  If true, there will be
+      * tactile feedback as the user enters the pattern.
+@@ -385,6 +420,35 @@ public class LockPatternView extends View {
+     }
+ 
+     /**
++     * Set the pattern size of the lockscreen
++     *
++     * @param size The pattern size.
++     */
++    public void setLockPatternSize(byte size) {
++        mPatternSize = size;
++        Cell.updateSize(size);
++        mCellStates = new CellState[mPatternSize][mPatternSize];
++        for (int i = 0; i < mPatternSize; i++) {
++            for (int j = 0; j < mPatternSize; j++) {
++                mCellStates[i][j] = new CellState();
++                mCellStates[i][j].radius = mDotSize / 2;
++                mCellStates[i][j].row = i;
++                mCellStates[i][j].col = j;
++            }
++        }
++        mPattern = new ArrayList<Cell>(size * size);
++        mPatternDrawLookup = new boolean[size][size];
++    }
++
++    /**
++     * Set the LockPatternUtil instance used to encode a pattern to a string
++     * @param utils The instance.
++     */
++    public void setLockPatternUtils(LockPatternUtils utils) {
++        mLockPatternUtils = utils;
++    }
++
++    /**
+      * Set the call back for pattern detection.
+      * @param onPatternListener The call back.
+      */
+@@ -599,8 +663,8 @@ public class LockPatternView extends View {
+      * Clear the pattern lookup table.
+      */
+     private void clearPatternDrawLookup() {
+-        for (int i = 0; i < 3; i++) {
+-            for (int j = 0; j < 3; j++) {
++        for (int i = 0; i < mPatternSize; i++) {
++            for (int j = 0; j < mPatternSize; j++) {
+                 mPatternDrawLookup[i][j] = false;
+             }
+         }
+@@ -624,11 +688,11 @@ public class LockPatternView extends View {
+     @Override
+     protected void onSizeChanged(int w, int h, int oldw, int oldh) {
+         final int width = w - mPaddingLeft - mPaddingRight;
+-        mSquareWidth = width / 3.0f;
++        mSquareWidth = width / (float) mPatternSize;
+ 
+         if (DEBUG_A11Y) Log.v(TAG, "onSizeChanged(" + w + "," + h + ")");
+         final int height = h - mPaddingTop - mPaddingBottom;
+-        mSquareHeight = height / 3.0f;
++        mSquareHeight = height / (float) mPatternSize;
+         mExploreByTouchHelper.invalidateRoot();
+ 
+         if (mUseLockPatternDrawable) {
+@@ -689,7 +753,6 @@ public class LockPatternView extends View {
+         if (cell != null) {
+ 
+             // check for gaps in existing pattern
+-            Cell fillInGapCell = null;
+             final ArrayList<Cell> pattern = mPattern;
+             if (!pattern.isEmpty()) {
+                 final Cell lastCell = pattern.get(pattern.size() - 1);
+@@ -699,21 +762,19 @@ public class LockPatternView extends View {
+                 int fillInRow = lastCell.row;
+                 int fillInColumn = lastCell.column;
+ 
+-                if (Math.abs(dRow) == 2 && Math.abs(dColumn) != 1) {
+-                    fillInRow = lastCell.row + ((dRow > 0) ? 1 : -1);
+-                }
+-
+-                if (Math.abs(dColumn) == 2 && Math.abs(dRow) != 1) {
+-                    fillInColumn = lastCell.column + ((dColumn > 0) ? 1 : -1);
++                if (dRow == 0 || dColumn == 0 || Math.abs(dRow) == Math.abs(dColumn)) {
++                    while (true) {
++                        fillInRow += Integer.signum(dRow);
++                        fillInColumn += Integer.signum(dColumn);
++                        if (fillInRow == cell.row && fillInColumn == cell.column) break;
++                        Cell fillInGapCell = Cell.of(fillInRow, fillInColumn, mPatternSize);
++                        if (!mPatternDrawLookup[fillInGapCell.row][fillInGapCell.column]) {
++                            addCellToPattern(fillInGapCell);
++                        }
++                    }
+                 }
+-
+-                fillInGapCell = Cell.of(fillInRow, fillInColumn);
+             }
+ 
+-            if (fillInGapCell != null &&
+-                    !mPatternDrawLookup[fillInGapCell.row][fillInGapCell.column]) {
+-                addCellToPattern(fillInGapCell);
+-            }
+             addCellToPattern(cell);
+             if (mEnableHapticFeedback) {
+                 performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY,
+@@ -811,7 +872,7 @@ public class LockPatternView extends View {
+         if (mPatternDrawLookup[rowHit][columnHit]) {
+             return null;
+         }
+-        return Cell.of(rowHit, columnHit);
++        return Cell.of(rowHit, columnHit, mPatternSize);
+     }
+ 
+     /**
+@@ -825,7 +886,7 @@ public class LockPatternView extends View {
+         float hitSize = squareHeight * mHitFactor;
+ 
+         float offset = mPaddingTop + (squareHeight - hitSize) / 2f;
+-        for (int i = 0; i < 3; i++) {
++        for (int i = 0; i < mPatternSize; i++) {
+ 
+             final float hitTop = offset + squareHeight * i;
+             if (y >= hitTop && y <= hitTop + hitSize) {
+@@ -845,7 +906,7 @@ public class LockPatternView extends View {
+         float hitSize = squareWidth * mHitFactor;
+ 
+         float offset = mPaddingLeft + (squareWidth - hitSize) / 2f;
+-        for (int i = 0; i < 3; i++) {
++        for (int i = 0; i < mPatternSize; i++) {
+ 
+             final float hitLeft = offset + squareWidth * i;
+             if (x >= hitLeft && x <= hitLeft + hitSize) {
+@@ -999,8 +1060,8 @@ public class LockPatternView extends View {
+     }
+ 
+     private void cancelLineAnimations() {
+-        for (int i = 0; i < 3; i++) {
+-            for (int j = 0; j < 3; j++) {
++        for (int i = 0; i < mPatternSize; i++) {
++            for (int j = 0; j < mPatternSize; j++) {
+                 CellState state = mCellStates[i][j];
+                 if (state.lineAnimator != null) {
+                     state.lineAnimator.cancel();
+@@ -1103,23 +1164,25 @@ public class LockPatternView extends View {
+         currentPath.rewind();
+ 
+         // draw the circles
+-        for (int i = 0; i < 3; i++) {
+-            float centerY = getCenterYForRow(i);
+-            for (int j = 0; j < 3; j++) {
+-                CellState cellState = mCellStates[i][j];
+-                float centerX = getCenterXForColumn(j);
+-                float translationY = cellState.translationY;
+-
+-                if (mUseLockPatternDrawable) {
+-                    drawCellDrawable(canvas, i, j, cellState.radius, drawLookup[i][j]);
+-                } else {
+-                    if (isHardwareAccelerated() && cellState.hwAnimating) {
+-                        DisplayListCanvas displayListCanvas = (DisplayListCanvas) canvas;
+-                        displayListCanvas.drawCircle(cellState.hwCenterX, cellState.hwCenterY,
+-                                cellState.hwRadius, cellState.hwPaint);
++        if (mVisibleDots) {
++            for (int i = 0; i < mPatternSize; i++) {
++                float centerY = getCenterYForRow(i);
++                for (int j = 0; j < mPatternSize; j++) {
++                    CellState cellState = mCellStates[i][j];
++                    float centerX = getCenterXForColumn(j);
++                    float translationY = cellState.translationY;
++
++                    if (mUseLockPatternDrawable) {
++                        drawCellDrawable(canvas, i, j, cellState.radius, drawLookup[i][j]);
+                     } else {
+-                        drawCircle(canvas, (int) centerX, (int) centerY + translationY,
+-                                cellState.radius, drawLookup[i][j], cellState.alpha);
++                        if (isHardwareAccelerated() && cellState.hwAnimating) {
++                            DisplayListCanvas displayListCanvas = (DisplayListCanvas) canvas;
++                            displayListCanvas.drawCircle(cellState.hwCenterX, cellState.hwCenterY,
++                                    cellState.hwRadius, cellState.hwPaint);
++                        } else {
++                            drawCircle(canvas, (int) centerX, (int) centerY + translationY,
++                                    cellState.radius, drawLookup[i][j], cellState.alpha);
++                        }
+                     }
+                 }
+             }
+@@ -1128,8 +1191,8 @@ public class LockPatternView extends View {
+         // TODO: the path should be created and cached every time we hit-detect a cell
+         // only the last segment of the path should be computed here
+         // draw the path of the pattern (unless we are in stealth mode)
+-        final boolean drawPath = !mInStealthMode;
+-
++        final boolean drawPath = ((!mInStealthMode && mPatternDisplayMode != DisplayMode.Wrong)
++                || (mPatternDisplayMode == DisplayMode.Wrong && mShowErrorPath));
+         if (drawPath) {
+             mPathPaint.setColor(getCurrentColor(true /* partOfPattern */));
+ 
+@@ -1187,7 +1250,9 @@ public class LockPatternView extends View {
+     }
+ 
+     private int getCurrentColor(boolean partOfPattern) {
+-        if (!partOfPattern || mInStealthMode || mPatternInProgress) {
++        if (!partOfPattern || (mInStealthMode && mPatternDisplayMode != DisplayMode.Wrong)
++                || (mPatternDisplayMode == DisplayMode.Wrong && !mShowErrorPath)
++                || mPatternInProgress) {
+             // unselected circle
+             return mRegularColor;
+         } else if (mPatternDisplayMode == DisplayMode.Wrong) {
+@@ -1239,9 +1304,9 @@ public class LockPatternView extends View {
+     protected Parcelable onSaveInstanceState() {
+         Parcelable superState = super.onSaveInstanceState();
+         return new SavedState(superState,
+-                LockPatternUtils.patternToString(mPattern),
+-                mPatternDisplayMode.ordinal(),
+-                mInputEnabled, mInStealthMode, mEnableHapticFeedback);
++                LockPatternUtils.patternToString(mPattern, mPatternSize),
++                mPatternDisplayMode.ordinal(), mPatternSize,
++                mInputEnabled, mInStealthMode, mEnableHapticFeedback, mVisibleDots, mShowErrorPath);
+     }
+ 
+     @Override
+@@ -1250,11 +1315,14 @@ public class LockPatternView extends View {
+         super.onRestoreInstanceState(ss.getSuperState());
+         setPattern(
+                 DisplayMode.Correct,
+-                LockPatternUtils.stringToPattern(ss.getSerializedPattern()));
++                LockPatternUtils.stringToPattern(ss.getSerializedPattern(), ss.getPatternSize()));
+         mPatternDisplayMode = DisplayMode.values()[ss.getDisplayMode()];
++        mPatternSize = ss.getPatternSize();
+         mInputEnabled = ss.isInputEnabled();
+         mInStealthMode = ss.isInStealthMode();
+         mEnableHapticFeedback = ss.isTactileFeedbackEnabled();
++        mVisibleDots = ss.isVisibleDots();
++        mShowErrorPath = ss.isShowErrorPath();
+     }
+ 
+     /**
+@@ -1264,21 +1332,28 @@ public class LockPatternView extends View {
+ 
+         private final String mSerializedPattern;
+         private final int mDisplayMode;
++        private final byte mPatternSize;
+         private final boolean mInputEnabled;
+         private final boolean mInStealthMode;
+         private final boolean mTactileFeedbackEnabled;
++        private final boolean mVisibleDots;
++        private final boolean mShowErrorPath;
+ 
+         /**
+          * Constructor called from {@link LockPatternView#onSaveInstanceState()}
+          */
+         private SavedState(Parcelable superState, String serializedPattern, int displayMode,
+-                boolean inputEnabled, boolean inStealthMode, boolean tactileFeedbackEnabled) {
++                byte patternSize, boolean inputEnabled, boolean inStealthMode,
++                boolean tactileFeedbackEnabled, boolean visibleDots, boolean showErrorPath) {
+             super(superState);
+             mSerializedPattern = serializedPattern;
+             mDisplayMode = displayMode;
++            mPatternSize = patternSize;
+             mInputEnabled = inputEnabled;
+             mInStealthMode = inStealthMode;
+             mTactileFeedbackEnabled = tactileFeedbackEnabled;
++            mVisibleDots = visibleDots;
++            mShowErrorPath = showErrorPath;
+         }
+ 
+         /**
+@@ -1288,9 +1363,12 @@ public class LockPatternView extends View {
+             super(in);
+             mSerializedPattern = in.readString();
+             mDisplayMode = in.readInt();
++            mPatternSize = (byte) in.readByte();
+             mInputEnabled = (Boolean) in.readValue(null);
+             mInStealthMode = (Boolean) in.readValue(null);
+             mTactileFeedbackEnabled = (Boolean) in.readValue(null);
++            mVisibleDots = (Boolean) in.readValue(null);
++            mShowErrorPath = (Boolean) in.readValue(null);
+         }
+ 
+         public String getSerializedPattern() {
+@@ -1301,6 +1379,10 @@ public class LockPatternView extends View {
+             return mDisplayMode;
+         }
+ 
++        public byte getPatternSize() {
++            return mPatternSize;
++        }
++
+         public boolean isInputEnabled() {
+             return mInputEnabled;
+         }
+@@ -1313,14 +1395,25 @@ public class LockPatternView extends View {
+             return mTactileFeedbackEnabled;
+         }
+ 
++        public boolean isVisibleDots() {
++            return mVisibleDots;
++        }
++
++        public boolean isShowErrorPath() {
++            return mShowErrorPath;
++        }
++
+         @Override
+         public void writeToParcel(Parcel dest, int flags) {
+             super.writeToParcel(dest, flags);
+             dest.writeString(mSerializedPattern);
+             dest.writeInt(mDisplayMode);
++            dest.writeByte(mPatternSize);
+             dest.writeValue(mInputEnabled);
+             dest.writeValue(mInStealthMode);
+             dest.writeValue(mTactileFeedbackEnabled);
++            dest.writeValue(mVisibleDots);
++            dest.writeValue(mShowErrorPath);
+         }
+ 
+         @SuppressWarnings({ "unused", "hiding" }) // Found using reflection
+diff --git a/packages/SettingsProvider/src/com/android/providers/settings/DatabaseHelper.java b/packages/SettingsProvider/src/com/android/providers/settings/DatabaseHelper.java
+index 0c3f781..7f8c0d3 100644
+--- a/packages/SettingsProvider/src/com/android/providers/settings/DatabaseHelper.java
++++ b/packages/SettingsProvider/src/com/android/providers/settings/DatabaseHelper.java
+@@ -724,6 +724,9 @@ class DatabaseHelper extends SQLiteOpenHelper {
+                    Secure.LOCK_PATTERN_VISIBLE,
+                    Secure.LOCK_PATTERN_TACTILE_FEEDBACK_ENABLED,
+                    LineageSettings.Secure.LOCK_PASS_TO_SECURITY_VIEW,
++                   Secure.LOCK_PATTERN_SIZE,
++                   Secure.LOCK_DOTS_VISIBLE,
++                   Secure.LOCK_SHOW_ERROR_PATH,
+                    "lockscreen.password_type",
+                    "lockscreen.lockoutattemptdeadline",
+                    "lockscreen.patterneverchosen",
+@@ -2012,7 +2015,8 @@ class DatabaseHelper extends SQLiteOpenHelper {
+                 try {
+                     LockPatternUtils lpu = new LockPatternUtils(mContext);
+                     List<LockPatternView.Cell> cellPattern =
+-                            LockPatternUtils.stringToPattern(lockPattern);
++                            LockPatternUtils.stringToPattern(lockPattern,
++                                    lpu.getLockPatternSize(mUserHandle));
+                     lpu.saveLockPattern(cellPattern, null, UserHandle.USER_SYSTEM);
+                 } catch (IllegalArgumentException e) {
+                     // Don't want corrupted lock pattern to hang the reboot process
+diff --git a/packages/SystemUI/src/com/android/keyguard/KeyguardPatternView.java b/packages/SystemUI/src/com/android/keyguard/KeyguardPatternView.java
+index 3c9a6b9..839d05f 100644
+--- a/packages/SystemUI/src/com/android/keyguard/KeyguardPatternView.java
++++ b/packages/SystemUI/src/com/android/keyguard/KeyguardPatternView.java
+@@ -143,6 +143,15 @@ public class KeyguardPatternView extends LinearLayout implements KeyguardSecurit
+         mLockPatternView = findViewById(R.id.lockPatternView);
+         mLockPatternView.setSaveEnabled(false);
+         mLockPatternView.setOnPatternListener(new UnlockPatternListener());
++        mLockPatternView.setLockPatternUtils(mLockPatternUtils);
++        mLockPatternView.setLockPatternSize(mLockPatternUtils.getLockPatternSize(KeyguardUpdateMonitor.getCurrentUser()));
++
++        mLockPatternView.setVisibleDots(mLockPatternUtils.isVisibleDotsEnabled(
++                KeyguardUpdateMonitor.getCurrentUser()));
++        mLockPatternView.setShowErrorPath(mLockPatternUtils.isShowErrorPath(
++                KeyguardUpdateMonitor.getCurrentUser()));
++
++        setFocusableInTouchMode(true);
+ 
+         // vibrate mode will be the same for the life of this screen
+         mLockPatternView.setTactileFeedbackEnabled(mLockPatternUtils.isTactileFeedbackEnabled());
+diff --git a/services/core/java/com/android/server/locksettings/LockSettingsService.java b/services/core/java/com/android/server/locksettings/LockSettingsService.java
+index d637ebd..aed8867 100644
+--- a/services/core/java/com/android/server/locksettings/LockSettingsService.java
++++ b/services/core/java/com/android/server/locksettings/LockSettingsService.java
+@@ -1216,6 +1216,10 @@ public class LockSettingsService extends ILockSettings.Stub {
+                 && mLockPatternUtils.isSeparateProfileChallengeEnabled(userId);
+     }
+ 
++    public byte getLockPatternSize(int userId) {
++        return mStorage.getLockPatternSize(userId);
++    }
++
+     // This method should be called by LockPatternUtil only, all internal methods in this class
+     // should call setLockCredentialInternal.
+     @Override
+@@ -1656,7 +1660,9 @@ public class LockSettingsService extends ILockSettings.Stub {
+         if (storedHash.version == CredentialHash.VERSION_LEGACY) {
+             final byte[] hash;
+             if (storedHash.type == LockPatternUtils.CREDENTIAL_TYPE_PATTERN) {
+-                hash = LockPatternUtils.patternToHash(LockPatternUtils.stringToPattern(credential));
++                final byte lockPatternSize = getLockPatternSize(userId);
++                hash = LockPatternUtils.patternToHash(LockPatternUtils.stringToPattern(credential, lockPatternSize),
++                                                      lockPatternSize);
+             } else {
+                 hash = mLockPatternUtils.passwordToHash(credential, userId);
+             }
+@@ -1937,6 +1943,9 @@ public class LockSettingsService extends ILockSettings.Stub {
+             Secure.LOCK_BIOMETRIC_WEAK_FLAGS,
+             Secure.LOCK_PATTERN_VISIBLE,
+             Secure.LOCK_PATTERN_TACTILE_FEEDBACK_ENABLED,
++            Secure.LOCK_PATTERN_SIZE,
++            Secure.LOCK_DOTS_VISIBLE,
++            Secure.LOCK_SHOW_ERROR_PATH,
+             LineageSettings.Secure.LOCK_PASS_TO_SECURITY_VIEW
+     };
+ 
+diff --git a/services/core/java/com/android/server/locksettings/LockSettingsShellCommand.java b/services/core/java/com/android/server/locksettings/LockSettingsShellCommand.java
+index 4d2cf32..99e4f94 100644
+--- a/services/core/java/com/android/server/locksettings/LockSettingsShellCommand.java
++++ b/services/core/java/com/android/server/locksettings/LockSettingsShellCommand.java
+@@ -135,7 +135,8 @@ class LockSettingsShellCommand extends ShellCommand {
+     }
+ 
+     private void runSetPattern() throws RemoteException {
+-        mLockPatternUtils.saveLockPattern(stringToPattern(mNew), mOld, mCurrentUserId);
++        LockPatternUtils lpu = new LockPatternUtils(mContext);
++        mLockPatternUtils.saveLockPattern(stringToPattern(mNew, lpu.getLockPatternSize(mCurrentUserId)), mOld, mCurrentUserId);
+         getOutPrintWriter().println("Pattern set to '" + mNew + "'");
+     }
+ 
+@@ -179,7 +180,8 @@ class LockSettingsShellCommand extends ShellCommand {
+                 if (havePassword) {
+                     result = mLockPatternUtils.checkPassword(mOld, mCurrentUserId);
+                 } else {
+-                    result = mLockPatternUtils.checkPattern(stringToPattern(mOld), mCurrentUserId);
++                    LockPatternUtils lpu = new LockPatternUtils(mContext);
++                    result = mLockPatternUtils.checkPattern(stringToPattern(mOld, lpu.getLockPatternSize(mCurrentUserId)), mCurrentUserId);
+                 }
+                 if (!result) {
+                     if (!mLockPatternUtils.isManagedProfileWithUnifiedChallenge(mCurrentUserId)) {
+diff --git a/services/core/java/com/android/server/locksettings/LockSettingsStorage.java b/services/core/java/com/android/server/locksettings/LockSettingsStorage.java
+index 70d6072..fe02312 100644
+--- a/services/core/java/com/android/server/locksettings/LockSettingsStorage.java
++++ b/services/core/java/com/android/server/locksettings/LockSettingsStorage.java
+@@ -27,9 +27,11 @@ import android.database.Cursor;
+ import android.database.sqlite.SQLiteDatabase;
+ import android.database.sqlite.SQLiteOpenHelper;
+ import android.os.Environment;
++import android.os.RemoteException;
+ import android.os.UserHandle;
+ import android.os.UserManager;
+ import android.os.storage.StorageManager;
++import android.provider.Settings;
+ import android.util.ArrayMap;
+ import android.util.Log;
+ import android.util.Slog;
+@@ -443,6 +445,18 @@ class LockSettingsStorage {
+         writeFile(getLockPatternFilename(userId), patternHash);
+     }
+ 
++    public byte getLockPatternSize(int userId) {
++        long size = Long.valueOf(readKeyValue(Settings.Secure.LOCK_PATTERN_SIZE, "-1", userId));
++        if (size > 0 && size < 128) {
++            return (byte) size;
++        }
++        return LockPatternUtils.PATTERN_SIZE_DEFAULT;
++    }
++
++    public boolean isDefaultSize(int userId) {
++        return getLockPatternSize(userId) == LockPatternUtils.PATTERN_SIZE_DEFAULT;
++    }
++
+     @VisibleForTesting
+     String getLockPatternFilename(int userId) {
+         return getLockCredentialFilePathForUser(userId, LOCK_PATTERN_FILE);
+-- 
+2.7.4
+
