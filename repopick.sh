@@ -351,8 +351,6 @@ kpick 203381 # Revert "build: don't dex preopt by default on linux"
 # device/samsung/klte-common
 kpick 203304 # klte-common: power: Add legacy qcom HAL compat code
 
-# device/samsung/kltechnduo
-
 # device/samsung/msm8974
 kpick 203120 # msm8974: Enable full dex preopt
 kpick 203303 # Revert "msm8974-common: Use QTI HIDL power HAL" 
@@ -364,7 +362,6 @@ kpick 201552 # Squashed import of superuser SELinux policies
 kpick 201582 # sepolicy: adapt sudaemon policy for O
 kpick 203433 # sepolicy: Allow apps with API level <= 25 to access services
 kpick 203558 # sepolicy: Add policy for vendor.lineage.power HAL
-kpick 203578 # qcom: Allow fsck to check /persist
 
 # device/qcom/common
 kpick 201274 # power: Update power hal extension for new qti hal
@@ -376,20 +373,20 @@ kpick 202995 # legacy: Address mpdecision denials
 
 # frameworks/av
 kpick 198113 # camera/media: Support for legacy camera HALv1
-kpick 198114 # libstagefright: Support for legacy camera/encoder buffers
 kpick 198116 # CameraService: Fix deadlock in binder death cleanup.
 kpick 201731 # libstagefright: use 64-bit usage for native_window_set_usage
 kpick 203520 # media: fix infinite wait at source for HAL1 based recording
 kpick 203521 # libstagefright: Free buffers on observer died
 kpick 203522 # stagefright: ACodec: Resolve empty vendor parameters usage
 kpick 203523 # Camera: fix use after disconnect error
+kpick 203669 # libmedia: Fix null pointer crash in secure buffer allocation..
 
 # frameworks/base
 kpick 198701 # AppOps: track op persistence by name instead of id
-kpick 200969 # SystemUI: Power menu customizations
 kpick 201879 # frameworks: Privacy Guard for O
 kpick 199947 # PowerManager: Re-integrate button brightness
 kpick 202423 # Screenshot: append app name to filename
+kpick 202873 # Forward port CM Screen Security settings (1/2)
 kpick 202874 # Show infinity for large notification counts
 kpick 203053 # perf: Add plumbing for PerformanceManager
 kpick 203054 # perf: Adapt for HIDL Lineage power hal
@@ -428,21 +425,15 @@ kpick 201346 # Re-add dialer lookup.
 kpick 201634 # Allow using private framework API. 
 
 # packages/apps/LineageParts
-#kpick 200069 # LineageParts: Deprecate few button settings
-#kpick 199198 # LineageParts: Bring up buttons settings
 kpick 199948 # LineageParts: Bring up button backlight settings
 kpick 201528 # PrivacyGuard: Bring up and inject into Settings
 kpick 203010 # LineageParts: enable perf profiles
-kpick 203440 # LineageParts: Match default menu long press action with actual config
-kpick 203550 # LineageParts: Fix up additional styles for O
 
 # packages/apps/Settings
 kpick 201529 # Settings: Privacy Guard
 kpick 201531 # Settings: Add developer setting for root access
+kpick 202872 # Settings: forward port lock pattern grid size (2/2)
 kpick 203009 # Settings: battery: Add LineageParts perf profiles
-kpick 203599 # Settings: port manual provisiong support
-kpick 203600 # SimSettings: Correctly disabling sim switch without sim card
-kpick 203626 # SimSettings: improve dialogs
 
 # packages/apps/Snap
 kpick 202685 # Snap: Rebrand to org.lineageos.snap
@@ -466,7 +457,6 @@ kpick 203330 # treble sepolicy tests: Workaround /sbin services labels
 
 #vendor/lineage
 kpick 201336 # soong_config: Add TARGET_HAS_LEGACY_CAMERA_HAL1 variable
-#kpick 202692 # lineage: Enable boot and system server dex-preopt
 
 ##################################
 
