@@ -171,6 +171,7 @@ function projects_snapshot()
               find $topdir/.mypatches/local/$project -type f -name "*.patch" -o -name "*.diff" | while read patchfile; do
                    patch_file_name=$(basename $patchfile)
                    changeid=$(grep "Change-Id: " $patchfile | tail -n 1 | sed -e "s/ \{1,\}/ /g" -e "s/^ //g" | cut -d' ' -f2)
+                   #echo "$project >  $patchfile  ==== Change-Id:$changeid"
                    if [ "$changeid" != "" ]; then
                        if grep -q "Change-Id: $changeid" -r $topdir/.mypatches/pick/$project; then
                            pick_patch=$(grep -H "Change-Id: $changeid" -r $topdir/.mypatches/pick/$project | sed -n 1p | cut -d: -f1)
@@ -181,9 +182,9 @@ function projects_snapshot()
                        fi
                    fi
               done
-              ex_patches_count=$(find $topdir/.mypatches/local/$project -name "*.patch" -o -name "*.diff" | wc -l)
-              [ $ex_patches_count -eq 0 ] && rmdir -p --ignore-fail-on-non-empty $topdir/.mypatches/local/$project
          fi
+         [ -d $topdir/.mypatches/pick/$project ] && find $topdir/.mypatches/pick/$project -type d | xargs rmdir --ignore-fail-on-non-empty >/dev/null 2>/dev/null
+         [ -d $topdir/.mypatches/local/$project ] && find $topdir/.mypatches/local/$project -type d | xargs rmdir --ignore-fail-on-non-empty >/dev/null 2>/dev/null
     done
     find $topdir/.mypatches -type d | xargs rmdir --ignore-fail-on-non-empty >/dev/null 2>/dev/null
     mv $snapshot_file.new $snapshot_file
@@ -362,7 +363,7 @@ kpick 203303 # Revert "msm8974-common: Use QTI HIDL power HAL"
 
 # device/lineage/sepolicy
 kpick 198594 # sepolicy: qcom: Import bluetooth_loader/hci_attach rules
-kpick 199572 # sepolicy: SELinux policy for persistent properties API
+#kpick 199572 # sepolicy: SELinux policy for persistent properties API
 kpick 201552 # Squashed import of superuser SELinux policies
 kpick 201582 # sepolicy: adapt sudaemon policy for O
 kpick 203433 # sepolicy: Allow apps with API level <= 25 to access services
@@ -395,7 +396,6 @@ kpick 202873 # Forward port CM Screen Security settings (1/2)
 kpick 202874 # Show infinity for large notification counts
 kpick 203053 # perf: Add plumbing for PerformanceManager
 kpick 203054 # perf: Adapt for HIDL Lineage power hal
-kpick 203441 # Fix double action performed when pressing menu key
 kpick 203457 # Add auth framework for outgoing SMS messages
 kpick 203583 # storage: Allow browseIntent for external storage
 kpick 203584 # storage: Allow to set sdcards to visible
@@ -439,15 +439,11 @@ kpick 201529 # Settings: Privacy Guard
 kpick 201531 # Settings: Add developer setting for root access
 kpick 202872 # Settings: forward port lock pattern grid size (2/2)
 kpick 203009 # Settings: battery: Add LineageParts perf profiles
-kpick 203599 # SimSettings: port manual provisiong support
-kpick 203600 # SimSettings: Correctly disabling sim switch without sim card
-kpick 203626 # SimSettings: improve dialogs
-kpick 203628 # SimSettings: Allow disabling all the SIMs
+#kpick 203599 # SimSettings: port manual provisiong support
+#kpick 203600 # SimSettings: Correctly disabling sim switch without sim card
+#kpick 203626 # SimSettings: improve dialogs
+#kpick 203628 # SimSettings: Allow disabling all the SIMs
 kpick 203666 # MSIM: Fix user set DDS sub in hotswap cases.
-
-# packages/apps/Snap
-kpick 202685 # Snap: Rebrand to org.lineageos.snap
-kpick 203342 # Snap: update shutter buttons on CaptureUI
 
 # packages/service/Telephony
 kpick 199006 # Add TD-SCDMA related network mode options
@@ -463,7 +459,6 @@ kpick 201553 # sepolicy: We need to declare before referencing
 kpick 201583 # sepolicy: Allow su by apps on userdebug_or_eng
 kpick 201584 # sepolicy: update policies for sudaemon on O
 kpick 201732 # sepilocy: add sudaemon to ignore list
-kpick 203330 # treble sepolicy tests: Workaround /sbin services labels
 
 #vendor/lineage
 kpick 201336 # soong_config: Add TARGET_HAS_LEGACY_CAMERA_HAL1 variable
