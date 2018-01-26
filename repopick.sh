@@ -282,6 +282,7 @@ fi
 
 function kpick()
 {
+    topdir=$(gettop)
     logfile=/tmp/__repopick_tmp.log
     errfile=$(echo $logfile | sed -e "s/\.log$/\.err/")
 
@@ -319,11 +320,15 @@ function kpick()
           fi
           if grep -q "conflicts" $errfile; then
               cat $errfile
-              echo  "  >> pick changes conflict, please resolv it, then press ENTER to continue ..."
+              echo  "  >> pick changes conflict, please resolv it, then press ENTER to continue, or press 's' skip it ..."
               ch=$(sed q </dev/tty)
               if [ "$ch" = "s" ]; then
+                    curdir=$(pwd)
                     echo "skip it ..."
-                    git am --skip
+                    project=$(cat $logfile | grep "Project path:" | cut -d: -f2 | sed -e "s/ //g")
+                    cd $topdir/$project
+                    git cherry-pick --abort
+                    cd $curdir
                     break
               fi
               echo ""
@@ -352,7 +357,6 @@ function kpick()
 
 # build/make
 kpick 202441 # core: config: Add inline kernel headers to AOSP kernel header path
-kpick 203381 # Revert "build: don't dex preopt by default on linux"
 
 # device/samsung/klte-common
 kpick 203304 # klte-common: power: Add legacy qcom HAL compat code
@@ -363,11 +367,17 @@ kpick 203303 # Revert "msm8974-common: Use QTI HIDL power HAL"
 
 # device/lineage/sepolicy
 kpick 198594 # sepolicy: qcom: Import bluetooth_loader/hci_attach rules
-#kpick 199572 # sepolicy: SELinux policy for persistent properties API
-kpick 201552 # Squashed import of superuser SELinux policies
-kpick 201582 # sepolicy: adapt sudaemon policy for O
-kpick 203433 # sepolicy: Allow apps with API level <= 25 to access services
 kpick 203558 # sepolicy: Add policy for vendor.lineage.power HAL
+kpick 204149 # Add selinux policies for superuser
+kpick 204150 # SELinux: su: Remove extra quote in a comment
+kpick 204151 # selinux: Workaround for devices with PR_SET_NO_NEW_PRIVS enforcement
+kpick 204152 # sepolicy: Add policies for the new superuser sockets
+kpick 204153 # sepolicy: remove sudaemon type declaration
+kpick 204154 # sepolicy: Make superuser_device and sudaemon mlstrustedobjects
+kpick 205155 # sepolicy: fix denial for sudaemon
+kpick 204156 # sepolicy: allow kernel to read storage
+kpick 201552 # sepolicy: Clean up su policy for N
+kpick 201582 # sepolicy: adapt sudaemon policy for O
 
 # device/qcom/common
 kpick 201274 # power: Update power hal extension for new qti hal
@@ -390,7 +400,6 @@ kpick 203669 # libmedia: Fix null pointer crash in secure buffer allocation..
 # frameworks/base
 kpick 198701 # AppOps: track op persistence by name instead of id
 kpick 201879 # frameworks: Privacy Guard for O
-kpick 199947 # PowerManager: Re-integrate button brightness
 kpick 202423 # Screenshot: append app name to filename
 kpick 202873 # Forward port CM Screen Security settings (1/2)
 kpick 202874 # Show infinity for large notification counts
@@ -430,7 +439,6 @@ kpick 201346 # Re-add dialer lookup.
 kpick 201634 # Allow using private framework API. 
 
 # packages/apps/LineageParts
-kpick 199948 # LineageParts: Bring up button backlight settings
 kpick 201528 # PrivacyGuard: Bring up and inject into Settings
 kpick 203010 # LineageParts: enable perf profiles
 
@@ -439,15 +447,8 @@ kpick 201529 # Settings: Privacy Guard
 kpick 201531 # Settings: Add developer setting for root access
 kpick 202872 # Settings: forward port lock pattern grid size (2/2)
 kpick 203009 # Settings: battery: Add LineageParts perf profiles
-#kpick 203599 # SimSettings: port manual provisiong support
-#kpick 203600 # SimSettings: Correctly disabling sim switch without sim card
-#kpick 203626 # SimSettings: improve dialogs
-#kpick 203628 # SimSettings: Allow disabling all the SIMs
-kpick 203666 # MSIM: Fix user set DDS sub in hotswap cases.
 
 # packages/service/Telephony
-kpick 199006 # Add TD-SCDMA related network mode options
-kpick 199007 # Telephony: Fix translatability of network modes
 
 # system/core
 kpick 202849 # Update permissions to the superuser binary

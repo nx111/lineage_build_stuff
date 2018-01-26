@@ -1,0 +1,92 @@
+From 29f6da714f6f57c7360e51dc95f49df5465ac60a Mon Sep 17 00:00:00 2001
+From: dianlujitao <dianlujitao@lineageos.org>
+Date: Thu, 18 Jan 2018 17:09:33 +0800
+Subject: [PATCH 07/11] perf: Adapt for HIDL Lineage power hal
+
+Change-Id: I90fd1438cc85d26777cf37d18c14e91dc38ea48f
+---
+ services/core/jni/Android.mk                       |  3 +++
+ ...om_android_server_power_PowerManagerService.cpp | 24 ++++++++++++++++++++--
+ 2 files changed, 25 insertions(+), 2 deletions(-)
+
+diff --git a/services/core/jni/Android.mk b/services/core/jni/Android.mk
+index bf9f941..455d4fa 100644
+--- a/services/core/jni/Android.mk
++++ b/services/core/jni/Android.mk
+@@ -109,6 +109,9 @@ LOCAL_SHARED_LIBRARIES += \
+     android.frameworks.schedulerservice@1.0 \
+     android.frameworks.sensorservice@1.0 \
+ 
++LOCAL_SHARED_LIBRARIES += \
++    vendor.lineage.power@1.0
++
+ LOCAL_STATIC_LIBRARIES += \
+     android.hardware.broadcastradio@1.1-utils-lib \
+     libscrypt_static \
+diff --git a/services/core/jni/com_android_server_power_PowerManagerService.cpp b/services/core/jni/com_android_server_power_PowerManagerService.cpp
+index 75b0fd7..dbcc9d9 100644
+--- a/services/core/jni/com_android_server_power_PowerManagerService.cpp
++++ b/services/core/jni/com_android_server_power_PowerManagerService.cpp
+@@ -19,6 +19,7 @@
+ //#define LOG_NDEBUG 0
+ 
+ #include <android/hardware/power/1.1/IPower.h>
++#include <vendor/lineage/power/1.0/ILineagePower.h>
+ #include "JNIHelp.h"
+ #include "jni.h"
+ 
+@@ -45,6 +46,7 @@ using android::hardware::power::V1_1::IPower;
+ using android::hardware::power::V1_0::PowerHint;
+ using android::hardware::power::V1_0::Feature;
+ using android::String8;
++using vendor::lineage::power::V1_0::LineageFeature;
+ 
+ namespace android {
+ 
+@@ -59,7 +61,9 @@ static struct {
+ static jobject gPowerManagerServiceObj;
+ sp<android::hardware::power::V1_0::IPower> gPowerHalV1_0 = nullptr;
+ sp<android::hardware::power::V1_1::IPower> gPowerHalV1_1 = nullptr;
++sp<vendor::lineage::power::V1_0::ILineagePower> gLineagePowerHalV1_0 = nullptr;
+ bool gPowerHalExists = true;
++bool gLineagePowerHalExists = true;
+ std::mutex gPowerHalMutex;
+ static nsecs_t gLastEventTime[USER_ACTIVITY_EVENT_LAST + 1];
+ 
+@@ -94,6 +98,21 @@ bool getPowerHal() {
+     return gPowerHalV1_0 != nullptr;
+ }
+ 
++// Check validity of current handle to the Lineage power HAL service, and call getService() if necessary.
++// The caller must be holding gPowerHalMutex.
++bool getLineagePowerHal() {
++    if (gLineagePowerHalExists && gLineagePowerHalV1_0 == nullptr) {
++        gLineagePowerHalV1_0 = vendor::lineage::power::V1_0::ILineagePower::getService();
++        if (gLineagePowerHalV1_0 != nullptr) {
++            ALOGI("Loaded power HAL service");
++        } else {
++            ALOGI("Couldn't load power HAL service");
++            gLineagePowerHalExists = false;
++        }
++    }
++    return gLineagePowerHalV1_0 != nullptr;
++}
++
+ // Check if a call to a power HAL function failed; if so, log the failure and invalidate the
+ // current handle to the power HAL service. The caller must be holding gPowerHalMutex.
+ static void processReturn(const Return<void> &ret, const char* functionName) {
+@@ -217,8 +236,9 @@ static void nativeSetFeature(JNIEnv *env, jclass clazz, jint featureId, jint dat
+ static jint nativeGetFeature(JNIEnv *env, jclass clazz, jint featureId) {
+     int value = -1;
+ 
+-    if (gPowerModule && gPowerModule->getFeature) {
+-        value = gPowerModule->getFeature(gPowerModule, (feature_t)featureId);
++    std::lock_guard<std::mutex> lock(gPowerHalMutex);
++    if (getLineagePowerHal()) {
++        value = gLineagePowerHalV1_0->getFeature((LineageFeature)featureId);
+     }
+ 
+     return (jint)value;
+-- 
+2.7.4
+

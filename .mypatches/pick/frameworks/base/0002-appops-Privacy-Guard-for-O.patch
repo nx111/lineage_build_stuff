@@ -1,7 +1,7 @@
-From a3caccd99716c7bc0a53fb9568f935d29c523bdf Mon Sep 17 00:00:00 2001
+From fa2e2127d39c1013b5be9ea18ea16bb714fa4311 Mon Sep 17 00:00:00 2001
 From: Steve Kondik <steve@cyngn.com>
 Date: Sun, 20 Oct 2013 23:48:00 -0700
-Subject: [PATCH 02/12] appops: Privacy Guard for O
+Subject: [PATCH 02/11] appops: Privacy Guard for O
 
 Squashed commit of all PG-related features including superuser
 
@@ -323,6 +323,16 @@ Date:   Sun Aug 6 13:08:33 2017 +0200
 
     Change-Id: Iafcf058f5e2074982bf45f8c82ef8d027b9358f0
 
+Author: Unpublished <unpublished@gmx.net>
+Date:   Tue Oct 24 21:09:31 2017 +0200
+
+    We don't want to feel deprecated...
+
+    use official api instead of deprecated internal method that prints an
+    error everytime we call it
+
+    Change-Id: Ie00efe5f514ff8db2b82eeade3a588a17af8cfb4
+
 Change-Id: I5414dd0be6a81e143f5035e58709ac4258c93616
 ---
  core/java/android/app/AppOpsManager.java           | 379 +++++++++++++-
@@ -348,7 +358,7 @@ Change-Id: I5414dd0be6a81e143f5035e58709ac4258c93616
  .../android/server/BluetoothManagerService.java    |  10 +
  .../java/com/android/server/PermissionDialog.java  | 145 ++++++
  .../android/server/PermissionDialogReqQueue.java   |  88 ++++
- .../android/server/am/ActivityManagerService.java  |  66 +++
+ .../android/server/am/ActivityManagerService.java  |  63 +++
  .../java/com/android/server/am/ActivityRecord.java |  30 ++
  .../android/server/am/ActivityStackSupervisor.java |   5 +
  .../java/com/android/server/am/UserController.java |   4 +-
@@ -356,7 +366,7 @@ Change-Id: I5414dd0be6a81e143f5035e58709ac4258c93616
  .../com/android/server/pm/UserManagerService.java  |   2 +
  .../android/server/pm/UserRestrictionsUtils.java   |   4 +-
  .../java/android/telephony/TelephonyManager.java   |  13 +-
- 31 files changed, 2385 insertions(+), 56 deletions(-)
+ 31 files changed, 2382 insertions(+), 56 deletions(-)
  create mode 100644 core/res/res/drawable/stat_notify_privacy_guard.xml
  create mode 100644 core/res/res/layout/permission_confirmation_dialog.xml
  create mode 100644 core/res/res/values/lineage_arrays.xml
@@ -1406,13 +1416,13 @@ index 0000000..65149d2
 +
 +</resources>
 diff --git a/core/res/res/values/lineage_symbols.xml b/core/res/res/values/lineage_symbols.xml
-index 2d9d822..1055f7c 100644
+index 3d7a199..7968052 100644
 --- a/core/res/res/values/lineage_symbols.xml
 +++ b/core/res/res/values/lineage_symbols.xml
-@@ -35,4 +35,21 @@
- 
-     <!-- Screen unpinning -->
-     <java-symbol type="string" name="lock_to_app_toast_no_navbar" />
+@@ -39,4 +39,21 @@
+     <!-- Button backlight -->
+     <java-symbol type="integer" name="config_buttonBrightnessSettingDefault" />
+     <java-symbol type="bool" name="config_deviceHasVariableButtonBrightness" />
 +
 +    <!-- Privacy Guard -->
 +    <java-symbol type="drawable" name="stat_notify_privacy_guard" />
@@ -3366,7 +3376,7 @@ index 0000000..5b602e3
 +    }
 +}
 diff --git a/services/core/java/com/android/server/am/ActivityManagerService.java b/services/core/java/com/android/server/am/ActivityManagerService.java
-index a5e3872..5fb0687 100644
+index a5e3872..a9742f4 100644
 --- a/services/core/java/com/android/server/am/ActivityManagerService.java
 +++ b/services/core/java/com/android/server/am/ActivityManagerService.java
 @@ -1692,6 +1692,9 @@ public class ActivityManagerService extends IActivityManager.Stub
@@ -3379,7 +3389,7 @@ index a5e3872..5fb0687 100644
      static final int FIRST_ACTIVITY_STACK_MSG = 100;
      static final int FIRST_BROADCAST_QUEUE_MSG = 200;
      static final int FIRST_COMPAT_MODE_MSG = 300;
-@@ -2392,6 +2395,69 @@ public class ActivityManagerService extends IActivityManager.Stub
+@@ -2392,6 +2395,66 @@ public class ActivityManagerService extends IActivityManager.Stub
                  // it is finished we make sure it is reset to its default.
                  mUserIsMonkey = false;
              } break;
@@ -3404,19 +3414,16 @@ index a5e3872..5fb0687 100644
 +                    Intent infoIntent = new Intent(Settings.ACTION_APP_OPS_DETAILS_SETTINGS,
 +                            Uri.fromParts("package", root.packageName, null));
 +
-+                    Notification notification = new Notification();
-+                    notification.icon = com.android.internal.R.drawable.stat_notify_privacy_guard;
-+                    notification.when = 0;
-+                    notification.flags = Notification.FLAG_ONGOING_EVENT;
-+                    notification.priority = Notification.PRIORITY_LOW;
-+                    notification.defaults = 0;
-+                    notification.sound = null;
-+                    notification.vibrate = null;
-+                    notification.setLatestEventInfo(mContext,
-+                            title, text,
-+                            PendingIntent.getActivityAsUser(mContext, 0, infoIntent,
-+                                    PendingIntent.FLAG_CANCEL_CURRENT, null,
++                    Notification.Builder builder = new Notification.Builder(mContext);
++                    builder.setSmallIcon(com.android.internal.R.drawable.stat_notify_privacy_guard)
++                            .setOngoing(true)
++                            .setPriority(Notification.PRIORITY_LOW)
++                            .setContentTitle(title)
++                            .setContentText(text)
++                            .setContentIntent(PendingIntent.getActivityAsUser(mContext, 0,
++                                    infoIntent, PendingIntent.FLAG_CANCEL_CURRENT, null,
 +                                    new UserHandle(root.userId)));
++                    Notification notification = builder.build();
 +
 +                    try {
 +                        int[] outId = new int[1];

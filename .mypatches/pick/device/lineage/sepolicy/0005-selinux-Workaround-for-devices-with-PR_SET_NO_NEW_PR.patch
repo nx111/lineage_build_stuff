@@ -1,0 +1,52 @@
+From 33c30e403c8dcbe40363b745d14f04530311d7de Mon Sep 17 00:00:00 2001
+From: Ricardo Cerqueira <ricardo@cyngn.com>
+Date: Wed, 10 Dec 2014 20:28:57 +0000
+Subject: [PATCH 05/12] selinux: Workaround for devices with
+ PR_SET_NO_NEW_PRIVS enforcement
+
+PR_SET_NO_NEW_PRIVS blocks domain transitions from within app_process,
+unless the new domain is bounded by the app's context. So we can't
+switch to a domain that has perms not available to untrusted_app :(
+
+This means any app can talk to the daemon, bypassing the su executable
+client. That's not a good thing, and needs to be resolved.
+
+Change-Id: I85b74f90b8737caaa193a0555b5262e7392519b2
+---
+ common/public/su.te | 17 ++++++++++-------
+ 1 file changed, 10 insertions(+), 7 deletions(-)
+
+diff --git a/common/public/su.te b/common/public/su.te
+index 76e4176..8e63b2f 100644
+--- a/common/public/su.te
++++ b/common/public/su.te
+@@ -44,16 +44,19 @@ userdebug_or_eng(`
+ ## Perms for the app
+ 
+ userdebug_or_eng(`
+-  typealias shell alias suclient;
+-
+   # Translate user apps to the shell domain when using su
+-  domain_auto_trans(untrusted_app, su_exec, suclient)
++  #
++  # PR_SET_NO_NEW_PRIVS blocks this :(
++  # we need to find a way to narrow this down to the actual exec.
++  # typealias shell alias suclient;
++  # domain_auto_trans(untrusted_app, su_exec, suclient)
++
++  allow untrusted_app su_exec:file { execute_no_trans getattr open read execute };
++  allow untrusted_app sudaemon:unix_stream_socket { connectto read write setopt ioctl };
++  allow untrusted_app superuser_device:dir { r_dir_perms };
++  allow untrusted_app superuser_device:sock_file { write };
+ 
+-  allow suclient sudaemon:unix_stream_socket { connectto read write setopt ioctl };
+ 
+-  allow suclient superuser_device:dir { create rw_dir_perms setattr unlink };
+-  allow suclient superuser_device:sock_file { create setattr unlink write };
+-  allow suclient untrusted_app_devpts:chr_file { read write ioctl };
+   # For Settings control of access
+   allow system_app superuser_device:sock_file { read write create setattr unlink getattr };
+   allow system_app sudaemon:unix_stream_socket { connectto read write setopt ioctl };
+-- 
+2.7.4
+
