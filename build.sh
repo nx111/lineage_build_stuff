@@ -1,6 +1,5 @@
 #!/bin/bash
-
-
+product=kltechnduo
 export USE_CCACHE=1
 export CCACHE_COMPRESS=1
 workdir=`dirname $0`
@@ -19,26 +18,32 @@ export JACK_SERVER_VM_ARGUMENTS="-Dfile.encoding=UTF-8 -XX:+TieredCompilation -X
 
 #[ -x $workdir/repopick.sh ] && $workdir/
 
-if [ $# -ge 1 -a "$1" = "addonsu" ]; then
-	breakfast kltechnduo
+if [ "$1" = "addonsu" ]; then
+	breakfast $product
 	[ -f $workdir/.mypatches/superuser.rc -a ! -f $workdir/system/extras/su/superuser.rc ] \
 		&& cp $workdir/.mypatches/superuser.rc $workdir/system/extras/su/
 	make addonsu
-elif [ $# -ge 1 -a "$1" = "boot" ]; then
-	breakfast kltechnduo
+elif [ "$1" = "boot" ]; then
+	breakfast $product
 	make -B bootimage
-#elif [ $# -ge 1 -a "$1" = "multirom" ]; then
-#	breakfast kltechnduo
-#	make multirom_zip
-else
+elif [ $# -eq 1 -a "$1" = "-B" ]; then
+	rm -rf $workdir/out/target/product/$product/system
+	rm -rf $workdir/out/target/product/$product/root
+	rm -rf $workdir/out/target/product/$product/lineage_$product-ota-*.zip
+	rm -rf $workdir/out/target/product/$product/obj/PACKAGING/*
 
-	rm -rf $workdir/out/target/product/kltechnduo/system
-	rm -rf $workdir/out/target/product/kltechnduo/root
-	rm -rf $workdir/out/target/product/kltechnduo/lineage_kltechnduo-ota-*.zip
-	rm -rf $workdir/out/target/product/kltechnduo/obj/PACKAGING/*
-        ALLOW_MISSING_DEPENDENCIES=true \
+        breakfast $product
         LINEAGE_VERSION_APPEND_TIME_OF_DAY=true WITH_SU=true \
-	brunch kltechnduo
+	cmka $product
+
+else
+	rm -rf $workdir/out/target/product/$product/system
+	rm -rf $workdir/out/target/product/$product/root
+	rm -rf $workdir/out/target/product/$product/lineage_$product-ota-*.zip
+	rm -rf $workdir/out/target/product/$product/obj/PACKAGING/*
+
+        LINEAGE_VERSION_APPEND_TIME_OF_DAY=true WITH_SU=true \
+	brunch $product
 fi
 
 if [ -x $workdir/out/host/linux-x86/bin/jack-admin ]; then

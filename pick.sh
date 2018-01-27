@@ -356,7 +356,7 @@ function kpick()
 }
 
 # build/make
-kpick 202441 # core: config: Add inline kernel headers to AOSP kernel header path
+#kpick 202441 # core: config: Add inline kernel headers to AOSP kernel header path
 
 # device/samsung/klte-common
 kpick 203304 # klte-common: power: Add legacy qcom HAL compat code
@@ -366,18 +366,7 @@ kpick 203120 # msm8974: Enable full dex preopt
 kpick 203303 # Revert "msm8974-common: Use QTI HIDL power HAL" 
 
 # device/lineage/sepolicy
-kpick 198594 # sepolicy: qcom: Import bluetooth_loader/hci_attach rules
 kpick 203558 # sepolicy: Add policy for vendor.lineage.power HAL
-kpick 204149 # Add selinux policies for superuser
-kpick 204150 # SELinux: su: Remove extra quote in a comment
-kpick 204151 # selinux: Workaround for devices with PR_SET_NO_NEW_PRIVS enforcement
-kpick 204152 # sepolicy: Add policies for the new superuser sockets
-kpick 204153 # sepolicy: remove sudaemon type declaration
-kpick 204154 # sepolicy: Make superuser_device and sudaemon mlstrustedobjects
-kpick 205155 # sepolicy: fix denial for sudaemon
-kpick 204156 # sepolicy: allow kernel to read storage
-kpick 201552 # sepolicy: Clean up su policy for N
-kpick 201582 # sepolicy: adapt sudaemon policy for O
 
 # device/qcom/common
 kpick 201274 # power: Update power hal extension for new qti hal
@@ -405,20 +394,10 @@ kpick 202873 # Forward port CM Screen Security settings (1/2)
 kpick 202874 # Show infinity for large notification counts
 kpick 203053 # perf: Add plumbing for PerformanceManager
 kpick 203054 # perf: Adapt for HIDL Lineage power hal
-kpick 203457 # Add auth framework for outgoing SMS messages
-kpick 203583 # storage: Allow browseIntent for external storage
-kpick 203584 # storage: Allow to set sdcards to visible
 
 # frameworks/native
 kpick 201530 # AppOpsManager: Update with the new ops
 kpick 203294 # surfaceflinger: set a prop when initialization is complete
-
-# frameworks/opt/Telephony
-kpick 203256 # MMS: Update apnProfileID for MMS only apn
-
-
-# hardware/libhardware-legacy
-kpick 202996 # Wifi: Add Qpower interface to libhardware_legacy
 
 # hardware/lineage/interfaces
 kpick 201226 # gps.default.so: fix crash on access to unset AGpsRilCallbacks::request_refloc
@@ -456,10 +435,6 @@ kpick 202849 # Update permissions to the superuser binary
 # system/sepolicy
 kpick 198106 # Add rules required for TARGET_HAS_LEGACY_CAMERA_HAL1
 kpick 198107 # Adapt add_service uses for TARGET_HAS_LEGACY_CAMERA_HAL1
-kpick 201553 # sepolicy: We need to declare before referencing
-kpick 201583 # sepolicy: Allow su by apps on userdebug_or_eng
-kpick 201584 # sepolicy: update policies for sudaemon on O
-kpick 201732 # sepilocy: add sudaemon to ignore list
 
 #vendor/lineage
 kpick 201336 # soong_config: Add TARGET_HAS_LEGACY_CAMERA_HAL1 variable
