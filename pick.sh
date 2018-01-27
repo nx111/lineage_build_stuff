@@ -360,13 +360,25 @@ function kpick()
 
 # device/samsung/klte-common
 kpick 203304 # klte-common: power: Add legacy qcom HAL compat code
+kpick 204310 # klte-common: Move ril_{,unsol}_commands_vendor.h to include/
+kpick 204311 # klte-common: Drop libril
 
 # device/samsung/msm8974
 kpick 203120 # msm8974: Enable full dex preopt
 kpick 203303 # Revert "msm8974-common: Use QTI HIDL power HAL" 
+kpick 204289 # msm8974-common: ril: Import libril from hardware/ril-caf
+kpick 204290 # msm8974-common: ril: Makefile maintenance
+kpick 204291 # msm8974-common: libril: Add Samsung changes
+kpick 204292 # msm8974-common: libril: Fix SMS on certain variants
+kpick 204293 # msm8974-common: libril: fix network operator search
+kpick 204294 # msm8974-common: libril: Add workaround for "ring of death" bug
+kpick 204295 # msm8974-common: libril: Fix RIL_UNSOL_NITZ_TIME_RECEIVED Parcel
+kpick 204296 # msm8974-common: libril: Get off my back
 
 # device/lineage/sepolicy
+kpick 201720 # sepolicy: add rules for updater and update_engine
 kpick 203558 # sepolicy: Add policy for vendor.lineage.power HAL
+kpick 204286 # sepolicy: Fixing camera app not launching
 
 # device/qcom/common
 kpick 201274 # power: Update power hal extension for new qti hal
@@ -375,6 +387,16 @@ kpick 201274 # power: Update power hal extension for new qti hal
 kpick 199559 # sepolicy: Allow dataservice_app to read/write to IPA device
 kpick 202830 # legacy: Add back legacy sensors rules
 kpick 202995 # legacy: Address mpdecision denials
+kpick 203500 # qca1530: use create_socket_perms_no_ioctl to avoid neverallows
+kpick 203501 # qca1530: fix neverallow on adbd
+kpick 204277 # legacy: Allow system-server access to sensor devices
+kpick 204278 # legacy: Allow mpdecision read runtime_status sysfs
+kpick 204279 # legacy: Fix camera domain socket labeling
+kpick 204280 # legacy: Import hci_qcomm_init policies
+kpick 204281 # legacy: Allow qcom power HAL to interact with perfd
+kpick 204282 # sepolicy: Allow wcnss_service to set wlan.driver properties
+kpick 204283 # sepolicy: allow system_server to read alarm boot prop
+kpick 204284 # sepolicy: Allow system_server to 'read' qti_debugfs
 
 # frameworks/av
 kpick 198113 # camera/media: Support for legacy camera HALv1
@@ -402,6 +424,7 @@ kpick 203294 # surfaceflinger: set a prop when initialization is complete
 # hardware/lineage/interfaces
 kpick 201226 # gps.default.so: fix crash on access to unset AGpsRilCallbacks::request_refloc
 kpick 203061 # lineage/interfaces: power: Add binderized service
+kpick 203824 # lineage/interfaces: power: Add default passthrough implementation
 
 # hardware/qcom/power
 kpick 203055 # power: Prepare for power profile support
@@ -427,17 +450,25 @@ kpick 201531 # Settings: Add developer setting for root access
 kpick 202872 # Settings: forward port lock pattern grid size (2/2)
 kpick 203009 # Settings: battery: Add LineageParts perf profiles
 
-# packages/service/Telephony
-
 # system/core
 kpick 202849 # Update permissions to the superuser binary
 
 # system/sepolicy
 kpick 198106 # Add rules required for TARGET_HAS_LEGACY_CAMERA_HAL1
 kpick 198107 # Adapt add_service uses for TARGET_HAS_LEGACY_CAMERA_HAL1
+kpick 201721 # sepolicy: allow update_engine to bypass neverallows for backuptool
+kpick 203847 # sepolicy: Allow init to modify system_blk_device
 
 #vendor/lineage
 kpick 201336 # soong_config: Add TARGET_HAS_LEGACY_CAMERA_HAL1 variable
+kpick 201551 # extract_utils: Use vdexExtractor and oatdump for deodexing
+kpick 201722 # vendor: add custom backuptools and postinstall script for A/B OTAs
+kpick 201975 # repopick: Give feedback if topic does not exist
+kpick 204012 # Allow building out of tree kernel modules
+kpick 204075 # lineageremote: try private remote before giving up
+kpick 204200 # lineage: Change 'bailing out' message to something more friendly
+kpick 204208 # backuptool: introduce addon.d script versioning
+
 
 ##################################
 

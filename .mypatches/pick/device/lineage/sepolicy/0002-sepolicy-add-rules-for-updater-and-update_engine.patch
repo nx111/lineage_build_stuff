@@ -1,0 +1,89 @@
+From 6833c85b2e1d7bbefbeb443a9be6dcc865f76425 Mon Sep 17 00:00:00 2001
+From: Dan Pasanen <dan.pasanen@gmail.com>
+Date: Thu, 2 Feb 2017 08:14:41 -0600
+Subject: [PATCH 2/3] sepolicy: add rules for updater and update_engine
+
+* We need special exceptions for update_engine scripts because we
+  handle backuptool operations through it.
+
+* priv_app needs to be able to make ota package dirs in order to
+  put the ota in the correct spot.
+
+Change-Id: I42a421e4d84adde9514932a056c082d1cb3e09b4
+---
+ common/private/file_contexts    |  5 +++++
+ common/private/priv_app.te      |  1 +
+ common/private/rootfs.te        |  1 +
+ common/private/sdcardfs.te      |  1 +
+ common/private/update_engine.te | 22 ++++++++++++++++++++++
+ 5 files changed, 30 insertions(+)
+ create mode 100644 common/private/priv_app.te
+ create mode 100644 common/private/rootfs.te
+ create mode 100644 common/private/sdcardfs.te
+ create mode 100644 common/private/update_engine.te
+
+diff --git a/common/private/file_contexts b/common/private/file_contexts
+index 83ceb58..b346395 100644
+--- a/common/private/file_contexts
++++ b/common/private/file_contexts
+@@ -19,3 +19,8 @@
+ /sys/devices/virtual/timed_output/vibrator/vtg_level u:object_r:sysfs_vibrator:s0
+ /sys/devices/virtual/timed_output/vibrator/vtg_min u:object_r:sysfs_vibrator:s0
+ /sys/devices/virtual/timed_output/vibrator/vtg_max u:object_r:sysfs_vibrator:s0
++
++# postinstall
++/system/bin/backuptool_ab.functions              u:object_r:otapreopt_chroot_exec:s0
++/system/bin/backuptool_ab.sh                     u:object_r:otapreopt_chroot_exec:s0
++/system/bin/backuptool_postinstall.sh            u:object_r:otapreopt_chroot_exec:s0
+diff --git a/common/private/priv_app.te b/common/private/priv_app.te
+new file mode 100644
+index 0000000..1d7fca2
+--- /dev/null
++++ b/common/private/priv_app.te
+@@ -0,0 +1 @@
++allow priv_app ota_package_file:dir create_dir_perms;
+diff --git a/common/private/rootfs.te b/common/private/rootfs.te
+new file mode 100644
+index 0000000..7cfb964
+--- /dev/null
++++ b/common/private/rootfs.te
+@@ -0,0 +1 @@
++allow rootfs labeledfs:filesystem associate;
+diff --git a/common/private/sdcardfs.te b/common/private/sdcardfs.te
+new file mode 100644
+index 0000000..245f9a8
+--- /dev/null
++++ b/common/private/sdcardfs.te
+@@ -0,0 +1 @@
++allow sdcardfs labeledfs:filesystem associate;
+diff --git a/common/private/update_engine.te b/common/private/update_engine.te
+new file mode 100644
+index 0000000..d8046cc
+--- /dev/null
++++ b/common/private/update_engine.te
+@@ -0,0 +1,22 @@
++allow update_engine self:capability { chown dac_override dac_read_search fsetid sys_rawio };
++
++#allow update_engine firmware_file:dir { search };
++allow update_engine labeledfs:filesystem { mount unmount };
++allow update_engine media_rw_data_file:dir { add_name create getattr open read remove_name rmdir search write };
++allow update_engine media_rw_data_file:file { create getattr open read unlink write };
++allow update_engine mnt_user_file:dir { search };
++allow update_engine mnt_user_file:lnk_file { read };
++allow update_engine otapreopt_chroot_exec:file { execute execute_no_trans getattr read open };
++#allow update_engine persist_file:dir { getattr };
++allow update_engine rootfs:dir { add_name create remove_name rmdir write };
++allow update_engine rootfs:file { create execute execute_no_trans relabelfrom relabelto rename setattr unlink write };
++allow update_engine sdcardfs:dir { add_name create open read remove_name rmdir search write };
++allow update_engine sdcardfs:file { create getattr open read relabelto setattr unlink write };
++allow update_engine storage_file:dir { getattr search };
++allow update_engine storage_file:lnk_file { read };
++allow update_engine system_data_file:dir { add_name create remove_name write };
++allow update_engine system_data_file:file { create open write unlink };
++allow update_engine system_file:dir { add_name create remove_name rmdir setattr write };
++allow update_engine system_file:file { create relabelfrom relabelto rename setattr unlink write };
++allow update_engine system_file:lnk_file { create rename };
++allow update_engine toolbox_exec:file { execute execute_no_trans getattr read open };
+-- 
+2.7.4
+

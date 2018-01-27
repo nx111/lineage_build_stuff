@@ -1,0 +1,54 @@
+From 120a9d996f39601eb0d99a6b6c4ba96c99824a49 Mon Sep 17 00:00:00 2001
+From: Martin Bouchet <tincho5588@gmail.com>
+Date: Sun, 24 Sep 2017 04:51:55 -0300
+Subject: [PATCH 07/12] msm8974-common: libril: fix network operator search
+
+* For search, the number of strings returned for
+  RIL_REQUEST_QUERY_AVAILABLE_NETWORKS should be defined in the system
+  prop ro.ril.telephony.qan_resp_strings
+
+Change-Id: Ie5bb8ba80c5ac93b7502da3b1bb3d2b4404ecd5e
+---
+ ril/libril/ril_service.cpp | 8 +++++---
+ 1 file changed, 5 insertions(+), 3 deletions(-)
+
+diff --git a/ril/libril/ril_service.cpp b/ril/libril/ril_service.cpp
+index d619870..c38ae25 100644
+--- a/ril/libril/ril_service.cpp
++++ b/ril/libril/ril_service.cpp
+@@ -30,6 +30,7 @@
+ #include <hidl/HidlTransportSupport.h>
+ #include <utils/SystemClock.h>
+ #include <inttypes.h>
++#include <cutils/properties.h>
+ 
+ #define INVALID_HEX_CHAR 16
+ 
+@@ -4546,20 +4547,21 @@ int radio::getAvailableNetworksResponse(int slotId,
+ #if VDBG
+     RLOGD("getAvailableNetworksResponse: serial %d", serial);
+ #endif
++    int qanRespStrings = property_get_int32("ro.ril.telephony.qan_resp_strings", 4);
+ 
+     if (radioService[slotId]->mRadioResponse != NULL) {
+         RadioResponseInfo responseInfo = {};
+         populateResponseInfo(responseInfo, serial, responseType, e);
+         hidl_vec<OperatorInfo> networks;
+         if ((response == NULL && responseLen != 0)
+-                || responseLen % (4 * sizeof(char *))!= 0) {
++                || responseLen % (qanRespStrings * sizeof(char *))!= 0) {
+             RLOGE("getAvailableNetworksResponse Invalid response: NULL");
+             if (e == RIL_E_SUCCESS) responseInfo.error = RadioError::INVALID_RESPONSE;
+         } else {
+             char **resp = (char **) response;
+             int numStrings = responseLen / sizeof(char *);
+-            networks.resize(numStrings/4);
+-            for (int i = 0, j = 0; i < numStrings; i = i + 4, j++) {
++            networks.resize(numStrings/qanRespStrings);
++            for (int i = 0, j = 0; i < numStrings; i = i + qanRespStrings, j++) {
+                 networks[j].alphaLong = convertCharPtrToHidlString(resp[i]);
+                 networks[j].alphaShort = convertCharPtrToHidlString(resp[i + 1]);
+                 networks[j].operatorNumeric = convertCharPtrToHidlString(resp[i + 2]);
+-- 
+2.7.4
+
