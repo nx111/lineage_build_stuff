@@ -403,7 +403,6 @@ kpick 203520 # media: fix infinite wait at source for HAL1 based recording
 kpick 203521 # libstagefright: Free buffers on observer died
 kpick 203522 # stagefright: ACodec: Resolve empty vendor parameters usage
 kpick 203523 # Camera: fix use after disconnect error
-kpick 203669 # libmedia: Fix null pointer crash in secure buffer allocation..
 
 # frameworks/base
 kpick 198701 # AppOps: track op persistence by name instead of id
