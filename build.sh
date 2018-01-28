@@ -34,7 +34,7 @@ elif [ $# -eq 1 -a "$1" = "-B" ]; then
 
         breakfast $product
         LINEAGE_VERSION_APPEND_TIME_OF_DAY=true WITH_SU=true \
-	cmka $product
+	cmka bacon
 
 else
 	rm -rf $workdir/out/target/product/$product/system

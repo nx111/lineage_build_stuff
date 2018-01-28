@@ -355,9 +355,6 @@ function kpick()
     [ $breakout -lt 0 ] && cat $errfile && exit $breakouit
 }
 
-# build/make
-#kpick 202441 # core: config: Add inline kernel headers to AOSP kernel header path
-
 # device/samsung/klte-common
 kpick 203304 # klte-common: power: Add legacy qcom HAL compat code
 kpick 204310 # klte-common: Move ril_{,unsol}_commands_vendor.h to include/
@@ -412,10 +409,14 @@ kpick 203669 # libmedia: Fix null pointer crash in secure buffer allocation..
 kpick 198701 # AppOps: track op persistence by name instead of id
 kpick 201879 # frameworks: Privacy Guard for O
 kpick 202423 # Screenshot: append app name to filename
+kpick 202542 # audio: add support for extended formats
 kpick 202873 # Forward port CM Screen Security settings (1/2)
 kpick 202874 # Show infinity for large notification counts
 kpick 203053 # perf: Add plumbing for PerformanceManager
 kpick 203054 # perf: Adapt for HIDL Lineage power hal
+kpick 204226 # framework/base: use multithread to verify files contained in APK
+kpick 204227 # framework/base: optimize code of multithread installation
+kpick 204228 # framework/base: fix multithread synchronization
 
 # frameworks/native
 kpick 201530 # AppOpsManager: Update with the new ops
@@ -436,6 +437,9 @@ kpick 203115 # power: Enable interaction boost unconditionally
 kpick 203030 # lineage-sdk: Add overlay support for disabling hardware features
 kpick 203011 # lineage-sdk: Reenable performance profiles
 
+# packages/apps/Bluetooth
+kpick 204093 # Fix division by zero exception when changing volume
+
 # packages/apps/Dialer
 kpick 201346 # Re-add dialer lookup.
 kpick 201634 # Allow using private framework API. 
@@ -443,12 +447,18 @@ kpick 201634 # Allow using private framework API.
 # packages/apps/LineageParts
 kpick 201528 # PrivacyGuard: Bring up and inject into Settings
 kpick 203010 # LineageParts: enable perf profiles
+kpick 204402 # LineageParts: Reenable stats
 
 # packages/apps/Settings
-kpick 201529 # Settings: Privacy Guard
 kpick 201531 # Settings: Add developer setting for root access
+kpick 201529 # Settings: Privacy Guard
 kpick 202872 # Settings: forward port lock pattern grid size (2/2)
 kpick 203009 # Settings: battery: Add LineageParts perf profiles
+kpick 204128 # Settings: Set root access options appropriately
+kpick 204358 # Settings: Apps started on boot shortcut in memory settings
+kpick 204359 # Settings: Show only one tab on PrivacyGuard direct access
+kpick 204360 # Fix AIOOBE with root access disabled
+
 
 # system/core
 kpick 202849 # Update permissions to the superuser binary
@@ -466,8 +476,7 @@ kpick 201722 # vendor: add custom backuptools and postinstall script for A/B OTA
 kpick 201975 # repopick: Give feedback if topic does not exist
 kpick 204012 # Allow building out of tree kernel modules
 kpick 204075 # lineageremote: try private remote before giving up
-kpick 204200 # lineage: Change 'bailing out' message to something more friendly
-kpick 204208 # backuptool: introduce addon.d script versioning
+#kpick 204208 # backuptool: introduce addon.d script versioning    (*****It will cause open gapps failed*****)
 
 
 ##################################
