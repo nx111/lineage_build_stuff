@@ -355,6 +355,11 @@ function kpick()
     [ $breakout -lt 0 ] && cat $errfile && exit $breakouit
 }
 
+###############################################################
+
+# bionic
+kpick 204463 # Disable realpath logspam
+
 # device/samsung/klte-common
 kpick 203304 # klte-common: power: Add legacy qcom HAL compat code
 kpick 204310 # klte-common: Move ril_{,unsol}_commands_vendor.h to include/
@@ -382,27 +387,21 @@ kpick 201274 # power: Update power hal extension for new qti hal
 
 # device/qcom/sepolicy
 kpick 199559 # sepolicy: Allow dataservice_app to read/write to IPA device
-kpick 202830 # legacy: Add back legacy sensors rules
-kpick 202995 # legacy: Address mpdecision denials
 kpick 203500 # qca1530: use create_socket_perms_no_ioctl to avoid neverallows
 kpick 203501 # qca1530: fix neverallow on adbd
-kpick 204277 # legacy: Allow system-server access to sensor devices
-kpick 204278 # legacy: Allow mpdecision read runtime_status sysfs
-kpick 204279 # legacy: Fix camera domain socket labeling
-kpick 204280 # legacy: Import hci_qcomm_init policies
 kpick 204281 # legacy: Allow qcom power HAL to interact with perfd
-kpick 204282 # sepolicy: Allow wcnss_service to set wlan.driver properties
-kpick 204283 # sepolicy: allow system_server to read alarm boot prop
-kpick 204284 # sepolicy: Allow system_server to 'read' qti_debugfs
 
 # frameworks/av
 kpick 198113 # camera/media: Support for legacy camera HALv1
 kpick 198116 # CameraService: Fix deadlock in binder death cleanup.
+kpick 198951 # CamcorderProfiles: Add new camcorder profiles
 kpick 201731 # libstagefright: use 64-bit usage for native_window_set_usage
 kpick 203520 # media: fix infinite wait at source for HAL1 based recording
 kpick 203521 # libstagefright: Free buffers on observer died
 kpick 203522 # stagefright: ACodec: Resolve empty vendor parameters usage
 kpick 203523 # Camera: fix use after disconnect error
+kpick 200035 # Camera: CameraHardwareInterface changes to support Extended FD
+kpick 204520 # camera: Only link and use vendor.qti.hardware.camera.device on qcom devices
 
 # frameworks/base
 kpick 198701 # AppOps: track op persistence by name instead of id
@@ -413,13 +412,25 @@ kpick 202873 # Forward port CM Screen Security settings (1/2)
 kpick 202874 # Show infinity for large notification counts
 kpick 203053 # perf: Add plumbing for PerformanceManager
 kpick 203054 # perf: Adapt for HIDL Lineage power hal
+kpick 203785 # SystemUI: use vector drawables for navbar icons
+kpick 203786 # SystemUI: Add a reversed version of OPA layout
+kpick 203787 # opalayout: Actually implement setDarkIntensity
+kpick 203788 # opapayout: Update for r23 smaller navbar
+kpick 203789 # opalayout/home: Fix icons and darkintensity
+kpick 203790 # OpaLayout: misc code fixes
 kpick 204226 # framework/base: use multithread to verify files contained in APK
 kpick 204227 # framework/base: optimize code of multithread installation
 kpick 204228 # framework/base: fix multithread synchronization
+kpick 204464 # Don't warn about preferred density
+kpick 204465 # Don't log about /proc/uid_time_in_state not existing
 
 # frameworks/native
 kpick 201530 # AppOpsManager: Update with the new ops
 kpick 203294 # surfaceflinger: set a prop when initialization is complete
+
+# hardware/interfaces
+kpick 200040 # Camed HAL extension: Added support in HIDL for Extended FD.
+kpick 204515 # camera: Only link and use vendor.qti.hardware.camera.device on qcom devices
 
 # hardware/lineage/interfaces
 kpick 201226 # gps.default.so: fix crash on access to unset AGpsRilCallbacks::request_refloc
@@ -437,7 +448,7 @@ kpick 203030 # lineage-sdk: Add overlay support for disabling hardware features
 kpick 203011 # lineage-sdk: Reenable performance profiles
 
 # packages/apps/Bluetooth
-kpick 204093 # Fix division by zero exception when changing volume
+kpick 204462 # consider the situations where the device has only one volume level set
 
 # packages/apps/Dialer
 kpick 201346 # Re-add dialer lookup.
@@ -453,6 +464,7 @@ kpick 201531 # Settings: Add developer setting for root access
 kpick 201529 # Settings: Privacy Guard
 kpick 202872 # Settings: forward port lock pattern grid size (2/2)
 kpick 203009 # Settings: battery: Add LineageParts perf profiles
+kpick 204127 # Settings: Root appops access in developer settings
 kpick 204128 # Settings: Set root access options appropriately
 kpick 204358 # Settings: Apps started on boot shortcut in memory settings
 kpick 204359 # Settings: Show only one tab on PrivacyGuard direct access
@@ -461,6 +473,7 @@ kpick 204360 # Fix AIOOBE with root access disabled
 
 # system/core
 kpick 202849 # Update permissions to the superuser binary
+kpick 204461 # Disable sphal namespace logspam
 
 # system/sepolicy
 kpick 198106 # Add rules required for TARGET_HAS_LEGACY_CAMERA_HAL1
@@ -469,6 +482,7 @@ kpick 201721 # sepolicy: allow update_engine to bypass neverallows for backuptoo
 kpick 203847 # sepolicy: Allow init to modify system_blk_device
 
 #vendor/lineage
+kpick 200408 # Update our privapp whitelist
 kpick 201336 # soong_config: Add TARGET_HAS_LEGACY_CAMERA_HAL1 variable
 kpick 201551 # extract_utils: Use vdexExtractor and oatdump for deodexing
 kpick 201722 # vendor: add custom backuptools and postinstall script for A/B OTAs
@@ -476,7 +490,6 @@ kpick 201975 # repopick: Give feedback if topic does not exist
 kpick 204012 # Allow building out of tree kernel modules
 kpick 204075 # lineageremote: try private remote before giving up
 #kpick 204208 # backuptool: introduce addon.d script versioning    (*****It will cause open gapps failed*****)
-
 
 ##################################
 
