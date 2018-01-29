@@ -1,0 +1,187 @@
+From 53e9a1f1161072d8b1ac27ed30a2954b0719be1e Mon Sep 17 00:00:00 2001
+From: Michael W <baddaemon87@gmail.com>
+Date: Tue, 9 Jan 2018 23:46:00 +0100
+Subject: [PATCH 10/13] AppOpsDetails: Display all missing ops
+
+* Add a new template for the remaining ops
+* Set the visibility of all ops to true
+
+* Inspired by Gabriele M <moto.falcon.git@gmail.com>
+
+Change-Id: I4f160a995a294dfbfd3013bbd29c0a9c8766ff24
+---
+ res/values/cm_arrays.xml                           |  1 +
+ res/values/cm_strings.xml                          |  1 +
+ .../settings/applications/AppOpsDetails.java       | 38 ++++++++++++++-----
+ .../android/settings/applications/AppOpsState.java | 43 ++++++++++++++++++++++
+ .../settings/applications/AppOpsSummary.java       |  2 +-
+ 5 files changed, 74 insertions(+), 11 deletions(-)
+
+diff --git a/res/values/cm_arrays.xml b/res/values/cm_arrays.xml
+index 011ba45..901773f 100644
+--- a/res/values/cm_arrays.xml
++++ b/res/values/cm_arrays.xml
+@@ -34,6 +34,7 @@
+         <item>@string/app_ops_categories_run_in_background</item>
+         <item>@string/app_ops_categories_bootup</item>
+         <item>@string/app_ops_categories_su</item>
++        <item>@string/app_ops_categories_other</item>
+     </string-array>
+ 
+     <!-- User display names for app ops codes - extension of AOSP -->
+diff --git a/res/values/cm_strings.xml b/res/values/cm_strings.xml
+index d9ad418..3a4c029 100644
+--- a/res/values/cm_strings.xml
++++ b/res/values/cm_strings.xml
+@@ -143,6 +143,7 @@
+     <string name="app_ops_categories_run_in_background">Run in background</string>
+     <string name="app_ops_categories_bootup">Bootup</string>
+     <string name="app_ops_categories_su">Root access</string>
++    <string name="app_ops_categories_other">Other</string>
+ 
+     <!-- User display names for app ops codes - extension of AOSP -->
+     <string name="app_ops_summaries_coarse_location">coarse location</string>
+diff --git a/src/com/android/settings/applications/AppOpsDetails.java b/src/com/android/settings/applications/AppOpsDetails.java
+index c1965d6..74658c9 100644
+--- a/src/com/android/settings/applications/AppOpsDetails.java
++++ b/src/com/android/settings/applications/AppOpsDetails.java
+@@ -1,6 +1,6 @@
+ /**
+  * Copyright (C) 2013 The Android Open Source Project
+- * Copyright (C) 2017 The LineageOS Project
++ * Copyright (C) 2017-2018 The LineageOS Project
+  *
+  * Licensed under the Apache License, Version 2.0 (the "License"); you may not
+  * use this file except in compliance with the License. You may obtain a copy
+@@ -186,15 +186,8 @@ public class AppOpsDetails extends SettingsPreferenceFragment {
+         mPreferenceScreen.removeAll();
+         setAppHeader(mPackageInfo);
+ 
+-        boolean isPlatformSigned = isPlatformSigned();
+-        for (AppOpsState.OpsTemplate tpl : AppOpsState.ALL_TEMPLATES) {
+-            /* If we are platform signed, only show the root switch, this
+-             * one is safe to toggle while other permission-based ones could
+-             * certainly cause system-wide problems
+-             */
+-            if (isPlatformSigned && tpl != AppOpsState.SU_TEMPLATE) {
+-                 continue;
+-            }
++        AppOpsState.OpsTemplate[] allTemplates = getTemplates();
++        for (AppOpsState.OpsTemplate tpl : allTemplates) {
+             List<AppOpsState.AppOpEntry> entries = mState.buildState(tpl,
+                     mPackageInfo.applicationInfo.uid, mPackageInfo.packageName, true);
+             for (final AppOpsState.AppOpEntry entry : entries) {
+@@ -233,6 +226,31 @@ public class AppOpsDetails extends SettingsPreferenceFragment {
+         return true;
+     }
+ 
++    private AppOpsState.OpsTemplate[] getTemplates() {
++        /* If we are platform signed, only show the root switch, this
++         * one is safe to toggle while other permission-based ones could
++         * certainly cause system-wide problems
++         */
++        if (isPlatformSigned()) {
++            return new AppOpsState.OpsTemplate[]{ AppOpsState.SU_TEMPLATE };
++        }
++
++        int length = AppOpsState.ALL_PERMS_TEMPLATES.length;
++        AppOpsState.OpsTemplate[] allTemplates = new AppOpsState.OpsTemplate[length];
++        // Loop all existing templates and set the visibility of each perm to true
++        for (int i = 0; i < length; i++) {
++            AppOpsState.OpsTemplate tpl = AppOpsState.ALL_PERMS_TEMPLATES[i];
++            for (int j = 0; j < tpl.ops.length; j++) {
++                // we only want to use the template's orderings, not the visibility
++                tpl.showPerms[j] = true;
++            }
++
++            allTemplates[i] = tpl;
++        }
++
++        return allTemplates;
++    }
++
+     private Drawable getIconByPermission(String perm) {
+         Drawable icon = null;
+         if (perm != null) {
+diff --git a/src/com/android/settings/applications/AppOpsState.java b/src/com/android/settings/applications/AppOpsState.java
+index 0b54ec4..f1a2e4d 100644
+--- a/src/com/android/settings/applications/AppOpsState.java
++++ b/src/com/android/settings/applications/AppOpsState.java
+@@ -1,5 +1,6 @@
+ /**
+  * Copyright (C) 2013 The Android Open Source Project
++ * Copyright (C) 2018 The LineageOS Project
+  *
+  * Licensed under the Apache License, Version 2.0 (the "License"); you may not
+  * use this file except in compliance with the License. You may obtain a copy
+@@ -239,12 +240,54 @@ public class AppOpsState {
+             new boolean[] { false }
+             );
+ 
++    // this template should contain all ops which are not part of any other template in
++    // ALL_TEMPLATES
++    public static final OpsTemplate REMAINING_TEMPLATE = new OpsTemplate(
++            new int[] { AppOpsManager.OP_GET_USAGE_STATS,
++                    AppOpsManager.OP_TOAST_WINDOW,
++                    AppOpsManager.OP_WRITE_WALLPAPER,
++                    AppOpsManager.OP_READ_PHONE_STATE,
++                    AppOpsManager.OP_ADD_VOICEMAIL,
++                    AppOpsManager.OP_USE_SIP,
++                    AppOpsManager.OP_PROCESS_OUTGOING_CALLS,
++                    AppOpsManager.OP_USE_FINGERPRINT,
++                    AppOpsManager.OP_BODY_SENSORS,
++                    AppOpsManager.OP_READ_CELL_BROADCASTS,
++                    AppOpsManager.OP_MOCK_LOCATION,
++                    AppOpsManager.OP_READ_EXTERNAL_STORAGE,
++                    AppOpsManager.OP_WRITE_EXTERNAL_STORAGE,
++                    AppOpsManager.OP_TURN_SCREEN_ON,
++                    AppOpsManager.OP_GET_ACCOUNTS },
++            new boolean[] { true,
++                    true,
++                    true,
++                    true,
++                    true,
++                    true,
++                    true,
++                    true,
++                    true,
++                    true,
++                    true,
++                    true,
++                    true,
++                    true,
++                    true }
++    );
++
+     public static final OpsTemplate[] ALL_TEMPLATES = new OpsTemplate[] {
+             LOCATION_TEMPLATE, PERSONAL_TEMPLATE, MESSAGING_TEMPLATE,
+             MEDIA_TEMPLATE, DEVICE_TEMPLATE, RUN_IN_BACKGROUND_TEMPLATE,
+             BOOTUP_TEMPLATE, SU_TEMPLATE
+     };
+ 
++    // this template contains all permissions grouped by templates
++    public static final OpsTemplate[] ALL_PERMS_TEMPLATES = new OpsTemplate[] {
++            LOCATION_TEMPLATE, PERSONAL_TEMPLATE, MESSAGING_TEMPLATE,
++            MEDIA_TEMPLATE, DEVICE_TEMPLATE, RUN_IN_BACKGROUND_TEMPLATE,
++            BOOTUP_TEMPLATE, SU_TEMPLATE, REMAINING_TEMPLATE
++    };
++
+     /**
+      * This class holds the per-item data in our Loader.
+      */
+diff --git a/src/com/android/settings/applications/AppOpsSummary.java b/src/com/android/settings/applications/AppOpsSummary.java
+index 86b69a1..dafedda 100644
+--- a/src/com/android/settings/applications/AppOpsSummary.java
++++ b/src/com/android/settings/applications/AppOpsSummary.java
+@@ -134,7 +134,7 @@ public class AppOpsSummary extends InstrumentedPreferenceFragment {
+         mRootView = rootView;
+ 
+         CharSequence[] pageNames = getResources().getTextArray(R.array.app_ops_categories_lineage);
+-        AppOpsState.OpsTemplate[] templates = AppOpsState.ALL_TEMPLATES;
++        AppOpsState.OpsTemplate[] templates = AppOpsState.ALL_PERMS_TEMPLATES;
+         assert(pageNames.length == templates.length);
+ 
+         int specificTab = -1;
+-- 
+2.7.4
+

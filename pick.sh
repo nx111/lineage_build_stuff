@@ -447,9 +447,6 @@ kpick 203115 # power: Enable interaction boost unconditionally
 kpick 203030 # lineage-sdk: Add overlay support for disabling hardware features
 kpick 203011 # lineage-sdk: Reenable performance profiles
 
-# packages/apps/Bluetooth
-kpick 204462 # consider the situations where the device has only one volume level set
-
 # packages/apps/Dialer
 kpick 201346 # Re-add dialer lookup.
 kpick 201634 # Allow using private framework API. 
@@ -458,6 +455,8 @@ kpick 201634 # Allow using private framework API.
 kpick 201528 # PrivacyGuard: Bring up and inject into Settings
 kpick 203010 # LineageParts: enable perf profiles
 kpick 204402 # LineageParts: Reenable stats
+kpick 204545 # LineageParts: Restore keydisabler state at boot
+kpick 204546 # LineageParts: Reenable gesture settings
 
 # packages/apps/Settings
 kpick 201531 # Settings: Add developer setting for root access
@@ -469,7 +468,9 @@ kpick 204128 # Settings: Set root access options appropriately
 kpick 204358 # Settings: Apps started on boot shortcut in memory settings
 kpick 204359 # Settings: Show only one tab on PrivacyGuard direct access
 kpick 204360 # Fix AIOOBE with root access disabled
-
+kpick 204553 # AppOpsDetails: Display all missing ops
+kpick 204554 # Settings: gesture: Add LineageParts touchscreen gesture settings
+kpick 204555 # Settings: Allow devices to provide remote gesture preferences
 
 # system/core
 kpick 202849 # Update permissions to the superuser binary
@@ -490,6 +491,7 @@ kpick 201975 # repopick: Give feedback if topic does not exist
 kpick 204012 # Allow building out of tree kernel modules
 kpick 204075 # lineageremote: try private remote before giving up
 #kpick 204208 # backuptool: introduce addon.d script versioning    (*****It will cause open gapps failed*****)
+kpick 204521 # soong: Add BOARD_USES_QCOM_HARDWARE
 
 ##################################
 
