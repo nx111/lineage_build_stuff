@@ -431,6 +431,7 @@ kpick 203294 # surfaceflinger: set a prop when initialization is complete
 # hardware/interfaces
 kpick 200040 # Camed HAL extension: Added support in HIDL for Extended FD.
 kpick 204515 # camera: Only link and use vendor.qti.hardware.camera.device on qcom devices
+kpick 204588 # Revert "Fix powerhint for NULL parameter"
 
 # hardware/lineage/interfaces
 kpick 201226 # gps.default.so: fix crash on access to unset AGpsRilCallbacks::request_refloc
