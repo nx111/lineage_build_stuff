@@ -409,7 +409,6 @@ kpick 201879 # frameworks: Privacy Guard for O
 kpick 202423 # Screenshot: append app name to filename
 kpick 202542 # audio: add support for extended formats
 kpick 202873 # Forward port CM Screen Security settings (1/2)
-kpick 202874 # Show infinity for large notification counts
 kpick 203053 # perf: Add plumbing for PerformanceManager
 kpick 203054 # perf: Adapt for HIDL Lineage power hal
 kpick 203785 # SystemUI: use vector drawables for navbar icons
