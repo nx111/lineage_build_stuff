@@ -423,6 +423,7 @@ kpick 204227 # framework/base: optimize code of multithread installation
 kpick 204228 # framework/base: fix multithread synchronization
 kpick 204464 # Don't warn about preferred density
 kpick 204465 # Don't log about /proc/uid_time_in_state not existing
+kpick 204821 # SystemUI: Forward-port notification counters
 
 # frameworks/native
 kpick 201530 # AppOpsManager: Update with the new ops
@@ -458,6 +459,7 @@ kpick 203010 # LineageParts: enable perf profiles
 kpick 204402 # LineageParts: Reenable stats
 kpick 204545 # LineageParts: Restore keydisabler state at boot
 kpick 204546 # LineageParts: Reenable gesture settings
+kpick 204823 # LineageParts: Reenable status bar notification counters
 
 # packages/apps/Settings
 kpick 201531 # Settings: Add developer setting for root access
@@ -470,12 +472,11 @@ kpick 204358 # Settings: Apps started on boot shortcut in memory settings
 kpick 204359 # Settings: Show only one tab on PrivacyGuard direct access
 kpick 204360 # Fix AIOOBE with root access disabled
 kpick 204553 # AppOpsDetails: Display all missing ops
-kpick 204554 # Settings: gesture: Add LineageParts touchscreen gesture settings
-kpick 204555 # Settings: Allow devices to provide remote gesture preferences
 
 # system/core
 kpick 202849 # Update permissions to the superuser binary
 kpick 204461 # Disable sphal namespace logspam
+kpick 204799 # set /system/etc/init.d/* permissions
 
 # system/sepolicy
 kpick 198106 # Add rules required for TARGET_HAS_LEGACY_CAMERA_HAL1

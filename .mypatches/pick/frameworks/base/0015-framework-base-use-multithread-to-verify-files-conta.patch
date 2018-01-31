@@ -1,7 +1,7 @@
-From 9307f17708cb74273d550fb629edd1fed0bfbefd Mon Sep 17 00:00:00 2001
+From 74a32308701df63454c988df36c7dfb616014cf2 Mon Sep 17 00:00:00 2001
 From: zljing <zljing@codeaurora.org>
 Date: Tue, 22 Aug 2017 11:12:24 +0800
-Subject: [PATCH 15/22] framework/base: use multithread to verify files
+Subject: [PATCH 15/23] framework/base: use multithread to verify files
  contained in APK
 
 Most apps have thousands of files, which need seconds of time to
@@ -18,7 +18,7 @@ Change-Id: I57cb22b2d2e962975fe8f5e046b5bb4de67766d8
  1 file changed, 91 insertions(+), 23 deletions(-)
 
 diff --git a/core/java/android/content/pm/PackageParser.java b/core/java/android/content/pm/PackageParser.java
-index cb9ecf3..1e52fae 100644
+index cb9ecf3..6aaca89 100644
 --- a/core/java/android/content/pm/PackageParser.java
 +++ b/core/java/android/content/pm/PackageParser.java
 @@ -127,6 +127,10 @@ import java.util.UUID;
@@ -70,13 +70,13 @@ index cb9ecf3..1e52fae 100644
 +            final ThreadPoolExecutor verificationExecutor = new ThreadPoolExecutor(
 +                    NUMBER_OF_CORES,
 +                    NUMBER_OF_CORES,
-+                    1,/*keep alive time*/
++                    1, /* keep alive time */
 +                    TimeUnit.SECONDS,
 +                    new LinkedBlockingQueue<Runnable>()){
 +                protected void afterExecute(Runnable r, Throwable t) {
 +                    synchronized (sObjWaitAll) {
 +                        sTaskCount--;
-+                        if(sTaskCount <= 0 && sWaitingForVerificationDone) {
++                        if (sTaskCount <= 0 && sWaitingForVerificationDone) {
 +                            sObjWaitAll.notify();
 +                        }
                      }
@@ -85,14 +85,14 @@ index cb9ecf3..1e52fae 100644
 -                        throw new PackageParserException(
 -                                INSTALL_PARSE_FAILED_INCONSISTENT_CERTIFICATES, "Package " + apkPath
 -                                        + " has mismatched certificates at entry "
-+                    super.afterExecute(r,t);
++                    super.afterExecute(r, t);
 +                }
 +                protected void beforeExecute(Thread t, Runnable r) {
-+                    super.beforeExecute(t,r);
++                    super.beforeExecute(t, r);
 +                }
 +            };
 +            for (ZipEntry entry : toVerify) {
-+                Runnable verifyTask = new Runnable(){
++                Runnable verifyTask = new Runnable() {
 +                    public void run() {
 +                        try {
 +                            final Certificate[][] entryCerts = loadCertificates(sJarFile, entry);
@@ -107,7 +107,7 @@ index cb9ecf3..1e52fae 100644
 +                                pkg.mCertificates = entryCerts;
 +                                pkg.mSignatures = entrySignatures;
 +                                pkg.mSigningKeys = new ArraySet<PublicKey>();
-+                                for (int i=0; i < entryCerts.length; i++) {
++                                for (int i = 0; i < entryCerts.length; i++) {
 +                                    pkg.mSigningKeys.add(entryCerts[i][0].getPublicKey());
 +                                }
 +                            } else {
@@ -138,7 +138,7 @@ index cb9ecf3..1e52fae 100644
 +                verificationExecutor.execute(verifyTask);
 +            }
 +            synchronized (sObjWaitAll) {
-+                if(sTaskCount > 0) {
++                if (sTaskCount > 0) {
 +                    try {
 +                        sWaitingForVerificationDone = true;
 +                        sObjWaitAll.wait();
@@ -147,7 +147,7 @@ index cb9ecf3..1e52fae 100644
 +                    } finally {
 +                        sWaitingForVerificationDone = false;
 +                        verificationExecutor.shutdownNow();
-+                        if (sPackageParseExceptionFlag != 0 )
++                        if (sPackageParseExceptionFlag != 0)
 +                            throw new PackageParserException(sPackageParseExceptionFlag,
 +                                    "Failed to collect certificates from " + apkPath, sException);
                      }
@@ -157,7 +157,7 @@ index cb9ecf3..1e52fae 100644
 -        } catch (GeneralSecurityException e) {
 -            throw new PackageParserException(INSTALL_PARSE_FAILED_CERTIFICATE_ENCODING,
 -                    "Failed to collect certificates from " + apkPath, e);
-+        //We don't need catch GeneralSecurityException in this place because it's catched above.
++        // We don't need catch GeneralSecurityException in this place because it's catched above.
          } catch (IOException | RuntimeException e) {
              throw new PackageParserException(INSTALL_PARSE_FAILED_NO_CERTIFICATES,
                      "Failed to collect certificates from " + apkPath, e);
