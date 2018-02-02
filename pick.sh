@@ -8,21 +8,6 @@ op_pick_remote_only=0
 op_patches_dir=""
 default_remote="github"
 
-########## main ###################
-
-for op in $*; do
-    [ "$op" = "-pl" -o "$op" = "--patch_local" ] && op_patch_local=1
-    [ "$op" = "--reset" -o "$op" = "-r" ] && op_reset_projects=1
-    [ "$op" = "--snap" -o "$op" = "-s" ] && op_project_snapshot=1
-    [ "$op" = "--restore" -o "$op" = "--restore-snap" ] && op_restore_snapshot=1
-    [ "$op" = "--remote-only" -o "$op" = "-ro" ] && op_pick_remote_only=1
-    if [ "$op" = "-rp" -o "$op" = "-pr" ]; then
-        op_reset_projects=1
-    fi
-    if [ $op_patch_local -eq 1 ] && [ "$op" = "pick" -o "$op" = "local" ]; then
-        op_patches_dir="$op"
-    fi
-done
 
 ##### apply patch saved first ########
 function get_defaul_remote()
@@ -39,7 +24,6 @@ function get_defaul_remote()
            fi
       done
 }
-get_defaul_remote
 
 function patch_local()
 {
@@ -270,16 +254,7 @@ function restore_snapshot()
     cd $topdir
 }
 
-if [ $# -ge 1 ]; then
-   [ $op_project_snapshot -eq 1 ] && projects_snapshot
-   [ $op_reset_projects -eq 1 ] && projects_reset
-   [ $op_patch_local -eq 1 ] && patch_local $op_patches_dir
-   [ $op_restore_snapshot -eq 1 ] && restore_snapshot
-   [ $op_pick_remote_only -eq 0 ] && exit 0
-fi
-
-######################################
-
+##################################
 function kpick()
 {
     topdir=$(gettop)
@@ -288,6 +263,8 @@ function kpick()
 
     rm -f $errfile
     echo ""
+    changeNumber=$(echo  $* | sed -e "s/-f //g")
+    echo ">>> Picking change $changeNumber ..."
     LANG=en_US repopick -c 50 $* >$logfile 2>$errfile
     rc=$?
     cat $logfile | sed -e "/ERROR: git command failed/d"
@@ -297,7 +274,6 @@ function kpick()
           #cat  $errfile
           if [ $tries -ge 30 ]; then
                 echo "    >> pick faild !!!!!"
-                cat $errfile
                 breakout=-1
                 break
            fi
@@ -305,15 +281,19 @@ function kpick()
           grep -q -E "nothing to commit|allow-empty" $errfile && breakout=1 && break
 
           if grep -q -E "error EOF occurred|httplib\.BadStatusLine" $errfile; then
-              echo "  >> pick was interrupted, retry..."
+              echo "  >> pick was interrupted, retry ("$(expr $tries + 1)")..."
+              cat $logfile | sed -e "/ERROR: git command failed/d"
+              cat $errfile
               echo ""
-              LANG=en_US repopick -c 20 $* >$logfile 2>$errfile
+              sleep 2
+              LANG=en_US repopick -c 50 $* >$logfile 2>$errfile
               rc=$?
               if [ $rc -ne 0 ]; then
-                  cat $logfile | sed -e "/ERROR: git command failed/d"
+                  #cat $logfile | sed -e "/ERROR: git command failed/d"
                   tries=$(expr $tries + 1)
                   continue
               else
+                  cat $logfile
                   breakout=0
                   break
               fi
@@ -332,7 +312,7 @@ function kpick()
                     break
               fi
               echo ""
-              LANG=en_US repopick -c 20 $* >$logfile 2>$errfile
+              LANG=en_US repopick -c 50 $* >$logfile 2>$errfile
               rc=$?
               if [ $rc -eq 0 ]; then
                   echo "  conflicts resolved,continue ..."
@@ -344,16 +324,49 @@ function kpick()
                   continue
               fi
           fi
-
+          [ -f $errfile ] && cat $errfile
           echo "  >>**** repopick failed !"
-          cat $errfile
-          rm -f $errfile
-          exit -1
-
+          breakout=-1
+          break
     done
-    rm -f $errfile
-    [ $breakout -lt 0 ] && cat $errfile && exit $breakouit
+    if [ $breakout -lt 0 ]; then
+        [ -f $errfile ] && cat $errfile
+        rm -f $errfile
+        exit $breakouit
+    fi
 }
+
+########## main ###################
+
+for op in $*; do
+    if [ "$op" = "-pl" -o "$op" = "--patch_local" ]; then
+         op_patch_local=1
+    elif [ "$op" = "--reset" -o "$op" = "-r" ]; then
+         op_reset_projects=1
+    elif [ "$op" = "--snap" -o "$op" = "-s" ]; then
+         op_project_snapshot=1
+    elif [ "$op" = "--restore" -o "$op" = "--restore-snap" ]; then
+         op_restore_snapshot=1
+    elif [ "$op" = "--remote-only" -o "$op" = "-ro" ]; then
+         op_pick_remote_only=1
+    elif [ "$op" = "-rp" -o "$op" = "-pr" ]; then
+        op_reset_projects=1
+    else
+         kpick $op
+    fi
+    if [ $op_patch_local -eq 1 ] && [ "$op" = "pick" -o "$op" = "local" ]; then
+        op_patches_dir="$op"
+    fi
+done
+get_defaul_remote
+
+if [ $# -ge 1 ]; then
+   [ $op_project_snapshot -eq 1 ] && projects_snapshot
+   [ $op_reset_projects -eq 1 ] && projects_reset
+   [ $op_patch_local -eq 1 ] && patch_local $op_patches_dir
+   [ $op_restore_snapshot -eq 1 ] && restore_snapshot
+   [ $op_pick_remote_only -eq 0 ] && exit 0
+fi
 
 ###############################################################
 # android
