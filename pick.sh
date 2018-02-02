@@ -282,8 +282,8 @@ function kpick()
 
           if grep -q -E "error EOF occurred|httplib\.BadStatusLine" $errfile; then
               echo "  >> pick was interrupted, retry ("$(expr $tries + 1)")..."
-              cat $logfile | sed -e "/ERROR: git command failed/d"
-              cat $errfile
+              #cat $logfile | sed -e "/ERROR: git command failed/d"
+              #cat $errfile
               echo ""
               sleep 2
               LANG=en_US repopick -c 50 $* >$logfile 2>$errfile
@@ -422,11 +422,8 @@ kpick 200035 # Camera: CameraHardwareInterface changes to support Extended FD
 kpick 204520 # camera: Only link and use vendor.qti.hardware.camera.device on qcom devices
 
 # frameworks/base
-kpick 198701 # AppOps: track op persistence by name instead of id
-kpick 201879 # frameworks: Privacy Guard for O
 kpick 202423 # Screenshot: append app name to filename
 kpick 202542 # audio: add support for extended formats
-kpick 202873 # Forward port CM Screen Security settings (1/2)
 kpick 203053 # perf: Add plumbing for PerformanceManager
 kpick 203054 # perf: Adapt for HIDL Lineage power hal
 kpick 203785 # SystemUI: use vector drawables for navbar icons
@@ -444,7 +441,6 @@ kpick 204821 # SystemUI: Forward-port notification counters
 kpick 204813 # NetworkManagement : Add ability to restrict app data/wifi
 
 # frameworks/native
-kpick 201530 # AppOpsManager: Update with the new ops
 kpick 203294 # surfaceflinger: set a prop when initialization is complete
 
 # hardware/interfaces
@@ -472,24 +468,15 @@ kpick 201346 # Re-add dialer lookup.
 kpick 201634 # Allow using private framework API. 
 
 # packages/apps/LineageParts
-kpick 201528 # PrivacyGuard: Bring up and inject into Settings
 kpick 203010 # LineageParts: enable perf profiles
-kpick 204402 # LineageParts: Reenable stats
-kpick 204545 # LineageParts: Restore keydisabler state at boot
-kpick 204546 # LineageParts: Reenable gesture settings
 kpick 204823 # LineageParts: Reenable status bar notification counters
 
 # packages/apps/Settings
-kpick 201531 # Settings: Add developer setting for root access
-kpick 201529 # Settings: Privacy Guard
-kpick 202872 # Settings: forward port lock pattern grid size (2/2)
 kpick 203009 # Settings: battery: Add LineageParts perf profiles
-kpick 204127 # Settings: Root appops access in developer settings
-kpick 204128 # Settings: Set root access options appropriately
-kpick 204358 # Settings: Apps started on boot shortcut in memory settings
-kpick 204359 # Settings: Show only one tab on PrivacyGuard direct access
-kpick 204360 # Fix AIOOBE with root access disabled
-kpick 204553 # AppOpsDetails: Display all missing ops
+#kpick 204358 # Settings: Apps started on boot shortcut in memory settings
+#kpick 204359 # Settings: Show only one tab on PrivacyGuard direct access
+#kpick 204360 # Fix AIOOBE with root access disabled
+#kpick 204553 # AppOpsDetails: Display all missing ops
 
 # packages/providers/DataUsageProvider
 kpick 204803 # DataUsageProvider: rebrand to lineageos
@@ -497,12 +484,10 @@ kpick 204812 # DataUsageService: switch form CMSettings to LineageSettings
 kpick 204815 # DataUsageService: Remove GSON dep
 
 # system/media
-kpick 204887 # 	Revert "Revert "audio: add support for extended audio features""
+kpick -f 204887 # Revert "Revert "audio: add support for extended audio features""
 
 # system/core
-kpick 202849 # Update permissions to the superuser binary
 kpick 204461 # Disable sphal namespace logspam
-kpick 204799 # set /system/etc/init.d/* permissions
 
 # system/sepolicy
 kpick 198106 # Add rules required for TARGET_HAS_LEGACY_CAMERA_HAL1
