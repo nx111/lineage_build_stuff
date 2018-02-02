@@ -356,6 +356,11 @@ function kpick()
 }
 
 ###############################################################
+# android
+kpick 203880 # lineage: Reenable DataUsageProvider
+kpick 204814 # add DataUsageProvider and gson
+rsync -a android/* .repo/manifests/
+repo sync --force-sync  packages/providers/DataUsageProvider
 
 # bionic
 kpick 204463 # Disable realpath logspam
@@ -423,6 +428,7 @@ kpick 204228 # framework/base: fix multithread synchronization
 kpick 204464 # Don't warn about preferred density
 kpick 204465 # Don't log about /proc/uid_time_in_state not existing
 kpick 204821 # SystemUI: Forward-port notification counters
+kpick 204813 # NetworkManagement : Add ability to restrict app data/wifi
 
 # frameworks/native
 kpick 201530 # AppOpsManager: Update with the new ops
@@ -471,6 +477,14 @@ kpick 204358 # Settings: Apps started on boot shortcut in memory settings
 kpick 204359 # Settings: Show only one tab on PrivacyGuard direct access
 kpick 204360 # Fix AIOOBE with root access disabled
 kpick 204553 # AppOpsDetails: Display all missing ops
+
+# packages/providers/DataUsageProvider
+kpick 204803 # DataUsageProvider: rebrand to lineageos
+kpick 204812 # DataUsageService: switch form CMSettings to LineageSettings
+kpick 204815 # DataUsageService: Remove GSON dep
+
+# system/media
+kpick 204887 # 	Revert "Revert "audio: add support for extended audio features""
 
 # system/core
 kpick 202849 # Update permissions to the superuser binary

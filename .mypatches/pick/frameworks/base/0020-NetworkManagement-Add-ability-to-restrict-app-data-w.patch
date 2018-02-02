@@ -1,0 +1,258 @@
+From 87dda78688208fcf51689ff2a483d9726c807e49 Mon Sep 17 00:00:00 2001
+From: Danesh M <daneshm90@gmail.com>
+Date: Mon, 29 Feb 2016 10:02:34 -0800
+Subject: [PATCH 20/24] NetworkManagement : Add ability to restrict app
+ data/wifi
+
+Change-Id: I7d92442b14727d84c2e6f1f8e3779dc4e6dcda02
+---
+ core/java/android/net/NetworkPolicyManager.java    |   5 +-
+ .../java/android/os/INetworkManagementService.aidl |   6 ++
+ .../android/server/NetworkManagementService.java   | 111 +++++++++++++++++++++
+ .../server/net/NetworkPolicyManagerService.java    |   9 ++
+ 4 files changed, 130 insertions(+), 1 deletion(-)
+
+diff --git a/core/java/android/net/NetworkPolicyManager.java b/core/java/android/net/NetworkPolicyManager.java
+index 81c49a3..2bed929 100644
+--- a/core/java/android/net/NetworkPolicyManager.java
++++ b/core/java/android/net/NetworkPolicyManager.java
+@@ -29,7 +29,6 @@ import android.net.wifi.WifiConfiguration;
+ import android.net.wifi.WifiInfo;
+ import android.os.RemoteException;
+ import android.os.UserHandle;
+-import android.telephony.SubscriptionPlan;
+ import android.util.DebugUtils;
+ import android.util.Pair;
+ 
+@@ -54,6 +53,10 @@ public class NetworkPolicyManager {
+     public static final int POLICY_REJECT_METERED_BACKGROUND = 0x1;
+     /** Allow metered network use in the background even when in data usage save mode. */
+     public static final int POLICY_ALLOW_METERED_BACKGROUND = 0x4;
++    /** Reject application network traffic on wifi network **/
++    public static final int POLICY_REJECT_ON_WIFI = 0x8000;
++    /** Reject application network traffic on cellular network **/
++    public static final int POLICY_REJECT_ON_DATA = 0x10000;
+ 
+     /*
+      * Rules defining whether an uid has access to a network given its type (metered / non-metered).
+diff --git a/core/java/android/os/INetworkManagementService.aidl b/core/java/android/os/INetworkManagementService.aidl
+index 0562716..6303389 100644
+--- a/core/java/android/os/INetworkManagementService.aidl
++++ b/core/java/android/os/INetworkManagementService.aidl
+@@ -452,4 +452,10 @@ interface INetworkManagementService
+     void setAllowOnlyVpnForUids(boolean enable, in UidRange[] uidRanges);
+ 
+     boolean isNetworkRestricted(int uid);
++
++    /**
++     * Restrict UID from accessing data/wifi
++     */
++    void restrictAppOnData(int uid, boolean restrict);
++    void restrictAppOnWifi(int uid, boolean restrict);
+ }
+diff --git a/services/core/java/com/android/server/NetworkManagementService.java b/services/core/java/com/android/server/NetworkManagementService.java
+index 1854e2b..3c227e0 100644
+--- a/services/core/java/com/android/server/NetworkManagementService.java
++++ b/services/core/java/com/android/server/NetworkManagementService.java
+@@ -61,6 +61,7 @@ import android.net.ITetheringStatsProvider;
+ import android.net.InterfaceConfiguration;
+ import android.net.IpPrefix;
+ import android.net.LinkAddress;
++import android.net.LinkProperties;
+ import android.net.Network;
+ import android.net.NetworkPolicyManager;
+ import android.net.NetworkStats;
+@@ -90,6 +91,7 @@ import android.telephony.DataConnectionRealTimeInfo;
+ import android.telephony.PhoneStateListener;
+ import android.telephony.SubscriptionManager;
+ import android.telephony.TelephonyManager;
++import android.text.TextUtils;
+ import android.util.Log;
+ import android.util.Slog;
+ import android.util.SparseBooleanArray;
+@@ -219,6 +221,9 @@ public class NetworkManagementService extends INetworkManagementService.Stub
+ 
+     private INetd mNetdService;
+ 
++    private String mWifiInterfaceName, mDataInterfaceName;
++    private BroadcastReceiver mPendingDataRestrictReceiver;
++
+     private IBatteryStats mBatteryStats;
+ 
+     private final Thread mThread;
+@@ -279,6 +284,10 @@ public class NetworkManagementService extends INetworkManagementService.Stub
+     /** Set of states for the child firewall chains. True if the chain is active. */
+     @GuardedBy("mRulesLock")
+     final SparseBooleanArray mFirewallChainStates = new SparseBooleanArray();
++    @GuardedBy("mRulesLock")
++    final SparseBooleanArray mWifiBlacklist = new SparseBooleanArray();
++    @GuardedBy("mRulesLock")
++    final SparseBooleanArray mDataBlacklist = new SparseBooleanArray();
+ 
+     @GuardedBy("mQuotaLock")
+     private volatile boolean mDataSaverMode;
+@@ -309,6 +318,7 @@ public class NetworkManagementService extends INetworkManagementService.Stub
+     private final RemoteCallbackList<INetworkActivityListener> mNetworkActivityListeners =
+             new RemoteCallbackList<>();
+     private boolean mNetworkActive;
++    private SparseBooleanArray mPendingRestrictOnData = new SparseBooleanArray();
+ 
+     /**
+      * Constructs a new NetworkManagementService instance
+@@ -333,6 +343,7 @@ public class NetworkManagementService extends INetworkManagementService.Stub
+                 FgThread.get().getLooper());
+         mThread = new Thread(mConnector, NETD_TAG);
+ 
++        mWifiInterfaceName = SystemProperties.get("wifi.interface");
+         mDaemonHandler = new Handler(FgThread.get().getLooper());
+ 
+         // Add ourself to the Watchdog monitors.
+@@ -383,6 +394,19 @@ public class NetworkManagementService extends INetworkManagementService.Stub
+         } else {
+             prepareNativeDaemon();
+         }
++
++        // Note: processPendingDataRestrictRequests() will unregister
++        // mPendingDataRestrictReceiver once it has been able to determine
++        // the cellular network interface name.
++        mPendingDataRestrictReceiver = new BroadcastReceiver() {
++            @Override
++            public void onReceive(Context context, Intent intent) {
++                processPendingDataRestrictRequests();
++           }
++        };
++        final IntentFilter filter = new IntentFilter();
++        filter.addAction(ConnectivityManager.CONNECTIVITY_ACTION);
++        mContext.registerReceiver(mPendingDataRestrictReceiver, filter);
+     }
+ 
+     private IBatteryStats getBatteryStats() {
+@@ -1738,6 +1762,81 @@ public class NetworkManagementService extends INetworkManagementService.Stub
+         }
+     }
+ 
++    private void processPendingDataRestrictRequests() {
++        initDataInterface();
++        if (TextUtils.isEmpty(mDataInterfaceName)) {
++            return;
++        }
++        if (mPendingDataRestrictReceiver != null) {
++            mContext.unregisterReceiver(mPendingDataRestrictReceiver);
++            mPendingDataRestrictReceiver = null;
++        }
++        int count = mPendingRestrictOnData.size();
++        for (int i = 0; i < count; i++) {
++            restrictAppOnData(mPendingRestrictOnData.keyAt(i),
++                    mPendingRestrictOnData.valueAt(i));
++        }
++        mPendingRestrictOnData.clear();
++    }
++
++    @Override
++    public void restrictAppOnData(int uid, boolean restrict) {
++        mContext.enforceCallingOrSelfPermission(CONNECTIVITY_INTERNAL, TAG);
++        // silently discard when control disabled
++        // TODO: eventually migrate to be always enabled
++        if (!mBandwidthControlEnabled) return;
++
++        initDataInterface();
++        if (TextUtils.isEmpty(mDataInterfaceName)) {
++            // We don't have an interface name since data is not active
++            // yet, so queue up the request for when it comes up alive
++            mPendingRestrictOnData.put(uid, restrict);
++            return;
++        }
++
++        synchronized (mQuotaLock) {
++            boolean oldValue = mDataBlacklist.get(uid, false);
++            if (oldValue == restrict) {
++                return;
++            }
++            mDataBlacklist.put(uid, restrict);
++        }
++
++        try {
++            final String action = restrict ? "add" : "remove";
++            mConnector.execute("bandwidth", action + "restrictappsondata",
++                    mDataInterfaceName, uid);
++        } catch (NativeDaemonConnectorException e) {
++            throw e.rethrowAsParcelableException();
++        }
++    }
++
++    @Override
++    public void restrictAppOnWifi(int uid, boolean restrict) {
++        mContext.enforceCallingOrSelfPermission(CONNECTIVITY_INTERNAL, TAG);
++
++        // silently discard when control disabled
++        // TODO: eventually migrate to be always enabled
++        if (!mBandwidthControlEnabled) return;
++
++        synchronized (mQuotaLock) {
++            boolean oldValue = mWifiBlacklist.get(uid, false);
++            if (oldValue == restrict) {
++                return;
++            }
++            mWifiBlacklist.put(uid, restrict);
++        }
++
++
++        try {
++            final String action = restrict ? "add" : "remove";
++            mConnector.execute("bandwidth", action + "restrictappsonwlan",
++                    mWifiInterfaceName, uid);
++        } catch (NativeDaemonConnectorException e) {
++            throw e.rethrowAsParcelableException();
++        }
++    }
++
+     @Override
+     public void setUidMeteredNetworkBlacklist(int uid, boolean enable) {
+         setUidOnMeteredNetworkList(uid, true, enable);
+@@ -2810,4 +2909,16 @@ public class NetworkManagementService extends INetworkManagementService.Stub
+             }
+         }
+     }
++
++    private void initDataInterface() {
++        if (!TextUtils.isEmpty(mDataInterfaceName)) {
++            return;
++        }
++        ConnectivityManager cm = (ConnectivityManager) mContext.getSystemService(
++                Context.CONNECTIVITY_SERVICE);
++        LinkProperties linkProperties = cm.getLinkProperties(ConnectivityManager.TYPE_MOBILE);
++        if (linkProperties != null) {
++            mDataInterfaceName = linkProperties.getInterfaceName();
++        }
++    }
+ }
+diff --git a/services/core/java/com/android/server/net/NetworkPolicyManagerService.java b/services/core/java/com/android/server/net/NetworkPolicyManagerService.java
+index 5159c70..f8229d8 100644
+--- a/services/core/java/com/android/server/net/NetworkPolicyManagerService.java
++++ b/services/core/java/com/android/server/net/NetworkPolicyManagerService.java
+@@ -49,6 +49,8 @@ import static android.net.NetworkPolicyManager.MASK_METERED_NETWORKS;
+ import static android.net.NetworkPolicyManager.POLICY_ALLOW_METERED_BACKGROUND;
+ import static android.net.NetworkPolicyManager.POLICY_NONE;
+ import static android.net.NetworkPolicyManager.POLICY_REJECT_METERED_BACKGROUND;
++import static android.net.NetworkPolicyManager.POLICY_REJECT_ON_DATA;
++import static android.net.NetworkPolicyManager.POLICY_REJECT_ON_WIFI;
+ import static android.net.NetworkPolicyManager.RULE_ALLOW_ALL;
+ import static android.net.NetworkPolicyManager.RULE_ALLOW_METERED;
+ import static android.net.NetworkPolicyManager.RULE_NONE;
+@@ -3589,6 +3591,13 @@ public class NetworkPolicyManagerService extends INetworkPolicyManager.Stub {
+         final int oldRule = oldUidRules & MASK_METERED_NETWORKS;
+         int newRule = RULE_NONE;
+ 
++        try {
++            mNetworkManager.restrictAppOnWifi(uid, (uidPolicy & POLICY_REJECT_ON_WIFI) != 0);
++            mNetworkManager.restrictAppOnData(uid, (uidPolicy & POLICY_REJECT_ON_DATA) != 0);
++        } catch (RemoteException e) {
++            // ignored; service lives in system_server
++        }
++
+         // First step: define the new rule based on user restrictions and foreground state.
+         if (isForeground) {
+             if (isBlacklisted || (mRestrictBackground && !isWhitelisted)) {
+-- 
+2.7.4
+
