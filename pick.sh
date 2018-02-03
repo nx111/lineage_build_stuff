@@ -255,6 +255,19 @@ function restore_snapshot()
 }
 
 ##################################
+function fix_repopick_output()
+{
+    [ $# -lt 1 -o ! -f "$1" ] && return -1
+    logfile=$1
+    if ! grep -q "Applying change number" $logfile; then
+       return 1
+    fi
+    bLineNo=$(grep -n "Applying change number" $logfile | cut -d: -f1 )
+    eval sed -n "'$bLineNo,\$p'" $logfile > $logfile.fix
+    eval sed -n "'1,$(expr $bLineNo - 1)p'" $logfile >> $logfile.fix
+    mv $logfile.fix $logfile
+}
+
 function kpick()
 {
     topdir=$(gettop)
@@ -267,6 +280,7 @@ function kpick()
     echo ">>> Picking change $changeNumber ..."
     LANG=en_US repopick -c 50 $* >$logfile 2>$errfile
     rc=$?
+    fix_repopick_output $logfile
     cat $logfile | sed -e "/ERROR: git command failed/d"
     local tries=0
     local breakout=0
@@ -286,13 +300,15 @@ function kpick()
               #cat $errfile
               echo ""
               sleep 2
-              LANG=en_US repopick -c 50 $* >$logfile 2>$errfile
+              [ $tries -gt 5 ] && https_proxy=""
+              LANG=en_US https_proxy="$https_proxy" repopick -c 50 $* >$logfile 2>$errfile
               rc=$?
               if [ $rc -ne 0 ]; then
                   #cat $logfile | sed -e "/ERROR: git command failed/d"
                   tries=$(expr $tries + 1)
                   continue
               else
+                  fix_repopick_output $logfile
                   cat $logfile
                   breakout=0
                   break
@@ -435,10 +451,14 @@ kpick 203790 # OpaLayout: misc code fixes
 kpick 204226 # framework/base: use multithread to verify files contained in APK
 kpick 204227 # framework/base: optimize code of multithread installation
 kpick 204228 # framework/base: fix multithread synchronization
+kpick 204356 # framework: port IME selector notification toggle (2/2)
 kpick 204464 # Don't warn about preferred density
 kpick 204465 # Don't log about /proc/uid_time_in_state not existing
+kpick 204804 # Implement expanded desktop feature
+#kpick 204813 # NetworkManagement : Add ability to restrict app data/wifi
 kpick 204821 # SystemUI: Forward-port notification counters
-kpick 204813 # NetworkManagement : Add ability to restrict app data/wifi
+kpick 204901 # LiveDisplayTile: Avoid NPE during boot up phase
+kpick 204902 # NfcTile: Avoid NPE during boot up phase
 
 # frameworks/native
 kpick 203294 # surfaceflinger: set a prop when initialization is complete
@@ -469,14 +489,18 @@ kpick 201634 # Allow using private framework API.
 
 # packages/apps/LineageParts
 kpick 203010 # LineageParts: enable perf profiles
+kpick 204822 # LineageParts: Reenable expanded desktop settings
 kpick 204823 # LineageParts: Reenable status bar notification counters
 
 # packages/apps/Settings
 kpick 203009 # Settings: battery: Add LineageParts perf profiles
-#kpick 204358 # Settings: Apps started on boot shortcut in memory settings
-#kpick 204359 # Settings: Show only one tab on PrivacyGuard direct access
-#kpick 204360 # Fix AIOOBE with root access disabled
-#kpick 204553 # AppOpsDetails: Display all missing ops
+kpick 204361 # settings: port IME selector notification toggle (1/2)
+kpick 204820 # Settings: display: Add expanded desktop preference
+kpick 204912 # Forward port pattern visibility settings (2/2) 
+
+# packages/apps/SetupWizard
+kpick 204734 # SUW: Update for LineageOS platform & sdk
+kpick 204839 # SUW: Update Intent for Wifi connect
 
 # packages/providers/DataUsageProvider
 kpick 204803 # DataUsageProvider: rebrand to lineageos
@@ -487,6 +511,9 @@ kpick 204815 # DataUsageService: Remove GSON dep
 kpick -f 204887 # Revert "Revert "audio: add support for extended audio features""
 
 # system/core
+kpick 202493 # init: add detection of charging mode
+kpick 202494 # init: define BOARD_CHARGING_CMDLINE parameters
+kpick 202495 # init: Bring back support for arbitrary chargermode cmdlines
 kpick 204461 # Disable sphal namespace logspam
 
 # system/sepolicy
