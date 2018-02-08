@@ -1,0 +1,64 @@
+From 8e3754648966410f31133ad998b249125b667cee Mon Sep 17 00:00:00 2001
+From: Divya Narayanan Poojary <dnaray@codeaurora.org>
+Date: Tue, 4 Oct 2016 12:17:08 +0530
+Subject: [PATCH 1/4] audio: revert "remove 5.1 channel mask if SSR is not
+ supported"
+
+Revert original change to "remove 5.1 channel mask if SSR is
+not supported". Android N introduces index based channel
+mask format which breaks this position channel mask logic.
+
+Change-Id: I0e4fde87c23dbf1f9a1ad871259a312f366236e4
+---
+ policy_hal/AudioPolicyManager.cpp | 35 -----------------------------------
+ 1 file changed, 35 deletions(-)
+
+diff --git a/policy_hal/AudioPolicyManager.cpp b/policy_hal/AudioPolicyManager.cpp
+index 8b32f45..48c3a26 100755
+--- a/policy_hal/AudioPolicyManager.cpp
++++ b/policy_hal/AudioPolicyManager.cpp
+@@ -1425,41 +1425,6 @@ AudioPolicyManagerCustom::AudioPolicyManagerCustom(AudioPolicyClientInterface *c
+     ALOGD("USE_XML_AUDIO_POLICY_CONF is FALSE");
+ #endif
+ 
+-    //TODO: Check the new logic to parse policy conf and update the below code
+-    //      Need this when SSR encoding is enabled
+-    char ssr_enabled[PROPERTY_VALUE_MAX] = {0};
+-    bool prop_ssr_enabled = false;
+-
+-    if (property_get("ro.qc.sdk.audio.ssr", ssr_enabled, NULL)) {
+-        prop_ssr_enabled = atoi(ssr_enabled) || !strncmp("true", ssr_enabled, 4);
+-    }
+-
+-    for (size_t i = 0; i < mHwModules.size(); i++) {
+-        ALOGV("Hw module %zu", i);
+-        for (size_t j = 0; j < mHwModules[i]->mInputProfiles.size(); j++) {
+-            const sp<IOProfile> inProfile = mHwModules[i]->mInputProfiles[j];
+-            AudioProfileVector profiles = inProfile->getAudioProfiles();
+-            for (size_t k = 0; k < profiles.size(); k++){
+-                ChannelsVector channels = profiles[k]->getChannels();
+-                for (size_t x = 0; x < channels.size(); x++) {
+-                    audio_channel_mask_t channelMask = channels[x];
+-                    ALOGV("Channel Mask %x size %zu", channelMask,
+-                         channels.size());
+-                    if (AUDIO_CHANNEL_IN_5POINT1 == channelMask) {
+-                        if (!prop_ssr_enabled) {
+-                            ALOGI("removing AUDIO_CHANNEL_IN_5POINT1 from"
+-                                " input profile as SSR(surround sound record)"
+-                                " is not supported on this chipset variant");
+-                            channels.removeItemsAt(x, 1);
+-                            ALOGV("Channel Mask size now %zu",
+-                                channels.size());
+-                        }
+-                    }
+-                }
+-            }
+-        }
+-    }
+-
+ #ifdef RECORD_PLAY_CONCURRENCY
+     mIsInputRequestOnProgress = false;
+ #endif
+-- 
+2.7.4
+

@@ -1,0 +1,532 @@
+From b3fa08c89f5c64c542b1e21d3faf150be0b83be2 Mon Sep 17 00:00:00 2001
+From: Ashish Jain <ashishj@codeaurora.org>
+Date: Wed, 11 May 2016 19:23:33 +0530
+Subject: [PATCH 4/4] audio: Enable 24 bit packed direct pcm support.
+
+-Add support for 24 bit packed audio in audio hal.
+-Disable gapless for AV playback and direct pcm usecase,
+this ensures that the buffering in DSP is not more.
+-Simulate rendered time stamp for direct pcm usecase
+based on the number of frames written to the compress
+driver, bufferring in the driver and DSP latency.
+-Pass mixer instance to offload effects library to avoid
+an unnecessary mixer_open call, this optimizes audio
+start delay in compress playback.
+
+Change-Id: I422a53af5632eaf6cc362a6c44f62ff8412965f7
+---
+ hal/audio_extn/audio_extn.h |  10 ---
+ hal/audio_hw.c              | 148 +++++++++++++++++++++++++++++++-------------
+ hal/audio_hw.h              |   3 +-
+ hal/msm8974/platform.c      |  34 +++++-----
+ hal/platform_api.h          |   1 -
+ post_proc/bundle.c          |  13 ++--
+ 6 files changed, 130 insertions(+), 79 deletions(-)
+
+diff --git a/hal/audio_extn/audio_extn.h b/hal/audio_extn/audio_extn.h
+index 0531b5e..3475ca9 100644
+--- a/hal/audio_extn/audio_extn.h
++++ b/hal/audio_extn/audio_extn.h
+@@ -22,16 +22,6 @@
+ 
+ #include <cutils/str_parms.h>
+ 
+-#if 0
+-#define AUDIO_FORMAT_PCM_OFFLOAD 0x17000000UL
+-#define AUDIO_FORMAT_PCM_16_BIT_OFFLOAD (AUDIO_FORMAT_PCM_OFFLOAD | AUDIO_FORMAT_PCM_SUB_16_BIT)
+-#define AUDIO_FORMAT_PCM_24_BIT_OFFLOAD (AUDIO_FORMAT_PCM_OFFLOAD | AUDIO_FORMAT_PCM_SUB_8_24_BIT)
+-#define AUDIO_OFFLOAD_CODEC_FORMAT  "music_offload_codec_format"
+-#define audio_is_offload_pcm(format) (0)
+-#else
+-#define OFFLOAD_USE_SMALL_BUFFER ((info->format & AUDIO_FORMAT_PCM_OFFLOAD) == AUDIO_FORMAT_PCM_OFFLOAD)
+-#endif
+-
+ #ifndef AFE_PROXY_ENABLED
+ #define AUDIO_DEVICE_OUT_PROXY 0x40000
+ #endif
+diff --git a/hal/audio_hw.c b/hal/audio_hw.c
+index a068b57..6fd8d6b 100644
+--- a/hal/audio_hw.c
++++ b/hal/audio_hw.c
+@@ -56,6 +56,8 @@
+ #include "sound/asound.h"
+ 
+ #define COMPRESS_OFFLOAD_NUM_FRAGMENTS 4
++/*DIRECT PCM has same buffer sizes as DEEP Buffer*/
++#define DIRECT_PCM_NUM_FRAGMENTS 2
+ /* ToDo: Check and update a proper value in msec */
+ #define COMPRESS_OFFLOAD_PLAYBACK_LATENCY 50
+ #define COMPRESS_PLAYBACK_VOLUME_MAX 0x2000
+@@ -354,17 +356,17 @@ static int amplifier_close(void)
+     return 0;
+ }
+ 
+-static int check_and_set_gapless_mode(struct audio_device *adev) {
+-
+-
+-    char value[PROPERTY_VALUE_MAX] = {0};
++static int check_and_set_gapless_mode(struct audio_device *adev, bool enable_gapless)
++{
+     bool gapless_enabled = false;
+     const char *mixer_ctl_name = "Compress Gapless Playback";
+     struct mixer_ctl *ctl;
+ 
+     ALOGV("%s:", __func__);
+-    property_get("audio.offload.gapless.enabled", value, NULL);
+-    gapless_enabled = atoi(value) || !strncmp("true", value, 4);
++    gapless_enabled = property_get_bool("audio.offload.gapless.enabled", false);
++
++    /*Disable gapless if its AV playback*/
++    gapless_enabled = gapless_enabled && enable_gapless;
+ 
+     ctl = mixer_get_ctl_by_name(adev->mixer, mixer_ctl_name);
+     if (!ctl) {
+@@ -385,8 +387,8 @@ static bool is_supported_format(audio_format_t format)
+ {
+     switch (format) {
+     case AUDIO_FORMAT_MP3:
+-    case AUDIO_FORMAT_PCM_16_BIT_OFFLOAD:
+-    case AUDIO_FORMAT_PCM_24_BIT_OFFLOAD:
++    case AUDIO_FORMAT_PCM_24_BIT_PACKED:
++    case AUDIO_FORMAT_PCM_8_24_BIT:
+     case AUDIO_FORMAT_PCM_16_BIT:
+ #ifdef FLAC_OFFLOAD_ENABLED
+     case AUDIO_FORMAT_FLAC:
+@@ -420,7 +422,6 @@ static int get_snd_codec_id(audio_format_t format)
+     case AUDIO_FORMAT_AAC:
+         id = SND_AUDIOCODEC_AAC;
+         break;
+-    case AUDIO_FORMAT_PCM_OFFLOAD:
+     case AUDIO_FORMAT_PCM:
+         id = SND_AUDIOCODEC_PCM;
+         break;
+@@ -1632,7 +1633,7 @@ int start_output_stream(struct stream_out *out)
+            for the default max poll time (20s) in the event of an SSR.
+            Reduce the poll time to observe and deal with SSR faster.
+         */
+-        if (out->use_small_bufs) {
++        if (!out->non_blocking) {
+             compress_set_max_poll_wait(out->compr, 1000);
+         }
+ 
+@@ -1644,7 +1645,7 @@ int start_output_stream(struct stream_out *out)
+         if (adev->visualizer_start_output != NULL)
+             adev->visualizer_start_output(out->handle, out->pcm_device_id);
+         if (adev->offload_effects_start_output != NULL)
+-            adev->offload_effects_start_output(out->handle, out->pcm_device_id);
++            adev->offload_effects_start_output(out->handle, out->pcm_device_id, adev->mixer);
+     }
+     audio_extn_perf_lock_release();
+     ALOGV("%s: exit", __func__);
+@@ -1721,6 +1722,37 @@ static size_t get_input_buffer_size(uint32_t sample_rate,
+     return size;
+ }
+ 
++static uint64_t get_actual_pcm_frames_rendered(struct stream_out *out)
++{
++    uint64_t actual_frames_rendered = 0;
++    size_t kernel_buffer_size = out->compr_config.fragment_size * out->compr_config.fragments;
++
++    /* This adjustment accounts for buffering after app processor.
++     * It is based on estimated DSP latency per use case, rather than exact.
++     */
++    int64_t platform_latency =  platform_render_latency(out->usecase) *
++                                out->sample_rate / 1000000LL;
++
++    /* not querying actual state of buffering in kernel as it would involve an ioctl call
++     * which then needs protection, this causes delay in TS query for pcm_offload usecase
++     * hence only estimate.
++     */
++    int64_t signed_frames = out->written - kernel_buffer_size;
++
++    signed_frames = signed_frames / (audio_bytes_per_sample(out->format) * popcount(out->channel_mask)) - platform_latency;
++
++    if (signed_frames > 0)
++        actual_frames_rendered = signed_frames;
++
++    ALOGVV("%s signed frames %lld out_written %lld kernel_buffer_size %d"
++            "bytes/sample %zu channel count %d", __func__,(long long int)signed_frames,
++             (long long int)out->written, (int)kernel_buffer_size,
++             audio_bytes_per_sample(out->compr_config.codec->format),
++             popcount(out->channel_mask));
++
++    return actual_frames_rendered;
++}
++
+ static uint32_t out_get_sample_rate(const struct audio_stream *stream)
+ {
+     struct stream_out *out = (struct stream_out *)stream;
+@@ -2127,6 +2159,9 @@ static ssize_t out_write(struct audio_stream_out *stream, const void *buffer,
+             out_standby(&out->stream.common);
+             return ret;
+         }
++        if ( ret == (ssize_t)bytes && !out->non_blocking)
++            out->written += bytes;
++
+         if (!out->playback_started && ret >= 0) {
+             compress_start(out->compr);
+             out->playback_started = 1;
+@@ -2186,14 +2221,24 @@ static int out_get_render_position(const struct audio_stream_out *stream,
+     *dsp_frames = 0;
+     if (is_offload_usecase(out->usecase)) {
+         ssize_t ret = 0;
++
++        /* Below piece of code is not guarded against any lock beacuse audioFliner serializes
++         * this operation and adev_close_output_stream(where out gets reset).
++         */
++        if (!out->non_blocking && (out->flags & AUDIO_OUTPUT_FLAG_DIRECT_PCM)) {
++            *dsp_frames = get_actual_pcm_frames_rendered(out);
++             ALOGVV("dsp_frames %d sampleRate %d",(int)*dsp_frames,out->sample_rate);
++             return 0;
++        }
++
+         lock_output_stream(out);
+-        if (out->compr != NULL) {
++        if (out->compr != NULL && out->non_blocking) {
+             ret = compress_get_tstamp(out->compr, (unsigned long *)dsp_frames,
+                     &out->sample_rate);
+             if (ret < 0)
+                 ret = -errno;
+             ALOGVV("%s rendered frames %d sample_rate %d",
+-                   __func__, *dsp_frames, out->sample_rate);
++                    __func__, *dsp_frames, out->sample_rate);
+         }
+         pthread_mutex_unlock(&out->lock);
+         if (-ENETRESET == ret) {
+@@ -2238,19 +2283,37 @@ static int out_get_presentation_position(const struct audio_stream_out *stream,
+     int ret = -ENODATA;
+     unsigned long dsp_frames;
+ 
++    /* below piece of code is not guarded against any lock because audioFliner serializes
++     * this operation and adev_close_output_stream( where out gets reset).
++     */
++    if (is_offload_usecase(out->usecase) && !out->non_blocking &&
++        (out->flags & AUDIO_OUTPUT_FLAG_DIRECT_PCM)) {
++        *frames = get_actual_pcm_frames_rendered(out);
++        /* this is the best we can do */
++        clock_gettime(CLOCK_MONOTONIC, timestamp);
++        ALOGVV("frames %lld playedat %lld",(long long int)*frames,
++             timestamp->tv_sec * 1000000LL + timestamp->tv_nsec / 1000);
++        return 0;
++    }
++
+     lock_output_stream(out);
+ 
+-    if (is_offload_usecase(out->usecase)) {
+-        if (out->compr != NULL) {
+-            compress_get_tstamp(out->compr, &dsp_frames,
+-                    &out->sample_rate);
+-            ALOGVV("%s rendered frames %ld sample_rate %d",
+-                   __func__, dsp_frames, out->sample_rate);
+-            *frames = dsp_frames;
++    if (is_offload_usecase(out->usecase) && out->compr != NULL && out->non_blocking) {
++        ret = compress_get_tstamp(out->compr, &dsp_frames,
++                 &out->sample_rate);
++        ALOGVV("%s rendered frames %ld sample_rate %d",
++               __func__, dsp_frames, out->sample_rate);
++        *frames = dsp_frames;
++        if (ret < 0)
++            ret = -errno;
++        if (-ENETRESET == ret) {
++            ALOGE(" ERROR: sound card not active Unable to get time stamp from compress driver");
++            set_snd_card_state(adev,SND_CARD_STATE_OFFLINE);
++            ret = -EINVAL;
++        } else
+             ret = 0;
+-            /* this is the best we can do */
+-            clock_gettime(CLOCK_MONOTONIC, timestamp);
+-        }
++         /* this is the best we can do */
++        clock_gettime(CLOCK_MONOTONIC, timestamp);
+     } else {
+         if (out->pcm) {
+             size_t avail;
+@@ -2358,6 +2421,7 @@ static int out_flush(struct audio_stream_out* stream)
+         ALOGD("copl(%x):calling compress flush", (unsigned int)out);
+         lock_output_stream(out);
+         stop_compressed_output_l(out);
++        out->written = 0;
+         pthread_mutex_unlock(&out->lock);
+         ALOGD("copl(%x):out of compress flush", (unsigned int)out);
+         return 0;
+@@ -2745,7 +2809,6 @@ static int adev_open_output_stream(struct audio_hw_device *dev,
+     out->handle = handle;
+     out->bit_width = CODEC_BACKEND_DEFAULT_BIT_WIDTH;
+     out->non_blocking = 0;
+-    out->use_small_bufs = false;
+ 
+     /* Init use case and pcm_config */
+     if ((out->flags & AUDIO_OUTPUT_FLAG_DIRECT) &&
+@@ -2851,15 +2914,15 @@ static int adev_open_output_stream(struct audio_hw_device *dev,
+             out->compr_config.codec->id =
+                 get_snd_codec_id(config->offload_info.format);
+ 
+-        if (((config->offload_info.format & AUDIO_FORMAT_MAIN_MASK) == AUDIO_FORMAT_PCM_OFFLOAD)||
+-             ((config->offload_info.format & AUDIO_FORMAT_MAIN_MASK) == AUDIO_FORMAT_PCM)) {
++        if ((config->offload_info.format & AUDIO_FORMAT_MAIN_MASK) == AUDIO_FORMAT_PCM) {
+             out->compr_config.fragment_size =
+                        platform_get_pcm_offload_buffer_size(&config->offload_info);
++            out->compr_config.fragments = DIRECT_PCM_NUM_FRAGMENTS;
+         } else {
+             out->compr_config.fragment_size =
+                        platform_get_compress_offload_buffer_size(&config->offload_info);
++            out->compr_config.fragments = COMPRESS_OFFLOAD_NUM_FRAGMENTS;
+         }
+-        out->compr_config.fragments = COMPRESS_OFFLOAD_NUM_FRAGMENTS;
+ #ifdef NEW_SAMPLE_RATE_ENABLED
+         out->compr_config.codec->sample_rate = config->offload_info.sample_rate;
+ #else
+@@ -2877,14 +2940,11 @@ static int adev_open_output_stream(struct audio_hw_device *dev,
+ 
+         if ((config->offload_info.format & AUDIO_FORMAT_MAIN_MASK) == AUDIO_FORMAT_AAC)
+             out->compr_config.codec->format = SND_AUDIOSTREAMFORMAT_RAW;
+-        if (config->offload_info.format == AUDIO_FORMAT_PCM_16_BIT_OFFLOAD)
+-            out->compr_config.codec->format = SNDRV_PCM_FORMAT_S16_LE;
+-        if (config->offload_info.format == AUDIO_FORMAT_PCM_24_BIT_OFFLOAD)
+-            out->compr_config.codec->format = SNDRV_PCM_FORMAT_S24_LE;
+         if (config->offload_info.format == AUDIO_FORMAT_PCM_16_BIT)
+             out->compr_config.codec->format = SNDRV_PCM_FORMAT_S16_LE;
+-
+-        if (out->bit_width == 24)
++        if (config->offload_info.format == AUDIO_FORMAT_PCM_24_BIT_PACKED)
++            out->compr_config.codec->format = SNDRV_PCM_FORMAT_S24_3LE;
++        if (config->offload_info.format == AUDIO_FORMAT_PCM_8_24_BIT)
+             out->compr_config.codec->format = SNDRV_PCM_FORMAT_S24_LE;
+ 
+ #ifdef FLAC_OFFLOAD_ENABLED
+@@ -2895,14 +2955,6 @@ static int adev_open_output_stream(struct audio_hw_device *dev,
+         if (flags & AUDIO_OUTPUT_FLAG_NON_BLOCKING)
+             out->non_blocking = 1;
+ 
+-        if (platform_use_small_buffer(&config->offload_info)) {
+-            //this flag is set from framework only if its for PCM formats
+-            //no need to check for PCM format again
+-            out->non_blocking = 0;
+-            out->use_small_bufs = true;
+-            ALOGI("Keep write blocking for small buff: non_blockling %d",
+-                  out->non_blocking);
+-        }
+ 
+         out->send_new_metadata = 1;
+         out->send_next_track_params = false;
+@@ -2914,8 +2966,16 @@ static int adev_open_output_stream(struct audio_hw_device *dev,
+         ALOGV("%s: offloaded output offload_info version %04x bit rate %d",
+                 __func__, config->offload_info.version,
+                 config->offload_info.bit_rate);
+-        //Decide if we need to use gapless mode by default
+-        check_and_set_gapless_mode(adev);
++
++        /* Disable gapless if any of the following is true
++         * AV playback
++         * Direct PCM playback
++         */
++        if (config->offload_info.has_video ||
++            out->flags & AUDIO_OUTPUT_FLAG_DIRECT_PCM) {
++            check_and_set_gapless_mode(adev, false);
++        } else
++            check_and_set_gapless_mode(adev, true);
+ 
+ #ifdef INCALL_MUSIC_ENABLED
+     } else if (out->flags & AUDIO_OUTPUT_FLAG_INCALL_MUSIC) {
+@@ -3809,7 +3869,7 @@ static int adev_open(const hw_module_t *module, const char *name,
+             ALOGV("%s: DLOPEN successful for %s", __func__,
+                   OFFLOAD_EFFECTS_BUNDLE_LIBRARY_PATH);
+             adev->offload_effects_start_output =
+-                        (int (*)(audio_io_handle_t, int))dlsym(adev->offload_effects_lib,
++                        (int (*)(audio_io_handle_t, int, struct mixer *))dlsym(adev->offload_effects_lib,
+                                          "offload_effects_bundle_hal_start_output");
+             adev->offload_effects_stop_output =
+                         (int (*)(audio_io_handle_t, int))dlsym(adev->offload_effects_lib,
+diff --git a/hal/audio_hw.h b/hal/audio_hw.h
+index b5c4b6b..af57cab 100644
+--- a/hal/audio_hw.h
++++ b/hal/audio_hw.h
+@@ -180,7 +180,6 @@ struct stream_out {
+     audio_io_handle_t handle;
+ 
+     int non_blocking;
+-    bool use_small_bufs;
+     int playback_started;
+     int offload_state;
+     pthread_cond_t offload_cond;
+@@ -280,7 +279,7 @@ struct audio_device {
+     int (*visualizer_start_output)(audio_io_handle_t, int);
+     int (*visualizer_stop_output)(audio_io_handle_t, int);
+     void *offload_effects_lib;
+-    int (*offload_effects_start_output)(audio_io_handle_t, int);
++    int (*offload_effects_start_output)(audio_io_handle_t, int, struct mixer *);
+     int (*offload_effects_stop_output)(audio_io_handle_t, int);
+ 
+     struct sound_card_status snd_card_status;
+diff --git a/hal/msm8974/platform.c b/hal/msm8974/platform.c
+index bd844ca..526e0ac 100644
+--- a/hal/msm8974/platform.c
++++ b/hal/msm8974/platform.c
+@@ -518,6 +518,7 @@ static struct name_to_index usecase_name_index[AUDIO_USECASE_MAX] = {
+ };
+ 
+ #define DEEP_BUFFER_PLATFORM_DELAY (29*1000LL)
++#define PCM_OFFLOAD_PLATFORM_DELAY (30*1000LL)
+ #define LOW_LATENCY_PLATFORM_DELAY (13*1000LL)
+ 
+ #ifdef HWDEP_CAL_ENABLED
+@@ -2248,7 +2249,7 @@ void platform_get_parameters(void *platform,
+     free(kv_pairs);
+ }
+ 
+-/* Delay in Us */
++/* Delay in Us, only to be used for PCM formats */
+ int64_t platform_render_latency(audio_usecase_t usecase)
+ {
+     switch (usecase) {
+@@ -2256,6 +2257,11 @@ int64_t platform_render_latency(audio_usecase_t usecase)
+             return DEEP_BUFFER_PLATFORM_DELAY;
+         case USECASE_AUDIO_PLAYBACK_LOW_LATENCY:
+             return LOW_LATENCY_PLATFORM_DELAY;
++        case USECASE_AUDIO_PLAYBACK_OFFLOAD:
++#ifdef MULTIPLE_OFFLOAD_ENABLED
++        case USECASE_AUDIO_PLAYBACK_OFFLOAD2:
++#endif
++             return PCM_OFFLOAD_PLATFORM_DELAY;
+         default:
+             return 0;
+     }
+@@ -2339,28 +2345,27 @@ uint32_t platform_get_compress_offload_buffer_size(audio_offload_info_t* info)
+ uint32_t platform_get_pcm_offload_buffer_size(audio_offload_info_t* info)
+ {
+     uint32_t fragment_size = 0;
+-    uint32_t bits_per_sample = 16;
++    uint32_t bytes_per_sample;
+     uint32_t pcm_offload_time = PCM_OFFLOAD_BUFFER_DURATION;
+ 
+-    if (info->format == AUDIO_FORMAT_PCM_24_BIT_OFFLOAD) {
+-        bits_per_sample = 32;
+-    }
++    bytes_per_sample = audio_bytes_per_sample(info->format);
+ 
+     //duration is set to 40 ms worth of stereo data at 48Khz
+     //with 16 bit per sample, modify this when the channel
+     //configuration is different
+     fragment_size = (pcm_offload_time
+                      * info->sample_rate
+-                     * (bits_per_sample >> 3)
++                     * bytes_per_sample
+                      * popcount(info->channel_mask))/1000;
+     if(fragment_size < MIN_PCM_OFFLOAD_FRAGMENT_SIZE)
+         fragment_size = MIN_PCM_OFFLOAD_FRAGMENT_SIZE;
+     else if(fragment_size > MAX_PCM_OFFLOAD_FRAGMENT_SIZE)
+         fragment_size = MAX_PCM_OFFLOAD_FRAGMENT_SIZE;
++
+     // To have same PCM samples for all channels, the buffer size requires to
+     // be multiple of (number of channels * bytes per sample)
+     // For writes to succeed, the buffer must be written at address which is multiple of 32
+-    fragment_size = ALIGN(fragment_size, ((bits_per_sample >> 3)* popcount(info->channel_mask) * 32));
++    fragment_size = ALIGN(fragment_size, ((bytes_per_sample) * popcount(info->channel_mask) * 32));
+ 
+     ALOGI("PCM offload Fragment size to %d bytes", fragment_size);
+     return fragment_size;
+@@ -2418,13 +2423,9 @@ done:
+     return ret;
+ }
+ 
+-bool platform_use_small_buffer(audio_offload_info_t* info)
+-{
+-    return OFFLOAD_USE_SMALL_BUFFER;
+-}
+-
+ int platform_set_codec_backend_cfg(struct audio_device* adev,
+-                         unsigned int bit_width, unsigned int sample_rate)
++                         unsigned int bit_width,
++                         unsigned int sample_rate, audio_format_t format)
+ {
+     ALOGV("%s bit width: %d, sample rate: %d", __func__, bit_width, sample_rate);
+ 
+@@ -2440,6 +2441,9 @@ int platform_set_codec_backend_cfg(struct audio_device* adev,
+         }
+ 
+         if (bit_width == 24) {
++            if (format == AUDIO_FORMAT_PCM_24_BIT_PACKED)
++                mixer_ctl_set_enum_by_string(ctl, "S24_3LE");
++            else
+                 mixer_ctl_set_enum_by_string(ctl, "S24_LE");
+         } else {
+             mixer_ctl_set_enum_by_string(ctl, "S16_LE");
+@@ -2574,14 +2578,16 @@ bool platform_check_and_set_codec_backend_cfg(struct audio_device* adev, struct
+ 
+     unsigned int new_bit_width = 0, old_bit_width;
+     unsigned int new_sample_rate = 0, old_sample_rate;
++    audio_format_t format;
+ 
+     new_bit_width = old_bit_width = adev->cur_codec_backend_bit_width;
+     new_sample_rate = old_sample_rate = adev->cur_codec_backend_samplerate;
++    format = usecase->stream.out->format;
+ 
+     ALOGW("Codec backend bitwidth %d, samplerate %d", old_bit_width, old_sample_rate);
+     if (platform_check_codec_backend_cfg(adev, usecase,
+                                       &new_bit_width, &new_sample_rate)) {
+-        platform_set_codec_backend_cfg(adev, new_bit_width, new_sample_rate);
++        platform_set_codec_backend_cfg(adev, new_bit_width, new_sample_rate, format);
+         return true;
+     }
+ 
+diff --git a/hal/platform_api.h b/hal/platform_api.h
+index b5042cd..a47ac5a 100644
+--- a/hal/platform_api.h
++++ b/hal/platform_api.h
+@@ -78,7 +78,6 @@ int platform_info_init(void);
+ struct audio_offload_info_t;
+ uint32_t platform_get_compress_offload_buffer_size(audio_offload_info_t* info);
+ uint32_t platform_get_pcm_offload_buffer_size(audio_offload_info_t* info);
+-bool platform_use_small_buffer(audio_offload_info_t* info);
+ 
+ int platform_get_usecase_index(const char * usecase);
+ int platform_set_usecase_pcm_id(audio_usecase_t usecase, int32_t type, int32_t pcm_id);
+diff --git a/post_proc/bundle.c b/post_proc/bundle.c
+index 32f566b..b8d9bb8 100644
+--- a/post_proc/bundle.c
++++ b/post_proc/bundle.c
+@@ -181,7 +181,7 @@ bool effects_enabled()
+  * Interface from audio HAL
+  */
+ __attribute__ ((visibility ("default")))
+-int offload_effects_bundle_hal_start_output(audio_io_handle_t output, int pcm_id)
++int offload_effects_bundle_hal_start_output(audio_io_handle_t output, int pcm_id, struct mixer *mixer)
+ {
+     int ret = 0;
+     struct listnode *node;
+@@ -213,18 +213,18 @@ int offload_effects_bundle_hal_start_output(audio_io_handle_t output, int pcm_id
+     /* populate the mixer control to send offload parameters */
+     snprintf(mixer_string, sizeof(mixer_string),
+              "%s %d", "Audio Effects Config", out_ctxt->pcm_device_id);
+-    out_ctxt->mixer = mixer_open(MIXER_CARD);
+-    if (!out_ctxt->mixer) {
+-        ALOGE("Failed to open mixer");
++
++    if (!mixer) {
++        ALOGE("Invalid mixer");
+         out_ctxt->ctl = NULL;
+         ret = -EINVAL;
+         free(out_ctxt);
+         goto exit;
+     } else {
++        out_ctxt->mixer = mixer;
+         out_ctxt->ctl = mixer_get_ctl_by_name(out_ctxt->mixer, mixer_string);
+         if (!out_ctxt->ctl) {
+             ALOGE("mixer_get_ctl_by_name failed");
+-            mixer_close(out_ctxt->mixer);
+             out_ctxt->mixer = NULL;
+             ret = -EINVAL;
+             free(out_ctxt);
+@@ -280,9 +280,6 @@ int offload_effects_bundle_hal_stop_output(audio_io_handle_t output, int pcm_id)
+             fx_ctxt->ops.stop(fx_ctxt, out_ctxt);
+     }
+ 
+-    if (out_ctxt->mixer)
+-        mixer_close(out_ctxt->mixer);
+-
+     list_remove(&out_ctxt->outputs_list_node);
+ 
+     free(out_ctxt);
+-- 
+2.7.4
+

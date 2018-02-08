@@ -263,9 +263,11 @@ function fix_repopick_output()
        return 1
     fi
     bLineNo=$(grep -n "Applying change number" $logfile | cut -d: -f1 )
-    eval sed -n "'$bLineNo,\$p'" $logfile > $logfile.fix
-    eval sed -n "'1,$(expr $bLineNo - 1)p'" $logfile >> $logfile.fix
-    mv $logfile.fix $logfile
+    if [ $bLineNo -gt 1 ]; then
+        eval sed -n "'$bLineNo,\$p'" $logfile > $logfile.fix
+        eval sed -n "'1,$(expr $bLineNo - 1)p'" $logfile >> $logfile.fix
+        mv $logfile.fix $logfile
+    fi
 }
 
 function kpick()
@@ -300,7 +302,7 @@ function kpick()
               #cat $errfile
               echo ""
               sleep 2
-              [ $tries -gt 5 ] && https_proxy=""
+              [ $tries -gt 3 ] && https_proxy=""
               LANG=en_US https_proxy="$https_proxy" repopick -c 50 $* >$logfile 2>$errfile
               rc=$?
               if [ $rc -ne 0 ]; then
@@ -386,30 +388,9 @@ fi
 
 ###############################################################
 # android
-kpick 203880 # lineage: Reenable DataUsageProvider
-kpick 204814 # add DataUsageProvider and gson
-rsync -a android/* .repo/manifests/
-repo sync --force-sync  packages/providers/DataUsageProvider
 
 # bionic
 kpick 204463 # Disable realpath logspam
-
-# device/samsung/klte-common
-kpick 203304 # klte-common: power: Add legacy qcom HAL compat code
-kpick 204310 # klte-common: Move ril_{,unsol}_commands_vendor.h to include/
-kpick 204311 # klte-common: Drop libril
-
-# device/samsung/msm8974
-kpick 203120 # msm8974: Enable full dex preopt
-kpick 203303 # Revert "msm8974-common: Use QTI HIDL power HAL" 
-kpick 204289 # msm8974-common: ril: Import libril from hardware/ril-caf
-kpick 204290 # msm8974-common: ril: Makefile maintenance
-kpick 204291 # msm8974-common: libril: Add Samsung changes
-kpick 204292 # msm8974-common: libril: Fix SMS on certain variants
-kpick 204293 # msm8974-common: libril: fix network operator search
-kpick 204294 # msm8974-common: libril: Add workaround for "ring of death" bug
-kpick 204295 # msm8974-common: libril: Fix RIL_UNSOL_NITZ_TIME_RECEIVED Parcel
-kpick 204296 # msm8974-common: libril: Get off my back
 
 # device/lineage/sepolicy
 kpick 201720 # sepolicy: add rules for updater and update_engine
@@ -417,7 +398,7 @@ kpick 203558 # sepolicy: Add policy for vendor.lineage.power HAL
 kpick 204286 # sepolicy: Fixing camera app not launching
 
 # device/qcom/common
-kpick 201274 # power: Update power hal extension for new qti hal
+#kpick 201274 # power: Update power hal extension for new qti hal
 
 # device/qcom/sepolicy
 kpick 199559 # sepolicy: Allow dataservice_app to read/write to IPA device
@@ -448,9 +429,6 @@ kpick 203787 # opalayout: Actually implement setDarkIntensity
 kpick 203788 # opapayout: Update for r23 smaller navbar
 kpick 203789 # opalayout/home: Fix icons and darkintensity
 kpick 203790 # OpaLayout: misc code fixes
-kpick 204226 # framework/base: use multithread to verify files contained in APK
-kpick 204227 # framework/base: optimize code of multithread installation
-kpick 204228 # framework/base: fix multithread synchronization
 kpick 204356 # framework: port IME selector notification toggle (2/2)
 kpick 204464 # Don't warn about preferred density
 kpick 204465 # Don't log about /proc/uid_time_in_state not existing
@@ -471,21 +449,21 @@ kpick 204588 # Revert "Fix powerhint for NULL parameter"
 # hardware/lineage/interfaces
 kpick 201226 # gps.default.so: fix crash on access to unset AGpsRilCallbacks::request_refloc
 kpick 203061 # lineage/interfaces: power: Add binderized service
-kpick 203824 # lineage/interfaces: power: Add default passthrough implementation
+
+# hardware/qcom/audio-caf/msm8974
+kpick 204892 # audio: revert "remove 5.1 channel mask if SSR is not supported"
+kpick 204893 # policy_hal: Enable Direct PCM for 24 bit PCM playback
+kpick 204894 # hal: Fix alignement of buffer sent to DSP for multichannel clips
+kpick 204895 # audio: Enable 24 bit packed direct pcm support.
 
 # hardware/qcom/power
 kpick 203055 # power: Prepare for power profile support
 kpick 203066 # power: Add known perf hint IDs
 kpick 203067 # power: msm8996: Add support for power profile and cpu boost
-kpick 203115 # power: Enable interaction boost unconditionally
 
 # lineage-sdk
 kpick 203030 # lineage-sdk: Add overlay support for disabling hardware features
 kpick 203011 # lineage-sdk: Reenable performance profiles
-
-# packages/apps/Dialer
-kpick 201346 # Re-add dialer lookup.
-kpick 201634 # Allow using private framework API. 
 
 # packages/apps/LineageParts
 kpick 203010 # LineageParts: enable perf profiles
@@ -496,19 +474,17 @@ kpick 204823 # LineageParts: Reenable status bar notification counters
 kpick 203009 # Settings: battery: Add LineageParts perf profiles
 kpick 204361 # settings: port IME selector notification toggle (1/2)
 kpick 204820 # Settings: display: Add expanded desktop preference
-kpick 204912 # Forward port pattern visibility settings (2/2) 
 
 # packages/apps/SetupWizard
 kpick 204734 # SUW: Update for LineageOS platform & sdk
 kpick 204839 # SUW: Update Intent for Wifi connect
-
-# packages/providers/DataUsageProvider
-kpick 204803 # DataUsageProvider: rebrand to lineageos
-kpick 204812 # DataUsageService: switch form CMSettings to LineageSettings
-kpick 204815 # DataUsageService: Remove GSON dep
-
-# system/media
-kpick -f 204887 # Revert "Revert "audio: add support for extended audio features""
+kpick 205068 # SUW: Integrate with GMS flow
+kpick 205152 # SUW: Don't export our WizardManager
+kpick 205039 # SUW: Remove unused permissions
+kpick 205040 # SUW: rebrand step 1: update paths
+kpick 205041 # SUW: rebrand step 2: update file contents
+kpick 205199 # SUW: Fix crash on fingerprint capability check
+kpick 205200 # SUW: Fix keydisabler setting on non-gms case
 
 # system/core
 kpick 202493 # init: add detection of charging mode

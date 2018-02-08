@@ -1,28 +1,28 @@
-From 23f3f7aeac8c4ed4c66e47198b43969f9d52a52a Mon Sep 17 00:00:00 2001
+From da3f7437978c9fadfa9892930186fd9c8e777dc1 Mon Sep 17 00:00:00 2001
 From: ezio84 <brabus84@gmail.com>
 Date: Tue, 19 Dec 2017 14:37:35 +0100
-Subject: [PATCH 01/21] Screenshot: append app name to filename
+Subject: [PATCH 01/20] Screenshot: append app name to filename
 
 Kang Samsung's idea.
 
 Change-Id: Ibc6a52b5e2597e6014a2da6a4211febe17ec02c7
 ---
- .../systemui/screenshot/GlobalScreenshot.java      | 33 +++++++++++++++++++++-
- 1 file changed, 32 insertions(+), 1 deletion(-)
+ .../systemui/screenshot/GlobalScreenshot.java      | 31 +++++++++++++++++++++-
+ 1 file changed, 30 insertions(+), 1 deletion(-)
 
 diff --git a/packages/SystemUI/src/com/android/systemui/screenshot/GlobalScreenshot.java b/packages/SystemUI/src/com/android/systemui/screenshot/GlobalScreenshot.java
-index f9751ab..56e9952 100644
+index f9751ab..b121d3d 100644
 --- a/packages/SystemUI/src/com/android/systemui/screenshot/GlobalScreenshot.java
 +++ b/packages/SystemUI/src/com/android/systemui/screenshot/GlobalScreenshot.java
-@@ -31,6 +31,8 @@ import android.app.Notification;
- import android.app.Notification.BigPictureStyle;
- import android.app.NotificationManager;
- import android.app.PendingIntent;
+@@ -36,6 +36,8 @@ import android.content.ContentResolver;
+ import android.content.ContentValues;
+ import android.content.Context;
+ import android.content.Intent;
 +import android.content.pm.ActivityInfo;
 +import android.content.pm.PackageManager;
- import android.content.BroadcastReceiver;
- import android.content.ContentResolver;
- import android.content.ContentValues;
+ import android.content.res.Resources;
+ import android.graphics.Bitmap;
+ import android.graphics.Canvas;
 @@ -81,6 +83,7 @@ import java.io.OutputStream;
  import java.text.DateFormat;
  import java.text.SimpleDateFormat;
@@ -31,7 +31,7 @@ index f9751ab..56e9952 100644
  
  /**
   * POD used in the AsyncTask which saves an image in the background.
-@@ -113,13 +116,14 @@ class SaveImageInBackgroundTask extends AsyncTask<Void, Void, Void> {
+@@ -113,6 +116,7 @@ class SaveImageInBackgroundTask extends AsyncTask<Void, Void, Void> {
  
      private static final String SCREENSHOTS_DIR_NAME = "Screenshots";
      private static final String SCREENSHOT_FILE_NAME_TEMPLATE = "Screenshot_%s.png";
@@ -39,28 +39,21 @@ index f9751ab..56e9952 100644
      private static final String SCREENSHOT_SHARE_SUBJECT_TEMPLATE = "Screenshot (%s)";
  
      private final SaveImageInBackgroundData mParams;
-     private final NotificationManager mNotificationManager;
-     private final Notification.Builder mNotificationBuilder, mPublicNotificationBuilder;
-     private final File mScreenshotDir;
--    private final String mImageFileName;
-+    private String mImageFileName;
-     private final String mImageFilePath;
-     private final long mImageTime;
-     private final BigPictureStyle mNotificationStyle;
-@@ -133,6 +137,22 @@ class SaveImageInBackgroundTask extends AsyncTask<Void, Void, Void> {
+@@ -133,6 +137,23 @@ class SaveImageInBackgroundTask extends AsyncTask<Void, Void, Void> {
      // necessary.
      private static boolean mTickerAddSpace;
  
-+    private static ActivityInfo getRunningActivityInfo(Context context) {
-+        final ActivityManager am = (ActivityManager) context
-+                .getSystemService(Context.ACTIVITY_SERVICE);
++    private static CharSequence getRunningActivityName(Context context) {
++        final ActivityManager am =
++                (ActivityManager) context.getSystemService(Context.ACTIVITY_SERVICE);
 +        final PackageManager pm = context.getPackageManager();
 +
 +        List<ActivityManager.RunningTaskInfo> tasks = am.getRunningTasks(1);
 +        if (tasks != null && !tasks.isEmpty()) {
 +            ActivityManager.RunningTaskInfo top = tasks.get(0);
 +            try {
-+                return pm.getActivityInfo(top.topActivity, 0);
++                ActivityInfo info = pm.getActivityInfo(top.topActivity, 0);
++                return pm.getApplicationLabel(info.applicationInfo);
 +            } catch (PackageManager.NameNotFoundException e) {
 +            }
 +        }
@@ -70,24 +63,23 @@ index f9751ab..56e9952 100644
      SaveImageInBackgroundTask(Context context, SaveImageInBackgroundData data,
              NotificationManager nManager) {
          Resources r = context.getResources();
-@@ -143,6 +163,17 @@ class SaveImageInBackgroundTask extends AsyncTask<Void, Void, Void> {
+@@ -141,7 +162,15 @@ class SaveImageInBackgroundTask extends AsyncTask<Void, Void, Void> {
+         mParams = data;
+         mImageTime = System.currentTimeMillis();
          String imageDate = new SimpleDateFormat("yyyyMMdd-HHmmss").format(new Date(mImageTime));
-         mImageFileName = String.format(SCREENSHOT_FILE_NAME_TEMPLATE, imageDate);
- 
-+        final PackageManager pm = context.getPackageManager();
-+        ActivityInfo info = getRunningActivityInfo(context);
-+        if (info != null) {
-+            CharSequence appName = pm.getApplicationLabel(info.applicationInfo);
-+            if (appName != null) {
-+                // Replace all spaces and special chars with an underscore
-+                String appNameString = appName.toString().replaceAll("[\\\\/:*?\"<>|]", "_");
-+                mImageFileName = String.format(SCREENSHOT_FILE_NAME_TEMPLATE_APPNAME, appNameString, imageDate);
-+            }
+-        mImageFileName = String.format(SCREENSHOT_FILE_NAME_TEMPLATE, imageDate);
++        CharSequence appName = getRunningActivityName(context);
++        if (appName != null) {
++            // Replace all spaces and special chars with an underscore
++            String appNameString = appName.toString().replaceAll("[\\\\/:*?\"<>|\\s]+", "_");
++            mImageFileName = String.format(SCREENSHOT_FILE_NAME_TEMPLATE_APPNAME,
++                    appNameString, imageDate);
++        } else {
++            mImageFileName = String.format(SCREENSHOT_FILE_NAME_TEMPLATE, imageDate);
 +        }
-+
+ 
          mScreenshotDir = new File(Environment.getExternalStoragePublicDirectory(
                  Environment.DIRECTORY_PICTURES), SCREENSHOTS_DIR_NAME);
-         mImageFilePath = new File(mScreenshotDir, mImageFileName).getAbsolutePath();
 -- 
 2.7.4
 
