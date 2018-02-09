@@ -369,20 +369,31 @@ for op in $*; do
          op_pick_remote_only=1
     elif [ "$op" = "-rp" -o "$op" = "-pr" ]; then
         op_reset_projects=1
+    elif [ $op_patch_local -eq 1 ] && [ "$op" = "pick" -o "$op" = "local" ]; then
+        op_patches_dir="$op"
     else
          kpick $op
-    fi
-    if [ $op_patch_local -eq 1 ] && [ "$op" = "pick" -o "$op" = "local" ]; then
-        op_patches_dir="$op"
     fi
 done
 get_defaul_remote
 
 if [ $# -ge 1 ]; then
-   [ $op_project_snapshot -eq 1 ] && projects_snapshot
-   [ $op_reset_projects -eq 1 ] && projects_reset
-   [ $op_patch_local -eq 1 ] && patch_local $op_patches_dir
-   [ $op_restore_snapshot -eq 1 ] && restore_snapshot
+   if [ $op_project_snapshot -eq 1 ]; then
+         projects_snapshot
+         exit $?
+   fi
+   if [ $op_reset_projects -eq 1 ]; then
+         projects_reset
+         exit $?
+   fi
+   if [ $op_patch_local -eq 1 ]; then
+         patch_local $op_patches_dir
+         exit $?
+   fi
+   if [ $op_restore_snapshot -eq 1 ]; then
+         restore_snapshot
+         exit $?
+   fi
    [ $op_pick_remote_only -eq 0 ] && exit 0
 fi
 
