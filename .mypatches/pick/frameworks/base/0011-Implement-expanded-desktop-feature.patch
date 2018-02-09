@@ -1,0 +1,1146 @@
+From 4010b56b22e48940f33ca5f8296c7d2cbe57baea Mon Sep 17 00:00:00 2001
+From: Kyrylo Mikos <kiril.mik.os@gmail.com>
+Date: Mon, 17 Nov 2014 13:56:05 +0200
+Subject: [PATCH 11/17] Implement expanded desktop feature
+
+This squashes the following commits:
+
+Bringup expanded desktop and implement per-user configuration.
+
+Change-Id: I90d834d788b3050a3f4c11dda9b6d1a7d79546cc
+
+Create configurable default expanded desktop style.
+
+Change-Id: I90c7f8544cda9b91fb9b700fcf146f4e58b15a26
+
+Remove unused POLICY_CONTROL_SELECTED. Unbreak public api.
+
+Change-Id: Ib0900349115442274fb08eb172de2567a8b00295
+---
+ core/java/android/provider/Settings.java           |  11 +-
+ core/java/android/view/WindowManager.java          |  16 +
+ core/java/android/view/WindowManagerPolicy.java    |   2 +
+ .../android/view/WindowManagerPolicyControl.java   | 451 +++++++++++++++++++++
+ .../com/android/server/policy/BarController.java   |   3 +-
+ .../server/policy/ImmersiveModeConfirmation.java   |   3 +-
+ .../android/server/policy/PhoneWindowManager.java  |  97 ++++-
+ .../com/android/server/policy/PolicyControl.java   | 258 ------------
+ .../android/server/wm/WindowManagerService.java    |   5 +
+ 9 files changed, 566 insertions(+), 280 deletions(-)
+ create mode 100644 core/java/android/view/WindowManagerPolicyControl.java
+ delete mode 100644 services/core/java/com/android/server/policy/PolicyControl.java
+
+diff --git a/core/java/android/provider/Settings.java b/core/java/android/provider/Settings.java
+index 2009247..ad010a8 100755
+--- a/core/java/android/provider/Settings.java
++++ b/core/java/android/provider/Settings.java
+@@ -9995,13 +9995,22 @@ public final class Settings {
+         /**
+          * Defines global runtime overrides to window policy.
+          *
+-         * See {@link com.android.server.policy.PolicyControl} for value format.
++         * See {@link android.view.WindowManagerPolicyControl} for value format.
+          *
+          * @hide
+          */
+         public static final String POLICY_CONTROL = "policy_control";
+ 
+         /**
++         * Defines global runtime overrides to window policy style.
++         *
++         * See {@link android.view.WindowManagerPolicyControl} for value definitions.
++         *
++         * @hide
++         */
++        public static final String POLICY_CONTROL_STYLE = "policy_control_style";
++
++        /**
+          * Defines global zen mode.  ZEN_MODE_OFF, ZEN_MODE_IMPORTANT_INTERRUPTIONS,
+          * or ZEN_MODE_NO_INTERRUPTIONS.
+          *
+diff --git a/core/java/android/view/WindowManager.java b/core/java/android/view/WindowManager.java
+index 151ad11..0fbfa68 100644
+--- a/core/java/android/view/WindowManager.java
++++ b/core/java/android/view/WindowManager.java
+@@ -1434,6 +1434,22 @@ public interface WindowManager extends ViewManager {
+         public static final int PRIVATE_FLAG_ACQUIRES_SLEEP_TOKEN = 0x00200000;
+ 
+         /**
++         * @hide
++         */
++        public static final int PRIVATE_FLAG_STATUS_HIDE_FORCED = 0x00800000;
++
++        /**
++         * @hide
++         */
++        public static final int PRIVATE_FLAG_NAV_HIDE_FORCED = 0x01000000;
++
++        /**
++         * The window had not set FULLSCREEN flag so don't handle it as fullscreen in layoutWindowLw
++         * @hide
++         */
++        public static final int PRIVATE_FLAG_WAS_NOT_FULLSCREEN = 0x02000000;
++
++        /**
+          * Window flag: Overrides default power key behavior
+          * @hide
+          */
+diff --git a/core/java/android/view/WindowManagerPolicy.java b/core/java/android/view/WindowManagerPolicy.java
+index e3d9263..749b5db 100644
+--- a/core/java/android/view/WindowManagerPolicy.java
++++ b/core/java/android/view/WindowManagerPolicy.java
+@@ -622,6 +622,8 @@ public interface WindowManagerPolicy {
+          * @param listener callback to call when display can be turned off
+          */
+         void screenTurningOff(ScreenOffListener listener);
++
++        void addSystemUIVisibilityFlag(int flags);
+     }
+ 
+     public interface PointerEventListener {
+diff --git a/core/java/android/view/WindowManagerPolicyControl.java b/core/java/android/view/WindowManagerPolicyControl.java
+new file mode 100644
+index 0000000..cdba239
+--- /dev/null
++++ b/core/java/android/view/WindowManagerPolicyControl.java
+@@ -0,0 +1,451 @@
++/*
++ * Copyright (C) 2014 The Android Open Source Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++package android.view;
++
++import android.app.ActivityManager;
++import android.content.Context;
++import android.os.UserHandle;
++import android.provider.Settings;
++import android.util.ArraySet;
++import android.util.Slog;
++import android.view.WindowManager.LayoutParams;
++import android.view.WindowManagerPolicy.WindowState;
++
++import java.io.PrintWriter;
++import java.io.StringWriter;
++import java.util.Iterator;
++
++/**
++ * Runtime adjustments applied to the global window policy.
++ *
++ * This includes forcing immersive mode behavior for one or both system bars (based on a package
++ * list) and permanently disabling immersive mode confirmations for specific packages.
++ *
++ * Control by setting {@link Settings.Global.POLICY_CONTROL} to one or more name-value pairs.
++ * e.g.
++ *   to force immersive mode everywhere:
++ *     "immersive.full=*"
++ *   to force transient status for all apps except a specific package:
++ *     "immersive.status=apps,-com.package"
++ *   to disable the immersive mode confirmations for specific packages:
++ *     "immersive.preconfirms=com.package.one,com.package.two"
++ *
++ * Separate multiple name-value pairs with ':'
++ *   e.g. "immersive.status=apps:immersive.preconfirms=*"
++ *
++ *   @hide
++ */
++public class WindowManagerPolicyControl {
++    private static String TAG = "PolicyControl";
++    private static boolean DEBUG = false;
++
++    private static final String NAME_IMMERSIVE_FULL = "immersive.full";
++    private static final String NAME_IMMERSIVE_STATUS = "immersive.status";
++    private static final String NAME_IMMERSIVE_NAVIGATION = "immersive.navigation";
++    private static final String NAME_IMMERSIVE_PRECONFIRMATIONS = "immersive.preconfirms";
++
++    private static int sDefaultImmersiveStyle;
++    private static String sSettingValue;
++    private static Filter sImmersivePreconfirmationsFilter;
++    private static Filter sImmersiveStatusFilter;
++    private static Filter sImmersiveNavigationFilter;
++
++    /**
++     * Accessible constants for Settings
++     */
++    public final static class ImmersiveDefaultStyles {
++        public final static int IMMERSIVE_FULL = 0;
++        public final static int IMMERSIVE_STATUS = 1;
++        public final static int IMMERSIVE_NAVIGATION = 2;
++    }
++
++    public static int getSystemUiVisibility(WindowState win, LayoutParams attrs) {
++        attrs = attrs != null ? attrs : win.getAttrs();
++        int vis = win != null ? win.getSystemUiVisibility() : attrs.systemUiVisibility;
++        if (sImmersiveStatusFilter != null && sImmersiveStatusFilter.matches(attrs)
++                && (sDefaultImmersiveStyle == ImmersiveDefaultStyles.IMMERSIVE_FULL ||
++                sDefaultImmersiveStyle == ImmersiveDefaultStyles.IMMERSIVE_STATUS))  {
++            vis |= View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
++                    | View.SYSTEM_UI_FLAG_FULLSCREEN
++                    | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN;
++            vis &= ~(View.SYSTEM_UI_FLAG_LAYOUT_STABLE
++                    | View.STATUS_BAR_TRANSLUCENT);
++        }
++        if (sImmersiveNavigationFilter != null && sImmersiveNavigationFilter.matches(attrs)
++                && (sDefaultImmersiveStyle == ImmersiveDefaultStyles.IMMERSIVE_FULL ||
++                sDefaultImmersiveStyle == ImmersiveDefaultStyles.IMMERSIVE_NAVIGATION)) {
++            vis |= View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
++                    | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
++                    | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION;
++            vis &= ~(View.SYSTEM_UI_FLAG_LAYOUT_STABLE
++                    | View.NAVIGATION_BAR_TRANSLUCENT);
++        }
++        return vis;
++    }
++
++    public static int getWindowFlags(WindowState win, LayoutParams attrs) {
++        attrs = attrs != null ? attrs : win.getAttrs();
++        int flags = attrs.flags;
++
++        if (sImmersiveStatusFilter != null && sImmersiveStatusFilter.matches(attrs)
++                && (sDefaultImmersiveStyle == ImmersiveDefaultStyles.IMMERSIVE_FULL ||
++                sDefaultImmersiveStyle == ImmersiveDefaultStyles.IMMERSIVE_STATUS)) {
++            flags |= WindowManager.LayoutParams.FLAG_FULLSCREEN;
++            flags &= ~(WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS
++                    | WindowManager.LayoutParams.FLAG_FORCE_NOT_FULLSCREEN);
++        }
++        if (sImmersiveNavigationFilter != null && sImmersiveNavigationFilter.matches(attrs)
++                && (sDefaultImmersiveStyle == ImmersiveDefaultStyles.IMMERSIVE_FULL ||
++                sDefaultImmersiveStyle == ImmersiveDefaultStyles.IMMERSIVE_NAVIGATION)) {
++            flags &= ~WindowManager.LayoutParams.FLAG_TRANSLUCENT_NAVIGATION;
++        }
++        return flags;
++    }
++
++    public static int getPrivateWindowFlags(WindowState win, LayoutParams attrs) {
++        attrs = attrs != null ? attrs : win.getAttrs();
++        int privateFlags = attrs.privateFlags;
++
++        if (sImmersiveStatusFilter != null && sImmersiveNavigationFilter != null &&
++                sImmersiveStatusFilter.isEnabledForAll()
++                && sImmersiveNavigationFilter.isEnabledForAll()) {
++
++            if ((attrs.flags & LayoutParams.FLAG_FULLSCREEN) == 0) {
++                privateFlags |= LayoutParams.PRIVATE_FLAG_WAS_NOT_FULLSCREEN;
++            }
++
++            switch (sDefaultImmersiveStyle) {
++                case ImmersiveDefaultStyles.IMMERSIVE_FULL:
++                    privateFlags |= LayoutParams.PRIVATE_FLAG_NAV_HIDE_FORCED;
++                    privateFlags |= LayoutParams.PRIVATE_FLAG_STATUS_HIDE_FORCED;
++                    return privateFlags;
++                case ImmersiveDefaultStyles.IMMERSIVE_STATUS:
++                    privateFlags |= LayoutParams.PRIVATE_FLAG_STATUS_HIDE_FORCED;
++                    return privateFlags;
++                case ImmersiveDefaultStyles.IMMERSIVE_NAVIGATION:
++                    privateFlags |= LayoutParams.PRIVATE_FLAG_NAV_HIDE_FORCED;
++                    return privateFlags;
++                }
++        }
++
++        if (sImmersiveStatusFilter != null && sImmersiveStatusFilter.matches(attrs)) {
++            if ((attrs.flags & LayoutParams.FLAG_FULLSCREEN) == 0) {
++                privateFlags |= LayoutParams.PRIVATE_FLAG_WAS_NOT_FULLSCREEN;
++            }
++            privateFlags |= LayoutParams.PRIVATE_FLAG_STATUS_HIDE_FORCED;
++        }
++
++        if (sImmersiveNavigationFilter != null && sImmersiveNavigationFilter.matches(attrs)) {
++            privateFlags |= LayoutParams.PRIVATE_FLAG_NAV_HIDE_FORCED;
++        }
++
++        return privateFlags;
++    }
++
++    public static boolean immersiveStatusFilterMatches(String packageName) {
++        return sImmersiveStatusFilter != null && sImmersiveStatusFilter.matches(packageName);
++    }
++
++    public static boolean immersiveNavigationFilterMatches(String packageName) {
++        return sImmersiveNavigationFilter != null
++                && sImmersiveNavigationFilter.matches(packageName);
++    }
++
++    public static int adjustClearableFlags(WindowState win, int clearableFlags) {
++        final LayoutParams attrs = win != null ? win.getAttrs() : null;
++        if (sImmersiveStatusFilter != null && sImmersiveStatusFilter.matches(attrs)) {
++            clearableFlags &= ~View.SYSTEM_UI_FLAG_FULLSCREEN;
++        }
++        return clearableFlags;
++    }
++
++    public static boolean disableImmersiveConfirmation(String pkg) {
++        return (sImmersivePreconfirmationsFilter != null
++                && sImmersivePreconfirmationsFilter.matches(pkg))
++                || ActivityManager.isRunningInTestHarness();
++    }
++
++    public static void reloadFromSetting(Context context) {
++        reloadStyleFromSetting(context, Settings.Global.POLICY_CONTROL_STYLE);
++        reloadFromSetting(context, Settings.Global.POLICY_CONTROL);
++    }
++
++    public static void reloadFromSetting(Context context, String key) {
++        if (DEBUG) Slog.d(TAG, "reloadFromSetting()");
++        String value = null;
++        try {
++            value = Settings.Global.getStringForUser(context.getContentResolver(),
++                    key,
++                    UserHandle.USER_CURRENT);
++            if (sSettingValue != null && sSettingValue.equals(value)) return;
++            setFilters(value);
++            sSettingValue = value;
++        } catch (Throwable t) {
++            Slog.w(TAG, "Error loading policy control, value=" + value, t);
++        }
++    }
++
++    public static void reloadStyleFromSetting(Context context, String key) {
++        sDefaultImmersiveStyle = Settings.Global.getInt(context.getContentResolver(),
++                key, WindowManagerPolicyControl.ImmersiveDefaultStyles.IMMERSIVE_FULL);
++        if (DEBUG) Slog.d(TAG, "reloadStyleFromSetting " + sDefaultImmersiveStyle);
++    }
++
++    public static void saveToSettings(Context context) {
++        saveToSettings(context, Settings.Global.POLICY_CONTROL);
++    }
++
++    public static void saveToSettings(Context context, String key) {
++        StringBuilder value = new StringBuilder();
++        boolean needSemicolon = false;
++        if (sImmersiveStatusFilter != null) {
++            writeFilter(NAME_IMMERSIVE_STATUS, sImmersiveStatusFilter, value);
++            needSemicolon = true;
++        }
++        if (sImmersiveNavigationFilter != null) {
++            if (needSemicolon) {
++                value.append(":");
++            }
++            writeFilter(NAME_IMMERSIVE_NAVIGATION, sImmersiveNavigationFilter, value);
++        }
++
++        Settings.Global.putString(context.getContentResolver(), key, value.toString());
++    }
++
++    public static void saveStyleToSettings(Context context, int value) {
++        Settings.Global.putInt(context.getContentResolver(),
++                Settings.Global.POLICY_CONTROL_STYLE, value);
++        sDefaultImmersiveStyle = value;
++    }
++
++    public static void addToStatusWhiteList(String packageName) {
++        if (sImmersiveStatusFilter == null) {
++            sImmersiveStatusFilter = new Filter(new ArraySet<String>(), new ArraySet<String>());
++        }
++
++        if (!sImmersiveStatusFilter.mWhitelist.contains(packageName)) {
++            sImmersiveStatusFilter.mWhitelist.add(packageName);
++        }
++    }
++
++    public static void addToNavigationWhiteList(String packageName) {
++        if (sImmersiveNavigationFilter == null) {
++            sImmersiveNavigationFilter = new Filter(new ArraySet<String>(), new ArraySet<String>());
++        }
++
++        if (!sImmersiveNavigationFilter.mWhitelist.contains(packageName)) {
++            sImmersiveNavigationFilter.mWhitelist.add(packageName);
++        }
++    }
++
++    public static void removeFromWhiteLists(String packageName) {
++        if (sImmersiveStatusFilter != null) {
++            sImmersiveStatusFilter.mWhitelist.remove(packageName);
++        }
++        if (sImmersiveNavigationFilter != null) {
++            sImmersiveNavigationFilter.mWhitelist.remove(packageName);
++        }
++    }
++
++    public static ArraySet<String> getWhiteLists() {
++        ArraySet<String> result = new ArraySet<>();
++
++        if (sImmersiveStatusFilter != null) {
++            result.addAll(sImmersiveStatusFilter.mWhitelist);
++        }
++        if (sImmersiveNavigationFilter != null
++                && sImmersiveNavigationFilter != sImmersiveStatusFilter) {
++            result.addAll(sImmersiveNavigationFilter.mWhitelist);
++        }
++
++        return result;
++    }
++
++    private static void writeFilter(String name, Filter filter, StringBuilder stringBuilder) {
++        if (filter.mWhitelist.isEmpty() && filter.mBlacklist.isEmpty()) {
++            return;
++        }
++        stringBuilder.append(name);
++        stringBuilder.append("=");
++
++        boolean needComma = false;
++        if (!filter.mWhitelist.isEmpty()) {
++            writePackages(filter.mWhitelist, stringBuilder, false);
++            needComma = true;
++        }
++        if (!filter.mBlacklist.isEmpty()) {
++            if (needComma) {
++                stringBuilder.append(",");
++            }
++            writePackages(filter.mBlacklist, stringBuilder, true);
++        }
++    }
++
++    private static void writePackages(ArraySet<String> set, StringBuilder stringBuilder,
++                                      boolean isBlackList) {
++        Iterator<String> iterator = set.iterator();
++        while (iterator.hasNext()) {
++            if (isBlackList) {
++                stringBuilder.append("-");
++            }
++            String name = iterator.next();
++            stringBuilder.append(name);
++            if (iterator.hasNext()) {
++                stringBuilder.append(",");
++            }
++        }
++    }
++
++    public static boolean isImmersiveFiltersActive() {
++        return sImmersiveStatusFilter != null || sImmersiveNavigationFilter != null;
++    }
++
++    public static void dump(String prefix, PrintWriter pw) {
++        dump("sImmersiveStatusFilter", sImmersiveStatusFilter, prefix, pw);
++        dump("sImmersiveNavigationFilter", sImmersiveNavigationFilter, prefix, pw);
++        dump("sImmersivePreconfirmationsFilter", sImmersivePreconfirmationsFilter, prefix, pw);
++    }
++
++    private static void dump(String name, Filter filter, String prefix, PrintWriter pw) {
++        pw.print(prefix); pw.print("PolicyControl."); pw.print(name); pw.print('=');
++        if (filter == null) {
++            pw.println("null");
++        } else {
++            filter.dump(pw); pw.println();
++        }
++    }
++
++    private static void setFilters(String value) {
++        if (DEBUG) Slog.d(TAG, "setFilters: " + value);
++        sImmersiveStatusFilter = null;
++        sImmersiveNavigationFilter = null;
++        sImmersivePreconfirmationsFilter = null;
++        if (value != null) {
++            String[] nvps = value.split(":");
++            for (String nvp : nvps) {
++                int i = nvp.indexOf('=');
++                if (i == -1) continue;
++                String n = nvp.substring(0, i);
++                String v = nvp.substring(i + 1);
++                if (n.equals(NAME_IMMERSIVE_FULL)) {
++                    Filter f = Filter.parse(v);
++                    sImmersiveStatusFilter = sImmersiveNavigationFilter = f;
++                    if (sImmersivePreconfirmationsFilter == null) {
++                        sImmersivePreconfirmationsFilter = f;
++                    }
++                } else if (n.equals(NAME_IMMERSIVE_STATUS)) {
++                    Filter f = Filter.parse(v);
++                    sImmersiveStatusFilter = f;
++                } else if (n.equals(NAME_IMMERSIVE_NAVIGATION)) {
++                    Filter f = Filter.parse(v);
++                    sImmersiveNavigationFilter = f;
++                    if (sImmersivePreconfirmationsFilter == null) {
++                        sImmersivePreconfirmationsFilter = f;
++                    }
++                } else if (n.equals(NAME_IMMERSIVE_PRECONFIRMATIONS)) {
++                    Filter f = Filter.parse(v);
++                    sImmersivePreconfirmationsFilter = f;
++                }
++            }
++        }
++        if (DEBUG) {
++            Slog.d(TAG, "immersiveStatusFilter: " + sImmersiveStatusFilter);
++            Slog.d(TAG, "immersiveNavigationFilter: " + sImmersiveNavigationFilter);
++            Slog.d(TAG, "immersivePreconfirmationsFilter: " + sImmersivePreconfirmationsFilter);
++        }
++    }
++
++    private static class Filter {
++        private static final String ALL = "*";
++        private static final String APPS = "apps";
++
++        private final ArraySet<String> mWhitelist;
++        private final ArraySet<String> mBlacklist;
++
++        private Filter(ArraySet<String> whitelist, ArraySet<String> blacklist) {
++            mWhitelist = whitelist;
++            mBlacklist = blacklist;
++        }
++
++        boolean matches(LayoutParams attrs) {
++            if (attrs == null) return false;
++            boolean isApp = attrs.type >= WindowManager.LayoutParams.FIRST_APPLICATION_WINDOW
++                    && attrs.type <= WindowManager.LayoutParams.LAST_APPLICATION_WINDOW;
++            if (isApp && mBlacklist.contains(APPS)) return false;
++            if (onBlacklist(attrs.packageName)) return false;
++            if (isApp && mWhitelist.contains(APPS)) return true;
++            return onWhitelist(attrs.packageName);
++        }
++
++        boolean matches(String packageName) {
++            return !onBlacklist(packageName) && onWhitelist(packageName);
++        }
++
++        public boolean isEnabledForAll() {
++            return mWhitelist.contains(ALL);
++        }
++
++        private boolean onBlacklist(String packageName) {
++            return mBlacklist.contains(packageName) || mBlacklist.contains(ALL);
++        }
++
++        private boolean onWhitelist(String packageName) {
++            return mWhitelist.contains(ALL) || mWhitelist.contains(packageName);
++        }
++
++        void dump(PrintWriter pw) {
++            pw.print("Filter[");
++            dump("whitelist", mWhitelist, pw); pw.print(',');
++            dump("blacklist", mBlacklist, pw); pw.print(']');
++        }
++
++        private void dump(String name, ArraySet<String> set, PrintWriter pw) {
++            pw.print(name); pw.print("=(");
++            final int n = set.size();
++            for (int i = 0; i < n; i++) {
++                if (i > 0) pw.print(',');
++                pw.print(set.valueAt(i));
++            }
++            pw.print(')');
++        }
++
++        @Override
++        public String toString() {
++            StringWriter sw = new StringWriter();
++            dump(new PrintWriter(sw, true));
++            return sw.toString();
++        }
++
++        // value = comma-delimited list of tokens, where token = (package name|apps|*)
++        // e.g. "com.package1", or "apps, com.android.keyguard" or "*"
++        static Filter parse(String value) {
++            if (value == null) return null;
++            ArraySet<String> whitelist = new ArraySet<String>();
++            ArraySet<String> blacklist = new ArraySet<String>();
++            for (String token : value.split(",")) {
++                token = token.trim();
++                if (token.startsWith("-") && token.length() > 1) {
++                    token = token.substring(1);
++                    blacklist.add(token);
++                } else {
++                    whitelist.add(token);
++                }
++            }
++            return new Filter(whitelist, blacklist);
++        }
++    }
++}
+diff --git a/services/core/java/com/android/server/policy/BarController.java b/services/core/java/com/android/server/policy/BarController.java
+index b179235..1431140 100644
+--- a/services/core/java/com/android/server/policy/BarController.java
++++ b/services/core/java/com/android/server/policy/BarController.java
+@@ -25,6 +25,7 @@ import android.view.View;
+ import android.view.ViewGroup;
+ import android.view.WindowManager;
+ import android.view.WindowManagerPolicy.WindowState;
++import android.view.WindowManagerPolicyControl;
+ 
+ import com.android.server.LocalServices;
+ import com.android.server.statusbar.StatusBarManagerInternal;
+@@ -126,7 +127,7 @@ public class BarController {
+         if (mWin != null) {
+             if (win != null && (win.getAttrs().privateFlags
+                     & WindowManager.LayoutParams.PRIVATE_FLAG_INHERIT_TRANSLUCENT_DECOR) == 0) {
+-                int fl = PolicyControl.getWindowFlags(win, null);
++                int fl = WindowManagerPolicyControl.getWindowFlags(win, null);
+                 if ((fl & mTranslucentWmFlag) != 0) {
+                     vis |= mTranslucentFlag;
+                 } else {
+diff --git a/services/core/java/com/android/server/policy/ImmersiveModeConfirmation.java b/services/core/java/com/android/server/policy/ImmersiveModeConfirmation.java
+index c6ec287..6489593 100644
+--- a/services/core/java/com/android/server/policy/ImmersiveModeConfirmation.java
++++ b/services/core/java/com/android/server/policy/ImmersiveModeConfirmation.java
+@@ -45,6 +45,7 @@ import android.view.View;
+ import android.view.ViewGroup;
+ import android.view.ViewTreeObserver;
+ import android.view.WindowManager;
++import android.view.WindowManagerPolicyControl;
+ import android.view.animation.Animation;
+ import android.view.animation.AnimationUtils;
+ import android.view.animation.Interpolator;
+@@ -140,7 +141,7 @@ public class ImmersiveModeConfirmation {
+             boolean userSetupComplete, boolean navBarEmpty) {
+         mHandler.removeMessages(H.SHOW);
+         if (isImmersiveMode) {
+-            final boolean disabled = PolicyControl.disableImmersiveConfirmation(pkg);
++            final boolean disabled = WindowManagerPolicyControl.disableImmersiveConfirmation(pkg);
+             if (DEBUG) Slog.d(TAG, String.format("immersiveModeChanged() disabled=%s mConfirmed=%s",
+                     disabled, mConfirmed));
+             if (!disabled
+diff --git a/services/core/java/com/android/server/policy/PhoneWindowManager.java b/services/core/java/com/android/server/policy/PhoneWindowManager.java
+index 70f89b6..6a96e7b 100644
+--- a/services/core/java/com/android/server/policy/PhoneWindowManager.java
++++ b/services/core/java/com/android/server/policy/PhoneWindowManager.java
+@@ -63,8 +63,11 @@ import static android.view.WindowManager.LayoutParams.PRIVATE_FLAG_ACQUIRES_SLEE
+ import static android.view.WindowManager.LayoutParams.PRIVATE_FLAG_FORCE_DRAW_STATUS_BAR_BACKGROUND;
+ import static android.view.WindowManager.LayoutParams.PRIVATE_FLAG_FORCE_STATUS_BAR_VISIBLE_TRANSPARENT;
+ import static android.view.WindowManager.LayoutParams.PRIVATE_FLAG_KEYGUARD;
++import static android.view.WindowManager.LayoutParams.PRIVATE_FLAG_NAV_HIDE_FORCED;
+ import static android.view.WindowManager.LayoutParams.PRIVATE_FLAG_SHOW_FOR_ALL_USERS;
++import static android.view.WindowManager.LayoutParams.PRIVATE_FLAG_STATUS_HIDE_FORCED;
+ import static android.view.WindowManager.LayoutParams.PRIVATE_FLAG_SYSTEM_ERROR;
++import static android.view.WindowManager.LayoutParams.PRIVATE_FLAG_WAS_NOT_FULLSCREEN;
+ import static android.view.WindowManager.LayoutParams.ROTATION_ANIMATION_CROSSFADE;
+ import static android.view.WindowManager.LayoutParams.ROTATION_ANIMATION_JUMPCUT;
+ import static android.view.WindowManager.LayoutParams.ROTATION_ANIMATION_ROTATE;
+@@ -227,6 +230,7 @@ import android.view.WindowManagerGlobal;
+ import android.view.WindowManagerInternal;
+ import android.view.WindowManagerInternal.AppTransitionListener;
+ import android.view.WindowManagerPolicy;
++import android.view.WindowManagerPolicyControl;
+ import android.view.accessibility.AccessibilityEvent;
+ import android.view.accessibility.AccessibilityManager;
+ import android.view.animation.Animation;
+@@ -665,6 +669,9 @@ public class PhoneWindowManager implements WindowManagerPolicy {
+     // fullscreen window flag, these are the stable dimensions without the status bar.
+     int mStableFullscreenLeft, mStableFullscreenTop;
+     int mStableFullscreenRight, mStableFullscreenBottom;
++    // For force immersive mode
++    int mForceImmersiveLeft, mForceImmersiveTop;
++    int mForceImmersiveRight, mForceImmersiveBottom;
+     // During layout, the current screen borders with all outer decoration
+     // (status bar, input method dock) accounted for.
+     int mCurLeft, mCurTop, mCurRight, mCurBottom;
+@@ -911,6 +918,8 @@ public class PhoneWindowManager implements WindowManagerPolicy {
+     private static final int MSG_REQUEST_TRANSIENT_BARS_ARG_NAVIGATION = 1;
+ 
+     private LineageHardwareManager mLineageHardware;
++    private boolean mClearedBecauseOfForceShow;
++    private boolean mTopWindowIsKeyguard;
+ 
+     private CameraManager mCameraManager;
+     private String mRearFlashCameraId;
+@@ -2746,7 +2755,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
+             }
+         }
+         synchronized (mWindowManagerFuncs.getWindowManagerLock()) {
+-            PolicyControl.reloadFromSetting(mContext);
++            WindowManagerPolicyControl.reloadFromSetting(mContext);
+         }
+         if (updateRotation) {
+             updateRotation(true);
+@@ -4833,8 +4842,8 @@ public class PhoneWindowManager implements WindowManagerPolicy {
+     public boolean getInsetHintLw(WindowManager.LayoutParams attrs, Rect taskBounds,
+             int displayRotation, int displayWidth, int displayHeight, Rect outContentInsets,
+             Rect outStableInsets, Rect outOutsets) {
+-        final int fl = PolicyControl.getWindowFlags(null, attrs);
+-        final int sysuiVis = PolicyControl.getSystemUiVisibility(null, attrs);
++        final int fl = WindowManagerPolicyControl.getWindowFlags(null, attrs);
++        final int sysuiVis = WindowManagerPolicyControl.getSystemUiVisibility(null, attrs);
+         final int systemUiVisibility = (sysuiVis | attrs.subtreeSystemUiVisibility);
+ 
+         final boolean useOutsets = outOutsets != null && shouldUseOutsets(attrs, fl);
+@@ -4976,13 +4985,13 @@ public class PhoneWindowManager implements WindowManagerPolicy {
+         mRestrictedScreenWidth = mSystemGestures.screenWidth = mUnrestrictedScreenWidth;
+         mRestrictedScreenHeight = mSystemGestures.screenHeight = mUnrestrictedScreenHeight;
+         mDockLeft = mContentLeft = mVoiceContentLeft = mStableLeft = mStableFullscreenLeft
+-                = mCurLeft = mUnrestrictedScreenLeft;
++                = mCurLeft = mForceImmersiveLeft = mUnrestrictedScreenLeft;
+         mDockTop = mContentTop = mVoiceContentTop = mStableTop = mStableFullscreenTop
+-                = mCurTop = mUnrestrictedScreenTop;
++                = mCurTop = mForceImmersiveTop = mUnrestrictedScreenTop;
+         mDockRight = mContentRight = mVoiceContentRight = mStableRight = mStableFullscreenRight
+-                = mCurRight = displayWidth - overscanRight;
++                = mCurRight = mForceImmersiveRight = displayWidth - overscanRight;
+         mDockBottom = mContentBottom = mVoiceContentBottom = mStableBottom = mStableFullscreenBottom
+-                = mCurBottom = displayHeight - overscanBottom;
++                = mCurBottom = mForceImmersiveBottom = displayHeight - overscanBottom;
+         mDockLayer = 0x10000000;
+         mStatusBarLayer = -1;
+ 
+@@ -5320,6 +5329,19 @@ public class PhoneWindowManager implements WindowManagerPolicy {
+                 ? attached.getFrameLw() : df);
+     }
+ 
++    private void applyForceImmersiveMode(int pfl, Rect r) {
++        if ((pfl & PRIVATE_FLAG_STATUS_HIDE_FORCED) != 0) {
++            r.top = mForceImmersiveTop;
++        }
++        if ((pfl & PRIVATE_FLAG_NAV_HIDE_FORCED) != 0) {
++            if (mNavigationBarPosition == NAV_BAR_BOTTOM) {
++                r.bottom = mForceImmersiveBottom;
++            } else {
++                r.right = mForceImmersiveRight;
++            }
++        }
++    }
++
+     private void applyStableConstraints(int sysui, int fl, Rect r) {
+         if ((sysui & View.SYSTEM_UI_FLAG_LAYOUT_STABLE) != 0) {
+             // If app is requesting a stable layout, don't let the
+@@ -5364,10 +5386,10 @@ public class PhoneWindowManager implements WindowManagerPolicy {
+             offsetInputMethodWindowLw(mLastInputMethodWindow);
+         }
+ 
+-        final int fl = PolicyControl.getWindowFlags(win, attrs);
+-        final int pfl = attrs.privateFlags;
++        final int fl = WindowManagerPolicyControl.getWindowFlags(win, attrs);
++        final int pfl = WindowManagerPolicyControl.getPrivateWindowFlags(win, attrs);
+         final int sim = attrs.softInputMode;
+-        final int sysUiFl = PolicyControl.getSystemUiVisibility(win, null);
++        final int sysUiFl = WindowManagerPolicyControl.getSystemUiVisibility(win, null);
+ 
+         final Rect pf = mTmpParentFrame;
+         final Rect df = mTmpDisplayFrame;
+@@ -5580,7 +5602,8 @@ public class PhoneWindowManager implements WindowManagerPolicy {
+                         of.bottom = mUnrestrictedScreenTop + mUnrestrictedScreenHeight;
+                     }
+ 
+-                    if ((fl & FLAG_FULLSCREEN) == 0) {
++                    if ((fl & FLAG_FULLSCREEN) == 0
++                            || (pfl & PRIVATE_FLAG_WAS_NOT_FULLSCREEN) != 0) {
+                         if (win.isVoiceInteraction()) {
+                             cf.left = mVoiceContentLeft;
+                             cf.top = mVoiceContentTop;
+@@ -5598,6 +5621,8 @@ public class PhoneWindowManager implements WindowManagerPolicy {
+                                 cf.right = mContentRight;
+                                 cf.bottom = mContentBottom;
+                             }
++
++                            applyForceImmersiveMode(pfl, cf);
+                         }
+                     } else {
+                         // Full screen windows are always given a layout that is as if the
+@@ -5618,6 +5643,8 @@ public class PhoneWindowManager implements WindowManagerPolicy {
+                     } else {
+                         vf.set(cf);
+                     }
++
++                    applyForceImmersiveMode(pfl, vf);
+                 }
+             } else if ((fl & FLAG_LAYOUT_IN_SCREEN) != 0 || (sysUiFl
+                     & (View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+@@ -5751,6 +5778,8 @@ public class PhoneWindowManager implements WindowManagerPolicy {
+                 } else {
+                     vf.set(cf);
+                 }
++
++                applyForceImmersiveMode(pfl, vf);
+             } else if (attached != null) {
+                 if (DEBUG_LAYOUT) Slog.v(TAG, "layoutWindowLw(" + attrs.getTitle() +
+                         "): attached to " + attached);
+@@ -5808,6 +5837,8 @@ public class PhoneWindowManager implements WindowManagerPolicy {
+                     } else {
+                         vf.set(cf);
+                     }
++
++                    applyForceImmersiveMode(pfl, vf);
+                 }
+             }
+         }
+@@ -5895,6 +5926,9 @@ public class PhoneWindowManager implements WindowManagerPolicy {
+         if (mContentBottom > top) {
+             mContentBottom = top;
+         }
++        if (mForceImmersiveBottom > top) {
++            mForceImmersiveBottom = top;
++        }
+         if (mVoiceContentBottom > top) {
+             mVoiceContentBottom = top;
+         }
+@@ -5947,7 +5981,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
+         final boolean affectsSystemUi = win.canAffectSystemUiFlags();
+         if (DEBUG_LAYOUT) Slog.i(TAG, "Win " + win + ": affectsSystemUi=" + affectsSystemUi);
+         applyKeyguardPolicyLw(win, imeTarget);
+-        final int fl = PolicyControl.getWindowFlags(win, attrs);
++        final int fl = WindowManagerPolicyControl.getWindowFlags(win, attrs);
+         if (mTopFullscreenOpaqueWindowState == null && affectsSystemUi
+                 && attrs.type == TYPE_INPUT_METHOD) {
+             mForcingShowNavBar = true;
+@@ -6191,7 +6225,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
+         if (mTopFullscreenOpaqueWindowState == null) {
+             return false;
+         }
+-        final int fl = PolicyControl.getWindowFlags(null,
++        final int fl = WindowManagerPolicyControl.getWindowFlags(null,
+                 mTopFullscreenOpaqueWindowState.getAttrs());
+         if (localLOGV) {
+             Slog.d(TAG, "frame: " + mTopFullscreenOpaqueWindowState.getFrameLw()
+@@ -8619,11 +8653,36 @@ public class PhoneWindowManager implements WindowManagerPolicy {
+             return 0;
+         }
+ 
+-        int tmpVisibility = PolicyControl.getSystemUiVisibility(win, null)
++        int tmpVisibility = WindowManagerPolicyControl.getSystemUiVisibility(win, null)
+                 & ~mResettingSystemUiFlags
+                 & ~mForceClearedSystemUiFlags;
++        boolean wasCleared = mClearedBecauseOfForceShow;
+         if (mForcingShowNavBar && win.getSurfaceLayer() < mForcingShowNavBarLayer) {
+-            tmpVisibility &= ~PolicyControl.adjustClearableFlags(win, View.SYSTEM_UI_CLEARABLE_FLAGS);
++            tmpVisibility &=
++                    ~WindowManagerPolicyControl.adjustClearableFlags(win, View.SYSTEM_UI_CLEARABLE_FLAGS);
++            mClearedBecauseOfForceShow = true;
++        } else {
++            mClearedBecauseOfForceShow = false;
++        }
++
++        // The window who requested navbar force showing disappeared and next window wants
++        // to hide navbar. Instead of hiding we will make it transient. SystemUI will take care
++        // about hiding after timeout. This should not happen if next window is keyguard because
++        // transient state have more priority than translucent (why?) and cause bad UX
++        if (wasCleared && !mClearedBecauseOfForceShow
++                && (tmpVisibility & View.SYSTEM_UI_FLAG_HIDE_NAVIGATION) != 0) {
++            mNavigationBarController.showTransient();
++            tmpVisibility |= View.NAVIGATION_BAR_TRANSIENT;
++            mWindowManagerFuncs.addSystemUIVisibilityFlag(View.NAVIGATION_BAR_TRANSIENT);
++        }
++
++        boolean topWindowWasKeyguard = mTopWindowIsKeyguard;
++        mTopWindowIsKeyguard = (win.getAttrs().privateFlags & PRIVATE_FLAG_KEYGUARD) != 0;
++        if (topWindowWasKeyguard && !mTopWindowIsKeyguard
++                && (tmpVisibility & View.SYSTEM_UI_FLAG_FULLSCREEN) != 0) {
++            mStatusBarController.showTransient();
++            tmpVisibility |= View.STATUS_BAR_TRANSIENT;
++            mWindowManagerFuncs.addSystemUIVisibilityFlag(View.STATUS_BAR_TRANSIENT);
+         }
+ 
+         final int fullscreenVisibility = updateLightStatusBarLw(0 /* vis */,
+@@ -8672,7 +8731,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
+             // If the top fullscreen-or-dimming window is also the top fullscreen, respect
+             // its light flag.
+             vis &= ~View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
+-            vis |= PolicyControl.getSystemUiVisibility(statusColorWin, null)
++            vis |= WindowManagerPolicyControl.getSystemUiVisibility(statusColorWin, null)
+                     & View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
+         } else if (statusColorWin != null && statusColorWin.isDimming()) {
+             // Otherwise if it's dimming, clear the light flag.
+@@ -8697,7 +8756,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
+                 // If the top fullscreen-or-dimming window is also the top fullscreen, respect
+                 // its light flag.
+                 vis &= ~View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
+-                vis |= PolicyControl.getSystemUiVisibility(navColorWin, null)
++                vis |= WindowManagerPolicyControl.getSystemUiVisibility(navColorWin, null)
+                         & View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
+             } else if (navColorWin.isDimming() || navColorWin == imeWin) {
+                 // Otherwise if it's dimming or it's the IME window, clear the light flag.
+@@ -8776,7 +8835,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
+                 (vis & View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY) != 0;
+         final boolean hideStatusBarWM =
+                 mTopFullscreenOpaqueWindowState != null
+-                && (PolicyControl.getWindowFlags(mTopFullscreenOpaqueWindowState, null)
++                && (WindowManagerPolicyControl.getWindowFlags(mTopFullscreenOpaqueWindowState, null)
+                         & WindowManager.LayoutParams.FLAG_FULLSCREEN) != 0;
+         final boolean hideStatusBarSysui =
+                 (vis & View.SYSTEM_UI_FLAG_FULLSCREEN) != 0;
+@@ -9215,7 +9274,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
+         mGlobalKeyManager.dump(prefix, pw);
+         mStatusBarController.dump(pw, prefix);
+         mNavigationBarController.dump(pw, prefix);
+-        PolicyControl.dump(prefix, pw);
++        WindowManagerPolicyControl.dump(prefix, pw);
+ 
+         if (mWakeGestureListener != null) {
+             mWakeGestureListener.dump(pw, prefix);
+diff --git a/services/core/java/com/android/server/policy/PolicyControl.java b/services/core/java/com/android/server/policy/PolicyControl.java
+deleted file mode 100644
+index dbafc42..0000000
+--- a/services/core/java/com/android/server/policy/PolicyControl.java
++++ /dev/null
+@@ -1,258 +0,0 @@
+-/*
+- * Copyright (C) 2014 The Android Open Source Project
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License");
+- * you may not use this file except in compliance with the License.
+- * You may obtain a copy of the License at
+- *
+- *      http://www.apache.org/licenses/LICENSE-2.0
+- *
+- * Unless required by applicable law or agreed to in writing, software
+- * distributed under the License is distributed on an "AS IS" BASIS,
+- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+- * See the License for the specific language governing permissions and
+- * limitations under the License.
+- */
+-
+-package com.android.server.policy;
+-
+-import android.app.ActivityManager;
+-import android.content.Context;
+-import android.os.UserHandle;
+-import android.provider.Settings;
+-import android.util.ArraySet;
+-import android.util.Slog;
+-import android.view.View;
+-import android.view.WindowManager;
+-import android.view.WindowManager.LayoutParams;
+-import android.view.WindowManagerPolicy.WindowState;
+-
+-import java.io.PrintWriter;
+-import java.io.StringWriter;
+-
+-/**
+- * Runtime adjustments applied to the global window policy.
+- *
+- * This includes forcing immersive mode behavior for one or both system bars (based on a package
+- * list) and permanently disabling immersive mode confirmations for specific packages.
+- *
+- * Control by setting {@link Settings.Global.POLICY_CONTROL} to one or more name-value pairs.
+- * e.g.
+- *   to force immersive mode everywhere:
+- *     "immersive.full=*"
+- *   to force transient status for all apps except a specific package:
+- *     "immersive.status=apps,-com.package"
+- *   to disable the immersive mode confirmations for specific packages:
+- *     "immersive.preconfirms=com.package.one,com.package.two"
+- *
+- * Separate multiple name-value pairs with ':'
+- *   e.g. "immersive.status=apps:immersive.preconfirms=*"
+- */
+-public class PolicyControl {
+-    private static String TAG = "PolicyControl";
+-    private static boolean DEBUG = false;
+-
+-    private static final String NAME_IMMERSIVE_FULL = "immersive.full";
+-    private static final String NAME_IMMERSIVE_STATUS = "immersive.status";
+-    private static final String NAME_IMMERSIVE_NAVIGATION = "immersive.navigation";
+-    private static final String NAME_IMMERSIVE_PRECONFIRMATIONS = "immersive.preconfirms";
+-
+-    private static String sSettingValue;
+-    private static Filter sImmersivePreconfirmationsFilter;
+-    private static Filter sImmersiveStatusFilter;
+-    private static Filter sImmersiveNavigationFilter;
+-
+-    public static int getSystemUiVisibility(WindowState win, LayoutParams attrs) {
+-        attrs = attrs != null ? attrs : win.getAttrs();
+-        int vis = win != null ? win.getSystemUiVisibility() : attrs.systemUiVisibility;
+-        if (sImmersiveStatusFilter != null && sImmersiveStatusFilter.matches(attrs)) {
+-            vis |= View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+-                    | View.SYSTEM_UI_FLAG_FULLSCREEN
+-                    | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN;
+-            vis &= ~(View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+-                    | View.STATUS_BAR_TRANSLUCENT);
+-        }
+-        if (sImmersiveNavigationFilter != null && sImmersiveNavigationFilter.matches(attrs)) {
+-            vis |= View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+-                    | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+-                    | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION;
+-            vis &= ~(View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+-                    | View.NAVIGATION_BAR_TRANSLUCENT);
+-        }
+-        return vis;
+-    }
+-
+-    public static int getWindowFlags(WindowState win, LayoutParams attrs) {
+-        attrs = attrs != null ? attrs : win.getAttrs();
+-        int flags = attrs.flags;
+-        if (sImmersiveStatusFilter != null && sImmersiveStatusFilter.matches(attrs)) {
+-            flags |= WindowManager.LayoutParams.FLAG_FULLSCREEN;
+-            flags &= ~(WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS
+-                    | WindowManager.LayoutParams.FLAG_FORCE_NOT_FULLSCREEN);
+-        }
+-        if (sImmersiveNavigationFilter != null && sImmersiveNavigationFilter.matches(attrs)) {
+-            flags &= ~WindowManager.LayoutParams.FLAG_TRANSLUCENT_NAVIGATION;
+-        }
+-        return flags;
+-    }
+-
+-    public static int adjustClearableFlags(WindowState win, int clearableFlags) {
+-        final LayoutParams attrs = win != null ? win.getAttrs() : null;
+-        if (sImmersiveStatusFilter != null && sImmersiveStatusFilter.matches(attrs)) {
+-            clearableFlags &= ~View.SYSTEM_UI_FLAG_FULLSCREEN;
+-        }
+-        return clearableFlags;
+-    }
+-
+-    public static boolean disableImmersiveConfirmation(String pkg) {
+-        return (sImmersivePreconfirmationsFilter != null
+-                && sImmersivePreconfirmationsFilter.matches(pkg))
+-                || ActivityManager.isRunningInTestHarness();
+-    }
+-
+-    public static void reloadFromSetting(Context context) {
+-        if (DEBUG) Slog.d(TAG, "reloadFromSetting()");
+-        String value = null;
+-        try {
+-            value = Settings.Global.getStringForUser(context.getContentResolver(),
+-                    Settings.Global.POLICY_CONTROL,
+-                    UserHandle.USER_CURRENT);
+-            if (sSettingValue != null && sSettingValue.equals(value)) return;
+-            setFilters(value);
+-            sSettingValue = value;
+-        } catch (Throwable t) {
+-            Slog.w(TAG, "Error loading policy control, value=" + value, t);
+-        }
+-    }
+-
+-    public static void dump(String prefix, PrintWriter pw) {
+-        dump("sImmersiveStatusFilter", sImmersiveStatusFilter, prefix, pw);
+-        dump("sImmersiveNavigationFilter", sImmersiveNavigationFilter, prefix, pw);
+-        dump("sImmersivePreconfirmationsFilter", sImmersivePreconfirmationsFilter, prefix, pw);
+-    }
+-
+-    private static void dump(String name, Filter filter, String prefix, PrintWriter pw) {
+-        pw.print(prefix); pw.print("PolicyControl."); pw.print(name); pw.print('=');
+-        if (filter == null) {
+-            pw.println("null");
+-        } else {
+-            filter.dump(pw); pw.println();
+-        }
+-    }
+-
+-    private static void setFilters(String value) {
+-        if (DEBUG) Slog.d(TAG, "setFilters: " + value);
+-        sImmersiveStatusFilter = null;
+-        sImmersiveNavigationFilter = null;
+-        sImmersivePreconfirmationsFilter = null;
+-        if (value != null) {
+-            String[] nvps = value.split(":");
+-            for (String nvp : nvps) {
+-                int i = nvp.indexOf('=');
+-                if (i == -1) continue;
+-                String n = nvp.substring(0, i);
+-                String v = nvp.substring(i + 1);
+-                if (n.equals(NAME_IMMERSIVE_FULL)) {
+-                    Filter f = Filter.parse(v);
+-                    sImmersiveStatusFilter = sImmersiveNavigationFilter = f;
+-                    if (sImmersivePreconfirmationsFilter == null) {
+-                        sImmersivePreconfirmationsFilter = f;
+-                    }
+-                } else if (n.equals(NAME_IMMERSIVE_STATUS)) {
+-                    Filter f = Filter.parse(v);
+-                    sImmersiveStatusFilter = f;
+-                } else if (n.equals(NAME_IMMERSIVE_NAVIGATION)) {
+-                    Filter f = Filter.parse(v);
+-                    sImmersiveNavigationFilter = f;
+-                    if (sImmersivePreconfirmationsFilter == null) {
+-                        sImmersivePreconfirmationsFilter = f;
+-                    }
+-                } else if (n.equals(NAME_IMMERSIVE_PRECONFIRMATIONS)) {
+-                    Filter f = Filter.parse(v);
+-                    sImmersivePreconfirmationsFilter = f;
+-                }
+-            }
+-        }
+-        if (DEBUG) {
+-            Slog.d(TAG, "immersiveStatusFilter: " + sImmersiveStatusFilter);
+-            Slog.d(TAG, "immersiveNavigationFilter: " + sImmersiveNavigationFilter);
+-            Slog.d(TAG, "immersivePreconfirmationsFilter: " + sImmersivePreconfirmationsFilter);
+-        }
+-    }
+-
+-    private static class Filter {
+-        private static final String ALL = "*";
+-        private static final String APPS = "apps";
+-
+-        private final ArraySet<String> mWhitelist;
+-        private final ArraySet<String> mBlacklist;
+-
+-        private Filter(ArraySet<String> whitelist, ArraySet<String> blacklist) {
+-            mWhitelist = whitelist;
+-            mBlacklist = blacklist;
+-        }
+-
+-        boolean matches(LayoutParams attrs) {
+-            if (attrs == null) return false;
+-            boolean isApp = attrs.type >= WindowManager.LayoutParams.FIRST_APPLICATION_WINDOW
+-                    && attrs.type <= WindowManager.LayoutParams.LAST_APPLICATION_WINDOW;
+-            if (isApp && mBlacklist.contains(APPS)) return false;
+-            if (onBlacklist(attrs.packageName)) return false;
+-            if (isApp && mWhitelist.contains(APPS)) return true;
+-            return onWhitelist(attrs.packageName);
+-        }
+-
+-        boolean matches(String packageName) {
+-            return !onBlacklist(packageName) && onWhitelist(packageName);
+-        }
+-
+-        private boolean onBlacklist(String packageName) {
+-            return mBlacklist.contains(packageName) || mBlacklist.contains(ALL);
+-        }
+-
+-        private boolean onWhitelist(String packageName) {
+-            return mWhitelist.contains(ALL) || mWhitelist.contains(packageName);
+-        }
+-
+-        void dump(PrintWriter pw) {
+-            pw.print("Filter[");
+-            dump("whitelist", mWhitelist, pw); pw.print(',');
+-            dump("blacklist", mBlacklist, pw); pw.print(']');
+-        }
+-
+-        private void dump(String name, ArraySet<String> set, PrintWriter pw) {
+-            pw.print(name); pw.print("=(");
+-            final int n = set.size();
+-            for (int i = 0; i < n; i++) {
+-                if (i > 0) pw.print(',');
+-                pw.print(set.valueAt(i));
+-            }
+-            pw.print(')');
+-        }
+-
+-        @Override
+-        public String toString() {
+-            StringWriter sw = new StringWriter();
+-            dump(new PrintWriter(sw, true));
+-            return sw.toString();
+-        }
+-
+-        // value = comma-delimited list of tokens, where token = (package name|apps|*)
+-        // e.g. "com.package1", or "apps, com.android.keyguard" or "*"
+-        static Filter parse(String value) {
+-            if (value == null) return null;
+-            ArraySet<String> whitelist = new ArraySet<String>();
+-            ArraySet<String> blacklist = new ArraySet<String>();
+-            for (String token : value.split(",")) {
+-                token = token.trim();
+-                if (token.startsWith("-") && token.length() > 1) {
+-                    token = token.substring(1);
+-                    blacklist.add(token);
+-                } else {
+-                    whitelist.add(token);
+-                }
+-            }
+-            return new Filter(whitelist, blacklist);
+-        }
+-    }
+-}
+diff --git a/services/core/java/com/android/server/wm/WindowManagerService.java b/services/core/java/com/android/server/wm/WindowManagerService.java
+index 0f4d8fe..cfeb98b 100644
+--- a/services/core/java/com/android/server/wm/WindowManagerService.java
++++ b/services/core/java/com/android/server/wm/WindowManagerService.java
+@@ -3285,6 +3285,11 @@ public class WindowManagerService extends IWindowManager.Stub
+         return mPointerEventDispatcher != null;
+     }
+ 
++    @Override
++    public void addSystemUIVisibilityFlag(int flags) {
++        mLastStatusBarVisibility |= flags;
++    }
++
+     // Called by window manager policy. Not exposed externally.
+     @Override
+     public int getLidState() {
+-- 
+2.7.4
+

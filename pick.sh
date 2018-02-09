@@ -402,6 +402,7 @@ fi
 
 # bionic
 kpick 204463 # Disable realpath logspam
+kpick 205149 # Allow fortify to be disabled for vsnprintf [1/2]
 
 # device/lineage/sepolicy
 kpick 201720 # sepolicy: add rules for updater and update_engine
@@ -409,13 +410,19 @@ kpick 203558 # sepolicy: Add policy for vendor.lineage.power HAL
 kpick 204286 # sepolicy: Fixing camera app not launching
 
 # device/qcom/common
-#kpick 201274 # power: Update power hal extension for new qti hal
+kpick 205532 # power: Fix file mode
+#kpick 205533 # power: Binderize the HAL
 
 # device/qcom/sepolicy
 kpick 199559 # sepolicy: Allow dataservice_app to read/write to IPA device
 kpick 203500 # qca1530: use create_socket_perms_no_ioctl to avoid neverallows
 kpick 203501 # qca1530: fix neverallow on adbd
 kpick 204281 # legacy: Allow qcom power HAL to interact with perfd
+
+# device/samsung/msm8974-common
+kpick 205468 # msm8974-common: libril: Fix RIL_Call struct for 64-bit platforms
+#kpick 205534 # msm8974: Update powerhal for binderization
+
 
 # frameworks/av
 kpick 198113 # camera/media: Support for legacy camera HALv1
@@ -496,6 +503,10 @@ kpick 205040 # SUW: rebrand step 1: update paths
 kpick 205041 # SUW: rebrand step 2: update file contents
 kpick 205199 # SUW: Fix crash on fingerprint capability check
 kpick 205200 # SUW: Fix keydisabler setting on non-gms case
+
+# packages/opt/telephony
+kpick 202676 # Implement UICC TLV Data decoding.
+kpick 202677 # Skip unknown tags instead of aborting when parsing UICC TLV data
 
 # system/core
 kpick 202493 # init: add detection of charging mode
