@@ -109,6 +109,7 @@ function projects_snapshot()
     snapshot_file=$topdir/.mypatches/snapshot.list
     rm -f $snapshot_file.new
     cat $topdir/.repo/project.list | while read project; do
+         [ "$1" != "" -a "$project" != "$1" ] && continue
          cd $topdir/$project
          echo ">>>  project: $project ... "
 
@@ -140,6 +141,7 @@ function projects_snapshot()
          done < /tmp/gitlog.txt
          rm -f /tmp/gitlog.txt
 
+         [ "$1" != "" -a "$project" != "$1" ] || \
          echo "$project, $commit_id, $url" >> $snapshot_file.new
 
          [ -d $topdir/.mypatches/pick/$project ] || mkdir -p $topdir/.mypatches/pick/$project
@@ -171,7 +173,10 @@ function projects_snapshot()
          [ -d $topdir/.mypatches/local/$project ] && find $topdir/.mypatches/local/$project -type d | xargs rmdir --ignore-fail-on-non-empty >/dev/null 2>/dev/null
     done
     find $topdir/.mypatches -type d | xargs rmdir --ignore-fail-on-non-empty >/dev/null 2>/dev/null
+
+    [ "$1" != "" -a "$project" != "$1" ] || \
     mv $snapshot_file.new $snapshot_file
+
     cd $topdir
 }
 
@@ -356,6 +361,8 @@ function kpick()
 
 ########## main ###################
 
+get_defaul_remote
+
 for op in $*; do
     if [ "$op" = "-pl" -o "$op" = "--patch_local" ]; then
          op_patch_local=1
@@ -371,11 +378,13 @@ for op in $*; do
         op_reset_projects=1
     elif [ $op_patch_local -eq 1 ] && [ "$op" = "pick" -o "$op" = "local" ]; then
         op_patches_dir="$op"
+    elif [ $op_project_snapshot -eq 1 -a  -d "$(gettop)/$op" ]; then
+         projects_snapshot $op
+         exit $?
     else
          kpick $op
     fi
 done
-get_defaul_remote
 
 if [ $# -ge 1 ]; then
    if [ $op_project_snapshot -eq 1 ]; then
@@ -405,6 +414,7 @@ kpick 204463 # Disable realpath logspam
 
 # device/lineage/sepolicy
 kpick 201720 # sepolicy: add rules for updater and update_engine
+kpick 203433 # sepolicy: Allow apps with API level <= 25 to access services
 kpick 204286 # sepolicy: Fixing camera app not launching
 
 # device/qcom/common
@@ -414,7 +424,6 @@ kpick 205532 # power: Fix file mode
 kpick 199559 # sepolicy: Allow dataservice_app to read/write to IPA device
 kpick 203500 # qca1530: use create_socket_perms_no_ioctl to avoid neverallows
 kpick 203501 # qca1530: fix neverallow on adbd
-kpick 204281 # legacy: Allow qcom power HAL to interact with perfd
 
 # device/samsung/msm8974-common
 kpick 205468 # msm8974-common: libril: Fix RIL_Call struct for 64-bit platforms
