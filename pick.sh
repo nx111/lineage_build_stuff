@@ -402,16 +402,13 @@ fi
 
 # bionic
 kpick 204463 # Disable realpath logspam
-kpick 205149 # Allow fortify to be disabled for vsnprintf [1/2]
 
 # device/lineage/sepolicy
 kpick 201720 # sepolicy: add rules for updater and update_engine
-kpick 203558 # sepolicy: Add policy for vendor.lineage.power HAL
 kpick 204286 # sepolicy: Fixing camera app not launching
 
 # device/qcom/common
 kpick 205532 # power: Fix file mode
-#kpick 205533 # power: Binderize the HAL
 
 # device/qcom/sepolicy
 kpick 199559 # sepolicy: Allow dataservice_app to read/write to IPA device
@@ -421,7 +418,6 @@ kpick 204281 # legacy: Allow qcom power HAL to interact with perfd
 
 # device/samsung/msm8974-common
 kpick 205468 # msm8974-common: libril: Fix RIL_Call struct for 64-bit platforms
-#kpick 205534 # msm8974: Update powerhal for binderization
 
 
 # frameworks/av
@@ -437,10 +433,7 @@ kpick 200035 # Camera: CameraHardwareInterface changes to support Extended FD
 kpick 204520 # camera: Only link and use vendor.qti.hardware.camera.device on qcom devices
 
 # frameworks/base
-kpick 202423 # Screenshot: append app name to filename
 kpick 202542 # audio: add support for extended formats
-kpick 203053 # perf: Add plumbing for PerformanceManager
-kpick 203054 # perf: Adapt for HIDL Lineage power hal
 kpick 203785 # SystemUI: use vector drawables for navbar icons
 kpick 203786 # SystemUI: Add a reversed version of OPA layout
 kpick 203787 # opalayout: Actually implement setDarkIntensity
@@ -462,34 +455,18 @@ kpick 203294 # surfaceflinger: set a prop when initialization is complete
 # hardware/interfaces
 kpick 200040 # Camed HAL extension: Added support in HIDL for Extended FD.
 kpick 204515 # camera: Only link and use vendor.qti.hardware.camera.device on qcom devices
-kpick 204588 # Revert "Fix powerhint for NULL parameter"
 
 # hardware/lineage/interfaces
 kpick 201226 # gps.default.so: fix crash on access to unset AGpsRilCallbacks::request_refloc
-kpick 203061 # lineage/interfaces: power: Add binderized service
-
-# hardware/qcom/audio-caf/msm8974
-kpick 204892 # audio: revert "remove 5.1 channel mask if SSR is not supported"
-kpick 204893 # policy_hal: Enable Direct PCM for 24 bit PCM playback
-kpick 204894 # hal: Fix alignement of buffer sent to DSP for multichannel clips
-kpick 204895 # audio: Enable 24 bit packed direct pcm support.
-
-# hardware/qcom/power
-kpick 203055 # power: Prepare for power profile support
-kpick 203066 # power: Add known perf hint IDs
-kpick 203067 # power: msm8996: Add support for power profile and cpu boost
 
 # lineage-sdk
 kpick 203030 # lineage-sdk: Add overlay support for disabling hardware features
-kpick 203011 # lineage-sdk: Reenable performance profiles
 
 # packages/apps/LineageParts
-kpick 203010 # LineageParts: enable perf profiles
 kpick 204822 # LineageParts: Reenable expanded desktop settings
 kpick 204823 # LineageParts: Reenable status bar notification counters
 
 # packages/apps/Settings
-kpick 203009 # Settings: battery: Add LineageParts perf profiles
 kpick 204361 # settings: port IME selector notification toggle (1/2)
 kpick 204820 # Settings: display: Add expanded desktop preference
 
