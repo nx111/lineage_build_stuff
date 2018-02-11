@@ -43,6 +43,7 @@ function patch_local()
              continue
          fi
          project=$(echo $f |  sed -e "s/^pick\///" -e "s/^local\///"  | sed "s/\/[^\/]*$//")
+         [ -d "$topdir/$project" ] || continue
          if [ "$f" != "$project" ]; then
              if [ `pwd` != "$topdir/$project" ]; then
                   cd $topdir/$project
@@ -413,7 +414,6 @@ fi
 kpick 204463 # Disable realpath logspam
 
 # device/lineage/sepolicy
-kpick 201720 # sepolicy: add rules for updater and update_engine
 kpick 203433 # sepolicy: Allow apps with API level <= 25 to access services
 kpick 204286 # sepolicy: Fixing camera app not launching
 
@@ -480,15 +480,15 @@ kpick 204361 # settings: port IME selector notification toggle (1/2)
 kpick 204820 # Settings: display: Add expanded desktop preference
 
 # packages/apps/SetupWizard
-kpick 204734 # SUW: Update for LineageOS platform & sdk
-kpick 204839 # SUW: Update Intent for Wifi connect
-kpick 205068 # SUW: Integrate with GMS flow
-kpick 205152 # SUW: Don't export our WizardManager
-kpick 205039 # SUW: Remove unused permissions
-kpick 205040 # SUW: rebrand step 1: update paths
-kpick 205041 # SUW: rebrand step 2: update file contents
-kpick 205199 # SUW: Fix crash on fingerprint capability check
-kpick 205200 # SUW: Fix keydisabler setting on non-gms case
+#kpick 204734 # SUW: Update for LineageOS platform & sdk
+#kpick 204839 # SUW: Update Intent for Wifi connect
+#kpick 205068 # SUW: Integrate with GMS flow
+#kpick 205152 # SUW: Don't export our WizardManager
+#kpick 205039 # SUW: Remove unused permissions
+#kpick 205040 # SUW: rebrand step 1: update paths
+#kpick 205041 # SUW: rebrand step 2: update file contents
+#kpick 205199 # SUW: Fix crash on fingerprint capability check
+#kpick 205200 # SUW: Fix keydisabler setting on non-gms case
 
 # packages/opt/telephony
 kpick 202676 # Implement UICC TLV Data decoding.
