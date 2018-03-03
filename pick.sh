@@ -408,114 +408,47 @@ if [ $# -ge 1 ]; then
 fi
 
 ###############################################################
-# android
+# device/samsung/klte-common
+kpick 207881 # Revert "klte-common: HAXX: "Fix" race condition in init"
+kpick 207882 # klte-common: Mount apnhlos and modem in init
+kpick 207883 # klte-common: Use sdfat for exfat
+kpick 207884 # klte-common: Use sdfat for vfat
 
-# bionic
-kpick 204463 # Disable realpath logspam
-
-# device/lineage/sepolicy
-kpick 203433 # sepolicy: Allow apps with API level <= 25 to access services
-kpick 204286 # sepolicy: Fixing camera app not launching
-
-# device/qcom/common
-kpick 205532 # power: Fix file mode
-
-# device/qcom/sepolicy
-kpick 199559 # sepolicy: Allow dataservice_app to read/write to IPA device
-kpick 203500 # qca1530: use create_socket_perms_no_ioctl to avoid neverallows
-kpick 203501 # qca1530: fix neverallow on adbd
-
-# device/samsung/msm8974-common
+# device/samsung/msm874-common
 kpick 205468 # msm8974-common: libril: Fix RIL_Call struct for 64-bit platforms
 
+# kernel/samsung/msm8974
+kpick 207529 # misc: Import SM-G900F kernel source code
+kpick 207530 # msm: camera_ll: Pick G900FXXU1CRA2 camera_v2 changes
+kpick 207532 # net: wireless: bcmdhd: Drop back to 2930b42b636 state
+
+# -------------- PLATFORM STUFF --------------
 
 # frameworks/av
-kpick 198113 # camera/media: Support for legacy camera HALv1
-kpick 198116 # CameraService: Fix deadlock in binder death cleanup.
-kpick 198951 # CamcorderProfiles: Add new camcorder profiles
-kpick 201731 # libstagefright: use 64-bit usage for native_window_set_usage
-kpick 203520 # media: fix infinite wait at source for HAL1 based recording
-kpick 203521 # libstagefright: Free buffers on observer died
-kpick 203522 # stagefright: ACodec: Resolve empty vendor parameters usage
-kpick 203523 # Camera: fix use after disconnect error
-kpick 200035 # Camera: CameraHardwareInterface changes to support Extended FD
-kpick 204520 # camera: Only link and use vendor.qti.hardware.camera.device on qcom devices
-
-# frameworks/base
-kpick 202542 # audio: add support for extended formats
-kpick 203785 # SystemUI: use vector drawables for navbar icons
-kpick 203786 # SystemUI: Add a reversed version of OPA layout
-kpick 203787 # opalayout: Actually implement setDarkIntensity
-kpick 203788 # opapayout: Update for r23 smaller navbar
-kpick 203789 # opalayout/home: Fix icons and darkintensity
-kpick 203790 # OpaLayout: misc code fixes
-kpick 204356 # framework: port IME selector notification toggle (2/2)
-kpick 204464 # Don't warn about preferred density
-kpick 204465 # Don't log about /proc/uid_time_in_state not existing
-kpick 204804 # Implement expanded desktop feature
-#kpick 204813 # NetworkManagement : Add ability to restrict app data/wifi
-kpick 204821 # SystemUI: Forward-port notification counters
-kpick 204901 # LiveDisplayTile: Avoid NPE during boot up phase
-kpick 204902 # NfcTile: Avoid NPE during boot up phase
-
-# frameworks/native
-kpick 203294 # surfaceflinger: set a prop when initialization is complete
-
-# hardware/interfaces
-kpick 200040 # Camed HAL extension: Added support in HIDL for Extended FD.
-kpick 204515 # camera: Only link and use vendor.qti.hardware.camera.device on qcom devices
-
-# hardware/lineage/interfaces
-kpick 201226 # gps.default.so: fix crash on access to unset AGpsRilCallbacks::request_refloc
-
-# lineage-sdk
-kpick 203030 # lineage-sdk: Add overlay support for disabling hardware features
-
-# packages/apps/LineageParts
-kpick 204822 # LineageParts: Reenable expanded desktop settings
-kpick 204823 # LineageParts: Reenable status bar notification counters
-
-# packages/apps/Settings
-kpick 204361 # settings: port IME selector notification toggle (1/2)
-kpick 204820 # Settings: display: Add expanded desktop preference
-
-# packages/apps/SetupWizard
-#kpick 204734 # SUW: Update for LineageOS platform & sdk
-#kpick 204839 # SUW: Update Intent for Wifi connect
-#kpick 205068 # SUW: Integrate with GMS flow
-#kpick 205152 # SUW: Don't export our WizardManager
-#kpick 205039 # SUW: Remove unused permissions
-#kpick 205040 # SUW: rebrand step 1: update paths
-#kpick 205041 # SUW: rebrand step 2: update file contents
-#kpick 205199 # SUW: Fix crash on fingerprint capability check
-#kpick 205200 # SUW: Fix keydisabler setting on non-gms case
-
-# packages/opt/telephony
-kpick 202676 # Implement UICC TLV Data decoding.
-kpick 202677 # Skip unknown tags instead of aborting when parsing UICC TLV data
+kpick 206430 # CameraService: Fix deadlock in binder death cleanup.
+kpick 206431 # libstagefright: Free buffers on observer died
+kpick 206432 # Camera: fix use after disconnect error
+kpick 206433 # stagefright: ACodec: Resolve empty vendor parameters usage
+kpick 206434 # media: fix infinite wait at source for HAL1 based recording
+kpick 206435 # libstagefright: use 64-bit usage for native_window_set_usage
+kpick 206427 # camera/media: Support legacy HALv1 camera in mediaserver
 
 # system/core
-kpick 202493 # init: add detection of charging mode
-kpick 202494 # init: define BOARD_CHARGING_CMDLINE parameters
-kpick 202495 # init: Bring back support for arbitrary chargermode cmdlines
-kpick 204461 # Disable sphal namespace logspam
+d=`pwd`
+cd system/core || exit 1
+git remote remove blek > /dev/null 2>&1
+git remote add blek https://github.com/invisiblek/android_system_core.git || exit 1
+git fetch blek lineage-15.1_safetynet || exit 1
+git cherry-pick 96c4433e  # init: I hate safety net
+cd "$d" || exit 1
 
 # system/sepolicy
-kpick 198106 # Add rules required for TARGET_HAS_LEGACY_CAMERA_HAL1
-kpick 198107 # Adapt add_service uses for TARGET_HAS_LEGACY_CAMERA_HAL1
-kpick 201721 # sepolicy: allow update_engine to bypass neverallows for backuptool
-kpick 203847 # sepolicy: Allow init to modify system_blk_device
+kpick 206428 # Add rules required for TARGET_HAS_LEGACY_CAMERA_HAL1
+kpick 206429 # Adapt add_service uses for TARGET_HAS_LEGACY_CAMERA_HAL1
 
-#vendor/lineage
-kpick 200408 # Update our privapp whitelist
-kpick 201336 # soong_config: Add TARGET_HAS_LEGACY_CAMERA_HAL1 variable
-kpick 201551 # extract_utils: Use vdexExtractor and oatdump for deodexing
-kpick 201722 # vendor: add custom backuptools and postinstall script for A/B OTAs
-kpick 201975 # repopick: Give feedback if topic does not exist
-kpick 204012 # Allow building out of tree kernel modules
-kpick 204075 # lineageremote: try private remote before giving up
-#kpick 204208 # backuptool: introduce addon.d script versioning    (*****It will cause open gapps failed*****)
-kpick 204521 # soong: Add BOARD_USES_QCOM_HARDWARE
+# vendor/lineage
+kpick 206426 # soong_config: Add TARGET_HAS_LEGACY_CAMERA_HAL1 variable
+kpick 206996 # soong_config: Add TARGET_USES_MEDIA_EXTENSIONS variable
 
 ##################################
 

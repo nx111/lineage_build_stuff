@@ -1,0 +1,118 @@
+From 204f94df8faf618deb4c404de5d183d0da7a5777 Mon Sep 17 00:00:00 2001
+From: "Kevin F. Haggerty" <haggertk@lineageos.org>
+Date: Fri, 23 Feb 2018 15:51:07 -0700
+Subject: [PATCH 2/3] msm: camera_ll: Pick G900FXXU1CRA2 camera_v2 changes
+
+Change-Id: If3609cb015c733f2923c28b8cf96abe7ee7629b6
+Signed-off-by: Kevin F. Haggerty <haggertk@lineageos.org>
+---
+ .../media/platform/msm/camera_ll/isp/msm_isp_stats_util.c  |  6 ++++++
+ drivers/media/platform/msm/camera_ll/msm.c                 | 10 ++++++++++
+ .../platform/msm/camera_ll/sensor/actuator/msm_actuator.c  | 14 +++++++++++++-
+ .../platform/msm/camera_ll/sensor/io/msm_camera_cci_i2c.c  |  2 +-
+ 4 files changed, 30 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/media/platform/msm/camera_ll/isp/msm_isp_stats_util.c b/drivers/media/platform/msm/camera_ll/isp/msm_isp_stats_util.c
+index f18353e..ca55e87 100644
+--- a/drivers/media/platform/msm/camera_ll/isp/msm_isp_stats_util.c
++++ b/drivers/media/platform/msm/camera_ll/isp/msm_isp_stats_util.c
+@@ -516,6 +516,12 @@ int msm_isp_cfg_stats_stream(struct vfe_device *vfe_dev, void *arg)
+ 	if (vfe_dev->stats_data.num_active_stream == 0)
+ 		vfe_dev->hw_info->vfe_ops.stats_ops.cfg_ub(vfe_dev);
+ 
++	if (stream_cfg_cmd->num_streams > MSM_ISP_STATS_MAX) {
++		pr_err("%s invalid num_streams %d\n", __func__,
++			stream_cfg_cmd->num_streams);
++		return -EINVAL;
++	}
++
+ 	if (stream_cfg_cmd->enable)
+ 		rc = msm_isp_start_stats_stream(vfe_dev, stream_cfg_cmd);
+ 	else
+diff --git a/drivers/media/platform/msm/camera_ll/msm.c b/drivers/media/platform/msm/camera_ll/msm.c
+index 42b66e82..fa126c6 100644
+--- a/drivers/media/platform/msm/camera_ll/msm.c
++++ b/drivers/media/platform/msm/camera_ll/msm.c
+@@ -579,6 +579,16 @@ static long msm_private_ioctl(struct file *file, void *fh,
+ 			wake_up(&cam_dummy_queue.state_wait);
+ 		return rc;
+ 	}
++
++	switch (cmd) {
++	case MSM_CAM_V4L2_IOCTL_NOTIFY:
++	case MSM_CAM_V4L2_IOCTL_CMD_ACK:
++	case MSM_CAM_V4L2_IOCTL_NOTIFY_ERROR:
++		break;
++	default:
++		return -ENOTTY;
++	}
++
+ 	event_data = (struct msm_v4l2_event_data *)
+ 		((struct v4l2_event *)arg)->u.data;
+ 
+diff --git a/drivers/media/platform/msm/camera_ll/sensor/actuator/msm_actuator.c b/drivers/media/platform/msm/camera_ll/sensor/actuator/msm_actuator.c
+index b197421..77174f5 100644
+--- a/drivers/media/platform/msm/camera_ll/sensor/actuator/msm_actuator.c
++++ b/drivers/media/platform/msm/camera_ll/sensor/actuator/msm_actuator.c
+@@ -494,6 +494,12 @@ static int32_t msm_actuator_move_focus(
+ 	if (dest_step_pos == a_ctrl->curr_step_pos)
+ 		return rc;
+ 
++	if (dest_step_pos > a_ctrl->total_steps) {
++		pr_err("Step pos greater than total steps = %d\n",
++			dest_step_pos);
++		return -EFAULT;
++	}
++
+ 	if ((sign_dir > MSM_ACTUATOR_MOVE_SIGNED_NEAR) ||
+ 		(sign_dir < MSM_ACTUATOR_MOVE_SIGNED_FAR)) {
+ 		pr_err("Invalid sign_dir = %d\n", sign_dir);
+@@ -943,7 +949,7 @@ static int32_t msm_actuator_config(struct msm_actuator_ctrl_t *a_ctrl,
+ {
+ 	struct msm_actuator_cfg_data *cdata =
+ 		(struct msm_actuator_cfg_data *)argp;
+-	int32_t rc = 0;
++	int32_t rc = -EINVAL;
+ 	mutex_lock(a_ctrl->actuator_mutex);
+ 	CDBG("Enter\n");
+ 	CDBG("%s type %d\n", __func__, cdata->cfgtype);
+@@ -961,6 +967,8 @@ static int32_t msm_actuator_config(struct msm_actuator_ctrl_t *a_ctrl,
+ 		break;
+ 
+ 	case CFG_SET_DEFAULT_FOCUS:
++		if (a_ctrl->func_tbl &&
++			a_ctrl->func_tbl->actuator_set_default_focus)
+ 		rc = a_ctrl->func_tbl->actuator_set_default_focus(a_ctrl,
+ 			&cdata->cfg.move);
+ 		if (rc < 0)
+@@ -968,6 +976,8 @@ static int32_t msm_actuator_config(struct msm_actuator_ctrl_t *a_ctrl,
+ 		break;
+ 
+ 	case CFG_MOVE_FOCUS:
++		if (a_ctrl->func_tbl &&
++			a_ctrl->func_tbl->actuator_move_focus)
+ 		rc = a_ctrl->func_tbl->actuator_move_focus(a_ctrl,
+ 			&cdata->cfg.move);
+ 		if (rc < 0)
+@@ -975,6 +985,8 @@ static int32_t msm_actuator_config(struct msm_actuator_ctrl_t *a_ctrl,
+ 		break;
+ 
+ 	case CFG_SET_POSITION:
++	if (a_ctrl->func_tbl &&
++			a_ctrl->func_tbl->actuator_set_position)
+ 		rc = a_ctrl->func_tbl->actuator_set_position(a_ctrl,
+ 			&cdata->cfg.setpos);
+ 		if (rc < 0)
+diff --git a/drivers/media/platform/msm/camera_ll/sensor/io/msm_camera_cci_i2c.c b/drivers/media/platform/msm/camera_ll/sensor/io/msm_camera_cci_i2c.c
+index 4f5a19e..f828804 100644
+--- a/drivers/media/platform/msm/camera_ll/sensor/io/msm_camera_cci_i2c.c
++++ b/drivers/media/platform/msm/camera_ll/sensor/io/msm_camera_cci_i2c.c
+@@ -1,4 +1,4 @@
+-/* Copyright (c) 2011-2013, The Linux Foundation. All rights reserved.
++/* Copyright (c) 2011-2017, The Linux Foundation. All rights reserved.
+  *
+  * This program is free software; you can redistribute it and/or modify
+  * it under the terms of the GNU General Public License version 2 and
+-- 
+2.7.4
+
