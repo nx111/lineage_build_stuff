@@ -412,14 +412,10 @@ fi
 kpick 207881 # Revert "klte-common: HAXX: "Fix" race condition in init"
 kpick 207882 # klte-common: Mount apnhlos and modem in init
 kpick 207883 # klte-common: Use sdfat for exfat
-kpick 207884 # klte-common: Use sdfat for vfat
 
 # device/samsung/msm874-common
-kpick 205468 # msm8974-common: libril: Fix RIL_Call struct for 64-bit platforms
 
 # kernel/samsung/msm8974
-kpick 207529 # misc: Import SM-G900F kernel source code
-kpick 207530 # msm: camera_ll: Pick G900FXXU1CRA2 camera_v2 changes
 kpick 207532 # net: wireless: bcmdhd: Drop back to 2930b42b636 state
 
 # -------------- PLATFORM STUFF --------------
