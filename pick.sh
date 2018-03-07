@@ -416,7 +416,7 @@ kpick 207883 # klte-common: Use sdfat for exfat
 # device/samsung/msm874-common
 
 # kernel/samsung/msm8974
-kpick 207532 # net: wireless: bcmdhd: Drop back to 2930b42b636 state
+kpick 207265 # ARM: configs: lineage_*: Disable exfat and vfat
 
 # -------------- PLATFORM STUFF --------------
 
@@ -430,13 +430,7 @@ kpick 206435 # libstagefright: use 64-bit usage for native_window_set_usage
 kpick 206427 # camera/media: Support legacy HALv1 camera in mediaserver
 
 # system/core
-d=`pwd`
-cd system/core || exit 1
-git remote remove blek > /dev/null 2>&1
-git remote add blek https://github.com/invisiblek/android_system_core.git || exit 1
-git fetch blek lineage-15.1_safetynet || exit 1
-git cherry-pick 96c4433e  # init: I hate safety net
-cd "$d" || exit 1
+kpick 206119 # init: I hate safety net
 
 # system/sepolicy
 kpick 206428 # Add rules required for TARGET_HAS_LEGACY_CAMERA_HAL1
@@ -445,6 +439,7 @@ kpick 206429 # Adapt add_service uses for TARGET_HAS_LEGACY_CAMERA_HAL1
 # vendor/lineage
 kpick 206426 # soong_config: Add TARGET_HAS_LEGACY_CAMERA_HAL1 variable
 kpick 206996 # soong_config: Add TARGET_USES_MEDIA_EXTENSIONS variable
+kpick 207207 # lineage: Enable wifi wakeup config option
 
 ##################################
 
