@@ -265,7 +265,8 @@ function fix_repopick_output()
 {
     [ $# -lt 1 -o ! -f "$1" ] && return -1
     logfile=$1
-    if ! grep -q "Applying change number" $logfile; then
+    count=$(grep -c "Applying change number" $logfile)
+    if [ $count -ne 1 ]; then
        return 1
     fi
     bLineNo=$(grep -n "Applying change number" $logfile | cut -d: -f1 )
@@ -292,7 +293,7 @@ function kpick()
     cat $logfile | sed -e "/ERROR: git command failed/d"
     local tries=0
     local breakout=0
-    while [ $rc -ne 0 -a -f $errfile ] ; do
+    while [ $rc -ne 0 -a -f $errfile ];  do
           #cat  $errfile
           if [ $tries -ge 30 ]; then
                 echo "    >> pick faild !!!!!"
@@ -383,6 +384,7 @@ for op in $*; do
          projects_snapshot $op
          exit $?
     else
+         echo "kpick $op"
          kpick $op
     fi
 done
@@ -409,8 +411,6 @@ fi
 
 ###############################################################
 # device/samsung/klte-common
-kpick 207881 # Revert "klte-common: HAXX: "Fix" race condition in init"
-kpick 207882 # klte-common: Mount apnhlos and modem in init
 kpick 207883 # klte-common: Use sdfat for exfat
 
 # device/samsung/msm874-common
@@ -439,8 +439,9 @@ kpick 206429 # Adapt add_service uses for TARGET_HAS_LEGACY_CAMERA_HAL1
 # vendor/lineage
 kpick 206426 # soong_config: Add TARGET_HAS_LEGACY_CAMERA_HAL1 variable
 kpick 206996 # soong_config: Add TARGET_USES_MEDIA_EXTENSIONS variable
-kpick 207207 # lineage: Enable wifi wakeup config option
 
+
+repopick 208921-208960  # auto translation import
 ##################################
 
 [ $op_pick_remote_only -eq 0 ] && patch_local local
