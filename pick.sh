@@ -421,13 +421,20 @@ kpick 207265 # ARM: configs: lineage_*: Disable exfat and vfat
 # -------------- PLATFORM STUFF --------------
 
 # frameworks/av
+kpick 206427 # camera/media: Support legacy HALv1 camera in mediaserver
 kpick 206430 # CameraService: Fix deadlock in binder death cleanup.
 kpick 206431 # libstagefright: Free buffers on observer died
 kpick 206432 # Camera: fix use after disconnect error
 kpick 206433 # stagefright: ACodec: Resolve empty vendor parameters usage
 kpick 206434 # media: fix infinite wait at source for HAL1 based recording
 kpick 206435 # libstagefright: use 64-bit usage for native_window_set_usage
-kpick 206427 # camera/media: Support legacy HALv1 camera in mediaserver
+kpick 206968 # libstagefright: encoder must exist when source starting
+kpick 206969 # Camera: Add support for preview frame fd
+kpick 206970 # Camera: Add extensions to CameraClient
+
+# frameworks/base
+kpick 208080 # Performance: Memory Optimizations
+kpick 209129 # Move high touch sensitivity and hovering to InputService
 
 # system/core
 kpick 206119 # init: I hate safety net
@@ -440,8 +447,6 @@ kpick 206429 # Adapt add_service uses for TARGET_HAS_LEGACY_CAMERA_HAL1
 kpick 206426 # soong_config: Add TARGET_HAS_LEGACY_CAMERA_HAL1 variable
 kpick 206996 # soong_config: Add TARGET_USES_MEDIA_EXTENSIONS variable
 
-
-repopick 208921-208960  # auto translation import
 ##################################
 
 [ $op_pick_remote_only -eq 0 ] && patch_local local
