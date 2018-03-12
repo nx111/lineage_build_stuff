@@ -303,13 +303,13 @@ function kpick()
 
           grep -q -E "nothing to commit|allow-empty" $errfile && breakout=1 && break
 
-          if grep -q -E "error EOF occurred|httplib\.BadStatusLine" $errfile; then
+          if grep -q -E "error EOF occurred|httplib\.BadStatusLine|Connection refused" $errfile; then
               echo "  >> pick was interrupted, retry ("$(expr $tries + 1)")..."
               #cat $logfile | sed -e "/ERROR: git command failed/d"
               #cat $errfile
               echo ""
               sleep 2
-              [ $tries -gt 3 ] && https_proxy=""
+              [ $tries -ge 2 ] && https_proxy=""
               LANG=en_US https_proxy="$https_proxy" repopick -c 50 $* >$logfile 2>$errfile
               rc=$?
               if [ $rc -ne 0 ]; then
@@ -433,7 +433,6 @@ kpick 206969 # Camera: Add support for preview frame fd
 kpick 206970 # Camera: Add extensions to CameraClient
 
 # frameworks/base
-kpick 208080 # Performance: Memory Optimizations
 kpick 209129 # Move high touch sensitivity and hovering to InputService
 
 # system/core
