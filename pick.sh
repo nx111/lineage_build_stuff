@@ -433,10 +433,17 @@ kpick 206969 # Camera: Add support for preview frame fd
 kpick 206970 # Camera: Add extensions to CameraClient
 
 # frameworks/base
+kpick 206701 # NetworkManagement : Add ability to restrict app data/wifi usage
 kpick 209129 # Move high touch sensitivity and hovering to InputService
+
+# packages/app/Settings
+kpick 206700 # Settings: per-app cellular data and wifi restrictions
 
 # system/core
 kpick 206119 # init: I hate safety net
+
+# system/netd
+kpick 208353 # NetD : Allow passing in interface names for wifi/data app restriction
 
 # system/sepolicy
 kpick 206428 # Add rules required for TARGET_HAS_LEGACY_CAMERA_HAL1
