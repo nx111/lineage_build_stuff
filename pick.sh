@@ -435,9 +435,18 @@ kpick 206970 # Camera: Add extensions to CameraClient
 # frameworks/base
 kpick 206701 # NetworkManagement : Add ability to restrict app data/wifi usage
 kpick 209129 # Move high touch sensitivity and hovering to InputService
+kpick 209344 # fingerprint: notify client when cancelling succeeded
+kpick 209345 # Keyguard: Allow disabling fingerprint wake-and-unlock
+
+# hardware/qcom/bt-caf
+kpick 209348 # Remove hardcoded LOCAL_MODULE_PATHS from vendor components. (bt)
+kpick 209349 # BT: Moving chipset version parameters' initialization out of ALOG
+kpick 209350 # Apply the Cherokee's mechanism of stopping hci_filter to ROME
 
 # packages/app/Settings
 kpick 206700 # Settings: per-app cellular data and wifi restrictions
+kpick 209341 # PrivacyGuard: add a couple more missing icons
+kpick 209342 # PrivacyGuard: skip icon lookup for OP_NONE
 
 # system/core
 kpick 206119 # init: I hate safety net

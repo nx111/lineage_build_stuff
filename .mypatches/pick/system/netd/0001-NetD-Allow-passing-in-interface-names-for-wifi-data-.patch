@@ -1,4 +1,4 @@
-From e3e34692f94bfe7913e38574701e537e8177884b Mon Sep 17 00:00:00 2001
+From f9c317e5197866fcbdc25f0d02c18fd14f514490 Mon Sep 17 00:00:00 2001
 From: Danesh M <daneshm90@gmail.com>
 Date: Thu, 1 Mar 2018 08:54:15 -0500
 Subject: [PATCH] NetD : Allow passing in interface names for wifi/data app
@@ -9,23 +9,19 @@ CRACKLING-834
 
 Changes from original cm-13.0 patch:
 
-*) Move wifi/cell data app restrict rules into their own chain
-   (instead of adding directly to INPUT/OUTPUT).  Now they
-   are flushed during soft restart.
-
 *) Introduce helper function manipulateRestrictAppsInOut() to
    reduce code duplication and cleanup the asprintf() /
    manipulateRestrictApps() call sequence.
 
 Change-Id: I085434d70dfe00e9c27b821661fff5076d57e930
 ---
- server/BandwidthController.cpp | 97 ++++++++++++++++++++++++++++++++++++++++++
- server/BandwidthController.h   | 24 +++++++++++
- server/CommandListener.cpp     | 56 ++++++++++++++++++++++++
- 3 files changed, 177 insertions(+)
+ server/BandwidthController.cpp | 74 ++++++++++++++++++++++++++++++++++++++++++
+ server/BandwidthController.h   | 14 ++++++++
+ server/CommandListener.cpp     | 56 ++++++++++++++++++++++++++++++++
+ 3 files changed, 144 insertions(+)
 
 diff --git a/server/BandwidthController.cpp b/server/BandwidthController.cpp
-index 4962b7c..694138a 100644
+index 4962b7c..e50aa6d 100644
 --- a/server/BandwidthController.cpp
 +++ b/server/BandwidthController.cpp
 @@ -238,6 +238,9 @@ int BandwidthController::enableBandwidthControl(bool force) {
@@ -38,53 +34,47 @@ index 4962b7c..694138a 100644
      flushCleanTables(false);
      std::string commands = Join(IPT_BASIC_ACCOUNTING_COMMANDS, '\n');
      return iptablesRestoreFunction(V4V6, commands, nullptr);
-@@ -290,6 +293,91 @@ int BandwidthController::removeNiceApps(int numUids, char *appUids[]) {
+@@ -290,6 +293,77 @@ int BandwidthController::removeNiceApps(int numUids, char *appUids[]) {
                                   IptJumpReturn, IptOpDelete);
  }
  
 +int BandwidthController::addRestrictAppsOnData(const char *iface, int numUids, char *appUids[]) {
-+    return manipulateRestrictAppsOnData(iface, toStrVec(numUids, appUids), RestrictAppOpAdd);
++    return manipulateRestrictAppsInOut(iface, toStrVec(numUids, appUids), restrictAppUidsOnData,
++                                       IptOpInsert);
 +}
 +
 +int BandwidthController::removeRestrictAppsOnData(const char *iface, int numUids, char *appUids[]) {
-+    return manipulateRestrictAppsOnData(iface, toStrVec(numUids, appUids), RestrictAppOpRemove);
++    return manipulateRestrictAppsInOut(iface, toStrVec(numUids, appUids), restrictAppUidsOnData,
++                                       IptOpDelete);
 +}
 +
 +int BandwidthController::addRestrictAppsOnWlan(const char *iface, int numUids, char *appUids[]) {
-+    return manipulateRestrictAppsOnWlan(iface, toStrVec(numUids, appUids), RestrictAppOpAdd);
++    return manipulateRestrictAppsInOut(iface, toStrVec(numUids, appUids), restrictAppUidsOnWlan,
++                                       IptOpInsert);
 +}
 +
-+int BandwidthController::removeRestrictAppsOnWlan(const char *iface,int numUids, char *appUids[]) {
-+    return manipulateRestrictAppsOnWlan(iface, toStrVec(numUids, appUids), RestrictAppOpRemove);
++int BandwidthController::removeRestrictAppsOnWlan(const char *iface, int numUids, char *appUids[]) {
++    return manipulateRestrictAppsInOut(iface, toStrVec(numUids, appUids), restrictAppUidsOnWlan,
++                                       IptOpDelete);
 +}
 +
-+int BandwidthController::manipulateRestrictAppsOnData(const char *iface, const std::vector<std::string>& appStrUids,
-+        RestrictAppOp appOp) {
-+    return manipulateRestrictAppsInOut(iface, appStrUids, appOp, restrictAppUidsOnData);
-+}
-+
-+int BandwidthController::manipulateRestrictAppsOnWlan(const char *iface, const std::vector<std::string>& appStrUids,
-+        RestrictAppOp appOp) {
-+    return manipulateRestrictAppsInOut(iface, appStrUids, appOp, restrictAppUidsOnWlan);
-+}
-+
-+int BandwidthController::manipulateRestrictAppsInOut(const char *iface, const std::vector<std::string>& appStrUids,
-+        RestrictAppOp appOp, std::list<int /*appUid*/> &restrictAppUids) {
++int BandwidthController::manipulateRestrictAppsInOut(const char *iface,
++                                                     const std::vector<std::string>& appStrUids,
++                                                     std::list<int /*appUid*/> &restrictAppUids,
++                                                     IptOp op) {
 +    char *chain;
-+    if (asprintf(&chain, "bw_restrict_app_INPUT -i %s", iface) < 0) {
++    if (asprintf(&chain, "INPUT -i %s", iface) < 0) {
 +        return -1;
 +    }
-+    int ret = manipulateRestrictApps(appStrUids, chain,
-+            restrictAppUids, appOp);
++    int ret = manipulateRestrictApps(appStrUids, chain, restrictAppUids, op);
 +    free(chain);
 +    if (ret != 0) {
 +        return ret;
 +    }
-+    if (asprintf(&chain, "bw_restrict_app_OUTPUT -o %s", iface) < 0) {
++    if (asprintf(&chain, "OUTPUT -o %s", iface) < 0) {
 +        return -1;
 +    }
-+    ret = manipulateRestrictApps(appStrUids, chain,
-+            restrictAppUids, appOp);
++    ret = manipulateRestrictApps(appStrUids, chain, restrictAppUids, op);
 +    free(chain);
 +    return ret;
 +}
@@ -92,19 +82,17 @@ index 4962b7c..694138a 100644
 +int BandwidthController::manipulateRestrictApps(const std::vector<std::string>& appStrUids,
 +                                                const std::string& chain,
 +                                                std::list<int /*appUid*/> &restrictAppUids,
-+                                                RestrictAppOp appOp) {
++                                                IptOp op) {
 +    for (const auto& appStrUid : appStrUids) {
-+        int uid = std::stoi(appStrUid,nullptr,0);
++        int uid = std::stoi(appStrUid, nullptr, 0);
 +        std::list<int /*uid*/>::iterator it;
-+        bool isOutputChain = !strncmp(chain.c_str(),
-+                                      "bw_restrict_app_OUTPUT",
-+                                      strlen("bw_restrict_app_OUTPUT"));
++        bool isOutputChain = !strncmp(chain.c_str(), "OUTPUT", strlen("OUTPUT"));
 +        for (it = restrictAppUids.begin(); it != restrictAppUids.end(); it++) {
 +            if (*it == uid)
 +                break;
 +        }
 +        bool found = (it != restrictAppUids.end());
-+        if (appOp == RestrictAppOpRemove) {
++        if (op == IptOpDelete) {
 +            if (!found) {
 +                ALOGE("No such appUid %d to remove", uid);
 +                return -1;
@@ -118,36 +106,14 @@ index 4962b7c..694138a 100644
 +            restrictAppUids.push_front(uid);
 +        }
 +    }
-+    std::string cmd = "*filter\n";
-+    for (const auto& appStrUid : appStrUids) {
-+        StringAppendF(&cmd, "%s %s -m owner --uid-owner %s\n", appOpToString(appOp), chain.c_str(),
-+                      appStrUid.c_str());
-+    }
-+    StringAppendF(&cmd, "COMMIT\n");
-+    return iptablesRestoreFunction(V4V6, cmd, nullptr);
++    return manipulateSpecialApps(appStrUids, chain, IptJumpReject, op);
 +}
 +
  int BandwidthController::manipulateSpecialApps(const std::vector<std::string>& appStrUids,
                                                 const std::string& chain, IptJumpOp jumpHandling,
                                                 IptOp op) {
-@@ -991,6 +1079,15 @@ inline const char *BandwidthController::opToString(IptOp op) {
-     }
- }
- 
-+inline const char *BandwidthController::appOpToString(RestrictAppOp appOp) {
-+    switch (appOp) {
-+    case RestrictAppOpAdd:
-+        return "-I";
-+    case RestrictAppOpRemove:
-+        return "-D";
-+    }
-+}
-+
- inline const char *BandwidthController::jumpToString(IptJumpOp jumpHandling) {
-     /*
-      * Must be careful what one rejects with, as upper layer protocols will just
 diff --git a/server/BandwidthController.h b/server/BandwidthController.h
-index 0eef581..4579fe2 100644
+index 0eef581..75338e6 100644
 --- a/server/BandwidthController.h
 +++ b/server/BandwidthController.h
 @@ -88,6 +88,11 @@ public:
@@ -162,44 +128,20 @@ index 0eef581..4579fe2 100644
      int setGlobalAlert(int64_t bytes);
      int removeGlobalAlert();
      int setGlobalAlertInForwardChain();
-@@ -125,6 +130,7 @@ public:
-     enum IptFullOp { IptFullOpInsert, IptFullOpDelete, IptFullOpAppend };
-     enum IptJumpOp { IptJumpReject, IptJumpReturn, IptJumpNoAdd };
-     enum IptOp { IptOpInsert, IptOpDelete };
-+    enum RestrictAppOp { RestrictAppOpAdd, RestrictAppOpRemove};
-     enum QuotaType { QuotaUnique, QuotaShared };
-     enum RunCmdErrHandling { RunCmdFailureBad, RunCmdFailureOk };
- #if LOG_NDEBUG
-@@ -135,6 +141,20 @@ public:
+@@ -135,6 +140,12 @@ public:
  
      std::string makeDataSaverCommand(IptablesTarget target, bool enable);
  
-+    int manipulateRestrictAppsOnData(const char *iface, const std::vector<std::string>& appStrUids,
-+                                     RestrictAppOp appOp);
-+
-+    int manipulateRestrictAppsOnWlan(const char *iface, const std::vector<std::string>& appStrUids,
-+                                     RestrictAppOp appOp);
-+
 +    int manipulateRestrictAppsInOut(const char *iface, const std::vector<std::string>& appStrUids,
-+                                    RestrictAppOp appOp,
-+                                    std::list<int /*appUid*/> &restrictAppUids);
++                                    std::list<int /*appUid*/> &restrictAppUids, IptOp appOp);
 +
 +    int manipulateRestrictApps(const std::vector<std::string>& appStrUids, const std::string& chain,
-+                               std::list<int /*appUid*/> &restrictAppUids,
-+                               RestrictAppOp appOp);
++                               std::list<int /*appUid*/> &restrictAppUids, IptOp appOp);
 +
      int manipulateSpecialApps(const std::vector<std::string>& appStrUids, const std::string& chain,
                                IptJumpOp jumpHandling, IptOp appOp);
  
-@@ -186,6 +206,7 @@ public:
-     static int (*iptablesRestoreFunction)(IptablesTarget, const std::string&, std::string *);
- 
-     static const char *opToString(IptOp op);
-+    static const char *appOpToString(RestrictAppOp appOp);
-     static const char *jumpToString(IptJumpOp jumpHandling);
- 
-     int64_t mSharedQuotaBytes = 0;
-@@ -203,6 +224,9 @@ public:
+@@ -203,6 +214,9 @@ public:
  
      std::map<std::string, QuotaInfo> mQuotaIfaces;
      std::set<std::string> mSharedQuotaIfaces;
@@ -210,7 +152,7 @@ index 0eef581..4579fe2 100644
  
  #endif
 diff --git a/server/CommandListener.cpp b/server/CommandListener.cpp
-index 2795482..e96451c 100644
+index 2795482..cd13f53 100644
 --- a/server/CommandListener.cpp
 +++ b/server/CommandListener.cpp
 @@ -1056,6 +1056,62 @@ int CommandListener::IdletimerControlCmd::runCommand(SocketClient *cli, int argc
@@ -237,7 +179,7 @@ index 2795482..e96451c 100644
 +                       "removerestrictappsondata <interface> <appUid> ...", false);
 +            return 0;
 +        }
-+        if (0 != gCtls->bandwidthCtrl.addRestrictAppsOnData(
++        if (0 != gCtls->bandwidthCtrl.removeRestrictAppsOnData(
 +                                        argv[2], argc - 3, argv + 3)) {
 +          cli->sendMsg(ResponseCode::OperationFailed, "Firewall command failed", false);
 +        } else {
@@ -265,7 +207,7 @@ index 2795482..e96451c 100644
 +                         "removerestrictappsonwlan <inteface> <appUid> ...", false);
 +            return 0;
 +        }
-+        if (0 != gCtls->bandwidthCtrl.addRestrictAppsOnWlan(
++        if (0 != gCtls->bandwidthCtrl.removeRestrictAppsOnWlan(
 +                                        argv[2], argc - 3, argv + 3)) {
 +          cli->sendMsg(ResponseCode::OperationFailed, "Firewall command failed", false);
 +        } else {
