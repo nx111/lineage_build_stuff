@@ -410,6 +410,10 @@ if [ $# -ge 1 ]; then
 fi
 
 ###############################################################
+
+# build/make
+kpick 209323 # envsetup: stop jack server once build completed
+
 # device/samsung/klte-common
 kpick 207883 # klte-common: Use sdfat for exfat
 
@@ -433,17 +437,36 @@ kpick 206969 # Camera: Add support for preview frame fd
 kpick 206970 # Camera: Add extensions to CameraClient
 
 # frameworks/base
+kpick 206054 # SystemUI: use vector drawables for navbar icons
+kpick 206055 # SystemUI: Add a reversed version of OPA layout
+kpick 206056 # opalayout: Actually implement setDarkIntensity
+kpick 206057 # opapayout: Update for r23 smaller navbar
+kpick 206058 # opalayout/home: Fix icons and darkintensity
+kpick 206059 # OpaLayout: misc code fixes
+kpick 206400 # SystemUI: Forward-port notification counters
 kpick 206701 # NetworkManagement : Add ability to restrict app data/wifi usage
+kpick 207583 # BatteryService: Add support for oem fast charger detection
+kpick 209031 # TelephonyManager: Prevent NPE when registering phone state listener
 kpick 209129 # Move high touch sensitivity and hovering to InputService
-kpick 209344 # fingerprint: notify client when cancelling succeeded
+kpick 209278 # SystemUI: Dismiss keyguard on boot if disabled by current profile
+#kpick 209344 # fingerprint: notify client when cancelling succeeded
 kpick 209345 # Keyguard: Allow disabling fingerprint wake-and-unlock
+kpick 206940 # Avoid crash when the actionbar is disabled in settings
+
+# frameworks/native
+kpick 208370 # Add dalvik heap/hwui overrides for xxxhdpi phone with 4096MB RAM
 
 # hardware/qcom/bt-caf
 kpick 209348 # Remove hardcoded LOCAL_MODULE_PATHS from vendor components. (bt)
 kpick 209349 # BT: Moving chipset version parameters' initialization out of ALOG
 kpick 209350 # Apply the Cherokee's mechanism of stopping hci_filter to ROME
 
-# packages/app/Settings
+# hardware/qcom/display
+
+# packages/apps/LineageParts
+kpick 206402 # SystemUI: Forward-port notification counters
+
+# packages/apps/Settings
 kpick 206700 # Settings: per-app cellular data and wifi restrictions
 kpick 209341 # PrivacyGuard: add a couple more missing icons
 kpick 209342 # PrivacyGuard: skip icon lookup for OP_NONE
@@ -460,6 +483,7 @@ kpick 206429 # Adapt add_service uses for TARGET_HAS_LEGACY_CAMERA_HAL1
 
 # vendor/lineage
 kpick 206426 # soong_config: Add TARGET_HAS_LEGACY_CAMERA_HAL1 variable
+kpick 206638 # extract_utils: Use vdexExtractor and oatdump for deodexing
 kpick 206996 # soong_config: Add TARGET_USES_MEDIA_EXTENSIONS variable
 
 ##################################
