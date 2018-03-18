@@ -437,19 +437,19 @@ kpick 206969 # Camera: Add support for preview frame fd
 kpick 206970 # Camera: Add extensions to CameraClient
 
 # frameworks/base
-kpick 206054 # SystemUI: use vector drawables for navbar icons
-kpick 206055 # SystemUI: Add a reversed version of OPA layout
-kpick 206056 # opalayout: Actually implement setDarkIntensity
-kpick 206057 # opapayout: Update for r23 smaller navbar
-kpick 206058 # opalayout/home: Fix icons and darkintensity
-kpick 206059 # OpaLayout: misc code fixes
+#kpick 206054 # SystemUI: use vector drawables for navbar icons
+#kpick 206055 # SystemUI: Add a reversed version of OPA layout
+#kpick 206056 # opalayout: Actually implement setDarkIntensity
+#kpick 206057 # opapayout: Update for r23 smaller navbar
+#kpick 206058 # opalayout/home: Fix icons and darkintensity
+#kpick 206059 # OpaLayout: misc code fixes
 kpick 206400 # SystemUI: Forward-port notification counters
 kpick 206701 # NetworkManagement : Add ability to restrict app data/wifi usage
 kpick 207583 # BatteryService: Add support for oem fast charger detection
 kpick 209031 # TelephonyManager: Prevent NPE when registering phone state listener
 kpick 209129 # Move high touch sensitivity and hovering to InputService
 kpick 209278 # SystemUI: Dismiss keyguard on boot if disabled by current profile
-#kpick 209344 # fingerprint: notify client when cancelling succeeded
+kpick 209344 # fingerprint: notify client when cancelling succeeded
 kpick 209345 # Keyguard: Allow disabling fingerprint wake-and-unlock
 kpick 206940 # Avoid crash when the actionbar is disabled in settings
 
