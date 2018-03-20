@@ -414,6 +414,9 @@ fi
 # build/make
 kpick 209323 # envsetup: stop jack server once build completed
 
+# device/lineage/sepolicy
+kpick 208343 # sepolicy: recovery: Allow reading battery and usb status
+
 # device/samsung/klte-common
 kpick 207883 # klte-common: Use sdfat for exfat
 
@@ -462,6 +465,9 @@ kpick 209349 # BT: Moving chipset version parameters' initialization out of ALOG
 kpick 209350 # Apply the Cherokee's mechanism of stopping hci_filter to ROME
 
 # hardware/qcom/display
+
+# packages/apps/Contacts
+kpick 209616 # Contacts: update splash screen to match the new icon
 
 # packages/apps/LineageParts
 kpick 206402 # SystemUI: Forward-port notification counters
