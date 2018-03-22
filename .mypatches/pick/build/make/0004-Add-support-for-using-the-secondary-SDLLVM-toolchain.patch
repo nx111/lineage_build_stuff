@@ -1,0 +1,178 @@
+From def869d0f66eac08fe76e3f4a2e57757515dbd29 Mon Sep 17 00:00:00 2001
+From: Pengxuan Zheng <pzheng@codeaurora.org>
+Date: Fri, 5 May 2017 17:48:01 -0700
+Subject: [PATCH 4/8] Add support for using the secondary SDLLVM toolchain
+
+With this patch, individual modules can choose to use the secondary SDLLVM
+toolchain by setting LOCAL_SDCLANG_2 to true in their makefiles. Note that
+LOCAL_SDCLANG and LOCAL_SDCLANG_2 should not be set to true at the same time.
+
+Change-Id: I820230b1c449ab065e65648fbeaf47f347ced19e
+---
+ core/binary.mk         | 18 +++++++++++++++++-
+ core/clear_vars.mk     |  1 +
+ core/definitions.mk    |  6 ++++--
+ core/executable.mk     | 10 ++++++++++
+ core/shared_library.mk | 10 ++++++++++
+ core/static_library.mk | 10 ++++++++++
+ 6 files changed, 52 insertions(+), 3 deletions(-)
+
+diff --git a/core/binary.mk b/core/binary.mk
+index 5d1761d..c3a0e1a 100644
+--- a/core/binary.mk
++++ b/core/binary.mk
+@@ -415,9 +415,17 @@ else ifeq ($(my_clang),)
+ endif
+ 
+ my_sdclang := $(strip $(LOCAL_SDCLANG))
++my_sdclang_2 := $(strip $(LOCAL_SDCLANG_2))
++ifeq ($(my_sdclang),true)
++    ifeq ($(my_sdclang_2),true)
++        $(error LOCAL_SDCLANG and LOCAL_SDCLANG_2 can not be set to true at the same time!)
++    endif
++endif
+ ifeq ($(SDCLANG),true)
+     ifeq ($(my_sdclang),)
+-        my_sdclang := true
++        ifneq ($(my_sdclang_2),true)
++            my_sdclang := true
++        endif
+     endif
+ endif
+ 
+@@ -610,6 +618,14 @@ ifeq ($(my_sdclang),true)
+         my_cxx := $(SDCLANG_PATH)/clang++
+     endif
+ endif
++ifeq ($(my_sdclang_2),true)
++    ifeq ($(strip $(my_cc)),)
++        my_cc := $(SDCLANG_PATH_2)/clang
++    endif
++    ifeq ($(strip $(my_cxx)),)
++        my_cxx := $(SDCLANG_PATH_2)/clang++
++    endif
++endif
+ else
+ my_target_global_cflags := $($(LOCAL_2ND_ARCH_VAR_PREFIX)$(my_prefix)GLOBAL_CFLAGS)
+ my_target_global_conlyflags := $($(LOCAL_2ND_ARCH_VAR_PREFIX)$(my_prefix)GLOBAL_CONLYFLAGS) $(my_c_std_conlyflags)
+diff --git a/core/clear_vars.mk b/core/clear_vars.mk
+index 560db8d..8769676 100644
+--- a/core/clear_vars.mk
++++ b/core/clear_vars.mk
+@@ -409,6 +409,7 @@ LOCAL_MODULE_STEM_64:=
+ LOCAL_MODULE_SYMLINKS_32:=
+ LOCAL_MODULE_SYMLINKS_64:=
+ LOCAL_SDCLANG:=
++LOCAL_SDCLANG_2:=
+ LOCAL_SDCLANG_EXTRA_FLAGS_32:=
+ LOCAL_SDCLANG_EXTRA_FLAGS_64:=
+ LOCAL_SDCLANG_LTO:=
+diff --git a/core/definitions.mk b/core/definitions.mk
+index b407081..3b7a9c0 100644
+--- a/core/definitions.mk
++++ b/core/definitions.mk
+@@ -1231,7 +1231,8 @@ define transform-cpp-to-o-compiler-args
+ 	$(PRIVATE_DEBUG_CFLAGS) \
+ 	$(PRIVATE_CFLAGS_NO_OVERRIDE) \
+ 	$(PRIVATE_CPPFLAGS_NO_OVERRIDE) \
+-	$(if $(findstring $(SDCLANG_PATH),$(PRIVATE_CXX)),$(SDCLANG_COMMON_FLAGS))
++	$(if $(findstring $(SDCLANG_PATH),$(PRIVATE_CXX)),$(SDCLANG_COMMON_FLAGS)) \
++	$(if $(findstring $(SDCLANG_PATH_2),$(PRIVATE_CXX)),$(SDCLANG_COMMON_FLAGS_2))
+ endef
+ 
+ define clang-tidy-cpp
+@@ -1272,7 +1273,8 @@ define transform-c-or-s-to-o-compiler-args
+ 	    $(PRIVATE_ARM_CFLAGS) \
+ 	 ) \
+ 	 $(1) \
+-	$(if $(findstring $(SDCLANG_PATH),$(PRIVATE_CXX)),$(SDCLANG_COMMON_FLAGS))
++	$(if $(findstring $(SDCLANG_PATH),$(PRIVATE_CC)),$(SDCLANG_COMMON_FLAGS)) \
++	$(if $(findstring $(SDCLANG_PATH_2),$(PRIVATE_CC)),$(SDCLANG_COMMON_FLAGS_2))
+ endef
+ 
+ define transform-c-to-o-compiler-args
+diff --git a/core/executable.mk b/core/executable.mk
+index e87e6f7..c024f22 100644
+--- a/core/executable.mk
++++ b/core/executable.mk
+@@ -58,6 +58,10 @@ ifeq ($(LOCAL_SDCLANG),true)
+ include $(SDCLANG_FLAG_DEFS)
+ endif
+ 
++ifeq ($(LOCAL_SDCLANG_2),true)
++include $(SDCLANG_FLAG_DEFS)
++endif
++
+ # check if preferred arch is supported
+ include $(BUILD_SYSTEM)/module_arch_supported.mk
+ ifeq ($(my_module_arch_supported),true)
+@@ -102,4 +106,10 @@ include $(SDCLANG_LTO_DEFS)
+ endif
+ endif
+ 
++ifeq ($(LOCAL_SDCLANG_2),true)
++ifeq ($(LOCAL_SDCLANG_LTO),true)
++include $(SDCLANG_LTO_DEFS)
++endif
++endif
++
+ endif
+diff --git a/core/shared_library.mk b/core/shared_library.mk
+index af28012..98cf854 100644
+--- a/core/shared_library.mk
++++ b/core/shared_library.mk
+@@ -26,6 +26,10 @@ ifeq ($(LOCAL_SDCLANG),true)
+ include $(SDCLANG_FLAG_DEFS)
+ endif
+ 
++ifeq ($(LOCAL_SDCLANG_2),true)
++include $(SDCLANG_FLAG_DEFS)
++endif
++
+ LOCAL_2ND_ARCH_VAR_PREFIX :=
+ include $(BUILD_SYSTEM)/module_arch_supported.mk
+ 
+@@ -59,6 +63,12 @@ include $(SDCLANG_LTO_DEFS)
+ endif
+ endif
+ 
++ifeq ($(LOCAL_SDCLANG_2),true)
++ifeq ($(LOCAL_SDCLANG_LTO),true)
++include $(SDCLANG_LTO_DEFS)
++endif
++endif
++
+ my_module_arch_supported :=
+ 
+ ###########################################################
+diff --git a/core/static_library.mk b/core/static_library.mk
+index bbc24bd..ccdcfcc 100644
+--- a/core/static_library.mk
++++ b/core/static_library.mk
+@@ -11,6 +11,10 @@ ifeq ($(LOCAL_SDCLANG),true)
+ include $(SDCLANG_FLAG_DEFS)
+ endif
+ 
++ifeq ($(LOCAL_SDCLANG_2),true)
++include $(SDCLANG_FLAG_DEFS)
++endif
++
+ LOCAL_2ND_ARCH_VAR_PREFIX :=
+ include $(BUILD_SYSTEM)/module_arch_supported.mk
+ 
+@@ -44,6 +48,12 @@ include $(SDCLANG_LTO_DEFS)
+ endif
+ endif
+ 
++ifeq ($(LOCAL_SDCLANG_2),true)
++ifeq ($(LOCAL_SDCLANG_LTO),true)
++include $(SDCLANG_LTO_DEFS)
++endif
++endif
++
+ my_module_arch_supported :=
+ 
+ ###########################################################
+-- 
+2.7.4
+

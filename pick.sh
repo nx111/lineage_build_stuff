@@ -410,6 +410,14 @@ if [ $# -ge 1 ]; then
 fi
 
 ###############################################################
+# build
+kpick 207222 # Add support for building with proprietary compiler
+kpick 207223 # Control building shared libs, static libs and executables with SDLLVM LTO
+kpick 207224 # Add support for using the secondary SDLLVM toolchain
+kpick 207225 # Turn off sdclang for cfi sanitizer
+kpick 207226 # build: Require devices to opt-in for SDCLANG
+kpick 207227 # binary: Append cc/cxx wrapper to sdclang
+kpick 207228 # dumpvar: Dump TARGET_USE_SDCLANG
 
 # build/make
 kpick 209323 # envsetup: stop jack server once build completed
@@ -425,7 +433,8 @@ kpick 207883 # klte-common: Use sdfat for exfat
 # kernel/samsung/msm8974
 kpick 207265 # ARM: configs: lineage_*: Disable exfat and vfat
 
-# -------------- PLATFORM STUFF --------------
+# external/toybox
+kpick 209019 # toybox: Use ISO C/clang compatible __typeof__ in minof/maxof macros
 
 # frameworks/av
 kpick 206427 # camera/media: Support legacy HALv1 camera in mediaserver
@@ -491,6 +500,7 @@ kpick 206429 # Adapt add_service uses for TARGET_HAS_LEGACY_CAMERA_HAL1
 kpick 206426 # soong_config: Add TARGET_HAS_LEGACY_CAMERA_HAL1 variable
 kpick 206638 # extract_utils: Use vdexExtractor and oatdump for deodexing
 kpick 206996 # soong_config: Add TARGET_USES_MEDIA_EXTENSIONS variable
+kpick 207229 # envsetup: Update default path for SDCLANG 4.0
 
 ##################################
 
