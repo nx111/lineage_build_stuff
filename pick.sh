@@ -423,7 +423,27 @@ kpick 207228 # dumpvar: Dump TARGET_USE_SDCLANG
 kpick 209323 # envsetup: stop jack server once build completed
 
 # device/lineage/sepolicy
-kpick 208343 # sepolicy: recovery: Allow reading battery and usb status
+kpick 210014 # sepolicy: Label aw2013 HIDL light HAL
+
+# device/qcom/sepolicy
+kpick 209958 # Squashed merge of LA.UM.6.4.r1-06900-8x98.0 and LA.UM.6.6.r1-06700-89xx.0
+kpick 209959 # legacy: Remove wfdservice_service policy
+kpick 209960 # sepolicy: rules to allow camera daemon access to app buffer
+kpick 209961 # sepolicy : add secontext for eMMC blocks
+kpick 209962 # sepolicy: Ignore more hal_memtrack denials
+kpick 209963 # hal_gnss_default: Do not log udp socket failures
+kpick 209964 # legacy: Allow qcom power HAL to interact with perfd
+kpick 209965 # legacy: Allow perfd write to sysfs_kgsl
+kpick 209966 # legacy: Address msm8916 perfd denials
+kpick 209967 # legacy: Allow bluetooth_loader read persist
+kpick 209968 # legacy: Address binderized hwcomposer denial
+kpick 210018 # legacy: Allow hal_graphics_allocator_default access sysfs_graphics
+kpick 210019 # legacy: Add debugfs rules for rmt_storage
+kpick 210020 # legacy: Allow thermal-engine to read sysfs_spmi_dev
+kpick 210021 # legacy: Address mm-pp-daemon denials
+kpick 210022 # legacy: Address perfd denials
+kpick 210023 # legacy: allow graphics composer to set postprocessing props
+kpick 210024 # legacy: allow hal_camera_default to connect to camera socket
 
 # device/samsung/klte-common
 kpick 207883 # klte-common: Use sdfat for exfat
@@ -449,24 +469,17 @@ kpick 206969 # Camera: Add support for preview frame fd
 kpick 206970 # Camera: Add extensions to CameraClient
 
 # frameworks/base
-#kpick 206054 # SystemUI: use vector drawables for navbar icons
-#kpick 206055 # SystemUI: Add a reversed version of OPA layout
-#kpick 206056 # opalayout: Actually implement setDarkIntensity
-#kpick 206057 # opapayout: Update for r23 smaller navbar
-#kpick 206058 # opalayout/home: Fix icons and darkintensity
-#kpick 206059 # OpaLayout: misc code fixes
 kpick 206400 # SystemUI: Forward-port notification counters
 kpick 206701 # NetworkManagement : Add ability to restrict app data/wifi usage
 kpick 207583 # BatteryService: Add support for oem fast charger detection
 kpick 209031 # TelephonyManager: Prevent NPE when registering phone state listener
-kpick 209129 # Move high touch sensitivity and hovering to InputService
 kpick 209278 # SystemUI: Dismiss keyguard on boot if disabled by current profile
-kpick 209344 # fingerprint: notify client when cancelling succeeded
+#kpick 209344 # fingerprint: notify client when cancelling succeeded
 kpick 209345 # Keyguard: Allow disabling fingerprint wake-and-unlock
 kpick 206940 # Avoid crash when the actionbar is disabled in settings
+kpick 209929 # SystemUI: fix black scrim when turning screen on from AOD
 
 # frameworks/native
-kpick 208370 # Add dalvik heap/hwui overrides for xxxhdpi phone with 4096MB RAM
 
 # hardware/qcom/bt-caf
 kpick 209348 # Remove hardcoded LOCAL_MODULE_PATHS from vendor components. (bt)
@@ -476,7 +489,6 @@ kpick 209350 # Apply the Cherokee's mechanism of stopping hci_filter to ROME
 # hardware/qcom/display
 
 # packages/apps/Contacts
-kpick 209616 # Contacts: update splash screen to match the new icon
 
 # packages/apps/LineageParts
 kpick 206402 # SystemUI: Forward-port notification counters
