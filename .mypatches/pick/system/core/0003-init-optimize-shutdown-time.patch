@@ -1,0 +1,44 @@
+From 4f9cae2e59e67979a073e83a7a9faabc86052865 Mon Sep 17 00:00:00 2001
+From: zljing <zljing@codeaurora.org>
+Date: Mon, 18 Sep 2017 15:02:08 +0800
+Subject: [PATCH 3/3] init: optimize shutdown time
+
+Android O adds 3 steps for the shutdown sequence, kill services/
+vold shutdown/umount. It need more than 700ms to kill services
+in which bootanimation will be stopped due to zygote died.
+However system turns off backlight at the step "umount" which is
+too late to get screen stuck in different interface. So turn
+off backlight before the step "kill services".
+
+CRs-Fixed: 2111441
+
+Change-Id: Ib397032272de77412a63031afe8c7fc9f9b80ccd
+---
+ init/reboot.cpp | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/init/reboot.cpp b/init/reboot.cpp
+index 5c7ddf1..13cff25 100644
+--- a/init/reboot.cpp
++++ b/init/reboot.cpp
+@@ -315,8 +315,6 @@ static UmountStat TryUmountAndFsck(bool runFsck, std::chrono::milliseconds timeo
+     std::vector<MountEntry> block_devices;
+     std::vector<MountEntry> emulated_devices;
+ 
+-    TurnOffBacklight();  // this part can take time. save power.
+-
+     if (runFsck && !FindPartitionsToUmount(&block_devices, &emulated_devices, false)) {
+         return UMOUNT_STAT_ERROR;
+     }
+@@ -431,6 +429,8 @@ void DoReboot(unsigned int cmd, const std::string& reason, const std::string& re
+         LOG(INFO) << "Terminating running services took " << t
+                   << " with remaining services:" << service_count;
+     }
++    // turn off backlight before killing services to avoid screen stuck
++    TurnOffBacklight();  // this part can take time. save power.
+ 
+     // minimum safety steps before restarting
+     // 2. kill all services except ones that are necessary for the shutdown sequence.
+-- 
+2.7.4
+

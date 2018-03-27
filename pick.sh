@@ -447,8 +447,11 @@ kpick 210024 # legacy: allow hal_camera_default to connect to camera socket
 
 # device/samsung/klte-common
 kpick 207883 # klte-common: Use sdfat for exfat
+kpick 210364 # klte-common: Get rid of recovery-only fstab
 
-# device/samsung/msm874-common
+# device/samsung/msm8974-common
+kpick 210313 # msm8974-common: Binderize them all
+kpick 210314 # msm8974-common: sepolicy: Resolve misc denials
 
 # kernel/samsung/msm8974
 kpick 207265 # ARM: configs: lineage_*: Disable exfat and vfat
@@ -482,9 +485,6 @@ kpick 209929 # SystemUI: fix black scrim when turning screen on from AOD
 # frameworks/native
 
 # hardware/qcom/bt-caf
-kpick 209348 # Remove hardcoded LOCAL_MODULE_PATHS from vendor components. (bt)
-kpick 209349 # BT: Moving chipset version parameters' initialization out of ALOG
-kpick 209350 # Apply the Cherokee's mechanism of stopping hci_filter to ROME
 
 # hardware/qcom/display
 
@@ -500,6 +500,8 @@ kpick 209342 # PrivacyGuard: skip icon lookup for OP_NONE
 
 # system/core
 kpick 206119 # init: I hate safety net
+kpick 209385 # init: optimize shutdown time
+kpick 210316 # init: Don't run update_sys_usb_config if /data isn't mounted
 
 # system/netd
 kpick 208353 # NetD : Allow passing in interface names for wifi/data app restriction
