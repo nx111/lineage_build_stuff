@@ -444,6 +444,10 @@ kpick 210314 # msm8974-common: sepolicy: Resolve misc denials
 
 # kernel/samsung/msm8974
 kpick 207265 # ARM: configs: lineage_*: Disable exfat and vfat
+kpick 210542 # mach-msm: Fix dependencies for TIMA configs
+kpick 210543 # fs: sdfat: Add MODULE_ALIAS_FS for supported filesystems
+kpick 210544 # fs: sdfat: Disable aligned mpage writes when built as a module
+kpick 210545 # fs: sdfat: Don't flush plug so often in bdev_readahead
 
 # external/toybox
 kpick 209019 # toybox: Use ISO C/clang compatible __typeof__ in minof/maxof macros
@@ -472,6 +476,11 @@ kpick 206940 # Avoid crash when the actionbar is disabled in settings
 kpick 209929 # SystemUI: fix black scrim when turning screen on from AOD
 
 # frameworks/native
+kpick 210545 # Fix resampling for multiple pointers
+
+# hardware/lineage/interfaces
+kpick 209609 # vibrator: Implement new 1.1 HAL function
+kpick 210494 # vibrator: Add more verbose startup and use android-base logging
 
 # hardware/qcom/bt-caf
 
@@ -502,6 +511,7 @@ kpick 206429 # Adapt add_service uses for TARGET_HAS_LEGACY_CAMERA_HAL1
 kpick 206426 # soong_config: Add TARGET_HAS_LEGACY_CAMERA_HAL1 variable
 kpick 206638 # extract_utils: Use vdexExtractor and oatdump for deodexing
 kpick 206996 # soong_config: Add TARGET_USES_MEDIA_EXTENSIONS variable
+kpick 207109 # repopick: Give feedback if topic does not exist
 
 ##################################
 

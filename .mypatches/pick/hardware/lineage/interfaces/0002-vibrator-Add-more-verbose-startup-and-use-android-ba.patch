@@ -1,0 +1,153 @@
+From 83af272107ed70818199ed4766a73db896cb4256 Mon Sep 17 00:00:00 2001
+From: Bruno Martins <bgcngm@gmail.com>
+Date: Wed, 28 Mar 2018 12:02:30 +0100
+Subject: [PATCH 2/2] vibrator: Add more verbose startup and use android-base
+ logging
+
+Change-Id: If288158170f0df01fb9b67610d8b957aad8ea7d5
+---
+ vibrator/1.1-lineage/Android.bp   |  4 ++--
+ vibrator/1.1-lineage/Vibrator.cpp | 18 +++++++++---------
+ vibrator/1.1-lineage/service.cpp  | 27 +++++++++++++++++++--------
+ 3 files changed, 30 insertions(+), 19 deletions(-)
+
+diff --git a/vibrator/1.1-lineage/Android.bp b/vibrator/1.1-lineage/Android.bp
+index 25d1db2..82d2805 100644
+--- a/vibrator/1.1-lineage/Android.bp
++++ b/vibrator/1.1-lineage/Android.bp
+@@ -19,12 +19,12 @@ cc_binary {
+     init_rc: ["android.hardware.vibrator@1.1-service.lineage.rc"],
+     srcs: ["service.cpp", "Vibrator.cpp"],
+     shared_libs: [
++        "libbase",
++        "libhardware",
+         "libhidlbase",
+         "libhidltransport",
+-        "liblog",
+         "libhwbinder",
+         "libutils",
+-        "libhardware",
+         "android.hardware.vibrator@1.0",
+         "android.hardware.vibrator@1.1",
+     ],
+diff --git a/vibrator/1.1-lineage/Vibrator.cpp b/vibrator/1.1-lineage/Vibrator.cpp
+index 44a030e..daf898a 100644
+--- a/vibrator/1.1-lineage/Vibrator.cpp
++++ b/vibrator/1.1-lineage/Vibrator.cpp
+@@ -16,13 +16,13 @@
+ 
+ #define LOG_TAG "VibratorService"
+ 
+-#include <log/log.h>
+-
+-#include "Vibrator.h"
+-
+ #include <cmath>
+ #include <fstream>
+ 
++#include <android-base/logging.h>
++
++#include "Vibrator.h"
++
+ namespace android {
+ namespace hardware {
+ namespace vibrator {
+@@ -50,14 +50,14 @@ static int get(std::string path, int defaultValue) {
+     std::ifstream file(path);
+ 
+     if (!file) {
+-        ALOGE("Failed to open %s", path.c_str());
++        LOG(ERROR) << "Failed to open " << path;
+         return value;
+     }
+ 
+     file >> value;
+ 
+     if (!file) {
+-        ALOGE("Failed to read value from %s", path.c_str());
++        LOG(ERROR) << "Failed to read value from " << path;
+     }
+ 
+     return value;
+@@ -67,14 +67,14 @@ static int set(std::string path, int value) {
+     std::ofstream file(path);
+ 
+     if (!file) {
+-        ALOGE("Failed to open %s", path.c_str());
++        LOG(ERROR) << "Failed to open " << path;
+         return -1;
+     }
+ 
+     file << value;
+ 
+     if (!file) {
+-        ALOGE("Failed to write %d to %s", value, path.c_str());
++        LOG(ERROR) << "Failed to write " << value << " to " << path;
+         return -1;
+     }
+ 
+@@ -123,7 +123,7 @@ Return<Status> Vibrator::setAmplitude(uint8_t amplitude) {
+         return Status::UNKNOWN_ERROR;
+     }
+ 
+-    ALOGI("Voltage set to: %u", voltage);
++    LOG(INFO) << "Voltage set to: " << voltage;
+ 
+     return Status::OK;
+ }
+diff --git a/vibrator/1.1-lineage/service.cpp b/vibrator/1.1-lineage/service.cpp
+index 3901785..db2948c 100644
+--- a/vibrator/1.1-lineage/service.cpp
++++ b/vibrator/1.1-lineage/service.cpp
+@@ -15,8 +15,8 @@
+  */
+ #define LOG_TAG "android.hardware.vibrator@1.1-service.lineage"
+ 
++#include <android-base/logging.h>
+ #include <hidl/HidlTransportSupport.h>
+-
+ #include "Vibrator.h"
+ 
+ using android::hardware::configureRpcThreadpool;
+@@ -30,20 +30,31 @@ using android::sp;
+ using android::status_t;
+ 
+ int main() {
+-    android::sp<IVibrator> vibrator = new Vibrator();
++    status_t status;
++    android::sp<IVibrator> service = nullptr;
++
++    LOG(INFO) << "Vibrator HAL Service 1.1 is starting.";
++
++    service = new Vibrator();
++    if (service == nullptr) {
++        LOG(ERROR) << "Can not create an instance of Vibrator HAL Iface, exiting.";
++        goto shutdown;
++    }
+ 
+     configureRpcThreadpool(1, true);
+ 
+-    status_t status = vibrator->registerAsService();
++    status = service->registerAsService();
+     if (status != OK) {
+-        ALOGE("Cannot register Vibrator HAL service.");
+-        return 1;
++        LOG(ERROR) << "Could not register service for Vibrator HAL Iface (" << status << ")";
++        goto shutdown;
+     }
+ 
+-    ALOGI("Vibrator HAL service ready.");
+-
++    LOG(INFO) << "Vibrator Service is ready.";
+     joinRpcThreadpool();
++    // Should not pass this line
+ 
+-    ALOGI("Vibrator HAL service failed to join thread pool.");
++shutdown:
++    // In normal operation, we don't expect the thread pool to exit
++    LOG(ERROR) << "Vibrator HAL Service is shutting down.";
+     return 1;
+ }
+-- 
+2.7.4
+
