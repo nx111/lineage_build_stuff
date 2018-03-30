@@ -411,13 +411,6 @@ fi
 
 ###############################################################
 # build
-kpick 207222 # Add support for building with proprietary compiler
-kpick 207223 # Control building shared libs, static libs and executables with SDLLVM LTO
-kpick 207224 # Add support for using the secondary SDLLVM toolchain
-kpick 207225 # Turn off sdclang for cfi sanitizer
-kpick 207226 # build: Require devices to opt-in for SDCLANG
-kpick 207227 # binary: Append cc/cxx wrapper to sdclang
-kpick 207228 # dumpvar: Dump TARGET_USE_SDCLANG
 
 # build/make
 kpick 209323 # envsetup: stop jack server once build completed
@@ -426,8 +419,6 @@ kpick 209323 # envsetup: stop jack server once build completed
 kpick 210014 # sepolicy: Label aw2013 HIDL light HAL
 
 # device/qcom/sepolicy
-kpick 209958 # Squashed merge of LA.UM.6.4.r1-06900-8x98.0 and LA.UM.6.6.r1-06700-89xx.0
-kpick 209959 # legacy: Remove wfdservice_service policy
 kpick 209960 # sepolicy: rules to allow camera daemon access to app buffer
 kpick 209961 # sepolicy : add secontext for eMMC blocks
 kpick 209962 # sepolicy: Ignore more hal_memtrack denials
@@ -446,8 +437,6 @@ kpick 210023 # legacy: allow graphics composer to set postprocessing props
 kpick 210024 # legacy: allow hal_camera_default to connect to camera socket
 
 # device/samsung/klte-common
-kpick 207883 # klte-common: Use sdfat for exfat
-kpick 210364 # klte-common: Get rid of recovery-only fstab
 
 # device/samsung/msm8974-common
 kpick 210313 # msm8974-common: Binderize them all
@@ -495,7 +484,6 @@ kpick 206402 # SystemUI: Forward-port notification counters
 
 # packages/apps/Settings
 kpick 206700 # Settings: per-app cellular data and wifi restrictions
-kpick 209341 # PrivacyGuard: add a couple more missing icons
 kpick 209342 # PrivacyGuard: skip icon lookup for OP_NONE
 
 # system/core
@@ -514,7 +502,6 @@ kpick 206429 # Adapt add_service uses for TARGET_HAS_LEGACY_CAMERA_HAL1
 kpick 206426 # soong_config: Add TARGET_HAS_LEGACY_CAMERA_HAL1 variable
 kpick 206638 # extract_utils: Use vdexExtractor and oatdump for deodexing
 kpick 206996 # soong_config: Add TARGET_USES_MEDIA_EXTENSIONS variable
-kpick 207229 # envsetup: Update default path for SDCLANG 4.0
 
 ##################################
 
