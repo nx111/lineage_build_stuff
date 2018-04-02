@@ -496,10 +496,10 @@ kpick 210299 # power: msm8974: POWER_HINT_INTERACTION improvements
 
 # packages/apps/LineageParts
 kpick 206402 # SystemUI: Forward-port notification counters
+kpick 210862 # Revert "Parts: add genuine validator"
 
 # packages/apps/Settings
 kpick 206700 # Settings: per-app cellular data and wifi restrictions
-kpick 209342 # PrivacyGuard: skip icon lookup for OP_NONE
 
 # system/core
 kpick 206119 # init: I hate safety net
@@ -517,7 +517,7 @@ kpick 206429 # Adapt add_service uses for TARGET_HAS_LEGACY_CAMERA_HAL1
 kpick 206426 # soong_config: Add TARGET_HAS_LEGACY_CAMERA_HAL1 variable
 kpick 206996 # soong_config: Add TARGET_USES_MEDIA_EXTENSIONS variable
 kpick 207109 # repopick: Give feedback if topic does not exist
-
+kpick 210863 # Revert "LOSCoins"
 ##################################
 
 [ $op_pick_remote_only -eq 0 ] && patch_local local
