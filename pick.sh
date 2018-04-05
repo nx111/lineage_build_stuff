@@ -410,6 +410,8 @@ if [ $# -ge 1 ]; then
 fi
 
 ###############################################################
+# android
+
 # build
 
 # build/make
@@ -423,7 +425,7 @@ kpick 209960 # sepolicy: rules to allow camera daemon access to app buffer
 kpick 209961 # sepolicy : add secontext for eMMC blocks
 kpick 209962 # sepolicy: Ignore more hal_memtrack denials
 kpick 209963 # hal_gnss_default: Do not log udp socket failures
-kpick 209964 # legacy: Allow qcom power HAL to interact with perfd
+#kpick 209964 # legacy: Allow qcom power HAL to interact with perfd
 kpick 209965 # legacy: Allow perfd write to sysfs_kgsl
 kpick 209966 # legacy: Address msm8916 perfd denials
 kpick 209967 # legacy: Allow bluetooth_loader read persist
@@ -440,7 +442,7 @@ kpick 210024 # legacy: allow hal_camera_default to connect to camera socket
 
 # device/samsung/msm8974-common
 kpick 210313 # msm8974-common: Binderize them all
-kpick 210314 # msm8974-common: sepolicy: Resolve misc denials
+kpick 211209 # msm8974-common: No tenemos HWC2
 
 # kernel/samsung/msm8974
 kpick 210542 # mach-msm: Fix dependencies for TIMA configs
@@ -463,7 +465,6 @@ kpick 206434 # media: fix infinite wait at source for HAL1 based recording
 kpick 206435 # libstagefright: use 64-bit usage for native_window_set_usage
 kpick 206968 # libstagefright: encoder must exist when source starting
 kpick 206969 # Camera: Add support for preview frame fd
-kpick 206970 # Camera: Add extensions to CameraClient
 
 # frameworks/base
 kpick 206400 # SystemUI: Forward-port notification counters
@@ -471,8 +472,6 @@ kpick 206701 # NetworkManagement : Add ability to restrict app data/wifi usage
 kpick 207583 # BatteryService: Add support for oem fast charger detection
 kpick 209031 # TelephonyManager: Prevent NPE when registering phone state listener
 kpick 209278 # SystemUI: Dismiss keyguard on boot if disabled by current profile
-#kpick 209344 # fingerprint: notify client when cancelling succeeded
-kpick 209345 # Keyguard: Allow disabling fingerprint wake-and-unlock
 kpick 206940 # Avoid crash when the actionbar is disabled in settings
 kpick 209929 # SystemUI: fix black scrim when turning screen on from AOD
 
@@ -492,11 +491,13 @@ kpick 208368 # power: Don't send obsolete DISPLAY_OFF opcode
 kpick 210293 # power: Avoid interaction build errors
 kpick 210299 # power: msm8974: POWER_HINT_INTERACTION improvements
 
+# hardware/samsung
+kpick 211030 # fingerprint: send cancel-message to system
+
 # packages/apps/Contacts
 
 # packages/apps/LineageParts
 kpick 206402 # SystemUI: Forward-port notification counters
-kpick 210862 # Revert "Parts: add genuine validator"
 
 # packages/apps/Settings
 kpick 206700 # Settings: per-app cellular data and wifi restrictions
@@ -517,7 +518,8 @@ kpick 206429 # Adapt add_service uses for TARGET_HAS_LEGACY_CAMERA_HAL1
 kpick 206426 # soong_config: Add TARGET_HAS_LEGACY_CAMERA_HAL1 variable
 kpick 206996 # soong_config: Add TARGET_USES_MEDIA_EXTENSIONS variable
 kpick 207109 # repopick: Give feedback if topic does not exist
-kpick 210863 # Revert "LOSCoins"
+kpick 209859 # vendor: More priv-app whitelist updates
+kpick 211134 # lineage: Camera2 priv-app permissions whitelist
 ##################################
 
 [ $op_pick_remote_only -eq 0 ] && patch_local local
