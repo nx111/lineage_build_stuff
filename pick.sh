@@ -496,6 +496,9 @@ kpick 211030 # fingerprint: send cancel-message to system
 
 # packages/apps/Contacts
 
+# packages/app/Dialer
+kpick 211135 # Show proper call duration
+
 # packages/apps/LineageParts
 kpick 206402 # SystemUI: Forward-port notification counters
 
