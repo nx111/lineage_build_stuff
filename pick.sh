@@ -437,6 +437,7 @@ kpick 210021 # legacy: Address mm-pp-daemon denials
 kpick 210022 # legacy: Address perfd denials
 kpick 210023 # legacy: allow graphics composer to set postprocessing props
 kpick 210024 # legacy: allow hal_camera_default to connect to camera socket
+kpick 211273 # qcom/sepol: Fix timeservice app context
 
 # device/samsung/klte-common
 
@@ -448,7 +449,6 @@ kpick 211209 # msm8974-common: No tenemos HWC2
 kpick 210542 # mach-msm: Fix dependencies for TIMA configs
 kpick 210543 # fs: sdfat: Add MODULE_ALIAS_FS for supported filesystems
 kpick 210544 # fs: sdfat: Disable aligned mpage writes when built as a module
-kpick 210545 # fs: sdfat: Don't flush plug so often in bdev_readahead
 kpick 210665 # wacom: Follow-up from gestures patch
 kpick 210666 # wacom: Report touch when pen button is pressed if gestures are off
 
@@ -474,6 +474,7 @@ kpick 209031 # TelephonyManager: Prevent NPE when registering phone state listen
 kpick 209278 # SystemUI: Dismiss keyguard on boot if disabled by current profile
 kpick 206940 # Avoid crash when the actionbar is disabled in settings
 kpick 209929 # SystemUI: fix black scrim when turning screen on from AOD
+#kpick 211216 # SystemUI: Catch IllegalArgumentException in stopScreenshot()
 
 # frameworks/native
 kpick 210545 # Fix resampling for multiple pointers
@@ -520,9 +521,12 @@ kpick 206429 # Adapt add_service uses for TARGET_HAS_LEGACY_CAMERA_HAL1
 # vendor/lineage
 kpick 206426 # soong_config: Add TARGET_HAS_LEGACY_CAMERA_HAL1 variable
 kpick 206996 # soong_config: Add TARGET_USES_MEDIA_EXTENSIONS variable
-kpick 207109 # repopick: Give feedback if topic does not exist
-kpick 209859 # vendor: More priv-app whitelist updates
-kpick 211134 # lineage: Camera2 priv-app permissions whitelist
+#kpick 207109 # repopick: Give feedback if topic does not exist   (crash by 211250)
+kpick 211250 # repopick: Try to keep the changes sorted
+kpick 211251 # repopick: Ignore the trailing slash in change numbers
+kpick 211252 # repopick: Actually print the patchset number
+kpick 211253 # repopick: Allow to pick changes by URL
+
 ##################################
 
 [ $op_pick_remote_only -eq 0 ] && patch_local local
