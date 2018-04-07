@@ -42,7 +42,7 @@ else
 	rm -rf $workdir/out/target/product/$product/lineage_$product-ota-*.zip
 	rm -rf $workdir/out/target/product/$product/obj/PACKAGING/*
 
-        LINEAGE_VERSION_APPEND_TIME_OF_DAY=true WITH_SU=true \
+        LINEAGE_VERSION_APPEND_TIME_OF_DAY=true WITH_SU=true LC_ALL=C \
 	brunch $product
 fi
 

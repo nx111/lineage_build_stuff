@@ -412,6 +412,10 @@ fi
 ###############################################################
 # android
 
+# bootable/recovery
+kpick 206117 # update_verifier: skip verity to determine successful on lineage builds
+kpick 211098 # recovery/ui: Hide emulated storage for encrypted devices
+
 # build
 
 # build/make
@@ -440,6 +444,9 @@ kpick 210024 # legacy: allow hal_camera_default to connect to camera socket
 kpick 211273 # qcom/sepol: Fix timeservice app context
 
 # device/samsung/klte-common
+
+# device/samsung/kltechnduo
+kpick 211335 # kltechnduo: Fix RIL on encrypted devices
 
 # device/samsung/msm8974-common
 kpick 210313 # msm8974-common: Binderize them all
@@ -497,8 +504,11 @@ kpick 211030 # fingerprint: send cancel-message to system
 
 # packages/apps/Contacts
 
-# packages/app/Dialer
+# packages/apps/Dialer
 kpick 211135 # Show proper call duration
+
+# packages/apps/Gallery2
+kpick 207956 # Gallery2: disable proguard when building without jack
 
 # packages/apps/LineageParts
 kpick 206402 # SystemUI: Forward-port notification counters
