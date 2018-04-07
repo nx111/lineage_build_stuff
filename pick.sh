@@ -450,7 +450,6 @@ kpick 211335 # kltechnduo: Fix RIL on encrypted devices
 
 # device/samsung/msm8974-common
 kpick 210313 # msm8974-common: Binderize them all
-kpick 211209 # msm8974-common: No tenemos HWC2
 
 # kernel/samsung/msm8974
 kpick 210542 # mach-msm: Fix dependencies for TIMA configs
@@ -482,9 +481,18 @@ kpick 209278 # SystemUI: Dismiss keyguard on boot if disabled by current profile
 kpick 206940 # Avoid crash when the actionbar is disabled in settings
 kpick 209929 # SystemUI: fix black scrim when turning screen on from AOD
 #kpick 211216 # SystemUI: Catch IllegalArgumentException in stopScreenshot()
+#kpick 211300 # Add the user set network mode to the siminfo table
+#kpick 211301 # Store Network Mode selected in subId Table
 
 # frameworks/native
 kpick 210545 # Fix resampling for multiple pointers
+
+# frameworks/opt/telephony
+#kpick 211280 # telephony: Respect user nw mode, handle DSDS non-multi-rat
+#kpick 211338 # Add the user set network mode to the siminfo table
+
+# hardware/interfaces
+kpick 206140 # gps.default.so: fix crash on access to unset AGpsRilCallbacks::request_refloc
 
 # hardware/lineage/interfaces
 kpick 209609 # vibrator: Implement new 1.1 HAL function
@@ -507,6 +515,9 @@ kpick 211030 # fingerprint: send cancel-message to system
 # packages/apps/Dialer
 kpick 211135 # Show proper call duration
 
+# packages/apps/Eleven
+kpick 211302 # Eleven: Catch unsupported bitmap exception
+
 # packages/apps/Gallery2
 kpick 207956 # Gallery2: disable proguard when building without jack
 
@@ -516,10 +527,16 @@ kpick 206402 # SystemUI: Forward-port notification counters
 # packages/apps/Settings
 kpick 206700 # Settings: per-app cellular data and wifi restrictions
 
+# packages/services/Telephony
+# kpick 211270 # Telephony: add external network selection activity
+
 # system/core
 kpick 206119 # init: I hate safety net
 kpick 209385 # init: optimize shutdown time
 kpick 210316 # init: Don't run update_sys_usb_config if /data isn't mounted
+
+# system/extras
+kpick 211210 # ext4: Add /data/stache/ to encryption exclusion list
 
 # system/netd
 kpick 208353 # NetD : Allow passing in interface names for wifi/data app restriction

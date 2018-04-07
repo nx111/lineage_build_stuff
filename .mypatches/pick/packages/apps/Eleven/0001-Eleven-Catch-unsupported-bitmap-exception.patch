@@ -1,0 +1,57 @@
+From d33eaa71cffd65a6531a14f4fe4856afa471f2b0 Mon Sep 17 00:00:00 2001
+From: Matthias Yzusqui <myzb.dev@gmail.com>
+Date: Fri, 6 Apr 2018 11:57:43 +0200
+Subject: [PATCH] Eleven: Catch unsupported bitmap exception
+
+Android's renderscript allocation class only supports creating
+elements from ALPHA_8, ARGB_4444, ARGB_8888 and RGB_565 bitmaps.
+
+Change-Id: Ib3e40755e7eacd9725b97ae9ab4bde34c6eec70d
+---
+ .../eleven/cache/BlurBitmapWorkerTask.java         | 30 ++++++++++++----------
+ 1 file changed, 17 insertions(+), 13 deletions(-)
+
+diff --git a/src/org/lineageos/eleven/cache/BlurBitmapWorkerTask.java b/src/org/lineageos/eleven/cache/BlurBitmapWorkerTask.java
+index 20d9978..3ef81ef 100644
+--- a/src/org/lineageos/eleven/cache/BlurBitmapWorkerTask.java
++++ b/src/org/lineageos/eleven/cache/BlurBitmapWorkerTask.java
+@@ -114,19 +114,23 @@ public class BlurBitmapWorkerTask extends BitmapWorkerTask<String, Void, BlurBit
+ 
+             // run the blur multiple times
+             for (int i = 0; i < NUM_BLUR_RUNS; i++) {
+-                final Allocation inputAlloc = Allocation.createFromBitmap(mRenderScript, input);
+-                final Allocation outputAlloc = Allocation.createTyped(mRenderScript,
+-                        inputAlloc.getType());
+-                final ScriptIntrinsicBlur script = ScriptIntrinsicBlur.create(mRenderScript,
+-                        Element.U8_4(mRenderScript));
+-
+-                script.setRadius(BLUR_RADIUS);
+-                script.setInput(inputAlloc);
+-                script.forEach(outputAlloc);
+-                outputAlloc.copyTo(output);
+-
+-                // if we run more than 1 blur, the new input should be the old output
+-                input = output;
++                try {
++                    final Allocation inputAlloc = Allocation.createFromBitmap(mRenderScript, input);
++                    final Allocation outputAlloc = Allocation.createTyped(mRenderScript,
++                            inputAlloc.getType());
++                    final ScriptIntrinsicBlur script = ScriptIntrinsicBlur.create(mRenderScript,
++                            Element.U8_4(mRenderScript));
++
++                    script.setRadius(BLUR_RADIUS);
++                    script.setInput(inputAlloc);
++                    script.forEach(outputAlloc);
++                    outputAlloc.copyTo(output);
++
++                    // if we run more than 1 blur, the new input should be the old output
++                    input = output;
++                } catch (RuntimeException e) {
++                    // unsupported bitmap type
++                }
+             }
+ 
+             // Set the scrim color to be 50% gray
+-- 
+2.15.1
+
