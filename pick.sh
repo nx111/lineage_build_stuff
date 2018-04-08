@@ -510,6 +510,9 @@ kpick 210299 # power: msm8974: POWER_HINT_INTERACTION improvements
 # hardware/samsung
 kpick 211030 # fingerprint: send cancel-message to system
 
+# lineage-sdk
+kpick 206683 # lineage-sdk: Switch back to AOSP TwilightService
+
 # packages/apps/Contacts
 
 # packages/apps/Dialer
@@ -544,6 +547,7 @@ kpick 208353 # NetD : Allow passing in interface names for wifi/data app restric
 # system/sepolicy
 kpick 206428 # Add rules required for TARGET_HAS_LEGACY_CAMERA_HAL1
 kpick 206429 # Adapt add_service uses for TARGET_HAS_LEGACY_CAMERA_HAL1
+kpick 212466 # allow platform_app to use nfc_service for NFC tile
 
 # vendor/lineage
 kpick 206426 # soong_config: Add TARGET_HAS_LEGACY_CAMERA_HAL1 variable
