@@ -499,6 +499,7 @@ kpick 209609 # vibrator: Implement new 1.1 HAL function
 kpick 210494 # vibrator: Add more verbose startup and use android-base logging
 
 # hardware/qcom/bt-caf
+kpick 212517 # Add missing headers to libbt-vendor
 
 # hardware/qcom/display
 
@@ -509,6 +510,9 @@ kpick 210299 # power: msm8974: POWER_HINT_INTERACTION improvements
 
 # hardware/samsung
 kpick 211030 # fingerprint: send cancel-message to system
+
+# lineage/wiki
+kpick 212483 # This command line is more universal, it works too in foreign langages
 
 # lineage-sdk
 kpick 206683 # lineage-sdk: Switch back to AOSP TwilightService
@@ -533,9 +537,15 @@ kpick 206700 # Settings: per-app cellular data and wifi restrictions
 # packages/services/Telephony
 # kpick 211270 # Telephony: add external network selection activity
 
+# packages/apps/Trebuchet
+kpick 212602 # Utilities: fix checking whether non-default icon pack is applied
+kpick 212603 # xml: device_profiles: correct XML tag
+kpick 212604 # WallpaperManagerCompat: correct build version check
+
 # system/core
 kpick 206119 # init: I hate safety net
 kpick 209385 # init: optimize shutdown time
+kpick 209834 # Revert "Don't enable ADB by default when ro.adb.secure is 1"
 kpick 210316 # init: Don't run update_sys_usb_config if /data isn't mounted
 
 # system/extras
@@ -543,6 +553,9 @@ kpick 211210 # ext4: Add /data/stache/ to encryption exclusion list
 
 # system/netd
 kpick 208353 # NetD : Allow passing in interface names for wifi/data app restriction
+
+# system/qcom
+kpick 212530 # softap: Fix for VNDK_VERSION=current
 
 # system/sepolicy
 kpick 206428 # Add rules required for TARGET_HAS_LEGACY_CAMERA_HAL1
@@ -553,10 +566,6 @@ kpick 212466 # allow platform_app to use nfc_service for NFC tile
 kpick 206426 # soong_config: Add TARGET_HAS_LEGACY_CAMERA_HAL1 variable
 kpick 206996 # soong_config: Add TARGET_USES_MEDIA_EXTENSIONS variable
 #kpick 207109 # repopick: Give feedback if topic does not exist   (crash by 211250)
-kpick 211250 # repopick: Try to keep the changes sorted
-kpick 211251 # repopick: Ignore the trailing slash in change numbers
-kpick 211252 # repopick: Actually print the patchset number
-kpick 211253 # repopick: Allow to pick changes by URL
 
 ##################################
 
