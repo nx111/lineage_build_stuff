@@ -508,6 +508,9 @@ kpick 212517 # Add missing headers to libbt-vendor
 kpick 208368 # power: Don't send obsolete DISPLAY_OFF opcode
 kpick 210293 # power: Avoid interaction build errors
 kpick 210299 # power: msm8974: POWER_HINT_INTERACTION improvements
+kpick 212607 # power: revert checking for ro.vendor.extension_library
+kpick 212633 # power: don't try to open non-existing file repeatedly
+kpick 212634 # power: fix sysfs_read/sysfs_write usage
 
 # hardware/samsung
 kpick 211030 # fingerprint: send cancel-message to system

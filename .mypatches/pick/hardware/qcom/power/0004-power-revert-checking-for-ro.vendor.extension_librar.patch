@@ -1,0 +1,56 @@
+From 4b228061a7b9ea591b90a8d79cc4acb3357a2307 Mon Sep 17 00:00:00 2001
+From: Corinna Vinschen <xda@vinschen.de>
+Date: Mon, 9 Apr 2018 22:55:59 +0200
+Subject: [PATCH 4/6] power: revert checking for ro.vendor.extension_library
+
+This partially reverts I0ce40bbefb8c867dda8ee5eb1f948af2106e692d,
+"power: Using PerfHAL API".
+
+Especially older systems don't provide libqti-perfd-client.so but this
+is hardcoded since the aforementioned change.  Use the former code
+checking for ro.vendor.extension_library and try to load that library if
+the property exists before falling back to loading
+libqti-perfd-client.so.
+
+Change-Id: If89e3b88062be10af7cfd43b6ba92a22fda32754
+Signed-off-by: Corinna Vinschen <xda@vinschen.de>
+---
+ utils.c | 17 ++++++++++++++---
+ 1 file changed, 14 insertions(+), 3 deletions(-)
+
+diff --git a/utils.c b/utils.c
+index c9d2f98..9734086 100644
+--- a/utils.c
++++ b/utils.c
+@@ -64,14 +64,25 @@ static struct list_node active_hint_list_head;
+ 
+ static void *get_qcopt_handle()
+ {
++    char qcopt_lib_path[PATH_MAX] = {0};
+     void *handle = NULL;
+ 
+     dlerror();
+ 
+-    handle = dlopen(PERF_HAL_PATH, RTLD_NOW);
++    if (property_get("ro.vendor.extension_library", qcopt_lib_path,
++                NULL)) {
++        handle = dlopen(qcopt_lib_path, RTLD_NOW);
++        if (!handle) {
++            ALOGE("Unable to open %s: %s\n", qcopt_lib_path,
++                    dlerror());
++        }
++    }
+     if (!handle) {
+-        ALOGE("Unable to open %s: %s\n", PERF_HAL_PATH,
+-                dlerror());
++        handle = dlopen(PERF_HAL_PATH, RTLD_NOW);
++        if (!handle) {
++            ALOGE("Unable to open %s: %s\n", PERF_HAL_PATH,
++                    dlerror());
++        }
+     }
+ 
+     return handle;
+-- 
+2.15.1
+
