@@ -471,6 +471,7 @@ kpick 206434 # media: fix infinite wait at source for HAL1 based recording
 kpick 206435 # libstagefright: use 64-bit usage for native_window_set_usage
 kpick 206968 # libstagefright: encoder must exist when source starting
 kpick 206969 # Camera: Add support for preview frame fd
+kpick 209883 # libstagefright: Support disabling metadata with a property
 
 # frameworks/base
 kpick 206400 # SystemUI: Forward-port notification counters
@@ -513,6 +514,7 @@ kpick 211030 # fingerprint: send cancel-message to system
 
 # lineage/wiki
 kpick 212483 # This command line is more universal, it works too in foreign langages
+kpick 212615 # gts28vewifi: Add reminder to check that bootloader is unlocked
 
 # lineage-sdk
 kpick 206683 # lineage-sdk: Switch back to AOSP TwilightService
@@ -566,6 +568,7 @@ kpick 212466 # allow platform_app to use nfc_service for NFC tile
 kpick 206426 # soong_config: Add TARGET_HAS_LEGACY_CAMERA_HAL1 variable
 kpick 206996 # soong_config: Add TARGET_USES_MEDIA_EXTENSIONS variable
 #kpick 207109 # repopick: Give feedback if topic does not exist   (crash by 211250)
+kpick 210664 # extract_utils: Support multidex
 
 ##################################
 
