@@ -423,6 +423,7 @@ kpick 209323 # envsetup: stop jack server once build completed
 
 # device/lineage/sepolicy
 kpick 210014 # sepolicy: Label aw2013 HIDL light HAL
+kpick 212622 # Remove duplicated genfscon
 
 # device/qcom/sepolicy
 kpick 209960 # sepolicy: rules to allow camera daemon access to app buffer
@@ -446,7 +447,7 @@ kpick 212643 # qcom/sepol: Allow mm-qcamerad to use binder even in vendor
 
 # device/samsung/klte-common
 kpick 212647 # klte-common: Use passthrough manifest for all NFC chips
-kpick 212648 # klte-common: Enable AOD
+#kpick 212648 # klte-common: Enable AOD
 
 # device/samsung/kltechnduo
 
@@ -512,7 +513,6 @@ kpick 212633 # power: don't try to open non-existing file repeatedly
 kpick 212634 # power: fix sysfs_read/sysfs_write usage
 
 # hardware/samsung
-kpick 211030 # fingerprint: send cancel-message to system
 
 # lineage/wiki
 kpick 212483 # This command line is more universal, it works too in foreign langages
@@ -521,6 +521,9 @@ kpick 212615 # gts28vewifi: Add reminder to check that bootloader is unlocked
 # lineage-sdk
 kpick 206683 # lineage-sdk: Switch back to AOSP TwilightService
 kpick 212637 # sdk: Remove low power restrictions on color control
+
+# packages/apps/Camera2
+kpick 212625 # Camera2: Fix photo snap delay on front cam.
 
 # packages/apps/Contacts
 
@@ -549,6 +552,7 @@ kpick 206700 # Settings: per-app cellular data and wifi restrictions
 kpick 209385 # init: optimize shutdown time
 kpick 209834 # Revert "Don't enable ADB by default when ro.adb.secure is 1"
 kpick 210316 # init: Don't run update_sys_usb_config if /data isn't mounted
+kpick 212626 # Revert "logd: add "+passcred" for logdw socket"
 kpick 212642 # init: do not load persistent properties from temporary /data
 
 # system/extras
@@ -563,6 +567,7 @@ kpick 212530 # softap: Fix for VNDK_VERSION=current
 # system/sepolicy
 kpick 206428 # Add rules required for TARGET_HAS_LEGACY_CAMERA_HAL1
 kpick 206429 # Adapt add_service uses for TARGET_HAS_LEGACY_CAMERA_HAL1
+#kpick 212623 # Revert "sepolicy: Allow recovery to write to rootfs"  (cause build faild)
 kpick 212466 # allow platform_app to use nfc_service for NFC tile
 
 # vendor/lineage
