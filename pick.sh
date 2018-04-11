@@ -442,11 +442,13 @@ kpick 210022 # legacy: Address perfd denials
 kpick 210023 # legacy: allow graphics composer to set postprocessing props
 kpick 210024 # legacy: allow hal_camera_default to connect to camera socket
 kpick 211273 # qcom/sepol: Fix timeservice app context
+kpick 212643 # qcom/sepol: Allow mm-qcamerad to use binder even in vendor
 
 # device/samsung/klte-common
+kpick 212647 # klte-common: Use passthrough manifest for all NFC chips
+kpick 212648 # klte-common: Enable AOD
 
 # device/samsung/kltechnduo
-kpick 211335 # kltechnduo: Fix RIL on encrypted devices
 
 # device/samsung/msm8974-common
 kpick 210313 # msm8974-common: Binderize them all
@@ -486,7 +488,6 @@ kpick 209929 # SystemUI: fix black scrim when turning screen on from AOD
 #kpick 211301 # Store Network Mode selected in subId Table
 
 # frameworks/native
-kpick 210545 # Fix resampling for multiple pointers
 
 # frameworks/opt/telephony
 #kpick 211280 # telephony: Respect user nw mode, handle DSDS non-multi-rat
@@ -496,8 +497,6 @@ kpick 210545 # Fix resampling for multiple pointers
 kpick 206140 # gps.default.so: fix crash on access to unset AGpsRilCallbacks::request_refloc
 
 # hardware/lineage/interfaces
-kpick 209609 # vibrator: Implement new 1.1 HAL function
-kpick 210494 # vibrator: Add more verbose startup and use android-base logging
 
 # hardware/qcom/bt-caf
 kpick 212517 # Add missing headers to libbt-vendor
@@ -521,10 +520,12 @@ kpick 212615 # gts28vewifi: Add reminder to check that bootloader is unlocked
 
 # lineage-sdk
 kpick 206683 # lineage-sdk: Switch back to AOSP TwilightService
+kpick 212637 # sdk: Remove low power restrictions on color control
 
 # packages/apps/Contacts
 
 # packages/apps/Dialer
+kpick 209824 # Add setting to enable Do Not Disturb during calls
 kpick 211135 # Show proper call duration
 
 # packages/apps/Eleven
@@ -543,15 +544,12 @@ kpick 206700 # Settings: per-app cellular data and wifi restrictions
 # kpick 211270 # Telephony: add external network selection activity
 
 # packages/apps/Trebuchet
-kpick 212602 # Utilities: fix checking whether non-default icon pack is applied
-kpick 212603 # xml: device_profiles: correct XML tag
-kpick 212604 # WallpaperManagerCompat: correct build version check
 
 # system/core
-kpick 206119 # init: I hate safety net
 kpick 209385 # init: optimize shutdown time
 kpick 209834 # Revert "Don't enable ADB by default when ro.adb.secure is 1"
 kpick 210316 # init: Don't run update_sys_usb_config if /data isn't mounted
+kpick 212642 # init: do not load persistent properties from temporary /data
 
 # system/extras
 kpick 211210 # ext4: Add /data/stache/ to encryption exclusion list
@@ -572,6 +570,8 @@ kpick 206426 # soong_config: Add TARGET_HAS_LEGACY_CAMERA_HAL1 variable
 kpick 206996 # soong_config: Add TARGET_USES_MEDIA_EXTENSIONS variable
 #kpick 207109 # repopick: Give feedback if topic does not exist   (crash by 211250)
 kpick 210664 # extract_utils: Support multidex
+kpick 212627 # apn: Allow both IPv4 and IPv6 protocols on fido lte and rogers lte
+kpick 212640 # repopick: Update SSH queries result to match HTTP queries
 
 ##################################
 
