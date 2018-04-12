@@ -415,6 +415,7 @@ fi
 # bootable/recovery
 kpick 206117 # update_verifier: skip verity to determine successful on lineage builds
 kpick 211098 # recovery/ui: Hide emulated storage for encrypted devices
+kpick 212711 # Revert "updater: Fix and improve allowing devices to suppress BLKDISCARD"
 
 # build
 
@@ -577,6 +578,7 @@ kpick 206996 # soong_config: Add TARGET_USES_MEDIA_EXTENSIONS variable
 kpick 210664 # extract_utils: Support multidex
 kpick 212627 # apn: Allow both IPv4 and IPv6 protocols on fido lte and rogers lte
 kpick 212640 # repopick: Update SSH queries result to match HTTP queries
+kpick 212721 # build: kernel: Use LLVM_PREBUILTS_VERSION if no version is specified
 
 ##################################
 
