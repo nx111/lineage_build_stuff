@@ -1,0 +1,1982 @@
+From b7bd74efa8af5c1a7450b1f53d9012aeae90b787 Mon Sep 17 00:00:00 2001
+From: dianlujitao <dianlujitao@lineageos.org>
+Date: Thu, 22 Feb 2018 16:33:17 +0800
+Subject: [PATCH 2/3] lineage/interfaces: Add IColor SDM backend implementation
+
+ * This code implements the LiveDisplay native interface
+   and includes support for Qualcomm's SDM. Communication
+   with these backends is handled via the vendor-supplied
+   libraries, and is decoupled by using dynamic loading.
+ * This is useful for devices which have had a full display
+   calibration performed using vendor-supplied tools such
+   as QDCM.
+ * This code is based on libjni_livedisplay developed by
+   Steve Kondik with assistance from Scott Mertz. Various
+   bits of CYNGN proprietary IP have been removed.
+
+Change-Id: I8d80ec17768e49fad1d3e30a36dd296a5bc2742e
+---
+ livedisplay/1.0/default/.clang-format         |  13 +
+ livedisplay/1.0/default/Android.bp            |  47 ++
+ .../1.0/default/controller/SDMController.cpp  | 170 +++++++
+ livedisplay/1.0/default/impl/SDM.cpp          | 456 ++++++++++++++++++
+ livedisplay/1.0/default/include/Color.h       | 106 ++++
+ .../1.0/default/include/ColorBackend.h        |  71 +++
+ livedisplay/1.0/default/include/Types.h       |  81 ++++
+ livedisplay/1.0/default/include/Utils.h       |  59 +++
+ .../include/controller/SDMController.h        | 118 +++++
+ livedisplay/1.0/default/include/impl/SDM.h    | 135 ++++++
+ livedisplay/1.0/default/service.cpp           |  59 +++
+ livedisplay/1.0/default/src/Color.cpp         | 379 +++++++++++++++
+ livedisplay/1.0/default/src/Utils.cpp         | 138 ++++++
+ ...dor.lineage.livedisplay@1.0-service-sdm.rc |   4 +
+ livedisplay/Android.bp                        |   1 +
+ 15 files changed, 1837 insertions(+)
+ create mode 100644 livedisplay/1.0/default/.clang-format
+ create mode 100644 livedisplay/1.0/default/Android.bp
+ create mode 100644 livedisplay/1.0/default/controller/SDMController.cpp
+ create mode 100644 livedisplay/1.0/default/impl/SDM.cpp
+ create mode 100644 livedisplay/1.0/default/include/Color.h
+ create mode 100644 livedisplay/1.0/default/include/ColorBackend.h
+ create mode 100644 livedisplay/1.0/default/include/Types.h
+ create mode 100644 livedisplay/1.0/default/include/Utils.h
+ create mode 100644 livedisplay/1.0/default/include/controller/SDMController.h
+ create mode 100644 livedisplay/1.0/default/include/impl/SDM.h
+ create mode 100644 livedisplay/1.0/default/service.cpp
+ create mode 100644 livedisplay/1.0/default/src/Color.cpp
+ create mode 100644 livedisplay/1.0/default/src/Utils.cpp
+ create mode 100644 livedisplay/1.0/default/vendor.lineage.livedisplay@1.0-service-sdm.rc
+
+diff --git a/livedisplay/1.0/default/.clang-format b/livedisplay/1.0/default/.clang-format
+new file mode 100644
+index 0000000..fc4eb1b
+--- /dev/null
++++ b/livedisplay/1.0/default/.clang-format
+@@ -0,0 +1,13 @@
++BasedOnStyle: Google
++AllowShortBlocksOnASingleLine: false
++AllowShortFunctionsOnASingleLine: false
++
++AccessModifierOffset: -2
++ColumnLimit: 100
++CommentPragmas: NOLINT:.*
++DerivePointerAlignment: false
++IndentWidth: 4
++PointerAlignment: Left
++TabWidth: 4
++UseTab: Never
++PenaltyExcessCharacter: 32
+diff --git a/livedisplay/1.0/default/Android.bp b/livedisplay/1.0/default/Android.bp
+new file mode 100644
+index 0000000..39c95a4
+--- /dev/null
++++ b/livedisplay/1.0/default/Android.bp
+@@ -0,0 +1,47 @@
++// Copyright (C) 2017-2018 The LineageOS Project
++//
++// Licensed under the Apache License, Version 2.0 (the "License");
++// you may not use this file except in compliance with the License.
++// You may obtain a copy of the License at
++//
++//      http://www.apache.org/licenses/LICENSE-2.0
++//
++// Unless required by applicable law or agreed to in writing, software
++// distributed under the License is distributed on an "AS IS" BASIS,
++// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++// See the License for the specific language governing permissions and
++// limitations under the License.
++
++cc_defaults {
++    name: "livedisplay_defaults",
++    relative_install_path: "hw",
++    defaults: ["hidl_defaults"],
++    proprietary: true,
++    local_include_dirs: ["include"],
++    srcs: [
++        "service.cpp",
++        "src/Color.cpp",
++        "src/Utils.cpp"
++    ],
++    shared_libs: [
++        "libbase",
++        "libbinder",
++        "libcutils",
++        "libhardware",
++        "libhidlbase",
++        "libhidltransport",
++        "libutils",
++        "vendor.lineage.livedisplay@1.0_vendor",
++    ],
++}
++
++cc_binary {
++    name: "vendor.lineage.livedisplay@1.0-service-sdm",
++    init_rc: ["vendor.lineage.livedisplay@1.0-service-sdm.rc"],
++    defaults: ["livedisplay_defaults"],
++    cflags: ["-DCOLOR_BACKEND_SDM"],
++    srcs: [
++        "impl/SDM.cpp",
++        "controller/SDMController.cpp",
++    ],
++}
+diff --git a/livedisplay/1.0/default/controller/SDMController.cpp b/livedisplay/1.0/default/controller/SDMController.cpp
+new file mode 100644
+index 0000000..4c8a7de
+--- /dev/null
++++ b/livedisplay/1.0/default/controller/SDMController.cpp
+@@ -0,0 +1,170 @@
++/*
++ * Copyright (C) 2018 The LineageOS Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#include "controller/SDMController.h"
++
++#define LOAD_SDM_FUNCTION(name) mFn_##name = loadFunction<disp_api_##name>("disp_api_" #name);
++
++#define CLOSE_SDM_FUNCTION(name) mFn_##name = nullptr;
++
++#define FOR_EACH_FUNCTION(MACRO)          \
++    MACRO(init)                           \
++    MACRO(deinit)                         \
++    MACRO(get_global_color_balance_range) \
++    MACRO(set_global_color_balance)       \
++    MACRO(get_global_color_balance)       \
++    MACRO(get_num_display_modes)          \
++    MACRO(get_display_modes)              \
++    MACRO(get_active_display_mode)        \
++    MACRO(set_active_display_mode)        \
++    MACRO(set_default_display_mode)       \
++    MACRO(get_default_display_mode)       \
++    MACRO(get_global_pa_range)            \
++    MACRO(get_global_pa_config)           \
++    MACRO(set_global_pa_config)           \
++    MACRO(get_feature_version)
++
++#define CONTROLLER_CHECK(function, ...)    \
++    if (mFn_##function == nullptr) {       \
++        return -1;                         \
++    }                                      \
++    int err = mFn_##function(__VA_ARGS__); \
++    if (err != 0) {                        \
++        return err;                        \
++    }                                      \
++    return 0;
++
++namespace vendor {
++namespace lineage {
++namespace livedisplay {
++namespace V1_0 {
++namespace implementation {
++
++const char SDMController::kFilename[] = "libsdm-disp-vndapis.so";
++
++SDMController::SDMController() {
++    openlib();
++}
++
++SDMController::~SDMController() {
++    closelib();
++}
++
++bool SDMController::openlib() {
++    mHandle = dlopen(kFilename, RTLD_NOW);
++    if (mHandle == nullptr) {
++        LOG(ERROR) << "DLOPEN failed for " << kFilename << " (" << dlerror() << ")";
++        return false;
++    }
++    FOR_EACH_FUNCTION(LOAD_SDM_FUNCTION)
++    return true;
++}
++
++bool SDMController::closelib() {
++    FOR_EACH_FUNCTION(CLOSE_SDM_FUNCTION)
++    if (mHandle != nullptr) {
++        int err = dlclose(mHandle);
++        mHandle = nullptr;
++        if (err != 0) {
++            LOG(ERROR) << "DLCLOSE failed for " << kFilename;
++            return false;
++        }
++    }
++    return true;
++}
++
++SDMController& SDMController::getInstance() {
++    static SDMController instance{};
++    return instance;
++}
++
++int32_t SDMController::init(uint64_t* hctx, uint32_t flags) {
++    CONTROLLER_CHECK(init, hctx, flags);
++}
++
++int32_t SDMController::deinit(uint64_t hctx, uint32_t flags) {
++    CONTROLLER_CHECK(deinit, hctx, flags);
++}
++
++int32_t SDMController::get_global_color_balance_range(uint64_t hctx, uint32_t disp_id,
++                                                       void* range) {
++    CONTROLLER_CHECK(get_global_color_balance_range, hctx, disp_id, range);
++}
++
++int32_t SDMController::set_global_color_balance(uint64_t hctx, uint32_t disp_id, int32_t warmness,
++                                                 uint32_t flags) {
++    CONTROLLER_CHECK(set_global_color_balance, hctx, disp_id, warmness, flags);
++}
++
++int32_t SDMController::get_global_color_balance(uint64_t hctx, uint32_t disp_id, int32_t* warmness,
++                                                 uint32_t* flags) {
++    CONTROLLER_CHECK(get_global_color_balance, hctx, disp_id, warmness, flags);
++}
++
++int32_t SDMController::get_num_display_modes(uint64_t hctx, uint32_t disp_id, uint32_t mode_type,
++                                              int32_t* mode_cnt, uint32_t* flags) {
++    CONTROLLER_CHECK(get_num_display_modes, hctx, disp_id, mode_type, mode_cnt, flags);
++}
++
++int32_t SDMController::get_display_modes(uint64_t hctx, uint32_t disp_id, uint32_t mode_type,
++                                          void* modes, int32_t mode_cnt, uint32_t* flags) {
++    CONTROLLER_CHECK(get_display_modes, hctx, disp_id, mode_type, modes, mode_cnt, flags);
++}
++
++int32_t SDMController::get_active_display_mode(uint64_t hctx, uint32_t disp_id, int32_t* mode_id,
++                                                uint32_t* mask, uint32_t* flags) {
++    CONTROLLER_CHECK(get_active_display_mode, hctx, disp_id, mode_id, mask, flags);
++}
++
++int32_t SDMController::set_active_display_mode(uint64_t hctx, uint32_t disp_id, int32_t mode_id,
++                                                uint32_t flags) {
++    CONTROLLER_CHECK(set_active_display_mode, hctx, disp_id, mode_id, flags);
++}
++
++int32_t SDMController::set_default_display_mode(uint64_t hctx, uint32_t disp_id, int32_t mode_id,
++                                                 uint32_t flags) {
++    CONTROLLER_CHECK(set_default_display_mode, hctx, disp_id, mode_id, flags);
++}
++
++int32_t SDMController::get_default_display_mode(uint64_t hctx, uint32_t disp_id, int32_t* mode_id,
++                                                 uint32_t* flags) {
++    CONTROLLER_CHECK(get_default_display_mode, hctx, disp_id, mode_id, flags);
++}
++
++int32_t SDMController::get_global_pa_range(uint64_t hctx, uint32_t disp_id, void* range) {
++    CONTROLLER_CHECK(get_global_pa_range, hctx, disp_id, range);
++}
++
++int32_t SDMController::get_global_pa_config(uint64_t hctx, uint32_t disp_id, uint32_t* enable,
++                                             void* cfg) {
++    CONTROLLER_CHECK(get_global_pa_config, hctx, disp_id, enable, cfg);
++}
++
++int32_t SDMController::set_global_pa_config(uint64_t hctx, uint32_t disp_id, uint32_t enable,
++                                             void* cfg) {
++    CONTROLLER_CHECK(set_global_pa_config, hctx, disp_id, enable, cfg);
++}
++
++int32_t SDMController::get_feature_version(uint64_t hctx, uint32_t feature_id, void* ver,
++                                            uint32_t* flags) {
++    CONTROLLER_CHECK(get_feature_version, hctx, feature_id, ver, flags);
++}
++
++}  // namespace implementation
++}  // namespace V1_0
++}  // namespace livedisplay
++}  // namespace lineage
++}  // namespace vendor
+diff --git a/livedisplay/1.0/default/impl/SDM.cpp b/livedisplay/1.0/default/impl/SDM.cpp
+new file mode 100644
+index 0000000..e3f9c68
+--- /dev/null
++++ b/livedisplay/1.0/default/impl/SDM.cpp
+@@ -0,0 +1,456 @@
++/*
++ * Copyright (C) 2016 The CyanogenMod Project
++ * Copyright (C) 2017-2018 The LineageOS Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#define LOG_NDEBUG 0
++
++#define LOG_TAG "LiveDisplay-SDM"
++
++#include <android-base/properties.h>
++
++#include "Utils.h"
++#include "impl/SDM.h"
++
++namespace vendor {
++namespace lineage {
++namespace livedisplay {
++namespace V1_0 {
++namespace implementation {
++
++status_t SDM::initialize() {
++    status_t rc = NO_INIT;
++
++    rc = SDMController::getInstance().init(&mHandle, 0);
++    if (rc != OK) {
++        return rc;
++    }
++
++    mActiveModeId = -1;
++
++    if (hasFeature(Feature::DISPLAY_MODES)) {
++        rc = saveInitialDisplayMode();
++        if (rc != OK) {
++            LOG(ERROR) << "Failed to save initial display mode! err=" << rc;
++            return rc;
++        }
++        sp<disp_mode> defMode = getDefaultDisplayMode();
++        if (defMode != nullptr) {
++            setDisplayMode(defMode->id, false);
++        }
++    }
++    return OK;
++}
++
++status_t SDM::deinitialize() {
++    SDMController::getInstance().deinit(mHandle, 0);
++    mHandle = -1;
++    return OK;
++}
++
++uint32_t SDM::getNumSDMDisplayModes() {
++    uint32_t flags = 0;
++    int32_t count = 0;
++    if (SDMController::getInstance().get_num_display_modes(mHandle, 0, 0, &count, &flags)) {
++        count = 0;
++    }
++    return count;
++}
++
++uint32_t SDM::getNumDisplayModes() {
++    int32_t count = getNumSDMDisplayModes();
++    if (getLocalSRGBMode() != nullptr) {
++        count++;
++    }
++    if (getLocalDCIP3Mode() != nullptr) {
++        count++;
++    }
++    return count;
++}
++
++sp<disp_mode> SDM::getDisplayModeById(int32_t id) {
++    vector<sp<disp_mode>> profiles;
++    status_t rc = getDisplayModes(profiles);
++    if (rc == OK) {
++        for (const auto& mode : profiles) {
++            if (id == mode->id) {
++                return mode;
++            }
++        }
++    }
++
++    return nullptr;
++}
++
++status_t SDM::setModeState(sp<disp_mode> mode, bool state) {
++    int32_t id = 0;
++
++    if (mode->privFlags == PRIV_MODE_FLAG_SYSFS) {
++        if (mode->id != STANDARD_NODE_ID) {
++            LOG(VERBOSE) << "sysfs node: " << mode->privData << " state=" << state;
++            return Utils::writeInt(mode->privData.c_str(), state ? 1 : 0);
++        } else {
++            // NOOP
++            return OK;
++        }
++    } else if (mode->privFlags == PRIV_MODE_FLAG_SDM) {
++        if (state) {
++            return SDMController::getInstance().set_active_display_mode(mHandle, 0, mode->id, 0);
++        } else {
++            if (Utils::readInitialModeId(&id) == OK) {
++                LOG(VERBOSE) << "set sdm mode to default: id" << id;
++                return SDMController::getInstance().set_active_display_mode(mHandle, 0, id, 0);
++            }
++        }
++    }
++    return BAD_VALUE;
++}
++
++status_t SDM::getDisplayModes(vector<sp<disp_mode>>& profiles) {
++    status_t rc = OK;
++
++    uint32_t count = getNumDisplayModes();
++    if (!count) return rc;
++
++    uint32_t sdm_count = getNumSDMDisplayModes();
++
++    if (sdm_count == 0) {
++        // sysfs only case, create a dummy standard mode
++        const sp<disp_mode> m = new disp_mode;
++        m->id = STANDARD_NODE_ID;
++        m->name = "standard";
++        m->privFlags = PRIV_MODE_FLAG_SYSFS;
++        m->privData = "";
++        profiles.push_back(m);
++    } else {
++        struct sdm_mode {
++            int32_t id;
++            int32_t type;
++            int32_t len;
++            char* name;
++        };
++
++        sdm_mode* tmp = new sdm_mode[sdm_count];
++        memset(tmp, 0, sizeof(sdm_mode) * sdm_count);
++        for (uint32_t i = 0; i < sdm_count; i++) {
++            tmp[i].id = -1;
++            tmp[i].name = new char[128];
++            tmp[i].len = 128;
++        }
++
++        uint32_t flags = 0;
++        rc = SDMController::getInstance().get_display_modes(mHandle, 0, 0, tmp, sdm_count, &flags);
++        if (rc == 0) {
++            for (uint32_t i = 0; i < sdm_count; i++) {
++                const sp<disp_mode> m = new disp_mode;
++                m->id = tmp[i].id;
++                m->name = tmp[i].name;
++                m->privFlags = PRIV_MODE_FLAG_SDM;
++                profiles.push_back(m);
++            }
++        }
++        for (uint32_t i = 0; i < sdm_count; i++) delete tmp[i].name;
++        delete[] tmp;
++    }
++
++    sp<disp_mode> srgb = getLocalSRGBMode();
++    sp<disp_mode> dci_p3 = getLocalDCIP3Mode();
++    if (srgb != nullptr) {
++        profiles.push_back(srgb);
++    }
++    if (dci_p3 != nullptr) {
++        profiles.push_back(dci_p3);
++    }
++
++    return rc;
++}
++
++sp<disp_mode> SDM::getCurrentDisplayMode() {
++    return getDisplayModeById(mActiveModeId);
++}
++
++sp<disp_mode> SDM::getDefaultDisplayMode() {
++    int32_t id = 0;
++    if (Utils::readLocalModeId(&id) == OK && id >= 0) {
++        return getDisplayModeById(id);
++    }
++    if (Utils::readInitialModeId(&id) == OK && id >= 0) {
++        return getDisplayModeById(id);
++    }
++    return nullptr;
++}
++
++sp<disp_mode> SDM::getLocalSRGBMode() {
++    char path[PATH_MAX];
++    sprintf(path, "%s", SRGB_NODE);
++
++    if (access(path, W_OK) != 0) {
++        return nullptr;
++    }
++    sp<disp_mode> m = new disp_mode;
++    m->id = SRGB_NODE_ID;
++    m->name = "srgb";
++    m->privFlags = PRIV_MODE_FLAG_SYSFS;
++    m->privData = path;
++    return m;
++}
++
++sp<disp_mode> SDM::getLocalDCIP3Mode() {
++    char path[PATH_MAX];
++    sprintf(path, "%s", DCI_P3_NODE);
++
++    if (access(path, W_OK) != 0) {
++        return nullptr;
++    }
++    sp<disp_mode> m = new disp_mode;
++    m->id = DCI_P3_NODE_ID;
++    m->name = "dci_p3";
++    m->privFlags = PRIV_MODE_FLAG_SYSFS;
++    m->privData = path;
++    return m;
++}
++
++status_t SDM::getPictureAdjustmentRanges(HSICRanges& ranges) {
++    hsic_ranges r;
++    memset(&r, 0, sizeof(struct hsic_ranges));
++
++    status_t rc = SDMController::getInstance().get_global_pa_range(mHandle, 0, &r);
++    if (rc == OK) {
++        ranges.hue.min = r.hue.min;
++        ranges.hue.max = r.hue.max;
++        ranges.hue.step = r.hue.step;
++        ranges.saturation.min = r.saturation.min;
++        ranges.saturation.max = r.saturation.max;
++        ranges.saturation.step = r.saturation.step;
++        ranges.intensity.min = r.intensity.min;
++        ranges.intensity.max = r.intensity.max;
++        ranges.intensity.step = r.intensity.step;
++        ranges.contrast.min = r.contrast.min;
++        ranges.contrast.max = r.contrast.max;
++        ranges.contrast.step = r.contrast.step;
++        ranges.saturationThreshold.min = r.saturationThreshold.min;
++        ranges.saturationThreshold.max = r.saturationThreshold.max;
++        ranges.saturationThreshold.step = r.saturationThreshold.step;
++    }
++    return rc;
++}
++
++bool SDM::hasFeature(Feature feature) {
++    uint32_t id = 0, flags = 0;
++    struct version {
++        uint8_t x, y;
++        uint16_t z;
++    };
++    version v;
++
++    switch (feature) {
++        case Feature::DISPLAY_MODES:
++            id = 4;
++            break;
++        case Feature::COLOR_BALANCE:
++            id = 3;
++            break;
++        case Feature::PICTURE_ADJUSTMENT:
++            id = 1;
++        case Feature::ADAPTIVE_BACKLIGHT:
++            if (stoi(android::base::GetProperty("ro.qualcomm.foss", "0")) > 0) {
++                return true;
++            }
++            break;
++        default:
++            return false;
++    }
++
++    if (SDMController::getInstance().get_feature_version(mHandle, id, &v, &flags) == 0) {
++        if (v.x > 0 || v.y > 0 || v.z > 0) {
++            // Color balance depends on calibration data in SDM
++            if (feature == Feature::DISPLAY_MODES || feature == Feature::COLOR_BALANCE) {
++                if (getNumDisplayModes() > 0) {
++                    // make sure the range isn't zero
++                    if (feature == Feature::COLOR_BALANCE) {
++                        Range r;
++                        if (getColorBalanceRange(r) == OK && isNonZero(r)) {
++                            return true;
++                        }
++                        return false;
++                    }
++                    return true;
++                }
++            } else if (feature == Feature::PICTURE_ADJUSTMENT) {
++                HSICRanges r;
++                if (getPictureAdjustmentRanges(r) == OK && r.isValid()) {
++                    return true;
++                }
++            }
++        }
++    }
++    return false;
++}
++
++status_t SDM::saveInitialDisplayMode() {
++    int32_t id = 0;
++    uint32_t flags = 0;
++    if (Utils::readInitialModeId(&id) != OK || id < 0) {
++        if (SDMController::getInstance().get_default_display_mode(mHandle, 0, &id, &flags) == OK &&
++            id >= 0) {
++            return Utils::writeInitialModeId(id);
++        } else {
++            return Utils::writeInitialModeId(id = 0);
++        }
++    }
++    return OK;
++}
++
++status_t SDM::getColorBalanceRange(Range& range) {
++    status_t rc = SDMController::getInstance().get_global_color_balance_range(mHandle, 0, &range);
++    LOG(VERBOSE) << "getColorBalanceRange: min=" << range.min << " max=" << range.max
++                 << " step=" << range.step;
++    return rc;
++}
++
++status_t SDM::getPictureAdjustment(HSIC& hsic) {
++    uint32_t enable = 0;
++    hsic_config config;
++    memset(&config, 0, sizeof(struct hsic_config));
++
++    status_t rc = SDMController::getInstance().get_global_pa_config(mHandle, 0, &enable, &config);
++    if (rc == OK) {
++        hsic.hue = config.data.hue;
++        hsic.saturation = config.data.saturation;
++        hsic.intensity = config.data.intensity;
++        hsic.contrast = config.data.contrast;
++        hsic.saturationThreshold = config.data.saturationThreshold;
++    }
++    return rc;
++}
++
++status_t SDM::setDisplayMode(int32_t modeID, bool makeDefault) {
++    status_t rc = OK;
++
++    if (modeID == mActiveModeId) {
++        return rc;
++    }
++
++    sp<disp_mode> mode = getDisplayModeById(modeID);
++    if (mode == nullptr) {
++        return BAD_VALUE;
++    }
++
++    LOG(DEBUG) << "setDisplayMode: current mode=" << mActiveModeId;
++
++    if (mActiveModeId >= 0) {
++        sp<disp_mode> oldMode = getCurrentDisplayMode();
++        LOG(DEBUG) << "setDisplayMode: oldMode=" << oldMode->id << " flags=" << oldMode->privFlags;
++        if (oldMode->privFlags == PRIV_MODE_FLAG_SYSFS || mode->privFlags == PRIV_MODE_FLAG_SYSFS) {
++            LOG(DEBUG) << "disabling old mode";
++            rc = setModeState(oldMode, false);
++            if (rc != OK) {
++                LOG(ERROR) << "Failed to disable previous mode! err=" << rc;
++                return rc;
++            }
++        }
++    }
++
++    rc = setModeState(mode, true);
++    if (rc == OK) {
++        mActiveModeId = mode->id;
++        if (makeDefault) {
++            rc = Utils::writeLocalModeId(mode->id);
++            if (rc != OK) {
++                LOG(ERROR) << "failed to save mode! err=" << rc;
++                return rc;
++            }
++            if (mode->privFlags == PRIV_MODE_FLAG_SDM) {
++                rc = SDMController::getInstance().set_default_display_mode(mHandle, 0, mode->id, 0);
++                if (rc != OK) {
++                    LOG(ERROR) << "failed to save mode! err=" << rc;
++                    return rc;
++                }
++            }
++        }
++        HSIC tmp;
++        rc = getPictureAdjustment(tmp);
++        if (rc != OK) {
++            LOG(ERROR) << "failed to retrieve picture adjustment after mode setting!";
++        } else {
++            LOG(DEBUG) << "new default PA: " << tmp.hue << " " << tmp.saturation << " "
++                       << tmp.intensity << " " << tmp.contrast << " " << tmp.saturationThreshold;
++            mDefaultPictureAdjustment = tmp;
++        }
++    } else {
++        LOG(ERROR) << "Failed to setModeState! err=" << rc;
++        return rc;
++    }
++
++    LOG(DEBUG) << "setDisplayMode: " << modeID << " default: " << makeDefault
++               << " flags: " << mode->privFlags;
++    return OK;
++}
++
++status_t SDM::setAdaptiveBacklightEnabled(bool enabled) {
++    status_t rc = NO_INIT;
++    if (enabled == mCachedFOSSStatus) {
++        return OK;
++    }
++    char* buf = new char[DPPS_BUF_SIZE];
++    sprintf(buf, "%s", enabled ? FOSS_ON : FOSS_OFF);
++    if (Utils::sendDPPSCommand(buf, DPPS_BUF_SIZE) == OK) {
++        if (strncmp(buf, "Success", 7) == 0) {
++            rc = OK;
++            mCachedFOSSStatus = enabled;
++        }
++    }
++    delete[] buf;
++    return rc;
++}
++
++bool SDM::isAdaptiveBacklightEnabled() {
++    return mCachedFOSSStatus;
++}
++
++int32_t SDM::getColorBalance() {
++    int32_t value = -1;
++    uint32_t flags = 0;
++    if (SDMController::getInstance().get_global_color_balance(mHandle, 0, &value, &flags) != 0) {
++        value = 0;
++    }
++    return value;
++}
++
++status_t SDM::setColorBalance(int32_t balance) {
++    return SDMController::getInstance().set_global_color_balance(mHandle, 0, balance, 0);
++}
++
++status_t SDM::setPictureAdjustment(const HSIC& hsic) {
++    hsic_config config;
++    memset(&config, 0, sizeof(struct hsic_config));
++    config.data.hue = hsic.hue;
++    config.data.saturation = hsic.saturation;
++    config.data.intensity = hsic.intensity;
++    config.data.contrast = hsic.contrast;
++    config.data.saturationThreshold = hsic.saturationThreshold;
++
++    return SDMController::getInstance().set_global_pa_config(mHandle, 0, 1, &config);
++}
++
++HSIC SDM::getDefaultPictureAdjustment() {
++    return mDefaultPictureAdjustment;
++}
++
++}  // namespace implementation
++}  // namespace V1_0
++}  // namespace livedisplay
++}  // namespace lineage
++}  // namespace vendor
+diff --git a/livedisplay/1.0/default/include/Color.h b/livedisplay/1.0/default/include/Color.h
+new file mode 100644
+index 0000000..bfbc959
+--- /dev/null
++++ b/livedisplay/1.0/default/include/Color.h
+@@ -0,0 +1,106 @@
++/*
++ * Copyright (C) 2016 The CyanogenMod Project
++ * Copyright (C) 2017-2018 The LineageOS Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#ifndef VENDOR_LINEAGE_LIVEDISPLAY_V1_0_COLOR_H
++#define VENDOR_LINEAGE_LIVEDISPLAY_V1_0_COLOR_H
++
++#include <utils/Mutex.h>
++#include <vendor/lineage/livedisplay/1.0/IColor.h>
++
++#include "ColorBackend.h"
++
++namespace vendor {
++namespace lineage {
++namespace livedisplay {
++namespace V1_0 {
++namespace implementation {
++
++using ::android::Mutex;
++using ::android::NO_INIT;
++using ::android::OK;
++using ::android::hardware::Return;
++using ::android::hardware::Void;
++using ::android::hardware::hidl_vec;
++
++using ::vendor::lineage::livedisplay::V1_0::IColor;
++
++class Color : public IColor {
++  public:
++    static IColor* getInstance();
++
++    Return<Features> getSupportedFeatures() override;
++
++    Return<void> getDisplayModes(getDisplayModes_cb _hidl_cb) override;
++    Return<void> getCurrentDisplayMode(getCurrentDisplayMode_cb _hidl_cb) override;
++    Return<void> getDefaultDisplayMode(getDefaultDisplayMode_cb _hidl_cb) override;
++    Return<bool> setDisplayMode(int32_t modeID, bool makeDefault) override;
++
++    Return<bool> setAdaptiveBacklightEnabled(bool enabled) override;
++    Return<bool> isAdaptiveBacklightEnabled() override;
++
++    Return<bool> setOutdoorModeEnabled(bool enabled) override;
++    Return<bool> isOutdoorModeEnabled() override;
++
++    Return<void> getColorBalanceRange(getColorBalanceRange_cb _hidl_cb) override;
++    Return<int32_t> getColorBalance() override;
++    Return<bool> setColorBalance(int32_t value) override;
++
++    Return<bool> setPictureAdjustment(const HSIC& hsic) override;
++    Return<void> getPictureAdjustment(getPictureAdjustment_cb _hidl_cb) override;
++    Return<void> getDefaultPictureAdjustment(getDefaultPictureAdjustment_cb _hidl_cb) override;
++
++    Return<void> getHueRange(getHueRange_cb _hidl_cb) override;
++    Return<void> getSaturationRange(getSaturationRange_cb _hidl_cb) override;
++    Return<void> getIntensityRange(getIntensityRange_cb _hidl_cb) override;
++    Return<void> getContrastRange(getContrastRange_cb _hidl_cb) override;
++    Return<void> getSaturationThresholdRange(getSaturationThresholdRange_cb _hidl_cb) override;
++
++    ~Color();
++
++  private:
++    bool connect();
++    void reset();
++
++    Color();
++    static Color* sInstance;
++
++    uint32_t mFeatures;
++    bool mConnected;
++
++    bool check(Feature f) {
++        return connect() && (mFeatures & (uint32_t)f);
++    }
++    void error(const char* msg = NULL);
++
++    DisplayMode modePointerToObj(sp<disp_mode> mode);
++    DisplayMode invalidDisplayMode();
++
++    void addFeature(Feature f) {
++        mFeatures |= (uint32_t)f;
++    };
++
++    sp<ColorBackend> mBackend;
++    Mutex mLock;
++};
++
++}  // namespace implementation
++}  // namespace V1_0
++}  // namespace livedisplay
++}  // namespace lineage
++}  // namespace vendor
++
++#endif  // VENDOR_LINEAGE_LIVEDISPLAY_V1_0_COLOR_H
+diff --git a/livedisplay/1.0/default/include/ColorBackend.h b/livedisplay/1.0/default/include/ColorBackend.h
+new file mode 100644
+index 0000000..2bf4f9f
+--- /dev/null
++++ b/livedisplay/1.0/default/include/ColorBackend.h
+@@ -0,0 +1,71 @@
++/*
++ * Copyright (C) 2018 The LineageOS Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#ifndef VENDOR_LINEAGE_LIVEDISPLAY_V1_0_COLORBACKEND_H
++#define VENDOR_LINEAGE_LIVEDISPLAY_V1_0_COLORBACKEND_H
++
++#include <vector>
++
++#include "Types.h"
++
++namespace vendor {
++namespace lineage {
++namespace livedisplay {
++namespace V1_0 {
++namespace implementation {
++
++using ::android::sp;
++using ::android::status_t;
++
++using std::vector;
++
++class ColorBackend : public android::RefBase {
++  public:
++    virtual status_t setAdaptiveBacklightEnabled(bool enabled) = 0;
++    virtual bool isAdaptiveBacklightEnabled() = 0;
++
++    virtual status_t setOutdoorModeEnabled(bool enabled) = 0;
++    virtual bool isOutdoorModeEnabled() = 0;
++
++    virtual status_t getColorBalanceRange(Range& range) = 0;
++    virtual status_t setColorBalance(int32_t balance) = 0;
++    virtual int32_t getColorBalance() = 0;
++
++    virtual status_t getDisplayModes(vector<sp<disp_mode>>& profiles) = 0;
++    virtual status_t setDisplayMode(int32_t modeID, bool makeDefault) = 0;
++    virtual sp<disp_mode> getCurrentDisplayMode() = 0;
++    virtual sp<disp_mode> getDefaultDisplayMode() = 0;
++
++    virtual status_t getPictureAdjustmentRanges(HSICRanges& ranges) = 0;
++    virtual status_t getPictureAdjustment(HSIC& hsic) = 0;
++    virtual HSIC getDefaultPictureAdjustment() = 0;
++    virtual status_t setPictureAdjustment(const HSIC& hsic) = 0;
++
++    virtual status_t initialize() = 0;
++    virtual status_t deinitialize() = 0;
++    virtual bool hasFeature(Feature feature) = 0;
++
++    virtual ~ColorBackend() {
++    }
++};
++
++}  // namespace implementation
++}  // namespace V1_0
++}  // namespace livedisplay
++}  // namespace lineage
++}  // namespace vendor
++
++#endif  // VENDOR_LINEAGE_LIVEDISPLAY_V1_0_COLORBACKEND_H
+diff --git a/livedisplay/1.0/default/include/Types.h b/livedisplay/1.0/default/include/Types.h
+new file mode 100644
+index 0000000..e2db6d7
+--- /dev/null
++++ b/livedisplay/1.0/default/include/Types.h
+@@ -0,0 +1,81 @@
++/*
++ * Copyright (C) 2018 The LineageOS Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#ifndef VENDOR_LINEAGE_LIVEDISPLAY_V1_0_TYPES_H
++#define VENDOR_LINEAGE_LIVEDISPLAY_V1_0_TYPES_H
++
++#include <utils/RefBase.h>
++#include <vendor/lineage/livedisplay/1.0/IColor.h>
++#include <string>
++
++namespace vendor {
++namespace lineage {
++namespace livedisplay {
++namespace V1_0 {
++namespace implementation {
++
++using std::string;
++
++struct disp_mode : public android::RefBase {
++    int32_t id;
++    string name;
++
++    uint32_t privFlags;
++    string privData;
++
++    disp_mode() : id(-1) {
++    }
++};
++
++inline bool isNonZero(Range r) {
++    return r.min != 0 || r.max != 0;
++}
++
++inline bool isNonZero(FloatRange r) {
++    return r.min != 0.f || r.max != 0.f;
++}
++
++struct HSICRanges {
++    HSICRanges() {
++    }
++    HSICRanges(Range _hue, FloatRange _saturation, FloatRange _intensity, FloatRange _contrast,
++               FloatRange _saturationThreshold)
++        : hue(_hue),
++          saturation(_saturation),
++          intensity(_intensity),
++          contrast(_contrast),
++          saturationThreshold(_saturationThreshold) {
++    }
++
++    Range hue;
++    FloatRange saturation;
++    FloatRange intensity;
++    FloatRange contrast;
++    FloatRange saturationThreshold;
++
++    bool isValid() {
++        return isNonZero(hue) && isNonZero(saturation) && isNonZero(intensity) &&
++               isNonZero(contrast);
++    }
++};
++
++}  // namespace implementation
++}  // namespace V1_0
++}  // namespace livedisplay
++}  // namespace lineage
++}  // namespace vendor
++
++#endif  // VENDOR_LINEAGE_LIVEDISPLAY_V1_0_TYPES_H
+diff --git a/livedisplay/1.0/default/include/Utils.h b/livedisplay/1.0/default/include/Utils.h
+new file mode 100644
+index 0000000..51cf018
+--- /dev/null
++++ b/livedisplay/1.0/default/include/Utils.h
+@@ -0,0 +1,59 @@
++/*
++** Copyright 2016, The CyanogenMod Project
++**           2017-2018, The LineageOS Project
++**
++** Licensed under the Apache License, Version 2.0 (the "License");
++** you may not use this file except in compliance with the License.
++** You may obtain a copy of the License at
++**
++**     http://www.apache.org/licenses/LICENSE-2.0
++**
++** Unless required by applicable law or agreed to in writing, software
++** distributed under the License is distributed on an "AS IS" BASIS,
++** WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++** See the License for the specific language governing permissions and
++** limitations under the License.
++*/
++
++#ifndef VENDOR_LINEAGE_LIVEDISPLAY_V1_0_UTILS_H
++#define VENDOR_LINEAGE_LIVEDISPLAY_V1_0_UTILS_H
++
++#include <stdlib.h>
++#include <utils/Errors.h>
++
++using ::android::NO_INIT;
++using ::android::OK;
++using ::android::status_t;
++
++namespace vendor {
++namespace lineage {
++namespace livedisplay {
++namespace V1_0 {
++namespace implementation {
++
++class Utils {
++  public:
++    static status_t readInt(const char* node, int32_t* value);
++
++    static status_t writeInt(const char* node, int32_t value);
++
++    static status_t sendDPPSCommand(char* buf, size_t len);
++
++    static status_t exists(const char* node);
++
++    static status_t writeLocalModeId(int32_t id);
++
++    static status_t readLocalModeId(int32_t* id);
++
++    static status_t writeInitialModeId(int32_t id);
++
++    static status_t readInitialModeId(int32_t* id);
++};
++
++}  // namespace implementation
++}  // namespace V1_0
++}  // namespace livedisplay
++}  // namespace lineage
++}  // namespace vendor
++
++#endif  // VENDOR_LINEAGE_LIVEDISPLAY_V1_0_UTILS_H
+diff --git a/livedisplay/1.0/default/include/controller/SDMController.h b/livedisplay/1.0/default/include/controller/SDMController.h
+new file mode 100644
+index 0000000..9dd5288
+--- /dev/null
++++ b/livedisplay/1.0/default/include/controller/SDMController.h
+@@ -0,0 +1,118 @@
++/*
++ * Copyright (C) 2018 The LineageOS Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#ifndef VENDOR_LINEAGE_LIVEDISPLAY_V1_0_SDMCONTROLLER_H
++#define VENDOR_LINEAGE_LIVEDISPLAY_V1_0_SDMCONTROLLER_H
++
++#include <android-base/logging.h>
++#include <dlfcn.h>
++
++namespace vendor {
++namespace lineage {
++namespace livedisplay {
++namespace V1_0 {
++namespace implementation {
++
++class SDMController {
++  private:
++    SDMController();
++    ~SDMController();
++
++    template <typename Function>
++    Function loadFunction(const char* name) {
++        void* fn = dlsym(mHandle, name);
++        if (fn == nullptr) {
++            LOG(ERROR) << "loadFunction -- failed to load function " << name;
++        }
++        return reinterpret_cast<Function>(fn);
++    }
++
++    bool openlib();
++    bool closelib();
++
++  public:
++    static SDMController& getInstance();
++
++    int32_t init(uint64_t* hctx, uint32_t flags);
++    int32_t deinit(uint64_t hctx, uint32_t flags);
++    int32_t get_global_color_balance_range(uint64_t hctx, uint32_t disp_id, void* range);
++    int32_t set_global_color_balance(uint64_t hctx, uint32_t disp_id, int32_t warmness,
++                                     uint32_t flags);
++    int32_t get_global_color_balance(uint64_t hctx, uint32_t disp_id, int32_t* warmness,
++                                     uint32_t* flags);
++    int32_t get_num_display_modes(uint64_t hctx, uint32_t disp_id, uint32_t mode_type,
++                                  int32_t* mode_cnt, uint32_t* flags);
++    int32_t get_display_modes(uint64_t hctx, uint32_t disp_id, uint32_t mode_type, void* modes,
++                              int32_t mode_cnt, uint32_t* flags);
++    int32_t get_active_display_mode(uint64_t hctx, uint32_t disp_id, int32_t* mode_id,
++                                    uint32_t* mask, uint32_t* flags);
++    int32_t set_active_display_mode(uint64_t hctx, uint32_t disp_id, int32_t mode_id,
++                                    uint32_t flags);
++    int32_t set_default_display_mode(uint64_t hctx, uint32_t disp_id, int32_t mode_id,
++                                     uint32_t flags);
++    int32_t get_default_display_mode(uint64_t hctx, uint32_t disp_id, int32_t* mode_id,
++                                     uint32_t* flags);
++    int32_t get_global_pa_range(uint64_t hctx, uint32_t disp_id, void* range);
++    int32_t get_global_pa_config(uint64_t hctx, uint32_t disp_id, uint32_t* enable, void* cfg);
++    int32_t set_global_pa_config(uint64_t hctx, uint32_t disp_id, uint32_t enable, void* cfg);
++    int32_t get_feature_version(uint64_t hctx, uint32_t feature_id, void* ver, uint32_t* flags);
++
++  private:
++    typedef int32_t (*disp_api_init)(uint64_t*, uint32_t);
++    typedef int32_t (*disp_api_deinit)(uint64_t, uint32_t);
++    typedef int32_t (*disp_api_get_global_color_balance_range)(uint64_t, uint32_t, void*);
++    typedef int32_t (*disp_api_set_global_color_balance)(uint64_t, uint32_t, int32_t, uint32_t);
++    typedef int32_t (*disp_api_get_global_color_balance)(uint64_t, uint32_t, int32_t*, uint32_t*);
++    typedef int32_t (*disp_api_get_num_display_modes)(uint64_t, uint32_t, int32_t, int32_t*,
++                                                      uint32_t*);
++    typedef int32_t (*disp_api_get_display_modes)(uint64_t, uint32_t, int32_t, void*, int32_t,
++                                                  uint32_t*);
++    typedef int32_t (*disp_api_get_active_display_mode)(uint64_t, uint32_t, int32_t*, uint32_t*,
++                                                        uint32_t*);
++    typedef int32_t (*disp_api_set_active_display_mode)(uint64_t, uint32_t, int32_t, uint32_t);
++    typedef int32_t (*disp_api_set_default_display_mode)(uint64_t, uint32_t, int32_t, uint32_t);
++    typedef int32_t (*disp_api_get_default_display_mode)(uint64_t, uint32_t, int32_t*, uint32_t*);
++    typedef int32_t (*disp_api_get_global_pa_range)(uint64_t, uint32_t, void*);
++    typedef int32_t (*disp_api_get_global_pa_config)(uint64_t, uint32_t, uint32_t*, void*);
++    typedef int32_t (*disp_api_set_global_pa_config)(uint64_t, uint32_t, uint32_t, void*);
++    typedef int32_t (*disp_api_get_feature_version)(uint64_t, uint32_t, void*, uint32_t*);
++
++    static const char kFilename[];
++    void* mHandle;
++    disp_api_init mFn_init;
++    disp_api_deinit mFn_deinit;
++    disp_api_get_global_color_balance_range mFn_get_global_color_balance_range;
++    disp_api_set_global_color_balance mFn_set_global_color_balance;
++    disp_api_get_global_color_balance mFn_get_global_color_balance;
++    disp_api_get_num_display_modes mFn_get_num_display_modes;
++    disp_api_get_display_modes mFn_get_display_modes;
++    disp_api_get_active_display_mode mFn_get_active_display_mode;
++    disp_api_set_active_display_mode mFn_set_active_display_mode;
++    disp_api_set_default_display_mode mFn_set_default_display_mode;
++    disp_api_get_default_display_mode mFn_get_default_display_mode;
++    disp_api_get_global_pa_range mFn_get_global_pa_range;
++    disp_api_get_global_pa_config mFn_get_global_pa_config;
++    disp_api_set_global_pa_config mFn_set_global_pa_config;
++    disp_api_get_feature_version mFn_get_feature_version;
++};
++
++}  // namespace implementation
++}  // namespace V1_0
++}  // namespace livedisplay
++}  // namespace lineage
++}  // namespace vendor
++
++#endif  // VENDOR_LINEAGE_LIVEDISPLAY_V1_0_SDMCONTROLLER_H
+diff --git a/livedisplay/1.0/default/include/impl/SDM.h b/livedisplay/1.0/default/include/impl/SDM.h
+new file mode 100644
+index 0000000..7c23b70
+--- /dev/null
++++ b/livedisplay/1.0/default/include/impl/SDM.h
+@@ -0,0 +1,135 @@
++/*
++ * Copyright (C) 2016 The CyanogenMod Project
++ * Copyright (C) 2017-2018 The LineageOS Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#ifndef VENDOR_LINEAGE_LIVEDISPLAY_V1_0_SDM_H
++#define VENDOR_LINEAGE_LIVEDISPLAY_V1_0_SDM_H
++
++#include "ColorBackend.h"
++#include "controller/SDMController.h"
++
++#define DPPS_BUF_SIZE 64
++
++#define FOSS_SUPPORTED "foss:support"
++#define FOSS_ON "foss:on"
++#define FOSS_OFF "foss:off"
++#define FOSS_STATUS "foss:status"
++
++// For use when only sysfs modes are available
++#define STANDARD_NODE_ID 600
++
++#define SRGB_NODE "/sys/class/graphics/fb0/srgb"
++#define SRGB_NODE_ID 601
++
++#define DCI_P3_NODE "/sys/class/graphics/fb0/dci_p3"
++#define DCI_P3_NODE_ID 602
++
++#define PRIV_MODE_FLAG_SDM 1
++#define PRIV_MODE_FLAG_SYSFS 2
++
++namespace vendor {
++namespace lineage {
++namespace livedisplay {
++namespace V1_0 {
++namespace implementation {
++
++using ::android::BAD_VALUE;
++using ::android::NO_INIT;
++using ::android::OK;
++using ::android::hardware::Return;
++
++using ::vendor::lineage::livedisplay::V1_0::IColor;
++
++struct hsic_int_range {
++    int32_t max;
++    int32_t min;
++    uint32_t step;
++};
++
++struct hsic_float_range {
++    float max;
++    float min;
++    float step;
++};
++
++struct hsic_ranges {
++    uint32_t flags;
++    struct hsic_int_range hue;
++    struct hsic_float_range saturation;
++    struct hsic_float_range intensity;
++    struct hsic_float_range contrast;
++    struct hsic_float_range saturationThreshold;
++};
++
++struct hsic_config {
++    uint32_t flags;
++    HSIC data;
++};
++
++class SDM : public ColorBackend {
++  public:
++    virtual status_t getDisplayModes(vector<sp<disp_mode>>& profiles) override;
++    virtual sp<disp_mode> getCurrentDisplayMode() override;
++    virtual sp<disp_mode> getDefaultDisplayMode() override;
++    virtual status_t setDisplayMode(int32_t modeID, bool makeDefault) override;
++
++    virtual status_t setAdaptiveBacklightEnabled(bool enabled) override;
++    virtual bool isAdaptiveBacklightEnabled() override;
++
++    virtual status_t setOutdoorModeEnabled(bool /* enabled */) override {
++        return NO_INIT;
++    }
++    virtual bool isOutdoorModeEnabled() override {
++        return false;
++    }
++
++    virtual status_t getColorBalanceRange(Range& range) override;
++    virtual int32_t getColorBalance() override;
++    virtual status_t setColorBalance(int32_t balance) override;
++
++    virtual status_t getPictureAdjustmentRanges(HSICRanges& ranges) override;
++    virtual status_t setPictureAdjustment(const HSIC& hsic) override;
++    virtual status_t getPictureAdjustment(HSIC& hsic) override;
++    virtual HSIC getDefaultPictureAdjustment() override;
++
++    virtual bool hasFeature(Feature f);
++    virtual status_t initialize();
++    virtual status_t deinitialize();
++
++  private:
++    status_t saveInitialDisplayMode();
++    uint32_t getNumDisplayModes();
++    uint32_t getNumSDMDisplayModes();
++
++    sp<disp_mode> getDisplayModeById(int32_t id);
++    status_t setModeState(sp<disp_mode> mode, bool state);
++    sp<disp_mode> getLocalSRGBMode();
++    sp<disp_mode> getLocalDCIP3Mode();
++
++    uint64_t mHandle;
++    bool mCachedFOSSStatus;
++    int32_t mActiveModeId;
++
++    HSIC mDefaultPictureAdjustment;
++};
++
++}  // namespace implementation
++}  // namespace V1_0
++}  // namespace livedisplay
++}  // namespace lineage
++}  // namespace vendor
++
++#endif  // VENDOR_LINEAGE_LIVEDISPLAY_V1_0_SDM_H
+diff --git a/livedisplay/1.0/default/service.cpp b/livedisplay/1.0/default/service.cpp
+new file mode 100644
+index 0000000..8ce27be
+--- /dev/null
++++ b/livedisplay/1.0/default/service.cpp
+@@ -0,0 +1,59 @@
++/*
++ * Copyright (C) 2017-2018 The LineageOS Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#ifdef COLOR_BACKEND_SDM
++#define LOG_TAG "vendor.lineage.livedisplay@1.0-service-sdm"
++#else
++#error "Color backend undefined!"
++#endif
++
++#include <android-base/logging.h>
++#include <binder/ProcessState.h>
++#include <hidl/HidlTransportSupport.h>
++
++#include "Color.h"
++
++using android::OK;
++using android::hardware::configureRpcThreadpool;
++using android::hardware::joinRpcThreadpool;
++using android::sp;
++
++using ::vendor::lineage::livedisplay::V1_0::IColor;
++using ::vendor::lineage::livedisplay::V1_0::implementation::Color;
++
++int main() {
++    android::sp<IColor> ld = Color::getInstance();
++
++    // The livedisplay HAL may communicate to other vendor components via
++    // /dev/vndbinder
++    android::ProcessState::initWithDriver("/dev/vndbinder");
++
++    configureRpcThreadpool(1, true /*callerWillJoin*/);
++
++    if (ld != nullptr) {
++        if (ld->registerAsService() != OK) {
++            LOG(ERROR) << "Could not register service.";
++            return 1;
++        }
++    } else {
++        LOG(ERROR) << "Can't create instance of LiveDisplay service, nullptr";
++        return 1;
++    }
++
++    joinRpcThreadpool();
++
++    return 0;  // should never get here
++}
+diff --git a/livedisplay/1.0/default/src/Color.cpp b/livedisplay/1.0/default/src/Color.cpp
+new file mode 100644
+index 0000000..48f0054
+--- /dev/null
++++ b/livedisplay/1.0/default/src/Color.cpp
+@@ -0,0 +1,379 @@
++/*
++ * Copyright (C) 2017-2018 The LineageOS Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#define LOG_NDEBUG 0
++
++#define LOG_TAG "LiveDisplay-HIDL"
++
++#include "Color.h"
++
++#ifdef COLOR_BACKEND_SDM
++#include "impl/SDM.h"
++#else
++#error "Color backend undefined!"
++#endif
++
++namespace vendor {
++namespace lineage {
++namespace livedisplay {
++namespace V1_0 {
++namespace implementation {
++
++Color* Color::sInstance = nullptr;
++
++Color::Color() : mConnected(false), mBackend(nullptr) {
++#ifdef COLOR_BACKEND_SDM
++    mBackend = new SDM();
++#endif
++    LOG(DEBUG) << "Loaded LiveDisplay native interface";
++}
++
++Color::~Color() {
++    reset();
++}
++
++void Color::reset() {
++    if (mConnected) {
++        mBackend->deinitialize();
++    }
++    mFeatures = 0;
++    mConnected = false;
++}
++
++void Color::error(const char* msg) {
++    if (msg != NULL) {
++        LOG(ERROR) << msg;
++    }
++
++    reset();
++}
++
++bool Color::connect() {
++    if (mConnected) {
++        return true;
++    }
++
++    mFeatures = 0;
++
++    if (mBackend == NULL) {
++        return false;
++    }
++
++    if (mBackend->initialize() != OK) {
++        LOG(ERROR) << "Failed to initialize backend!";
++        return false;
++    }
++
++    for (uint32_t i = 1; i <= (uint32_t)Feature::MAX; i <<= 1) {
++        Feature f = static_cast<Feature>(i);
++        if (mBackend->hasFeature(f)) {
++            addFeature(f);
++        }
++    }
++    mConnected = true;
++
++    return mFeatures > 0;
++}
++
++IColor* Color::getInstance() {
++    if (!sInstance) {
++        sInstance = new Color();
++    }
++    return sInstance;
++}
++
++DisplayMode Color::modePointerToObj(sp<disp_mode> mode) {
++    DisplayMode m;
++    m.id = mode->id;
++    m.name = mode->name;
++    return m;
++}
++
++DisplayMode Color::invalidDisplayMode() {
++    DisplayMode mode;
++    mode.id = -1;
++    return mode;
++}
++
++Return<Features> Color::getSupportedFeatures() {
++    connect();
++    return mFeatures;
++}
++
++Return<void> Color::getDisplayModes(getDisplayModes_cb _hidl_cb) {
++    hidl_vec<DisplayMode> profiles;
++    status_t rc = NO_INIT;
++    Mutex::Autolock _l(mLock);
++
++    if (check(Feature::DISPLAY_MODES)) {
++        vector<sp<disp_mode>> spProfiles;
++        rc = mBackend->getDisplayModes(spProfiles);
++        if (rc != OK) {
++            error("Unable to fetch display modes!");
++        } else {
++            profiles.resize(spProfiles.size());
++            for (size_t i = 0; i < spProfiles.size(); i++) {
++                profiles[i].id = spProfiles[i]->id;
++                profiles[i].name = spProfiles[i]->name;
++            }
++        }
++    }
++
++    _hidl_cb(profiles);
++    return Void();
++}
++
++Return<void> Color::getCurrentDisplayMode(getCurrentDisplayMode_cb _hidl_cb) {
++    DisplayMode mode;
++    Mutex::Autolock _l(mLock);
++
++    if (check(Feature::DISPLAY_MODES)) {
++        sp<disp_mode> m = mBackend->getCurrentDisplayMode();
++        if (m != nullptr) {
++            mode = modePointerToObj(m);
++        } else {
++            mode = invalidDisplayMode();
++        }
++    }
++    _hidl_cb(mode);
++    return Void();
++}
++
++Return<void> Color::getDefaultDisplayMode(getDefaultDisplayMode_cb _hidl_cb) {
++    DisplayMode mode;
++    Mutex::Autolock _l(mLock);
++
++    if (check(Feature::DISPLAY_MODES)) {
++        sp<disp_mode> m = mBackend->getDefaultDisplayMode();
++        if (m != nullptr) {
++            mode = modePointerToObj(m);
++        } else {
++            mode = invalidDisplayMode();
++        }
++    }
++    _hidl_cb(mode);
++    return Void();
++}
++
++Return<bool> Color::setDisplayMode(int32_t modeID, bool makeDefault) {
++    status_t rc = NO_INIT;
++    Mutex::Autolock _l(mLock);
++
++    if (check(Feature::DISPLAY_MODES)) {
++        rc = mBackend->setDisplayMode(modeID, makeDefault);
++        if (rc != OK) {
++            error("Unable to set display mode!");
++        }
++    }
++    return rc == OK;
++}
++
++Return<bool> Color::setAdaptiveBacklightEnabled(bool enabled) {
++    status_t rc = NO_INIT;
++    Mutex::Autolock _l(mLock);
++
++    if (check(Feature::ADAPTIVE_BACKLIGHT)) {
++        rc = mBackend->setAdaptiveBacklightEnabled(enabled);
++        if (rc != OK) {
++            error("Unable to set adaptive backlight state!");
++        }
++    }
++    return rc == OK;
++}
++
++Return<bool> Color::isAdaptiveBacklightEnabled() {
++    Mutex::Autolock _l(mLock);
++
++    if (check(Feature::ADAPTIVE_BACKLIGHT)) {
++        return mBackend->isAdaptiveBacklightEnabled();
++    }
++    return false;
++}
++
++Return<bool> Color::setOutdoorModeEnabled(bool enabled) {
++    status_t rc = NO_INIT;
++    Mutex::Autolock _l(mLock);
++
++    if (check(Feature::OUTDOOR_MODE)) {
++        rc = mBackend->setOutdoorModeEnabled(enabled);
++        if (rc != OK) {
++            error("Unable to toggle outdoor mode!");
++        }
++    }
++    return rc == OK;
++}
++
++Return<bool> Color::isOutdoorModeEnabled() {
++    Mutex::Autolock _l(mLock);
++
++    if (check(Feature::OUTDOOR_MODE)) {
++        return mBackend->isOutdoorModeEnabled();
++    }
++    return false;
++}
++
++Return<void> Color::getColorBalanceRange(getColorBalanceRange_cb _hidl_cb) {
++    Range range;
++    Mutex::Autolock _l(mLock);
++
++    if (check(Feature::COLOR_BALANCE)) {
++        status_t rc = mBackend->getColorBalanceRange(range);
++        if (rc != OK) {
++            error("Unable to fetch color balance range!");
++            range.max = range.min = 0;
++        }
++    }
++
++    _hidl_cb(range);
++    return Void();
++}
++
++Return<int32_t> Color::getColorBalance() {
++    Mutex::Autolock _l(mLock);
++
++    if (check(Feature::COLOR_BALANCE)) {
++        return mBackend->getColorBalance();
++    }
++
++    return 0;
++}
++
++Return<bool> Color::setColorBalance(int32_t value) {
++    status_t rc = NO_INIT;
++    Mutex::Autolock _l(mLock);
++
++    if (check(Feature::COLOR_BALANCE)) {
++        rc = mBackend->setColorBalance(value);
++        if (rc != OK) {
++            error("Unable to set color balance!");
++        }
++    }
++    return rc == OK;
++}
++
++Return<bool> Color::setPictureAdjustment(const HSIC& hsic) {
++    status_t rc = NO_INIT;
++    Mutex::Autolock _l(mLock);
++
++    if (check(Feature::PICTURE_ADJUSTMENT)) {
++        rc = mBackend->setPictureAdjustment(hsic);
++        if (rc != OK) {
++            error("Unable to set picture adjustment!");
++        }
++    }
++    return rc == OK;
++}
++
++Return<void> Color::getPictureAdjustment(getPictureAdjustment_cb _hidl_cb) {
++    HSIC hsic;
++    Mutex::Autolock _l(mLock);
++
++    if (check(Feature::PICTURE_ADJUSTMENT)) {
++        status_t rc = mBackend->getPictureAdjustment(hsic);
++        if (rc != OK) {
++            error("Unable to get picture adjustment!");
++        }
++    }
++    _hidl_cb(hsic);
++    return Void();
++}
++
++Return<void> Color::getDefaultPictureAdjustment(getDefaultPictureAdjustment_cb _hidl_cb) {
++    HSIC hsic;
++    Mutex::Autolock _l(mLock);
++
++    if (check(Feature::PICTURE_ADJUSTMENT)) {
++        hsic = mBackend->getDefaultPictureAdjustment();
++    }
++    _hidl_cb(hsic);
++    return Void();
++}
++
++Return<void> Color::getHueRange(getHueRange_cb _hidl_cb) {
++    HSICRanges ranges;
++    Mutex::Autolock _l(mLock);
++
++    if (check(Feature::PICTURE_ADJUSTMENT)) {
++        status_t rc = mBackend->getPictureAdjustmentRanges(ranges);
++        if (rc != OK) {
++            error("Unable to get hue range!");
++        }
++    }
++    _hidl_cb(ranges.hue);
++    return Void();
++}
++
++Return<void> Color::getSaturationRange(getSaturationRange_cb _hidl_cb) {
++    HSICRanges ranges;
++    Mutex::Autolock _l(mLock);
++
++    if (check(Feature::PICTURE_ADJUSTMENT)) {
++        status_t rc = mBackend->getPictureAdjustmentRanges(ranges);
++        if (rc != OK) {
++            error("Unable to get saturation range!");
++        }
++    }
++    _hidl_cb(ranges.saturation);
++    return Void();
++}
++
++Return<void> Color::getIntensityRange(getIntensityRange_cb _hidl_cb) {
++    HSICRanges ranges;
++    Mutex::Autolock _l(mLock);
++
++    if (check(Feature::PICTURE_ADJUSTMENT)) {
++        status_t rc = mBackend->getPictureAdjustmentRanges(ranges);
++        if (rc != OK) {
++            error("Unable to get intensity range!");
++        }
++    }
++    _hidl_cb(ranges.intensity);
++    return Void();
++}
++
++Return<void> Color::getContrastRange(getContrastRange_cb _hidl_cb) {
++    HSICRanges ranges;
++    Mutex::Autolock _l(mLock);
++
++    if (check(Feature::PICTURE_ADJUSTMENT)) {
++        status_t rc = mBackend->getPictureAdjustmentRanges(ranges);
++        if (rc != OK) {
++            error("Unable to get contrast range!");
++        }
++    }
++    _hidl_cb(ranges.contrast);
++    return Void();
++}
++
++Return<void> Color::getSaturationThresholdRange(getSaturationThresholdRange_cb _hidl_cb) {
++    HSICRanges ranges;
++    Mutex::Autolock _l(mLock);
++
++    if (check(Feature::PICTURE_ADJUSTMENT)) {
++        status_t rc = mBackend->getPictureAdjustmentRanges(ranges);
++        if (rc != OK) {
++            error("Unable to get saturation threshold range!");
++        }
++    }
++    _hidl_cb(ranges.saturationThreshold);
++    return Void();
++}
++
++}  // namespace implementation
++}  // namespace V1_0
++}  // namespace livedisplay
++}  // namespace lineage
++}  // namespace vendor
+diff --git a/livedisplay/1.0/default/src/Utils.cpp b/livedisplay/1.0/default/src/Utils.cpp
+new file mode 100644
+index 0000000..f4769a8
+--- /dev/null
++++ b/livedisplay/1.0/default/src/Utils.cpp
+@@ -0,0 +1,138 @@
++/*
++** Copyright 2016, The CyanogenMod Project
++**           2017-2018, The LineageOS Project
++**
++** Licensed under the Apache License, Version 2.0 (the "License");
++** you may not use this file except in compliance with the License.
++** You may obtain a copy of the License at
++**
++**     http://www.apache.org/licenses/LICENSE-2.0
++**
++** Unless required by applicable law or agreed to in writing, software
++** distributed under the License is distributed on an "AS IS" BASIS,
++** WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++** See the License for the specific language governing permissions and
++** limitations under the License.
++*/
++
++#include <fcntl.h>
++#include <poll.h>
++#include <signal.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <sys/stat.h>
++#include <unistd.h>
++
++#include <cutils/sockets.h>
++
++#include "Utils.h"
++
++#define LOCAL_STORAGE_PATH "/data/vendor/display"
++#define LOCAL_MODE_ID "livedisplay_mode"
++#define LOCAL_INITIAL_MODE_ID "livedisplay_initial_mode"
++
++namespace vendor {
++namespace lineage {
++namespace livedisplay {
++namespace V1_0 {
++namespace implementation {
++
++status_t Utils::exists(const char* node) {
++    struct stat sbuf;
++    return stat(node, &sbuf);
++}
++
++status_t Utils::readInt(const char* node, int32_t* value) {
++    char buf[32];
++    status_t ret = OK;
++
++    FILE* fp = fopen(node, "r");
++    if (!fp) {
++        return errno;
++    }
++    if (fgets(buf, sizeof(buf) - 1, fp)) {
++        *value = atoi(buf);
++    } else {
++        ret = errno;
++    }
++    fclose(fp);
++    return ret;
++}
++
++status_t Utils::writeInt(const char* node, int32_t value) {
++    char buf[32];
++    status_t ret = OK;
++
++    FILE* fp = fopen(node, "w");
++    if (!fp) {
++        return errno;
++    }
++    snprintf(buf, sizeof(buf), "%d\n", value);
++
++    if (fputs(buf, fp) < 0) {
++        ret = errno;
++    }
++    fclose(fp);
++    return ret;
++}
++
++status_t Utils::readLocalModeId(int32_t* id) {
++    char buf[PATH_MAX];
++    sprintf(buf, "%s/%s", LOCAL_STORAGE_PATH, LOCAL_MODE_ID);
++    return readInt(buf, id);
++}
++
++status_t Utils::writeLocalModeId(int32_t id) {
++    char buf[PATH_MAX];
++    sprintf(buf, "%s/%s", LOCAL_STORAGE_PATH, LOCAL_MODE_ID);
++    return writeInt(buf, id);
++}
++
++status_t Utils::readInitialModeId(int32_t* id) {
++    char buf[PATH_MAX];
++    sprintf(buf, "%s/%s", LOCAL_STORAGE_PATH, LOCAL_INITIAL_MODE_ID);
++    return readInt(buf, id);
++}
++
++status_t Utils::writeInitialModeId(int32_t id) {
++    char buf[PATH_MAX];
++    sprintf(buf, "%s/%s", LOCAL_STORAGE_PATH, LOCAL_INITIAL_MODE_ID);
++    return writeInt(buf, id);
++}
++
++status_t Utils::sendDPPSCommand(char* buf, size_t len) {
++    status_t rc = OK;
++    int sock = socket_local_client("pps", ANDROID_SOCKET_NAMESPACE_RESERVED, SOCK_STREAM);
++    if (sock < 0) {
++        return sock;
++    } else {
++        if (write(sock, buf, strlen(buf) + 1) > 0) {
++            memset(buf, 0, len);
++            ssize_t ret;
++            while ((ret = read(sock, buf, len)) > 0) {
++                if ((size_t)ret == len) {
++                    break;
++                }
++                len -= ret;
++                buf += ret;
++
++                struct pollfd p = {.fd = sock, .events = POLLIN, .revents = 0};
++
++                ret = poll(&p, 1, 20);
++                if ((ret <= 0) || !(p.revents & POLLIN)) {
++                    break;
++                }
++            }
++        } else {
++            rc = NO_INIT;
++        }
++        close(sock);
++    }
++    return rc;
++}
++
++}  // namespace implementation
++}  // namespace V1_0
++}  // namespace livedisplay
++}  // namespace lineage
++}  // namespace vendor
+diff --git a/livedisplay/1.0/default/vendor.lineage.livedisplay@1.0-service-sdm.rc b/livedisplay/1.0/default/vendor.lineage.livedisplay@1.0-service-sdm.rc
+new file mode 100644
+index 0000000..1ef94eb
+--- /dev/null
++++ b/livedisplay/1.0/default/vendor.lineage.livedisplay@1.0-service-sdm.rc
+@@ -0,0 +1,4 @@
++service livedisplay-hal-1-0 /vendor/bin/hw/vendor.lineage.livedisplay@1.0-service-sdm
++    class hal
++    user system
++    group system
+diff --git a/livedisplay/Android.bp b/livedisplay/Android.bp
+index bbb3e4b..ba90f2c 100644
+--- a/livedisplay/Android.bp
++++ b/livedisplay/Android.bp
+@@ -1,4 +1,5 @@
+ // This is an autogenerated file, do not edit.
+ subdirs = [
+     "1.0",
++    "1.0/default",
+ ]
+-- 
+2.17.0
+

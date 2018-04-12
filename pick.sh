@@ -425,6 +425,7 @@ kpick 209323 # envsetup: stop jack server once build completed
 # device/lineage/sepolicy
 kpick 210014 # sepolicy: Label aw2013 HIDL light HAL
 kpick 212622 # Remove duplicated genfscon
+kpick 207610 # sepolicy: Add rules for LiveDisplay HIDL HAL
 
 # device/qcom/sepolicy
 kpick 209960 # sepolicy: rules to allow camera daemon access to app buffer
@@ -499,6 +500,12 @@ kpick 209929 # SystemUI: fix black scrim when turning screen on from AOD
 kpick 206140 # gps.default.so: fix crash on access to unset AGpsRilCallbacks::request_refloc
 
 # hardware/lineage/interfaces
+kpick 206443 # lineage/interfaces: Add binderized LiveDisplay HAL
+kpick 207411 # lineage/interfaces: Add IColor SDM backend implementation
+kpick 210009 # lineage/interfaces: Add aw2013 lights HIDL HAL implementation
+
+# hardware/lineage/lineagehw
+kpick 207412 # lineagehw: Use HIDL for livedisplay vendor impl
 
 # hardware/qcom/bt-caf
 kpick 212517 # Add missing headers to libbt-vendor
@@ -548,6 +555,8 @@ kpick 206700 # Settings: per-app cellular data and wifi restrictions
 # kpick 211270 # Telephony: add external network selection activity
 
 # packages/apps/Trebuchet
+kpick 212745 # Increased folder icon preview
+kpick 212747 # config: enable LAUNCHER3_PROMISE_APPS_IN_ALL_APPS
 
 # system/core
 kpick 209385 # init: optimize shutdown time
@@ -579,6 +588,7 @@ kpick 210664 # extract_utils: Support multidex
 kpick 212627 # apn: Allow both IPv4 and IPv6 protocols on fido lte and rogers lte
 kpick 212640 # repopick: Update SSH queries result to match HTTP queries
 kpick 212721 # build: kernel: Use LLVM_PREBUILTS_VERSION if no version is specified
+kpick 212726 # Fix Android "Work Profiles" also known as AfW 'Android for Work'
 
 ##################################
 
