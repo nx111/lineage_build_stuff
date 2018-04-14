@@ -1,4 +1,4 @@
-From 61d6022c42f8bf7f747e5f5d80a74180920e91e6 Mon Sep 17 00:00:00 2001
+From 90fcb652d20d9058d959edc3607edf22dc90852f Mon Sep 17 00:00:00 2001
 From: dianlujitao <dianlujitao@lineageos.org>
 Date: Thu, 22 Feb 2018 16:39:45 +0800
 Subject: [PATCH] lineagehw: Use HIDL for livedisplay vendor impl
@@ -6,14 +6,14 @@ Subject: [PATCH] lineagehw: Use HIDL for livedisplay vendor impl
 Change-Id: Ibafa2eda5c8ea4a48e401f87b73b1c065e4f9521
 ---
  Android.mk                                    |   1 +
- .../lineageos/hardware/AdaptiveBacklight.java |   8 +-
- src/org/lineageos/hardware/ColorBalance.java  |   5 +-
- .../hardware/DisplayModeControl.java          |   4 +-
- .../hardware/LiveDisplayVendorImpl.java       | 240 +++++++++++++++---
- .../lineageos/hardware/PictureAdjustment.java |   4 +-
- .../hardware/SunlightEnhancement.java         |   8 +-
- src/org/lineageos/hardware/Utils.java         |  68 +++++
- 8 files changed, 289 insertions(+), 49 deletions(-)
+ .../lineageos/hardware/AdaptiveBacklight.java |  12 +-
+ src/org/lineageos/hardware/ColorBalance.java  |  13 +-
+ .../hardware/DisplayModeControl.java          |  12 +-
+ .../hardware/LiveDisplayVendorImpl.java       | 387 ++++++++++++++++--
+ .../lineageos/hardware/PictureAdjustment.java |  20 +-
+ .../hardware/SunlightEnhancement.java         |  12 +-
+ src/org/lineageos/hardware/Utils.java         |  68 +++
+ 8 files changed, 455 insertions(+), 70 deletions(-)
  create mode 100644 src/org/lineageos/hardware/Utils.java
 
 diff --git a/Android.mk b/Android.mk
@@ -29,7 +29,7 @@ index 251737a..c1ba236 100644
  include $(BUILD_JAVA_LIBRARY)
  
 diff --git a/src/org/lineageos/hardware/AdaptiveBacklight.java b/src/org/lineageos/hardware/AdaptiveBacklight.java
-index 95809cf..d0fa80d 100644
+index 95809cf..dcb93ef 100644
 --- a/src/org/lineageos/hardware/AdaptiveBacklight.java
 +++ b/src/org/lineageos/hardware/AdaptiveBacklight.java
 @@ -1,5 +1,6 @@
@@ -58,12 +58,30 @@ index 95809cf..d0fa80d 100644
  
      private static final boolean sHasNativeSupport =
 -            LiveDisplayVendorImpl.hasNativeFeature(LiveDisplayVendorImpl.ADAPTIVE_BACKLIGHT);
-+            LiveDisplayVendorImpl.hasNativeFeature(Feature.ADAPTIVE_BACKLIGHT);
++            LiveDisplayVendorImpl.getInstance().hasNativeFeature(Feature.ADAPTIVE_BACKLIGHT);
  
      /**
       * Whether device supports an adaptive backlight technology.
+@@ -55,7 +57,7 @@ public class AdaptiveBacklight {
+     public static boolean isEnabled() {
+         try {
+             if (sHasNativeSupport) {
+-                return LiveDisplayVendorImpl.native_isAdaptiveBacklightEnabled();
++                return LiveDisplayVendorImpl.getInstance().native_isAdaptiveBacklightEnabled();
+             }
+             return Integer.parseInt(FileUtils.readOneLine(FILE_CABC)) > 0;
+         } catch (Exception e) {
+@@ -73,7 +75,7 @@ public class AdaptiveBacklight {
+      */
+     public static boolean setEnabled(boolean status) {
+         if (sHasNativeSupport) {
+-            return LiveDisplayVendorImpl.native_setAdaptiveBacklightEnabled(status);
++            return LiveDisplayVendorImpl.getInstance().native_setAdaptiveBacklightEnabled(status);
+         }
+         return FileUtils.writeLine(FILE_CABC, status ? "1" : "0");
+     }
 diff --git a/src/org/lineageos/hardware/ColorBalance.java b/src/org/lineageos/hardware/ColorBalance.java
-index b5df0f3..cc14796 100644
+index b5df0f3..4750136 100644
 --- a/src/org/lineageos/hardware/ColorBalance.java
 +++ b/src/org/lineageos/hardware/ColorBalance.java
 @@ -1,5 +1,6 @@
@@ -87,12 +105,48 @@ index b5df0f3..cc14796 100644
  
      private static final boolean sHasNativeSupport =
 -            LiveDisplayVendorImpl.hasNativeFeature(LiveDisplayVendorImpl.COLOR_BALANCE);
-+            LiveDisplayVendorImpl.hasNativeFeature(Feature.COLOR_BALANCE);
++            LiveDisplayVendorImpl.getInstance().hasNativeFeature(Feature.COLOR_BALANCE);
  
      /**
       * Whether device supports color balance control
+@@ -46,7 +49,7 @@ public class ColorBalance {
+      */
+     public static int getValue() {
+         if (sHasNativeSupport) {
+-            return LiveDisplayVendorImpl.native_getColorBalance();
++            return LiveDisplayVendorImpl.getInstance().native_getColorBalance();
+         }
+         return 0;
+     }
+@@ -60,7 +63,7 @@ public class ColorBalance {
+      */
+     public static boolean setValue(int value) {
+         if (sHasNativeSupport) {
+-            return LiveDisplayVendorImpl.native_setColorBalance(value);
++            return LiveDisplayVendorImpl.getInstance().native_setColorBalance(value);
+         }
+         return false;
+     }
+@@ -71,7 +74,7 @@ public class ColorBalance {
+      */
+     public static int getMinValue() {
+         if (sHasNativeSupport) {
+-            return LiveDisplayVendorImpl.native_getColorBalanceRange().getLower();
++            return LiveDisplayVendorImpl.getInstance().native_getColorBalanceRange().getLower();
+         }
+         return 0;
+     }
+@@ -82,7 +85,7 @@ public class ColorBalance {
+      */
+     public static int getMaxValue() {
+         if (sHasNativeSupport) {
+-            return LiveDisplayVendorImpl.native_getColorBalanceRange().getUpper();
++            return LiveDisplayVendorImpl.getInstance().native_getColorBalanceRange().getUpper();
+         }
+         return 0;
+     }
 diff --git a/src/org/lineageos/hardware/DisplayModeControl.java b/src/org/lineageos/hardware/DisplayModeControl.java
-index bbc1a96..58f7f3f 100644
+index bbc1a96..2158ee9 100644
 --- a/src/org/lineageos/hardware/DisplayModeControl.java
 +++ b/src/org/lineageos/hardware/DisplayModeControl.java
 @@ -1,5 +1,6 @@
@@ -115,12 +169,47 @@ index bbc1a96..58f7f3f 100644
  
      private static final boolean sHasNativeSupport =
 -            LiveDisplayVendorImpl.hasNativeFeature(LiveDisplayVendorImpl.DISPLAY_MODES);
-+            LiveDisplayVendorImpl.hasNativeFeature(Feature.DISPLAY_MODES);
++            LiveDisplayVendorImpl.getInstance().hasNativeFeature(Feature.DISPLAY_MODES);
  
      /*
       * All HAF classes should export this boolean.
+@@ -56,7 +58,7 @@ public class DisplayModeControl {
+         if (!sHasNativeSupport) {
+             return new DisplayMode[0];
+         }
+-        return LiveDisplayVendorImpl.native_getDisplayModes();
++        return LiveDisplayVendorImpl.getInstance().native_getDisplayModes();
+     }
+ 
+     /*
+@@ -67,7 +69,7 @@ public class DisplayModeControl {
+         if (!sHasNativeSupport) {
+             return null;
+         }
+-        return LiveDisplayVendorImpl.native_getCurrentDisplayMode();
++        return LiveDisplayVendorImpl.getInstance().native_getCurrentDisplayMode();
+     }
+ 
+     /*
+@@ -80,7 +82,7 @@ public class DisplayModeControl {
+         if (!sHasNativeSupport) {
+             return false;
+         }
+-        return LiveDisplayVendorImpl.native_setDisplayMode(mode, makeDefault);
++        return LiveDisplayVendorImpl.getInstance().native_setDisplayMode(mode, makeDefault);
+     }
+ 
+     /*
+@@ -91,6 +93,6 @@ public class DisplayModeControl {
+         if (!sHasNativeSupport) {
+             return null;
+         }
+-        return LiveDisplayVendorImpl.native_getDefaultDisplayMode();
++        return LiveDisplayVendorImpl.getInstance().native_getDefaultDisplayMode();
+     }
+ }
 diff --git a/src/org/lineageos/hardware/LiveDisplayVendorImpl.java b/src/org/lineageos/hardware/LiveDisplayVendorImpl.java
-index c3efd4c..876e5b4 100644
+index c3efd4c..f2364de 100644
 --- a/src/org/lineageos/hardware/LiveDisplayVendorImpl.java
 +++ b/src/org/lineageos/hardware/LiveDisplayVendorImpl.java
 @@ -1,5 +1,6 @@
@@ -130,7 +219,15 @@ index c3efd4c..876e5b4 100644
   *
   * Licensed under the Apache License, Version 2.0 (the "License");
   * you may not use this file except in compliance with the License.
-@@ -21,6 +22,7 @@ import android.util.Range;
+@@ -16,73 +17,377 @@
+ 
+ package org.lineageos.hardware;
+ 
++import android.os.IHwBinder.DeathRecipient;
++import android.os.RemoteException;
+ import android.util.Log;
+ import android.util.Range;
++import com.android.internal.annotations.GuardedBy;
  
  import lineageos.hardware.DisplayMode;
  import lineageos.hardware.HSIC;
@@ -138,7 +235,9 @@ index c3efd4c..876e5b4 100644
  
  /**
   * This class loads an implementation of the LiveDisplay native interface.
-@@ -29,60 +31,218 @@ public class LiveDisplayVendorImpl {
+  */
+-public class LiveDisplayVendorImpl {
++public class LiveDisplayVendorImpl implements DeathRecipient {
  
      public static final String TAG = "LiveDisplayVendorImpl";
  
@@ -147,199 +246,166 @@ index c3efd4c..876e5b4 100644
 -    public static final int OUTDOOR_MODE = 0x4;
 -    public static final int ADAPTIVE_BACKLIGHT = 0x8;
 -    public static final int PICTURE_ADJUSTMENT = 0x10;
--
++    @GuardedBy("this")
++    private IColor mDaemon;
++    private int sFeatures;
+ 
 -    private static boolean sNativeLibraryLoaded;
 -    private static int     sFeatures;
-+    private static int sFeatures;
++    private LiveDisplayVendorImpl() {}
  
-     static {
-         try {
+-    static {
+-        try {
 -            System.loadLibrary("jni_livedisplay");
--
++    private static class LiveDisplayVendorImplHolder {
++        private static final LiveDisplayVendorImpl instance = new LiveDisplayVendorImpl();
++    }
++
++    public static LiveDisplayVendorImpl getInstance() {
++        return LiveDisplayVendorImplHolder.instance;
++    }
+ 
 -            final int features = native_getSupportedFeatures();
 -            if (features > 0) {
 -                Log.i(TAG, "Using native LiveDisplay backend (features: " + features + ")");
-+            sFeatures = IColor.getService().getSupportedFeatures();
-+            if (sFeatures > 0) {
-+                Log.i(TAG, "Using LiveDisplay backend (features: " + sFeatures + ")");
++    private synchronized IColor getColorService() {
++        if (mDaemon == null) {
++            Log.v(TAG, "mDaemon was null, reconnect to livedisplay IColor");
++            try {
++                mDaemon = IColor.getService();
++            } catch (java.util.NoSuchElementException e) {
++                // Service doesn't exist or cannot be opened. Logged below.
++            } catch (RemoteException e) {
++                Log.e(TAG, "Failed to get livedisplay IColor interface", e);
++            }
++            if (mDaemon == null) {
++                Log.w(TAG, "livedisplay IColor HIDL not available");
++                return null;
              }
--
+ 
 -            sNativeLibraryLoaded = features > 0;
 -            sFeatures = features;
 -        } catch (Throwable t) {
 -            sNativeLibraryLoaded = false;
 -            sFeatures = 0;
-+        } catch (Exception e) {
-+            Log.e(TAG, "IColor.getService exception: " + e);
-+            reset();
++            mDaemon.asBinder().linkToDeath(this, 0);
          }
++        return mDaemon;
      }
  
-+    private static void reset() {
-+        sFeatures = 0;
-+    }
-+
-     public static boolean hasNativeFeature(int feature) {
+-    public static boolean hasNativeFeature(int feature) {
 -        return sNativeLibraryLoaded && ((sFeatures & feature) != 0);
-+        Log.d(TAG, "hasNativeFeature: sFeatures=" + Integer.toString(sFeatures));
-+        return (sFeatures & feature) != 0;
-+    }
-+
-+    public static DisplayMode[] native_getDisplayModes() {
-+        try {
-+            return Utils.HIDLModeListToArray(IColor.getService().getDisplayModes());
-+        } catch (Exception e) {
-+            e.printStackTrace();
-+            reset();
-+            return null;
-+        }
-+    }
-+
-+    public static DisplayMode native_getCurrentDisplayMode() {
-+        try {
-+            DisplayMode mode = Utils.fromHIDLMode(IColor.getService().getCurrentDisplayMode());
-+            return mode.id == -1 ? null : mode;
-+        } catch (Exception e) {
-+            e.printStackTrace();
-+            reset();
-+            return null;
-+        }
-+    }
-+
-+    public static DisplayMode native_getDefaultDisplayMode() {
-+        try {
-+            DisplayMode mode = Utils.fromHIDLMode(IColor.getService().getDefaultDisplayMode());
-+            return mode.id == -1 ? null : mode;
-+        } catch (Exception e) {
-+            e.printStackTrace();
-+            reset();
-+            return null;
-+        }
-+    }
-+
-+    public static boolean native_setDisplayMode(DisplayMode mode, boolean makeDefault) {
-+        try {
-+            return IColor.getService().setDisplayMode(mode.id, makeDefault);
-+        } catch (Exception e) {
-+            e.printStackTrace();
-+            reset();
-+            return false;
-+        }
-+    }
-+
-+    public static boolean native_setAdaptiveBacklightEnabled(boolean enabled) {
-+        try {
-+            return IColor.getService().setAdaptiveBacklightEnabled(enabled);
-+        } catch (Exception e) {
-+            e.printStackTrace();
-+            reset();
-+            return false;
-+        }
-+    }
-+
-+    public static boolean native_isAdaptiveBacklightEnabled() {
-+        try {
-+            return IColor.getService().isAdaptiveBacklightEnabled();
-+        } catch (Exception e) {
-+            e.printStackTrace();
-+            reset();
-+            return false;
-+        }
-+    }
-+
-+    public static boolean native_setOutdoorModeEnabled(boolean enabled) {
-+        try {
-+            return IColor.getService().setOutdoorModeEnabled(enabled);
-+        } catch (Exception e) {
-+            e.printStackTrace();
-+            reset();
-+            return false;
-+        }
-+    }
-+
-+    public static boolean native_isOutdoorModeEnabled() {
-+        try {
-+            return IColor.getService().isOutdoorModeEnabled();
-+        } catch (Exception e) {
-+            e.printStackTrace();
-+            reset();
-+            return false;
++    private void reset() {
++        sFeatures = 0;
++        synchronized (this) {
++            mDaemon = null;
 +        }
      }
  
 -    private static native int native_getSupportedFeatures();
-+    public static Range<Integer> native_getColorBalanceRange() {
-+        try {
-+            return Utils.fromHIDLRange(IColor.getService().getColorBalanceRange());
-+        } catch (Exception e) {
-+            e.printStackTrace();
-+            reset();
-+            return null;
-+        }
++    @Override
++    public void serviceDied(long cookie) {
++        Log.e(TAG, "livedisplay IColor HAL died");
++        reset();
 +    }
  
 -    public static native DisplayMode[] native_getDisplayModes();
 -    public static native DisplayMode native_getCurrentDisplayMode();
 -    public static native DisplayMode native_getDefaultDisplayMode();
 -    public static native boolean native_setDisplayMode(DisplayMode mode, boolean makeDefault);
-+    public static int native_getColorBalance() {
-+        try {
-+            return IColor.getService().getColorBalance();
-+        } catch (Exception e) {
-+            e.printStackTrace();
-+            reset();
-+            return 0;
++    public boolean hasNativeFeature(int feature) {
++        if (sFeatures == 0) {
++            IColor daemon = getColorService();
++            if (daemon == null) {
++                Log.e(TAG, "hasNativeFeature: no livedisplay IColor HAL!");
++                return false;
++            }
++            try {
++                sFeatures = daemon.getSupportedFeatures();
++                if (sFeatures > 0) {
++                    Log.i(TAG, "Using livedisplay IColor backend (features: " + sFeatures + ")");
++                }
++            } catch (RemoteException e) {
++                Log.e(TAG, "hasNativeFeature failed", e);
++                return false;
++            }
 +        }
++        Log.d(TAG, "hasNativeFeature: sFeatures=" + Integer.toString(sFeatures));
++        return (sFeatures & feature) != 0;
 +    }
  
 -    public static native boolean native_setAdaptiveBacklightEnabled(boolean enabled);
 -    public static native boolean native_isAdaptiveBacklightEnabled();
-+    public static boolean native_setColorBalance(int value) {
-+        try {
-+            return IColor.getService().setColorBalance(value);
-+        } catch (Exception e) {
-+            e.printStackTrace();
-+            reset();
-+            return false;
++    public DisplayMode[] native_getDisplayModes() {
++        IColor daemon = getColorService();
++        if (daemon == null) {
++            Log.e(TAG, "native_getDisplayModes: no livedisplay IColor HAL!");
++            return null;
 +        }
++        try {
++            return Utils.HIDLModeListToArray(daemon.getDisplayModes());
++        } catch (RemoteException e) {
++            Log.e(TAG, "native_getDisplayModes failed", e);
++            reset();
++        }
++        return null;
 +    }
  
 -    public static native boolean native_setOutdoorModeEnabled(boolean enabled);
 -    public static native boolean native_isOutdoorModeEnabled();
-+    public static boolean native_setPictureAdjustment(final HSIC hsic) {
-+        try {
-+            return IColor.getService().setPictureAdjustment(Utils.toHIDLHSIC(hsic));
-+        } catch (Exception e) {
-+            e.printStackTrace();
-+            reset();
-+            return false;
++    public DisplayMode native_getCurrentDisplayMode() {
++        IColor daemon = getColorService();
++        if (daemon == null) {
++            Log.e(TAG, "native_getCurrentDisplayMode: no livedisplay IColor HAL!");
++            return null;
 +        }
++        try {
++            DisplayMode mode = Utils.fromHIDLMode(daemon.getCurrentDisplayMode());
++            // mode.id is -1 means it's invalid.
++            return mode.id == -1 ? null : mode;
++        } catch (RemoteException e) {
++            Log.e(TAG, "native_getDisplayModes failed", e);
++            reset();
++        }
++        return null;
 +    }
  
 -    public static native Range<Integer> native_getColorBalanceRange();
 -    public static native int native_getColorBalance();
 -    public static native boolean native_setColorBalance(int value);
-+    public static HSIC native_getPictureAdjustment() {
-+        try {
-+            return Utils.fromHIDLHSIC(IColor.getService().getPictureAdjustment());
-+        } catch (Exception e) {
-+            e.printStackTrace();
-+            reset();
++    public DisplayMode native_getDefaultDisplayMode() {
++        IColor daemon = getColorService();
++        if (daemon == null) {
++            Log.e(TAG, "native_getDefaultDisplayMode: no livedisplay IColor HAL!");
 +            return null;
 +        }
++        try {
++            DisplayMode mode = Utils.fromHIDLMode(daemon.getDefaultDisplayMode());
++            // mode.id is -1 means it's invalid.
++            return mode.id == -1 ? null : mode;
++        } catch (RemoteException e) {
++            Log.e(TAG, "native_getDefaultDisplayMode failed", e);
++            reset();
++        }
++        return null;
 +    }
  
 -    public static native boolean native_setPictureAdjustment(final HSIC hsic);
 -    public static native HSIC native_getPictureAdjustment();
 -    public static native HSIC native_getDefaultPictureAdjustment();
-+    public static HSIC native_getDefaultPictureAdjustment() {
-+        try {
-+            return Utils.fromHIDLHSIC(IColor.getService().getDefaultPictureAdjustment());
-+        } catch (Exception e) {
-+            e.printStackTrace();
-+            reset();
-+            return null;
++    public boolean native_setDisplayMode(DisplayMode mode, boolean makeDefault) {
++        IColor daemon = getColorService();
++        if (daemon == null) {
++            Log.e(TAG, "native_setDisplayMode: no livedisplay IColor HAL!");
++            return false;
 +        }
++        try {
++            return daemon.setDisplayMode(mode.id, makeDefault);
++        } catch (RemoteException e) {
++            Log.e(TAG, "native_setDisplayMode failed", e);
++            reset();
++        }
++        return false;
 +    }
  
 -    public static native Range<Float> native_getHueRange();
@@ -347,58 +413,233 @@ index c3efd4c..876e5b4 100644
 -    public static native Range<Float> native_getIntensityRange();
 -    public static native Range<Float> native_getContrastRange();
 -    public static native Range<Float> native_getSaturationThresholdRange();
-+    public static Range<Float> native_getHueRange() {
-+        try {
-+            return Utils.fromHIDLIntRange(IColor.getService().getHueRange());
-+        } catch (Exception e) {
-+            e.printStackTrace();
-+            reset();
-+            return null;
++    public boolean native_setAdaptiveBacklightEnabled(boolean enabled) {
++        IColor daemon = getColorService();
++        if (daemon == null) {
++            Log.e(TAG, "native_setAdaptiveBacklightEnabled: no livedisplay IColor HAL!");
++            return false;
 +        }
++        try {
++            return daemon.setAdaptiveBacklightEnabled(enabled);
++        } catch (RemoteException e) {
++            Log.e(TAG, "native_setAdaptiveBacklightEnabled failed", e);
++            reset();
++        }
++        return false;
 +    }
 +
-+    public static Range<Float> native_getSaturationRange() {
-+        try {
-+            return Utils.fromHIDLRange(IColor.getService().getSaturationRange());
-+        } catch (Exception e) {
-+            e.printStackTrace();
-+            reset();
-+            return null;
++    public boolean native_isAdaptiveBacklightEnabled() {
++        IColor daemon = getColorService();
++        if (daemon == null) {
++            Log.e(TAG, "native_isAdaptiveBacklightEnabled: no livedisplay IColor HAL!");
++            return false;
 +        }
++        try {
++            return daemon.isAdaptiveBacklightEnabled();
++        } catch (RemoteException e) {
++            Log.e(TAG, "native_isAdaptiveBacklightEnabled failed", e);
++            reset();
++        }
++        return false;
 +    }
 +
-+    public static Range<Float> native_getIntensityRange() {
-+        try {
-+            return Utils.fromHIDLRange(IColor.getService().getIntensityRange());
-+        } catch (Exception e) {
-+            e.printStackTrace();
-+            reset();
-+            return null;
++    public boolean native_setOutdoorModeEnabled(boolean enabled) {
++        IColor daemon = getColorService();
++        if (daemon == null) {
++            Log.e(TAG, "native_setOutdoorModeEnabled: no livedisplay IColor HAL!");
++            return false;
 +        }
++        try {
++            return daemon.setOutdoorModeEnabled(enabled);
++        } catch (RemoteException e) {
++            Log.e(TAG, "native_setOutdoorModeEnabled failed", e);
++            reset();
++        }
++        return false;
 +    }
 +
-+    public static Range<Float> native_getContrastRange() {
-+        try {
-+            return Utils.fromHIDLRange(IColor.getService().getContrastRange());
-+        } catch (Exception e) {
-+            e.printStackTrace();
-+            reset();
-+            return null;
++    public boolean native_isOutdoorModeEnabled() {
++        IColor daemon = getColorService();
++        if (daemon == null) {
++            Log.e(TAG, "native_isOutdoorModeEnabled: no livedisplay IColor HAL!");
++            return false;
 +        }
++        try {
++            return daemon.isOutdoorModeEnabled();
++        } catch (RemoteException e) {
++            Log.e(TAG, "native_isOutdoorModeEnabled failed", e);
++            reset();
++        }
++        return false;
 +    }
 +
-+    public static Range<Float> native_getSaturationThresholdRange() {
-+        try {
-+            return Utils.fromHIDLRange(IColor.getService().getSaturationThresholdRange());
-+        } catch (Exception e) {
-+            e.printStackTrace();
-+            reset();
++    public Range<Integer> native_getColorBalanceRange() {
++        IColor daemon = getColorService();
++        if (daemon == null) {
++            Log.e(TAG, "native_getColorBalanceRange: no livedisplay IColor HAL!");
 +            return null;
 +        }
++        try {
++            return Utils.fromHIDLRange(daemon.getColorBalanceRange());
++        } catch (RemoteException e) {
++            Log.e(TAG, "native_getColorBalanceRange failed", e);
++            reset();
++        }
++        return null;
++    }
++
++    public int native_getColorBalance() {
++        IColor daemon = getColorService();
++        if (daemon == null) {
++            Log.e(TAG, "native_getColorBalance: no livedisplay IColor HAL!");
++            return 0;
++        }
++        try {
++            return daemon.getColorBalance();
++        } catch (RemoteException e) {
++            Log.e(TAG, "native_getColorBalance failed", e);
++            reset();
++        }
++        return 0;
++    }
++
++    public boolean native_setColorBalance(int value) {
++        IColor daemon = getColorService();
++        if (daemon == null) {
++            Log.e(TAG, "native_setColorBalance: no livedisplay IColor HAL!");
++            return false;
++        }
++        try {
++            return daemon.setColorBalance(value);
++        } catch (RemoteException e) {
++            Log.e(TAG, "native_setColorBalance failed", e);
++            reset();
++        }
++        return false;
++    }
++
++    public boolean native_setPictureAdjustment(final HSIC hsic) {
++        IColor daemon = getColorService();
++        if (daemon == null) {
++            Log.e(TAG, "native_setPictureAdjustment: no livedisplay IColor HAL!");
++            return false;
++        }
++        try {
++            return daemon.setPictureAdjustment(Utils.toHIDLHSIC(hsic));
++        } catch (RemoteException e) {
++            Log.e(TAG, "native_setPictureAdjustment failed", e);
++            reset();
++        }
++        return false;
++    }
++
++    public HSIC native_getPictureAdjustment() {
++        IColor daemon = getColorService();
++        if (daemon == null) {
++            Log.e(TAG, "native_getPictureAdjustment: no livedisplay IColor HAL!");
++            return null;
++        }
++        try {
++            return Utils.fromHIDLHSIC(daemon.getPictureAdjustment());
++        } catch (RemoteException e) {
++            Log.e(TAG, "native_getPictureAdjustment failed", e);
++            reset();
++        }
++        return null;
++    }
++
++    public HSIC native_getDefaultPictureAdjustment() {
++        IColor daemon = getColorService();
++        if (daemon == null) {
++            Log.e(TAG, "native_getDefaultPictureAdjustment: no livedisplay IColor HAL!");
++            return null;
++        }
++        try {
++            return Utils.fromHIDLHSIC(daemon.getDefaultPictureAdjustment());
++        } catch (RemoteException e) {
++            Log.e(TAG, "native_getDefaultPictureAdjustment failed", e);
++            reset();
++        }
++        return null;
++    }
++
++    public Range<Float> native_getHueRange() {
++        IColor daemon = getColorService();
++        if (daemon == null) {
++            Log.e(TAG, "native_getHueRange: no livedisplay IColor HAL!");
++            return null;
++        }
++        try {
++            return Utils.fromHIDLIntRange(daemon.getHueRange());
++        } catch (RemoteException e) {
++            Log.e(TAG, "native_getHueRange failed", e);
++            reset();
++        }
++        return null;
++    }
++
++    public Range<Float> native_getSaturationRange() {
++        IColor daemon = getColorService();
++        if (daemon == null) {
++            Log.e(TAG, "native_getSaturationRange: no livedisplay IColor HAL!");
++            return null;
++        }
++        try {
++            return Utils.fromHIDLRange(daemon.getSaturationRange());
++        } catch (RemoteException e) {
++            Log.e(TAG, "native_getSaturationRange failed", e);
++            reset();
++        }
++        return null;
++    }
++
++    public Range<Float> native_getIntensityRange() {
++        IColor daemon = getColorService();
++        if (daemon == null) {
++            Log.e(TAG, "native_getIntensityRange: no livedisplay IColor HAL!");
++            return null;
++        }
++        try {
++            return Utils.fromHIDLRange(daemon.getIntensityRange());
++        } catch (RemoteException e) {
++            Log.e(TAG, "native_getIntensityRange failed", e);
++            reset();
++        }
++        return null;
++    }
++
++    public Range<Float> native_getContrastRange() {
++        IColor daemon = getColorService();
++        if (daemon == null) {
++            Log.e(TAG, "native_getContrastRange: no livedisplay IColor HAL!");
++            return null;
++        }
++        try {
++            return Utils.fromHIDLRange(daemon.getContrastRange());
++        } catch (RemoteException e) {
++            Log.e(TAG, "native_getContrastRange failed", e);
++            reset();
++        }
++        return null;
++    }
++
++    public Range<Float> native_getSaturationThresholdRange() {
++        IColor daemon = getColorService();
++        if (daemon == null) {
++            Log.e(TAG, "native_getSaturationThresholdRange: no livedisplay IColor HAL!");
++            return null;
++        }
++        try {
++            return Utils.fromHIDLRange(daemon.getSaturationThresholdRange());
++        } catch (RemoteException e) {
++            Log.e(TAG, "native_getSaturationThresholdRange failed", e);
++            reset();
++        }
++        return null;
 +    }
  }
 diff --git a/src/org/lineageos/hardware/PictureAdjustment.java b/src/org/lineageos/hardware/PictureAdjustment.java
-index a31efc9..3dacd36 100644
+index a31efc9..78d26a8 100644
 --- a/src/org/lineageos/hardware/PictureAdjustment.java
 +++ b/src/org/lineageos/hardware/PictureAdjustment.java
 @@ -1,5 +1,6 @@
@@ -421,12 +662,84 @@ index a31efc9..3dacd36 100644
  
      private static final boolean sHasNativeSupport =
 -            LiveDisplayVendorImpl.hasNativeFeature(LiveDisplayVendorImpl.PICTURE_ADJUSTMENT);
-+            LiveDisplayVendorImpl.hasNativeFeature(Feature.PICTURE_ADJUSTMENT);
++            LiveDisplayVendorImpl.getInstance().hasNativeFeature(Feature.PICTURE_ADJUSTMENT);
  
      /**
       * Whether device supports picture adjustment
+@@ -48,7 +50,7 @@ public class PictureAdjustment {
+      */
+     public static HSIC getHSIC() {
+         if (sHasNativeSupport) {
+-            return LiveDisplayVendorImpl.native_getPictureAdjustment();
++            return LiveDisplayVendorImpl.getInstance().native_getPictureAdjustment();
+         }
+         return null;
+     }
+@@ -63,7 +65,7 @@ public class PictureAdjustment {
+      */
+     public static HSIC getDefaultHSIC() {
+         if (sHasNativeSupport) {
+-            return LiveDisplayVendorImpl.native_getDefaultPictureAdjustment();
++            return LiveDisplayVendorImpl.getInstance().native_getDefaultPictureAdjustment();
+         }
+         return null;
+     }
+@@ -77,7 +79,7 @@ public class PictureAdjustment {
+      */
+     public static boolean setHSIC(final HSIC hsic) {
+         if (sHasNativeSupport) {
+-            return LiveDisplayVendorImpl.native_setPictureAdjustment(hsic);
++            return LiveDisplayVendorImpl.getInstance().native_setPictureAdjustment(hsic);
+         }
+         return false;
+     }
+@@ -88,7 +90,7 @@ public class PictureAdjustment {
+      */
+     public static Range<Float> getHueRange() {
+         if (sHasNativeSupport) {
+-            return LiveDisplayVendorImpl.native_getHueRange();
++            return LiveDisplayVendorImpl.getInstance().native_getHueRange();
+         }
+         return new Range(0.0f, 0.0f);
+     }
+@@ -99,7 +101,7 @@ public class PictureAdjustment {
+      */
+     public static Range<Float> getSaturationRange() {
+         if (sHasNativeSupport) {
+-            return LiveDisplayVendorImpl.native_getSaturationRange();
++            return LiveDisplayVendorImpl.getInstance().native_getSaturationRange();
+         }
+         return new Range(0.0f, 0.0f);
+     }
+@@ -110,7 +112,7 @@ public class PictureAdjustment {
+      */
+     public static Range<Float> getIntensityRange() {
+         if (sHasNativeSupport) {
+-            return LiveDisplayVendorImpl.native_getIntensityRange();
++            return LiveDisplayVendorImpl.getInstance().native_getIntensityRange();
+         }
+         return new Range(0.0f, 0.0f);
+     }
+@@ -121,7 +123,7 @@ public class PictureAdjustment {
+      */
+     public static Range<Float> getContrastRange() {
+         if (sHasNativeSupport) {
+-            return LiveDisplayVendorImpl.native_getContrastRange();
++            return LiveDisplayVendorImpl.getInstance().native_getContrastRange();
+         }
+         return new Range(0.0f, 0.0f);
+     }
+@@ -135,7 +137,7 @@ public class PictureAdjustment {
+      */
+     public static Range<Float> getSaturationThresholdRange() {
+         if (sHasNativeSupport) {
+-            return LiveDisplayVendorImpl.native_getSaturationThresholdRange();
++            return LiveDisplayVendorImpl.getInstance().native_getSaturationThresholdRange();
+         }
+         return new Range(0.0f, 0.0f);
+     }
 diff --git a/src/org/lineageos/hardware/SunlightEnhancement.java b/src/org/lineageos/hardware/SunlightEnhancement.java
-index cde2aa1..2566e4f 100644
+index cde2aa1..bfb434d 100644
 --- a/src/org/lineageos/hardware/SunlightEnhancement.java
 +++ b/src/org/lineageos/hardware/SunlightEnhancement.java
 @@ -1,5 +1,6 @@
@@ -455,10 +768,28 @@ index cde2aa1..2566e4f 100644
  
      private static final boolean sHasNativeSupport =
 -            LiveDisplayVendorImpl.hasNativeFeature(LiveDisplayVendorImpl.OUTDOOR_MODE);
-+            LiveDisplayVendorImpl.hasNativeFeature(Feature.OUTDOOR_MODE);
++            LiveDisplayVendorImpl.getInstance().hasNativeFeature(Feature.OUTDOOR_MODE);
  
      private static String getFacemeltPath() {
          if (FileUtils.fileExists(FILE_HBM)) {
+@@ -74,7 +76,7 @@ public class SunlightEnhancement {
+     public static boolean isEnabled() {
+         try {
+             if (sHasNativeSupport) {
+-                return LiveDisplayVendorImpl.native_isOutdoorModeEnabled();
++                return LiveDisplayVendorImpl.getInstance().native_isOutdoorModeEnabled();
+             }
+             return Integer.parseInt(FileUtils.readOneLine(FACEMELT_PATH)) > 0;
+         } catch (Exception e) {
+@@ -92,7 +94,7 @@ public class SunlightEnhancement {
+      */
+     public static boolean setEnabled(boolean status) {
+         if (sHasNativeSupport) {
+-            return LiveDisplayVendorImpl.native_setOutdoorModeEnabled(status);
++            return LiveDisplayVendorImpl.getInstance().native_setOutdoorModeEnabled(status);
+         }
+ 
+         return FileUtils.writeLine(FACEMELT_PATH, status ? FACEMELT_MODE : "0");
 diff --git a/src/org/lineageos/hardware/Utils.java b/src/org/lineageos/hardware/Utils.java
 new file mode 100644
 index 0000000..68db903

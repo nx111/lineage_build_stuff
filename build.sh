@@ -23,9 +23,9 @@ if [ "$1" = "addonsu" ]; then
 	[ -f $workdir/.mypatches/superuser.rc -a ! -f $workdir/system/extras/su/superuser.rc ] \
 		&& cp $workdir/.mypatches/superuser.rc $workdir/system/extras/su/
 	make addonsu
-elif [ "$1" = "boot" ]; then
+elif [ "$1" = "boot" -o "$1" = "-boot" ]; then
 	breakfast $product
-	make -B bootimage
+	make  bootimage
 elif [ $# -eq 1 -a "$1" = "-B" ]; then
 	rm -rf $workdir/out/target/product/$product/system
 	rm -rf $workdir/out/target/product/$product/root

@@ -512,6 +512,11 @@ kpick 212517 # Add missing headers to libbt-vendor
 
 # hardware/qcom/display
 
+# hardware/qcom/display-caf/msm8974
+kpick 212772 # copybit: Export c2d2 headers from display HAL
+kpick 212773 # display: Add color space metadata field
+kpick 212774 # liboverlay: Allow toggling the dual DSI API
+
 # hardware/qcom/power
 kpick 208368 # power: Don't send obsolete DISPLAY_OFF opcode
 kpick 210293 # power: Avoid interaction build errors
@@ -521,6 +526,9 @@ kpick 212633 # power: don't try to open non-existing file repeatedly
 kpick 212634 # power: fix sysfs_read/sysfs_write usage
 
 # hardware/samsung
+
+# lineage/scripts
+kpick 212768 # lineage-push: Add private changes support
 
 # lineage/wiki
 kpick 212483 # This command line is more universal, it works too in foreign langages
@@ -557,6 +565,12 @@ kpick 206700 # Settings: per-app cellular data and wifi restrictions
 # packages/apps/Trebuchet
 kpick 212745 # Increased folder icon preview
 kpick 212747 # config: enable LAUNCHER3_PROMISE_APPS_IN_ALL_APPS
+kpick 212749 # Icons: fix non-adaptive icon handling
+kpick 212750 # Icons: wrap all legacy icons to adaptive icons
+kpick 212751 # config: enable LEGACY_ICON_TREATMENT
+kpick 212752 # IconCache: fix crash if icon is an AdaptiveIconDrawable
+kpick 212761 # Trebuchet: make forced adaptive icons optional
+kpick 212762 # Trebuchet: update build.gradle
 
 # system/core
 kpick 209385 # init: optimize shutdown time
@@ -587,9 +601,11 @@ kpick 206996 # soong_config: Add TARGET_USES_MEDIA_EXTENSIONS variable
 kpick 210664 # extract_utils: Support multidex
 kpick 212627 # apn: Allow both IPv4 and IPv6 protocols on fido lte and rogers lte
 kpick 212640 # repopick: Update SSH queries result to match HTTP queries
+kpick 212695 # build: dt_image: support prebuilt DT images
 kpick 212721 # build: kernel: Use LLVM_PREBUILTS_VERSION if no version is specified
 kpick 212726 # Fix Android "Work Profiles" also known as AfW 'Android for Work'
-
+kpick 212776 # qcom_target: Also allow custom HAL paths for non-CAF devices
+kpick 212777 # qcom_target: Avoid duplication for common paths
 ##################################
 
 [ $op_pick_remote_only -eq 0 ] && patch_local local
