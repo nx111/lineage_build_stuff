@@ -32,8 +32,11 @@ function patch_local()
     va_patches_dir=$1
     search_dir=".mypatches"
 
-    [ "$va_patches_dir" = "local" ] && search_dir=".mypatches/local"
-    [ "$va_patches_dir" = "pick" ] && search_dir=".mypatches/pick"
+    if [ -d "$topdir/.mypatches/$va_patches_dir" ]; then
+        search_dir=".mypatches/$va_patches_dir"
+    elif [ -d "$topdir/.mypatches/pick/$va_patches_dir" -o -d "$topdir/.mypatches/local/$va_patches_dir" ]; then
+        search_dir=".mypatches/local/$va_patches_dir .mypatches/pick/$va_patches_dir"
+    fi
 
     find $search_dir -type f -name "*.patch" -o -name "*.diff" | sed -e "s/\.mypatches\///" -e "s/\//:/" |sort -t : -k 2 | while read line; do
          f=$(echo $line | sed -e "s/:/\//")
@@ -378,8 +381,8 @@ for op in $*; do
          op_pick_remote_only=1
     elif [ "$op" = "-rp" -o "$op" = "-pr" ]; then
         op_reset_projects=1
-    elif [ $op_patch_local -eq 1 ] && [ "$op" = "pick" -o "$op" = "local" ]; then
-        op_patches_dir="$op"
+    elif [ $op_patch_local -eq 1 ]; then
+            op_patches_dir="$op"
     elif [ $op_project_snapshot -eq 1 -a  -d "$(gettop)/$op" ]; then
          projects_snapshot $op
          exit $?
