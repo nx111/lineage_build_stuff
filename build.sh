@@ -24,8 +24,17 @@ if [ "$1" = "addonsu" ]; then
 		&& cp $workdir/.mypatches/superuser.rc $workdir/system/extras/su/
 	make addonsu
 elif [ "$1" = "boot" -o "$1" = "-boot" ]; then
+        obootime=0
+        nbootime=0
+        [ -f $workdir/out/target/product/$product/boot.img ] && obootime=$(stat -c %Y $workdir/out/target/product/$product/boot.img)
 	breakfast $product
 	make  bootimage
+        [ -f $workdir/out/target/product/$product/boot.img ] && nbootime=$(stat -c %Y $workdir/out/target/product/$product/boot.img)
+        if [ $obootime -lt $nbootime ]; then
+             nbootimg=boot_$(stat -c %y $workdir/out/target/product/$product/boot.img | cut -d. -f1 | sed -e "s/-//g" -e "s/://g" -e "s/ /_/").img
+             cp $workdir/out/target/product/$product/boot.img $workdir/out/target/product/$product/$nbootimg
+             echo "bootimage: $nbootimg build complete."
+        fi
 elif [ $# -eq 1 -a "$1" = "-B" ]; then
 	rm -rf $workdir/out/target/product/$product/system
 	rm -rf $workdir/out/target/product/$product/root
