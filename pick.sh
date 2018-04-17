@@ -415,20 +415,30 @@ fi
 ###############################################################
 # android
 
+# bionic
+kpick 212920 # libc: Mark libstdc++ as vendor available
+
 # bootable/recovery
 kpick 206117 # update_verifier: skip verity to determine successful on lineage builds
 kpick 211098 # recovery/ui: Hide emulated storage for encrypted devices
 kpick 212711 # Revert "updater: Fix and improve allowing devices to suppress BLKDISCARD"
+kpick 212944 # recovery: Don't try to set ro.adb.secure
+kpick 212945 # recovery: Fix loading time from /persist
 
 # build
 
 # build/make
+kpick 208567 # [DNM] updater: Don't check fingerprint for incrementals
 kpick 209323 # envsetup: stop jack server once build completed
+kpick 212953 # Add build.prop to incrementals too
 
 # device/lineage/sepolicy
 kpick 210014 # sepolicy: Label aw2013 HIDL light HAL
-kpick 212622 # Remove duplicated genfscon
 kpick 207610 # sepolicy: Add rules for LiveDisplay HIDL HAL
+kpick 212622 # Remove duplicated genfscon
+kpick 212836 # Revert "sepolicy: suppress denial logspam"
+kpick 212946 # Remove adb.secure recovery property context
+kpick 212947 # Allow recovery write to sysfs_graphics
 
 # device/qcom/sepolicy
 kpick 209960 # sepolicy: rules to allow camera daemon access to app buffer
@@ -449,6 +459,8 @@ kpick 210023 # legacy: allow graphics composer to set postprocessing props
 kpick 210024 # legacy: allow hal_camera_default to connect to camera socket
 kpick 211273 # qcom/sepol: Fix timeservice app context
 kpick 212643 # qcom/sepol: Allow mm-qcamerad to use binder even in vendor
+kpick 212957 # Squashed merge of LA.UM.6.4.r1-07600-8x98.0
+kpick 212958 # Squashed merge of LA.UM.6.6.r1-07200-89xx.0
 
 # device/samsung/klte-common
 kpick 212647 # klte-common: Use passthrough manifest for all NFC chips
@@ -462,9 +474,9 @@ kpick 210313 # msm8974-common: Binderize them all
 # kernel/samsung/msm8974
 kpick 210542 # mach-msm: Fix dependencies for TIMA configs
 kpick 210543 # fs: sdfat: Add MODULE_ALIAS_FS for supported filesystems
-kpick 210544 # fs: sdfat: Disable aligned mpage writes when built as a module
 kpick 210665 # wacom: Follow-up from gestures patch
 kpick 210666 # wacom: Report touch when pen button is pressed if gestures are off
+kpick 212989 # ARM: dts: msm8974: Fix hall code for h3g as well
 
 # external/toybox
 kpick 209019 # toybox: Use ISO C/clang compatible __typeof__ in minof/maxof macros
@@ -499,6 +511,12 @@ kpick 209929 # SystemUI: fix black scrim when turning screen on from AOD
 #kpick 211280 # telephony: Respect user nw mode, handle DSDS non-multi-rat
 #kpick 211338 # Add the user set network mode to the siminfo table
 
+# hardware/broadcom/libbt
+#kpick 212921 # libbt: fixup build errors when building the library under vndk.
+
+# hardware/broadcom/wlan
+kpick 212922 # wlan:bcmdhd: fixup build errors when building the library under vndk.
+
 # hardware/interfaces
 kpick 206140 # gps.default.so: fix crash on access to unset AGpsRilCallbacks::request_refloc
 
@@ -511,27 +529,25 @@ kpick 210009 # lineage/interfaces: Add aw2013 lights HIDL HAL implementation
 kpick 207412 # lineagehw: Use HIDL for livedisplay vendor impl
 
 # hardware/qcom/bt-caf
-kpick 212517 # Add missing headers to libbt-vendor
 
 # hardware/qcom/display
+kpick 209093 # msm8974: hwc: Set ioprio for vsync thread
 
 # hardware/qcom/display-caf/msm8974
-kpick 212772 # copybit: Export c2d2 headers from display HAL
-kpick 212773 # display: Add color space metadata field
-kpick 212774 # liboverlay: Allow toggling the dual DSI API
 
 # hardware/qcom/power
 kpick 208368 # power: Don't send obsolete DISPLAY_OFF opcode
 kpick 210293 # power: Avoid interaction build errors
+kpick 210269 # power: Compile with -Wall -Wextra -Werror
 kpick 210299 # power: msm8974: POWER_HINT_INTERACTION improvements
 kpick 212607 # power: revert checking for ro.vendor.extension_library
 kpick 212633 # power: don't try to open non-existing file repeatedly
 kpick 212634 # power: fix sysfs_read/sysfs_write usage
+kpick 210302 # power: Consistent skipping of non perf profile hints
 
 # hardware/samsung
 
 # lineage/scripts
-kpick 212768 # lineage-push: Add private changes support
 
 # lineage/wiki
 kpick 212483 # This command line is more universal, it works too in foreign langages
@@ -539,12 +555,13 @@ kpick 212615 # gts28vewifi: Add reminder to check that bootloader is unlocked
 
 # lineage-sdk
 kpick 206683 # lineage-sdk: Switch back to AOSP TwilightService
-kpick 212637 # sdk: Remove low power restrictions on color control
+kpick 212943 # lineage-sdk: Allow adjusting brightness of non-RGB LEDs
 
 # packages/apps/Camera2
 kpick 212625 # Camera2: Fix photo snap delay on front cam.
 
 # packages/apps/Contacts
+kpick 212967 # Hide help and feedback in AOSP contacts
 
 # packages/apps/Dialer
 kpick 209824 # Add setting to enable Do Not Disturb during calls
@@ -558,6 +575,11 @@ kpick 207956 # Gallery2: disable proguard when building without jack
 
 # packages/apps/LineageParts
 kpick 206402 # SystemUI: Forward-port notification counters
+kpick 207463 # LineageParts: Fix removing LED brightness settings
+kpick 210486 # BatteryLight: Fix lit battery light after off/on battery notification
+kpick 212918 # LineageParts: Fix loading default colors for non-RGB lights
+kpick 212942 # LineageParts: Allow adjusting brightness of non-RGB LEDs
+kpick 212964 # Parts: Fix notification light app hint
 
 # packages/apps/Settings
 kpick 206700 # Settings: per-app cellular data and wifi restrictions
@@ -589,26 +611,26 @@ kpick 211210 # ext4: Add /data/stache/ to encryption exclusion list
 kpick 208353 # NetD : Allow passing in interface names for wifi/data app restriction
 
 # system/qcom
-kpick 212530 # softap: Fix for VNDK_VERSION=current
 
 # system/sepolicy
 kpick 206428 # Add rules required for TARGET_HAS_LEGACY_CAMERA_HAL1
 kpick 206429 # Adapt add_service uses for TARGET_HAS_LEGACY_CAMERA_HAL1
 #kpick 212623 # Revert "sepolicy: Allow recovery to write to rootfs"  (cause build faild)
 kpick 212466 # allow platform_app to use nfc_service for NFC tile
+kpick 212806 # system_server: allow writing to timerslack_ns
+kpick 212807 # Allow system_server to update timerslack_ns for hal_audio_default
+kpick 212808 # Suppress denials from sdcardfs (b/67454004)
+kpick 212809 # priv_app: move logspam suppression to core policy
+kpick 212857 # Suppress denials for non-API access  (must before 212821)
+kpick 212821 # priv_app: suppress denials for /proc/stat
 
 # vendor/lineage
 kpick 206426 # soong_config: Add TARGET_HAS_LEGACY_CAMERA_HAL1 variable
 kpick 206996 # soong_config: Add TARGET_USES_MEDIA_EXTENSIONS variable
 #kpick 207109 # repopick: Give feedback if topic does not exist   (crash by 211250)
 kpick 210664 # extract_utils: Support multidex
-kpick 212627 # apn: Allow both IPv4 and IPv6 protocols on fido lte and rogers lte
+kpick 210939 # envsetup: Fix lineageremote for caf projects
 kpick 212640 # repopick: Update SSH queries result to match HTTP queries
-kpick 212695 # build: dt_image: support prebuilt DT images
-kpick 212721 # build: kernel: Use LLVM_PREBUILTS_VERSION if no version is specified
-kpick 212726 # Fix Android "Work Profiles" also known as AfW 'Android for Work'
-kpick 212776 # qcom_target: Also allow custom HAL paths for non-CAF devices
-kpick 212777 # qcom_target: Avoid duplication for common paths
 ##################################
 
 [ $op_pick_remote_only -eq 0 ] && patch_local local

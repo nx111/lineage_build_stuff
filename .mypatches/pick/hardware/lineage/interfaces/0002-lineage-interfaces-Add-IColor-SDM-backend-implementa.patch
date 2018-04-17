@@ -1,4 +1,4 @@
-From 58b46cf0b5044dfcda42240cb23cb072259027cd Mon Sep 17 00:00:00 2001
+From a0c6bf8d6d274584dae4b1a3c23fd73ec341e900 Mon Sep 17 00:00:00 2001
 From: dianlujitao <dianlujitao@lineageos.org>
 Date: Thu, 22 Feb 2018 16:33:17 +0800
 Subject: [PATCH 2/3] lineage/interfaces: Add IColor SDM backend implementation
@@ -11,27 +11,26 @@ Subject: [PATCH 2/3] lineage/interfaces: Add IColor SDM backend implementation
    calibration performed using vendor-supplied tools such
    as QDCM.
  * This code is based on libjni_livedisplay developed by
-   Steve Kondik with assistance from Scott Mertz. Various
-   bits of CYNGN proprietary IP have been removed.
+   Steve Kondik with assistance from Scott Mertz.
 
 Change-Id: I8d80ec17768e49fad1d3e30a36dd296a5bc2742e
 ---
  livedisplay/1.0/default/.clang-format         |  13 +
  livedisplay/1.0/default/Android.bp            |  47 ++
- .../1.0/default/controller/SDMController.cpp  | 170 +++++++
- livedisplay/1.0/default/impl/SDM.cpp          | 456 ++++++++++++++++++
- livedisplay/1.0/default/include/Color.h       | 106 ++++
+ .../1.0/default/controller/SDMController.cpp  | 170 ++++++
+ livedisplay/1.0/default/impl/SDM.cpp          | 488 ++++++++++++++++++
+ livedisplay/1.0/default/include/Color.h       | 105 ++++
  .../1.0/default/include/ColorBackend.h        |  71 +++
- livedisplay/1.0/default/include/Types.h       |  81 ++++
- livedisplay/1.0/default/include/Utils.h       |  59 +++
+ livedisplay/1.0/default/include/Types.h       |  81 +++
+ livedisplay/1.0/default/include/Utils.h       |  57 ++
  .../include/controller/SDMController.h        | 118 +++++
- livedisplay/1.0/default/include/impl/SDM.h    | 135 ++++++
- livedisplay/1.0/default/service.cpp           |  59 +++
- livedisplay/1.0/default/src/Color.cpp         | 379 +++++++++++++++
- livedisplay/1.0/default/src/Utils.cpp         | 138 ++++++
+ livedisplay/1.0/default/include/impl/SDM.h    | 115 +++++
+ livedisplay/1.0/default/service.cpp           |  69 +++
+ livedisplay/1.0/default/src/Color.cpp         | 382 ++++++++++++++
+ livedisplay/1.0/default/src/Utils.cpp         | 142 +++++
  ...dor.lineage.livedisplay@1.0-service-sdm.rc |   4 +
  livedisplay/Android.bp                        |   1 +
- 15 files changed, 1837 insertions(+)
+ 15 files changed, 1863 insertions(+)
  create mode 100644 livedisplay/1.0/default/.clang-format
  create mode 100644 livedisplay/1.0/default/Android.bp
  create mode 100644 livedisplay/1.0/default/controller/SDMController.cpp
@@ -121,7 +120,7 @@ index 0000000..39c95a4
 +}
 diff --git a/livedisplay/1.0/default/controller/SDMController.cpp b/livedisplay/1.0/default/controller/SDMController.cpp
 new file mode 100644
-index 0000000..4c8a7de
+index 0000000..50608ae
 --- /dev/null
 +++ b/livedisplay/1.0/default/controller/SDMController.cpp
 @@ -0,0 +1,170 @@
@@ -180,7 +179,7 @@ index 0000000..4c8a7de
 +namespace V1_0 {
 +namespace implementation {
 +
-+const char SDMController::kFilename[] = "libsdm-disp-vndapis.so";
++constexpr char SDMController::kFilename[] = "libsdm-disp-vndapis.so";
 +
 +SDMController::SDMController() {
 +    openlib();
@@ -297,10 +296,10 @@ index 0000000..4c8a7de
 +}  // namespace vendor
 diff --git a/livedisplay/1.0/default/impl/SDM.cpp b/livedisplay/1.0/default/impl/SDM.cpp
 new file mode 100644
-index 0000000..e3f9c68
+index 0000000..4c0effd
 --- /dev/null
 +++ b/livedisplay/1.0/default/impl/SDM.cpp
-@@ -0,0 +1,456 @@
+@@ -0,0 +1,488 @@
 +/*
 + * Copyright (C) 2016 The CyanogenMod Project
 + * Copyright (C) 2017-2018 The LineageOS Project
@@ -318,7 +317,7 @@ index 0000000..e3f9c68
 + * limitations under the License.
 + */
 +
-+#define LOG_NDEBUG 0
++// #define LOG_NDEBUG 0
 +
 +#define LOG_TAG "LiveDisplay-SDM"
 +
@@ -327,11 +326,35 @@ index 0000000..e3f9c68
 +#include "Utils.h"
 +#include "impl/SDM.h"
 +
++#define DPPS_BUF_SIZE 64
++
++#define FEATURE_VER_SW_PA_API 0x00000001
++#define FEATURE_VER_SW_COLORBAL_API 0x00000003
++#define FEATURE_VER_SW_SAVEMODES_API 0x00000004
++
++#define FOSS_ON "foss:on"
++#define FOSS_OFF "foss:off"
++
++// For use when only sysfs modes are available
++#define STANDARD_NODE_ID 600
++
++#define SRGB_NODE "/sys/class/graphics/fb0/srgb"
++#define SRGB_NODE_ID 601
++
++#define DCI_P3_NODE "/sys/class/graphics/fb0/dci_p3"
++#define DCI_P3_NODE_ID 602
++
++#define PRIV_MODE_FLAG_SDM 1
++#define PRIV_MODE_FLAG_SYSFS 2
++
 +namespace vendor {
 +namespace lineage {
 +namespace livedisplay {
 +namespace V1_0 {
 +namespace implementation {
++
++using ::android::BAD_VALUE;
++using ::android::OK;
 +
 +status_t SDM::initialize() {
 +    status_t rc = NO_INIT;
@@ -354,6 +377,9 @@ index 0000000..e3f9c68
 +            setDisplayMode(defMode->id, false);
 +        }
 +    }
++
++    mFOSSEnabled = stol(android::base::GetProperty("ro.qualcomm.foss", "0")) > 0;
++
 +    return OK;
 +}
 +
@@ -560,15 +586,15 @@ index 0000000..e3f9c68
 +
 +    switch (feature) {
 +        case Feature::DISPLAY_MODES:
-+            id = 4;
++            id = FEATURE_VER_SW_SAVEMODES_API;
 +            break;
 +        case Feature::COLOR_BALANCE:
-+            id = 3;
++            id = FEATURE_VER_SW_COLORBAL_API;
 +            break;
 +        case Feature::PICTURE_ADJUSTMENT:
-+            id = 1;
++            id = FEATURE_VER_SW_PA_API;
 +        case Feature::ADAPTIVE_BACKLIGHT:
-+            if (stoi(android::base::GetProperty("ro.qualcomm.foss", "0")) > 0) {
++            if (mFOSSEnabled) {
 +                return true;
 +            }
 +            break;
@@ -576,29 +602,34 @@ index 0000000..e3f9c68
 +            return false;
 +    }
 +
-+    if (SDMController::getInstance().get_feature_version(mHandle, id, &v, &flags) == 0) {
-+        if (v.x > 0 || v.y > 0 || v.z > 0) {
-+            // Color balance depends on calibration data in SDM
-+            if (feature == Feature::DISPLAY_MODES || feature == Feature::COLOR_BALANCE) {
-+                if (getNumDisplayModes() > 0) {
-+                    // make sure the range isn't zero
-+                    if (feature == Feature::COLOR_BALANCE) {
-+                        Range r;
-+                        if (getColorBalanceRange(r) == OK && isNonZero(r)) {
-+                            return true;
-+                        }
-+                        return false;
-+                    }
++    if (SDMController::getInstance().get_feature_version(mHandle, id, &v, &flags) != OK) {
++        return false;
++    }
++
++    if (v.x <= 0 && v.y <= 0 && v.z <= 0) {
++        return false;
++    }
++
++    // Color balance depends on calibration data in SDM
++    if (feature == Feature::DISPLAY_MODES || feature == Feature::COLOR_BALANCE) {
++        if (getNumDisplayModes() > 0) {
++            // make sure the range isn't zero
++            if (feature == Feature::COLOR_BALANCE) {
++                Range r;
++                if (getColorBalanceRange(r) == OK && isNonZero(r)) {
 +                    return true;
 +                }
-+            } else if (feature == Feature::PICTURE_ADJUSTMENT) {
-+                HSICRanges r;
-+                if (getPictureAdjustmentRanges(r) == OK && r.isValid()) {
-+                    return true;
-+                }
++                return false;
 +            }
++            return true;
++        }
++    } else if (feature == Feature::PICTURE_ADJUSTMENT) {
++        HSICRanges r;
++        if (getPictureAdjustmentRanges(r) == OK && r.isValid()) {
++            return true;
 +        }
 +    }
++
 +    return false;
 +}
 +
@@ -759,10 +790,10 @@ index 0000000..e3f9c68
 +}  // namespace vendor
 diff --git a/livedisplay/1.0/default/include/Color.h b/livedisplay/1.0/default/include/Color.h
 new file mode 100644
-index 0000000..bfbc959
+index 0000000..75d53cc
 --- /dev/null
 +++ b/livedisplay/1.0/default/include/Color.h
-@@ -0,0 +1,106 @@
+@@ -0,0 +1,105 @@
 +/*
 + * Copyright (C) 2016 The CyanogenMod Project
 + * Copyright (C) 2017-2018 The LineageOS Project
@@ -795,17 +826,16 @@ index 0000000..bfbc959
 +namespace implementation {
 +
 +using ::android::Mutex;
-+using ::android::NO_INIT;
-+using ::android::OK;
 +using ::android::hardware::Return;
 +using ::android::hardware::Void;
 +using ::android::hardware::hidl_vec;
++using ::android::sp;
 +
 +using ::vendor::lineage::livedisplay::V1_0::IColor;
 +
 +class Color : public IColor {
 +  public:
-+    static IColor* getInstance();
++    static sp<Color> getInstance();
 +
 +    Return<Features> getSupportedFeatures() override;
 +
@@ -841,7 +871,7 @@ index 0000000..bfbc959
 +    void reset();
 +
 +    Color();
-+    static Color* sInstance;
++    static sp<Color> sInstance;
 +
 +    uint32_t mFeatures;
 +    bool mConnected;
@@ -1035,10 +1065,10 @@ index 0000000..e2db6d7
 +#endif  // VENDOR_LINEAGE_LIVEDISPLAY_V1_0_TYPES_H
 diff --git a/livedisplay/1.0/default/include/Utils.h b/livedisplay/1.0/default/include/Utils.h
 new file mode 100644
-index 0000000..51cf018
+index 0000000..2833d52
 --- /dev/null
 +++ b/livedisplay/1.0/default/include/Utils.h
-@@ -0,0 +1,59 @@
+@@ -0,0 +1,57 @@
 +/*
 +** Copyright 2016, The CyanogenMod Project
 +**           2017-2018, The LineageOS Project
@@ -1062,8 +1092,6 @@ index 0000000..51cf018
 +#include <stdlib.h>
 +#include <utils/Errors.h>
 +
-+using ::android::NO_INIT;
-+using ::android::OK;
 +using ::android::status_t;
 +
 +namespace vendor {
@@ -1224,10 +1252,10 @@ index 0000000..9dd5288
 +#endif  // VENDOR_LINEAGE_LIVEDISPLAY_V1_0_SDMCONTROLLER_H
 diff --git a/livedisplay/1.0/default/include/impl/SDM.h b/livedisplay/1.0/default/include/impl/SDM.h
 new file mode 100644
-index 0000000..7c23b70
+index 0000000..cb419e2
 --- /dev/null
 +++ b/livedisplay/1.0/default/include/impl/SDM.h
-@@ -0,0 +1,135 @@
+@@ -0,0 +1,115 @@
 +/*
 + * Copyright (C) 2016 The CyanogenMod Project
 + * Copyright (C) 2017-2018 The LineageOS Project
@@ -1251,35 +1279,14 @@ index 0000000..7c23b70
 +#include "ColorBackend.h"
 +#include "controller/SDMController.h"
 +
-+#define DPPS_BUF_SIZE 64
-+
-+#define FOSS_SUPPORTED "foss:support"
-+#define FOSS_ON "foss:on"
-+#define FOSS_OFF "foss:off"
-+#define FOSS_STATUS "foss:status"
-+
-+// For use when only sysfs modes are available
-+#define STANDARD_NODE_ID 600
-+
-+#define SRGB_NODE "/sys/class/graphics/fb0/srgb"
-+#define SRGB_NODE_ID 601
-+
-+#define DCI_P3_NODE "/sys/class/graphics/fb0/dci_p3"
-+#define DCI_P3_NODE_ID 602
-+
-+#define PRIV_MODE_FLAG_SDM 1
-+#define PRIV_MODE_FLAG_SYSFS 2
-+
 +namespace vendor {
 +namespace lineage {
 +namespace livedisplay {
 +namespace V1_0 {
 +namespace implementation {
 +
-+using ::android::BAD_VALUE;
-+using ::android::NO_INIT;
-+using ::android::OK;
 +using ::android::hardware::Return;
++using ::android::NO_INIT;
 +
 +using ::vendor::lineage::livedisplay::V1_0::IColor;
 +
@@ -1350,6 +1357,7 @@ index 0000000..7c23b70
 +    sp<disp_mode> getLocalDCIP3Mode();
 +
 +    uint64_t mHandle;
++    bool mFOSSEnabled;
 +    bool mCachedFOSSStatus;
 +    int32_t mActiveModeId;
 +
@@ -1365,10 +1373,10 @@ index 0000000..7c23b70
 +#endif  // VENDOR_LINEAGE_LIVEDISPLAY_V1_0_SDM_H
 diff --git a/livedisplay/1.0/default/service.cpp b/livedisplay/1.0/default/service.cpp
 new file mode 100644
-index 0000000..8ce27be
+index 0000000..1a082db
 --- /dev/null
 +++ b/livedisplay/1.0/default/service.cpp
-@@ -0,0 +1,59 @@
+@@ -0,0 +1,69 @@
 +/*
 + * Copyright (C) 2017-2018 The LineageOS Project
 + *
@@ -1397,43 +1405,53 @@ index 0000000..8ce27be
 +
 +#include "Color.h"
 +
-+using android::OK;
 +using android::hardware::configureRpcThreadpool;
 +using android::hardware::joinRpcThreadpool;
++using android::OK;
 +using android::sp;
++using android::status_t;
 +
 +using ::vendor::lineage::livedisplay::V1_0::IColor;
 +using ::vendor::lineage::livedisplay::V1_0::implementation::Color;
 +
 +int main() {
-+    android::sp<IColor> ld = Color::getInstance();
++    status_t status;
++    android::sp<IColor> service = nullptr;
 +
-+    // The livedisplay HAL may communicate to other vendor components via
-+    // /dev/vndbinder
++    LOG(INFO) << "LiveDisplay HAL service is starting.";
++
++    // The LiveDisplay HAL may communicate to other vendor components via /dev/vndbinder
 +    android::ProcessState::initWithDriver("/dev/vndbinder");
++
++    service = Color::getInstance();
++    if (service == nullptr) {
++        LOG(ERROR) << "Can not create an instance of LiveDisplay HAL Iface, exiting.";
++        goto shutdown;
++    }
 +
 +    configureRpcThreadpool(1, true /*callerWillJoin*/);
 +
-+    if (ld != nullptr) {
-+        if (ld->registerAsService() != OK) {
-+            LOG(ERROR) << "Could not register service.";
-+            return 1;
-+        }
-+    } else {
-+        LOG(ERROR) << "Can't create instance of LiveDisplay service, nullptr";
-+        return 1;
++    status = service->registerAsService();
++    if (status != OK) {
++        LOG(ERROR) << "Could not register service for LiveDisplay HAL Iface (" << status << ")";
++        goto shutdown;
 +    }
 +
++    LOG(INFO) << "LiveDisplay HAL service is ready.";
 +    joinRpcThreadpool();
++    // Should not pass this line
 +
-+    return 0;  // should never get here
++shutdown:
++    // In normal operation, we don't expect the thread pool to exit
++    LOG(ERROR) << "LiveDisplay HAL service is shutting down.";
++    return 1;
 +}
 diff --git a/livedisplay/1.0/default/src/Color.cpp b/livedisplay/1.0/default/src/Color.cpp
 new file mode 100644
-index 0000000..48f0054
+index 0000000..0345ecd
 --- /dev/null
 +++ b/livedisplay/1.0/default/src/Color.cpp
-@@ -0,0 +1,379 @@
+@@ -0,0 +1,382 @@
 +/*
 + * Copyright (C) 2017-2018 The LineageOS Project
 + *
@@ -1450,7 +1468,7 @@ index 0000000..48f0054
 + * limitations under the License.
 + */
 +
-+#define LOG_NDEBUG 0
++// #define LOG_NDEBUG 0
 +
 +#define LOG_TAG "LiveDisplay-HIDL"
 +
@@ -1468,7 +1486,10 @@ index 0000000..48f0054
 +namespace V1_0 {
 +namespace implementation {
 +
-+Color* Color::sInstance = nullptr;
++using ::android::NO_INIT;
++using ::android::OK;
++
++sp<Color> Color::sInstance = nullptr;
 +
 +Color::Color() : mConnected(false), mBackend(nullptr) {
 +#ifdef COLOR_BACKEND_SDM
@@ -1524,8 +1545,8 @@ index 0000000..48f0054
 +    return mFeatures > 0;
 +}
 +
-+IColor* Color::getInstance() {
-+    if (!sInstance) {
++sp<Color> Color::getInstance() {
++    if (sInstance == nullptr) {
 +        sInstance = new Color();
 +    }
 +    return sInstance;
@@ -1815,10 +1836,10 @@ index 0000000..48f0054
 +}  // namespace vendor
 diff --git a/livedisplay/1.0/default/src/Utils.cpp b/livedisplay/1.0/default/src/Utils.cpp
 new file mode 100644
-index 0000000..f4769a8
+index 0000000..b2cebc2
 --- /dev/null
 +++ b/livedisplay/1.0/default/src/Utils.cpp
-@@ -0,0 +1,138 @@
+@@ -0,0 +1,142 @@
 +/*
 +** Copyright 2016, The CyanogenMod Project
 +**           2017-2018, The LineageOS Project
@@ -1843,14 +1864,16 @@ index 0000000..f4769a8
 +#include <stdlib.h>
 +#include <sys/stat.h>
 +#include <unistd.h>
++#include <fstream>
++#include <string>
 +
 +#include <cutils/sockets.h>
 +
 +#include "Utils.h"
 +
-+#define LOCAL_STORAGE_PATH "/data/vendor/display"
-+#define LOCAL_MODE_ID "livedisplay_mode"
-+#define LOCAL_INITIAL_MODE_ID "livedisplay_initial_mode"
++constexpr char LOCAL_STORAGE_PATH[] = "/data/vendor/display";
++constexpr char LOCAL_MODE_ID[] = "livedisplay_mode";
++constexpr char LOCAL_INITIAL_MODE_ID[] = "livedisplay_initial_mode";
 +
 +namespace vendor {
 +namespace lineage {
@@ -1858,42 +1881,44 @@ index 0000000..f4769a8
 +namespace V1_0 {
 +namespace implementation {
 +
++using ::android::NO_INIT;
++using ::android::OK;
++using ::std::endl;
++using ::std::ifstream;
++using ::std::ofstream;
++using ::std::string;
++
 +status_t Utils::exists(const char* node) {
 +    struct stat sbuf;
 +    return stat(node, &sbuf);
 +}
 +
 +status_t Utils::readInt(const char* node, int32_t* value) {
-+    char buf[32];
++    string buf;
 +    status_t ret = OK;
-+
-+    FILE* fp = fopen(node, "r");
-+    if (!fp) {
++    ifstream fin(node);
++    if (!fin.good()) {
 +        return errno;
 +    }
-+    if (fgets(buf, sizeof(buf) - 1, fp)) {
-+        *value = atoi(buf);
++    if (getline(fin, buf)) {
++        *value = stoi(buf);
 +    } else {
 +        ret = errno;
 +    }
-+    fclose(fp);
++    fin.close();
 +    return ret;
 +}
 +
 +status_t Utils::writeInt(const char* node, int32_t value) {
-+    char buf[32];
 +    status_t ret = OK;
-+
-+    FILE* fp = fopen(node, "w");
-+    if (!fp) {
++    ofstream fout(node);
++    if (!fout.good()) {
 +        return errno;
 +    }
-+    snprintf(buf, sizeof(buf), "%d\n", value);
-+
-+    if (fputs(buf, fp) < 0) {
++    if (!(fout << value << endl)) {
 +        ret = errno;
 +    }
-+    fclose(fp);
++    fout.close();
 +    return ret;
 +}
 +
@@ -1926,29 +1951,29 @@ index 0000000..f4769a8
 +    int sock = socket_local_client("pps", ANDROID_SOCKET_NAMESPACE_RESERVED, SOCK_STREAM);
 +    if (sock < 0) {
 +        return sock;
-+    } else {
-+        if (write(sock, buf, strlen(buf) + 1) > 0) {
-+            memset(buf, 0, len);
-+            ssize_t ret;
-+            while ((ret = read(sock, buf, len)) > 0) {
-+                if ((size_t)ret == len) {
-+                    break;
-+                }
-+                len -= ret;
-+                buf += ret;
-+
-+                struct pollfd p = {.fd = sock, .events = POLLIN, .revents = 0};
-+
-+                ret = poll(&p, 1, 20);
-+                if ((ret <= 0) || !(p.revents & POLLIN)) {
-+                    break;
-+                }
-+            }
-+        } else {
-+            rc = NO_INIT;
-+        }
-+        close(sock);
 +    }
++
++    if (write(sock, buf, strlen(buf) + 1) > 0) {
++        memset(buf, 0, len);
++        ssize_t ret;
++        while ((ret = read(sock, buf, len)) > 0) {
++            if ((size_t)ret == len) {
++                break;
++            }
++            len -= ret;
++            buf += ret;
++
++            struct pollfd p = {.fd = sock, .events = POLLIN, .revents = 0};
++
++            ret = poll(&p, 1, 20);
++            if ((ret <= 0) || !(p.revents & POLLIN)) {
++                break;
++            }
++        }
++    } else {
++        rc = NO_INIT;
++    }
++    close(sock);
 +    return rc;
 +}
 +

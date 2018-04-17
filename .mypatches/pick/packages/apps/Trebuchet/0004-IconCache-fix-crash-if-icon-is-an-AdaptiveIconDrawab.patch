@@ -1,0 +1,84 @@
+From bea888b5b3a065d92ee534b70fc5f38f024ae745 Mon Sep 17 00:00:00 2001
+From: Alexander Martinz <amartinz@shiftphones.com>
+Date: Mon, 9 Apr 2018 18:32:29 +0200
+Subject: [PATCH 4/6] IconCache: fix crash if icon is an AdaptiveIconDrawable
+
+Change-Id: I27792fd22ff9ded342b29c9eb7e0b5ec619a6c85
+Signed-off-by: Alexander Martinz <amartinz@shiftphones.com>
+---
+ src/com/android/launcher3/IconCache.java |  2 +-
+ src/com/android/launcher3/Utilities.java | 34 ++++++++++++++++++++++++
+ 2 files changed, 35 insertions(+), 1 deletion(-)
+
+diff --git a/src/com/android/launcher3/IconCache.java b/src/com/android/launcher3/IconCache.java
+index 3230e70d3..a2911bf0d 100644
+--- a/src/com/android/launcher3/IconCache.java
++++ b/src/com/android/launcher3/IconCache.java
+@@ -411,7 +411,7 @@ public class IconCache {
+         if (entry == null || entry.isLowResIcon || entry.icon == null) {
+             entry = new CacheEntry();
+             }
+-        entry.icon = ((BitmapDrawable) icon).getBitmap();
++        entry.icon = Utilities.getBitmapFromDrawable(icon);
+         entry.title = title != null ? title : app.getLabel();
+         entry.contentDescription = mUserManager.getBadgedLabelForUser(entry.title, app.getUser());
+         mCache.put(key, entry);
+diff --git a/src/com/android/launcher3/Utilities.java b/src/com/android/launcher3/Utilities.java
+index e0ef90c3f..615daecc8 100644
+--- a/src/com/android/launcher3/Utilities.java
++++ b/src/com/android/launcher3/Utilities.java
+@@ -28,10 +28,15 @@ import android.content.pm.PackageManager.NameNotFoundException;
+ import android.content.pm.ResolveInfo;
+ import android.content.res.Resources;
+ import android.graphics.Bitmap;
++import android.graphics.Canvas;
+ import android.graphics.Color;
+ import android.graphics.Matrix;
+ import android.graphics.Paint;
+ import android.graphics.Rect;
++import android.graphics.drawable.AdaptiveIconDrawable;
++import android.graphics.drawable.BitmapDrawable;
++import android.graphics.drawable.Drawable;
++import android.graphics.drawable.LayerDrawable;
+ import android.os.Build;
+ import android.os.Bundle;
+ import android.os.DeadObjectException;
+@@ -578,6 +583,35 @@ public final class Utilities {
+         return true;
+     }
+ 
++    public static Bitmap getBitmapFromDrawable(Drawable drawable) {
++        if (drawable instanceof BitmapDrawable) {
++            return ((BitmapDrawable) drawable).getBitmap();
++        } else if (Utilities.ATLEAST_OREO && drawable instanceof AdaptiveIconDrawable) {
++            final Drawable background = ((AdaptiveIconDrawable) drawable).getBackground();
++            final Drawable foreground = ((AdaptiveIconDrawable) drawable).getForeground();
++
++            final Drawable[] drawables = new Drawable[2];
++            drawables[0] = background;
++            drawables[1] = foreground;
++
++            final LayerDrawable layerDrawable = new LayerDrawable(drawables);
++
++            final int width = layerDrawable.getIntrinsicWidth();
++            final int height = layerDrawable.getIntrinsicHeight();
++
++            final Bitmap bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
++
++            final Canvas canvas = new Canvas(bitmap);
++
++            layerDrawable.setBounds(0, 0, canvas.getWidth(), canvas.getHeight());
++            layerDrawable.draw(canvas);
++
++            return bitmap;
++        }
++
++        return null;
++    }
++
+     public static void closeSilently(Closeable c) {
+         if (c != null) {
+             try {
+-- 
+2.17.0
+
