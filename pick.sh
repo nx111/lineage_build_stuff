@@ -419,7 +419,6 @@ fi
 kpick 212920 # libc: Mark libstdc++ as vendor available
 
 # bootable/recovery
-kpick 206117 # update_verifier: skip verity to determine successful on lineage builds
 kpick 211098 # recovery/ui: Hide emulated storage for encrypted devices
 kpick 212711 # Revert "updater: Fix and improve allowing devices to suppress BLKDISCARD"
 kpick 212944 # recovery: Don't try to set ro.adb.secure
@@ -472,11 +471,8 @@ kpick 212647 # klte-common: Use passthrough manifest for all NFC chips
 kpick 210313 # msm8974-common: Binderize them all
 
 # kernel/samsung/msm8974
-kpick 210542 # mach-msm: Fix dependencies for TIMA configs
-kpick 210543 # fs: sdfat: Add MODULE_ALIAS_FS for supported filesystems
 kpick 210665 # wacom: Follow-up from gestures patch
 kpick 210666 # wacom: Report touch when pen button is pressed if gestures are off
-kpick 212989 # ARM: dts: msm8974: Fix hall code for h3g as well
 
 # external/toybox
 kpick 209019 # toybox: Use ISO C/clang compatible __typeof__ in minof/maxof macros
@@ -504,6 +500,7 @@ kpick 209929 # SystemUI: fix black scrim when turning screen on from AOD
 #kpick 211216 # SystemUI: Catch IllegalArgumentException in stopScreenshot()
 #kpick 211300 # Add the user set network mode to the siminfo table
 #kpick 211301 # Store Network Mode selected in subId Table
+kpick 213038 # Fix migration from pre-O for AndroidTV devices (1/2)
 
 # frameworks/native
 
@@ -567,29 +564,30 @@ kpick 212967 # Hide help and feedback in AOSP contacts
 kpick 209824 # Add setting to enable Do Not Disturb during calls
 kpick 211135 # Show proper call duration
 
+# packages/apps/DeskClock
+kpick 210074 # Adding Notification Channel
+kpick 213051 # Deskclock: set targetSdk to 27
+
 # packages/apps/Eleven
 kpick 211302 # Eleven: Catch unsupported bitmap exception
 
 # packages/apps/Gallery2
-kpick 207956 # Gallery2: disable proguard when building without jack
 
 # packages/apps/LineageParts
 kpick 206402 # SystemUI: Forward-port notification counters
 kpick 207463 # LineageParts: Fix removing LED brightness settings
-kpick 210486 # BatteryLight: Fix lit battery light after off/on battery notification
 kpick 212918 # LineageParts: Fix loading default colors for non-RGB lights
 kpick 212942 # LineageParts: Allow adjusting brightness of non-RGB LEDs
 kpick 212964 # Parts: Fix notification light app hint
 
 # packages/apps/Settings
 kpick 206700 # Settings: per-app cellular data and wifi restrictions
+kpick 209208 # Settings: Hide Night Mode suggestion if LiveDisplay feature is present
 
 # packages/services/Telephony
 # kpick 211270 # Telephony: add external network selection activity
 
 # packages/apps/Trebuchet
-kpick 212745 # Increased folder icon preview
-kpick 212747 # config: enable LAUNCHER3_PROMISE_APPS_IN_ALL_APPS
 kpick 212749 # Icons: fix non-adaptive icon handling
 kpick 212750 # Icons: wrap all legacy icons to adaptive icons
 kpick 212751 # config: enable LEGACY_ICON_TREATMENT
@@ -597,9 +595,11 @@ kpick 212752 # IconCache: fix crash if icon is an AdaptiveIconDrawable
 kpick 212761 # Trebuchet: make forced adaptive icons optional
 kpick 212762 # Trebuchet: update build.gradle
 
+# packages/providers/ContactsProvider
+kpick 209030 # ContactsProvider: Prevent device contact being deleted.
+
 # system/core
 kpick 209385 # init: optimize shutdown time
-kpick 209834 # Revert "Don't enable ADB by default when ro.adb.secure is 1"
 kpick 210316 # init: Don't run update_sys_usb_config if /data isn't mounted
 kpick 212626 # Revert "logd: add "+passcred" for logdw socket"
 kpick 212642 # init: do not load persistent properties from temporary /data
@@ -631,6 +631,7 @@ kpick 206996 # soong_config: Add TARGET_USES_MEDIA_EXTENSIONS variable
 kpick 210664 # extract_utils: Support multidex
 kpick 210939 # envsetup: Fix lineageremote for caf projects
 kpick 212640 # repopick: Update SSH queries result to match HTTP queries
+kpick 213050 # Fix migration from pre-O for AndroidTV devices (2/2)
 ##################################
 
 [ $op_pick_remote_only -eq 0 ] && patch_local local
