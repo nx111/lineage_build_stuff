@@ -1,0 +1,916 @@
+From dff1aa4df72d98a643894bd513193e1b07a8b0b3 Mon Sep 17 00:00:00 2001
+From: Joey <joey@lineageos.org>
+Date: Tue, 3 Apr 2018 15:42:18 +0200
+Subject: [PATCH 3/4] sdk: Introduce Trust Interface
+
+Change-Id: I5c3ece3f6035dd03be1ceab01020496c179f2e65
+Signed-off-by: Joey <joey@lineageos.org>
+---
+ Android.mk                                         |   2 +-
+ api/lineage_current.txt                            |  24 ++
+ .../platform/internal/TrustInterfaceService.java   | 344 +++++++++++++++++++++
+ lineage/res/AndroidManifest.xml                    |   8 +
+ lineage/res/res/drawable/ic_trust.xml              |  11 +
+ lineage/res/res/values/config.xml                  |   5 +
+ lineage/res/res/values/strings.xml                 |  16 +
+ lineage/res/res/values/symbols.xml                 |  13 +
+ .../lineageos/app/LineageContextConstants.java     |  19 ++
+ .../java/lineageos/providers/LineageSettings.java  |  31 ++
+ sdk/src/java/lineageos/trust/ITrustInterface.aidl  |  26 ++
+ sdk/src/java/lineageos/trust/TrustInterface.java   | 218 +++++++++++++
+ 12 files changed, 716 insertions(+), 1 deletion(-)
+ create mode 100644 lineage/lib/main/java/org/lineageos/platform/internal/TrustInterfaceService.java
+ create mode 100644 lineage/res/res/drawable/ic_trust.xml
+ create mode 100644 sdk/src/java/lineageos/trust/ITrustInterface.aidl
+ create mode 100644 sdk/src/java/lineageos/trust/TrustInterface.java
+
+diff --git a/Android.mk b/Android.mk
+index 5e47a2a..532b891 100644
+--- a/Android.mk
++++ b/Android.mk
+@@ -25,7 +25,7 @@ LOCAL_PATH := $(call my-dir)
+ lineage_platform_res := APPS/org.lineageos.platform-res_intermediates/src
+ 
+ # List of packages used in lineage-api-stubs
+-lineage_stub_packages := lineageos.app:lineageos.content:lineageos.hardware:lineageos.media:lineageos.os:lineageos.preference:lineageos.profiles:lineageos.providers:lineageos.platform:lineageos.power:lineageos.util:lineageos.weather:lineageos.weatherservice:lineageos.style
++lineage_stub_packages := lineageos.app:lineageos.content:lineageos.hardware:lineageos.media:lineageos.os:lineageos.preference:lineageos.profiles:lineageos.providers:lineageos.platform:lineageos.power:lineageos.util:lineageos.weather:lineageos.weatherservice:lineageos.style:lineageos.trust
+ 
+ # The LineageOS Platform Framework Library
+ # ============================================================
+diff --git a/api/lineage_current.txt b/api/lineage_current.txt
+index 9f36306..e9b5e32 100644
+--- a/api/lineage_current.txt
++++ b/api/lineage_current.txt
+@@ -335,6 +335,7 @@ package lineageos.os {
+     field public static final int FIG = 6; // 0x6
+     field public static final int GUAVA = 7; // 0x7
+     field public static final int HACKBERRY = 8; // 0x8
++    field public static final int ILAMA = 9; // 0x9
+   }
+ 
+   public final class Concierge {
+@@ -368,6 +369,7 @@ package lineageos.platform {
+     field public static final java.lang.String PROTECTED_APP = "lineageos.permission.PROTECTED_APP";
+     field public static final java.lang.String READ_DATAUSAGE = "lineageos.permission.READ_DATAUSAGE";
+     field public static final java.lang.String READ_WEATHER = "lineageos.permission.READ_WEATHER";
++    field public static final java.lang.String TRUST_INTERFACE = "lineageos.permission.TRUST_INTERFACE";
+     field public static final java.lang.String WRITE_DATAUSAGE = "lineageos.permission.WRITE_DATAUSAGE";
+     field public static final java.lang.String WRITE_SECURE_SETTINGS = "lineageos.permission.WRITE_SECURE_SETTINGS";
+     field public static final java.lang.String WRITE_SETTINGS = "lineageos.permission.WRITE_SETTINGS";
+@@ -775,6 +777,7 @@ package lineageos.providers {
+     method public static boolean putString(android.content.ContentResolver, java.lang.String, java.lang.String);
+     field public static final android.net.Uri CONTENT_URI;
+     field public static final java.lang.String SYS_PROP_LINEAGE_SETTING_VERSION = "sys.lineage_settings_secure_version";
++    field public static final java.lang.String TRUST_NOTIFICATIONS = "trust_notifications";
+   }
+ 
+   public static final class LineageSettings.System extends android.provider.Settings.NameValueTable {
+@@ -1016,6 +1019,27 @@ package lineageos.style {
+ 
+ }
+ 
++package lineageos.trust {
++
++  public class TrustInterface {
++    method public static lineageos.trust.TrustInterface getInstance(android.content.Context);
++    method public int getLevelForFeature(int);
++    method public boolean postNotificationForFeature(int);
++    method public boolean removeNotificationForFeature(int);
++    field public static final int ERROR_UNDEFINED = -1; // 0xffffffff
++    field public static final int TRUST_FEATURE_ENCRYPTION = 4; // 0x4
++    field public static final int TRUST_FEATURE_LEVEL_BAD = 2; // 0x2
++    field public static final int TRUST_FEATURE_LEVEL_GOOD = 0; // 0x0
++    field public static final int TRUST_FEATURE_LEVEL_POOR = 1; // 0x1
++    field public static final int TRUST_FEATURE_PLATFORM_SECURITY_PATCH = 2; // 0x2
++    field public static final int TRUST_FEATURE_ROOT = 1; // 0x1
++    field public static final int TRUST_FEATURE_SELINUX = 0; // 0x0
++    field public static final int TRUST_FEATURE_VENDOR_SECURITY_PATCH = 3; // 0x3
++    field public static final java.lang.String TRUST_INTERFACE_PERMISSION = "lineageos.permission.TRUST_INTERFACE";
++  }
++
++}
++
+ package lineageos.util {
+ 
+   public class ColorUtils {
+diff --git a/lineage/lib/main/java/org/lineageos/platform/internal/TrustInterfaceService.java b/lineage/lib/main/java/org/lineageos/platform/internal/TrustInterfaceService.java
+new file mode 100644
+index 0000000..0c8a30b
+--- /dev/null
++++ b/lineage/lib/main/java/org/lineageos/platform/internal/TrustInterfaceService.java
+@@ -0,0 +1,344 @@
++/*
++ * Copyright (c) 2018 The LineageOS Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *     http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++package org.lineageos.platform.internal;
++
++import android.app.Notification;
++import android.app.NotificationChannel;
++import android.app.NotificationManager;
++import android.app.PendingIntent;
++import android.app.admin.DevicePolicyManager;
++import android.content.ContentResolver;
++import android.content.Context;
++import android.content.Intent;
++import android.net.Uri;
++import android.os.Build;
++import android.os.IBinder;
++import android.os.RemoteException;
++import android.os.SELinux;
++import android.os.ServiceManager;
++import android.os.SystemProperties;
++import android.os.UserHandle;
++import android.util.Log;
++import android.util.Pair;
++import android.text.TextUtils;
++
++import lineageos.app.LineageContextConstants;
++import lineageos.providers.LineageSettings;
++import lineageos.trust.ITrustInterface;
++import lineageos.trust.TrustInterface;
++
++import java.text.ParseException;
++import java.text.SimpleDateFormat;
++import java.util.Calendar;
++import java.util.Date;
++
++/** @hide **/
++public class TrustInterfaceService extends LineageSystemService {
++    private static final String TAG = "LineageTrustInterfaceService";
++    private static final String PLATFORM_SECURITY_PATCHES = "ro.build.version.security_patch";
++    private static final String VENDOR_SECURITY_PATCHES = "ro.vendor.build.security_patch";
++    private static final String LINEAGE_VENDOR_SECURITY_PATCHES =
++            "ro.lineage.build.vendor_security_patch";
++    private static final String INTENT_PARTS = "org.lineageos.lineageparts.TRUST_INTERFACE";
++    private static final String INTENT_ONBOARDING = "org.lineageos.lineageparts.TRUST_HINT";
++    private static final String CHANNEL_NAME = "TrustInterface";
++    private static final int ONBOARDING_NOTIFCATION_ID = 89;
++
++    private Context mContext;
++    private NotificationManager mNotificationManager = null;
++
++    public TrustInterfaceService(Context context) {
++        super(context);
++        mContext = context;
++        if (context.getPackageManager().hasSystemFeature(LineageContextConstants.Features.TRUST)) {
++            publishBinderService(LineageContextConstants.LINEAEGE_TRUST_INTERFACE, mService);
++        } else {
++            Log.wtf(TAG, "Lineage Trust service started by system server but feature xml not" +
++                    " declared. Not publishing binder service!");
++        }
++    }
++
++    @Override
++    public String getFeatureDeclaration() {
++        return LineageContextConstants.Features.TRUST;
++    }
++
++    @Override
++    public void onStart() {
++        mNotificationManager = mContext.getSystemService(NotificationManager.class);
++        postOnBoardinNotification();
++
++        int selinuxStatus = getSELinuxStatus();
++        if (selinuxStatus != TrustInterface.TRUST_FEATURE_LEVEL_GOOD) {
++            postNotificationForFeatureInternal(TrustInterface.TRUST_FEATURE_SELINUX);
++        }
++    }
++
++    /* Public methods implementation */
++
++    private boolean postNotificationForFeatureInternal(int feature) {
++        if (!hasOnboardedUser() || !userAllowsTrustNotifications()) {
++            return false;
++        }
++
++        Pair<Integer, Integer> strings = getNotificationStringsForFeature(feature);
++        if (strings == null) {
++            return false;
++        }
++
++        String title = mContext.getString(strings.first);
++        String message = mContext.getString(strings.second);
++        Intent intent = new Intent(INTENT_PARTS);
++        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
++        PendingIntent pIntent = PendingIntent.getActivity(mContext, 0, intent, 0);
++
++        // Should open the Parts activity when clicked
++        Notification.Builder notification = new Notification.Builder(mContext, CHANNEL_NAME)
++                .setContentTitle(title)
++                .setContentText(message)
++                .setStyle(new Notification.BigTextStyle().bigText(message))
++                .setAutoCancel(true)
++                .setContentIntent(pIntent)
++                .setSmallIcon(R.drawable.ic_trust);
++
++        createNotificationChannelIfNeeded();
++        mNotificationManager.notify(feature, notification.build());
++        return true;
++    }
++
++    private boolean removeNotificationForFeatureInternal(int feature) {
++        if (!userAllowsTrustNotifications()) {
++            return false;
++        }
++
++        mNotificationManager.cancel(feature);
++        return true;
++    }
++
++    private boolean postOnBoardinNotification() {
++        if (hasOnboardedUser()) {
++            return false;
++        }
++
++        String title = mContext.getString(R.string.trust_notification_title_onboarding);
++        String message = mContext.getString(R.string.trust_notification_content_onboarding);
++        Intent intent = new Intent(INTENT_ONBOARDING);
++        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
++        PendingIntent pIntent = PendingIntent.getActivity(mContext, 0, intent, 0);
++
++        Notification.Builder notification = new Notification.Builder(mContext, CHANNEL_NAME)
++                .setContentTitle(title)
++                .setContentText(message)
++                .setStyle(new Notification.BigTextStyle().bigText(message))
++                .setAutoCancel(true)
++                .setContentIntent(pIntent)
++                .setSmallIcon(R.drawable.ic_trust);
++
++        createNotificationChannelIfNeeded();
++        mNotificationManager.notify(ONBOARDING_NOTIFCATION_ID, notification.build());
++        return true;
++    }
++
++    private int getLevelForFeatureInternal(int feature) {
++        switch (feature) {
++            case TrustInterface.TRUST_FEATURE_SELINUX:
++                return getSELinuxStatus();
++            case TrustInterface.TRUST_FEATURE_ROOT:
++                return getRootStatus();
++            case TrustInterface.TRUST_FEATURE_PLATFORM_SECURITY_PATCH:
++                return getSecurityPatchStatus(PLATFORM_SECURITY_PATCHES);
++            case TrustInterface.TRUST_FEATURE_VENDOR_SECURITY_PATCH:
++                return getSecurityPatchStatus(VENDOR_SECURITY_PATCHES);
++            case TrustInterface.TRUST_FEATURE_ENCRYPTION:
++                return getEncryptionStatus();
++            default:
++                return TrustInterface.ERROR_UNDEFINED;
++        }
++    }
++
++    /* Utils */
++
++    private void enforceTrustPermission() {
++        mContext.enforceCallingOrSelfPermission(TrustInterface.TRUST_INTERFACE_PERMISSION,
++                "You do not have permissions to use the Trust interface");
++    }
++
++    private boolean userAllowsTrustNotifications() {
++        return LineageSettings.Secure.getInt(mContext.getContentResolver(),
++                LineageSettings.Secure.TRUST_NOTIFICATIONS, 1) == 1;
++    }
++
++    private Pair<Integer, Integer> getNotificationStringsForFeature(int feature) {
++        int title = 0;
++        int message = 0;
++
++        switch (feature) {
++            case TrustInterface.TRUST_FEATURE_SELINUX:
++                title = R.string.trust_notification_title_selinux;
++                message = R.string.trust_notification_content_selinux;
++                break;
++            case TrustInterface.TRUST_FEATURE_ROOT:
++                title = R.string.trust_notification_title_root;
++                message = R.string.trust_notification_content_root;
++                break;
++        }
++
++        return title == 0 ? null : new Pair(title, message);
++    }
++
++    private void createNotificationChannelIfNeeded() {
++        NotificationChannel channel = mNotificationManager.getNotificationChannel(CHANNEL_NAME);
++        if (channel != null) {
++            return;
++        }
++
++        String name = mContext.getString(R.string.trust_notification_channel);
++        int importance = NotificationManager.IMPORTANCE_HIGH;
++        NotificationChannel trustChannel = new NotificationChannel(CHANNEL_NAME,
++                name, importance);
++        trustChannel.setBlockableSystem(true);
++        mNotificationManager.createNotificationChannel(trustChannel);
++    }
++
++    private int getSELinuxStatus() {
++        return SELinux.isSELinuxEnforced() ? 
++                TrustInterface.TRUST_FEATURE_LEVEL_GOOD :
++                TrustInterface.TRUST_FEATURE_LEVEL_BAD;
++    }
++
++    private int getRootStatus() {
++        String status = SystemProperties.get("persist.sys.root_access");
++        switch (status) {
++            case "0":
++                return TrustInterface.TRUST_FEATURE_LEVEL_GOOD;
++            case "1":
++            case "3":
++                return TrustInterface.TRUST_FEATURE_LEVEL_BAD;
++            case "2":
++                return TrustInterface.TRUST_FEATURE_LEVEL_POOR;
++            default:
++                return TrustInterface.ERROR_UNDEFINED;
++        }
++    }
++
++    private int getSecurityPatchStatus(String target) {
++        String patchLevel = SystemProperties.get(target);
++        if (TextUtils.isEmpty(patchLevel)) {
++            // Try to fallback to Lineage vendor prop
++            if (VENDOR_SECURITY_PATCHES.equals(target)) {
++                    patchLevel = SystemProperties.get(LINEAGE_VENDOR_SECURITY_PATCHES);
++                    if (TextUtils.isEmpty(patchLevel)) {
++                        return TrustInterface.ERROR_UNDEFINED;
++                    }
++            } else {
++                return TrustInterface.ERROR_UNDEFINED;
++            }
++        }
++
++        Calendar today = Calendar.getInstance();
++        Calendar patchCal = Calendar.getInstance();
++
++        try {
++            Date date = new SimpleDateFormat("yyyy-MM-dd").parse(patchLevel);
++            patchCal.setTime(date);
++
++            int diff = (today.get(Calendar.YEAR) - patchCal.get(Calendar.YEAR)) * 12 +
++                    today.get(Calendar.MONTH) - patchCal.get(Calendar.MONTH);
++            if (diff < 0) {
++                // This is a blatant lie
++                return TrustInterface.TRUST_FEATURE_LEVEL_BAD;
++            } else if (diff < 4) {
++                return TrustInterface.TRUST_FEATURE_LEVEL_GOOD;
++            } else if (diff < 10) {
++                return TrustInterface.TRUST_FEATURE_LEVEL_POOR;
++            }
++            return TrustInterface.TRUST_FEATURE_LEVEL_BAD;
++        } catch (ParseException e) {
++            Log.e(TAG, e.getLocalizedMessage(), e);
++        }
++        return TrustInterface.ERROR_UNDEFINED;
++    }
++
++    private int getEncryptionStatus() {
++        DevicePolicyManager policyManager = mContext.getSystemService(DevicePolicyManager.class);
++        if (policyManager == null) {
++            return TrustInterface.ERROR_UNDEFINED;
++        }
++
++        boolean isOldDevice = mContext.getResources().getBoolean(R.bool.trust_legacy_encryption);
++        int status = policyManager.getStorageEncryptionStatus();
++
++        switch (status) {
++            case DevicePolicyManager.ENCRYPTION_STATUS_ACTIVE:
++            case DevicePolicyManager.ENCRYPTION_STATUS_ACTIVE_PER_USER:
++                return TrustInterface.TRUST_FEATURE_LEVEL_GOOD;
++            case DevicePolicyManager.ENCRYPTION_STATUS_ACTIVE_DEFAULT_KEY:
++                return TrustInterface.TRUST_FEATURE_LEVEL_POOR;
++            case DevicePolicyManager.ENCRYPTION_STATUS_INACTIVE:
++                return isOldDevice ?
++                        TrustInterface.TRUST_FEATURE_LEVEL_POOR :
++                        TrustInterface.TRUST_FEATURE_LEVEL_BAD;
++            default:
++                return TrustInterface.ERROR_UNDEFINED;
++        }
++    }
++
++    private boolean hasOnboardedUser() {
++        return LineageSettings.System.getInt(mContext.getContentResolver(),
++                LineageSettings.System.TRUST_INTERFACE_HINTED, 0) == 1;
++    }
++
++    /* Service */
++
++    private final IBinder mService = new ITrustInterface.Stub() {
++        @Override
++        public boolean postNotificationForFeature(int feature) {
++            enforceTrustPermission();
++            /*
++             * We need to clear the caller's identity in order to
++             *   allow this method call to modify settings
++             *   not allowed by the caller's permissions.
++             */
++            long token = clearCallingIdentity();
++            boolean success = postNotificationForFeatureInternal(feature);
++            restoreCallingIdentity(token);
++            return success;
++        }
++
++        @Override
++        public boolean removeNotificationForFeature(int feature) {
++            enforceTrustPermission();
++            /*
++             * We need to clear the caller's identity in order to
++             *   allow this method call to modify settings
++             *   not allowed by the caller's permissions.
++             */
++            long token = clearCallingIdentity();
++            boolean success = removeNotificationForFeatureInternal(feature);
++            restoreCallingIdentity(token);
++            return success;
++        }
++
++        @Override
++        public int getLevelForFeature(int feature) {
++            /*
++             * No need to require permission for this one because it's harmless
++             */
++            return getLevelForFeatureInternal(feature);
++        }
++    };
++}
+\ No newline at end of file
+diff --git a/lineage/res/AndroidManifest.xml b/lineage/res/AndroidManifest.xml
+index f3a5346..afa29ec 100644
+--- a/lineage/res/AndroidManifest.xml
++++ b/lineage/res/AndroidManifest.xml
+@@ -124,6 +124,14 @@
+                 android:icon="@drawable/ic_launcher_lineageos"
+                 android:protectionLevel="dangerous" />
+ 
++ 
++    <!-- Allows an application to change system style -->
++    <permission android:name="lineageos.permission.TRUST_INTERFACE"
++                android:label="@string/permlab_trustInterface"
++                android:description="@string/permdesc_trustInterface"
++                android:icon="@drawable/ic_trust"
++                android:protectionLevel="signature|privileged" />
++
+     <application android:process="system"
+                  android:persistent="true"
+                  android:hasCode="false"
+diff --git a/lineage/res/res/drawable/ic_trust.xml b/lineage/res/res/drawable/ic_trust.xml
+new file mode 100644
+index 0000000..f896d50
+--- /dev/null
++++ b/lineage/res/res/drawable/ic_trust.xml
+@@ -0,0 +1,11 @@
++<?xml version="1.0" encoding="utf-8"?>
++<vector xmlns:android="http://schemas.android.com/apk/res/android"
++    android:width="24dp"
++    android:height="24dp"
++    android:viewportWidth="24"
++    android:viewportHeight="24">
++
++    <path
++        android:fillColor="?android:attr/colorAccent"
++        android:pathData="M5,3L19,3C20.105,3 21,3.895 21,5L21,12C21,16.971 16.971,21 12,21C7.029,21 3,16.971 3,12L3,5C3,3.895 3.895,3 5,3ZM18.902,13.168C18.994,12.624 18.627,12.108 18.082,12.016C17.538,11.925 17.022,12.292 16.93,12.837C16.528,15.225 14.45,17 12,17C9.55,17 7.472,15.226 7.069,12.838C6.978,12.294 6.462,11.927 5.917,12.018C5.373,12.11 5.005,12.626 5.097,13.171C5.661,16.517 8.57,19 12,19C15.43,19 18.339,16.516 18.902,13.168ZM11.046,5.698L9.127,11.297C9.045,11.516 9,11.753 9,12C9,13.104 9.895,14 11,14C11.01,14 11.019,14 11.029,14L13,14C13.55,14 14.05,13.78 14.41,13.41C14.78,13.05 15,12.55 15,12L12.6,12L11,11.999L11.438,10.724L11.646,10.116L12.938,6.346C12.978,6.238 13,6.121 13,6C13,5.448 12.552,5 12,5C11.553,5 11.174,5.293 11.046,5.698Z" />
++</vector>
+\ No newline at end of file
+diff --git a/lineage/res/res/values/config.xml b/lineage/res/res/values/config.xml
+index 8307509..8ac63af 100644
+--- a/lineage/res/res/values/config.xml
++++ b/lineage/res/res/values/config.xml
+@@ -82,6 +82,7 @@
+         <item>org.lineageos.platform.internal.display.LiveDisplayService</item>
+         <item>org.lineageos.platform.internal.LineageAudioService</item>
+         <item>org.lineageos.platform.internal.StyleInterfaceService</item>
++        <item>org.lineageos.platform.internal.TrustInterfaceService</item>
+     </string-array>
+ 
+     <!-- The LineageSystemServer class that is invoked from Android's SystemServer -->
+@@ -208,4 +209,8 @@
+           platform signatures, specifically for use on devices with a vendor partition. -->
+       <string-array name="config_vendorPlatformSignatures">
+       </string-array>
++
++      <!-- Indicate whether encryption causes significant performances loss.
++           This MUST NOT be set to true on devices produced in 2016 or later -->
++      <bool name="trust_legacy_encryption">false</bool>
+ </resources>
+diff --git a/lineage/res/res/values/strings.xml b/lineage/res/res/values/strings.xml
+index 43fd141..f44ed0c 100644
+--- a/lineage/res/res/values/strings.xml
++++ b/lineage/res/res/values/strings.xml
+@@ -176,4 +176,20 @@
+     <string name="accent_purple">Lavender</string>
+     <string name="accent_red">Tomato</string>
+     <string name="accent_yellow">Banana</string>
++
++    <!-- Trust interface -->
++    <!-- This string will be referenced from other apps when they're referring to the Trust interface.
++         Trust is a feature name, it's not suggested to translate this unless there are conflicts due
++         to a different meaning of the word "trust" in your language -->
++    <string name="trust_feature_name">Trust</string>
++    <string name="permlab_trustInterface">access Trust interface</string>
++    <string name="permdesc_trustInterface">Allows an app to display Trust warnings and suggestions</string>
++    <string name="trust_notification_channel">Trust alerts</string>
++    <string name="trust_notification_title_selinux">Trust \u2022 System security</string>
++    <string name="trust_notification_content_selinux">SELinux is not enforcing, your security has been weakened</string>
++    <string name="trust_notification_title_root">Trust \u2022 Root access</string>
++    <string name="trust_notification_content_root">An app is using the root privileges right now</string>
++    <string name="trust_notification_title_onboarding">Discover Trust</string>
++    <string name="trust_notification_content_onboarding">Get to know how to assure your device is safe</string>
++    <string name="trust_notification_action_later">Not now</string>
+ </resources>
+diff --git a/lineage/res/res/values/symbols.xml b/lineage/res/res/values/symbols.xml
+index 1bf265c..0ff8fcd 100644
+--- a/lineage/res/res/values/symbols.xml
++++ b/lineage/res/res/values/symbols.xml
+@@ -162,4 +162,17 @@
+     <java-symbol type="string" name="accent_yellow" />
+ 
+     <java-symbol type="array" name="config_vendorPlatformSignatures" />
++
++    <!-- Trust interface -->
++    <java-symbol type="bool" name="trust_legacy_encryption" />
++    <java-symbol type="drawable" name="ic_trust" />
++    <java-symbol type="string" name="trust_feature_name" />
++    <java-symbol type="string" name="trust_notification_channel" />
++    <java-symbol type="string" name="trust_notification_title_selinux" />
++    <java-symbol type="string" name="trust_notification_content_selinux" />
++    <java-symbol type="string" name="trust_notification_title_root" />
++    <java-symbol type="string" name="trust_notification_content_root" />
++    <java-symbol type="string" name="trust_notification_title_onboarding" />
++    <java-symbol type="string" name="trust_notification_content_onboarding" />
++    <java-symbol type="string" name="trust_notification_action_later" />
+ </resources>
+diff --git a/sdk/src/java/lineageos/app/LineageContextConstants.java b/sdk/src/java/lineageos/app/LineageContextConstants.java
+index 640e308..1dda79d 100644
+--- a/sdk/src/java/lineageos/app/LineageContextConstants.java
++++ b/sdk/src/java/lineageos/app/LineageContextConstants.java
+@@ -107,6 +107,17 @@ public final class LineageContextConstants {
+      */
+     public static final String LINEAGE_STYLE_INTERFACE = "lineagestyle";
+ 
++    /**
++     * Use with {@link android.content.Context#getSystemService} to retrieve a
++     * {@link lineageos.trust.TrustInterface} interact with system style.
++     *
++     * @see android.content.Context#getSystemService
++     * @see lineageos.trust.TrustInterface
++     *
++     * @hide
++     */
++    public static final String LINEAEGE_TRUST_INTERFACE = "lineagetrust";
++
+     /**
+      * Features supported by the Lineage SDK.
+      */
+@@ -166,5 +177,13 @@ public final class LineageContextConstants {
+          */
+         @SdkConstant(SdkConstant.SdkConstantType.FEATURE)
+         public static final String STYLES = "org.lineageos.style";
++
++        /**
++         * Feature for {@link PackageManager#getSystemAvailableFeatures} and
++         * {@link PackageManager#hasSystemFeature}: The device includes the lineage trust service
++         * utilized by the lineage sdk.
++         */
++        @SdkConstant(SdkConstant.SdkConstantType.FEATURE)
++        public static final String TRUST = "org.lineageos.trust";
+     }
+ }
+diff --git a/sdk/src/java/lineageos/providers/LineageSettings.java b/sdk/src/java/lineageos/providers/LineageSettings.java
+index 7a5feab..439a816 100644
+--- a/sdk/src/java/lineageos/providers/LineageSettings.java
++++ b/sdk/src/java/lineageos/providers/LineageSettings.java
+@@ -79,6 +79,16 @@ public final class LineageSettings {
+     public static final String ACTION_LIVEDISPLAY_SETTINGS =
+             "lineageos.settings.LIVEDISPLAY_SETTINGS";
+ 
++    /**
++     * Activity Action: Show Trust interface settings
++     * <p>
++     * Input: Nothing.
++     * <p>
++     * Output: Nothing.
++     */
++    public static final String ACTION_TRUST_INTERFACE =
++            "lineageos.settings.TRUST_INTERFACE";
++
+     // region Call Methods
+ 
+     /**
+@@ -1518,6 +1528,15 @@ public final class LineageSettings {
+         public static final Validator LIVE_DISPLAY_HINTED_VALIDATOR =
+                 new InclusiveIntegerRangeValidator(-3, 1);
+ 
++        /**
++         * Did we tell about the trust brand and interface?
++         * @hide
++         */
++        public static final String TRUST_INTERFACE_HINTED = "trust_interface_hinted";
++
++        /** @hide */
++        public static final Validator TRUST_INTERFACE_HINTED_VALIDATOR = sBooleanValidator;
++
+         /**
+          *  Enable statusbar double tap gesture on to put device to sleep
+          *  0 = 0ff, 1 = on
+@@ -2220,6 +2239,7 @@ public final class LineageSettings {
+             VALIDATORS.put(DISPLAY_COLOR_ENHANCE, DISPLAY_COLOR_ENHANCE_VALIDATOR);
+             VALIDATORS.put(DISPLAY_COLOR_ADJUSTMENT, DISPLAY_COLOR_ADJUSTMENT_VALIDATOR);
+             VALIDATORS.put(LIVE_DISPLAY_HINTED, LIVE_DISPLAY_HINTED_VALIDATOR);
++            VALIDATORS.put(TRUST_INTERFACE_HINTED, TRUST_INTERFACE_HINTED_VALIDATOR);
+             VALIDATORS.put(DOUBLE_TAP_SLEEP_GESTURE, DOUBLE_TAP_SLEEP_GESTURE_VALIDATOR);
+             VALIDATORS.put(STATUS_BAR_SHOW_WEATHER, STATUS_BAR_SHOW_WEATHER_VALIDATOR);
+             VALIDATORS.put(RECENTS_SHOW_SEARCH_BAR, RECENTS_SHOW_SEARCH_BAR_VALIDATOR);
+@@ -3007,6 +3027,16 @@ public final class LineageSettings {
+         /** @hide */
+         public static final Validator NETWORK_TRAFFIC_SHOW_UNITS_VALIDATOR = sBooleanValidator;
+ 
++        /**
++         * Enable displaying the Trust service's notifications
++         * 0 = 0ff, 1 = on
++         */
++        public static final String TRUST_NOTIFICATIONS = "trust_notifications";
++
++        /** @hide */
++        public static final Validator TRUST_NOTIFICATIONS_VALIDATOR =
++                sBooleanValidator;
++
+         // endregion
+ 
+         /**
+@@ -3116,6 +3146,7 @@ public final class LineageSettings {
+             VALIDATORS.put(NETWORK_TRAFFIC_AUTOHIDE, NETWORK_TRAFFIC_AUTOHIDE_VALIDATOR);
+             VALIDATORS.put(NETWORK_TRAFFIC_UNITS, NETWORK_TRAFFIC_UNITS_VALIDATOR);
+             VALIDATORS.put(NETWORK_TRAFFIC_SHOW_UNITS, NETWORK_TRAFFIC_SHOW_UNITS_VALIDATOR);
++            VALIDATORS.put(TRUST_NOTIFICATIONS, TRUST_NOTIFICATIONS_VALIDATOR);
+         }
+ 
+         /**
+diff --git a/sdk/src/java/lineageos/trust/ITrustInterface.aidl b/sdk/src/java/lineageos/trust/ITrustInterface.aidl
+new file mode 100644
+index 0000000..385d8e0
+--- /dev/null
++++ b/sdk/src/java/lineageos/trust/ITrustInterface.aidl
+@@ -0,0 +1,26 @@
++/*
++**
++** Copyright (C) 2018 The LineageOS Project
++**
++** Licensed under the Apache License, Version 2.0 (the "License");
++** you may not use this file except in compliance with the License.
++** You may obtain a copy of the License at
++**
++**     http://www.apache.org/licenses/LICENSE-2.0
++**
++** Unless required by applicable law or agreed to in writing, software
++** distributed under the License is distributed on an "AS IS" BASIS,
++** WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++** See the License for the specific language governing permissions and
++** limitations under the License.
++*/
++
++package lineageos.trust;
++
++/** {@hide} */
++interface ITrustInterface {
++
++    boolean postNotificationForFeature(int feature);
++    boolean removeNotificationForFeature(int feature);
++    int getLevelForFeature(int feature);
++}
+diff --git a/sdk/src/java/lineageos/trust/TrustInterface.java b/sdk/src/java/lineageos/trust/TrustInterface.java
+new file mode 100644
+index 0000000..a71bbc1
+--- /dev/null
++++ b/sdk/src/java/lineageos/trust/TrustInterface.java
+@@ -0,0 +1,218 @@
++/**
++ * Copyright (c) 2015, The LineageOS Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *     http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++package lineageos.trust;
++
++import android.content.Context;
++import android.os.IBinder;
++import android.os.RemoteException;
++import android.os.ServiceManager;
++import android.util.Log;
++
++import lineageos.app.LineageContextConstants;
++
++public class TrustInterface {
++    /**
++     * Allows an application to use the Trust interface to display trusted 
++     * security messages to the user.
++     * This is a system-only permission, user-installed apps cannot use it
++     */
++    public static final String TRUST_INTERFACE_PERMISSION = "lineageos.permission.TRUST_INTERFACE";
++
++    /**
++     * Unable to determine status, an error occured
++     *
++     * @see #getSELinuxStatus
++     * @see #getLevelForFeature
++     */
++    public static final int ERROR_UNDEFINED = -1;
++
++    /**
++     * Trust feature status: good. The feature is in a configuration
++     * that will help protect the user's data
++     *
++     * @see #getLevelForFeature
++     */
++    public static final int TRUST_FEATURE_LEVEL_GOOD = 0;
++
++    /**
++     * Trust feature status: poor. The feature is in a configuration
++     * that might be used to harm the user's data
++     *
++     * @see #getLevelForFeature
++     */
++    public static final int TRUST_FEATURE_LEVEL_POOR = 1;
++
++    /**
++     * Trust feature status: bad. The feature is in a configuration
++     * that is dangerous for the user's data
++     *
++     * @see #getLevelForFeature
++     */
++    public static final int TRUST_FEATURE_LEVEL_BAD = 2;
++
++    /**
++     * Trust feature indicator: SELinux status
++     *
++     * Possible status:
++     *    * {@link #TRUST_FEATURE_LEVEL_GOOD}: enforcing
++     *    * {@link #TRUST_FEATURE_LEVEL_BAD}: permissive / disabled
++     *
++     * @see #getLevelForFeature
++     */
++    public static final int TRUST_FEATURE_SELINUX = 0;
++
++    /**
++     * Trust feature indicator: Root access
++     *
++     * Possible status:
++     *    * {@link #TRUST_FEATURE_LEVEL_GOOD}: disabled
++     *    * {@link #TRUST_FEATURE_LEVEL_POOR}: ADB only
++     *    * {@link #TRUST_FEATURE_LEVEL_BAD}: apps and ADB
++     *
++     * @see #getLevelForFeature
++     */
++    public static final int TRUST_FEATURE_ROOT = 1;
++
++    /**
++     * Trust feature indicator: Platform Security patches
++     *
++     * Possible status:
++     *    * {@link #TRUST_FEATURE_LEVEL_GOOD}: less than 3 months old
++     *    * {@link #TRUST_FEATURE_LEVEL_POOR}: less than 9 months old
++     *    * {@link #TRUST_FEATURE_LEVEL_BAD}: older than 9 months
++     *
++     * @see #getLevelForFeature
++     */
++    public static final int TRUST_FEATURE_PLATFORM_SECURITY_PATCH = 2;
++
++    /**
++     * Trust feature indicator: Vendor Security patches
++     *
++     * Possible status:
++     *    * {@link #TRUST_FEATURE_LEVEL_GOOD}: less than 3 months old
++     *    * {@link #TRUST_FEATURE_LEVEL_POOR}: less than 9 months old
++     *    * {@link #TRUST_FEATURE_LEVEL_BAD}: older than 9 months
++     *
++     * @see #getLevelForFeature
++     */
++    public static final int TRUST_FEATURE_VENDOR_SECURITY_PATCH = 3;
++
++    /**
++     * Trust feature indicator: Encryption
++     *
++     * Some older devices have a significant performance loss when running
++     * encrypted, so the status will be different when Trust is executed on
++     *  these devices.
++     *
++     * Possible status for old device:
++     *    * {@link #TRUST_FEATURE_LEVEL_GOOD}: enabled
++     *    * {@link #TRUST_FEATURE_LEVEL_POOR}: disabled
++     *
++     * Possible status for recent device:
++     *    * {@link #TRUST_FEATURE_LEVEL_GOOD}: enabled
++     *    * {@link #TRUST_FEATURE_LEVEL_BAD}: disabled
++     *
++     * @see #getLevelForFeature
++     */
++    public static final int TRUST_FEATURE_ENCRYPTION = 4;
++
++    private static final String TAG = "TrustInterface";
++
++    private static ITrustInterface sService;
++    private static TrustInterface sInstance;
++
++    private Context mContext;
++
++    private TrustInterface(Context context) {
++        Context appContext = context.getApplicationContext();
++        mContext = appContext == null ? context : appContext;
++        sService = getService();
++        if (context.getPackageManager().hasSystemFeature(
++                LineageContextConstants.Features.TRUST) && sService == null) {
++            throw new RuntimeException("Unable to get TrustInterfaceService. The service" +
++                    " either crashed, was not started, or the interface has been called to early" +
++                    " in SystemServer init");
++                }
++    }
++
++    /**
++     * Get or create an instance of the {@link lineageos.trust.TrustInterface}
++     *
++     * @param context Used to get the service
++     * @return {@link TrustInterface}
++     */
++    public static TrustInterface getInstance(Context context) {
++        if (sInstance == null) {
++            sInstance = new TrustInterface(context);
++        }
++        return sInstance;
++    }
++
++    /** @hide **/
++    public static ITrustInterface getService() {
++        if (sService != null) {
++            return sService;
++        }
++        IBinder b = ServiceManager.getService(LineageContextConstants.LINEAEGE_TRUST_INTERFACE);
++        sService = ITrustInterface.Stub.asInterface(b);
++
++        if (b != null) {
++            sService = ITrustInterface.Stub.asInterface(b);
++            return sService;
++        } else {
++            Log.e(TAG, "null service. SAD!");
++            return null;
++        }
++    }
++
++    public boolean postNotificationForFeature(int feature) {
++        if (sService == null) {
++            return false;
++        }
++        try {
++            return sService.postNotificationForFeature(feature);
++        } catch (RemoteException e) {
++            Log.e(TAG, e.getLocalizedMessage(), e);
++        }
++        return false;
++    }
++
++    public boolean removeNotificationForFeature(int feature) {
++        if (sService == null) {
++            return false;
++        }
++        try {
++            return sService.removeNotificationForFeature(feature);
++        } catch (RemoteException e) {
++            Log.e(TAG, e.getLocalizedMessage(), e);
++        }
++        return false;
++    }
++
++    public int getLevelForFeature(int feature) {
++        if (sService == null) {
++            return ERROR_UNDEFINED;
++        }
++        try {
++            return sService.getLevelForFeature(feature);
++        } catch (RemoteException e) {
++            Log.e(TAG, e.getLocalizedMessage(), e);
++        }
++        return ERROR_UNDEFINED;
++    }
++}
++
+-- 
+2.15.1
+

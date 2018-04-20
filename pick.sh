@@ -241,17 +241,26 @@ function restore_snapshot()
                       rc=$?
                       if [ $rc -ne 0 ]; then
                              first=0
-                             echo  "  >> git am conflict, please resolv it, then press ENTER to continue,or press 's' skip it ..."
-                             while ! git log -100 | grep "Change-Id: $changeid" >/dev/null 2>/dev/null; do
-                                 [ $first -ne 0 ] && echo "conflicts not resolved,please fix it,then press ENTER to continue,or press 's' skip it ..."
-                                 first=1
-                                 ch=$(sed q </dev/tty)
-                                 if [ "$ch" = "s" ]; then
-                                    echo "skip it ..."
-                                    git am --skip
-                                    break
-                                  fi
-                             done
+                             resolved=0
+                             if grep -q "using previous resolution" $errfile; then
+                                 grep "using previous resolution" $errfile | sed -e "s/Resolved '\(.*\)' using previous resolution.*/\1/" | xargs git add -f
+                                 if git am --continue; then
+                                      resolved=1
+                                 fi
+                             fi
+                             if [ $resolved -eq 0 ]; then
+                                 echo  "  >> git am conflict, please resolv it, then press ENTER to continue,or press 's' skip it ..."
+                                 while ! git log -100 | grep "Change-Id: $changeid" >/dev/null 2>/dev/null; do
+                                     [ $first -ne 0 ] && echo "conflicts not resolved,please fix it,then press ENTER to continue,or press 's' skip it ..."
+                                     first=1
+                                     ch=$(sed q </dev/tty)
+                                     if [ "$ch" = "s" ]; then
+                                        echo "skip it ..."
+                                        git am --skip
+                                        break
+                                     fi
+                                 done
+                              fi
                       fi
                   else
                       echo "         skipping: $f ...(applied always)"
@@ -442,7 +451,6 @@ kpick 212945 # recovery: Fix loading time from /persist
 # build/make
 kpick 208567 # [DNM] updater: Don't check fingerprint for incrementals
 kpick 209323 # envsetup: stop jack server once build completed
-kpick 212953 # Add build.prop to incrementals too
 
 # device/lineage/sepolicy
 kpick 210014 # sepolicy: Label aw2013 HIDL light HAL
@@ -486,6 +494,9 @@ kpick 210313 # msm8974-common: Binderize them all
 # kernel/samsung/msm8974
 kpick 210665 # wacom: Follow-up from gestures patch
 kpick 210666 # wacom: Report touch when pen button is pressed if gestures are off
+
+# external/chromium-webview
+kpick 213143 # Update arm/arm64 webviews to Chromium 66.0.3359.117
 
 # external/toybox
 kpick 209019 # toybox: Use ISO C/clang compatible __typeof__ in minof/maxof macros
@@ -557,6 +568,7 @@ kpick 212615 # gts28vewifi: Add reminder to check that bootloader is unlocked
 # lineage-sdk
 kpick 206683 # lineage-sdk: Switch back to AOSP TwilightService
 kpick 212943 # lineage-sdk: Allow adjusting brightness of non-RGB LEDs
+kpick 213134 # sdk: Introduce Trust Interface
 
 # packages/apps/Camera2
 kpick 212625 # Camera2: Fix photo snap delay on front cam.
@@ -631,6 +643,11 @@ kpick 210664 # extract_utils: Support multidex
 kpick 210939 # envsetup: Fix lineageremote for caf projects
 kpick 212640 # repopick: Update SSH queries result to match HTTP queries
 kpick 213050 # Fix migration from pre-O for AndroidTV devices (2/2)
+
+#-----------------------
+# translations
+repopick 213165-213177
+
 ##################################
 
 [ $op_pick_remote_only -eq 0 ] && patch_local local
