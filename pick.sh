@@ -340,6 +340,7 @@ function kpick()
               project=$(cat $logfile | grep "Project path" | cut -d: -f2 | sed "s/ //g")
               if [ "$project" != "" -a -d $topdir/$project ]; then
                     if grep -q "using previous resolution" $errfile; then
+                       echo "-----------"
                        cd $project
                        grep "using previous resolution" $errfile | sed -e "s/Resolved '\(.*\)' using previous resolution.*/\1/" \
                            | xargs git add -f
@@ -349,6 +350,7 @@ function kpick()
                           break
                        fi
                        cd $topdir
+                       echo "-----------"
                     fi
               fi
               echo  "  >> pick changes conflict, please resolv it, then press ENTER to continue, or press 's' skip it ..."
@@ -452,10 +454,14 @@ kpick 212945 # recovery: Fix loading time from /persist
 kpick 208567 # [DNM] updater: Don't check fingerprint for incrementals
 kpick 209323 # envsetup: stop jack server once build completed
 
+# build/soong
+kpick 213188 # soong: Fix missing print vars for lineage features
+
 # device/lineage/sepolicy
 kpick 210014 # sepolicy: Label aw2013 HIDL light HAL
 kpick 207610 # sepolicy: Add rules for LiveDisplay HIDL HAL
 kpick 212622 # Remove duplicated genfscon
+kpick 212763 # sepolicy: introduce Trust interface
 kpick 212836 # Revert "sepolicy: suppress denial logspam"
 kpick 212946 # Remove adb.secure recovery property context
 kpick 212947 # Allow recovery write to sysfs_graphics
@@ -481,6 +487,7 @@ kpick 211273 # qcom/sepol: Fix timeservice app context
 kpick 212643 # qcom/sepol: Allow mm-qcamerad to use binder even in vendor
 kpick 212957 # Squashed merge of LA.UM.6.4.r1-07600-8x98.0
 kpick 212958 # Squashed merge of LA.UM.6.6.r1-07200-89xx.0
+kpick 213217 # legacy: Consistent indentation
 
 # device/samsung/klte-common
 kpick 212647 # klte-common: Use passthrough manifest for all NFC chips
@@ -496,12 +503,14 @@ kpick 210665 # wacom: Follow-up from gestures patch
 kpick 210666 # wacom: Report touch when pen button is pressed if gestures are off
 
 # external/chromium-webview
+kpick 213142 # Update README and patches to Chromium 66.0.3359.117
 kpick 213143 # Update arm/arm64 webviews to Chromium 66.0.3359.117
 
 # external/toybox
 kpick 209019 # toybox: Use ISO C/clang compatible __typeof__ in minof/maxof macros
 
 # frameworks/av
+kpick 206069 # stagefright: add changes related to high-framerates in CameraSource
 kpick 206427 # camera/media: Support legacy HALv1 camera in mediaserver
 kpick 206430 # CameraService: Fix deadlock in binder death cleanup.
 kpick 206431 # libstagefright: Free buffers on observer died
@@ -511,6 +520,16 @@ kpick 206434 # media: fix infinite wait at source for HAL1 based recording
 kpick 206435 # libstagefright: use 64-bit usage for native_window_set_usage
 kpick 206968 # libstagefright: encoder must exist when source starting
 kpick 206969 # Camera: Add support for preview frame fd
+#kpick 209104 # Stagefright: Allow setting high-framerates in CameraSource    (conflict with 206069)
+kpick 209904 # Camera2Client: Add support for QTI parameters in Camera2Client
+kpick 209905 # Camera2Client: Add support for QTI specific ZSL feature
+kpick 209906 # Camera2Client: Add support for QTI specific AE bracketing feature
+kpick 209907 # Camera2Client: Add support for QTI specific HFR feature
+kpick 209908 # Camera2Client: Add support for non-HDR frame along with HDR
+kpick 209909 # Camera2Client: Add support for enabling QTI DIS feature
+kpick 209910 # Camera2Client: Add support for enabling QTI Video/Sensor HDR feature
+kpick 209911 # Camera2Client: Add support for QTI specific AutoHDR and Histogram feature
+kpick 209912 # Camera: Skip stream size check for whitelisted apps
 kpick 213062 # Camera: check metadata type before releasing frame
 
 # frameworks/base
@@ -522,6 +541,7 @@ kpick 206940 # Avoid crash when the actionbar is disabled in settings
 kpick 209929 # SystemUI: fix black scrim when turning screen on from AOD
 kpick 213038 # Fix migration from pre-O for AndroidTV devices (1/2)
 kpick 213128 # SystemUI: Fix navigation bar arrows visibility handling
+kpick 213133 # base: introduce trust interface
 
 # frameworks/native
 
@@ -564,6 +584,7 @@ kpick 210302 # power: Consistent skipping of non perf profile hints
 # lineage/wiki
 kpick 212483 # This command line is more universal, it works too in foreign langages
 kpick 212615 # gts28vewifi: Add reminder to check that bootloader is unlocked
+kpick 213146 # wiki: recovery_install_heimdall: Don't make the users flash TWRP over boot partition
 
 # lineage-sdk
 kpick 206683 # lineage-sdk: Switch back to AOSP TwilightService
@@ -587,17 +608,29 @@ kpick 213051 # Deskclock: set targetSdk to 27
 kpick 211302 # Eleven: Catch unsupported bitmap exception
 
 # packages/apps/Gallery2
+kpick 213181 # Fix null pointer when copy representantion
+kpick 213182 # Fix can't enable speaker with bluetooth headset
+kpick 213183 # Fix Time bar don't update replay after trim
+
+# packages/apps/Jelly
+#kpick 213213 # Jelly: Also propagate custom headers to secondary frames
 
 # packages/apps/LineageParts
 kpick 206402 # SystemUI: Forward-port notification counters
 kpick 207463 # LineageParts: Fix removing LED brightness settings
 kpick 212918 # LineageParts: Fix loading default colors for non-RGB lights
 kpick 212942 # LineageParts: Allow adjusting brightness of non-RGB LEDs
-kpick 212964 # Parts: Fix notification light app hint
+kpick 213135 # LineageParts: introduce Trust interface
 
 # packages/apps/Settings
 kpick 206700 # Settings: per-app cellular data and wifi restrictions
 kpick 209208 # Settings: Hide Night Mode suggestion if LiveDisplay feature is present
+kpick 212764 # Settings: add Trust interface hook
+kpick 212765 # Settings: show Trust branding in confirm_lock_password UI
+
+# packages/apps/Snap
+kpick 213179 # Add ui toast for bokeh
+kpick 213180 # Fix snapshot failed with logical camera
 
 # packages/services/Telephony
 # kpick 211270 # Telephony: add external network selection activity
@@ -609,6 +642,9 @@ kpick 212751 # config: enable LEGACY_ICON_TREATMENT
 kpick 212752 # IconCache: fix crash if icon is an AdaptiveIconDrawable
 kpick 212761 # Trebuchet: make forced adaptive icons optional
 kpick 212762 # Trebuchet: update build.gradle
+
+# packages/apps/Updater
+kpick 213136 # Updater: show Trust branding when the update has been verified
 
 # packages/providers/ContactsProvider
 kpick 209030 # ContactsProvider: Prevent device contact being deleted.
@@ -625,9 +661,16 @@ kpick 211210 # ext4: Add /data/stache/ to encryption exclusion list
 # system/netd
 kpick 208353 # NetD : Allow passing in interface names for wifi/data app restriction
 
+# system/nfc
+kpick 213184 # Fix GKI task release twice issue
+kpick 213185 # Fix TASKPTR's definition to match actual function signatures
+kpick 213186 # Correct the parameter length for core_initialized()
+kpick 213187 # Memory leak fix in NFA_SetRfDiscoveryDuration()
+
 # system/qcom
 
 # system/sepolicy
+kpick 206136 # sepolicy: allow update_engine to bypass neverallows for backuptool
 kpick 206428 # Add rules required for TARGET_HAS_LEGACY_CAMERA_HAL1
 kpick 206429 # Adapt add_service uses for TARGET_HAS_LEGACY_CAMERA_HAL1
 kpick 212806 # system_server: allow writing to timerslack_ns
@@ -638,11 +681,15 @@ kpick 212857 # Suppress denials for non-API access  (must before 212821)
 kpick 212821 # priv_app: suppress denials for /proc/stat
 
 # vendor/lineage
+kpick 206138 # vendor: add custom backuptools and postinstall script for A/B OTAs
+kpick 206139 # backuptool: introduce addon.d script versioning
 kpick 206426 # soong_config: Add TARGET_HAS_LEGACY_CAMERA_HAL1 variable
 kpick 210664 # extract_utils: Support multidex
 kpick 210939 # envsetup: Fix lineageremote for caf projects
 kpick 212640 # repopick: Update SSH queries result to match HTTP queries
+kpick 212766 # vendor: introduce Trust interface
 kpick 213050 # Fix migration from pre-O for AndroidTV devices (2/2)
+kpick 213117 # lineage: qcom: Enable media extensions for all qcom devices
 
 #-----------------------
 # translations
