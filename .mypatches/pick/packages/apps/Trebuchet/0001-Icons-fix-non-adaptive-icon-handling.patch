@@ -1,3 +1,208 @@
-version https://git-lfs.github.com/spec/v1
-oid sha256:3822b3f42506ee5c52ff156957de321f14628d10b67b6b204e7a4a8f0d4c6c5b
-size 9505
+From 4b974c1211fd0b7d3c4166b0cf6d915c3455bd01 Mon Sep 17 00:00:00 2001
+From: Alexander Martinz <amartinz@shiftphones.com>
+Date: Mon, 9 Apr 2018 17:52:25 +0200
+Subject: [PATCH 1/7] Icons: fix non-adaptive icon handling
+
+The icon pack support broke this feature, fix it up to make it work again.
+
+Change-Id: I22e1ba953fc8cabb0e7633a3c5cf3ce5c07cf762
+Signed-off-by: Alexander Martinz <amartinz@shiftphones.com>
+---
+ src/com/android/launcher3/IconCache.java      |  2 +-
+ .../launcher3/graphics/LauncherIcons.java     | 22 ++++++++++-------
+ .../launcher3/icons/CustomIconsProvider.java  |  7 +-----
+ .../android/launcher3/icons/IconsHandler.java | 24 ++++++++++---------
+ 4 files changed, 29 insertions(+), 26 deletions(-)
+
+diff --git a/src/com/android/launcher3/IconCache.java b/src/com/android/launcher3/IconCache.java
+index cb58766bf..f1f495047 100644
+--- a/src/com/android/launcher3/IconCache.java
++++ b/src/com/android/launcher3/IconCache.java
+@@ -814,7 +814,7 @@ public class IconCache {
+     }
+ 
+     private static final class IconDB extends SQLiteCacheHelper {
+-        private final static int DB_VERSION = 17;
++        private final static int DB_VERSION = 18;
+ 
+         private final static int RELEASE_VERSION = DB_VERSION +
+                 (FeatureFlags.LAUNCHER3_DISABLE_ICON_NORMALIZATION ? 0 : 1);
+diff --git a/src/com/android/launcher3/graphics/LauncherIcons.java b/src/com/android/launcher3/graphics/LauncherIcons.java
+index 45b64ddc6..a1884a798 100644
+--- a/src/com/android/launcher3/graphics/LauncherIcons.java
++++ b/src/com/android/launcher3/graphics/LauncherIcons.java
+@@ -20,7 +20,6 @@ import android.content.ComponentName;
+ import android.content.Context;
+ import android.content.Intent;
+ import android.content.Intent.ShortcutIconResource;
+-import android.content.SharedPreferences;
+ import android.content.pm.PackageManager;
+ import android.content.res.Resources;
+ import android.graphics.Bitmap;
+@@ -43,7 +42,6 @@ import com.android.launcher3.FastBitmapDrawable;
+ import com.android.launcher3.IconCache;
+ import com.android.launcher3.LauncherAppState;
+ import com.android.launcher3.R;
+-import com.android.launcher3.SettingsActivity;
+ import com.android.launcher3.Utilities;
+ import com.android.launcher3.config.FeatureFlags;
+ import com.android.launcher3.model.PackageItemInfo;
+@@ -76,7 +74,8 @@ public class LauncherIcons {
+             if (resources != null) {
+                 final int id = resources.getIdentifier(iconRes.resourceName, null, null);
+                 return createIconBitmap(resources.getDrawableForDensity(
+-                        id, LauncherAppState.getIDP(context).fillResIconDpi), context);
++                        id, LauncherAppState.getIDP(context).fillResIconDpi, context.getTheme()),
++                        context);
+             }
+         } catch (Exception e) {
+             // Icon not found.
+@@ -113,8 +112,7 @@ public class LauncherIcons {
+                         context.getDrawable(R.drawable.adaptive_icon_drawable_wrapper).mutate();
+                 dr.setBounds(0, 0, 1, 1);
+                 scale = normalizer.getScale(icon, null, dr.getIconMask(), outShape);
+-                if (FeatureFlags.LEGACY_ICON_TREATMENT &&
+-                        !outShape[0]){
++                if (FeatureFlags.LEGACY_ICON_TREATMENT && !outShape[0]) {
+                     Drawable wrappedIcon = wrapToAdaptiveIconDrawable(context, icon, scale);
+                     if (wrappedIcon != icon) {
+                         icon = wrappedIcon;
+@@ -167,8 +165,7 @@ public class LauncherIcons {
+                         context.getDrawable(R.drawable.adaptive_icon_drawable_wrapper).mutate();
+                 dr.setBounds(0, 0, 1, 1);
+                 scale = normalizer.getScale(icon, iconBounds, dr.getIconMask(), outShape);
+-                if (Utilities.ATLEAST_OREO && FeatureFlags.LEGACY_ICON_TREATMENT &&
+-                        !outShape[0]) {
++                if (FeatureFlags.LEGACY_ICON_TREATMENT && !outShape[0]) {
+                     Drawable wrappedIcon = wrapToAdaptiveIconDrawable(context, icon, scale);
+                     if (wrappedIcon != icon) {
+                         icon = wrappedIcon;
+@@ -216,6 +213,15 @@ public class LauncherIcons {
+      */
+     public static Bitmap createIconBitmap(Drawable icon, Context context) {
+         float scale = 1f;
++
++        if (FeatureFlags.LEGACY_ICON_TREATMENT && Utilities.ATLEAST_OREO &&
++                !(icon instanceof AdaptiveIconDrawable)) {
++            Drawable wrappedIcon = wrapToAdaptiveIconDrawable(context, icon, scale);
++            if (wrappedIcon != icon) {
++                icon = wrappedIcon;
++            }
++        }
++
+         if (FeatureFlags.ADAPTIVE_ICON_SHADOW && Utilities.ATLEAST_OREO &&
+                 icon instanceof AdaptiveIconDrawable) {
+             scale = ShadowGenerator.getScaleForBounds(new RectF(0, 0, 0, 0));
+@@ -298,7 +304,7 @@ public class LauncherIcons {
+      * shrink the legacy icon and set it as foreground. Use color drawable as background to
+      * create AdaptiveIconDrawable.
+      */
+-    static Drawable wrapToAdaptiveIconDrawable(Context context, Drawable drawable, float scale) {
++    public static Drawable wrapToAdaptiveIconDrawable(Context context, Drawable drawable, float scale) {
+         if (!(FeatureFlags.LEGACY_ICON_TREATMENT && Utilities.ATLEAST_OREO)) {
+             return drawable;
+         }
+diff --git a/src/com/android/launcher3/icons/CustomIconsProvider.java b/src/com/android/launcher3/icons/CustomIconsProvider.java
+index ed63c076e..1490fd9d7 100644
+--- a/src/com/android/launcher3/icons/CustomIconsProvider.java
++++ b/src/com/android/launcher3/icons/CustomIconsProvider.java
+@@ -38,12 +38,7 @@ public class CustomIconsProvider extends IconProvider {
+ 
+     @Override
+     public Drawable getIcon(LauncherActivityInfo info, int iconDpi, boolean flattenDrawable) {
+-        // if we are not using any icon pack, load application icon directly
+-        if (Utilities.ATLEAST_OREO && !Utilities.isUsingIconPack(mContext)) {
+-            return mContext.getPackageManager().getApplicationIcon(info.getApplicationInfo());
+-        }
+-
+-        Bitmap bm = mHandler.getDrawableIconForPackage(info.getComponentName());
++        final Bitmap bm = mHandler.getDrawableIconForPackage(info.getComponentName());
+         if (bm == null) {
+             return info.getIcon(iconDpi);
+         }
+diff --git a/src/com/android/launcher3/icons/IconsHandler.java b/src/com/android/launcher3/icons/IconsHandler.java
+index 914d357fc..04c2dccc4 100644
+--- a/src/com/android/launcher3/icons/IconsHandler.java
++++ b/src/com/android/launcher3/icons/IconsHandler.java
+@@ -34,6 +34,7 @@ import android.graphics.Canvas;
+ import android.graphics.Paint;
+ import android.graphics.PorterDuff;
+ import android.graphics.PorterDuffXfermode;
++import android.graphics.drawable.AdaptiveIconDrawable;
+ import android.graphics.drawable.BitmapDrawable;
+ import android.graphics.drawable.Drawable;
+ import android.os.AsyncTask;
+@@ -281,11 +282,13 @@ public class IconsHandler {
+         if (packageName == null) {
+             packageName = mIconPackPackageName;
+         }
+-        int id = getIdentifier(packageName, drawableName, currentIconPack);
+ 
+-        return id > 0 ?
+-                (!currentIconPack ? mOriginalIconPackRes : mCurrentIconPackRes).getDrawable(id) :
+-                null;
++        final int id = getIdentifier(packageName, drawableName, currentIconPack);
++        if (id <= 0) {
++            return null;
++        }
++
++        return (!currentIconPack ? mOriginalIconPackRes : mCurrentIconPackRes).getDrawable(id);
+     }
+ 
+     private Bitmap loadBitmap(String drawableName) {
+@@ -296,7 +299,7 @@ public class IconsHandler {
+         return null;
+     }
+ 
+-    private Bitmap getDefaultAppDrawable(ComponentName componentName) {
++    private Bitmap getDefaultAppDrawable(ComponentName componentName, boolean isDefaultIconPack) {
+         Drawable drawable = null;
+         try {
+             drawable = mPackageManager.getActivityIcon(componentName);
+@@ -306,7 +309,8 @@ public class IconsHandler {
+         if (drawable == null) {
+             return null;
+         }
+-        if (drawable instanceof BitmapDrawable) {
++
++        if (!isDefaultIconPack && drawable instanceof BitmapDrawable) {
+             return generateBitmap(((BitmapDrawable) drawable).getBitmap());
+         }
+ 
+@@ -350,7 +354,7 @@ public class IconsHandler {
+ 
+     public Bitmap getDrawableIconForPackage(ComponentName componentName) {
+         if (isDefaultIconPack()) {
+-            return getDefaultAppDrawable(componentName);
++            return getDefaultAppDrawable(componentName, true);
+         }
+ 
+         // sth FUKY here
+@@ -360,8 +364,6 @@ public class IconsHandler {
+         if (drawable != null && drawable instanceof BitmapDrawable) {
+             Bitmap bitmap = ((BitmapDrawable) drawable).getBitmap();
+             cacheStoreDrawable(componentName.toString(), bitmap);
+-            if (bitmap == null) {
+-            }
+             return bitmap;
+         }
+ 
+@@ -370,7 +372,7 @@ public class IconsHandler {
+             return cachedIcon;
+         }
+ 
+-        return getDefaultAppDrawable(componentName);
++        return getDefaultAppDrawable(componentName, false);
+     }
+ 
+     private Bitmap generateBitmap(Bitmap defaultBitmap) {
+@@ -617,4 +619,4 @@ public class IconsHandler {
+             LauncherAppState.getInstance(mContext).getModel().forceReload();
+         }
+     }
+-}
+\ No newline at end of file
++}
+-- 
+2.17.0
+

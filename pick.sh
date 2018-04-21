@@ -5,6 +5,7 @@ op_patch_local=0
 op_project_snapshot=0
 op_restore_snapshot=0
 op_pick_remote_only=0
+op_snap_project=""
 op_patches_dir=""
 default_remote="github"
 
@@ -336,11 +337,12 @@ function kpick()
               fi
           fi
           if grep -q "conflicts" $errfile; then
+              echo "!!!!!!!!!!!!!"
               cat $errfile
               project=$(cat $logfile | grep "Project path" | cut -d: -f2 | sed "s/ //g")
               if [ "$project" != "" -a -d $topdir/$project ]; then
                     if grep -q "using previous resolution" $errfile; then
-                       echo "-----------"
+                       echo "------------"
                        cd $project
                        grep "using previous resolution" $errfile | sed -e "s/Resolved '\(.*\)' using previous resolution.*/\1/" \
                            | xargs git add -f
@@ -350,7 +352,7 @@ function kpick()
                           break
                        fi
                        cd $topdir
-                       echo "-----------"
+                       echo "------------"
                     fi
               fi
               echo  "  >> pick changes conflict, please resolv it, then press ENTER to continue, or press 's' skip it ..."
@@ -408,8 +410,7 @@ for op in $*; do
     elif [ $op_patch_local -eq 1 ]; then
             op_patches_dir="$op"
     elif [ $op_project_snapshot -eq 1 -a  -d "$(gettop)/$op" ]; then
-         projects_snapshot $op
-         exit $?
+         op_snap_project=$op
     else
          echo "kpick $op"
          kpick $op
@@ -418,7 +419,7 @@ done
 
 if [ $# -ge 1 ]; then
    if [ $op_project_snapshot -eq 1 ]; then
-         projects_snapshot
+         projects_snapshot $op_snap_project
          exit $?
    fi
    if [ $op_reset_projects -eq 1 ]; then
@@ -444,9 +445,7 @@ kpick 212920 # libc: Mark libstdc++ as vendor available
 
 # bootable/recovery
 kpick 211098 # recovery/ui: Hide emulated storage for encrypted devices
-kpick 212711 # Revert "updater: Fix and improve allowing devices to suppress BLKDISCARD"
-kpick 212944 # recovery: Don't try to set ro.adb.secure
-kpick 212945 # recovery: Fix loading time from /persist
+kpick 213265 # recovery: Do not load time from /persist
 
 # build
 
@@ -467,31 +466,13 @@ kpick 212946 # Remove adb.secure recovery property context
 kpick 212947 # Allow recovery write to sysfs_graphics
 
 # device/qcom/sepolicy
-kpick 209960 # sepolicy: rules to allow camera daemon access to app buffer
-kpick 209961 # sepolicy : add secontext for eMMC blocks
-kpick 209962 # sepolicy: Ignore more hal_memtrack denials
-kpick 209963 # hal_gnss_default: Do not log udp socket failures
-#kpick 209964 # legacy: Allow qcom power HAL to interact with perfd
-kpick 209965 # legacy: Allow perfd write to sysfs_kgsl
-kpick 209966 # legacy: Address msm8916 perfd denials
-kpick 209967 # legacy: Allow bluetooth_loader read persist
-kpick 209968 # legacy: Address binderized hwcomposer denial
-kpick 210018 # legacy: Allow hal_graphics_allocator_default access sysfs_graphics
-kpick 210019 # legacy: Add debugfs rules for rmt_storage
-kpick 210020 # legacy: Allow thermal-engine to read sysfs_spmi_dev
-kpick 210021 # legacy: Address mm-pp-daemon denials
-kpick 210022 # legacy: Address perfd denials
-kpick 210023 # legacy: allow graphics composer to set postprocessing props
 kpick 210024 # legacy: allow hal_camera_default to connect to camera socket
 kpick 211273 # qcom/sepol: Fix timeservice app context
 kpick 212643 # qcom/sepol: Allow mm-qcamerad to use binder even in vendor
-kpick 212957 # Squashed merge of LA.UM.6.4.r1-07600-8x98.0
-kpick 212958 # Squashed merge of LA.UM.6.6.r1-07200-89xx.0
-kpick 213217 # legacy: Consistent indentation
 
 # device/samsung/klte-common
-kpick 212647 # klte-common: Use passthrough manifest for all NFC chips
 #kpick 212648 # klte-common: Enable AOD
+#kpick 213270 # klte-common: Stop absuing global contexts for fingerprint
 
 # device/samsung/kltechnduo
 
@@ -503,8 +484,6 @@ kpick 210665 # wacom: Follow-up from gestures patch
 kpick 210666 # wacom: Report touch when pen button is pressed if gestures are off
 
 # external/chromium-webview
-kpick 213142 # Update README and patches to Chromium 66.0.3359.117
-kpick 213143 # Update arm/arm64 webviews to Chromium 66.0.3359.117
 
 # external/toybox
 kpick 209019 # toybox: Use ISO C/clang compatible __typeof__ in minof/maxof macros
@@ -541,9 +520,11 @@ kpick 206940 # Avoid crash when the actionbar is disabled in settings
 kpick 209929 # SystemUI: fix black scrim when turning screen on from AOD
 kpick 213038 # Fix migration from pre-O for AndroidTV devices (1/2)
 kpick 213128 # SystemUI: Fix navigation bar arrows visibility handling
-kpick 213133 # base: introduce trust interface
+#kpick 213133 # base: introduce trust interface
 
 # frameworks/native
+kpick 213271 # Triple the available egl function pointers available to a process for certain Nvidia devices
+kpick 213272 # Fix eglMakeCurrent crash when in opengl contexts
 
 # frameworks/opt/telephony
 #kpick 211280 # telephony: Respect user nw mode, handle DSDS non-multi-rat
@@ -589,7 +570,7 @@ kpick 213146 # wiki: recovery_install_heimdall: Don't make the users flash TWRP 
 # lineage-sdk
 kpick 206683 # lineage-sdk: Switch back to AOSP TwilightService
 kpick 212943 # lineage-sdk: Allow adjusting brightness of non-RGB LEDs
-kpick 213134 # sdk: Introduce Trust Interface
+#kpick 213134 # sdk: Introduce Trust Interface
 
 # packages/apps/Camera2
 kpick 212625 # Camera2: Fix photo snap delay on front cam.
@@ -625,8 +606,8 @@ kpick 213135 # LineageParts: introduce Trust interface
 # packages/apps/Settings
 kpick 206700 # Settings: per-app cellular data and wifi restrictions
 kpick 209208 # Settings: Hide Night Mode suggestion if LiveDisplay feature is present
-kpick 212764 # Settings: add Trust interface hook
-kpick 212765 # Settings: show Trust branding in confirm_lock_password UI
+#kpick 212764 # Settings: add Trust interface hook
+#kpick 212765 # Settings: show Trust branding in confirm_lock_password UI
 
 # packages/apps/Snap
 kpick 213179 # Add ui toast for bokeh
@@ -642,6 +623,7 @@ kpick 212751 # config: enable LEGACY_ICON_TREATMENT
 kpick 212752 # IconCache: fix crash if icon is an AdaptiveIconDrawable
 kpick 212761 # Trebuchet: make forced adaptive icons optional
 kpick 212762 # Trebuchet: update build.gradle
+kpick 213263 # PredictiveAppsProvider: fix null pointer exception
 
 # packages/apps/Updater
 kpick 213136 # Updater: show Trust branding when the update has been verified
@@ -693,7 +675,6 @@ kpick 213117 # lineage: qcom: Enable media extensions for all qcom devices
 
 #-----------------------
 # translations
-repopick 213165-213177
 
 ##################################
 
