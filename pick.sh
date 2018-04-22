@@ -460,8 +460,6 @@ kpick 213188 # soong: Fix missing print vars for lineage features
 kpick 210014 # sepolicy: Label aw2013 HIDL light HAL
 #kpick 212763 # sepolicy: introduce Trust interface
 kpick 212836 # Revert "sepolicy: suppress denial logspam"
-kpick 212946 # Remove adb.secure recovery property context
-kpick 212947 # Allow recovery write to sysfs_graphics
 
 # device/qcom/sepolicy
 kpick 210024 # legacy: allow hal_camera_default to connect to camera socket
@@ -522,7 +520,7 @@ kpick 213128 # SystemUI: Fix navigation bar arrows visibility handling
 #kpick 213133 # base: introduce trust interface
 
 # frameworks/native
-kpick 213271 # Triple the available egl function pointers available to a process for certain Nvidia devices
+#kpick 213271 # Triple the available egl function pointers available to a process for certain Nvidia devices
 kpick 213272 # Fix eglMakeCurrent crash when in opengl contexts
 
 # frameworks/opt/telephony
@@ -551,8 +549,6 @@ kpick 209093 # msm8974: hwc: Set ioprio for vsync thread
 # hardware/qcom/display-caf/msm8974
 
 # hardware/qcom/power
-kpick 210269 # power: Compile with -Wall -Wextra -Werror
-kpick 210302 # power: Consistent skipping of non perf profile hints
 
 # hardware/samsung
 
@@ -566,8 +562,8 @@ kpick 213313 # wiki: Add chiron & sagit
 
 # lineage-sdk
 kpick 206683 # lineage-sdk: Switch back to AOSP TwilightService
-kpick 212943 # lineage-sdk: Allow adjusting brightness of non-RGB LEDs
 #kpick 213134 # sdk: Introduce Trust Interface
+kpick 213367 # NetworkTraffic: Include tethering traffic statistics
 
 # packages/apps/Camera2
 kpick 212625 # Camera2: Fix photo snap delay on front cam.
@@ -586,18 +582,12 @@ kpick 213051 # Deskclock: set targetSdk to 27
 kpick 211302 # Eleven: Catch unsupported bitmap exception
 
 # packages/apps/Gallery2
-kpick 213181 # Fix null pointer when copy representantion
-kpick 213182 # Fix can't enable speaker with bluetooth headset
-kpick 213183 # Fix Time bar don't update replay after trim
 
 # packages/apps/Jelly
 #kpick 213213 # Jelly: Also propagate custom headers to secondary frames
 
 # packages/apps/LineageParts
 kpick 206402 # SystemUI: Forward-port notification counters
-kpick 207463 # LineageParts: Fix removing LED brightness settings
-kpick 212918 # LineageParts: Fix loading default colors for non-RGB lights
-kpick 212942 # LineageParts: Allow adjusting brightness of non-RGB LEDs
 #kpick 213135 # LineageParts: introduce Trust interface
 
 # packages/apps/Settings
@@ -607,8 +597,6 @@ kpick 209208 # Settings: Hide Night Mode suggestion if LiveDisplay feature is pr
 #kpick 212765 # Settings: show Trust branding in confirm_lock_password UI
 
 # packages/apps/Snap
-kpick 213179 # Add ui toast for bokeh
-kpick 213180 # Fix snapshot failed with logical camera
 
 # packages/services/Telephony
 # kpick 211270 # Telephony: add external network selection activity
@@ -631,7 +619,6 @@ kpick 209030 # ContactsProvider: Prevent device contact being deleted.
 # system/core
 kpick 209385 # init: optimize shutdown time
 kpick 210316 # init: Don't run update_sys_usb_config if /data isn't mounted
-kpick 212626 # Revert "logd: add "+passcred" for logdw socket"
 kpick 212642 # init: do not load persistent properties from temporary /data
 
 # system/extras
@@ -664,11 +651,11 @@ kpick 206138 # vendor: add custom backuptools and postinstall script for A/B OTA
 kpick 206139 # backuptool: introduce addon.d script versioning
 kpick 206426 # soong_config: Add TARGET_HAS_LEGACY_CAMERA_HAL1 variable
 kpick 210664 # extract_utils: Support multidex
-kpick 210939 # envsetup: Fix lineageremote for caf projects
 kpick 212640 # repopick: Update SSH queries result to match HTTP queries
 kpick 212766 # vendor: introduce Trust interface
 kpick 213050 # Fix migration from pre-O for AndroidTV devices (2/2)
 kpick 213117 # lineage: qcom: Enable media extensions for all qcom devices
+kpick 213340 # lineage: Build LiveDisplay java implementation globally
 
 #-----------------------
 # translations
