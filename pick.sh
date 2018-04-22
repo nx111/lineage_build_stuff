@@ -458,9 +458,7 @@ kpick 213188 # soong: Fix missing print vars for lineage features
 
 # device/lineage/sepolicy
 kpick 210014 # sepolicy: Label aw2013 HIDL light HAL
-kpick 207610 # sepolicy: Add rules for LiveDisplay HIDL HAL
-kpick 212622 # Remove duplicated genfscon
-kpick 212763 # sepolicy: introduce Trust interface
+#kpick 212763 # sepolicy: introduce Trust interface
 kpick 212836 # Revert "sepolicy: suppress denial logspam"
 kpick 212946 # Remove adb.secure recovery property context
 kpick 212947 # Allow recovery write to sysfs_graphics
@@ -469,10 +467,12 @@ kpick 212947 # Allow recovery write to sysfs_graphics
 kpick 210024 # legacy: allow hal_camera_default to connect to camera socket
 kpick 211273 # qcom/sepol: Fix timeservice app context
 kpick 212643 # qcom/sepol: Allow mm-qcamerad to use binder even in vendor
+kpick 213309 # sepolicy: Remove leftover folders
+kpick 213310 # Escape '.' character
 
 # device/samsung/klte-common
 #kpick 212648 # klte-common: Enable AOD
-#kpick 213270 # klte-common: Stop absuing global contexts for fingerprint
+kpick 213270 # klte-common: Stop absuing global contexts for fingerprint
 
 # device/samsung/kltechnduo
 
@@ -491,7 +491,6 @@ kpick 209019 # toybox: Use ISO C/clang compatible __typeof__ in minof/maxof macr
 # frameworks/av
 kpick 206069 # stagefright: add changes related to high-framerates in CameraSource
 kpick 206427 # camera/media: Support legacy HALv1 camera in mediaserver
-kpick 206430 # CameraService: Fix deadlock in binder death cleanup.
 kpick 206431 # libstagefright: Free buffers on observer died
 kpick 206432 # Camera: fix use after disconnect error
 kpick 206433 # stagefright: ACodec: Resolve empty vendor parameters usage
@@ -540,12 +539,9 @@ kpick 212922 # wlan:bcmdhd: fixup build errors when building the library under v
 kpick 206140 # gps.default.so: fix crash on access to unset AGpsRilCallbacks::request_refloc
 
 # hardware/lineage/interfaces
-kpick 206443 # lineage/interfaces: Add binderized LiveDisplay HAL
-kpick 207411 # lineage/interfaces: Add IColor SDM backend implementation
 kpick 210009 # lineage/interfaces: Add aw2013 lights HIDL HAL implementation
 
 # hardware/lineage/lineagehw
-kpick 207412 # lineagehw: Use HIDL for livedisplay vendor impl
 
 # hardware/qcom/bt-caf
 
@@ -566,6 +562,7 @@ kpick 210302 # power: Consistent skipping of non perf profile hints
 kpick 212483 # This command line is more universal, it works too in foreign langages
 kpick 212615 # gts28vewifi: Add reminder to check that bootloader is unlocked
 kpick 213146 # wiki: recovery_install_heimdall: Don't make the users flash TWRP over boot partition
+kpick 213313 # wiki: Add chiron & sagit
 
 # lineage-sdk
 kpick 206683 # lineage-sdk: Switch back to AOSP TwilightService
@@ -601,7 +598,7 @@ kpick 206402 # SystemUI: Forward-port notification counters
 kpick 207463 # LineageParts: Fix removing LED brightness settings
 kpick 212918 # LineageParts: Fix loading default colors for non-RGB lights
 kpick 212942 # LineageParts: Allow adjusting brightness of non-RGB LEDs
-kpick 213135 # LineageParts: introduce Trust interface
+#kpick 213135 # LineageParts: introduce Trust interface
 
 # packages/apps/Settings
 kpick 206700 # Settings: per-app cellular data and wifi restrictions
@@ -626,7 +623,7 @@ kpick 212762 # Trebuchet: update build.gradle
 kpick 213263 # PredictiveAppsProvider: fix null pointer exception
 
 # packages/apps/Updater
-kpick 213136 # Updater: show Trust branding when the update has been verified
+#kpick 213136 # Updater: show Trust branding when the update has been verified
 
 # packages/providers/ContactsProvider
 kpick 209030 # ContactsProvider: Prevent device contact being deleted.
