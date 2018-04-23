@@ -121,28 +121,40 @@ function projects_snapshot()
          commit_id=""
          url=""
 
-         git log --pretty=oneline --max-count=250 > /tmp/gitlog.txt
+         git log --pretty="format:%H|%s|%D " --max-count=250 > /tmp/gitlog.txt
+         found=0
          while read line; do
-             commit_id=$(echo $line | cut -d' ' -f1)
-             rbranch=$(git branch --all --contain $commit_id | grep "remotes" | sed -e "s/^ *remotes\///")
-             [ "$rbranch" = "" ] && continue
-             remote=$(echo $rbranch | cut -d/ -f1)
-             branch=$(echo $rbranch | cut -d/ -f2)
-             if [ "$remote" = "m" ]; then
-                remotetmp=/tmp/projects_snapshot_$(basename $project).list
-                git remote show > $remotetmp
-                local count=$(cat $remotetmp | wc -l)
-                if grep -qw $default_remote $remotetmp; then
-                     remote=$default_remote
-                else
-                     remote=$(sed -n 1p $remotetmp)
-                fi
-                rm -f $remotetmp
-             fi
-             url=$(git remote get-url $remote)
-             if [ "$remote" != "" ]; then
-                  break
-             fi
+             commit_id=$(echo $line | cut -d"|" -f1)
+             branches=$(echo $line | cut -d"|" -f3 | sed -e "s/ //g")
+             [ "$branches" = "" ] && continue
+             item=1
+             itemcount=$(echo $branches | grep -n "," | cut -d: -f1)
+             [ "$itemcount" = "" ] && itemcount=0
+             itemcount=$(($itemcount + 1))
+             while [ $item -le $itemcount ]; do
+                 ibranch=$(echo $branches | cut -d, -f$item)
+                 item=$(($item + 1))
+                 remote=$(echo $ibranch | cut -d/ -f1)
+                 branch=$(echo $ibranch | cut -d/ -f2)
+                 [ "$remote" != "m" ] && continue
+                 if [ "$remote" = "m" ]; then
+                     remotetmp=/tmp/projects_snapshot_$(basename $project).list
+                     git remote show > $remotetmp
+                     local count=$(cat $remotetmp | wc -l)
+                     if grep -qw $default_remote $remotetmp; then
+                          remote=$default_remote
+                     else
+                          remote=$(sed -n 1p $remotetmp)
+                     fi
+                     rm -f $remotetmp
+                  fi
+                  url=$(git remote get-url $remote)
+                  if [ "$remote" != "" ]; then
+                      found=1
+                      break
+                  fi
+             done 
+             [ $found -ne 0 ] && break
          done < /tmp/gitlog.txt
          rm -f /tmp/gitlog.txt
 
@@ -518,9 +530,11 @@ kpick 209929 # SystemUI: fix black scrim when turning screen on from AOD
 kpick 213038 # Fix migration from pre-O for AndroidTV devices (1/2)
 kpick 213128 # SystemUI: Fix navigation bar arrows visibility handling
 #kpick 213133 # base: introduce trust interface
+kpick 213371 # Add an option to let pre-O apps to use full screen aspect ratio
+kpick 213408 # PhoneWindowManager: Don't timeout when taking a partial screenshot
 
 # frameworks/native
-#kpick 213271 # Triple the available egl function pointers available to a process for certain Nvidia devices
+kpick 213271 # Triple the available egl function pointers available to a process for certain Nvidia devices
 kpick 213272 # Fix eglMakeCurrent crash when in opengl contexts
 
 # frameworks/opt/telephony
@@ -552,6 +566,9 @@ kpick 209093 # msm8974: hwc: Set ioprio for vsync thread
 
 # hardware/samsung
 
+# lineage/jenkins
+kpick 213338 # Mix up Oreo
+
 # lineage/scripts
 
 # lineage/wiki
@@ -559,6 +576,7 @@ kpick 212483 # This command line is more universal, it works too in foreign lang
 kpick 212615 # gts28vewifi: Add reminder to check that bootloader is unlocked
 kpick 213146 # wiki: recovery_install_heimdall: Don't make the users flash TWRP over boot partition
 kpick 213313 # wiki: Add chiron & sagit
+kpick 213339 # Mix up Oreo
 
 # lineage-sdk
 kpick 206683 # lineage-sdk: Switch back to AOSP TwilightService
@@ -595,8 +613,10 @@ kpick 206700 # Settings: per-app cellular data and wifi restrictions
 kpick 209208 # Settings: Hide Night Mode suggestion if LiveDisplay feature is present
 #kpick 212764 # Settings: add Trust interface hook
 #kpick 212765 # Settings: show Trust branding in confirm_lock_password UI
+kpick 213372 # Settings: Add an option to let pre-O apps to use full screen aspect ratio
 
 # packages/apps/Snap
+kpick 206595 # Use transparent navigation bar
 
 # packages/services/Telephony
 # kpick 211270 # Telephony: add external network selection activity
@@ -645,6 +665,7 @@ kpick 212808 # Suppress denials from sdcardfs (b/67454004)
 kpick 212809 # priv_app: move logspam suppression to core policy
 kpick 212857 # Suppress denials for non-API access  (must before 212821)
 kpick 212821 # priv_app: suppress denials for /proc/stat
+kpick 213359 # Hide some denials
 
 # vendor/lineage
 kpick 206138 # vendor: add custom backuptools and postinstall script for A/B OTAs
@@ -655,7 +676,7 @@ kpick 212640 # repopick: Update SSH queries result to match HTTP queries
 kpick 212766 # vendor: introduce Trust interface
 kpick 213050 # Fix migration from pre-O for AndroidTV devices (2/2)
 kpick 213117 # lineage: qcom: Enable media extensions for all qcom devices
-kpick 213340 # lineage: Build LiveDisplay java implementation globally
+kpick 213314 # Add Nvidia enhancements soong flag
 
 #-----------------------
 # translations
