@@ -114,30 +114,31 @@ function projects_snapshot()
     snapshot_file=$topdir/.mypatches/snapshot.list
     rm -f $snapshot_file.new
     cat $topdir/.repo/project.list | while read project; do
-         [ "$1" != "" -a "$project" != "$1" ] && continue
+         [ "$1" != "" -a "$project" != "$(echo $1 | sed -e 's/\/$//')" ] && continue
          cd $topdir/$project
          echo ">>>  project: $project ... "
 
          commit_id=""
          url=""
 
-         git log --pretty="format:%H|%s|%D " --max-count=250 > /tmp/gitlog.txt
+         git log --pretty="format:%H|%s|%D" --max-count=250 > /tmp/gitlog.txt
+         echo >>/tmp/gitlog.txt
          found=0
          while read line; do
              commit_id=$(echo $line | cut -d"|" -f1)
-             branches=$(echo $line | cut -d"|" -f3 | sed -e "s/ //g")
-             [ "$branches" = "" ] && continue
+             branches=$(echo $line | cut -d"|" -f3)
+             [ "$branches" = "" -o "$commit_id" = "" ] && continue
+             itemcount=$(echo $branches | grep -o "," | wc -l)
+             itemcount=$(expr $itemcount + 1)
              item=1
-             itemcount=$(echo $branches | grep -n "," | cut -d: -f1)
-             [ "$itemcount" = "" ] && itemcount=0
-             itemcount=$(($itemcount + 1))
              while [ $item -le $itemcount ]; do
                  ibranch=$(echo $branches | cut -d, -f$item)
                  item=$(($item + 1))
                  remote=$(echo $ibranch | cut -d/ -f1)
                  branch=$(echo $ibranch | cut -d/ -f2)
-                 [ "$remote" != "m" ] && continue
-                 if [ "$remote" = "m" ]; then
+                 #echo "remote=$remote"
+                 [ "$remote" != "m" -a "$remote" != "tag: m"  ] && continue
+                 if [ "$remote" = "m" -o "$remote" = "tag: m" ]; then
                      remotetmp=/tmp/projects_snapshot_$(basename $project).list
                      git remote show > $remotetmp
                      local count=$(cat $remotetmp | wc -l)
@@ -540,6 +541,8 @@ kpick 213272 # Fix eglMakeCurrent crash when in opengl contexts
 # frameworks/opt/telephony
 #kpick 211280 # telephony: Respect user nw mode, handle DSDS non-multi-rat
 #kpick 211338 # Add the user set network mode to the siminfo table
+kpick 213487 # GsmCdmaPhone: Return dummy ICCID serial for NV sub
+kpick 213488 # GsmCdmaPhone: Fix GSM SIM card ICCID on NV sub CDMA devices
 
 # hardware/broadcom/libbt
 #kpick 212921 # libbt: fixup build errors when building the library under vndk.

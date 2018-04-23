@@ -1,0 +1,36 @@
+From c2337782f0fdbb92db6a8b5ae6dcd4854e26b5f1 Mon Sep 17 00:00:00 2001
+From: Aaron Kling <webgeek1234@gmail.com>
+Date: Fri, 20 Apr 2018 22:12:29 -0500
+Subject: [PATCH 2/2] Fix eglMakeCurrent crash when in opengl contexts
+
+Nvidia shield devices support using egl to switch to a full desktop
+opengl context. In opengl 3.0+, GL_EXTENSIONS have to be retrieved
+with glGetStringi and is invalid for glGetString. Thus,
+eglMakecurrent can crash with a NPE if this case is not handled.
+The logic here is building a wrapper for glGetStringi, thus the
+error can be ignored.
+
+Change-Id: I9c599e10c62aabf684bde4e81719aa248327ac80
+---
+ opengl/libs/EGL/egl_object.cpp | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/opengl/libs/EGL/egl_object.cpp b/opengl/libs/EGL/egl_object.cpp
+index 837cfa92c..2208b335b 100644
+--- a/opengl/libs/EGL/egl_object.cpp
++++ b/opengl/libs/EGL/egl_object.cpp
+@@ -116,6 +116,11 @@ void egl_context_t::onMakeCurrent(EGLSurface draw, EGLSurface read) {
+     if (gl_extensions.empty()) {
+         // call the implementation's glGetString(GL_EXTENSIONS)
+         const char* exts = (const char *)gEGLImpl.hooks[version]->gl.glGetString(GL_EXTENSIONS);
++        // In an opengl 3.0+ context, GL_EXTENSIONS is not valid for glGetString
++        if (exts == NULL) {
++            gEGLImpl.hooks[version]->gl.glGetError();
++            exts = "";
++        }
+         gl_extensions = exts;
+         if (gl_extensions.find("GL_EXT_debug_marker") == std::string::npos) {
+             gl_extensions.insert(0, "GL_EXT_debug_marker ");
+-- 
+2.17.0
+
