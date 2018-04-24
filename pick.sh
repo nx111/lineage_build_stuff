@@ -465,6 +465,7 @@ kpick 213265 # recovery: Do not load time from /persist
 # build/make
 kpick 208567 # [DNM] updater: Don't check fingerprint for incrementals
 kpick 209323 # envsetup: stop jack server once build completed
+kpick 213515 # build: Use minimial compression when zipping targetfiles
 
 # build/soong
 kpick 213188 # soong: Fix missing print vars for lineage features
@@ -501,14 +502,6 @@ kpick 209019 # toybox: Use ISO C/clang compatible __typeof__ in minof/maxof macr
 
 # frameworks/av
 kpick 206069 # stagefright: add changes related to high-framerates in CameraSource
-kpick 206427 # camera/media: Support legacy HALv1 camera in mediaserver
-kpick 206431 # libstagefright: Free buffers on observer died
-kpick 206432 # Camera: fix use after disconnect error
-kpick 206433 # stagefright: ACodec: Resolve empty vendor parameters usage
-kpick 206434 # media: fix infinite wait at source for HAL1 based recording
-kpick 206435 # libstagefright: use 64-bit usage for native_window_set_usage
-kpick 206968 # libstagefright: encoder must exist when source starting
-kpick 206969 # Camera: Add support for preview frame fd
 #kpick 209104 # Stagefright: Allow setting high-framerates in CameraSource    (conflict with 206069)
 kpick 209904 # Camera2Client: Add support for QTI parameters in Camera2Client
 kpick 209905 # Camera2Client: Add support for QTI specific ZSL feature
@@ -660,8 +653,6 @@ kpick 213187 # Memory leak fix in NFA_SetRfDiscoveryDuration()
 
 # system/sepolicy
 kpick 206136 # sepolicy: allow update_engine to bypass neverallows for backuptool
-kpick 206428 # Add rules required for TARGET_HAS_LEGACY_CAMERA_HAL1
-kpick 206429 # Adapt add_service uses for TARGET_HAS_LEGACY_CAMERA_HAL1
 kpick 212806 # system_server: allow writing to timerslack_ns
 kpick 212807 # Allow system_server to update timerslack_ns for hal_audio_default
 kpick 212808 # Suppress denials from sdcardfs (b/67454004)

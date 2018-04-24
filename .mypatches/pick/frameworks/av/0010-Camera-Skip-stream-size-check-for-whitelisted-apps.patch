@@ -1,0 +1,84 @@
+From 9a54b453ef672e581f8baf2d738bc4995582c9c1 Mon Sep 17 00:00:00 2001
+From: Sai Kumar Sanagavarapu <ssanagav@codeaurora.org>
+Date: Wed, 21 Jun 2017 12:57:08 +0530
+Subject: [PATCH 10/11] Camera: Skip stream size check for whitelisted apps.
+
+Issue:
+For quadracfa capture, Blob/YUV output streams need to be
+configured with custom dimensions which will not be
+available in advertised stream configurations map.
+
+Fix:
+Skip the stream size check for whitelisted apps to allow
+configuration of streams with custom dimensions.
+
+Setprop to be used:
+adb shell setprop persist.camera.cfa.packagelist <pack1,pack2>
+
+CRs-Fixed: 2075934
+Change-Id: Id94b40c94f42bf4579dc6d8bb6273003312ea669
+---
+ services/camera/libcameraservice/api2/CameraDeviceClient.cpp | 12 ++++++++++--
+ services/camera/libcameraservice/api2/CameraDeviceClient.h   |  1 +
+ services/camera/libcameraservice/device3/Camera3Device.cpp   |  3 ---
+ 3 files changed, 11 insertions(+), 5 deletions(-)
+
+diff --git a/services/camera/libcameraservice/api2/CameraDeviceClient.cpp b/services/camera/libcameraservice/api2/CameraDeviceClient.cpp
+index c03e8a24f..bc56b2687 100644
+--- a/services/camera/libcameraservice/api2/CameraDeviceClient.cpp
++++ b/services/camera/libcameraservice/api2/CameraDeviceClient.cpp
+@@ -76,7 +76,15 @@ CameraDeviceClient::CameraDeviceClient(const sp<CameraService>& cameraService,
+                 cameraId, cameraFacing, clientPid, clientUid, servicePid),
+     mInputStream(),
+     mStreamingRequestId(REQUEST_ID_NONE),
+-    mRequestIdCounter(0) {
++    mRequestIdCounter(0),
++    mPrivilegedClient(false) {
++
++    char value[PROPERTY_VALUE_MAX];
++    property_get("persist.camera.cfa.packagelist", value, "");
++    String16 packagelist(value);
++    if (packagelist.contains(clientPackageName.string())) {
++        mPrivilegedClient = true;
++    }
+ 
+     ATRACE_CALL();
+     ALOGI("CameraDeviceClient %s: Opened", cameraId.string());
+@@ -785,7 +793,7 @@ binder::Status CameraDeviceClient::createSurfaceFromGbp(
+     uint64_t allowedFlags = GraphicBuffer::USAGE_SW_READ_MASK |
+                            GraphicBuffer::USAGE_HW_TEXTURE |
+                            GraphicBuffer::USAGE_HW_COMPOSER;
+-    bool flexibleConsumer = (consumerUsage & disallowedFlags) == 0 &&
++    bool flexibleConsumer = !mPrivilegedClient && (consumerUsage & disallowedFlags) == 0 &&
+             (consumerUsage & allowedFlags) != 0;
+ 
+     surface = new Surface(gbp, useAsync);
+diff --git a/services/camera/libcameraservice/api2/CameraDeviceClient.h b/services/camera/libcameraservice/api2/CameraDeviceClient.h
+index 50661cb5b..3fdf7855e 100644
+--- a/services/camera/libcameraservice/api2/CameraDeviceClient.h
++++ b/services/camera/libcameraservice/api2/CameraDeviceClient.h
+@@ -284,6 +284,7 @@ private:
+     static const int32_t REQUEST_ID_NONE = -1;
+ 
+     int32_t mRequestIdCounter;
++    bool mPrivilegedClient;
+ 
+     // The list of output streams whose surfaces are deferred. We have to track them separately
+     // as there are no surfaces available and can not be put into mStreamMap. Once the deferred
+diff --git a/services/camera/libcameraservice/device3/Camera3Device.cpp b/services/camera/libcameraservice/device3/Camera3Device.cpp
+index a980cde23..b6cc4b9bf 100644
+--- a/services/camera/libcameraservice/device3/Camera3Device.cpp
++++ b/services/camera/libcameraservice/device3/Camera3Device.cpp
+@@ -509,9 +509,6 @@ ssize_t Camera3Device::getJpegBufferSize(uint32_t width, uint32_t height) const
+             (maxJpegResolution.width * maxJpegResolution.height);
+     ssize_t jpegBufferSize = scaleFactor * (maxJpegBufferSize - kMinJpegBufferSize) +
+             kMinJpegBufferSize;
+-    if (jpegBufferSize > maxJpegBufferSize) {
+-        jpegBufferSize = maxJpegBufferSize;
+-    }
+ 
+     return jpegBufferSize;
+ }
+-- 
+2.15.1
+
