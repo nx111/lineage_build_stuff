@@ -123,39 +123,26 @@ function projects_snapshot()
 
          git log --pretty="format:%H|%s|%D" --max-count=250 > /tmp/gitlog.txt
          echo >>/tmp/gitlog.txt
-         found=0
          while read line; do
              commit_id=$(echo $line | cut -d"|" -f1)
              branches=$(echo $line | cut -d"|" -f3)
              [ "$branches" = "" -o "$commit_id" = "" ] && continue
-             itemcount=$(echo $branches | grep -o "," | wc -l)
-             itemcount=$(expr $itemcount + 1)
-             item=1
-             while [ $item -le $itemcount ]; do
-                 ibranch=$(echo $branches | cut -d, -f$item)
-                 item=$(($item + 1))
-                 remote=$(echo $ibranch | cut -d/ -f1)
-                 branch=$(echo $ibranch | cut -d/ -f2)
-                 #echo "remote=$remote"
-                 [ "$remote" != "m" -a "$remote" != "tag: m"  ] && continue
-                 if [ "$remote" = "m" -o "$remote" = "tag: m" ]; then
-                     remotetmp=/tmp/projects_snapshot_$(basename $project).list
-                     git remote show > $remotetmp
-                     local count=$(cat $remotetmp | wc -l)
-                     if grep -qw $default_remote $remotetmp; then
-                          remote=$default_remote
-                     else
-                          remote=$(sed -n 1p $remotetmp)
-                     fi
-                     rm -f $remotetmp
-                  fi
-                  url=$(git remote get-url $remote)
-                  if [ "$remote" != "" ]; then
-                      found=1
+             if echo $branches | grep -q -e "[[:space:]]*m\/"; then
+                 remotetmp=/tmp/projects_snapshot_$(basename $project).list
+                 git remote show > $remotetmp
+                 local count=$(cat $remotetmp | wc -l)
+                 if grep -qw $default_remote $remotetmp; then
+                      remote=$default_remote
+                 else
+                      remote=$(sed -n 1p $remotetmp)
+                 fi
+                 rm -f $remotetmp
+
+                 if [ "$remote" != "" ]; then
+                      url=$(git remote get-url $remote)
                       break
-                  fi
-             done 
-             [ $found -ne 0 ] && break
+                 fi
+             fi
          done < /tmp/gitlog.txt
          rm -f /tmp/gitlog.txt
 
@@ -485,11 +472,14 @@ kpick 213310 # Escape '.' character
 # device/samsung/klte-common
 #kpick 212648 # klte-common: Enable AOD
 kpick 213270 # klte-common: Stop absuing global contexts for fingerprint
+kpick 213525 # Revert "klte-common: Enable legacy mediaserver"
 
 # device/samsung/kltechnduo
 
 # device/samsung/msm8974-common
 kpick 210313 # msm8974-common: Binderize them all
+kpick 213523 # msm8974-common: Enable legacy mediaserver
+kpick 213524 # msm8974-common: Enable TARGET_USES_MEDIA_EXTENSIONS
 
 # kernel/samsung/msm8974
 kpick 210665 # wacom: Follow-up from gestures patch
@@ -515,6 +505,7 @@ kpick 209912 # Camera: Skip stream size check for whitelisted apps
 kpick 213062 # Camera: check metadata type before releasing frame
 
 # frameworks/base
+#kpick 206049 # Battery: add Battery Moto Mod Support
 kpick 206400 # SystemUI: Forward-port notification counters
 kpick 206701 # NetworkManagement : Add ability to restrict app data/wifi usage
 kpick 207583 # BatteryService: Add support for oem fast charger detection
@@ -525,9 +516,9 @@ kpick 213038 # Fix migration from pre-O for AndroidTV devices (1/2)
 kpick 213128 # SystemUI: Fix navigation bar arrows visibility handling
 #kpick 213133 # base: introduce trust interface
 kpick 213371 # Add an option to let pre-O apps to use full screen aspect ratio
-kpick 213408 # PhoneWindowManager: Don't timeout when taking a partial screenshot
 
 # frameworks/native
+#kpick 206050 # batteryservice: add Battery Moto Mod Support
 kpick 213271 # Triple the available egl function pointers available to a process for certain Nvidia devices
 kpick 213272 # Fix eglMakeCurrent crash when in opengl contexts
 
@@ -573,6 +564,7 @@ kpick 212615 # gts28vewifi: Add reminder to check that bootloader is unlocked
 kpick 213146 # wiki: recovery_install_heimdall: Don't make the users flash TWRP over boot partition
 kpick 213313 # wiki: Add chiron & sagit
 kpick 213339 # Mix up Oreo
+kpick 213504 # wiki: update griffin for oreo
 
 # lineage-sdk
 kpick 206683 # lineage-sdk: Switch back to AOSP TwilightService
@@ -633,6 +625,7 @@ kpick 213263 # PredictiveAppsProvider: fix null pointer exception
 kpick 209030 # ContactsProvider: Prevent device contact being deleted.
 
 # system/core
+#kpick 206048 # healthd: add Battery Moto Mod Support
 kpick 209385 # init: optimize shutdown time
 kpick 210316 # init: Don't run update_sys_usb_config if /data isn't mounted
 kpick 212642 # init: do not load persistent properties from temporary /data
@@ -664,7 +657,6 @@ kpick 213359 # Hide some denials
 # vendor/lineage
 kpick 206138 # vendor: add custom backuptools and postinstall script for A/B OTAs
 kpick 206139 # backuptool: introduce addon.d script versioning
-kpick 206426 # soong_config: Add TARGET_HAS_LEGACY_CAMERA_HAL1 variable
 kpick 210664 # extract_utils: Support multidex
 kpick 212640 # repopick: Update SSH queries result to match HTTP queries
 kpick 212766 # vendor: introduce Trust interface
