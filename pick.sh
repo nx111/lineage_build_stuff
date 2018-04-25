@@ -521,6 +521,7 @@ kpick 213371 # Add an option to let pre-O apps to use full screen aspect ratio
 #kpick 206050 # batteryservice: add Battery Moto Mod Support
 kpick 213271 # Triple the available egl function pointers available to a process for certain Nvidia devices
 kpick 213272 # Fix eglMakeCurrent crash when in opengl contexts
+kpick 213549 # SurfaceFlinger: Support get/set ActiveConfigs
 
 # frameworks/opt/telephony
 #kpick 211280 # telephony: Respect user nw mode, handle DSDS non-multi-rat
@@ -570,6 +571,9 @@ kpick 213504 # wiki: update griffin for oreo
 kpick 206683 # lineage-sdk: Switch back to AOSP TwilightService
 #kpick 213134 # sdk: Introduce Trust Interface
 kpick 213367 # NetworkTraffic: Include tethering traffic statistics
+kpick 213544 # LineageBatteryLights: Rename some class members and add more debugging
+kpick 213545 # LineageBatteryLights: Fix brightness setting logic
+kpick 213546 # LineageBatteryLights: Use proper method to retrieve user settings
 
 # packages/apps/Camera2
 kpick 212625 # Camera2: Fix photo snap delay on front cam.
@@ -579,6 +583,7 @@ kpick 212625 # Camera2: Fix photo snap delay on front cam.
 # packages/apps/Dialer
 kpick 209824 # Add setting to enable Do Not Disturb during calls
 kpick 211135 # Show proper call duration
+kpick 213548 # Control dialer's incoming call proximity sensor check via an overlay
 
 # packages/apps/DeskClock
 kpick 210074 # Adding Notification Channel
@@ -595,6 +600,7 @@ kpick 211302 # Eleven: Catch unsupported bitmap exception
 # packages/apps/LineageParts
 kpick 206402 # SystemUI: Forward-port notification counters
 #kpick 213135 # LineageParts: introduce Trust interface
+kpick 213550 # LineageParts: Only show brightness prefs if lights HAL supports it
 
 # packages/apps/Settings
 kpick 206700 # Settings: per-app cellular data and wifi restrictions
