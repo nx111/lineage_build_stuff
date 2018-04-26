@@ -453,6 +453,7 @@ kpick 213265 # recovery: Do not load time from /persist
 kpick 208567 # [DNM] updater: Don't check fingerprint for incrementals
 kpick 209323 # envsetup: stop jack server once build completed
 kpick 213515 # build: Use minimial compression when zipping targetfiles
+kpick 213572 # Allow to exclude imgs from target-files zip
 
 # build/soong
 kpick 213188 # soong: Fix missing print vars for lineage features
@@ -460,7 +461,6 @@ kpick 213188 # soong: Fix missing print vars for lineage features
 # device/lineage/sepolicy
 kpick 210014 # sepolicy: Label aw2013 HIDL light HAL
 #kpick 212763 # sepolicy: introduce Trust interface
-kpick 212836 # Revert "sepolicy: suppress denial logspam"
 
 # device/qcom/sepolicy
 kpick 210024 # legacy: allow hal_camera_default to connect to camera socket
@@ -512,6 +512,7 @@ kpick 207583 # BatteryService: Add support for oem fast charger detection
 kpick 209031 # TelephonyManager: Prevent NPE when registering phone state listener
 kpick 206940 # Avoid crash when the actionbar is disabled in settings
 kpick 209929 # SystemUI: fix black scrim when turning screen on from AOD
+kpick 212815 # SystemUI: add navbar button layout inversion tuning
 kpick 213038 # Fix migration from pre-O for AndroidTV devices (1/2)
 kpick 213128 # SystemUI: Fix navigation bar arrows visibility handling
 #kpick 213133 # base: introduce trust interface
@@ -522,12 +523,14 @@ kpick 213371 # Add an option to let pre-O apps to use full screen aspect ratio
 kpick 213271 # Triple the available egl function pointers available to a process for certain Nvidia devices
 kpick 213272 # Fix eglMakeCurrent crash when in opengl contexts
 kpick 213549 # SurfaceFlinger: Support get/set ActiveConfigs
+kpick 213562 # Handle glGetString returning NULL
 
 # frameworks/opt/telephony
 #kpick 211280 # telephony: Respect user nw mode, handle DSDS non-multi-rat
 #kpick 211338 # Add the user set network mode to the siminfo table
 kpick 213487 # GsmCdmaPhone: Return dummy ICCID serial for NV sub
 kpick 213488 # GsmCdmaPhone: Fix GSM SIM card ICCID on NV sub CDMA devices
+kpick 213566 # TelephonyComponentFactory: Overload makeSubscriptionInfoUpdater
 
 # hardware/broadcom/libbt
 #kpick 212921 # libbt: fixup build errors when building the library under vndk.
@@ -542,6 +545,7 @@ kpick 206140 # gps.default.so: fix crash on access to unset AGpsRilCallbacks::re
 kpick 210009 # lineage/interfaces: Add aw2013 lights HIDL HAL implementation
 
 # hardware/lineage/lineagehw
+kpick 213538 # lineagehw: Disable color balance support by default
 
 # hardware/qcom/bt-caf
 
@@ -554,6 +558,9 @@ kpick 209093 # msm8974: hwc: Set ioprio for vsync thread
 
 # hardware/samsung
 
+# lineage/charter
+kpick 213574 # charter: Add some new USB rules
+
 # lineage/jenkins
 kpick 213338 # Mix up Oreo
 
@@ -565,7 +572,7 @@ kpick 212615 # gts28vewifi: Add reminder to check that bootloader is unlocked
 kpick 213146 # wiki: recovery_install_heimdall: Don't make the users flash TWRP over boot partition
 kpick 213313 # wiki: Add chiron & sagit
 kpick 213339 # Mix up Oreo
-kpick 213504 # wiki: update griffin for oreo
+kpick 213580 # wiki: Remove bitcoin donation option
 
 # lineage-sdk
 kpick 206683 # lineage-sdk: Switch back to AOSP TwilightService
@@ -652,13 +659,6 @@ kpick 213187 # Memory leak fix in NFA_SetRfDiscoveryDuration()
 
 # system/sepolicy
 kpick 206136 # sepolicy: allow update_engine to bypass neverallows for backuptool
-kpick 212806 # system_server: allow writing to timerslack_ns
-kpick 212807 # Allow system_server to update timerslack_ns for hal_audio_default
-kpick 212808 # Suppress denials from sdcardfs (b/67454004)
-kpick 212809 # priv_app: move logspam suppression to core policy
-kpick 212857 # Suppress denials for non-API access  (must before 212821)
-kpick 212821 # priv_app: suppress denials for /proc/stat
-kpick 213359 # Hide some denials
 
 # vendor/lineage
 kpick 206138 # vendor: add custom backuptools and postinstall script for A/B OTAs

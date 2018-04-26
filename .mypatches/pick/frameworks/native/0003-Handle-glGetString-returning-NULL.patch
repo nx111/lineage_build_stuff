@@ -1,0 +1,60 @@
+From 54d5f289335591f6428aedfebf4082a9c0e60bcd Mon Sep 17 00:00:00 2001
+From: Jesse Hall <jessehall@google.com>
+Date: Fri, 29 Sep 2017 15:57:42 -0700
+Subject: [PATCH 3/3] Handle glGetString returning NULL
+
+When two contexts are shared, and one is lost/reset, the other can be
+lost as well. A lost context can return NULL from glGetString. On the
+first eglMakeCurrent to a context, we fetch the extension list, and
+weren't checking for NULL, leading to a crash in the rare case where a
+context is lost and then another context sharing with it is made
+current for the first time.
+
+Bug: 64024627
+Test: dEQP-EGL.functional.robustness.reset_context.shaders.infinite_loop.shared_context_status.*
+Change-Id: Ib7e1b932490ec587df159e9e461c211d3dac35d4
+---
+ opengl/libs/EGL/egl_object.cpp | 26 ++++++++++++++++----------
+ 1 file changed, 16 insertions(+), 10 deletions(-)
+
+diff --git a/opengl/libs/EGL/egl_object.cpp b/opengl/libs/EGL/egl_object.cpp
+index 837cfa92c..72b4823ea 100644
+--- a/opengl/libs/EGL/egl_object.cpp
++++ b/opengl/libs/EGL/egl_object.cpp
+@@ -116,17 +116,23 @@ void egl_context_t::onMakeCurrent(EGLSurface draw, EGLSurface read) {
+     if (gl_extensions.empty()) {
+         // call the implementation's glGetString(GL_EXTENSIONS)
+         const char* exts = (const char *)gEGLImpl.hooks[version]->gl.glGetString(GL_EXTENSIONS);
+-        gl_extensions = exts;
+-        if (gl_extensions.find("GL_EXT_debug_marker") == std::string::npos) {
+-            gl_extensions.insert(0, "GL_EXT_debug_marker ");
+-        }
+ 
+-        // tokenize the supported extensions for the glGetStringi() wrapper
+-        std::stringstream ss;
+-        std::string str;
+-        ss << gl_extensions;
+-        while (ss >> str) {
+-            tokenized_gl_extensions.push_back(str);
++        // If this context is sharing with another context, and the other context was reset
++        // e.g. due to robustness failure, this context might also be reset and glGetString can
++        // return NULL.
++        if (exts) {
++            gl_extensions = exts;
++            if (gl_extensions.find("GL_EXT_debug_marker") == std::string::npos) {
++                gl_extensions.insert(0, "GL_EXT_debug_marker ");
++            }
++
++            // tokenize the supported extensions for the glGetStringi() wrapper
++            std::stringstream ss;
++            std::string str;
++            ss << gl_extensions;
++            while (ss >> str) {
++                tokenized_gl_extensions.push_back(str);
++            }
+         }
+     }
+ }
+-- 
+2.17.0
+
