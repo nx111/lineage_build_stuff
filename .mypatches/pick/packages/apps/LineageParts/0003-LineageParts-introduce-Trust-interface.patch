@@ -1,0 +1,1406 @@
+From 8d668c5db537301cb4df4071913498953fac0bcf Mon Sep 17 00:00:00 2001
+From: Joey <joey@lineageos.org>
+Date: Sat, 7 Apr 2018 14:12:34 +0200
+Subject: [PATCH 3/6] LineageParts: introduce Trust interface
+
+Change-Id: I712135347a8da7ddd0906d25ddacd079d51477b4
+Signed-off-by: Joey <joey@lineageos.org>
+---
+ AndroidManifest.xml                           |  23 +++
+ res/drawable/avd_trust_onboarding.xml         | 108 +++++++++++
+ res/drawable/ic_info.xml                      |  26 +++
+ res/drawable/ic_privacy_guard_off.xml         |   2 +-
+ res/drawable/ic_privacy_guard_on.xml          |   2 +-
+ res/drawable/ic_trust.xml                     |  27 +++
+ res/drawable/ic_trust_encryption_bad.xml      |  26 +++
+ res/drawable/ic_trust_encryption_good.xml     |  26 +++
+ res/drawable/ic_trust_encryption_poor.xml     |  26 +++
+ res/drawable/ic_trust_onboarding_bg.xml       |  27 +++
+ res/drawable/ic_trust_root_bad.xml            |  26 +++
+ res/drawable/ic_trust_root_good.xml           |  26 +++
+ res/drawable/ic_trust_root_poor.xml           |  26 +++
+ .../ic_trust_security_patches_bad.xml         |  30 +++
+ .../ic_trust_security_patches_good.xml        |  30 +++
+ .../ic_trust_security_patches_poor.xml        |  30 +++
+ res/drawable/ic_trust_selinux_bad.xml         |  26 +++
+ res/drawable/ic_trust_selinux_good.xml        |  29 +++
+ res/layout-land/activity_trust_onboarding.xml |  89 +++++++++
+ res/layout/activity_trust_onboarding.xml      |  80 ++++++++
+ res/values-land/dimens.xml                    |  23 +++
+ res/values-large-land/dimens.xml              |  23 +++
+ res/values-large/dimens.xml                   |  23 +++
+ res/values/colors.xml                         |   3 +
+ res/values/dimens.xml                         |   6 +
+ res/values/strings.xml                        |  31 ++++
+ res/values/styles.xml                         |   6 +
+ res/xml/parts_catalog.xml                     |   5 +
+ res/xml/trust_preferences.xml                 |  50 +++++
+ .../trust/TrustOnBoardingActivity.java        |  70 +++++++
+ .../lineageparts/trust/TrustPreferences.java  | 175 ++++++++++++++++++
+ 31 files changed, 1098 insertions(+), 2 deletions(-)
+ create mode 100644 res/drawable/avd_trust_onboarding.xml
+ create mode 100644 res/drawable/ic_info.xml
+ create mode 100644 res/drawable/ic_trust.xml
+ create mode 100644 res/drawable/ic_trust_encryption_bad.xml
+ create mode 100644 res/drawable/ic_trust_encryption_good.xml
+ create mode 100644 res/drawable/ic_trust_encryption_poor.xml
+ create mode 100644 res/drawable/ic_trust_onboarding_bg.xml
+ create mode 100644 res/drawable/ic_trust_root_bad.xml
+ create mode 100644 res/drawable/ic_trust_root_good.xml
+ create mode 100644 res/drawable/ic_trust_root_poor.xml
+ create mode 100644 res/drawable/ic_trust_security_patches_bad.xml
+ create mode 100644 res/drawable/ic_trust_security_patches_good.xml
+ create mode 100644 res/drawable/ic_trust_security_patches_poor.xml
+ create mode 100644 res/drawable/ic_trust_selinux_bad.xml
+ create mode 100644 res/drawable/ic_trust_selinux_good.xml
+ create mode 100644 res/layout-land/activity_trust_onboarding.xml
+ create mode 100644 res/layout/activity_trust_onboarding.xml
+ create mode 100644 res/values-land/dimens.xml
+ create mode 100644 res/values-large-land/dimens.xml
+ create mode 100644 res/values-large/dimens.xml
+ create mode 100644 res/xml/trust_preferences.xml
+ create mode 100644 src/org/lineageos/lineageparts/trust/TrustOnBoardingActivity.java
+ create mode 100644 src/org/lineageos/lineageparts/trust/TrustPreferences.java
+
+diff --git a/AndroidManifest.xml b/AndroidManifest.xml
+index 7cd4331..237db74 100644
+--- a/AndroidManifest.xml
++++ b/AndroidManifest.xml
+@@ -65,6 +65,17 @@
+                 android:value="org.lineageos.lineageparts.PartsUpdater" />
+         </activity>
+ 
++        <activity android:name=".trust.TrustOnBoardingActivity"
++            android:label="@string/trust_title"
++            android:theme="@style/OnBoardingStyle"
++            android:exported="true"
++            android:enabled="true">
++            <intent-filter android:priority="-4">
++                <action android:name="org.lineageos.lineageparts.TRUST_HINT" />
++                <category android:name="android.intent.category.DEFAULT" />
++            </intent-filter>
++        </activity>
++
+         <receiver android:name=".BootReceiver" android:enabled="true">
+             <intent-filter android:priority="2147483647">
+                 <action android:name="android.intent.action.BOOT_COMPLETED" />
+@@ -210,6 +221,18 @@
+                 android:resource="@string/style_summary" />
+         </activity-alias>
+ 
++        <!-- Trust interface (Security category) -->
++        <activity-alias
++            android:name=".trust.TrustPreferences"
++            android:label="@string/trust_title"
++            android:targetActivity="PartsActivity">
++            <intent-filter android:priority="-4">
++                <action android:name="org.lineageos.lineageparts.action.SETTINGS" />
++                <action android:name="org.lineageos.lineageparts.TRUST_INTERFACE" />
++                <category android:name="android.intent.category.DEFAULT" />
++            </intent-filter>
++        </activity-alias>
++
+         <!-- Expanded Desktop settings (Display category) -->
+         <activity-alias
+             android:name=".applications.ExpandedDesktopSettings"
+diff --git a/res/drawable/avd_trust_onboarding.xml b/res/drawable/avd_trust_onboarding.xml
+new file mode 100644
+index 0000000..a06b7d4
+--- /dev/null
++++ b/res/drawable/avd_trust_onboarding.xml
+@@ -0,0 +1,108 @@
++<!--
++     Copyright (C) 2018 The LineageOS Project
++
++     Licensed under the Apache License, Version 2.0 (the "License");
++     you may not use this file except in compliance with the License.
++     You may obtain a copy of the License at
++
++          http://www.apache.org/licenses/LICENSE-2.0
++
++     Unless required by applicable law or agreed to in writing, software
++     distributed under the License is distributed on an "AS IS" BASIS,
++     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++     See the License for the specific language governing permissions and
++     limitations under the License.
++-->
++<animated-vector
++    xmlns:android="http://schemas.android.com/apk/res/android"
++    xmlns:aapt="http://schemas.android.com/aapt">
++    <aapt:attr name="android:drawable">
++        <vector
++            android:name="vector"
++            android:width="256dp"
++            android:height="256dp"
++            android:viewportWidth="256"
++            android:viewportHeight="256">
++            <group android:name="trust">
++                <path
++                    android:name="smile"
++                    android:pathData="M 255.897 26 C 255.965 26.806 256 27.621 256 28.445 L 256 26 L 255.897 26 Z M 228 0.003 L 228 0 L 227.556 0 C 227.704 0 227.852 0.001 228 0.003 Z M 0.003 28 C 0.002 28.083 0.001 28.167 0.001 28.25 C 0 28.315 0 28.38 0 28.445 L 0 28 L 0.003 28 Z M 226.162 144.612 C 227.47 136.875 222.251 129.536 214.5 128.228 C 206.763 126.933 199.424 132.153 198.116 139.904 C 192.398 173.867 162.844 199.111 128 199.111 C 93.156 199.111 63.602 173.881 57.87 139.918 C 56.576 132.181 49.237 126.962 41.486 128.256 C 33.749 129.564 28.516 136.903 29.824 144.654 C 37.845 192.242 79.218 227.556 128 227.556 C 176.782 227.556 218.155 192.228 226.162 144.612 Z"
++                    android:fillColor="#ffffff"
++                    android:fillAlpha="0"
++                    android:strokeWidth="1"/>
++                <group
++                    android:name="nose_grp"
++                    android:pivotX="126"
++                    android:pivotY="126"
++                    android:scaleX="0"
++                    android:scaleY="0">
++                    <path
++                        android:name="nose"
++                        android:pathData="M 128 42.667 C 118.574 42.667 109.505 44.195 101.027 47.017 C 92.549 49.839 84.663 53.955 77.602 59.13 C 70.541 64.306 64.306 70.541 59.13 77.602 C 53.955 84.663 49.839 92.549 47.017 101.027 C 44.195 109.505 42.667 118.574 42.667 128 C 42.667 151.565 52.218 172.899 67.659 188.341 C 83.101 203.782 104.434 213.333 128 213.333 C 151.565 213.333 172.899 203.782 188.341 188.341 C 203.782 172.899 213.333 151.565 213.333 128 C 213.333 112.29 209.088 97.571 201.683 84.93 C 194.278 72.288 183.712 61.722 171.07 54.317 C 158.429 46.912 143.71 42.667 128 42.667 C 128 42.667 128 42.667 128 42.667"
++                        android:fillColor="#ffffff"
++                        android:strokeWidth="1"/>
++                </group>
++            </group>
++        </vector>
++    </aapt:attr>
++    <target android:name="nose">
++        <aapt:attr name="android:animation">
++            <objectAnimator
++                android:propertyName="pathData"
++                android:startOffset="500"
++                android:duration="1000"
++                android:valueFrom="M 128 42.667 C 118.574 42.667 109.505 44.195 101.027 47.017 C 92.549 49.839 84.663 53.955 77.602 59.13 C 70.541 64.306 64.306 70.541 59.13 77.602 C 53.955 84.663 49.839 92.549 47.017 101.027 C 44.195 109.505 42.667 118.574 42.667 128 C 42.667 151.565 52.218 172.899 67.659 188.341 C 83.101 203.782 104.434 213.333 128 213.333 C 151.565 213.333 172.899 203.782 188.341 188.341 C 203.782 172.899 213.333 151.565 213.333 128 C 213.333 112.29 209.088 97.571 201.683 84.93 C 194.278 72.288 183.712 61.722 171.07 54.317 C 158.429 46.912 143.71 42.667 128 42.667 C 128 42.667 128 42.667 128 42.667"
++                android:valueTo="M 142.222 42.667 C 142.222 34.816 135.851 28.445 128 28.445 C 121.643 28.445 116.252 32.612 114.432 38.372 C 114.432 38.372 114.432 38.372 114.432 38.372 C 105.334 64.915 96.237 91.459 87.139 118.002 C 85.973 121.116 85.333 124.487 85.333 128 C 85.333 143.701 98.062 156.444 113.778 156.444 C 123.259 156.444 132.741 156.444 142.222 156.444 C 150.044 156.444 157.156 153.316 162.276 148.053 C 167.538 142.933 170.667 135.822 170.667 128 C 151.704 127.995 132.741 127.991 113.778 127.986 C 115.854 121.941 117.931 115.897 120.007 109.852 C 127.118 89.097 134.229 68.343 141.34 47.588 C 141.909 46.052 142.222 44.388 142.222 42.667"
++                android:valueType="pathType"
++                android:interpolator="@android:interpolator/fast_out_slow_in"/>
++        </aapt:attr>
++    </target>
++    <target android:name="nose_grp">
++        <aapt:attr name="android:animation">
++            <set>
++                <objectAnimator
++                    android:propertyName="scaleX"
++                    android:startOffset="500"
++                    android:duration="1000"
++                    android:valueFrom="1.15"
++                    android:valueTo="1"
++                    android:valueType="floatType"
++                    android:interpolator="@android:interpolator/fast_out_slow_in"/>
++                <objectAnimator
++                    android:propertyName="scaleY"
++                    android:startOffset="500"
++                    android:duration="1000"
++                    android:valueFrom="1.15"
++                    android:valueTo="1"
++                    android:valueType="floatType"
++                    android:interpolator="@android:interpolator/fast_out_slow_in"/>
++                <objectAnimator
++                    android:propertyName="scaleX"
++                    android:duration="500"
++                    android:valueFrom="0"
++                    android:valueTo="1.15"
++                    android:valueType="floatType"
++                    android:interpolator="@android:interpolator/fast_out_slow_in"/>
++                <objectAnimator
++                    android:propertyName="scaleY"
++                    android:duration="500"
++                    android:valueFrom="0"
++                    android:valueTo="1.15"
++                    android:valueType="floatType"
++                    android:interpolator="@android:interpolator/fast_out_slow_in"/>
++            </set>
++        </aapt:attr>
++    </target>
++    <target android:name="smile">
++        <aapt:attr name="android:animation">
++            <objectAnimator
++                android:propertyName="fillAlpha"
++                android:startOffset="900"
++                android:duration="500"
++                android:valueFrom="0"
++                android:valueTo="1"
++                android:valueType="floatType"
++                android:interpolator="@android:anim/accelerate_decelerate_interpolator"/>
++        </aapt:attr>
++    </target>
++</animated-vector>
+\ No newline at end of file
+diff --git a/res/drawable/ic_info.xml b/res/drawable/ic_info.xml
+new file mode 100644
+index 0000000..e15284b
+--- /dev/null
++++ b/res/drawable/ic_info.xml
+@@ -0,0 +1,26 @@
++<?xml version="1.0" encoding="utf-8"?>
++<!--
++    Copyright (c) 2018 The LineageOS Project
++
++    Licensed under the Apache License, Version 2.0 (the "License");
++    you may not use this file except in compliance with the License.
++    You may obtain a copy of the License at
++
++        http://www.apache.org/licenses/LICENSE-2.0
++
++    Unless required by applicable law or agreed to in writing, software
++    distributed under the License is distributed on an "AS IS" BASIS,
++    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++    See the License for the specific language governing permissions and
++    limitations under the License.
++-->
++<vector xmlns:android="http://schemas.android.com/apk/res/android"
++    android:width="24dp"
++    android:height="24dp"
++    android:viewportWidth="24"
++    android:viewportHeight="24">
++
++    <path
++        android:fillColor="?android:attr/textColorSecondary"
++        android:pathData="M11,9H13V7H11M12,20C7.59,20 4,16.41 4,12C4,7.59 7.59,4 12,4C16.41,4 20,7.59 20,12C20,16.41 16.41,20 12,20M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M11,17H13V11H11V17Z" />
++</vector>
+diff --git a/res/drawable/ic_privacy_guard_off.xml b/res/drawable/ic_privacy_guard_off.xml
+index 846dad3..283d15c 100644
+--- a/res/drawable/ic_privacy_guard_off.xml
++++ b/res/drawable/ic_privacy_guard_off.xml
+@@ -23,5 +23,5 @@
+ 
+     <path
+         android:fillColor="#FFFFFFFF"
+-        android:pathData="M12 2.119c0 0 -3.109 1.305 -4.756 1.596C5.85 3.961 3 3.826 3 3.826l0 4.01c0 5.554 3.84 12.68 9 13.94 5.16 -1.26 9 -8.39 9 -13.94l0 -4.014c0 0 -3.24 0.066 -4.82 -0.244C14.73 3.294 12 2.115 12 2.115Zm0 3.389a2.721 2.543 0 0 1 2.72 2.545l0 1.017 0.54 0a1.088 1.017 0 0 1 1.09 1.02l0 5.08a1.088 1.017 0 0 1 -1.09 1.02l-6.524 0c-0.604 0 -1.09 -0.46 -1.09 -1.02l0 -5.08a1.088 1.017 0 0 1 1.09 -1.02l4.894 0 0 -1.017A1.633 1.526 0 0 0 12 6.525 1.633 1.526 0 0 0 10.37 8.053l-1.091 0A2.721 2.543 0 0 1 12 5.508Z" />
++        android:pathData="M5,3L19,3C20.105,3 21,3.895 21,5L21,12C21,16.971 16.971,21 12,21C7.029,21 3,16.971 3,12L3,5C3,3.895 3.895,3 5,3ZM18.902,13.168C18.994,12.624 18.627,12.108 18.082,12.016C17.538,11.925 17.022,12.292 16.93,12.837C16.528,15.225 14.45,17 12,17C9.55,17 7.472,15.226 7.069,12.838C6.978,12.294 6.462,11.927 5.917,12.018C5.373,12.11 5.005,12.626 5.097,13.171C5.661,16.517 8.57,19 12,19C15.43,19 18.339,16.516 18.902,13.168ZM11.046,5.698L9.127,11.297C9.045,11.516 9,11.753 9,12C9,13.104 9.895,14 11,14C11.01,14 11.019,14 11.029,14L13,14C13.55,14 14.05,13.78 14.41,13.41C14.78,13.05 15,12.55 15,12L12.6,12L11,11.999L11.438,10.724L11.646,10.116L12.938,6.346C12.978,6.238 13,6.121 13,6C13,5.448 12.552,5 12,5C11.553,5 11.174,5.293 11.046,5.698Z" />
+ </vector>
+diff --git a/res/drawable/ic_privacy_guard_on.xml b/res/drawable/ic_privacy_guard_on.xml
+index 2f04f01..11e70c7 100644
+--- a/res/drawable/ic_privacy_guard_on.xml
++++ b/res/drawable/ic_privacy_guard_on.xml
+@@ -23,5 +23,5 @@
+ 
+     <path
+         android:fillColor="#FFFFFFFF"
+-        android:pathData="M12 2.119c0 0 -3.109 1.305 -4.756 1.596C5.85 3.961 3 3.826 3 3.826l0 4.01c0 5.554 3.84 12.68 9 13.94 5.16 -1.26 9 -8.39 9 -13.94l0 -4.014c0 0 -3.24 0.066 -4.82 -0.244C14.73 3.294 12 2.115 12 2.115Zm0 3.389a2.721 2.543 0 0 1 2.72 2.545l0 1.015 0.55 0a1.088 1.017 0 0 1 1.08 1.022l0 5.08a1.088 1.017 0 0 1 -1.08 1.02l-6.534 0a1.088 1.017 0 0 1 -1.09 -1.02l0 -5.08c0 -0.569 0.492 -1.022 1.09 -1.022l0.545 0 0 -1.015A2.721 2.543 0 0 1 12 5.508Zm0 1.017a1.633 1.526 0 0 0 -1.63 1.528l0 1.015 3.26 0 0 -1.015A1.633 1.526 0 0 0 12 6.525Z" />
++        android:pathData="M5,3L19,3C20.105,3 21,3.895 21,5L21,12C21,16.971 16.971,21 12,21C7.029,21 3,16.971 3,12L3,5C3,3.895 3.895,3 5,3ZM18.902,13.168C18.994,12.624 18.627,12.108 18.082,12.016C17.538,11.925 17.022,12.292 16.93,12.837C16.528,15.225 14.45,17 12,17C9.55,17 7.472,15.226 7.069,12.838C6.978,12.294 6.462,11.927 5.917,12.018C5.373,12.11 5.005,12.626 5.097,13.171C5.661,16.517 8.57,19 12,19C15.43,19 18.339,16.516 18.902,13.168ZM11.046,5.698L9.127,11.297C9.045,11.516 9,11.753 9,12C9,13.104 9.895,14 11,14C11.01,14 11.019,14 11.029,14L13,14C13.55,14 14.05,13.78 14.41,13.41C14.78,13.05 15,12.55 15,12L12.6,12L11,11.999L11.438,10.724L11.646,10.116L12.938,6.346C12.978,6.238 13,6.121 13,6C13,5.448 12.552,5 12,5C11.553,5 11.174,5.293 11.046,5.698Z" />
+ </vector>
+diff --git a/res/drawable/ic_trust.xml b/res/drawable/ic_trust.xml
+new file mode 100644
+index 0000000..a3f84f5
+--- /dev/null
++++ b/res/drawable/ic_trust.xml
+@@ -0,0 +1,27 @@
++<?xml version="1.0" encoding="utf-8"?>
++<!--
++     Copyright (C) 2018 The LineageOS Project
++
++     Licensed under the Apache License, Version 2.0 (the "License");
++     you may not use this file except in compliance with the License.
++     You may obtain a copy of the License at
++
++          http://www.apache.org/licenses/LICENSE-2.0
++
++     Unless required by applicable law or agreed to in writing, software
++     distributed under the License is distributed on an "AS IS" BASIS,
++     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++     See the License for the specific language governing permissions and
++     limitations under the License.
++-->
++<vector xmlns:android="http://schemas.android.com/apk/res/android"
++    android:width="24dp"
++    android:height="24dp"
++    android:viewportWidth="24"
++    android:viewportHeight="24"
++    android:tint="?android:attr/colorControlNormal">
++
++    <path
++        android:fillColor="#000000"
++        android:pathData="M5,3L19,3C20.105,3 21,3.895 21,5L21,12C21,16.971 16.971,21 12,21C7.029,21 3,16.971 3,12L3,5C3,3.895 3.895,3 5,3ZM18.902,13.168C18.994,12.624 18.627,12.108 18.082,12.016C17.538,11.925 17.022,12.292 16.93,12.837C16.528,15.225 14.45,17 12,17C9.55,17 7.472,15.226 7.069,12.838C6.978,12.294 6.462,11.927 5.917,12.018C5.373,12.11 5.005,12.626 5.097,13.171C5.661,16.517 8.57,19 12,19C15.43,19 18.339,16.516 18.902,13.168ZM11.046,5.698L9.127,11.297C9.045,11.516 9,11.753 9,12C9,13.104 9.895,14 11,14C11.01,14 11.019,14 11.029,14L13,14C13.55,14 14.05,13.78 14.41,13.41C14.78,13.05 15,12.55 15,12L12.6,12L11,11.999L11.438,10.724L11.646,10.116L12.938,6.346C12.978,6.238 13,6.121 13,6C13,5.448 12.552,5 12,5C11.553,5 11.174,5.293 11.046,5.698Z" />
++</vector>
+\ No newline at end of file
+diff --git a/res/drawable/ic_trust_encryption_bad.xml b/res/drawable/ic_trust_encryption_bad.xml
+new file mode 100644
+index 0000000..7a552c9
+--- /dev/null
++++ b/res/drawable/ic_trust_encryption_bad.xml
+@@ -0,0 +1,26 @@
++<?xml version="1.0" encoding="utf-8"?>
++<!--
++     Copyright (C) 2018 The LineageOS Project
++
++     Licensed under the Apache License, Version 2.0 (the "License");
++     you may not use this file except in compliance with the License.
++     You may obtain a copy of the License at
++
++          http://www.apache.org/licenses/LICENSE-2.0
++
++     Unless required by applicable law or agreed to in writing, software
++     distributed under the License is distributed on an "AS IS" BASIS,
++     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++     See the License for the specific language governing permissions and
++     limitations under the License.
++-->
++<vector xmlns:android="http://schemas.android.com/apk/res/android"
++    android:height="24dp"
++    android:width="24dp"
++    android:viewportWidth="24"
++    android:viewportHeight="24">
++
++    <path
++        android:fillColor="@color/trust_status_bad"
++        android:pathData="M18,8A2,2 0 0,1 20,10V20A2,2 0 0,1 18,22H6C4.89,22 4,21.1 4,20V10A2,2 0 0,1 6,8H15V6A3,3 0 0,0 12,3A3,3 0 0,0 9,6H7A5,5 0 0,1 12,1A5,5 0 0,1 17,6V8H18M12,17A2,2 0 0,0 14,15A2,2 0 0,0 12,13A2,2 0 0,0 10,15A2,2 0 0,0 12,17Z" />
++</vector>
+\ No newline at end of file
+diff --git a/res/drawable/ic_trust_encryption_good.xml b/res/drawable/ic_trust_encryption_good.xml
+new file mode 100644
+index 0000000..2f771fa
+--- /dev/null
++++ b/res/drawable/ic_trust_encryption_good.xml
+@@ -0,0 +1,26 @@
++<?xml version="1.0" encoding="utf-8"?>
++<!--
++     Copyright (C) 2018 The LineageOS Project
++
++     Licensed under the Apache License, Version 2.0 (the "License");
++     you may not use this file except in compliance with the License.
++     You may obtain a copy of the License at
++
++          http://www.apache.org/licenses/LICENSE-2.0
++
++     Unless required by applicable law or agreed to in writing, software
++     distributed under the License is distributed on an "AS IS" BASIS,
++     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++     See the License for the specific language governing permissions and
++     limitations under the License.
++-->
++<vector xmlns:android="http://schemas.android.com/apk/res/android"
++    android:height="24dp"
++    android:width="24dp"
++    android:viewportWidth="24"
++    android:viewportHeight="24">
++
++    <path
++        android:fillColor="@color/trust_status_good"
++        android:pathData="M12,17A2,2 0 0,0 14,15C14,13.89 13.1,13 12,13A2,2 0 0,0 10,15A2,2 0 0,0 12,17M18,8A2,2 0 0,1 20,10V20A2,2 0 0,1 18,22H6A2,2 0 0,1 4,20V10C4,8.89 4.9,8 6,8H7V6A5,5 0 0,1 12,1A5,5 0 0,1 17,6V8H18M12,3A3,3 0 0,0 9,6V8H15V6A3,3 0 0,0 12,3Z" />
++</vector>
+\ No newline at end of file
+diff --git a/res/drawable/ic_trust_encryption_poor.xml b/res/drawable/ic_trust_encryption_poor.xml
+new file mode 100644
+index 0000000..9a0a1e4
+--- /dev/null
++++ b/res/drawable/ic_trust_encryption_poor.xml
+@@ -0,0 +1,26 @@
++<?xml version="1.0" encoding="utf-8"?>
++<!--
++     Copyright (C) 2018 The LineageOS Project
++
++     Licensed under the Apache License, Version 2.0 (the "License");
++     you may not use this file except in compliance with the License.
++     You may obtain a copy of the License at
++
++          http://www.apache.org/licenses/LICENSE-2.0
++
++     Unless required by applicable law or agreed to in writing, software
++     distributed under the License is distributed on an "AS IS" BASIS,
++     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++     See the License for the specific language governing permissions and
++     limitations under the License.
++-->
++<vector xmlns:android="http://schemas.android.com/apk/res/android"
++    android:height="24dp"
++    android:width="24dp"
++    android:viewportWidth="24"
++    android:viewportHeight="24">
++
++    <path
++        android:fillColor="@color/trust_status_poor"
++        android:pathData="M12,1A5,5 0 0,0 7,6V8H6A2,2 0 0,0 4,10V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V10A2,2 0 0,0 18,8H17V6A5,5 0 0,0 12,1M12,2.9C13.71,2.9 15.1,4.29 15.1,6V8H8.9V6C8.9,4.29 10.29,2.9 12,2.9M11,11H13V15H11V11M11,17H13V19H11V17Z" />
++</vector>
+\ No newline at end of file
+diff --git a/res/drawable/ic_trust_onboarding_bg.xml b/res/drawable/ic_trust_onboarding_bg.xml
+new file mode 100644
+index 0000000..71e2a57
+--- /dev/null
++++ b/res/drawable/ic_trust_onboarding_bg.xml
+@@ -0,0 +1,27 @@
++<?xml version="1.0" encoding="utf-8"?>
++<!--
++     Copyright (C) 2018 The LineageOS Project
++
++     Licensed under the Apache License, Version 2.0 (the "License");
++     you may not use this file except in compliance with the License.
++     You may obtain a copy of the License at
++
++          http://www.apache.org/licenses/LICENSE-2.0
++
++     Unless required by applicable law or agreed to in writing, software
++     distributed under the License is distributed on an "AS IS" BASIS,
++     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++     See the License for the specific language governing permissions and
++     limitations under the License.
++-->
++<vector xmlns:android="http://schemas.android.com/apk/res/android"
++    android:width="256dp"
++    android:height="256dp"
++    android:viewportWidth="256"
++    android:viewportHeight="256"
++    android:tint="?android:attr/colorAccent">
++
++    <path
++        android:fillColor="#000000"
++        android:pathData="M 28.4444 0L 227.556 0C 243.271 0 256 12.7289 256 28.4444L 256 128C 256 198.699 198.699 256 128 256C 57.3013 256 0 198.699 0 128L 0 28.4444C 0 12.7289 12.7289 0 28.4444 0Z" />
++</vector>
+\ No newline at end of file
+diff --git a/res/drawable/ic_trust_root_bad.xml b/res/drawable/ic_trust_root_bad.xml
+new file mode 100644
+index 0000000..3602789
+--- /dev/null
++++ b/res/drawable/ic_trust_root_bad.xml
+@@ -0,0 +1,26 @@
++<?xml version="1.0" encoding="utf-8"?>
++<!--
++     Copyright (C) 2018 The LineageOS Project
++
++     Licensed under the Apache License, Version 2.0 (the "License");
++     you may not use this file except in compliance with the License.
++     You may obtain a copy of the License at
++
++          http://www.apache.org/licenses/LICENSE-2.0
++
++     Unless required by applicable law or agreed to in writing, software
++     distributed under the License is distributed on an "AS IS" BASIS,
++     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++     See the License for the specific language governing permissions and
++     limitations under the License.
++-->
++<vector xmlns:android="http://schemas.android.com/apk/res/android"
++    android:height="24dp"
++    android:width="24dp"
++    android:viewportWidth="24"
++    android:viewportHeight="24">
++
++    <path
++        android:fillColor="@color/trust_status_bad"
++        android:pathData="M3,5A2,2 0 0,1 5,3H19A2,2 0 0,1 21,5V19A2,2 0 0,1 19,21H5C3.89,21 3,20.1 3,19V5M7,18H9L9.35,16H13.35L13,18H15L15.35,16H17.35L17.71,14H15.71L16.41,10H18.41L18.76,8H16.76L17.12,6H15.12L14.76,8H10.76L11.12,6H9.12L8.76,8H6.76L6.41,10H8.41L7.71,14H5.71L5.35,16H7.35L7,18M10.41,10H14.41L13.71,14H9.71L10.41,10Z" />
++</vector>
+\ No newline at end of file
+diff --git a/res/drawable/ic_trust_root_good.xml b/res/drawable/ic_trust_root_good.xml
+new file mode 100644
+index 0000000..b080fdc
+--- /dev/null
++++ b/res/drawable/ic_trust_root_good.xml
+@@ -0,0 +1,26 @@
++<?xml version="1.0" encoding="utf-8"?>
++<!--
++     Copyright (C) 2018 The LineageOS Project
++
++     Licensed under the Apache License, Version 2.0 (the "License");
++     you may not use this file except in compliance with the License.
++     You may obtain a copy of the License at
++
++          http://www.apache.org/licenses/LICENSE-2.0
++
++     Unless required by applicable law or agreed to in writing, software
++     distributed under the License is distributed on an "AS IS" BASIS,
++     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++     See the License for the specific language governing permissions and
++     limitations under the License.
++-->
++<vector xmlns:android="http://schemas.android.com/apk/res/android"
++    android:height="24dp"
++    android:width="24dp"
++    android:viewportWidth="24"
++    android:viewportHeight="24">
++
++    <path
++        android:fillColor="@color/trust_status_good"
++        android:pathData="M3,5A2,2 0 0,1 5,3H19A2,2 0 0,1 21,5V19A2,2 0 0,1 19,21H5C3.89,21 3,20.1 3,19V5M7,18H9L9.35,16H13.35L13,18H15L15.35,16H17.35L17.71,14H15.71L16.41,10H18.41L18.76,8H16.76L17.12,6H15.12L14.76,8H10.76L11.12,6H9.12L8.76,8H6.76L6.41,10H8.41L7.71,14H5.71L5.35,16H7.35L7,18M10.41,10H14.41L13.71,14H9.71L10.41,10Z" />
++</vector>
+\ No newline at end of file
+diff --git a/res/drawable/ic_trust_root_poor.xml b/res/drawable/ic_trust_root_poor.xml
+new file mode 100644
+index 0000000..38c6858
+--- /dev/null
++++ b/res/drawable/ic_trust_root_poor.xml
+@@ -0,0 +1,26 @@
++<?xml version="1.0" encoding="utf-8"?>
++<!--
++     Copyright (C) 2018 The LineageOS Project
++
++     Licensed under the Apache License, Version 2.0 (the "License");
++     you may not use this file except in compliance with the License.
++     You may obtain a copy of the License at
++
++          http://www.apache.org/licenses/LICENSE-2.0
++
++     Unless required by applicable law or agreed to in writing, software
++     distributed under the License is distributed on an "AS IS" BASIS,
++     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++     See the License for the specific language governing permissions and
++     limitations under the License.
++-->
++<vector xmlns:android="http://schemas.android.com/apk/res/android"
++    android:height="24dp"
++    android:width="24dp"
++    android:viewportWidth="24"
++    android:viewportHeight="24">
++
++    <path
++        android:fillColor="@color/trust_status_poor"
++        android:pathData="M3,5A2,2 0 0,1 5,3H19A2,2 0 0,1 21,5V19A2,2 0 0,1 19,21H5C3.89,21 3,20.1 3,19V5M7,18H9L9.35,16H13.35L13,18H15L15.35,16H17.35L17.71,14H15.71L16.41,10H18.41L18.76,8H16.76L17.12,6H15.12L14.76,8H10.76L11.12,6H9.12L8.76,8H6.76L6.41,10H8.41L7.71,14H5.71L5.35,16H7.35L7,18M10.41,10H14.41L13.71,14H9.71L10.41,10Z" />
++</vector>
+\ No newline at end of file
+diff --git a/res/drawable/ic_trust_security_patches_bad.xml b/res/drawable/ic_trust_security_patches_bad.xml
+new file mode 100644
+index 0000000..2b8e82b
+--- /dev/null
++++ b/res/drawable/ic_trust_security_patches_bad.xml
+@@ -0,0 +1,30 @@
++<?xml version="1.0" encoding="utf-8"?>
++<!--
++     Copyright (C) 2018 The LineageOS Project
++
++     Licensed under the Apache License, Version 2.0 (the "License");
++     you may not use this file except in compliance with the License.
++     You may obtain a copy of the License at
++
++          http://www.apache.org/licenses/LICENSE-2.0
++
++     Unless required by applicable law or agreed to in writing, software
++     distributed under the License is distributed on an "AS IS" BASIS,
++     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++     See the License for the specific language governing permissions and
++     limitations under the License.
++-->
++<vector xmlns:android="http://schemas.android.com/apk/res/android"
++    android:width="24dp"
++    android:height="24dp"
++    android:viewportWidth="24"
++    android:viewportHeight="24">
++
++    <path
++        android:fillColor="@color/trust_status_bad"
++        android:pathData="M12,1L3,5v6c0,5.55,3.84,10.74,9,12c5.16-1.26,9-6.45,9-12V5L12,1z M19,11c0,4.52-2.98,8.69-7,9.93C7.98,19.69,5,15.52,5,11 V6.3l7-3.11l7,3.11V11z" />
++    <path
++        android:fillColor="@color/trust_status_bad"
++        android:strokeWidth="1"
++        android:pathData="M6.26,16h11.48c-1.25,2.34-3.3,4.18-5.74,4.93C9.56,20.18,7.51,18.34,6.26,16z" />
++</vector>
+\ No newline at end of file
+diff --git a/res/drawable/ic_trust_security_patches_good.xml b/res/drawable/ic_trust_security_patches_good.xml
+new file mode 100644
+index 0000000..e10727d
+--- /dev/null
++++ b/res/drawable/ic_trust_security_patches_good.xml
+@@ -0,0 +1,30 @@
++<?xml version="1.0" encoding="utf-8"?>
++<!--
++     Copyright (C) 2018 The LineageOS Project
++
++     Licensed under the Apache License, Version 2.0 (the "License");
++     you may not use this file except in compliance with the License.
++     You may obtain a copy of the License at
++
++          http://www.apache.org/licenses/LICENSE-2.0
++
++     Unless required by applicable law or agreed to in writing, software
++     distributed under the License is distributed on an "AS IS" BASIS,
++     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++     See the License for the specific language governing permissions and
++     limitations under the License.
++-->
++<vector xmlns:android="http://schemas.android.com/apk/res/android"
++    android:width="24dp"
++    android:height="24dp"
++    android:viewportWidth="24"
++    android:viewportHeight="24">
++
++    <path
++        android:fillColor="@color/trust_status_good"
++        android:pathData="M12,1L3,5v6c0,5.55,3.84,10.74,9,12c5.16-1.26,9-6.45,9-12V5L12,1z M19,11c0,4.52-2.98,8.69-7,9.93C7.98,19.69,5,15.52,5,11 V6.3l7-3.11l7,3.11V11z" />
++    <path
++        android:fillColor="@color/trust_status_good"
++        android:strokeWidth="1"
++        android:pathData="M6.26,16h11.48c-1.25,2.34-3.3,4.18-5.74,4.93C9.56,20.18,7.51,18.34,6.26,16z M5,10v1 c0,0.34,0.02,0.67,0.05,1c0.07,0.68,0.2,1.35,0.4,2h13.1c0.2-0.65,0.33-1.32,0.4-2c0.03-0.33,0.05-0.66,0.05-1v-1H5z M12,3.19L5,6.3 V8h14V6.3L12,3.19z" />
++</vector>
+\ No newline at end of file
+diff --git a/res/drawable/ic_trust_security_patches_poor.xml b/res/drawable/ic_trust_security_patches_poor.xml
+new file mode 100644
+index 0000000..cc5e8ed
+--- /dev/null
++++ b/res/drawable/ic_trust_security_patches_poor.xml
+@@ -0,0 +1,30 @@
++<?xml version="1.0" encoding="utf-8"?>
++<!--
++     Copyright (C) 2018 The LineageOS Project
++
++     Licensed under the Apache License, Version 2.0 (the "License");
++     you may not use this file except in compliance with the License.
++     You may obtain a copy of the License at
++
++          http://www.apache.org/licenses/LICENSE-2.0
++
++     Unless required by applicable law or agreed to in writing, software
++     distributed under the License is distributed on an "AS IS" BASIS,
++     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++     See the License for the specific language governing permissions and
++     limitations under the License.
++-->
++<vector xmlns:android="http://schemas.android.com/apk/res/android"
++    android:width="24dp"
++    android:height="24dp"
++    android:viewportWidth="24"
++    android:viewportHeight="24">
++
++    <path
++        android:fillColor="@color/trust_status_poor"
++        android:pathData="M12,1L3,5v6c0,5.55,3.84,10.74,9,12c5.16-1.26,9-6.45,9-12V5L12,1z M19,11c0,4.52-2.98,8.69-7,9.93C7.98,19.69,5,15.52,5,11 V6.3l7-3.11l7,3.11V11z" />
++    <path
++        android:fillColor="@color/trust_status_poor"
++        android:strokeWidth="1"
++        android:pathData="M6.26,16h11.48c-1.25,2.34-3.3,4.18-5.74,4.93C9.56,20.18,7.51,18.34,6.26,16z M5,10v1 c0,0.34,0.02,0.67,0.05,1c0.07,0.68,0.2,1.35,0.4,2h13.1c0.2-0.65,0.33-1.32,0.4-2c0.03-0.33,0.05-0.66,0.05-1v-1H5z" />
++</vector>
+\ No newline at end of file
+diff --git a/res/drawable/ic_trust_selinux_bad.xml b/res/drawable/ic_trust_selinux_bad.xml
+new file mode 100644
+index 0000000..a4ae4a5
+--- /dev/null
++++ b/res/drawable/ic_trust_selinux_bad.xml
+@@ -0,0 +1,26 @@
++<?xml version="1.0" encoding="utf-8"?>
++<!--
++     Copyright (C) 2018 The LineageOS Project
++
++     Licensed under the Apache License, Version 2.0 (the "License");
++     you may not use this file except in compliance with the License.
++     You may obtain a copy of the License at
++
++          http://www.apache.org/licenses/LICENSE-2.0
++
++     Unless required by applicable law or agreed to in writing, software
++     distributed under the License is distributed on an "AS IS" BASIS,
++     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++     See the License for the specific language governing permissions and
++     limitations under the License.
++-->
++<vector xmlns:android="http://schemas.android.com/apk/res/android"
++    android:width="24dp"
++    android:height="24dp"
++    android:viewportWidth="24"
++    android:viewportHeight="24">
++
++    <path
++        android:fillColor="@color/trust_status_bad"
++        android:pathData="M21,2H3C2,2,2,3,2,3v3h20V3C22,2,21,2,21,2z M14,5c-0.55,0-1-0.45-1-1s0.45-1,1-1s1,0.45,1,1S14.55,5,14,5z M17,5 c-0.55,0-1-0.45-1-1s0.45-1,1-1s1,0.45,1,1S17.55,5,17,5z M20,5c-0.55,0-1-0.45-1-1s0.45-1,1-1s1,0.45,1,1S20.55,5,20,5z M21,8H3 C2,8,2,9,2,9v12c0,1,1,1,1,1h18c1,0,1-1,1-1V9C22,8,21,8,21,8z M15.71,19.29l-1.42,1.42L12,18.42l-2.29,2.29l-1.42-1.42L10.58,17 l-2.29-2.29l1.42-1.42L12,15.58l2.29-2.29l1.42,1.42L13.42,17L15.71,19.29z M20,9c0.55,0,1,0.45,1,1s-0.45,1-1,1s-1-0.45-1-1 S19.45,9,20,9z M17,9c0.55,0,1,0.45,1,1s-0.45,1-1,1s-1-0.45-1-1S16.45,9,17,9z M14,9c0.55,0,1,0.45,1,1s-0.45,1-1,1s-1-0.45-1-1 S13.45,9,14,9z" />
++</vector>
+\ No newline at end of file
+diff --git a/res/drawable/ic_trust_selinux_good.xml b/res/drawable/ic_trust_selinux_good.xml
+new file mode 100644
+index 0000000..f9b139b
+--- /dev/null
++++ b/res/drawable/ic_trust_selinux_good.xml
+@@ -0,0 +1,29 @@
++<?xml version="1.0" encoding="utf-8"?>
++<!--
++     Copyright (C) 2018 The LineageOS Project
++
++     Licensed under the Apache License, Version 2.0 (the "License");
++     you may not use this file except in compliance with the License.
++     You may obtain a copy of the License at
++
++          http://www.apache.org/licenses/LICENSE-2.0
++
++     Unless required by applicable law or agreed to in writing, software
++     distributed under the License is distributed on an "AS IS" BASIS,
++     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++     See the License for the specific language governing permissions and
++     limitations under the License.
++-->
++<vector xmlns:android="http://schemas.android.com/apk/res/android"
++    android:width="24dp"
++    android:height="24dp"
++    android:viewportWidth="24"
++    android:viewportHeight="24">
++
++    <path
++        android:fillColor="@color/trust_status_good"
++        android:pathData="M21,8H3C2,8,2,9,2,9v12c0,1,1,1,1,1h18c1,0,1-1,1-1V9C22,8,21,8,21,8z M17,9c0.55,0,1,0.45,1,1s-0.45,1-1,1s-1-0.45-1-1 S16.45,9,17,9z M14,9c0.55,0,1,0.45,1,1s-0.45,1-1,1s-1-0.45-1-1S13.45,9,14,9z M20,20H4v-8h16V20z M20,11c-0.55,0-1-0.45-1-1 s0.45-1,1-1s1,0.45,1,1S20.55,11,20,11z M21,2H3C2,2,2,3,2,3v3h20V3C22,2,21,2,21,2z M14,5c-0.55,0-1-0.45-1-1s0.45-1,1-1 s1,0.45,1,1S14.55,5,14,5z M17,5c-0.55,0-1-0.45-1-1s0.45-1,1-1s1,0.45,1,1S17.55,5,17,5z M20,5c-0.55,0-1-0.45-1-1s0.45-1,1-1 s1,0.45,1,1S20.55,5,20,5z" />
++    <path
++        android:fillColor="@color/trust_status_good"
++        android:pathData="M 11 19.414 L 8.293 16.707 L 9.707 15.293 L 11 16.586 L 14.293 13.293 L 15.707 14.707 Z" />
++</vector>
+\ No newline at end of file
+diff --git a/res/layout-land/activity_trust_onboarding.xml b/res/layout-land/activity_trust_onboarding.xml
+new file mode 100644
+index 0000000..011a531
+--- /dev/null
++++ b/res/layout-land/activity_trust_onboarding.xml
+@@ -0,0 +1,89 @@
++<!-- Copyright (C) 2018 The LineageOS Project
++
++     Licensed under the Apache License, Version 2.0 (the "License");
++     you may not use this file except in compliance with the License.
++     You may obtain a copy of the License at
++
++          http://www.apache.org/licenses/LICENSE-2.0
++
++     Unless required by applicable law or agreed to in writing, software
++     distributed under the License is distributed on an "AS IS" BASIS,
++     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++     See the License for the specific language governing permissions and
++     limitations under the License.
++-->
++<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
++    android:layout_width="match_parent"
++    android:layout_height="match_parent">
++
++    <TextView
++        android:id="@+id/trust_onboarding_header"
++        style="@style/TextAppearance.AppCompat.Headline"
++        android:layout_width="wrap_content"
++        android:layout_height="wrap_content"
++        android:layout_marginTop="56dp"
++        android:layout_centerHorizontal="true"
++        android:maxLines="1"
++        android:text="@string/trust_onboarding_title" />
++
++    <LinearLayout
++        android:layout_width="match_parent"
++        android:layout_height="match_parent"
++        android:layout_below="@id/trust_onboarding_header"
++        android:layout_marginEnd="@dimen/trust_logo_horizontal_margin"
++        android:layout_marginStart="@dimen/trust_logo_horizontal_margin"
++        android:layout_marginTop="@dimen/trust_logo_vertical_margin"
++        android:gravity="center_vertical"
++        android:orientation="horizontal">
++
++        <ImageView
++            android:id="@+id/trust_onboarding_image"
++            android:layout_width="@dimen/trust_logo_width"
++            android:layout_height="@dimen/trust_logo_height"
++            android:layout_marginBottom="48dp"
++            android:layout_marginEnd="48dp"
++            android:layout_marginStart="48dp"
++            android:layout_marginTop="24dp"
++            android:adjustViewBounds="true"
++            android:src="@drawable/avd_trust_onboarding"
++            android:background="@drawable/ic_trust_onboarding_bg" />
++
++        <LinearLayout
++            android:layout_width="wrap_content"
++            android:layout_height="match_parent"
++            android:gravity="center_horizontal"
++            android:orientation="vertical">
++
++            <TextView
++                style="@style/TextAppearance.AppCompat.Subhead"
++                android:layout_width="wrap_content"
++                android:layout_height="wrap_content"
++                android:paddingTop="16dp"
++                android:text="@string/trust_onboarding_description"
++                android:textAlignment="center"
++                android:textColor="?android:attr/textColorSecondary" />
++
++            <Button
++                android:id="@+id/trust_onboarding_learn_more"
++                style="@style/Widget.AppCompat.Button.Borderless.Colored"
++                android:layout_width="wrap_content"
++                android:layout_height="wrap_content"
++                android:layout_marginTop="8dp"
++                android:text="@string/trust_onboarding_learn_more" />
++        </LinearLayout>
++    </LinearLayout>
++
++    <Button
++        android:id="@+id/trust_onboarding_done"
++        style="@style/Base.Widget.AppCompat.Button.Colored"
++        android:layout_width="wrap_content"
++        android:layout_height="wrap_content"
++        android:layout_alignParentBottom="true"
++        android:layout_centerHorizontal="true"
++        android:layout_marginBottom="48dp"
++        android:paddingBottom="8dp"
++        android:paddingStart="16dp"
++        android:paddingEnd="16dp"
++        android:paddingTop="8dp"
++        android:text="@string/trust_onboarding_done" />
++</RelativeLayout>
+diff --git a/res/layout/activity_trust_onboarding.xml b/res/layout/activity_trust_onboarding.xml
+new file mode 100644
+index 0000000..d09c023
+--- /dev/null
++++ b/res/layout/activity_trust_onboarding.xml
+@@ -0,0 +1,80 @@
++<!-- Copyright (C) 2018 The LineageOS Project
++
++     Licensed under the Apache License, Version 2.0 (the "License");
++     you may not use this file except in compliance with the License.
++     You may obtain a copy of the License at
++
++          http://www.apache.org/licenses/LICENSE-2.0
++
++     Unless required by applicable law or agreed to in writing, software
++     distributed under the License is distributed on an "AS IS" BASIS,
++     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++     See the License for the specific language governing permissions and
++     limitations under the License.
++-->
++<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
++    android:layout_width="match_parent"
++    android:layout_height="match_parent">
++
++    <TextView
++        android:id="@+id/trust_onboarding_header"
++        style="@style/TextAppearance.AppCompat.Headline"
++        android:layout_width="wrap_content"
++        android:layout_height="wrap_content"
++        android:layout_marginTop="56dp"
++        android:layout_centerHorizontal="true"
++        android:maxLines="1"
++        android:text="@string/trust_onboarding_title" />
++
++    <LinearLayout
++        android:layout_width="match_parent"
++        android:layout_height="match_parent"
++        android:layout_below="@id/trust_onboarding_header"
++        android:layout_marginEnd="@dimen/trust_logo_horizontal_margin"
++        android:layout_marginStart="@dimen/trust_logo_horizontal_margin"
++        android:layout_marginTop="@dimen/trust_logo_vertical_margin"
++        android:gravity="center_horizontal"
++        android:orientation="vertical">
++
++        <ImageView
++            android:id="@+id/trust_onboarding_image"
++            android:layout_width="@dimen/trust_logo_width"
++            android:layout_height="@dimen/trust_logo_height"
++            android:layout_marginEnd="48dp"
++            android:layout_marginStart="48dp"
++            android:adjustViewBounds="true"
++            android:src="@drawable/avd_trust_onboarding"
++            android:background="@drawable/ic_trust_onboarding_bg" />
++
++        <TextView
++            style="@style/TextAppearance.AppCompat.Subhead"
++            android:layout_width="wrap_content"
++            android:layout_height="wrap_content"
++            android:paddingTop="16dp"
++            android:text="@string/trust_onboarding_description"
++            android:textAlignment="center"
++            android:textColor="?android:attr/textColorSecondary" />
++
++        <Button
++            android:id="@+id/trust_onboarding_learn_more"
++            style="@style/Widget.AppCompat.Button.Borderless.Colored"
++            android:layout_width="wrap_content"
++            android:layout_height="wrap_content"
++            android:layout_marginTop="8dp"
++            android:text="@string/trust_onboarding_learn_more" />
++    </LinearLayout>
++
++    <Button
++        android:id="@+id/trust_onboarding_done"
++        style="@style/Base.Widget.AppCompat.Button.Colored"
++        android:layout_width="wrap_content"
++        android:layout_height="wrap_content"
++        android:layout_alignParentBottom="true"
++        android:layout_centerHorizontal="true"
++        android:layout_marginBottom="48dp"
++        android:paddingBottom="8dp"
++        android:paddingStart="16dp"
++        android:paddingEnd="16dp"
++        android:paddingTop="8dp"
++        android:text="@string/trust_onboarding_done" />
++</RelativeLayout>
+diff --git a/res/values-land/dimens.xml b/res/values-land/dimens.xml
+new file mode 100644
+index 0000000..d84d7a3
+--- /dev/null
++++ b/res/values-land/dimens.xml
+@@ -0,0 +1,23 @@
++<?xml version="1.0" encoding="utf-8"?>
++<!-- Copyright (C) 2018 The LineageOS Project
++
++     Licensed under the Apache License, Version 2.0 (the "License");
++     you may not use this file except in compliance with the License.
++     You may obtain a copy of the License at
++
++          http://www.apache.org/licenses/LICENSE-2.0
++
++     Unless required by applicable law or agreed to in writing, software
++     distributed under the License is distributed on an "AS IS" BASIS,
++     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++     See the License for the specific language governing permissions and
++     limitations under the License.
++-->
++<resources>
++
++    <!-- Trust onBoarding -->
++    <dimen name="trust_logo_vertical_margin">0dp</dimen>
++    <dimen name="trust_logo_horizontal_margin">40dp</dimen>
++    <dimen name="trust_logo_height">-1px</dimen>
++    <dimen name="trust_logo_width">-2px</dimen>
++</resources>
+\ No newline at end of file
+diff --git a/res/values-large-land/dimens.xml b/res/values-large-land/dimens.xml
+new file mode 100644
+index 0000000..32ad854
+--- /dev/null
++++ b/res/values-large-land/dimens.xml
+@@ -0,0 +1,23 @@
++<?xml version="1.0" encoding="utf-8"?>
++<!-- Copyright (C) 2018 The LineageOS Project
++
++     Licensed under the Apache License, Version 2.0 (the "License");
++     you may not use this file except in compliance with the License.
++     You may obtain a copy of the License at
++
++          http://www.apache.org/licenses/LICENSE-2.0
++
++     Unless required by applicable law or agreed to in writing, software
++     distributed under the License is distributed on an "AS IS" BASIS,
++     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++     See the License for the specific language governing permissions and
++     limitations under the License.
++-->
++<resources>
++
++    <!-- Trust onBoarding -->
++    <dimen name="trust_logo_vertical_margin">72dp</dimen>
++    <dimen name="trust_logo_horizontal_margin">72dp</dimen>
++    <dimen name="trust_logo_height">256dp</dimen>
++    <dimen name="trust_logo_width">256dp</dimen>
++</resources>
+\ No newline at end of file
+diff --git a/res/values-large/dimens.xml b/res/values-large/dimens.xml
+new file mode 100644
+index 0000000..c72d754
+--- /dev/null
++++ b/res/values-large/dimens.xml
+@@ -0,0 +1,23 @@
++<?xml version="1.0" encoding="utf-8"?>
++<!-- Copyright (C) 2018 The LineageOS Project
++
++     Licensed under the Apache License, Version 2.0 (the "License");
++     you may not use this file except in compliance with the License.
++     You may obtain a copy of the License at
++
++          http://www.apache.org/licenses/LICENSE-2.0
++
++     Unless required by applicable law or agreed to in writing, software
++     distributed under the License is distributed on an "AS IS" BASIS,
++     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++     See the License for the specific language governing permissions and
++     limitations under the License.
++-->
++<resources>
++
++    <!-- Trust onBoarding -->
++    <dimen name="trust_logo_vertical_margin">96dp</dimen>
++    <dimen name="trust_logo_horizontal_margin">72dp</dimen>
++    <dimen name="trust_logo_height">256dp</dimen>
++    <dimen name="trust_logo_width">256dp</dimen>
++</resources>
+\ No newline at end of file
+diff --git a/res/values/colors.xml b/res/values/colors.xml
+index 4cd1263..e05a0ed 100644
+--- a/res/values/colors.xml
++++ b/res/values/colors.xml
+@@ -27,4 +27,7 @@
+     <color name="perf_hot">#ffd10015</color>
+     <color name="perf_cold">#ff005994</color>
+ 
++    <color name="trust_status_good">#36B37E</color>
++    <color name="trust_status_poor">#FFAB00</color>
++    <color name="trust_status_bad">#FF5630</color>
+ </resources>
+diff --git a/res/values/dimens.xml b/res/values/dimens.xml
+index 349f748..893abd0 100644
+--- a/res/values/dimens.xml
++++ b/res/values/dimens.xml
+@@ -57,5 +57,11 @@
+     <!-- Berry lite -->
+     <dimen name="style_accent_preview">32dp</dimen>
+     <dimen name="style_accent_icon">24dp</dimen>
++
++    <!-- Trust onBoarding -->
++    <dimen name="trust_logo_vertical_margin">56dp</dimen>
++    <dimen name="trust_logo_horizontal_margin">40dp</dimen>
++    <dimen name="trust_logo_height">-2px</dimen>
++    <dimen name="trust_logo_width">-1px</dimen>
+ </resources>
+ 
+diff --git a/res/values/strings.xml b/res/values/strings.xml
+index 5205aa9..a2cc958 100644
+--- a/res/values/strings.xml
++++ b/res/values/strings.xml
+@@ -689,4 +689,35 @@
+     <string name="style_automagic_dialog_positive">Apply</string>
+     <string name="style_accent_default_name">Default</string>
+     <string name="style_permission_error">Storage access permission is needed to analyze your wallpaper, please grant it to use this feature</string>
++
++    <!-- Trust interface -->
++    <string name="trust_title" translatable="false">@*lineageos.platform:string/trust_feature_name</string>
++    <string name="trust_header">Trust helps you keep your device secure and protects your privacy.\nThe Trust icon shows up to help you by checking the security of the contents.</string>
++    <string name="trust_category_features">Status</string>
++    <string name="trust_feature_selinux">SELinux</string>
++    <string name="trust_feature_selinux_value_enforcing">Enforcing</string>
++    <string name="trust_feature_selinux_value_disabled">Disabled</string>
++    <string name="trust_feature_selinux_explain">SELinux dictates which processes have access to which files on your device.\nThis prevents apps and services from having access to files that they are not supposed to deal with: this way a malicious process has limited access so your security is preserved.</string>
++    <string name="trust_feature_root">Root access</string>
++    <string name="trust_feature_root_value_disabled">Disabled</string>
++    <string name="trust_feature_root_value_adb">ADB only</string>
++    <string name="trust_feature_root_value_apps">Apps and ADB</string>
++    <string name="trust_feature_root_explain">Root access allows the bypassing of security restrictions by apps and services you choose, allowing them to make modifications to the system, which can cause damage to your device or OS.</string>
++    <string name="trust_feature_security_patches">Android security patches</string>
++    <string name="trust_feature_security_patches_value_base">Platform: %1$s\nVendor: %2$s</string>
++    <string name="trust_feature_security_patches_value_new">up to date</string>
++    <string name="trust_feature_security_patches_value_medium">some months old</string>
++    <string name="trust_feature_security_patches_value_old">out of date</string>
++    <string name="trust_feature_security_patches_explain">Security patches are released monthly by Google and SoC vendors to address flaws in the system which could be exploited by malicious apps to bypass security restrictions and can cause temporary or permanent damage to your device.\nWhile platform patches are updated globally every month, vendor patches are updated from the OEM from time to time.\nTo keep your device safe make sure your LineageOS build is always up-to-date.</string>
++    <string name="trust_feature_encryption">Encryption</string>
++    <string name="trust_feature_encryption_value_enabled">Enabled</string>
++    <string name="trust_feature_encryption_value_nolock">Needs a secure lock screen</string>
++    <string name="trust_feature_encryption_value_disabled">Disabled</string>
++    <string name="trust_feature_encryption_explain">Encrypting your device prevents access to your data when your phone is off or in recovery mode. This is particularly important if your phone is stolen, and prevents people from reading your messages, contacts, and other private information without the password.\nTo make the encryption more effective you need to set a secure lock screen.</string>
++    <string name="trust_category_tools">Privacy</string>
++    <string name="trust_onboarding_title">Say hello to Trust</string>
++    <string name="trust_onboarding_description">Trust helps you keep your device secure and protects your privacy.\nThe Trust icon will show up to help you by checking the security of the contents</string>
++    <string name="trust_onboarding_learn_more">Learn more</string>
++    <string name="trust_onboarding_done">Got it</string>
++
+ </resources>
+diff --git a/res/values/styles.xml b/res/values/styles.xml
+index 6366658..55d1ac0 100644
+--- a/res/values/styles.xml
++++ b/res/values/styles.xml
+@@ -136,4 +136,10 @@
+         <item name="android:layout_height">1dp</item>
+     </style>
+ 
++    <style name="OnBoardingStyle" parent="Theme.AppCompat.DayNight">
++        <item name="colorAccent">#167c80</item>
++        <item name="windowActionBar">false</item>
++        <item name="windowNoTitle">true</item>
++    </style>
++
+ </resources>
+diff --git a/res/xml/parts_catalog.xml b/res/xml/parts_catalog.xml
+index db18231..5e2a106 100644
+--- a/res/xml/parts_catalog.xml
++++ b/res/xml/parts_catalog.xml
+@@ -122,4 +122,9 @@
+           android:summary="@string/style_summary"
+           android:fragment="org.lineageos.lineageparts.style.StylePreferences"
+           lineage:xmlRes="@xml/style_preferences" />
++
++  <part android:key="trust_interface"
++        android:title="@string/trust_title"
++        android:fragment="org.lineageos.lineageparts.trust.TrustPreferences"
++        lineage:xmlRes="@xml/trust_preferences" />
+ </parts-catalog>
+diff --git a/res/xml/trust_preferences.xml b/res/xml/trust_preferences.xml
+new file mode 100644
+index 0000000..2e4e0a6
+--- /dev/null
++++ b/res/xml/trust_preferences.xml
+@@ -0,0 +1,50 @@
++<?xml version="1.0" encoding="utf-8"?>
++<!--
++     Copyright (C) 2018 The LineageOS Project
++
++     Licensed under the Apache License, Version 2.0 (the "License");
++     you may not use this file except in compliance with the License.
++     You may obtain a copy of the License at
++
++          http://www.apache.org/licenses/LICENSE-2.0
++
++     Unless required by applicable law or agreed to in writing, software
++     distributed under the License is distributed on an "AS IS" BASIS,
++     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++     See the License for the specific language governing permissions and
++     limitations under the License.
++-->
++<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android">
++
++    <org.lineageos.lineageparts.widget.WallOfTextPreference
++        android:icon="@drawable/ic_trust"
++        android:summary="@string/trust_header" />
++
++    <PreferenceCategory android:title="@string/trust_category_features">
++
++        <Preference
++            android:key="trust_selinux"
++            android:title="@string/trust_feature_selinux" />
++
++        <Preference
++            android:key="trust_root"
++            android:title="@string/trust_feature_root" />
++
++        <Preference
++            android:key="trust_security_patch"
++            android:title="@string/trust_feature_security_patches" />
++
++        <Preference
++            android:key="trust_encryption"
++            android:title="@string/trust_feature_encryption" />
++    </PreferenceCategory>
++
++    <PreferenceCategory android:title="@string/trust_category_tools">
++
++        <org.lineageos.internal.lineageparts.LineagePartsPreference
++            android:key="privacy_guard_manager" />
++
++        <org.lineageos.internal.lineageparts.LineagePartsPreference
++            android:key="lineagestats" />
++    </PreferenceCategory>
++</PreferenceScreen>
+diff --git a/src/org/lineageos/lineageparts/trust/TrustOnBoardingActivity.java b/src/org/lineageos/lineageparts/trust/TrustOnBoardingActivity.java
+new file mode 100644
+index 0000000..6f7251a
+--- /dev/null
++++ b/src/org/lineageos/lineageparts/trust/TrustOnBoardingActivity.java
+@@ -0,0 +1,70 @@
++/*
++ * Copyright (C) 2018 The LineageOS Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++package org.lineageos.lineageparts.trust;
++
++import android.content.Intent;
++import android.graphics.drawable.AnimatedVectorDrawable;
++import android.os.Bundle;
++import android.os.Handler;
++import android.widget.Button;
++import android.widget.ImageView;
++import android.support.v7.app.AppCompatActivity;
++
++import lineageos.providers.LineageSettings;
++
++import org.lineageos.lineageparts.R;
++
++public class TrustOnBoardingActivity extends AppCompatActivity {
++    private ImageView mImage;
++
++    @Override
++    protected void onCreate(Bundle savedInstance) {
++        super.onCreate(savedInstance);
++        setContentView(R.layout.activity_trust_onboarding);
++
++        Button learnMore = findViewById(R.id.trust_onboarding_learn_more);
++        Button dismiss = findViewById(R.id.trust_onboarding_done);
++        mImage = findViewById(R.id.trust_onboarding_image);
++
++        learnMore.setOnClickListener(v -> openTrustSettings());
++        dismiss.setOnClickListener(v -> finish());
++
++        new Handler().postDelayed(this::showAnimation, 800);
++    }
++
++    private void showAnimation() {
++        AnimatedVectorDrawable drawable = (AnimatedVectorDrawable) mImage.getDrawable();
++        if (drawable != null) {
++            drawable.start();
++        }
++    }
++
++    private void openTrustSettings() {
++        setOnboardingCompleted();
++        startActivity(new Intent("org.lineageos.lineageparts.TRUST_INTERFACE"));
++        finish();
++    }
++
++    private void onDismissClick() {
++        setOnboardingCompleted();
++        finish();
++    }
++
++    private void setOnboardingCompleted() {
++        LineageSettings.System.putInt(getContentResolver(),
++                LineageSettings.System.TRUST_INTERFACE_HINTED, 1);
++    }
++}
+\ No newline at end of file
+diff --git a/src/org/lineageos/lineageparts/trust/TrustPreferences.java b/src/org/lineageos/lineageparts/trust/TrustPreferences.java
+new file mode 100644
+index 0000000..fb38471
+--- /dev/null
++++ b/src/org/lineageos/lineageparts/trust/TrustPreferences.java
+@@ -0,0 +1,175 @@
++/*
++ * Copyright (C) 2018 The LineageOS Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++package org.lineageos.lineageparts.trust;
++
++import android.app.AlertDialog;
++import android.content.Context;
++import android.os.Bundle;
++import android.support.v7.preference.Preference;
++import android.util.Log;
++
++import org.lineageos.lineageparts.R;
++import org.lineageos.lineageparts.SettingsPreferenceFragment;
++
++import lineageos.trust.TrustInterface;
++
++public class TrustPreferences extends SettingsPreferenceFragment {
++    private static final String TAG = "TrustPreferences";
++
++    private Preference mSELinuxPref;
++    private Preference mRootPref;
++    private Preference mSecurityPatchesPref;
++    private Preference mEncryptionPref;
++
++    private TrustInterface mInterface;
++
++    private int[] mSecurityLevel = new int[4];
++
++    @Override
++    public void onCreate(Bundle savedInstance) {
++        super.onCreate(savedInstance);
++
++        mInterface = TrustInterface.getInstance(getContext());
++
++        addPreferencesFromResource(R.xml.trust_preferences);
++
++        mSELinuxPref = findPreference("trust_selinux");
++        mRootPref = findPreference("trust_root");
++        mSecurityPatchesPref = findPreference("trust_security_patch");
++        mEncryptionPref = findPreference("trust_encryption");
++
++        mSELinuxPref.setOnPreferenceClickListener(p -> 
++                showInfo(R.string.trust_feature_selinux_explain));
++        mRootPref.setOnPreferenceClickListener(p ->
++                 showInfo(R.string.trust_feature_root_explain));
++        mSecurityPatchesPref.setOnPreferenceClickListener(p ->
++                showInfo(R.string.trust_feature_security_patches_explain));
++        mEncryptionPref.setOnPreferenceClickListener(p ->
++                showInfo(R.string.trust_feature_encryption_explain));
++        setup();
++    }
++
++    private void setup() {
++        int seLinuxLevel = mInterface.getLevelForFeature(TrustInterface.TRUST_FEATURE_SELINUX);
++        int rootLevel = mInterface.getLevelForFeature(TrustInterface.TRUST_FEATURE_ROOT);
++        int secPLevel =
++                mInterface.getLevelForFeature(TrustInterface.TRUST_FEATURE_PLATFORM_SECURITY_PATCH);
++        int secVLevel =
++                mInterface.getLevelForFeature(TrustInterface.TRUST_FEATURE_VENDOR_SECURITY_PATCH);
++        int encryptLevel = mInterface.getLevelForFeature(TrustInterface.TRUST_FEATURE_ENCRYPTION);
++
++        setupSELinux(seLinuxLevel);
++        setupRoot(rootLevel);
++        setupSecurityPatches(secPLevel, secVLevel);
++        setupEncryption(encryptLevel);
++    }
++
++    private void setupSELinux(int level) {
++        int icon;
++        int summary;
++        if (level == TrustInterface.TRUST_FEATURE_LEVEL_GOOD) {
++            icon = R.drawable.ic_trust_selinux_good;
++            summary = R.string.trust_feature_selinux_value_enforcing;
++        } else {
++            icon = R.drawable.ic_trust_selinux_bad;
++            summary = R.string.trust_feature_selinux_value_disabled;
++        }
++        mSELinuxPref.setIcon(icon);
++        mSELinuxPref.setSummary(getContext().getString(summary));
++    }
++
++    private void setupRoot(int level) {
++        int icon;
++        int summary;
++        if (level == TrustInterface.TRUST_FEATURE_LEVEL_GOOD) {
++            icon = R.drawable.ic_trust_root_good;
++            summary = R.string.trust_feature_root_value_disabled;
++        } else if (level == TrustInterface.TRUST_FEATURE_LEVEL_POOR) {
++            icon = R.drawable.ic_trust_root_poor;
++            summary = R.string.trust_feature_root_value_adb;
++        } else {
++            icon = R.drawable.ic_trust_root_bad;
++            summary = R.string.trust_feature_root_value_apps;
++        }
++        mRootPref.setIcon(icon);
++        mRootPref.setSummary(getContext().getString(summary));
++    }
++
++    private void setupSecurityPatches(int platform, int vendor) {
++        int icon;
++        if (platform == TrustInterface.TRUST_FEATURE_LEVEL_GOOD &&
++                vendor ==  TrustInterface.TRUST_FEATURE_LEVEL_GOOD) {
++            icon = R.drawable.ic_trust_security_patches_good;
++        } else if (platform == TrustInterface.TRUST_FEATURE_LEVEL_POOR ||
++                (platform == TrustInterface.TRUST_FEATURE_LEVEL_GOOD &&
++                vendor != TrustInterface.TRUST_FEATURE_LEVEL_GOOD)) {
++            icon = R.drawable.ic_trust_security_patches_poor;
++        } else {
++            icon = R.drawable.ic_trust_security_patches_bad;
++        }
++
++        int summaryP = getSummaryForSecurityPatchLevel(platform);
++        int summaryV = getSummaryForSecurityPatchLevel(vendor);
++        Context context = getContext();
++        String summary = context.getString(R.string.trust_feature_security_patches_value_base,
++            context.getString(summaryP), context.getString(summaryV));
++
++        mSecurityPatchesPref.setIcon(icon);
++        mSecurityPatchesPref.setSummary(summary);
++    }
++
++    private int getSummaryForSecurityPatchLevel(int level) {
++        switch (level) {
++            case TrustInterface.TRUST_FEATURE_LEVEL_GOOD:
++                return R.string.trust_feature_security_patches_value_new;
++            case TrustInterface.TRUST_FEATURE_LEVEL_POOR:
++                return R.string.trust_feature_security_patches_value_medium;
++            case TrustInterface.TRUST_FEATURE_LEVEL_BAD:
++            case TrustInterface.ERROR_UNDEFINED:
++                return R.string.trust_feature_security_patches_value_old;
++            default:
++                return 0;
++        }
++    }
++
++    private void setupEncryption(int level) {
++        int icon;
++        int summary;
++        boolean isLegacy = getContext().getResources()
++                .getBoolean(org.lineageos.platform.internal.R.bool.config_trustLegacyEncryption);
++        if (level == TrustInterface.TRUST_FEATURE_LEVEL_GOOD) {
++            icon = R.drawable.ic_trust_encryption_good;
++            summary = R.string.trust_feature_encryption_value_enabled;
++        } else if (level == TrustInterface.TRUST_FEATURE_LEVEL_POOR) {
++            icon = R.drawable.ic_trust_encryption_poor;
++            summary = isLegacy ?
++                R.string.trust_feature_encryption_value_disabled :
++                R.string.trust_feature_encryption_value_nolock;
++        } else {
++            icon = R.drawable.ic_trust_encryption_bad;
++            summary = R.string.trust_feature_encryption_value_disabled;
++        }
++        mEncryptionPref.setIcon(icon);
++        mEncryptionPref.setSummary(getContext().getString(summary));
++    }
++
++    private boolean showInfo(int text) {
++        new AlertDialog.Builder(getContext())
++            .setMessage(text)
++            .show();
++        return true;
++    }
++}
+\ No newline at end of file
+-- 
+2.17.0
+

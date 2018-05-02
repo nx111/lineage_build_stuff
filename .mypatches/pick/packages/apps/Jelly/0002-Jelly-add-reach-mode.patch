@@ -1,0 +1,424 @@
+From 0769c1c0054eb975f0a724a2c6a6d14a19509e52 Mon Sep 17 00:00:00 2001
+From: Joey <joey@lineageos.org>
+Date: Wed, 2 May 2018 21:40:27 +0200
+Subject: [PATCH 2/2] Jelly: add reach mode
+
+Add an option to move address bar to the bottom
+
+Change-Id: I52627b63c5ab24c7c5d989f69a4ec3175d9e329c
+Signed-off-by: Joey <joey@lineageos.org>
+---
+ .../org/lineageos/jelly/MainActivity.java     | 118 ++++++++++++++++--
+ .../org/lineageos/jelly/SettingsActivity.java |  16 +++
+ .../org/lineageos/jelly/utils/UiUtils.java    |  26 ++++
+ app/src/main/res/layout/activity_main.xml     |   3 +-
+ app/src/main/res/values-large/bools.xml       |  19 +++
+ app/src/main/res/values/bools.xml             |   1 +
+ app/src/main/res/values/strings.xml           |   4 +
+ app/src/main/res/xml/settings.xml             |   6 +
+ 8 files changed, 183 insertions(+), 10 deletions(-)
+ create mode 100644 app/src/main/res/values-large/bools.xml
+
+diff --git a/app/src/main/java/org/lineageos/jelly/MainActivity.java b/app/src/main/java/org/lineageos/jelly/MainActivity.java
+index 724c83a..71990dd 100644
+--- a/app/src/main/java/org/lineageos/jelly/MainActivity.java
++++ b/app/src/main/java/org/lineageos/jelly/MainActivity.java
+@@ -43,11 +43,13 @@ import android.os.Handler;
+ import android.os.ResultReceiver;
+ import android.preference.PreferenceManager;
+ import android.support.annotation.NonNull;
++import android.support.design.widget.AppBarLayout;
+ import android.support.design.widget.BottomSheetDialog;
+ import android.support.design.widget.CoordinatorLayout;
+ import android.support.design.widget.Snackbar;
+ import android.support.v4.content.ContextCompat;
+ import android.support.v4.content.FileProvider;
++import android.support.v4.content.LocalBroadcastManager;
+ import android.support.v7.app.ActionBar;
+ import android.support.v7.app.AlertDialog;
+ import android.support.v7.view.menu.MenuBuilder;
+@@ -68,7 +70,7 @@ import android.webkit.CookieManager;
+ import android.webkit.URLUtil;
+ import android.webkit.WebChromeClient;
+ import android.widget.AutoCompleteTextView;
+-import android.widget.EditText;
++import android.widget.FrameLayout;
+ import android.widget.ImageButton;
+ import android.widget.ImageView;
+ import android.widget.LinearLayout;
+@@ -99,6 +101,8 @@ public class MainActivity extends WebViewExtActivity implements
+     private static final String EXTRA_INCOGNITO = "extra_incognito";
+     private static final String EXTRA_DESKTOP_MODE = "extra_desktop_mode";
+     public static final String EXTRA_URL = "extra_url";
++    public static final String EXTRA_UI_MODE = "extra_ui_mode";
++    public static final String EVENT_CHANGE_UI_MODE = "intent_change_ui_mode";
+     private static final String STATE_KEY_THEME_COLOR = "theme_color";
+     private static final int STORAGE_PERM_REQ = 423;
+     private static final int LOCATION_PERM_REQ = 424;
+@@ -120,7 +124,16 @@ public class MainActivity extends WebViewExtActivity implements
+         }
+     };
+ 
++    private final BroadcastReceiver mUiModeChangeReceiver = new BroadcastReceiver() {
++        @Override
++        public void onReceive(Context context, Intent intent) {
++            setUiMode();
++        }
++    };
++
+     private CoordinatorLayout mCoordinator;
++    private AppBarLayout mAppBar;
++    private FrameLayout mWebViewContainer;
+     private WebViewExt mWebView;
+     private ProgressBar mLoadingProgress;
+     private SearchBarController mSearchController;
+@@ -149,6 +162,8 @@ public class MainActivity extends WebViewExtActivity implements
+         setSupportActionBar(toolbar);
+ 
+         mCoordinator = findViewById(R.id.coordinator_layout);
++        mAppBar = findViewById(R.id.app_bar_layout);
++        mWebViewContainer = findViewById(R.id.web_view_container);
+         mLoadingProgress = findViewById(R.id.load_progress);
+         AutoCompleteTextView autoCompleteTextView = findViewById(R.id.url_bar);
+         autoCompleteTextView.setAdapter(new SuggestionsAdapter(this));
+@@ -205,6 +220,11 @@ public class MainActivity extends WebViewExtActivity implements
+         // Make sure prefs are set before loading them
+         PreferenceManager.setDefaultValues(this, R.xml.settings, false);
+ 
++        // Listen for local broadcasts
++        registerLocalBroadcastListeners();
++
++        setUiMode();
++
+         ImageView incognitoIcon = findViewById(R.id.incognito);
+         incognitoIcon.setVisibility(mIncognito ? View.VISIBLE : View.GONE);
+ 
+@@ -276,6 +296,14 @@ public class MainActivity extends WebViewExtActivity implements
+         }
+     }
+ 
++    @Override
++    protected void onDestroy() {
++        // Unregister the local broadcast receiver because the activity is being trashed
++        unregisterLocalBroadcastsListeners();
++
++        super.onDestroy();
++    }
++
+     @Override
+     public void onBackPressed() {
+         if (mSearchActive) {
+@@ -608,13 +636,22 @@ public class MainActivity extends WebViewExtActivity implements
+         mLoadingProgress.setProgressTintList(ColorStateList.valueOf(progressColor));
+         mLoadingProgress.postInvalidate();
+ 
+-        getWindow().setStatusBarColor(color);
++        boolean isReachMode = UiUtils.isReachModeEnabled(this);
++        if (isReachMode) {
++            getWindow().setNavigationBarColor(color);
++        } else {
++            getWindow().setStatusBarColor(color);
++        }
+ 
+         int flags = getWindow().getDecorView().getSystemUiVisibility();
+         if (UiUtils.isColorLight(color)) {
+-            flags |= View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
++            flags |= isReachMode ?
++                    View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR :
++                    View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
+         } else {
+-            flags &= ~View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
++            flags &= isReachMode ?
++                    ~View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR :
++                    ~View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
+         }
+         getWindow().getDecorView().setSystemUiVisibility(flags);
+ 
+@@ -622,6 +659,16 @@ public class MainActivity extends WebViewExtActivity implements
+                 mUrlIcon, color));
+     }
+ 
++    private void resetSystemUIColor() {
++        int flags = getWindow().getDecorView().getSystemUiVisibility();
++        flags &= ~View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
++        flags &= ~View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
++        getWindow().getDecorView().setSystemUiVisibility(flags);
++
++        getWindow().setStatusBarColor(Color.BLACK);
++        getWindow().setNavigationBarColor(Color.BLACK);
++    }
++
+     private int getThemeColorWithFallback() {
+         if (mThemeColor != Color.TRANSPARENT) {
+             return mThemeColor;
+@@ -643,8 +690,8 @@ public class MainActivity extends WebViewExtActivity implements
+         mCustomView.setBackgroundColor(ContextCompat.getColor(this, android.R.color.black));
+         addContentView(mCustomView, new ViewGroup.LayoutParams(
+                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+-        findViewById(R.id.app_bar_layout).setVisibility(View.GONE);
+-        findViewById(R.id.web_view_container).setVisibility(View.GONE);
++        mAppBar.setVisibility(View.GONE);
++        mWebViewContainer.setVisibility(View.GONE);
+     }
+ 
+     @Override
+@@ -654,8 +701,8 @@ public class MainActivity extends WebViewExtActivity implements
+         }
+         getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+         setImmersiveMode(false);
+-        findViewById(R.id.app_bar_layout).setVisibility(View.VISIBLE);
+-        findViewById(R.id.web_view_container).setVisibility(View.VISIBLE);
++        mAppBar.setVisibility(View.VISIBLE);
++        mWebViewContainer.setVisibility(View.VISIBLE);
+         ViewGroup viewGroup = (ViewGroup) mCustomView.getParent();
+         viewGroup.removeView(mCustomView);
+         mFullScreenCallback.onCustomViewHidden();
+@@ -706,6 +753,61 @@ public class MainActivity extends WebViewExtActivity implements
+         setImmersiveMode(hasFocus && mCustomView != null);
+     }
+ 
++    private void registerLocalBroadcastListeners() {
++        LocalBroadcastManager manager = LocalBroadcastManager.getInstance(this);
++
++        if (!UiUtils.isTablet(this)) {
++            manager.registerReceiver(mUiModeChangeReceiver, new IntentFilter(EVENT_CHANGE_UI_MODE));
++        }
++    }
++
++    private void unregisterLocalBroadcastsListeners() {
++        LocalBroadcastManager manager = LocalBroadcastManager.getInstance(this);
++
++        if (!UiUtils.isTablet(this)) {
++            manager.unregisterReceiver(mUiModeChangeReceiver);
++        }
++    }
++
++    private void setUiMode() {
++        // Now you don't see it
++        mCoordinator.setAlpha(0f);
++        // Magic happens
++        changeUiMode(UiUtils.isReachModeEnabled(this));
++        // Now you see it
++        mCoordinator.setAlpha(1f);
++    }
++
++    private void changeUiMode(boolean isReachMode) {
++        CoordinatorLayout.LayoutParams appBarParams =
++                (CoordinatorLayout.LayoutParams) mAppBar.getLayoutParams();
++        CoordinatorLayout.LayoutParams containerParams =
++                (CoordinatorLayout.LayoutParams) mWebViewContainer.getLayoutParams();
++
++
++        int margin = (int) UiUtils.getDimenAttr(this, R.style.AppTheme,
++                android.R.attr.actionBarSize);
++
++        if (isReachMode) {
++            appBarParams.gravity = Gravity.BOTTOM;
++            containerParams.setMargins(0, 0, 0, margin);
++        } else {
++            appBarParams.gravity = Gravity.TOP;
++            containerParams.setMargins(0, margin, 0, 0);
++        }
++
++        mAppBar.setLayoutParams(appBarParams);
++        mAppBar.invalidate();
++        mWebViewContainer.setLayoutParams(containerParams);
++        mWebViewContainer.invalidate();
++
++        resetSystemUIColor();
++
++        if (mThemeColor != 0) {
++            applyThemeColor(mThemeColor);
++        }
++    }
++
+     private static class SetAsFavoriteTask extends AsyncTask<Void, Void, Boolean> {
+         private ContentResolver contentResolver;
+         private final String title;
+diff --git a/app/src/main/java/org/lineageos/jelly/SettingsActivity.java b/app/src/main/java/org/lineageos/jelly/SettingsActivity.java
+index e8ee395..0ca72d5 100644
+--- a/app/src/main/java/org/lineageos/jelly/SettingsActivity.java
++++ b/app/src/main/java/org/lineageos/jelly/SettingsActivity.java
+@@ -16,9 +16,12 @@
+ package org.lineageos.jelly;
+ 
+ import android.content.Context;
++import android.content.Intent;
+ import android.os.Bundle;
+ import android.preference.Preference;
+ import android.preference.PreferenceFragment;
++import android.preference.SwitchPreference;
++import android.support.v4.content.LocalBroadcastManager;
+ import android.support.v7.app.AlertDialog;
+ import android.support.v7.app.AppCompatActivity;
+ import android.support.v7.widget.Toolbar;
+@@ -30,6 +33,7 @@ import android.widget.LinearLayout;
+ import android.widget.Toast;
+ 
+ import org.lineageos.jelly.utils.PrefsUtils;
++import org.lineageos.jelly.utils.UiUtils;
+ 
+ public class SettingsActivity extends AppCompatActivity {
+ 
+@@ -66,6 +70,18 @@ public class SettingsActivity extends AppCompatActivity {
+                         Toast.LENGTH_LONG).show();
+                 return true;
+             });
++
++            SwitchPreference reachMode = (SwitchPreference) findPreference(("key_reach_mode"));
++            if (UiUtils.isTablet(getContext())) {
++                getPreferenceScreen().removePreference(reachMode);
++            } else {
++                reachMode.setOnPreferenceClickListener(preference -> {
++                    Intent intent = new Intent(MainActivity.EVENT_CHANGE_UI_MODE);
++                    intent.putExtra(MainActivity.EVENT_CHANGE_UI_MODE, reachMode.isChecked());
++                    LocalBroadcastManager.getInstance(getContext()).sendBroadcast(intent);
++                    return true;
++                });
++            }
+         }
+ 
+         private void editHomePage(Preference preference) {
+diff --git a/app/src/main/java/org/lineageos/jelly/utils/UiUtils.java b/app/src/main/java/org/lineageos/jelly/utils/UiUtils.java
+index 3fa16e6..0c39b46 100644
+--- a/app/src/main/java/org/lineageos/jelly/utils/UiUtils.java
++++ b/app/src/main/java/org/lineageos/jelly/utils/UiUtils.java
+@@ -15,7 +15,10 @@
+  */
+ package org.lineageos.jelly.utils;
+ 
++import android.content.Context;
++import android.content.SharedPreferences;
+ import android.content.res.Resources;
++import android.content.res.TypedArray;
+ import android.graphics.Bitmap;
+ import android.graphics.Canvas;
+ import android.graphics.Color;
+@@ -23,6 +26,10 @@ import android.graphics.Paint;
+ import android.graphics.PorterDuff;
+ import android.graphics.PorterDuffXfermode;
+ import android.graphics.Rect;
++import android.preference.PreferenceManager;
++import android.support.annotation.AttrRes;
++import android.support.annotation.DimenRes;
++import android.support.annotation.StyleRes;
+ import android.support.v4.graphics.ColorUtils;
+ import android.support.v7.graphics.Palette;
+ import android.util.TypedValue;
+@@ -30,6 +37,8 @@ import android.view.View;
+ import android.view.inputmethod.InputMethodManager;
+ import android.widget.ImageButton;
+ 
++import org.lineageos.jelly.R;
++
+ public final class UiUtils {
+ 
+     private UiUtils() {
+@@ -113,4 +122,21 @@ public final class UiUtils {
+         button.setEnabled(enabled);
+         button.setAlpha(enabled ? 1.0f : 0.4f);
+     }
++
++    public static boolean isTablet(Context context) {
++        return context.getResources().getBoolean(R.bool.is_tablet);
++    }
++
++    public static boolean isReachModeEnabled(Context context) {
++        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(context);
++        return prefs.getBoolean("key_reach_mode", false);
++    }
++
++    public static float getDimenAttr(Context context, @StyleRes int style, @AttrRes int dimen) {
++        int[] args = { dimen };
++        TypedArray array = context.obtainStyledAttributes(style, args);
++        float result = array.getDimension(0, 0f);
++        array.recycle();
++        return result;
++    }
+ }
+diff --git a/app/src/main/res/layout/activity_main.xml b/app/src/main/res/layout/activity_main.xml
+index 02e4e9a..a6d5c2a 100644
+--- a/app/src/main/res/layout/activity_main.xml
++++ b/app/src/main/res/layout/activity_main.xml
+@@ -68,8 +68,7 @@
+     <FrameLayout
+         android:id="@+id/web_view_container"
+         android:layout_width="match_parent"
+-        android:layout_height="match_parent"
+-        android:layout_marginTop="?actionBarSize">
++        android:layout_height="match_parent">
+ 
+         <org.lineageos.jelly.webview.WebViewExt
+             android:id="@+id/web_view"
+diff --git a/app/src/main/res/values-large/bools.xml b/app/src/main/res/values-large/bools.xml
+new file mode 100644
+index 0000000..4f3c433
+--- /dev/null
++++ b/app/src/main/res/values-large/bools.xml
+@@ -0,0 +1,19 @@
++<?xml version="1.0" encoding="utf-8"?>
++<!-- Copyright (c) 2018 The LineageOS Project
++
++     Licensed under the Apache License, Version 2.0 (the "License");
++     you may not use this file except in compliance with the License.
++     You may obtain a copy of the License at
++
++         http://www.apache.org/licenses/LICENSE-2.0
++
++     Unless required by applicable law or agreed to in writing, software
++     distributed under the License is distributed on an "AS IS" BASIS,
++     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++     See the License for the specific language governing permissions and
++     limitations under the License.
++-->
++<resources>
++    <bool name="is_theme_light">true</bool>
++    <bool name="is_tablet">true</bool>
++</resources>
+\ No newline at end of file
+diff --git a/app/src/main/res/values/bools.xml b/app/src/main/res/values/bools.xml
+index 48ba66a..711aad6 100644
+--- a/app/src/main/res/values/bools.xml
++++ b/app/src/main/res/values/bools.xml
+@@ -15,4 +15,5 @@
+ -->
+ <resources>
+     <bool name="is_theme_light">true</bool>
++    <bool name="is_tablet">false</bool>
+ </resources>
+\ No newline at end of file
+diff --git a/app/src/main/res/values/strings.xml b/app/src/main/res/values/strings.xml
+index f285c15..1580623 100644
+--- a/app/src/main/res/values/strings.xml
++++ b/app/src/main/res/values/strings.xml
+@@ -111,6 +111,10 @@
+     <string name="pref_do_not_track_summary">Send a Do Not Track request to websites you visit</string>
+     <!-- Settings: suggestions provider title -->
+     <string name="pref_suggestions_provider">Suggestions provider</string>
++    <!-- Settings: reach mode title -->
++    <string name="pref_reach_mode_title">Reach mode</string>
++    <!-- Settings: reach mode summary -->
++    <string name="pref_reach_mode_summary">Relocate interface elements for easier one-hand usage</string>
+ 
+     <!-- History: title -->
+     <string name="history_title">History</string>
+diff --git a/app/src/main/res/xml/settings.xml b/app/src/main/res/xml/settings.xml
+index 5c163e5..86dcd31 100644
+--- a/app/src/main/res/xml/settings.xml
++++ b/app/src/main/res/xml/settings.xml
+@@ -41,6 +41,12 @@
+         android:summary="@string/pref_screenshot_snap_summary"
+         android:title="@string/pref_screenshot_snap_title" />
+ 
++    <SwitchPreference
++        android:defaultValue="0"
++        android:key="key_reach_mode"
++        android:summary="@string/pref_reach_mode_summary"
++        android:title="@string/pref_reach_mode_title" />
++
+     <PreferenceCategory android:title="@string/pref_privacy_security">
+ 
+         <SwitchPreference
+-- 
+2.17.0
+

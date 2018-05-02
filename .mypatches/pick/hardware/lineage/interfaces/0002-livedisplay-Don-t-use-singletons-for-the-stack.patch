@@ -1,0 +1,412 @@
+From e3ac3665fb02f6b0ebb6561f43ecd26a0f5f2598 Mon Sep 17 00:00:00 2001
+From: Ethan Chen <intervigil@gmail.com>
+Date: Wed, 25 Apr 2018 23:15:06 -0700
+Subject: [PATCH 2/6] livedisplay: Don't use singletons for the stack
+
+* Rely on plain RAII semantics with object lifetimes to manage resources
+  instead of singletons.
+
+Change-Id: I5c5a06349574edc534c2814cb30da9cb04f72578
+---
+ .../1.0/default/controller/SDMController.cpp  | 16 ++----
+ livedisplay/1.0/default/impl/SDM.cpp          | 40 ++++++--------
+ livedisplay/1.0/default/include/Color.h       | 14 ++---
+ .../1.0/default/include/ColorBackend.h        |  2 -
+ .../include/controller/SDMController.h        |  7 +--
+ livedisplay/1.0/default/include/impl/SDM.h    |  6 ++-
+ livedisplay/1.0/default/service.cpp           |  9 +---
+ livedisplay/1.0/default/src/Color.cpp         | 53 +++++++------------
+ 8 files changed, 51 insertions(+), 96 deletions(-)
+
+diff --git a/livedisplay/1.0/default/controller/SDMController.cpp b/livedisplay/1.0/default/controller/SDMController.cpp
+index af72ec8..0d575ef 100644
+--- a/livedisplay/1.0/default/controller/SDMController.cpp
++++ b/livedisplay/1.0/default/controller/SDMController.cpp
+@@ -70,13 +70,6 @@ namespace V1_0 {
+ namespace implementation {
+ 
+ SDMController::SDMController() {
+-    mHandle = openlib();
+-    if (mHandle != nullptr) {
+-        FOR_EACH_FUNCTION(LOAD_SDM_FUNCTION)
+-    }
+-}
+-
+-std::shared_ptr<void> SDMController::openlib() {
+     std::shared_ptr<void> handle(dlopen(kFilename, RTLD_NOW), [this](void* p) {
+         FOR_EACH_FUNCTION(CLOSE_SDM_FUNCTION)
+         if (p != nullptr) {
+@@ -89,14 +82,11 @@ std::shared_ptr<void> SDMController::openlib() {
+     });
+     if (handle == nullptr) {
+         LOG(ERROR) << "DLOPEN failed for " << kFilename << " (" << dlerror() << ")";
+-        return nullptr;
++        return;
+     }
+-    return handle;
+-}
++    mHandle = handle;
+ 
+-SDMController& SDMController::getInstance() {
+-    static SDMController instance{};
+-    return instance;
++    FOR_EACH_FUNCTION(LOAD_SDM_FUNCTION)
+ }
+ 
+ int32_t SDMController::init(uint64_t* hctx, uint32_t flags) {
+diff --git a/livedisplay/1.0/default/impl/SDM.cpp b/livedisplay/1.0/default/impl/SDM.cpp
+index e18d289..c14f75e 100644
+--- a/livedisplay/1.0/default/impl/SDM.cpp
++++ b/livedisplay/1.0/default/impl/SDM.cpp
+@@ -86,21 +86,19 @@ namespace implementation {
+ using ::android::BAD_VALUE;
+ using ::android::OK;
+ 
+-status_t SDM::initialize() {
+-    status_t rc = NO_INIT;
++SDM::SDM() : mActiveModeId(-1) {
++    mController = std::make_unique<SDMController>();
+ 
+-    rc = SDMController::getInstance().init(&mHandle, 0);
++    status_t rc = mController->init(&mHandle, 0);
+     if (rc != OK) {
+-        return rc;
++        return;
+     }
+ 
+-    mActiveModeId = -1;
+-
+     if (hasFeature(Feature::DISPLAY_MODES)) {
+         rc = saveInitialDisplayMode();
+         if (rc != OK) {
+             LOG(ERROR) << "Failed to save initial display mode! err=" << rc;
+-            return rc;
++            return;
+         }
+         sp<disp_mode> defMode = getDefaultDisplayMode();
+         if (defMode != nullptr) {
+@@ -109,20 +107,16 @@ status_t SDM::initialize() {
+     }
+ 
+     mFOSSEnabled = android::base::GetBoolProperty(kFossProperty, false);
+-
+-    return OK;
+ }
+ 
+-status_t SDM::deinitialize() {
+-    SDMController::getInstance().deinit(mHandle, 0);
+-    mHandle = 0;
+-    return OK;
++SDM::~SDM() {
++    mController->deinit(mHandle, 0);
+ }
+ 
+ uint32_t SDM::getNumSDMDisplayModes() {
+     uint32_t flags = 0;
+     int32_t count = 0;
+-    if (SDMController::getInstance().get_num_display_modes(mHandle, 0, 0, &count, &flags)) {
++    if (mController->get_num_display_modes(mHandle, 0, 0, &count, &flags)) {
+         count = 0;
+     }
+     return count;
+@@ -166,11 +160,11 @@ status_t SDM::setModeState(sp<disp_mode> mode, bool state) {
+         }
+     } else if (mode->privFlags == PRIV_MODE_FLAG_SDM) {
+         if (state) {
+-            return SDMController::getInstance().set_active_display_mode(mHandle, 0, mode->id, 0);
++            return mController->set_active_display_mode(mHandle, 0, mode->id, 0);
+         } else {
+             if (Utils::readInitialModeId(&id) == OK) {
+                 LOG(VERBOSE) << "set sdm mode to default: id" << id;
+-                return SDMController::getInstance().set_active_display_mode(mHandle, 0, id, 0);
++                return mController->set_active_display_mode(mHandle, 0, id, 0);
+             }
+         }
+     }
+@@ -210,7 +204,7 @@ status_t SDM::getDisplayModes(std::vector<sp<disp_mode>>& profiles) {
+         sdm_mode tmp[sdm_count];
+ 
+         uint32_t flags = 0;
+-        rc = SDMController::getInstance().get_display_modes(mHandle, 0, 0, tmp, sdm_count, &flags);
++        rc = mController->get_display_modes(mHandle, 0, 0, tmp, sdm_count, &flags);
+         if (rc == 0) {
+             for (uint32_t i = 0; i < sdm_count; i++) {
+                 const sp<disp_mode> m = new disp_mode;
+@@ -277,7 +271,7 @@ status_t SDM::getPictureAdjustmentRanges(HSICRanges& ranges) {
+     hsic_ranges r;
+     memset(&r, 0, sizeof(struct hsic_ranges));
+ 
+-    status_t rc = SDMController::getInstance().get_global_pa_range(mHandle, 0, &r);
++    status_t rc = mController->get_global_pa_range(mHandle, 0, &r);
+     if (rc == OK) {
+         ranges.hue.min = r.hue.min;
+         ranges.hue.max = r.hue.max;
+@@ -322,7 +316,7 @@ bool SDM::hasFeature(Feature feature) {
+             return false;
+     }
+ 
+-    if (SDMController::getInstance().get_feature_version(mHandle, id, &v, &flags) != OK) {
++    if (mController->get_feature_version(mHandle, id, &v, &flags) != OK) {
+         return false;
+     }
+ 
+@@ -346,7 +340,7 @@ status_t SDM::saveInitialDisplayMode() {
+     int32_t id = 0;
+     uint32_t flags = 0;
+     if (Utils::readInitialModeId(&id) != OK || id < 0) {
+-        if (SDMController::getInstance().get_default_display_mode(mHandle, 0, &id, &flags) == OK &&
++        if (mController->get_default_display_mode(mHandle, 0, &id, &flags) == OK &&
+             id >= 0) {
+             return Utils::writeInitialModeId(id);
+         } else {
+@@ -361,7 +355,7 @@ status_t SDM::getPictureAdjustment(HSIC& hsic) {
+     hsic_config config;
+     memset(&config, 0, sizeof(struct hsic_config));
+ 
+-    status_t rc = SDMController::getInstance().get_global_pa_config(mHandle, 0, &enable, &config);
++    status_t rc = mController->get_global_pa_config(mHandle, 0, &enable, &config);
+     if (rc == OK) {
+         hsic.hue = config.data.hue;
+         hsic.saturation = config.data.saturation;
+@@ -409,7 +403,7 @@ status_t SDM::setDisplayMode(int32_t modeID, bool makeDefault) {
+                 return rc;
+             }
+             if (mode->privFlags == PRIV_MODE_FLAG_SDM) {
+-                rc = SDMController::getInstance().set_default_display_mode(mHandle, 0, mode->id, 0);
++                rc = mController->set_default_display_mode(mHandle, 0, mode->id, 0);
+                 if (rc != OK) {
+                     LOG(ERROR) << "failed to save mode! err=" << rc;
+                     return rc;
+@@ -464,7 +458,7 @@ status_t SDM::setPictureAdjustment(const HSIC& hsic) {
+     config.data.contrast = hsic.contrast;
+     config.data.saturationThreshold = hsic.saturationThreshold;
+ 
+-    return SDMController::getInstance().set_global_pa_config(mHandle, 0, 1, &config);
++    return mController->set_global_pa_config(mHandle, 0, 1, &config);
+ }
+ 
+ HSIC SDM::getDefaultPictureAdjustment() {
+diff --git a/livedisplay/1.0/default/include/Color.h b/livedisplay/1.0/default/include/Color.h
+index 4ffd32d..57ea6ab 100644
+--- a/livedisplay/1.0/default/include/Color.h
++++ b/livedisplay/1.0/default/include/Color.h
+@@ -39,7 +39,7 @@ using ::vendor::lineage::livedisplay::V1_0::IColor;
+ 
+ class Color : public IColor {
+   public:
+-    static sp<Color> getInstance();
++    Color();
+ 
+     Return<Features> getSupportedFeatures() override;
+ 
+@@ -71,18 +71,14 @@ class Color : public IColor {
+     ~Color();
+ 
+   private:
+-    bool connect();
+-    void reset();
+-
+-    Color();
+-    static sp<Color> sInstance;
++    void connect();
++    void disconnect();
+ 
+     uint32_t mFeatures;
+     bool mConnected;
+ 
+-    bool check(Feature f) {
+-        return connect() && (mFeatures & (uint32_t)f);
+-    }
++    bool check(Feature f);
++
+     void error(const char* msg = NULL);
+ 
+     void addFeature(Feature f) {
+diff --git a/livedisplay/1.0/default/include/ColorBackend.h b/livedisplay/1.0/default/include/ColorBackend.h
+index 027d722..b15df58 100644
+--- a/livedisplay/1.0/default/include/ColorBackend.h
++++ b/livedisplay/1.0/default/include/ColorBackend.h
+@@ -52,8 +52,6 @@ class ColorBackend {
+     virtual HSIC getDefaultPictureAdjustment() = 0;
+     virtual status_t setPictureAdjustment(const HSIC& hsic) = 0;
+ 
+-    virtual status_t initialize() = 0;
+-    virtual status_t deinitialize() = 0;
+     virtual bool hasFeature(Feature feature) = 0;
+ 
+     virtual ~ColorBackend() {
+diff --git a/livedisplay/1.0/default/include/controller/SDMController.h b/livedisplay/1.0/default/include/controller/SDMController.h
+index f6311eb..10a4590 100644
+--- a/livedisplay/1.0/default/include/controller/SDMController.h
++++ b/livedisplay/1.0/default/include/controller/SDMController.h
+@@ -26,13 +26,8 @@ namespace V1_0 {
+ namespace implementation {
+ 
+ class SDMController {
+-  private:
+-    SDMController();
+-
+-    std::shared_ptr<void> openlib();
+-
+   public:
+-    static SDMController& getInstance();
++    SDMController();
+ 
+     int32_t init(uint64_t* hctx, uint32_t flags);
+     int32_t deinit(uint64_t hctx, uint32_t flags);
+diff --git a/livedisplay/1.0/default/include/impl/SDM.h b/livedisplay/1.0/default/include/impl/SDM.h
+index 89a6acf..b4b8002 100644
+--- a/livedisplay/1.0/default/include/impl/SDM.h
++++ b/livedisplay/1.0/default/include/impl/SDM.h
+@@ -36,6 +36,9 @@ using ::vendor::lineage::livedisplay::V1_0::IColor;
+ 
+ class SDM : public ColorBackend {
+   public:
++    SDM();
++    ~SDM();
++
+     virtual status_t getDisplayModes(std::vector<sp<disp_mode>>& profiles) override;
+     virtual sp<disp_mode> getCurrentDisplayMode() override;
+     virtual sp<disp_mode> getDefaultDisplayMode() override;
+@@ -67,8 +70,6 @@ class SDM : public ColorBackend {
+     virtual HSIC getDefaultPictureAdjustment() override;
+ 
+     virtual bool hasFeature(Feature f);
+-    virtual status_t initialize();
+-    virtual status_t deinitialize();
+ 
+   private:
+     status_t saveInitialDisplayMode();
+@@ -80,6 +81,7 @@ class SDM : public ColorBackend {
+     sp<disp_mode> getLocalSRGBMode();
+     sp<disp_mode> getLocalDCIP3Mode();
+ 
++    std::unique_ptr<SDMController> mController;
+     uint64_t mHandle;
+     bool mFOSSEnabled;
+     bool mCachedFOSSStatus;
+diff --git a/livedisplay/1.0/default/service.cpp b/livedisplay/1.0/default/service.cpp
+index 1a082db..1ce6eb6 100644
+--- a/livedisplay/1.0/default/service.cpp
++++ b/livedisplay/1.0/default/service.cpp
+@@ -37,21 +37,14 @@ using ::vendor::lineage::livedisplay::V1_0::implementation::Color;
+ 
+ int main() {
+     status_t status;
+-    android::sp<IColor> service = nullptr;
+-
+     LOG(INFO) << "LiveDisplay HAL service is starting.";
+ 
+     // The LiveDisplay HAL may communicate to other vendor components via /dev/vndbinder
+     android::ProcessState::initWithDriver("/dev/vndbinder");
+ 
+-    service = Color::getInstance();
+-    if (service == nullptr) {
+-        LOG(ERROR) << "Can not create an instance of LiveDisplay HAL Iface, exiting.";
+-        goto shutdown;
+-    }
+-
+     configureRpcThreadpool(1, true /*callerWillJoin*/);
+ 
++    android::sp<IColor> service = new Color();
+     status = service->registerAsService();
+     if (status != OK) {
+         LOG(ERROR) << "Could not register service for LiveDisplay HAL Iface (" << status << ")";
+diff --git a/livedisplay/1.0/default/src/Color.cpp b/livedisplay/1.0/default/src/Color.cpp
+index febbafd..6ef0fdf 100644
+--- a/livedisplay/1.0/default/src/Color.cpp
++++ b/livedisplay/1.0/default/src/Color.cpp
+@@ -54,49 +54,45 @@ namespace implementation {
+ using ::android::NO_INIT;
+ using ::android::OK;
+ 
+-sp<Color> Color::sInstance = nullptr;
+-
+-Color::Color() : mConnected(false), mBackend(nullptr) {
+-#ifdef COLOR_BACKEND_SDM
+-    mBackend = std::make_unique<SDM>();
+-#endif
+-    LOG(DEBUG) << "Loaded LiveDisplay native interface";
++Color::Color() : mFeatures(0), mConnected(false), mBackend(nullptr) {
++    connect();
+ }
+ 
+ Color::~Color() {
+-    reset();
++    disconnect();
+ }
+ 
+-void Color::reset() {
++void Color::disconnect() {
+     if (mConnected) {
+-        mBackend->deinitialize();
++        mBackend = nullptr;
+     }
+     mFeatures = 0;
+     mConnected = false;
+ }
+ 
+-void Color::error(const char* msg) {
+-    if (msg != NULL) {
+-        LOG(ERROR) << msg;
++bool Color::check(Feature f) {
++    if (!mConnected) {
++        connect();
+     }
+ 
+-    reset();
++    return (mFeatures & (uint32_t)f);
+ }
+ 
+-bool Color::connect() {
+-    if (mConnected) {
+-        return true;
++void Color::error(const char* msg) {
++    if (msg != NULL) {
++        LOG(ERROR) << msg;
+     }
+ 
+-    mFeatures = 0;
++    disconnect();
++}
+ 
++void Color::connect() {
++#ifdef COLOR_BACKEND_SDM
++    mBackend = std::make_unique<SDM>();
++#endif
+     if (mBackend == nullptr) {
+-        return false;
+-    }
+-
+-    if (mBackend->initialize() != OK) {
+         LOG(ERROR) << "Failed to initialize backend!";
+-        return false;
++        return;
+     }
+ 
+     for (uint32_t i = 1; i <= (uint32_t)Feature::MAX; i <<= 1) {
+@@ -105,20 +101,11 @@ bool Color::connect() {
+             addFeature(f);
+         }
+     }
+-    mConnected = true;
+-
+-    return mFeatures > 0;
+-}
+ 
+-sp<Color> Color::getInstance() {
+-    if (sInstance == nullptr) {
+-        sInstance = new Color();
+-    }
+-    return sInstance;
++    mConnected = true;
+ }
+ 
+ Return<Features> Color::getSupportedFeatures() {
+-    connect();
+     return mFeatures;
+ }
+ 
+-- 
+2.17.0
+

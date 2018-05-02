@@ -1,5 +1,6 @@
 #!/bin/bash
 source build/envsetup.sh
+topdir=$(gettop)
 op_reset_projects=0
 op_patch_local=0
 op_project_snapshot=0
@@ -8,7 +9,9 @@ op_pick_remote_only=0
 op_snap_project=""
 op_patches_dir=""
 default_remote="github"
-
+backupme=0
+[ -f $0.new ] && backupme=1
+script_file=$0
 
 ##### apply patch saved first ########
 function get_defaul_remote()
@@ -166,9 +169,19 @@ function projects_snapshot()
                    if [ "$changeid" != "" ]; then
                        if grep -q "Change-Id: $changeid" -r $topdir/.mypatches/pick/$project; then
                            pick_patch=$(grep -H "Change-Id: $changeid" -r $topdir/.mypatches/pick/$project | sed -n 1p | cut -d: -f1)
-                           rm -f $patchfile
-                           mv $pick_patch $topdir/.mypatches/local/$project/
-                       elif [ "${patchfile:5:5}" != "[WIP]" -a "${patchfile:5:6}" != "[SKIP]" ]; then
+                           pick_patch_name=$(basename $pick_patch)
+                           if [ "${patch_file_name:5:5}" != "[WIP]" -a "${patch_file_name:5:6}" != "[SKIP]" -a "${patch_file_name:5:8}" != "[ALWAYS]" ]; then
+                               rm -f $patchfile
+                               mv $pick_patch $topdir/.mypatches/local/$project/
+                           else
+                               [ "${patch_file_name:5:5}" = "[WIP]" ] && rm -f $patchfile && \
+                                      mv $pick_patch $(dirname $patchfile)/${pick_patch_name:0:4}-${patch_file_name:5:5}-${pick_patch_name:5}
+                               [ "${patch_file_name:5:6}" = "[SKIP]" ] && rm -f $patchfile && \
+                                      mv $pick_patch $(dirname $patchfile)/${pick_patch_name:0:4}-${patch_file_name:5:6}-${pick_patch_name:5}
+                               [ "${patch_file_name:5:8}" = "[ALWAYS]" ] && rm -f $patchfile && \
+                                      mv $pick_patch $(dirname $patchfile)/${pick_patch_name:0:4}-${patch_file_name:5:8}-${pick_patch_name:5}
+                           fi
+                       elif [ "${patch_file_name:5:5}" != "[WIP]" -a "${patch_file_name:5:6}" != "[SKIP]" -a "${patch_file_name:5:8}" != "[ALWAYS]" ]; then
                            rm -f $patchfile
                        fi
                    fi
@@ -387,6 +400,22 @@ function kpick()
         [ -f $errfile ] && cat $errfile
         rm -f $errfile
         exit $breakouit
+    else
+        project=$(cat $logfile | grep "Project path" | cut -d: -f2 | sed "s/ //g")
+        ref=$(grep "\['git fetch" $logfile | cut -d, -f2 | cut -d\' -f2)
+        if [ "$project" = "android" ]; then
+             url=$(cat $topdir/$project/.git/config | grep "url" | cut -d= -f2 | sed -e "s/ //g")
+             cd $topdir/.repo/manifests
+             git fetch $url $ref >/dev/null 2>/dev/null && git cherry-pick FETCH_HEAD >/dev/null 2>/dev/null
+             cd $topdir
+        fi
+        if grep -q -E "Change status is MERGED." $logfile; then
+           [ -f $script_file.tmp ] || cp $script_file $script_file.tmp
+           eval  sed -e \"/[[:space:]]*kpick $changeNumber[[:space:]]*.*/d\" -i $script_file.tmp
+        elif grep -q -E "Change status is ABANDONED." $logfile; then
+           [ -f $script_file.tmp ] || cp $script_file $script_file.tmp
+           eval  sed -e \"s/\\\(^[[:space:]]*kpick $changeNumber[[:space:]]*.*\\\)/#\[A\] \\1/\" -i $script_file.tmp
+        fi
     fi
 }
 
@@ -438,7 +467,22 @@ if [ $# -ge 1 ]; then
 fi
 
 ###############################################################
+# patch repopick first
+topdir=$(gettop)
+find $topdir/.mypatches/local/vendor/lineage/ -type f -name "*-\[ALWAYS\]-*.patch" -o -name "*-\[ALWAYS\]-*.diff" \
+  | while read f; do
+     cd $topdir/vendor/lineage;
+     if ! git am -3 < $f; then
+        exit -1
+     fi
+done
+
 # android
+kpick 213704 # Track our own chips
+kpick 213705 # 	Build Exchange
+repo sync --force-sync frameworks/opt/chips
+repo sync --force-sync packages/apps/Exchange
+
 
 # bionic
 kpick 212920 # libc: Mark libstdc++ as vendor available
@@ -460,14 +504,11 @@ kpick 213188 # soong: Fix missing print vars for lineage features
 
 # device/lineage/sepolicy
 kpick 210014 # sepolicy: Label aw2013 HIDL light HAL
-#kpick 212763 # sepolicy: introduce Trust interface
+kpick 212763 # sepolicy: introduce Trust interface
 
 # device/qcom/sepolicy
-kpick 210024 # legacy: allow hal_camera_default to connect to camera socket
 kpick 211273 # qcom/sepol: Fix timeservice app context
 kpick 212643 # qcom/sepol: Allow mm-qcamerad to use binder even in vendor
-kpick 213309 # sepolicy: Remove leftover folders
-kpick 213310 # Escape '.' character
 
 # device/samsung/klte-common
 #kpick 212648 # klte-common: Enable AOD
@@ -479,11 +520,14 @@ kpick 213525 # Revert "klte-common: Enable legacy mediaserver"
 # device/samsung/msm8974-common
 kpick 210313 # msm8974-common: Binderize them all
 kpick 213523 # msm8974-common: Enable legacy mediaserver
-kpick 213524 # msm8974-common: Enable TARGET_USES_MEDIA_EXTENSIONS
 
 # kernel/samsung/msm8974
 kpick 210665 # wacom: Follow-up from gestures patch
 kpick 210666 # wacom: Report touch when pen button is pressed if gestures are off
+kpick 214091 # ANDROID: sdcardfs: Fix sdcardfs to stop creating cases-sensitive duplicate entries
+kpick 214092 # ANDROID: fuse: Add null terminator to path in canonical path to avoid issue
+kpick 214093 # ANDROID: sdcardfs: d_make_root calls iput
+kpick 214094 # ANDROID: sdcardfs: Set s_root to NULL after putting
 
 # external/chromium-webview
 
@@ -515,22 +559,30 @@ kpick 209929 # SystemUI: fix black scrim when turning screen on from AOD
 kpick 212815 # SystemUI: add navbar button layout inversion tuning
 kpick 213038 # Fix migration from pre-O for AndroidTV devices (1/2)
 kpick 213128 # SystemUI: Fix navigation bar arrows visibility handling
-#kpick 213133 # base: introduce trust interface
+kpick 213133 # base: introduce trust interface
 kpick 213371 # Add an option to let pre-O apps to use full screen aspect ratio
+kpick 213721 # Add support for getAtr api
+kpick 214043 # UsbDeviceManager: Use isNormalBoot() where possible
+kpick 214044 # UsbDeviceManager: Allow custom boot modes to be treated as normal mode
 
 # frameworks/native
 #kpick 206050 # batteryservice: add Battery Moto Mod Support
-kpick 213271 # Triple the available egl function pointers available to a process for certain Nvidia devices
-kpick 213272 # Fix eglMakeCurrent crash when in opengl contexts
 kpick 213549 # SurfaceFlinger: Support get/set ActiveConfigs
 kpick 213562 # Handle glGetString returning NULL
+
+# frameworks/opt/chips
+kpick 211435 # chips: bring up changes from cm14.1
 
 # frameworks/opt/telephony
 #kpick 211280 # telephony: Respect user nw mode, handle DSDS non-multi-rat
 #kpick 211338 # Add the user set network mode to the siminfo table
 kpick 213487 # GsmCdmaPhone: Return dummy ICCID serial for NV sub
 kpick 213488 # GsmCdmaPhone: Fix GSM SIM card ICCID on NV sub CDMA devices
+kpick 213565 # Add support of new HIDL service
 kpick 213566 # TelephonyComponentFactory: Overload makeSubscriptionInfoUpdater
+
+# frameworks/opt/net/wifi
+kpick 213999 # Revert "WifiConfigStore: Remove legacy modules"
 
 # hardware/broadcom/libbt
 #kpick 212921 # libbt: fixup build errors when building the library under vndk.
@@ -543,9 +595,18 @@ kpick 206140 # gps.default.so: fix crash on access to unset AGpsRilCallbacks::re
 
 # hardware/lineage/interfaces
 kpick 210009 # lineage/interfaces: Add aw2013 lights HIDL HAL implementation
+kpick 213817 # livedisplay: Don't use singletons for the stack
+kpick 213865 # lineage/interfaces: move vibrator to the proper directory
+kpick 213866 # lineage/interfaces: extend android.hardware.vibrator@1.0
+kpick 213867 # lineage/interfaces: vibrator: read light/medium/strong voltage from sysfs
+kpick 213868 # lineage/interfaces: vibrator: implement vendor.lineage methods
 
 # hardware/lineage/lineagehw
-kpick 213538 # lineagehw: Disable color balance support by default
+#[A] kpick 213538 # lineagehw: Disable color balance support by default
+
+# hardware/qcom/audio-caf/msm8974
+kpick 213856 # hal: msim_voice_extn: Cleanup code a bit
+kpick 213857 # hal: msim_voice_extn: Set msim_phone based on phone_type parameter
 
 # hardware/qcom/bt-caf
 
@@ -562,7 +623,6 @@ kpick 209093 # msm8974: hwc: Set ioprio for vsync thread
 kpick 213574 # charter: Add some new USB rules
 
 # lineage/jenkins
-kpick 213338 # Mix up Oreo
 
 # lineage/scripts
 
@@ -571,16 +631,15 @@ kpick 212483 # This command line is more universal, it works too in foreign lang
 kpick 212615 # gts28vewifi: Add reminder to check that bootloader is unlocked
 kpick 213146 # wiki: recovery_install_heimdall: Don't make the users flash TWRP over boot partition
 kpick 213313 # wiki: Add chiron & sagit
-kpick 213339 # Mix up Oreo
+#[A] kpick 213339 # Mix up Oreo
 kpick 213580 # wiki: Remove bitcoin donation option
 
 # lineage-sdk
 kpick 206683 # lineage-sdk: Switch back to AOSP TwilightService
-#kpick 213134 # sdk: Introduce Trust Interface
+kpick 213134 # sdk: Introduce Trust Interface
 kpick 213367 # NetworkTraffic: Include tethering traffic statistics
-kpick 213544 # LineageBatteryLights: Rename some class members and add more debugging
-kpick 213545 # LineageBatteryLights: Fix brightness setting logic
-kpick 213546 # LineageBatteryLights: Use proper method to retrieve user settings
+kpick 213641 # lineage-sdk lights: Genericize adjustable brightness capability
+kpick 214025 # sdk: Add an option to force pre-O apps to use full screen aspect ratio
 
 # packages/apps/Camera2
 kpick 212625 # Camera2: Fix photo snap delay on front cam.
@@ -599,28 +658,35 @@ kpick 213051 # Deskclock: set targetSdk to 27
 # packages/apps/Eleven
 kpick 211302 # Eleven: Catch unsupported bitmap exception
 
+# packages/apps/Email
+kpick 211380 # Email: bring up changes from cm14.1 migrate to lineage-sdk LightsCapabilities revert parts from acc49fed1 ...
+
+# packages/apps/Exchange
+kpick 211382 # Exchange: correct the targeted SDK version to avoid permission fails
+
 # packages/apps/Gallery2
 
 # packages/apps/Jelly
 #kpick 213213 # Jelly: Also propagate custom headers to secondary frames
+kpick 214085 # Jelly: update build deps
+kpick 214086 # Jelly: add reach mode
 
 # packages/apps/LineageParts
 kpick 206402 # SystemUI: Forward-port notification counters
-#kpick 213135 # LineageParts: introduce Trust interface
+kpick 208367 # Do not show split-screen option for keys on Android Go devices
+kpick 213135 # LineageParts: introduce Trust interface
 kpick 213550 # LineageParts: Only show brightness prefs if lights HAL supports it
+kpick 213642 # LineageParts: Update for generic adjustable brightness capability
 
 # packages/apps/Settings
 kpick 206700 # Settings: per-app cellular data and wifi restrictions
-kpick 209208 # Settings: Hide Night Mode suggestion if LiveDisplay feature is present
-#kpick 212764 # Settings: add Trust interface hook
-#kpick 212765 # Settings: show Trust branding in confirm_lock_password UI
+kpick 208366 # Disable toggle for forcing apps to be resizable on Android Go
+kpick 212764 # Settings: add Trust interface hook
+kpick 212765 # Settings: show Trust branding in confirm_lock_password UI
 kpick 213372 # Settings: Add an option to let pre-O apps to use full screen aspect ratio
 
 # packages/apps/Snap
 kpick 206595 # Use transparent navigation bar
-
-# packages/services/Telephony
-# kpick 211270 # Telephony: add external network selection activity
 
 # packages/apps/Trebuchet
 kpick 212749 # Icons: fix non-adaptive icon handling
@@ -629,7 +695,9 @@ kpick 212751 # config: enable LEGACY_ICON_TREATMENT
 kpick 212752 # IconCache: fix crash if icon is an AdaptiveIconDrawable
 kpick 212761 # Trebuchet: make forced adaptive icons optional
 kpick 212762 # Trebuchet: update build.gradle
-kpick 213263 # PredictiveAppsProvider: fix null pointer exception
+
+# packages/apps/UnifiedEmail
+kpick 211379 # UnifiedEmail: bring up changes from cm14.1 migrate to lineage-sdk LightsCapabilities and LineageNotification
 
 # packages/apps/Updater
 #kpick 213136 # Updater: show Trust branding when the update has been verified
@@ -637,11 +705,20 @@ kpick 213263 # PredictiveAppsProvider: fix null pointer exception
 # packages/providers/ContactsProvider
 kpick 209030 # ContactsProvider: Prevent device contact being deleted.
 
+# packages/resources/devicesettings
+#[A] kpick 214024 # Add string for full screen aspect ratio
+
+# packages/service/Telephony
+kpick 209045 # Telephony: Fallback gracefully for emergency calls if suitable app isn't found
+# kpick 211270 # Telephony: add external network selection activity
+kpick 213722 # Add getAtr support
+
 # system/core
 #kpick 206048 # healthd: add Battery Moto Mod Support
 kpick 209385 # init: optimize shutdown time
-kpick 210316 # init: Don't run update_sys_usb_config if /data isn't mounted
-kpick 212642 # init: do not load persistent properties from temporary /data
+kpick 213918 # Add system-background cgroup to the schedtune controller hierarchy.
+kpick 213876 # healthd: charger: Add tricolor led to indicate battery capacity
+kpick 214001 # camera: Add L-compatible camera feature enums
 
 # system/extras
 kpick 211210 # ext4: Add /data/stache/ to encryption exclusion list
@@ -666,9 +743,10 @@ kpick 206139 # backuptool: introduce addon.d script versioning
 kpick 210664 # extract_utils: Support multidex
 kpick 212640 # repopick: Update SSH queries result to match HTTP queries
 kpick 212766 # vendor: introduce Trust interface
-kpick 213050 # Fix migration from pre-O for AndroidTV devices (2/2)
-kpick 213117 # lineage: qcom: Enable media extensions for all qcom devices
-kpick 213314 # Add Nvidia enhancements soong flag
+kpick 213815 # Place ADB auth property override to system
+
+# vendor/qcom/opensource/cryptfs_hw
+kpick 213919 # cryptfs_hw: add missing logging tag
 
 #-----------------------
 # translations
@@ -676,4 +754,5 @@ kpick 213314 # Add Nvidia enhancements soong flag
 ##################################
 
 [ $op_pick_remote_only -eq 0 ] && patch_local local
+[ -f $script_file.tmp ] && mv $script_file.tmp $script_file.new
 

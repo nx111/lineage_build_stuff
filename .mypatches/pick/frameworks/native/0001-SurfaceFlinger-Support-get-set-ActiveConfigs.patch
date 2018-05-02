@@ -1,0 +1,88 @@
+From f6accbad26b6a11f7a85aef5b554cc684b494bd7 Mon Sep 17 00:00:00 2001
+From: Ch Ganesh Kumar <chganesh@codeaurora.org>
+Date: Sat, 13 May 2017 19:56:00 +0530
+Subject: [PATCH] SurfaceFlinger: Support get/set ActiveConfigs.
+
+This includes the following two changes squashed into one and
+retaining the change I182f41edbaf9226fc62d6d17ee964998cd9f21f7
+
+sf: Fixes for resolution change in SurfaceFlinger
+
+1. Set/update the display config if HWC config change was successful
+   The new config should only be applied if HWC succeeded in changing
+   the active config. This would otherwise cause failure or undefined
+   behavior if the client sets an invalid/unsupported display config.
+
+2. Set the active config at display creation time
+   When a new display device is added update the active config by
+   querying HWC.
+
+   Change-Id: I182f41edbaf9226fc62d6d17ee964998cd9f21f7
+
+sf: Initialize active config for non-virtual displays at boot time
+
+When a non-virtual display device is added at boot time, update the
+active config by querying HWC otherwise the default config (config 0)
+will be used.
+
+   Change-Id: I90f42fa1d20ed6176c4be464a10ae69a2f6a6d55
+
+Change-Id: I182f41edbaf9226fc62d6d17ee964998cd9f21f7
+CRs-Fixed: 2082029
+---
+ services/surfaceflinger/SurfaceFlinger.cpp | 25 ++++++++++++++++++++--
+ 1 file changed, 23 insertions(+), 2 deletions(-)
+
+diff --git a/services/surfaceflinger/SurfaceFlinger.cpp b/services/surfaceflinger/SurfaceFlinger.cpp
+index 63f94c6df..a28be891b 100644
+--- a/services/surfaceflinger/SurfaceFlinger.cpp
++++ b/services/surfaceflinger/SurfaceFlinger.cpp
+@@ -895,8 +895,10 @@ void SurfaceFlinger::setActiveConfigInternal(const sp<DisplayDevice>& hw, int mo
+         return;
+     }
+ 
+-    hw->setActiveConfig(mode);
+-    getHwComposer().setActiveConfig(type, mode);
++    status_t status = getHwComposer().setActiveConfig(type, mode);
++    if (status == NO_ERROR) {
++        hw->setActiveConfig(mode);
++    }
+ }
+ 
+ status_t SurfaceFlinger::setActiveConfig(const sp<IBinder>& display, int mode) {
+@@ -1294,6 +1296,15 @@ void SurfaceFlinger::createDefaultDisplayDevice() {
+     sp<DisplayDevice> hw = new DisplayDevice(this, DisplayDevice::DISPLAY_PRIMARY, type, isSecure,
+                                              token, fbs, producer, mRenderEngine->getEGLConfig(),
+                                              useWideColorMode);
++
++    // When a non-virtual display device is added at boot time,
++    // update the active config by querying HWC otherwise the
++    // default config (config 0) will be used.
++    int activeConfig = mHwc->getActiveConfig(type)->getId();
++    if (activeConfig >= 0) {
++        hw->setActiveConfig(activeConfig);
++    }
++
+     mDisplays.add(token, hw);
+     android_color_mode defaultColorMode = HAL_COLOR_MODE_NATIVE;
+     if (useWideColorMode) {
+@@ -2235,6 +2246,16 @@ void SurfaceFlinger::handleTransactionLocked(uint32_t transactionFlags)
+                         hw->setProjection(state.orientation,
+                                 state.viewport, state.frame);
+                         hw->setDisplayName(state.displayName);
++                        // When a new display device is added update the active
++                        // config by querying HWC otherwise the default config
++                        // (config 0) will be used.
++                        if (hwcId >= DisplayDevice::DISPLAY_PRIMARY &&
++                                hwcId < DisplayDevice::NUM_BUILTIN_DISPLAY_TYPES) {
++                            int activeConfig = mHwc->getActiveConfig(hwcId)->getId();
++                            if (activeConfig >= 0) {
++                                hw->setActiveConfig(activeConfig);
++                            }
++                        }
+                         mDisplays.add(display, hw);
+                         if (!state.isVirtualDisplay()) {
+                             mEventThread->onHotplugReceived(state.type, true);
+-- 
+2.17.0
+

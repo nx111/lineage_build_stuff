@@ -1,0 +1,99 @@
+From cf1d683c49cd2d34e5698795163bdc1ec36937b1 Mon Sep 17 00:00:00 2001
+From: Chaitanya Saggurthi <csaggurt@codeaurora.org>
+Date: Wed, 31 May 2017 23:06:03 +0530
+Subject: [PATCH 2/3] Add getAtr support
+
+Add support to query the ATR from SIM Card
+
+CRs-Fixed: 2055157
+
+Change-Id: Idf73564ebadfb4edbdc7867e7498591e3129344a
+---
+ .../android/phone/PhoneInterfaceManager.java  | 59 +++++++++++++++++++
+ 1 file changed, 59 insertions(+)
+
+diff --git a/src/com/android/phone/PhoneInterfaceManager.java b/src/com/android/phone/PhoneInterfaceManager.java
+index 59b768484..1bb0ccb9c 100644
+--- a/src/com/android/phone/PhoneInterfaceManager.java
++++ b/src/com/android/phone/PhoneInterfaceManager.java
+@@ -178,6 +178,8 @@ public class PhoneInterfaceManager extends ITelephony.Stub {
+     private static final int CMD_HANDLE_USSD_REQUEST = 47;
+     private static final int CMD_GET_FORBIDDEN_PLMNS = 48;
+     private static final int EVENT_GET_FORBIDDEN_PLMNS_DONE = 49;
++    private static final int CMD_SIM_GET_ATR = 50;
++    private static final int EVENT_SIM_GET_ATR_DONE = 51;
+ 
+     /** The singleton instance. */
+     private static PhoneInterfaceManager sInstance;
+@@ -955,6 +957,42 @@ public class PhoneInterfaceManager extends ITelephony.Stub {
+                               onCompleted);
+                     break;
+ 
++                case CMD_SIM_GET_ATR:
++                    request = (MainThreadRequest) msg.obj;
++                    uiccCard = getUiccCardFromRequest(request);
++                    if (uiccCard == null) {
++                        loge("getAtr: No UICC");
++                        request.result = "";
++                         synchronized (request) {
++                            request.notifyAll();
++                        }
++                    } else {
++                        onCompleted = obtainMessage(EVENT_SIM_GET_ATR_DONE, request);
++                        uiccCard.getAtr(onCompleted);
++                    }
++                    break;
++
++                case EVENT_SIM_GET_ATR_DONE:
++                    ar = (AsyncResult) msg.obj;
++                    request = (MainThreadRequest) ar.userObj;
++                    if (ar.exception == null) {
++                        request.result = ar.result;
++                    } else {
++                        request.result = "";
++                        if (ar.result == null) {
++                            loge("ccExchangeSimIO: Empty Response");
++                        } else if (ar.exception instanceof CommandException) {
++                            loge("iccTransmitApduBasicChannel: CommandException: " +
++                                    ar.exception);
++                        } else {
++                            loge("iccTransmitApduBasicChannel: Unknown exception");
++                        }
++                    }
++                    synchronized (request) {
++                        request.notifyAll();
++                    }
++                    break;
++
+                 default:
+                     Log.w(LOG_TAG, "MainThreadHandler: unexpected message code: " + msg.what);
+                     break;
+@@ -3885,4 +3923,25 @@ public class PhoneInterfaceManager extends ITelephony.Stub {
+ 
+         return p.getSignalStrength();
+     }
++
++    public byte[] getAtr() {
++        return getAtrUsingSubId(getDefaultSubscription());
++    }
++
++    @Override
++    public byte[] getAtrUsingSubId(int subId) {
++        if (Binder.getCallingUid() != Process.NFC_UID) {
++            throw new SecurityException("Only Smartcard API may access UICC");
++        }
++        Log.d(LOG_TAG, "SIM_GET_ATR ");
++        String response = (String)sendRequest(CMD_SIM_GET_ATR, null, subId);
++        if (response != null && response.length() != 0) {
++            try{
++                return IccUtils.hexStringToBytes(response);
++            } catch(RuntimeException re) {
++                Log.e(LOG_TAG, "Invalid format of the response string");
++            }
++        }
++        return null;
++    }
+ }
+-- 
+2.17.0
+

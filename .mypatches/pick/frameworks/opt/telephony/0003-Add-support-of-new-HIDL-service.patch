@@ -1,0 +1,277 @@
+From d47ff94b206383da9bdfd724e92d4be2726fd57e Mon Sep 17 00:00:00 2001
+From: Chaitanya Saggurthi <csaggurt@codeaurora.org>
+Date: Fri, 26 May 2017 18:13:12 +0530
+Subject: [PATCH 3/4] Add support of new HIDL service
+
+Add new telephony HIDL service to implemnet
+Vendor/OEM specific features.
+
+Add support to query the ATR from SIM Card
+
+CRs-Fixed: 2055157
+
+Change-Id: I93c018cc5e36abcb190777213fa16a90cf128765
+---
+ .../internal/telephony/BaseCommands.java      | 23 ++++++++++++
+ .../internal/telephony/CommandsInterface.java |  7 ++++
+ .../internal/telephony/PhoneFactory.java      |  4 +--
+ .../com/android/internal/telephony/RIL.java   | 36 ++++++++++++++++---
+ .../telephony/TelephonyComponentFactory.java  |  7 ++++
+ .../telephony/test/SimulatedCommands.java     |  5 +++
+ .../test/SimulatedCommandsVerifier.java       |  4 +++
+ .../internal/telephony/uicc/UiccCard.java     |  9 +++++
+ 8 files changed, 88 insertions(+), 7 deletions(-)
+
+diff --git a/src/java/com/android/internal/telephony/BaseCommands.java b/src/java/com/android/internal/telephony/BaseCommands.java
+index 95f1fc83b..bb4bcd96e 100644
+--- a/src/java/com/android/internal/telephony/BaseCommands.java
++++ b/src/java/com/android/internal/telephony/BaseCommands.java
+@@ -938,4 +938,27 @@ public abstract class BaseCommands implements CommandsInterface {
+     public void unregisterForCarrierInfoForImsiEncryption(Handler h) {
+         mCarrierInfoForImsiEncryptionRegistrants.remove(h);
+     }
++
++    @Override
++    public void iccOpenLogicalChannel(String AID, int p2, Message response) {
++    }
++
++    @Override
++    public void iccCloseLogicalChannel(int channel, Message response) {
++    }
++
++    @Override
++    public void iccTransmitApduLogicalChannel(int channel, int cla, int instruction,
++                                              int p1, int p2, int p3, String data,
++                                              Message response) {
++    }
++
++    @Override
++    public void iccTransmitApduBasicChannel(int cla, int instruction, int p1, int p2,
++                                            int p3, String data, Message response) {
++    }
++
++    @Override
++    public void getAtr(Message response) {
++    }
+ }
+diff --git a/src/java/com/android/internal/telephony/CommandsInterface.java b/src/java/com/android/internal/telephony/CommandsInterface.java
+index 0e9e602af..d61c45fb0 100644
+--- a/src/java/com/android/internal/telephony/CommandsInterface.java
++++ b/src/java/com/android/internal/telephony/CommandsInterface.java
+@@ -2150,4 +2150,11 @@ public interface CommandsInterface {
+     default public List<ClientRequestStats> getClientRequestStats() {
+         return null;
+     }
++
++    /**
++     * Get ATR (Answer To Reset; as per ISO/IEC 7816-4) from SIM card
++     *
++     * @param result Callback message
++     */
++    public void getAtr(Message result);
+ }
+diff --git a/src/java/com/android/internal/telephony/PhoneFactory.java b/src/java/com/android/internal/telephony/PhoneFactory.java
+index 35a4d69dc..47240b346 100644
+--- a/src/java/com/android/internal/telephony/PhoneFactory.java
++++ b/src/java/com/android/internal/telephony/PhoneFactory.java
+@@ -166,8 +166,8 @@ public class PhoneFactory {
+                     networkModes[i] = RILConstants.PREFERRED_NETWORK_MODE;
+ 
+                     Rlog.i(LOG_TAG, "Network Mode set to " + Integer.toString(networkModes[i]));
+-                    sCommandsInterfaces[i] = new RIL(context, networkModes[i],
+-                            cdmaSubscription, i);
++                    sCommandsInterfaces[i] = telephonyComponentFactory.makeRIL(context,
++                            networkModes[i], cdmaSubscription, i);
+                 }
+                 Rlog.i(LOG_TAG, "Creating SubscriptionController");
+                 telephonyComponentFactory.initSubscriptionController(
+diff --git a/src/java/com/android/internal/telephony/RIL.java b/src/java/com/android/internal/telephony/RIL.java
+index 0e80ec50c..3f365df52 100644
+--- a/src/java/com/android/internal/telephony/RIL.java
++++ b/src/java/com/android/internal/telephony/RIL.java
+@@ -271,7 +271,7 @@ class RILRequest {
+  *
+  * {@hide}
+  */
+-public final class RIL extends BaseCommands implements CommandsInterface {
++public class RIL extends BaseCommands implements CommandsInterface {
+     static final String RILJ_LOG_TAG = "RILJ";
+     // Have a separate wakelock instance for Ack
+     static final String RILJ_ACK_WAKELOCK_NAME = "RILJ_ACK_WL";
+@@ -323,7 +323,7 @@ public final class RIL extends BaseCommands implements CommandsInterface {
+     private List<String> mOldRilFeatures;
+ 
+     /* default work source which will blame phone process */
+-    private WorkSource mRILDefaultWorkSource;
++    protected WorkSource mRILDefaultWorkSource;
+ 
+     /* Worksource containing all applications causing wakelock to be held */
+     private WorkSource mActiveWakelockWorkSource;
+@@ -331,7 +331,7 @@ public final class RIL extends BaseCommands implements CommandsInterface {
+     /** Telephony metrics instance for logging metrics event */
+     private TelephonyMetrics mMetrics = TelephonyMetrics.getInstance();
+ 
+-    boolean mIsMobileNetworkSupported;
++    protected boolean mIsMobileNetworkSupported;
+     RadioResponse mRadioResponse;
+     RadioIndication mRadioIndication;
+     volatile IRadio mRadioProxy = null;
+@@ -481,7 +481,7 @@ public final class RIL extends BaseCommands implements CommandsInterface {
+         }
+     }
+ 
+-    private void resetProxyAndRequestList() {
++    protected void resetProxyAndRequestList() {
+         mRadioProxy = null;
+         mOemHookProxy = null;
+ 
+@@ -674,6 +674,12 @@ public final class RIL extends BaseCommands implements CommandsInterface {
+         return rr;
+     }
+ 
++    protected int obtainRequestSerial(int request, Message result, WorkSource workSource) {
++        RILRequest rr = RILRequest.obtain(request, result, workSource);
++        addRequest(rr);
++        return rr.mSerial;
++    }
++
+     private void handleRadioProxyExceptionForRR(RILRequest rr, String caller, Exception e) {
+         riljLoge(caller + ": " + e);
+         resetProxyAndRequestList();
+@@ -3825,6 +3831,10 @@ public final class RIL extends BaseCommands implements CommandsInterface {
+         }
+     }
+ 
++    @Override
++    public void getAtr(Message response) {
++    }
++
+     @Override
+     public void getIMEI(Message result) {
+         throw new RuntimeException("getIMEI not expected to be called");
+@@ -3938,7 +3948,7 @@ public final class RIL extends BaseCommands implements CommandsInterface {
+      * @param responseInfo RadioResponseInfo received in response callback
+      * @return RILRequest corresponding to the response
+      */
+-    RILRequest processResponse(RadioResponseInfo responseInfo) {
++    protected RILRequest processResponse(RadioResponseInfo responseInfo) {
+         int serial = responseInfo.serial;
+         int error = responseInfo.error;
+         int type = responseInfo.type;
+@@ -4030,6 +4040,15 @@ public final class RIL extends BaseCommands implements CommandsInterface {
+         return rr;
+     }
+ 
++    protected Message getMessageFromRequest(Object request) {
++        RILRequest rr = (RILRequest)request;
++        Message result = null;
++        if (rr != null) {
++                result = rr.mResult;
++        }
++        return result;
++    }
++
+     /**
+      * This is a helper function to be called at the end of all RadioResponse callbacks.
+      * It takes care of sending error response, logging, decrementing wakelock if needed, and
+@@ -4061,6 +4080,11 @@ public final class RIL extends BaseCommands implements CommandsInterface {
+         }
+     }
+ 
++    protected void processResponseDone(Object request, RadioResponseInfo responseInfo, Object ret) {
++        RILRequest rr = (RILRequest)request;
++        processResponseDone(rr, responseInfo, ret);
++    }
++
+     /**
+      * Function to send ack and acquire related wakelock
+      */
+@@ -4735,6 +4759,8 @@ public final class RIL extends BaseCommands implements CommandsInterface {
+                 return "RIL_REQUEST_START_NETWORK_SCAN";
+             case RIL_REQUEST_STOP_NETWORK_SCAN:
+                 return "RIL_REQUEST_STOP_NETWORK_SCAN";
++            case RIL_REQUEST_SIM_QUERY_ATR:
++                return "RIL_REQUEST_SIM_QUERY_ATR";
+             default: return "<unknown request>";
+         }
+     }
+diff --git a/src/java/com/android/internal/telephony/TelephonyComponentFactory.java b/src/java/com/android/internal/telephony/TelephonyComponentFactory.java
+index 0c9d78549..bda570216 100644
+--- a/src/java/com/android/internal/telephony/TelephonyComponentFactory.java
++++ b/src/java/com/android/internal/telephony/TelephonyComponentFactory.java
+@@ -238,4 +238,11 @@ public class TelephonyComponentFactory {
+                 context, subscriptionController, looper, tr, cis,
+                 phones);
+     }
++
++    public RIL makeRIL(Context context, int preferredNetworkType,
++            int cdmaSubscription, Integer instanceId) {
++        Rlog.d(LOG_TAG, "makeRIL");
++        return new RIL(context, preferredNetworkType, cdmaSubscription, instanceId);
++    }
++
+ }
+diff --git a/src/java/com/android/internal/telephony/test/SimulatedCommands.java b/src/java/com/android/internal/telephony/test/SimulatedCommands.java
+index 0de2bec88..3697d90f9 100644
+--- a/src/java/com/android/internal/telephony/test/SimulatedCommands.java
++++ b/src/java/com/android/internal/telephony/test/SimulatedCommands.java
+@@ -2169,4 +2169,9 @@ public class SimulatedCommands extends BaseCommands
+         super.setOnRestrictedStateChanged(h, what, obj);
+         SimulatedCommandsVerifier.getInstance().setOnRestrictedStateChanged(h, what, obj);
+     }
++
++    @Override
++    public void getAtr(Message response) {
++        unimplemented(response);
++    }
+ }
+diff --git a/src/java/com/android/internal/telephony/test/SimulatedCommandsVerifier.java b/src/java/com/android/internal/telephony/test/SimulatedCommandsVerifier.java
+index 533b77238..608d67f3f 100644
+--- a/src/java/com/android/internal/telephony/test/SimulatedCommandsVerifier.java
++++ b/src/java/com/android/internal/telephony/test/SimulatedCommandsVerifier.java
+@@ -1407,4 +1407,8 @@ public class SimulatedCommandsVerifier implements CommandsInterface {
+     @Override
+     public void unregisterForCarrierInfoForImsiEncryption(Handler h) {
+     }
++
++    @Override
++    public void getAtr(Message response) {
++    }
+ }
+diff --git a/src/java/com/android/internal/telephony/uicc/UiccCard.java b/src/java/com/android/internal/telephony/uicc/UiccCard.java
+index feb56478c..4c348dce7 100644
+--- a/src/java/com/android/internal/telephony/uicc/UiccCard.java
++++ b/src/java/com/android/internal/telephony/uicc/UiccCard.java
+@@ -97,6 +97,7 @@ public class UiccCard {
+     private static final int EVENT_TRANSMIT_APDU_BASIC_CHANNEL_DONE = 18;
+     private static final int EVENT_SIM_IO_DONE = 19;
+     private static final int EVENT_CARRIER_PRIVILEGES_LOADED = 20;
++    private static final int EVENT_SIM_GET_ATR_DONE = 21;
+ 
+     private static final LocalLog mLocalLog = new LocalLog(100);
+ 
+@@ -426,6 +427,7 @@ public class UiccCard {
+                 case EVENT_TRANSMIT_APDU_LOGICAL_CHANNEL_DONE:
+                 case EVENT_TRANSMIT_APDU_BASIC_CHANNEL_DONE:
+                 case EVENT_SIM_IO_DONE:
++                case EVENT_SIM_GET_ATR_DONE:
+                     AsyncResult ar = (AsyncResult)msg.obj;
+                     if (ar.exception != null) {
+                         loglocal("Exception: " + ar.exception);
+@@ -670,6 +672,13 @@ public class UiccCard {
+                 mHandler.obtainMessage(EVENT_SIM_IO_DONE, response));
+     }
+ 
++    /**
++     * Exposes {@link CommandsInterface.getAtr}
++     */
++    public void getAtr(Message response) {
++        mCi.getAtr(mHandler.obtainMessage(EVENT_SIM_GET_ATR_DONE, response));
++    }
++
+     /**
+      * Exposes {@link CommandsInterface#sendEnvelopeWithStatus}
+      */
+-- 
+2.17.0
+
