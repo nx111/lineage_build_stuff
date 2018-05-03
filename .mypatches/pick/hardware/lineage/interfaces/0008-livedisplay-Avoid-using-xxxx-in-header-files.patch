@@ -1,0 +1,274 @@
+From cae7cbabb0a7f15d02edfaade974c9bf32e40406 Mon Sep 17 00:00:00 2001
+From: Ethan Chen <intervigil@gmail.com>
+Date: Wed, 2 May 2018 20:52:10 -0700
+Subject: [PATCH 8/8] livedisplay: Avoid using::xxxx in header files
+
+* This just makes it confusing where the original definition was, since
+  the using::xxxx is transitive for any headers and files that include a
+  header with the original definition.
+
+Change-Id: Ib157c98bb140dd701c60ac524a18b07985c81906
+---
+ livedisplay/1.0/default/impl/SDM.cpp          |  2 +
+ livedisplay/1.0/default/include/Color.h       | 13 ++++---
+ .../1.0/default/include/ColorBackend.h        | 27 +++++++-------
+ livedisplay/1.0/default/include/Utils.h       | 16 ++++----
+ livedisplay/1.0/default/include/impl/SDM.h    | 37 +++++++++----------
+ livedisplay/1.0/default/src/Color.cpp         |  3 ++
+ livedisplay/1.0/default/src/Utils.cpp         |  1 +
+ 7 files changed, 51 insertions(+), 48 deletions(-)
+
+diff --git a/livedisplay/1.0/default/impl/SDM.cpp b/livedisplay/1.0/default/impl/SDM.cpp
+index 5c5ac65..ffddeb3 100644
+--- a/livedisplay/1.0/default/impl/SDM.cpp
++++ b/livedisplay/1.0/default/impl/SDM.cpp
+@@ -88,6 +88,8 @@ namespace implementation {
+ 
+ using ::android::BAD_VALUE;
+ using ::android::OK;
++using ::android::sp;
++using ::android::status_t;
+ 
+ SDM::SDM() : mActiveModeId(-1) {
+     mController = std::make_unique<SDMController>();
+diff --git a/livedisplay/1.0/default/include/Color.h b/livedisplay/1.0/default/include/Color.h
+index cb53e6d..0efe220 100644
+--- a/livedisplay/1.0/default/include/Color.h
++++ b/livedisplay/1.0/default/include/Color.h
+@@ -30,11 +30,9 @@ namespace livedisplay {
+ namespace V1_0 {
+ namespace implementation {
+ 
+-using ::android::Mutex;
+ using ::android::hardware::Return;
+ using ::android::hardware::Void;
+ using ::android::hardware::hidl_vec;
+-using ::android::sp;
+ 
+ using ::vendor::lineage::livedisplay::V1_0::IColor;
+ 
+@@ -42,7 +40,7 @@ class ColorBackend;
+ 
+ class Color : public IColor {
+   public:
+-    Color();
++    static android::sp<Color> getInstance();
+ 
+     Return<Features> getSupportedFeatures() override;
+ 
+@@ -74,8 +72,11 @@ class Color : public IColor {
+     ~Color();
+ 
+   private:
+-    void connect();
+-    void disconnect();
++    bool connect();
++    void reset();
++
++    Color();
++    static android::sp<Color> sInstance;
+ 
+     uint32_t mFeatures;
+     bool mConnected;
+@@ -89,7 +90,7 @@ class Color : public IColor {
+     };
+ 
+     std::unique_ptr<ColorBackend> mBackend;
+-    Mutex mLock;
++    android::Mutex mLock;
+ };
+ 
+ }  // namespace implementation
+diff --git a/livedisplay/1.0/default/include/ColorBackend.h b/livedisplay/1.0/default/include/ColorBackend.h
+index 2d7b571..4abd11b 100644
+--- a/livedisplay/1.0/default/include/ColorBackend.h
++++ b/livedisplay/1.0/default/include/ColorBackend.h
+@@ -27,31 +27,30 @@ namespace livedisplay {
+ namespace V1_0 {
+ namespace implementation {
+ 
+-using ::android::sp;
+-using ::android::status_t;
+-
+ class ColorBackend {
+   public:
+-    virtual status_t setAdaptiveBacklightEnabled(bool enabled) = 0;
++    virtual android::status_t setAdaptiveBacklightEnabled(bool enabled) = 0;
+     virtual bool isAdaptiveBacklightEnabled() = 0;
+ 
+-    virtual status_t setOutdoorModeEnabled(bool enabled) = 0;
++    virtual android::status_t setOutdoorModeEnabled(bool enabled) = 0;
+     virtual bool isOutdoorModeEnabled() = 0;
+ 
+-    virtual status_t getColorBalanceRange(Range& range) = 0;
+-    virtual status_t setColorBalance(int32_t balance) = 0;
++    virtual android::status_t getColorBalanceRange(Range& range) = 0;
++    virtual android::status_t setColorBalance(int32_t balance) = 0;
+     virtual int32_t getColorBalance() = 0;
+ 
+-    virtual status_t getDisplayModes(std::vector<sp<disp_mode>>& profiles) = 0;
+-    virtual status_t setDisplayMode(int32_t modeID, bool makeDefault) = 0;
+-    virtual sp<disp_mode> getCurrentDisplayMode() = 0;
+-    virtual sp<disp_mode> getDefaultDisplayMode() = 0;
++    virtual android::status_t getDisplayModes(std::vector<android::sp<disp_mode>>& profiles) = 0;
++    virtual android::status_t setDisplayMode(int32_t modeID, bool makeDefault) = 0;
++    virtual android::sp<disp_mode> getCurrentDisplayMode() = 0;
++    virtual android::sp<disp_mode> getDefaultDisplayMode() = 0;
+ 
+-    virtual status_t getPictureAdjustmentRanges(HSICRanges& ranges) = 0;
+-    virtual status_t getPictureAdjustment(HSIC& hsic) = 0;
++    virtual android::status_t getPictureAdjustmentRanges(HSICRanges& ranges) = 0;
++    virtual android::status_t getPictureAdjustment(HSIC& hsic) = 0;
+     virtual HSIC getDefaultPictureAdjustment() = 0;
+-    virtual status_t setPictureAdjustment(const HSIC& hsic) = 0;
++    virtual android::status_t setPictureAdjustment(const HSIC& hsic) = 0;
+ 
++    virtual android::status_t initialize() = 0;
++    virtual android::status_t deinitialize() = 0;
+     virtual bool hasFeature(Feature feature) = 0;
+ 
+     virtual ~ColorBackend() {
+diff --git a/livedisplay/1.0/default/include/Utils.h b/livedisplay/1.0/default/include/Utils.h
+index 497de7d..5da0b13 100644
+--- a/livedisplay/1.0/default/include/Utils.h
++++ b/livedisplay/1.0/default/include/Utils.h
+@@ -20,8 +20,6 @@
+ 
+ #include <utils/Errors.h>
+ 
+-using ::android::status_t;
+-
+ namespace vendor {
+ namespace lineage {
+ namespace livedisplay {
+@@ -30,19 +28,19 @@ namespace implementation {
+ 
+ class Utils {
+   public:
+-    static status_t readInt(const char* node, int32_t* value);
++    static android::status_t readInt(const char* node, int32_t* value);
+ 
+-    static status_t writeInt(const char* node, int32_t value);
++    static android::status_t writeInt(const char* node, int32_t value);
+ 
+-    static status_t sendDPPSCommand(char* buf, size_t len);
++    static android::status_t sendDPPSCommand(char* buf, size_t len);
+ 
+-    static status_t writeLocalModeId(int32_t id);
++    static android::status_t writeLocalModeId(int32_t id);
+ 
+-    static status_t readLocalModeId(int32_t* id);
++    static android::status_t readLocalModeId(int32_t* id);
+ 
+-    static status_t writeInitialModeId(int32_t id);
++    static android::status_t writeInitialModeId(int32_t id);
+ 
+-    static status_t readInitialModeId(int32_t* id);
++    static android::status_t readInitialModeId(int32_t* id);
+ };
+ 
+ }  // namespace implementation
+diff --git a/livedisplay/1.0/default/include/impl/SDM.h b/livedisplay/1.0/default/include/impl/SDM.h
+index 4ceeca8..ea236e4 100644
+--- a/livedisplay/1.0/default/include/impl/SDM.h
++++ b/livedisplay/1.0/default/include/impl/SDM.h
+@@ -35,50 +35,49 @@ using ::vendor::lineage::livedisplay::V1_0::IColor;
+ 
+ class SDM : public ColorBackend {
+   public:
+-    SDM();
+-    ~SDM();
++    virtual android::status_t getDisplayModes(std::vector<android::sp<disp_mode>>& profiles) override;
++    virtual android::sp<disp_mode> getCurrentDisplayMode() override;
++    virtual android::sp<disp_mode> getDefaultDisplayMode() override;
++    virtual android::status_t setDisplayMode(int32_t modeID, bool makeDefault) override;
+ 
+-    virtual status_t getDisplayModes(std::vector<sp<disp_mode>>& profiles) override;
+-    virtual sp<disp_mode> getCurrentDisplayMode() override;
+-    virtual sp<disp_mode> getDefaultDisplayMode() override;
+-    virtual status_t setDisplayMode(int32_t modeID, bool makeDefault) override;
+-
+-    virtual status_t setAdaptiveBacklightEnabled(bool enabled) override;
++    virtual android::status_t setAdaptiveBacklightEnabled(bool enabled) override;
+     virtual bool isAdaptiveBacklightEnabled() override;
+ 
+-    virtual status_t setOutdoorModeEnabled(bool /* enabled */) override {
++    virtual android::status_t setOutdoorModeEnabled(bool /* enabled */) override {
+         return NO_INIT;
+     }
+     virtual bool isOutdoorModeEnabled() override {
+         return false;
+     }
+ 
+-    virtual status_t getColorBalanceRange(Range& /* range */) override {
++    virtual android::status_t getColorBalanceRange(Range& /* range */) override {
+         return NO_INIT;
+     }
+     virtual int32_t getColorBalance() override {
+         return 0;
+     }
+-    virtual status_t setColorBalance(int32_t /* balance */) override {
++    virtual android::status_t setColorBalance(int32_t /* balance */) override {
+         return NO_INIT;
+     }
+ 
+-    virtual status_t getPictureAdjustmentRanges(HSICRanges& ranges) override;
+-    virtual status_t setPictureAdjustment(const HSIC& hsic) override;
+-    virtual status_t getPictureAdjustment(HSIC& hsic) override;
++    virtual android::status_t getPictureAdjustmentRanges(HSICRanges& ranges) override;
++    virtual android::status_t setPictureAdjustment(const HSIC& hsic) override;
++    virtual android::status_t getPictureAdjustment(HSIC& hsic) override;
+     virtual HSIC getDefaultPictureAdjustment() override;
+ 
+     virtual bool hasFeature(Feature f);
++    virtual android::status_t initialize();
++    virtual android::status_t deinitialize();
+ 
+   private:
+-    status_t saveInitialDisplayMode();
++    android::status_t saveInitialDisplayMode();
+     uint32_t getNumDisplayModes();
+     uint32_t getNumSDMDisplayModes();
+ 
+-    sp<disp_mode> getDisplayModeById(int32_t id);
+-    status_t setModeState(sp<disp_mode> mode, bool state);
+-    sp<disp_mode> getLocalSRGBMode();
+-    sp<disp_mode> getLocalDCIP3Mode();
++    android::sp<disp_mode> getDisplayModeById(int32_t id);
++    android::status_t setModeState(android::sp<disp_mode> mode, bool state);
++    android::sp<disp_mode> getLocalSRGBMode();
++    android::sp<disp_mode> getLocalDCIP3Mode();
+ 
+     std::unique_ptr<SDMController> mController;
+     uint64_t mHandle;
+diff --git a/livedisplay/1.0/default/src/Color.cpp b/livedisplay/1.0/default/src/Color.cpp
+index 49ce34f..f43a5ca 100644
+--- a/livedisplay/1.0/default/src/Color.cpp
++++ b/livedisplay/1.0/default/src/Color.cpp
+@@ -54,8 +54,11 @@ namespace livedisplay {
+ namespace V1_0 {
+ namespace implementation {
+ 
++using ::android::Mutex;
+ using ::android::NO_INIT;
+ using ::android::OK;
++using ::android::sp;
++using ::android::status_t;
+ 
+ Color::Color() : mFeatures(0), mConnected(false), mBackend(nullptr) {
+     connect();
+diff --git a/livedisplay/1.0/default/src/Utils.cpp b/livedisplay/1.0/default/src/Utils.cpp
+index 683b667..bb14a68 100644
+--- a/livedisplay/1.0/default/src/Utils.cpp
++++ b/livedisplay/1.0/default/src/Utils.cpp
+@@ -41,6 +41,7 @@ namespace implementation {
+ 
+ using ::android::NO_INIT;
+ using ::android::OK;
++using ::android::status_t;
+ 
+ status_t Utils::readInt(const char* node, int32_t* value) {
+     std::string buf;
+-- 
+2.17.0
+

@@ -9,8 +9,6 @@ op_pick_remote_only=0
 op_snap_project=""
 op_patches_dir=""
 default_remote="github"
-backupme=0
-[ -f $0.new ] && backupme=1
 script_file=$0
 
 ##### apply patch saved first ########
@@ -414,7 +412,8 @@ function kpick()
            eval  sed -e \"/[[:space:]]*kpick $changeNumber[[:space:]]*.*/d\" -i $script_file.tmp
         elif grep -q -E "Change status is ABANDONED." $logfile; then
            [ -f $script_file.tmp ] || cp $script_file $script_file.tmp
-           eval  sed -e \"s/\\\(^[[:space:]]*kpick $changeNumber[[:space:]]*.*\\\)/#\[A\] \\1/\" -i $script_file.tmp
+           eval  sed -e \"/[[:space:]]*kpick $changeNumber[[:space:]]*.*/d\" -i $script_file.tmp
+           #eval  sed -e \"s/\\\(^[[:space:]]*kpick $changeNumber[[:space:]]*.*\\\)/#\[A\] \\1/\" -i $script_file.tmp
         fi
     fi
 }
@@ -536,7 +535,6 @@ kpick 209019 # toybox: Use ISO C/clang compatible __typeof__ in minof/maxof macr
 
 # frameworks/av
 kpick 206069 # stagefright: add changes related to high-framerates in CameraSource
-#kpick 209104 # Stagefright: Allow setting high-framerates in CameraSource    (conflict with 206069)
 kpick 209904 # Camera2Client: Add support for QTI parameters in Camera2Client
 kpick 209905 # Camera2Client: Add support for QTI specific ZSL feature
 kpick 209906 # Camera2Client: Add support for QTI specific AE bracketing feature
@@ -549,7 +547,6 @@ kpick 209912 # Camera: Skip stream size check for whitelisted apps
 kpick 213062 # Camera: check metadata type before releasing frame
 
 # frameworks/base
-#kpick 206049 # Battery: add Battery Moto Mod Support
 kpick 206400 # SystemUI: Forward-port notification counters
 kpick 206701 # NetworkManagement : Add ability to restrict app data/wifi usage
 kpick 207583 # BatteryService: Add support for oem fast charger detection
@@ -566,7 +563,6 @@ kpick 214043 # UsbDeviceManager: Use isNormalBoot() where possible
 kpick 214044 # UsbDeviceManager: Allow custom boot modes to be treated as normal mode
 
 # frameworks/native
-#kpick 206050 # batteryservice: add Battery Moto Mod Support
 kpick 213549 # SurfaceFlinger: Support get/set ActiveConfigs
 kpick 213562 # Handle glGetString returning NULL
 
@@ -574,8 +570,6 @@ kpick 213562 # Handle glGetString returning NULL
 kpick 211435 # chips: bring up changes from cm14.1
 
 # frameworks/opt/telephony
-#kpick 211280 # telephony: Respect user nw mode, handle DSDS non-multi-rat
-#kpick 211338 # Add the user set network mode to the siminfo table
 kpick 213487 # GsmCdmaPhone: Return dummy ICCID serial for NV sub
 kpick 213488 # GsmCdmaPhone: Fix GSM SIM card ICCID on NV sub CDMA devices
 kpick 213565 # Add support of new HIDL service
@@ -585,7 +579,6 @@ kpick 213566 # TelephonyComponentFactory: Overload makeSubscriptionInfoUpdater
 kpick 213999 # Revert "WifiConfigStore: Remove legacy modules"
 
 # hardware/broadcom/libbt
-#kpick 212921 # libbt: fixup build errors when building the library under vndk.
 
 # hardware/broadcom/wlan
 kpick 212922 # wlan:bcmdhd: fixup build errors when building the library under vndk.
@@ -600,9 +593,10 @@ kpick 213865 # lineage/interfaces: move vibrator to the proper directory
 kpick 213866 # lineage/interfaces: extend android.hardware.vibrator@1.0
 kpick 213867 # lineage/interfaces: vibrator: read light/medium/strong voltage from sysfs
 kpick 213868 # lineage/interfaces: vibrator: implement vendor.lineage methods
+kpick 214095 # livedisplay: Move extra inclusions out of header files
+kpick 214096 # livedisplay: Avoid using::xxxx in header files 					 ?????????????
 
 # hardware/lineage/lineagehw
-#[A] kpick 213538 # lineagehw: Disable color balance support by default
 
 # hardware/qcom/audio-caf/msm8974
 kpick 213856 # hal: msim_voice_extn: Cleanup code a bit
@@ -631,8 +625,8 @@ kpick 212483 # This command line is more universal, it works too in foreign lang
 kpick 212615 # gts28vewifi: Add reminder to check that bootloader is unlocked
 kpick 213146 # wiki: recovery_install_heimdall: Don't make the users flash TWRP over boot partition
 kpick 213313 # wiki: Add chiron & sagit
-#[A] kpick 213339 # Mix up Oreo
 kpick 213580 # wiki: Remove bitcoin donation option
+kpick 214087 # build templates: Inform about force usage of host tools
 
 # lineage-sdk
 kpick 206683 # lineage-sdk: Switch back to AOSP TwilightService
@@ -667,7 +661,6 @@ kpick 211382 # Exchange: correct the targeted SDK version to avoid permission fa
 # packages/apps/Gallery2
 
 # packages/apps/Jelly
-#kpick 213213 # Jelly: Also propagate custom headers to secondary frames
 kpick 214085 # Jelly: update build deps
 kpick 214086 # Jelly: add reach mode
 
@@ -700,21 +693,18 @@ kpick 212762 # Trebuchet: update build.gradle
 kpick 211379 # UnifiedEmail: bring up changes from cm14.1 migrate to lineage-sdk LightsCapabilities and LineageNotification
 
 # packages/apps/Updater
-#kpick 213136 # Updater: show Trust branding when the update has been verified
+kpick 213136 # Updater: show Trust branding when the update has been verified
 
 # packages/providers/ContactsProvider
 kpick 209030 # ContactsProvider: Prevent device contact being deleted.
 
 # packages/resources/devicesettings
-#[A] kpick 214024 # Add string for full screen aspect ratio
 
 # packages/service/Telephony
 kpick 209045 # Telephony: Fallback gracefully for emergency calls if suitable app isn't found
-# kpick 211270 # Telephony: add external network selection activity
 kpick 213722 # Add getAtr support
 
 # system/core
-#kpick 206048 # healthd: add Battery Moto Mod Support
 kpick 209385 # init: optimize shutdown time
 kpick 213918 # Add system-background cgroup to the schedtune controller hierarchy.
 kpick 213876 # healthd: charger: Add tricolor led to indicate battery capacity
