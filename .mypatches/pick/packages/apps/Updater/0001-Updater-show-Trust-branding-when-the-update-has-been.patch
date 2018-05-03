@@ -1,0 +1,115 @@
+From 22663b7bfa4d54ae684371fb0491306687804ead Mon Sep 17 00:00:00 2001
+From: Joey <joey@lineageos.org>
+Date: Thu, 19 Apr 2018 16:52:32 +0200
+Subject: [PATCH] Updater: show Trust branding when the update has been
+ verified
+
+Change-Id: I9edd4ccbd491aec0d7e325df052027d504d01534
+Signed-off-by: Joey <joey@lineageos.org>
+---
+ res/drawable/ic_trust.xml                         | 11 +++++++++++
+ res/layout/update_item_view.xml                   |  1 +
+ src/org/lineageos/updater/UpdatesListAdapter.java | 13 +++++++++++++
+ 3 files changed, 25 insertions(+)
+ create mode 100644 res/drawable/ic_trust.xml
+
+diff --git a/res/drawable/ic_trust.xml b/res/drawable/ic_trust.xml
+new file mode 100644
+index 0000000..f896d50
+--- /dev/null
++++ b/res/drawable/ic_trust.xml
+@@ -0,0 +1,11 @@
++<?xml version="1.0" encoding="utf-8"?>
++<vector xmlns:android="http://schemas.android.com/apk/res/android"
++    android:width="24dp"
++    android:height="24dp"
++    android:viewportWidth="24"
++    android:viewportHeight="24">
++
++    <path
++        android:fillColor="?android:attr/colorAccent"
++        android:pathData="M5,3L19,3C20.105,3 21,3.895 21,5L21,12C21,16.971 16.971,21 12,21C7.029,21 3,16.971 3,12L3,5C3,3.895 3.895,3 5,3ZM18.902,13.168C18.994,12.624 18.627,12.108 18.082,12.016C17.538,11.925 17.022,12.292 16.93,12.837C16.528,15.225 14.45,17 12,17C9.55,17 7.472,15.226 7.069,12.838C6.978,12.294 6.462,11.927 5.917,12.018C5.373,12.11 5.005,12.626 5.097,13.171C5.661,16.517 8.57,19 12,19C15.43,19 18.339,16.516 18.902,13.168ZM11.046,5.698L9.127,11.297C9.045,11.516 9,11.753 9,12C9,13.104 9.895,14 11,14C11.01,14 11.019,14 11.029,14L13,14C13.55,14 14.05,13.78 14.41,13.41C14.78,13.05 15,12.55 15,12L12.6,12L11,11.999L11.438,10.724L11.646,10.116L12.938,6.346C12.978,6.238 13,6.121 13,6C13,5.448 12.552,5 12,5C11.553,5 11.174,5.293 11.046,5.698Z" />
++</vector>
+\ No newline at end of file
+diff --git a/res/layout/update_item_view.xml b/res/layout/update_item_view.xml
+index ddcf326..4d859e6 100644
+--- a/res/layout/update_item_view.xml
++++ b/res/layout/update_item_view.xml
+@@ -33,6 +33,7 @@
+                 android:paddingBottom="8sp"
+                 android:textColor="?android:attr/textColorPrimary"
+                 android:textSize="16sp"
++                tools:drawableEnd="@drawable/ic_trust"
+                 tools:text="LineageOS 15.1" />
+ 
+             <TextView
+diff --git a/src/org/lineageos/updater/UpdatesListAdapter.java b/src/org/lineageos/updater/UpdatesListAdapter.java
+index 957952a..1584070 100644
+--- a/src/org/lineageos/updater/UpdatesListAdapter.java
++++ b/src/org/lineageos/updater/UpdatesListAdapter.java
+@@ -17,8 +17,10 @@ package org.lineageos.updater;
+ 
+ import android.content.Intent;
+ import android.content.SharedPreferences;
++import android.graphics.drawable.Drawable;
+ import android.preference.PreferenceManager;
+ import android.support.design.widget.Snackbar;
++import android.support.v4.content.ContextCompat;
+ import android.support.v7.app.AlertDialog;
+ import android.support.v7.view.ContextThemeWrapper;
+ import android.support.v7.view.menu.MenuBuilder;
+@@ -67,6 +69,8 @@ public class UpdatesListAdapter extends RecyclerView.Adapter<UpdatesListAdapter.
+     private Controller mUpdaterController;
+     private UpdatesListActivity mActivity;
+ 
++    private Drawable mTrustIcon;
++
+     private enum Action {
+         DOWNLOAD,
+         PAUSE,
+@@ -106,6 +110,7 @@ public class UpdatesListAdapter extends RecyclerView.Adapter<UpdatesListAdapter.
+         TypedValue tv = new TypedValue();
+         mActivity.getTheme().resolveAttribute(android.R.attr.disabledAlpha, tv, true);
+         mAlphaDisabledValue = tv.getFloat();
++        mTrustIcon = ContextCompat.getDrawable(mActivity, R.drawable.ic_trust);
+     }
+ 
+     @Override
+@@ -124,6 +129,9 @@ public class UpdatesListAdapter extends RecyclerView.Adapter<UpdatesListAdapter.
+         boolean canDelete = false;
+ 
+         final String downloadId = update.getDownloadId();
++
++        // Reset verified status drawable
++        viewHolder.mBuildVersion.setCompoundDrawables(null, null, null, null);
+         if (mUpdaterController.isDownloading(downloadId)) {
+             canDelete = true;
+             String downloaded = StringGenerator.bytesToMegabytes(mActivity,
+@@ -157,6 +165,7 @@ public class UpdatesListAdapter extends RecyclerView.Adapter<UpdatesListAdapter.
+             setButtonAction(viewHolder.mAction, Action.INSTALL, downloadId, false);
+             viewHolder.mProgressText.setText(R.string.list_verifying_update);
+             viewHolder.mProgressBar.setIndeterminate(true);
++            viewHolder.mBuildVersion.setCompoundDrawables(null, null, mTrustIcon, null);
+         } else {
+             canDelete = true;
+             setButtonAction(viewHolder.mAction, Action.RESUME, downloadId, !isBusy());
+@@ -179,12 +188,16 @@ public class UpdatesListAdapter extends RecyclerView.Adapter<UpdatesListAdapter.
+     }
+ 
+     private void handleNotActiveStatus(ViewHolder viewHolder, UpdateInfo update) {
++        // Reset verified status drawable
++        viewHolder.mBuildVersion.setCompoundDrawables(null, null, null, null);
++
+         if (update.getPersistentStatus() == UpdateStatus.Persistent.VERIFIED) {
+             viewHolder.itemView.setOnLongClickListener(
+                     getLongClickListener(update, true, viewHolder.mBuildDate));
+             setButtonAction(viewHolder.mAction,
+                     Utils.canInstall(update) ? Action.INSTALL : Action.DELETE,
+                     update.getDownloadId(), !isBusy());
++            viewHolder.mBuildVersion.setCompoundDrawables(null, null, mTrustIcon, null);
+         } else if (!Utils.canInstall(update)) {
+             viewHolder.itemView.setOnLongClickListener(
+                     getLongClickListener(update, false, viewHolder.mBuildDate));
+-- 
+2.17.0
+

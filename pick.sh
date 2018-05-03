@@ -309,7 +309,17 @@ function kpick()
 
     rm -f $errfile
     echo ""
-    changeNumber=$(echo  $* | sed -e "s/-f //g")
+    for op in $*; do
+        if [[ $op =~ ^[0-9]+$ ]]; then
+            changeNumber=$op
+            break
+        fi
+    done
+    if  [ "$changeNumber" = "" ]; then
+         echo ">>> Picking $* ..."
+         repopick $* || exit -1
+    fi
+
     echo ">>> Picking change $changeNumber ..."
     LANG=en_US repopick -c 50 $* >$logfile 2>$errfile
     rc=$?
@@ -471,7 +481,7 @@ topdir=$(gettop)
 find $topdir/.mypatches/local/vendor/lineage/ -type f -name "*-\[ALWAYS\]-*.patch" -o -name "*-\[ALWAYS\]-*.diff" \
   | while read f; do
      cd $topdir/vendor/lineage;
-     if ! git am -3 < $f; then
+     if ! git am -3 -q < $f; then
         exit -1
      fi
 done
@@ -504,6 +514,7 @@ kpick 213188 # soong: Fix missing print vars for lineage features
 # device/lineage/sepolicy
 kpick 210014 # sepolicy: Label aw2013 HIDL light HAL
 kpick 212763 # sepolicy: introduce Trust interface
+kpick 214121 # sepolicy: Add legacy-mm livedisplay label
 
 # device/qcom/sepolicy
 kpick 211273 # qcom/sepol: Fix timeservice app context
@@ -553,23 +564,21 @@ kpick 207583 # BatteryService: Add support for oem fast charger detection
 kpick 209031 # TelephonyManager: Prevent NPE when registering phone state listener
 kpick 206940 # Avoid crash when the actionbar is disabled in settings
 kpick 209929 # SystemUI: fix black scrim when turning screen on from AOD
-kpick 212815 # SystemUI: add navbar button layout inversion tuning
-kpick 213038 # Fix migration from pre-O for AndroidTV devices (1/2)
-kpick 213128 # SystemUI: Fix navigation bar arrows visibility handling
+#kpick 211300 # Add the user set network mode to the siminfo table
+#kpick 211301 # Store Network Mode selected in subId Table.
 kpick 213133 # base: introduce trust interface
 kpick 213371 # Add an option to let pre-O apps to use full screen aspect ratio
 kpick 213721 # Add support for getAtr api
-kpick 214043 # UsbDeviceManager: Use isNormalBoot() where possible
-kpick 214044 # UsbDeviceManager: Allow custom boot modes to be treated as normal mode
 
 # frameworks/native
 kpick 213549 # SurfaceFlinger: Support get/set ActiveConfigs
-kpick 213562 # Handle glGetString returning NULL
 
 # frameworks/opt/chips
 kpick 211435 # chips: bring up changes from cm14.1
 
 # frameworks/opt/telephony
+#kpick 211280 # telephony: Respect user nw mode, handle DSDS non-multi-rat.
+#kpick 211338 # Add the user set network mode to the siminfo table
 kpick 213487 # GsmCdmaPhone: Return dummy ICCID serial for NV sub
 kpick 213488 # GsmCdmaPhone: Fix GSM SIM card ICCID on NV sub CDMA devices
 kpick 213565 # Add support of new HIDL service
@@ -593,8 +602,9 @@ kpick 213865 # lineage/interfaces: move vibrator to the proper directory
 kpick 213866 # lineage/interfaces: extend android.hardware.vibrator@1.0
 kpick 213867 # lineage/interfaces: vibrator: read light/medium/strong voltage from sysfs
 kpick 213868 # lineage/interfaces: vibrator: implement vendor.lineage methods
+kpick 214027 # livedisplay: Port mm-disp implementation
 kpick 214095 # livedisplay: Move extra inclusions out of header files
-kpick 214096 # livedisplay: Avoid using::xxxx in header files 					 ?????????????
+kpick 214096 # livedisplay: Avoid using::xxxx in header files
 
 # hardware/lineage/lineagehw
 
@@ -624,8 +634,6 @@ kpick 213574 # charter: Add some new USB rules
 kpick 212483 # This command line is more universal, it works too in foreign langages
 kpick 212615 # gts28vewifi: Add reminder to check that bootloader is unlocked
 kpick 213146 # wiki: recovery_install_heimdall: Don't make the users flash TWRP over boot partition
-kpick 213313 # wiki: Add chiron & sagit
-kpick 213580 # wiki: Remove bitcoin donation option
 kpick 214087 # build templates: Inform about force usage of host tools
 
 # lineage-sdk
@@ -668,12 +676,10 @@ kpick 214086 # Jelly: add reach mode
 kpick 206402 # SystemUI: Forward-port notification counters
 kpick 208367 # Do not show split-screen option for keys on Android Go devices
 kpick 213135 # LineageParts: introduce Trust interface
-kpick 213550 # LineageParts: Only show brightness prefs if lights HAL supports it
 kpick 213642 # LineageParts: Update for generic adjustable brightness capability
 
 # packages/apps/Settings
 kpick 206700 # Settings: per-app cellular data and wifi restrictions
-kpick 208366 # Disable toggle for forcing apps to be resizable on Android Go
 kpick 212764 # Settings: add Trust interface hook
 kpick 212765 # Settings: show Trust branding in confirm_lock_password UI
 kpick 213372 # Settings: Add an option to let pre-O apps to use full screen aspect ratio
@@ -687,7 +693,6 @@ kpick 212750 # Icons: wrap all legacy icons to adaptive icons
 kpick 212751 # config: enable LEGACY_ICON_TREATMENT
 kpick 212752 # IconCache: fix crash if icon is an AdaptiveIconDrawable
 kpick 212761 # Trebuchet: make forced adaptive icons optional
-kpick 212762 # Trebuchet: update build.gradle
 
 # packages/apps/UnifiedEmail
 kpick 211379 # UnifiedEmail: bring up changes from cm14.1 migrate to lineage-sdk LightsCapabilities and LineageNotification
@@ -702,6 +707,7 @@ kpick 209030 # ContactsProvider: Prevent device contact being deleted.
 
 # packages/service/Telephony
 kpick 209045 # Telephony: Fallback gracefully for emergency calls if suitable app isn't found
+#kpick 211270 # Telephony: add external network selection activity (******WIP*****)
 kpick 213722 # Add getAtr support
 
 # system/core
