@@ -487,11 +487,10 @@ find $topdir/.mypatches/local/vendor/lineage/ -type f -name "*-\[ALWAYS\]-*.patc
 done
 
 # android
-kpick 213704 # Track our own chips
-kpick 213705 # 	Build Exchange
-repo sync --force-sync frameworks/opt/chips
-repo sync --force-sync packages/apps/Exchange
-
+#kpick 213704 # Track our own chips
+#kpick 213705 # 	Build Exchange
+#repo sync --force-sync frameworks/opt/chips
+#repo sync --force-sync packages/apps/Exchange
 
 # bionic
 kpick 212920 # libc: Mark libstdc++ as vendor available
@@ -574,7 +573,7 @@ kpick 213721 # Add support for getAtr api
 kpick 213549 # SurfaceFlinger: Support get/set ActiveConfigs
 
 # frameworks/opt/chips
-kpick 211435 # chips: bring up changes from cm14.1
+#kpick 211435 # chips: bring up changes from cm14.1
 
 # frameworks/opt/telephony
 #kpick 211280 # telephony: Respect user nw mode, handle DSDS non-multi-rat.
@@ -661,10 +660,10 @@ kpick 213051 # Deskclock: set targetSdk to 27
 kpick 211302 # Eleven: Catch unsupported bitmap exception
 
 # packages/apps/Email
-kpick 211380 # Email: bring up changes from cm14.1 migrate to lineage-sdk LightsCapabilities revert parts from acc49fed1 ...
+#kpick 211380 # Email: bring up changes from cm14.1 migrate to lineage-sdk LightsCapabilities revert parts from acc49fed1 ...
 
 # packages/apps/Exchange
-kpick 211382 # Exchange: correct the targeted SDK version to avoid permission fails
+#kpick 211382 # Exchange: correct the targeted SDK version to avoid permission fails
 
 # packages/apps/Gallery2
 
@@ -695,7 +694,7 @@ kpick 212752 # IconCache: fix crash if icon is an AdaptiveIconDrawable
 kpick 212761 # Trebuchet: make forced adaptive icons optional
 
 # packages/apps/UnifiedEmail
-kpick 211379 # UnifiedEmail: bring up changes from cm14.1 migrate to lineage-sdk LightsCapabilities and LineageNotification
+#kpick 211379 # UnifiedEmail: bring up changes from cm14.1 migrate to lineage-sdk LightsCapabilities and LineageNotification
 
 # packages/apps/Updater
 kpick 213136 # Updater: show Trust branding when the update has been verified
