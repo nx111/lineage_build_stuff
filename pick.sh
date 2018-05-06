@@ -508,12 +508,12 @@ kpick 213515 # build: Use minimial compression when zipping targetfiles
 kpick 213572 # Allow to exclude imgs from target-files zip
 
 # build/soong
-kpick 213188 # soong: Fix missing print vars for lineage features
 
 # device/lineage/sepolicy
 kpick 210014 # sepolicy: Label aw2013 HIDL light HAL
 kpick 212763 # sepolicy: introduce Trust interface
 kpick 214121 # sepolicy: Add legacy-mm livedisplay label
+#kpick 214160 # sepolicy: Allow priv_app rw-access to system_app_data_file
 
 # device/qcom/sepolicy
 kpick 211273 # qcom/sepol: Fix timeservice app context
@@ -522,21 +522,15 @@ kpick 212643 # qcom/sepol: Allow mm-qcamerad to use binder even in vendor
 # device/samsung/klte-common
 #kpick 212648 # klte-common: Enable AOD
 kpick 213270 # klte-common: Stop absuing global contexts for fingerprint
-kpick 213525 # Revert "klte-common: Enable legacy mediaserver"
 
 # device/samsung/kltechnduo
 
 # device/samsung/msm8974-common
 kpick 210313 # msm8974-common: Binderize them all
-kpick 213523 # msm8974-common: Enable legacy mediaserver
 
 # kernel/samsung/msm8974
 kpick 210665 # wacom: Follow-up from gestures patch
 kpick 210666 # wacom: Report touch when pen button is pressed if gestures are off
-kpick 214091 # ANDROID: sdcardfs: Fix sdcardfs to stop creating cases-sensitive duplicate entries
-kpick 214092 # ANDROID: fuse: Add null terminator to path in canonical path to avoid issue
-kpick 214093 # ANDROID: sdcardfs: d_make_root calls iput
-kpick 214094 # ANDROID: sdcardfs: Set s_root to NULL after putting
 
 # external/chromium-webview
 
@@ -557,7 +551,7 @@ kpick 209912 # Camera: Skip stream size check for whitelisted apps
 kpick 213062 # Camera: check metadata type before releasing frame
 
 # frameworks/base
-kpick 206400 # SystemUI: Forward-port notification counters
+kpick 206568 # base: audioservice: Set BT_SCO status
 kpick 206701 # NetworkManagement : Add ability to restrict app data/wifi usage
 kpick 207583 # BatteryService: Add support for oem fast charger detection
 kpick 209031 # TelephonyManager: Prevent NPE when registering phone state listener
@@ -584,7 +578,6 @@ kpick 213565 # Add support of new HIDL service
 kpick 213566 # TelephonyComponentFactory: Overload makeSubscriptionInfoUpdater
 
 # frameworks/opt/net/wifi
-kpick 213999 # Revert "WifiConfigStore: Remove legacy modules"
 
 # hardware/broadcom/libbt
 
@@ -650,7 +643,6 @@ kpick 212625 # Camera2: Fix photo snap delay on front cam.
 # packages/apps/Dialer
 kpick 209824 # Add setting to enable Do Not Disturb during calls
 kpick 211135 # Show proper call duration
-kpick 213548 # Control dialer's incoming call proximity sensor check via an overlay
 
 # packages/apps/DeskClock
 kpick 210074 # Adding Notification Channel
@@ -672,7 +664,6 @@ kpick 214085 # Jelly: update build deps
 kpick 214086 # Jelly: add reach mode
 
 # packages/apps/LineageParts
-kpick 206402 # SystemUI: Forward-port notification counters
 kpick 208367 # Do not show split-screen option for keys on Android Go devices
 kpick 213135 # LineageParts: introduce Trust interface
 kpick 213642 # LineageParts: Update for generic adjustable brightness capability
@@ -703,6 +694,9 @@ kpick 213136 # Updater: show Trust branding when the update has been verified
 kpick 209030 # ContactsProvider: Prevent device contact being deleted.
 
 # packages/resources/devicesettings
+
+# pakcages/service/Telecomm
+kpick 214244 # Telecomm: Fix in-call audio edge case for legacy MSIM devices
 
 # packages/service/Telephony
 kpick 209045 # Telephony: Fallback gracefully for emergency calls if suitable app isn't found
@@ -741,7 +735,6 @@ kpick 212766 # vendor: introduce Trust interface
 kpick 213815 # Place ADB auth property override to system
 
 # vendor/qcom/opensource/cryptfs_hw
-kpick 213919 # cryptfs_hw: add missing logging tag
 
 #-----------------------
 # translations

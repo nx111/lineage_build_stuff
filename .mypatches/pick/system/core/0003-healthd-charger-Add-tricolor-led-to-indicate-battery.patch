@@ -1,4 +1,4 @@
-From 4414d02c37e8435ae359f1659ad2a8866c0f4b55 Mon Sep 17 00:00:00 2001
+From f817be85feb98672d0bef259ca8e45b230258875 Mon Sep 17 00:00:00 2001
 From: Fenglin Wu <fenglinw@codeaurora.org>
 Date: Thu, 11 Sep 2014 10:15:03 +0800
 Subject: [PATCH 3/4] healthd: charger: Add tricolor led to indicate battery
@@ -70,8 +70,8 @@ commit e40b34d9fc045a22929e459a8b3adc9cb104b2c1.
 Change-Id: I507f2cb4cb440f2a6584a59394a623e5ffa16864
 ---
  healthd/Android.mk               |  15 ++++
- healthd/healthd_mode_charger.cpp | 131 +++++++++++++++++++++++++++++++
- 2 files changed, 146 insertions(+)
+ healthd/healthd_mode_charger.cpp | 137 +++++++++++++++++++++++++++++++
+ 2 files changed, 152 insertions(+)
 
 diff --git a/healthd/Android.mk b/healthd/Android.mk
 index a90f55022..a5a6160c5 100644
@@ -100,7 +100,7 @@ index a90f55022..a5a6160c5 100644
  
  ### charger ###
 diff --git a/healthd/healthd_mode_charger.cpp b/healthd/healthd_mode_charger.cpp
-index 6c6d73880..a3815dc5c 100644
+index 6c6d73880..6cebbba86 100644
 --- a/healthd/healthd_mode_charger.cpp
 +++ b/healthd/healthd_mode_charger.cpp
 @@ -75,6 +75,20 @@ char* locale;
@@ -124,7 +124,18 @@ index 6c6d73880..a3815dc5c 100644
  #define LOGE(x...) KLOG_ERROR("charger", x);
  #define LOGW(x...) KLOG_WARNING("charger", x);
  #define LOGV(x...) KLOG_DEBUG("charger", x);
-@@ -181,11 +195,112 @@ static animation::frame default_animation_frames[] = {
+@@ -100,6 +114,10 @@ struct charger {
+     animation* batt_anim;
+     GRSurface* surf_unknown;
+     int boot_min_cap;
++
++#ifndef NO_CHARGER_LED
++    int old_soc;
++#endif
+ };
+ 
+ static const animation BASE_ANIMATION = {
+@@ -181,11 +199,111 @@ static animation::frame default_animation_frames[] = {
  
  static animation battery_animation = BASE_ANIMATION;
  
@@ -185,10 +196,10 @@ index 6c6d73880..a3815dc5c 100644
 +
 +static int set_tricolor_led(int on, int color)
 +{
-+    int fd, i;
++    int fd;
 +    char buffer[10];
 +
-+    for (i = 0; i < (int)ARRAY_SIZE(leds); i++) {
++    for (size_t i = 0; i < ARRAY_SIZE(leds); i++) {
 +        if ((color & leds[i].color) && (access(leds[i].path, R_OK | W_OK) == 0)) {
 +            fd = open(leds[i].path, O_RDWR);
 +            if (fd < 0) {
@@ -196,10 +207,9 @@ index 6c6d73880..a3815dc5c 100644
 +                continue;
 +            }
 +            if (on)
-+                snprintf(buffer, sizeof(int), "%d\n", 255);
++                snprintf(buffer, sizeof(buffer), "255\n");
 +            else
-+                snprintf(buffer, sizeof(int), "%d\n", 0);
-+
++                snprintf(buffer, sizeof(buffer), "0\n");
 +            if (write(fd, buffer, strlen(buffer)) < 0)
 +                LOGE("Could not write to led node\n");
 +            if (fd >= 0)
@@ -237,12 +247,11 @@ index 6c6d73880..a3815dc5c 100644
  /* current time in milliseconds */
  static int64_t curr_time_ms() {
      timespec tm;
-@@ -473,8 +588,24 @@ static void handle_input_state(charger* charger, int64_t now) {
+@@ -473,8 +591,23 @@ static void handle_input_state(charger* charger, int64_t now) {
  }
  
  static void handle_power_supply_state(charger* charger, int64_t now) {
 +#ifndef NO_CHARGER_LED
-+    static int old_soc = 0;
 +    int soc = 0;
 +#endif
 +
@@ -253,8 +262,8 @@ index 6c6d73880..a3815dc5c 100644
 +        soc = batt_prop->batteryLevel;
 +    }
 +
-+    if (old_soc != soc) {
-+        old_soc = soc;
++    if (charger->old_soc != soc) {
++        charger->old_soc = soc;
 +        set_battery_soc_leds(soc);
 +    }
 +#endif
@@ -262,6 +271,15 @@ index 6c6d73880..a3815dc5c 100644
      if (!charger->charger_connected) {
          /* Last cycle would have stopped at the extreme top of battery-icon
           * Need to show the correct level corresponding to capacity.
+@@ -669,4 +802,8 @@ void healthd_mode_charger_init(struct healthd_config* config) {
+     charger->next_pwr_check = -1;
+     healthd_config = config;
+     charger->boot_min_cap = config->boot_min_cap;
++
++#ifndef NO_CHARGER_LED
++    charger->old_soc = 0;
++#endif
+ }
 -- 
 2.17.0
 

@@ -1,0 +1,40 @@
+From ca33fef5789b34788841801ea5d616ce2d306500 Mon Sep 17 00:00:00 2001
+From: Bruno Martins <bgcngm@gmail.com>
+Date: Sun, 6 May 2018 02:11:09 +0100
+Subject: [PATCH] Telecomm: Fix in-call audio edge case for legacy MSIM devices
+
+ * When calling from SIM2 without any SIM card inserted in slot 0,
+   audio must be routed through VOICE_CALL usecase, so skip setting
+   the param to fallback to VOICE_CALL when only 1 sim is inserted
+
+Change-Id: I72be3cf30d23b5993e5e54a48e377c8ad976d860
+---
+ .../android/server/telecom/CallAudioModeStateMachine.java   | 6 ++++--
+ 1 file changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/src/com/android/server/telecom/CallAudioModeStateMachine.java b/src/com/android/server/telecom/CallAudioModeStateMachine.java
+index cb667f4e..687e8fe3 100644
+--- a/src/com/android/server/telecom/CallAudioModeStateMachine.java
++++ b/src/com/android/server/telecom/CallAudioModeStateMachine.java
+@@ -295,14 +295,16 @@ public class CallAudioModeStateMachine extends StateMachine {
+             boolean setMsimAudioParams = SystemProperties
+                     .getBoolean("ro.multisim.set_audio_params", false);
+             Call call = mCallAudioManager.getForegroundCall();
++            TelephonyManager tm = TelephonyManager.getDefault();
+ 
+             mAudioManager.requestAudioFocusForCall(AudioManager.STREAM_VOICE_CALL,
+                     AudioManager.AUDIOFOCUS_GAIN_TRANSIENT);
+ 
+-            if (call != null && call.getTargetPhoneAccount() != null && setMsimAudioParams) {
++            if (call != null && call.getTargetPhoneAccount() != null
++                    && setMsimAudioParams && tm.getSimCount() > 1) {
+                 PhoneAccountHandle handle = call.getTargetPhoneAccount();
+                 PhoneAccount account = mTelecomManager.getPhoneAccount(handle);
+-                int subId = TelephonyManager.getDefault().getSubIdForPhoneAccount(account);
++                int subId = tm.getSubIdForPhoneAccount(account);
+                 int phoneId = SubscriptionManager.getPhoneId(subId);
+                 Log.d(LOG_TAG, "setAudioParameters phoneId=" + phoneId);
+                 if (phoneId == 0) {
+-- 
+2.17.0
+
