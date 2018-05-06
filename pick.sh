@@ -548,7 +548,6 @@ kpick 209909 # Camera2Client: Add support for enabling QTI DIS feature
 kpick 209910 # Camera2Client: Add support for enabling QTI Video/Sensor HDR feature
 kpick 209911 # Camera2Client: Add support for QTI specific AutoHDR and Histogram feature
 kpick 209912 # Camera: Skip stream size check for whitelisted apps
-kpick 213062 # Camera: check metadata type before releasing frame
 
 # frameworks/base
 kpick 206568 # base: audioservice: Set BT_SCO status
@@ -562,6 +561,10 @@ kpick 209929 # SystemUI: fix black scrim when turning screen on from AOD
 kpick 213133 # base: introduce trust interface
 kpick 213371 # Add an option to let pre-O apps to use full screen aspect ratio
 kpick 213721 # Add support for getAtr api
+kpick 214262 # Bind app name to menu row when notification updated
+kpick 214263 # Fix intercepting touch events for guts
+kpick 214264 # Update text size of overflow number view
+kpick 214265 # Better QS detail clip animation
 
 # frameworks/native
 kpick 213549 # SurfaceFlinger: Support get/set ActiveConfigs
@@ -660,11 +663,8 @@ kpick 211302 # Eleven: Catch unsupported bitmap exception
 # packages/apps/Gallery2
 
 # packages/apps/Jelly
-kpick 214085 # Jelly: update build deps
-kpick 214086 # Jelly: add reach mode
 
 # packages/apps/LineageParts
-kpick 208367 # Do not show split-screen option for keys on Android Go devices
 kpick 213135 # LineageParts: introduce Trust interface
 kpick 213642 # LineageParts: Update for generic adjustable brightness capability
 
