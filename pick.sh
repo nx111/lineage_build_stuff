@@ -500,6 +500,7 @@ kpick 211098 # recovery/ui: Hide emulated storage for encrypted devices
 kpick 213265 # recovery: Do not load time from /persist
 
 # build
+kpick 214155 # Move away from USE_HOST flag and introduce $BINARY_EXEC
 
 # build/make
 kpick 208567 # [DNM] updater: Don't check fingerprint for incrementals
@@ -508,6 +509,7 @@ kpick 213515 # build: Use minimial compression when zipping targetfiles
 kpick 213572 # Allow to exclude imgs from target-files zip
 
 # build/soong
+kpick 214155 # Allow providing flex and bison binaries
 
 # device/lineage/sepolicy
 kpick 210014 # sepolicy: Label aw2013 HIDL light HAL
@@ -560,7 +562,6 @@ kpick 209929 # SystemUI: fix black scrim when turning screen on from AOD
 #kpick 211301 # Store Network Mode selected in subId Table.
 kpick 213133 # base: introduce trust interface
 kpick 213371 # Add an option to let pre-O apps to use full screen aspect ratio
-kpick 213721 # Add support for getAtr api
 kpick 214262 # Bind app name to menu row when notification updated
 kpick 214263 # Fix intercepting touch events for guts
 kpick 214264 # Update text size of overflow number view
@@ -577,8 +578,6 @@ kpick 213549 # SurfaceFlinger: Support get/set ActiveConfigs
 #kpick 211338 # Add the user set network mode to the siminfo table
 kpick 213487 # GsmCdmaPhone: Return dummy ICCID serial for NV sub
 kpick 213488 # GsmCdmaPhone: Fix GSM SIM card ICCID on NV sub CDMA devices
-kpick 213565 # Add support of new HIDL service
-kpick 213566 # TelephonyComponentFactory: Overload makeSubscriptionInfoUpdater
 
 # frameworks/opt/net/wifi
 
@@ -632,7 +631,6 @@ kpick 213146 # wiki: recovery_install_heimdall: Don't make the users flash TWRP 
 kpick 214087 # build templates: Inform about force usage of host tools
 
 # lineage-sdk
-kpick 206683 # lineage-sdk: Switch back to AOSP TwilightService
 kpick 213134 # sdk: Introduce Trust Interface
 kpick 213367 # NetworkTraffic: Include tethering traffic statistics
 kpick 213641 # lineage-sdk lights: Genericize adjustable brightness capability
@@ -673,6 +671,7 @@ kpick 206700 # Settings: per-app cellular data and wifi restrictions
 kpick 212764 # Settings: add Trust interface hook
 kpick 212765 # Settings: show Trust branding in confirm_lock_password UI
 kpick 213372 # Settings: Add an option to let pre-O apps to use full screen aspect ratio
+kpick 214283 # Settings: center USB mode selection title
 
 # packages/apps/Snap
 kpick 206595 # Use transparent navigation bar
@@ -701,7 +700,6 @@ kpick 214244 # Telecomm: Fix in-call audio edge case for legacy MSIM devices
 # packages/service/Telephony
 kpick 209045 # Telephony: Fallback gracefully for emergency calls if suitable app isn't found
 #kpick 211270 # Telephony: add external network selection activity (******WIP*****)
-kpick 213722 # Add getAtr support
 
 # system/core
 kpick 209385 # init: optimize shutdown time
