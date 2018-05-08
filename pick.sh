@@ -578,6 +578,7 @@ kpick 213549 # SurfaceFlinger: Support get/set ActiveConfigs
 #kpick 211338 # Add the user set network mode to the siminfo table
 kpick 213487 # GsmCdmaPhone: Return dummy ICCID serial for NV sub
 kpick 213488 # GsmCdmaPhone: Fix GSM SIM card ICCID on NV sub CDMA devices
+kpick 214316 # RIL: Allow overriding RadioResponse and RadioIndication
 
 # frameworks/opt/net/wifi
 
@@ -607,6 +608,7 @@ kpick 213856 # hal: msim_voice_extn: Cleanup code a bit
 kpick 213857 # hal: msim_voice_extn: Set msim_phone based on phone_type parameter
 
 # hardware/qcom/bt-caf
+kpick 214150 # Load bluetooth firmwares from /vendor
 
 # hardware/qcom/display
 kpick 209093 # msm8974: hwc: Set ioprio for vsync thread
@@ -619,10 +621,12 @@ kpick 209093 # msm8974: hwc: Set ioprio for vsync thread
 
 # lineage/charter
 kpick 213574 # charter: Add some new USB rules
+kpick 214349 # charger: Improve 'Stability' compliances details
 
 # lineage/jenkins
 
 # lineage/scripts
+kpick 207545 # Add batch gerrit script
 
 # lineage/wiki
 kpick 212483 # This command line is more universal, it works too in foreign langages
@@ -658,6 +662,9 @@ kpick 211302 # Eleven: Catch unsupported bitmap exception
 # packages/apps/Exchange
 #kpick 211382 # Exchange: correct the targeted SDK version to avoid permission fails
 
+# packages/apps/Flipflap
+kpick 214307 # FlipFlap: Improve dotcase app notifications support
+
 # packages/apps/Gallery2
 
 # packages/apps/Jelly
@@ -665,6 +672,8 @@ kpick 211302 # Eleven: Catch unsupported bitmap exception
 # packages/apps/LineageParts
 kpick 213135 # LineageParts: introduce Trust interface
 kpick 213642 # LineageParts: Update for generic adjustable brightness capability
+kpick 214309 # Parts: add NIGHT_DISPLAY_SETTINGS intent to LiveDisplay
+kpick 214338 # LineageParts: make volume button re-orient functionality act based on relevant input
 
 # packages/apps/Settings
 kpick 206700 # Settings: per-app cellular data and wifi restrictions
@@ -731,6 +740,9 @@ kpick 210664 # extract_utils: Support multidex
 kpick 212640 # repopick: Update SSH queries result to match HTTP queries
 kpick 212766 # vendor: introduce Trust interface
 kpick 213815 # Place ADB auth property override to system
+kpick 214387 # lineage: Drop obsolete system prop
+kpick 214388 # lineage: Stop inheriting from no longer existing closed sources
+kpick 214391 # lineage: Enable BOARD_PROPERTY_OVERRIDES_SPLIT_ENABLED
 
 # vendor/qcom/opensource/cryptfs_hw
 
