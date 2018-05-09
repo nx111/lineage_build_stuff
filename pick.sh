@@ -491,6 +491,8 @@ done
 #kpick 213705 # 	Build Exchange
 #repo sync --force-sync frameworks/opt/chips
 #repo sync --force-sync packages/apps/Exchange
+kpick 214401 # Switch back to AOSP for datetimepicker and BasicSmsReceiver
+repo sync --force-sync frameworks/opt/datetimepicker
 
 # bionic
 kpick 212920 # libc: Mark libstdc++ as vendor available
@@ -553,7 +555,6 @@ kpick 209912 # Camera: Skip stream size check for whitelisted apps
 
 # frameworks/base
 kpick 206568 # base: audioservice: Set BT_SCO status
-kpick 206701 # NetworkManagement : Add ability to restrict app data/wifi usage
 kpick 207583 # BatteryService: Add support for oem fast charger detection
 kpick 209031 # TelephonyManager: Prevent NPE when registering phone state listener
 kpick 206940 # Avoid crash when the actionbar is disabled in settings
@@ -566,6 +567,7 @@ kpick 214262 # Bind app name to menu row when notification updated
 kpick 214263 # Fix intercepting touch events for guts
 kpick 214264 # Update text size of overflow number view
 kpick 214265 # Better QS detail clip animation
+kpick 214405 # NetworkManagement : Add ability to restrict app data/wifi usage
 
 # frameworks/native
 kpick 213549 # SurfaceFlinger: Support get/set ActiveConfigs
@@ -641,7 +643,6 @@ kpick 213641 # lineage-sdk lights: Genericize adjustable brightness capability
 kpick 214025 # sdk: Add an option to force pre-O apps to use full screen aspect ratio
 
 # packages/apps/Camera2
-kpick 212625 # Camera2: Fix photo snap delay on front cam.
 
 # packages/apps/Contacts
 
@@ -663,7 +664,6 @@ kpick 211302 # Eleven: Catch unsupported bitmap exception
 #kpick 211382 # Exchange: correct the targeted SDK version to avoid permission fails
 
 # packages/apps/Flipflap
-kpick 214307 # FlipFlap: Improve dotcase app notifications support
 
 # packages/apps/Gallery2
 
@@ -673,14 +673,13 @@ kpick 214307 # FlipFlap: Improve dotcase app notifications support
 kpick 213135 # LineageParts: introduce Trust interface
 kpick 213642 # LineageParts: Update for generic adjustable brightness capability
 kpick 214309 # Parts: add NIGHT_DISPLAY_SETTINGS intent to LiveDisplay
-kpick 214338 # LineageParts: make volume button re-orient functionality act based on relevant input
 
 # packages/apps/Settings
-kpick 206700 # Settings: per-app cellular data and wifi restrictions
 kpick 212764 # Settings: add Trust interface hook
 kpick 212765 # Settings: show Trust branding in confirm_lock_password UI
 kpick 213372 # Settings: Add an option to let pre-O apps to use full screen aspect ratio
 kpick 214283 # Settings: center USB mode selection title
+kpick 214403 # Settings: per-app cellular data and wifi restrictions
 
 # packages/apps/Snap
 kpick 206595 # Use transparent navigation bar
@@ -741,8 +740,9 @@ kpick 212640 # repopick: Update SSH queries result to match HTTP queries
 kpick 212766 # vendor: introduce Trust interface
 kpick 213815 # Place ADB auth property override to system
 kpick 214387 # lineage: Drop obsolete system prop
-kpick 214388 # lineage: Stop inheriting from no longer existing closed sources
 kpick 214391 # lineage: Enable BOARD_PROPERTY_OVERRIDES_SPLIT_ENABLED
+kpick 214400 # backuptool: Resolve incompatible version grep syntax
+kpick 214572 # backuptool: Temporarily render version check permissive
 
 # vendor/qcom/opensource/cryptfs_hw
 
