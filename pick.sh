@@ -502,7 +502,6 @@ kpick 211098 # recovery/ui: Hide emulated storage for encrypted devices
 kpick 213265 # recovery: Do not load time from /persist
 
 # build
-kpick 214155 # Move away from USE_HOST flag and introduce $BINARY_EXEC
 
 # build/make
 kpick 208567 # [DNM] updater: Don't check fingerprint for incrementals
@@ -511,7 +510,6 @@ kpick 213515 # build: Use minimial compression when zipping targetfiles
 kpick 213572 # Allow to exclude imgs from target-files zip
 
 # build/soong
-kpick 214155 # Allow providing flex and bison binaries
 
 # device/lineage/sepolicy
 kpick 210014 # sepolicy: Label aw2013 HIDL light HAL
@@ -522,6 +520,7 @@ kpick 214121 # sepolicy: Add legacy-mm livedisplay label
 # device/qcom/sepolicy
 kpick 211273 # qcom/sepol: Fix timeservice app context
 kpick 212643 # qcom/sepol: Allow mm-qcamerad to use binder even in vendor
+kpick 214799 # sepolicy: qti_init_shell needs to read dir too
 
 # device/samsung/klte-common
 #kpick 212648 # klte-common: Enable AOD
@@ -610,7 +609,6 @@ kpick 213856 # hal: msim_voice_extn: Cleanup code a bit
 kpick 213857 # hal: msim_voice_extn: Set msim_phone based on phone_type parameter
 
 # hardware/qcom/bt-caf
-kpick 214150 # Load bluetooth firmwares from /vendor
 
 # hardware/qcom/display
 kpick 209093 # msm8974: hwc: Set ioprio for vsync thread
@@ -634,7 +632,6 @@ kpick 207545 # Add batch gerrit script
 kpick 212483 # This command line is more universal, it works too in foreign langages
 kpick 212615 # gts28vewifi: Add reminder to check that bootloader is unlocked
 kpick 213146 # wiki: recovery_install_heimdall: Don't make the users flash TWRP over boot partition
-kpick 214087 # build templates: Inform about force usage of host tools
 
 # lineage-sdk
 kpick 213134 # sdk: Introduce Trust Interface
@@ -739,10 +736,10 @@ kpick 210664 # extract_utils: Support multidex
 kpick 212640 # repopick: Update SSH queries result to match HTTP queries
 kpick 212766 # vendor: introduce Trust interface
 kpick 213815 # Place ADB auth property override to system
-kpick 214387 # lineage: Drop obsolete system prop
 kpick 214391 # lineage: Enable BOARD_PROPERTY_OVERRIDES_SPLIT_ENABLED
 kpick 214400 # backuptool: Resolve incompatible version grep syntax
 kpick 214572 # backuptool: Temporarily render version check permissive
+kpick 214782 # lineage: extract_utils: Fix rootfs targets after a48b9fe9b6c25746940a2410db640d5e5438363d 
 
 # vendor/qcom/opensource/cryptfs_hw
 
