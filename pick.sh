@@ -491,7 +491,6 @@ done
 #kpick 213705 # 	Build Exchange
 #repo sync --force-sync frameworks/opt/chips
 #repo sync --force-sync packages/apps/Exchange
-kpick 214401 # Switch back to AOSP for datetimepicker and BasicSmsReceiver
 repo sync --force-sync frameworks/opt/datetimepicker
 
 # bionic
@@ -508,6 +507,7 @@ kpick 208567 # [DNM] updater: Don't check fingerprint for incrementals
 kpick 209323 # envsetup: stop jack server once build completed
 kpick 213515 # build: Use minimial compression when zipping targetfiles
 kpick 213572 # Allow to exclude imgs from target-files zip
+kpick 214842 # [DNM] dex2oat: disable multithreading
 
 # build/soong
 
@@ -567,6 +567,7 @@ kpick 214263 # Fix intercepting touch events for guts
 kpick 214264 # Update text size of overflow number view
 kpick 214265 # Better QS detail clip animation
 kpick 214405 # NetworkManagement : Add ability to restrict app data/wifi usage
+kpick 214856 # SystemUI: Enable dualTarget on CellularTile
 
 # frameworks/native
 kpick 213549 # SurfaceFlinger: Support get/set ActiveConfigs
@@ -631,7 +632,6 @@ kpick 207545 # Add batch gerrit script
 # lineage/wiki
 kpick 212483 # This command line is more universal, it works too in foreign langages
 kpick 212615 # gts28vewifi: Add reminder to check that bootloader is unlocked
-kpick 213146 # wiki: recovery_install_heimdall: Don't make the users flash TWRP over boot partition
 
 # lineage-sdk
 kpick 213134 # sdk: Introduce Trust Interface
@@ -714,6 +714,7 @@ kpick 214001 # camera: Add L-compatible camera feature enums
 
 # system/extras
 kpick 211210 # ext4: Add /data/stache/ to encryption exclusion list
+kpick 214855 # ext4_utils: Fix printf for u64
 
 # system/netd
 kpick 208353 # NetD : Allow passing in interface names for wifi/data app restriction
