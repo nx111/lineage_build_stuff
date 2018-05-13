@@ -500,14 +500,16 @@ kpick 212920 # libc: Mark libstdc++ as vendor available
 kpick 211098 # recovery/ui: Hide emulated storage for encrypted devices
 kpick 213265 # recovery: Do not load time from /persist
 
-# build
-
 # build/make
+kpick 208102 # Adapt ijar for WSL
 kpick 208567 # [DNM] updater: Don't check fingerprint for incrementals
 kpick 209323 # envsetup: stop jack server once build completed
 kpick 213515 # build: Use minimial compression when zipping targetfiles
 kpick 213572 # Allow to exclude imgs from target-files zip
-kpick 214842 # [DNM] dex2oat: disable multithreading
+kpick 214842 # dex2oat: disable multithreading
+kpick 214883 # core: config: Use host ijar if requested
+kpick 214892 # Add detection for WSL
+kpick 214964 # build: Include LineageOS specific properties in build.prop
 
 # build/soong
 
@@ -534,6 +536,7 @@ kpick 210313 # msm8974-common: Binderize them all
 # kernel/samsung/msm8974
 kpick 210665 # wacom: Follow-up from gestures patch
 kpick 210666 # wacom: Report touch when pen button is pressed if gestures are off
+kpick 214900 # ANDROID: sdcardfs: Don't d_drop in d_revalidate
 
 # external/chromium-webview
 
@@ -562,12 +565,17 @@ kpick 209929 # SystemUI: fix black scrim when turning screen on from AOD
 #kpick 211301 # Store Network Mode selected in subId Table.
 kpick 213133 # base: introduce trust interface
 kpick 213371 # Add an option to let pre-O apps to use full screen aspect ratio
+kpick 214043 # UsbDeviceManager: Use isNormalBoot() where possible
+kpick 214044 # UsbDeviceManager: Allow custom boot modes to be treated as normal mode
 kpick 214262 # Bind app name to menu row when notification updated
 kpick 214263 # Fix intercepting touch events for guts
 kpick 214264 # Update text size of overflow number view
 kpick 214265 # Better QS detail clip animation
-kpick 214405 # NetworkManagement : Add ability to restrict app data/wifi usage
 kpick 214856 # SystemUI: Enable dualTarget on CellularTile
+kpick 214864 # SystemUI: Don't append app name to file on lockscreen
+#kpick 214867 # Expose isAutonomousGroupOwner [1/2]
+#kpick 214868 # Expose cancelWps [1/2]
+#kpick 214869 # Allow activing a saved autonomous group [1/2]
 
 # frameworks/native
 kpick 213549 # SurfaceFlinger: Support get/set ActiveConfigs
@@ -583,6 +591,9 @@ kpick 213488 # GsmCdmaPhone: Fix GSM SIM card ICCID on NV sub CDMA devices
 kpick 214316 # RIL: Allow overriding RadioResponse and RadioIndication
 
 # frameworks/opt/net/wifi
+#kpick 214870 # Expose cancelWps [2/2]
+#kpick 214871 # Allow activing a saved autonomous group [2/2]
+#kpick 214872 # Expose isAutonomousGroupOwner [2/2]
 
 # hardware/broadcom/libbt
 
@@ -676,7 +687,6 @@ kpick 212764 # Settings: add Trust interface hook
 kpick 212765 # Settings: show Trust branding in confirm_lock_password UI
 kpick 213372 # Settings: Add an option to let pre-O apps to use full screen aspect ratio
 kpick 214283 # Settings: center USB mode selection title
-kpick 214403 # Settings: per-app cellular data and wifi restrictions
 
 # packages/apps/Snap
 kpick 206595 # Use transparent navigation bar
@@ -714,10 +724,8 @@ kpick 214001 # camera: Add L-compatible camera feature enums
 
 # system/extras
 kpick 211210 # ext4: Add /data/stache/ to encryption exclusion list
-kpick 214855 # ext4_utils: Fix printf for u64
 
 # system/netd
-kpick 208353 # NetD : Allow passing in interface names for wifi/data app restriction
 
 # system/nfc
 kpick 213184 # Fix GKI task release twice issue
@@ -737,10 +745,10 @@ kpick 210664 # extract_utils: Support multidex
 kpick 212640 # repopick: Update SSH queries result to match HTTP queries
 kpick 212766 # vendor: introduce Trust interface
 kpick 213815 # Place ADB auth property override to system
-kpick 214391 # lineage: Enable BOARD_PROPERTY_OVERRIDES_SPLIT_ENABLED
 kpick 214400 # backuptool: Resolve incompatible version grep syntax
-kpick 214572 # backuptool: Temporarily render version check permissive
+#kpick 214572 # backuptool: Temporarily render version check permissive
 kpick 214782 # lineage: extract_utils: Fix rootfs targets after a48b9fe9b6c25746940a2410db640d5e5438363d 
+kpick 214899 # lineage: Keep LineageOS versions properties in build.prop
 
 # vendor/qcom/opensource/cryptfs_hw
 
