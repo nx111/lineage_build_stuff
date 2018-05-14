@@ -571,11 +571,10 @@ kpick 214262 # Bind app name to menu row when notification updated
 kpick 214263 # Fix intercepting touch events for guts
 kpick 214264 # Update text size of overflow number view
 kpick 214265 # Better QS detail clip animation
-kpick 214856 # SystemUI: Enable dualTarget on CellularTile
-kpick 214864 # SystemUI: Don't append app name to file on lockscreen
 #kpick 214867 # Expose isAutonomousGroupOwner [1/2]
 #kpick 214868 # Expose cancelWps [1/2]
 #kpick 214869 # Allow activing a saved autonomous group [1/2]
+kpick 215031 # 	Keyguard: Fix ConcurrentModificationException in KeyguardUpdateMonitor
 
 # frameworks/native
 kpick 213549 # SurfaceFlinger: Support get/set ActiveConfigs
@@ -649,6 +648,7 @@ kpick 213134 # sdk: Introduce Trust Interface
 kpick 213367 # NetworkTraffic: Include tethering traffic statistics
 kpick 213641 # lineage-sdk lights: Genericize adjustable brightness capability
 kpick 214025 # sdk: Add an option to force pre-O apps to use full screen aspect ratio
+kpick 214854 # [3/3] lineagesdk: single hand for hw keys
 
 # packages/apps/Camera2
 
@@ -715,10 +715,10 @@ kpick 214244 # Telecomm: Fix in-call audio edge case for legacy MSIM devices
 # packages/service/Telephony
 kpick 209045 # Telephony: Fallback gracefully for emergency calls if suitable app isn't found
 #kpick 211270 # Telephony: add external network selection activity (******WIP*****)
+kpick 215059 # PhoneInterfaceManager: Simplify permission checks for endCallForSubscriber()
 
 # system/core
 kpick 209385 # init: optimize shutdown time
-kpick 213918 # Add system-background cgroup to the schedtune controller hierarchy.
 kpick 213876 # healthd: charger: Add tricolor led to indicate battery capacity
 kpick 214001 # camera: Add L-compatible camera feature enums
 
