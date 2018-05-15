@@ -1,0 +1,239 @@
+From 6117b4525f954ac37e4ae952413306311701e9e1 Mon Sep 17 00:00:00 2001
+From: Rashed Abdel-Tawab <rashed@linux.com>
+Date: Mon, 14 May 2018 13:56:33 -0700
+Subject: [PATCH 6/7] lineage-sdk: Add backend for reading enhancement
+
+Change-Id: Ibd1c9e057ddf8e9d21657aef0ebeeaa9a253e92d
+---
+ .../internal/LineageHardwareService.java      | 20 ++++++++++++++++++
+ .../display/DisplayHardwareController.java    | 15 ++++++++++++-
+ .../hardware/ILineageHardwareService.aidl     |  2 ++
+ .../hardware/LineageHardwareManager.java      | 21 +++++++++++++++++++
+ .../hardware/LiveDisplayManager.java          |  5 +++++
+ .../lineageos/providers/LineageSettings.java  | 12 +++++++++++
+ 6 files changed, 74 insertions(+), 1 deletion(-)
+
+diff --git a/lineage/lib/main/java/org/lineageos/platform/internal/LineageHardwareService.java b/lineage/lib/main/java/org/lineageos/platform/internal/LineageHardwareService.java
+index 497ddbf..adb2b93 100644
+--- a/lineage/lib/main/java/org/lineageos/platform/internal/LineageHardwareService.java
++++ b/lineage/lib/main/java/org/lineageos/platform/internal/LineageHardwareService.java
+@@ -51,6 +51,7 @@ import org.lineageos.hardware.HighTouchSensitivity;
+ import org.lineageos.hardware.KeyDisabler;
+ import org.lineageos.hardware.LongTermOrbits;
+ import org.lineageos.hardware.PictureAdjustment;
++import org.lineageos.hardware.ReadingEnhancement;
+ import org.lineageos.hardware.SerialNumber;
+ import org.lineageos.hardware.SunlightEnhancement;
+ import org.lineageos.hardware.TouchscreenGestures;
+@@ -111,6 +112,8 @@ public class LineageHardwareService extends LineageSystemService {
+ 
+         public TouchscreenGesture[] getTouchscreenGestures();
+         public boolean setTouchscreenGestureEnabled(TouchscreenGesture gesture, boolean state);
++
++        public boolean setGrayscale(boolean state);
+     }
+ 
+     private class LegacyLineageHardware implements LineageHardwareInterface {
+@@ -132,6 +135,8 @@ public class LineageHardwareService extends LineageSystemService {
+                 mSupportedFeatures |= LineageHardwareManager.FEATURE_KEY_DISABLE;
+             if (LongTermOrbits.isSupported())
+                 mSupportedFeatures |= LineageHardwareManager.FEATURE_LONG_TERM_ORBITS;
++            if (ReadingEnhancement.isSupported())
++                mSupportedFeatures |= LineageHardwareManager.FEATURE_READING_ENHANCEMENT;
+             if (SerialNumber.isSupported())
+                 mSupportedFeatures |= LineageHardwareManager.FEATURE_SERIAL_NUMBER;
+             if (SunlightEnhancement.isSupported())
+@@ -368,6 +373,10 @@ public class LineageHardwareService extends LineageSystemService {
+         public boolean setTouchscreenGestureEnabled(TouchscreenGesture gesture, boolean state) {
+             return TouchscreenGestures.setGestureEnabled(gesture, state);
+         }
++
++	public boolean setGrayscale(boolean state) {
++            return ReadingEnhancement.setGrayscale(state);
++        }
+     }
+ 
+     private LineageHardwareInterface getImpl(Context context) {
+@@ -770,5 +779,16 @@ public class LineageHardwareService extends LineageSystemService {
+             }
+             return mLineageHwImpl.setTouchscreenGestureEnabled(gesture, state);
+         }
++
++	@Override
++        public boolean setGrayscale(boolean state) {
++            mContext.enforceCallingOrSelfPermission(
++                    lineageos.platform.Manifest.permission.HARDWARE_ABSTRACTION_ACCESS, null);
++            if (!isSupported(LineageHardwareManager.FEATURE_READING_ENHANCEMENT)) {
++                Log.e(TAG, "Reading enhancement not supported");
++                return false;
++            }
++            return mLineageHwImpl.setGrayscale(state);
++        }
+     };
+ }
+diff --git a/lineage/lib/main/java/org/lineageos/platform/internal/display/DisplayHardwareController.java b/lineage/lib/main/java/org/lineageos/platform/internal/display/DisplayHardwareController.java
+index fe85dde..7f24b4b 100644
+--- a/lineage/lib/main/java/org/lineageos/platform/internal/display/DisplayHardwareController.java
++++ b/lineage/lib/main/java/org/lineageos/platform/internal/display/DisplayHardwareController.java
+@@ -47,6 +47,7 @@ public class DisplayHardwareController extends LiveDisplayFeature {
+     private final boolean mUseColorAdjustment;
+     private final boolean mUseColorEnhancement;
+     private final boolean mUseCABC;
++    private final boolean mUseReaderMode;
+     private final boolean mUseDisplayModes;
+ 
+     // default values
+@@ -71,6 +72,8 @@ public class DisplayHardwareController extends LiveDisplayFeature {
+             LineageSettings.System.getUriFor(LineageSettings.System.DISPLAY_COLOR_ENHANCE);
+     private static final Uri DISPLAY_CABC =
+             LineageSettings.System.getUriFor(LineageSettings.System.DISPLAY_CABC);
++    private static final Uri DISPLAY_READING_MODE =
++            LineageSettings.System.getUriFor(LineageSettings.System.DISPLAY_READING_MODE);
+ 
+     public DisplayHardwareController(Context context, Handler handler) {
+         super(context, handler);
+@@ -97,6 +100,9 @@ public class DisplayHardwareController extends LiveDisplayFeature {
+         mUseDisplayModes = mHardware
+                 .isSupported(LineageHardwareManager.FEATURE_DISPLAY_MODES);
+ 
++        mUseReaderMode = mHardware
++                .isSupported(LineageHardwareManager.FEATURE_READING_ENHANCEMENT);
++
+         if (mUseColorAdjustment) {
+             mMaxColor = mHardware.getDisplayColorCalibrationMax();
+             copyColors(getColorAdjustment(), mColorAdjustment);
+@@ -121,6 +127,9 @@ public class DisplayHardwareController extends LiveDisplayFeature {
+         if (mUseColorAdjustment) {
+             settings.add(DISPLAY_COLOR_ADJUSTMENT);
+         }
++        if (mUseReaderMode) {
++            settings.add(DISPLAY_READING_MODE);
++        }
+ 
+         if (settings.size() == 0) {
+             return;
+@@ -146,8 +155,11 @@ public class DisplayHardwareController extends LiveDisplayFeature {
+         if (mUseDisplayModes) {
+             caps.set(LiveDisplayManager.FEATURE_DISPLAY_MODES);
+         }
++	if (mUseReaderMode) {
++            caps.set(LiveDisplayManager.FEATURE_READING_ENHANCEMENT);
++        }
+         return mUseAutoContrast || mUseColorEnhancement || mUseCABC || mUseColorAdjustment ||
+-            mUseDisplayModes;
++            mUseDisplayModes || mUseReaderMode;
+     }
+ 
+     @Override
+@@ -200,6 +212,7 @@ public class DisplayHardwareController extends LiveDisplayFeature {
+         pw.println("  mUseColorEnhancement="  + mUseColorEnhancement);
+         pw.println("  mUseCABC=" + mUseCABC);
+         pw.println("  mUseDisplayModes=" + mUseDisplayModes);
++        pw.println("  mUseReaderMode=" + mUseReaderMode);
+         pw.println();
+         pw.println("  DisplayHardwareController State:");
+         pw.println("    mAutoContrast=" + isAutoContrastEnabled());
+diff --git a/sdk/src/java/lineageos/hardware/ILineageHardwareService.aidl b/sdk/src/java/lineageos/hardware/ILineageHardwareService.aidl
+index cca8724..58e758d 100644
+--- a/sdk/src/java/lineageos/hardware/ILineageHardwareService.aidl
++++ b/sdk/src/java/lineageos/hardware/ILineageHardwareService.aidl
+@@ -65,4 +65,6 @@ interface ILineageHardwareService {
+ 
+     TouchscreenGesture[] getTouchscreenGestures();
+     boolean setTouchscreenGestureEnabled(in TouchscreenGesture gesture, boolean state);
++
++    boolean setGrayscale(boolean state);
+ }
+diff --git a/sdk/src/java/lineageos/hardware/LineageHardwareManager.java b/sdk/src/java/lineageos/hardware/LineageHardwareManager.java
+index ae0ece6..3166a76 100644
+--- a/sdk/src/java/lineageos/hardware/LineageHardwareManager.java
++++ b/sdk/src/java/lineageos/hardware/LineageHardwareManager.java
+@@ -134,6 +134,12 @@ public final class LineageHardwareManager {
+     @VisibleForTesting
+     public static final int FEATURE_DISPLAY_MODES = 0x2000;
+ 
++    /**
++     * Reading mode
++     */
++    @VisibleForTesting
++    public static final int FEATURE_READING_ENHANCEMENT = 0x4000;
++
+     /**
+      * Color balance
+      */
+@@ -868,4 +874,19 @@ public final class LineageHardwareManager {
+         }
+         return false;
+     }
++
++    /**
++     * Enables or disables reading mode
++     *
++     * @return true if success
++     */
++    public boolean setGrayscale(boolean state) {
++        try {
++            if (checkService()) {
++                return sService.setGrayscale(state);
++            }
++	} catch (RemoteException e) {
++        }
++	return false;
++    }
+ }
+diff --git a/sdk/src/java/lineageos/hardware/LiveDisplayManager.java b/sdk/src/java/lineageos/hardware/LiveDisplayManager.java
+index 2823849..40e19cc 100644
+--- a/sdk/src/java/lineageos/hardware/LiveDisplayManager.java
++++ b/sdk/src/java/lineageos/hardware/LiveDisplayManager.java
+@@ -120,6 +120,11 @@ public class LiveDisplayManager {
+      */
+     public static final int FEATURE_PICTURE_ADJUSTMENT = 17;
+ 
++    /**
++     * System supports grayscale matrix overlay
++     */
++    public static final int FEATURE_READING_ENHANCEMENT = 18;
++
+     public static final int ADJUSTMENT_HUE = 0;
+     public static final int ADJUSTMENT_SATURATION = 1;
+     public static final int ADJUSTMENT_INTENSITY = 2;
+diff --git a/sdk/src/java/lineageos/providers/LineageSettings.java b/sdk/src/java/lineageos/providers/LineageSettings.java
+index 39701bb..347fbdc 100644
+--- a/sdk/src/java/lineageos/providers/LineageSettings.java
++++ b/sdk/src/java/lineageos/providers/LineageSettings.java
+@@ -1468,6 +1468,16 @@ public final class LineageSettings {
+         public static final Validator DISPLAY_AUTO_OUTDOOR_MODE_VALIDATOR =
+                 sBooleanValidator;
+ 
++        /**
++         * Reader mode
++         * 0 = 0ff, 1 = on
++         */
++        public static final String DISPLAY_READING_MODE = "display_reading_mode";
++
++        /** @hide */
++        public static final Validator DISPLAY_READING_MODE_VALIDATOR =
++                sBooleanValidator;
++
+         /**
+          * Use display power saving features such as CABC or CABL
+          * 0 = 0ff, 1 = on
+@@ -2086,6 +2096,7 @@ public final class LineageSettings {
+                 LineageSettings.System.DISPLAY_TEMPERATURE_NIGHT,
+                 LineageSettings.System.DISPLAY_TEMPERATURE_MODE,
+                 LineageSettings.System.DISPLAY_AUTO_OUTDOOR_MODE,
++                LineageSettings.System.DISPLAY_READING_MODE,
+                 LineageSettings.System.DISPLAY_CABC,
+                 LineageSettings.System.DISPLAY_COLOR_ENHANCE,
+                 LineageSettings.System.DISPLAY_COLOR_ADJUSTMENT,
+@@ -2245,6 +2256,7 @@ public final class LineageSettings {
+             VALIDATORS.put(DISPLAY_TEMPERATURE_MODE, DISPLAY_TEMPERATURE_MODE_VALIDATOR);
+             VALIDATORS.put(DISPLAY_AUTO_CONTRAST, DISPLAY_AUTO_CONTRAST_VALIDATOR);
+             VALIDATORS.put(DISPLAY_AUTO_OUTDOOR_MODE, DISPLAY_AUTO_OUTDOOR_MODE_VALIDATOR);
++            VALIDATORS.put(DISPLAY_READING_MODE, DISPLAY_READING_MODE_VALIDATOR);
+             VALIDATORS.put(DISPLAY_CABC, DISPLAY_CABC_VALIDATOR);
+             VALIDATORS.put(DISPLAY_COLOR_ENHANCE, DISPLAY_COLOR_ENHANCE_VALIDATOR);
+             VALIDATORS.put(DISPLAY_COLOR_ADJUSTMENT, DISPLAY_COLOR_ADJUSTMENT_VALIDATOR);
+-- 
+2.17.0
+

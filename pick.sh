@@ -610,10 +610,9 @@ kpick 213866 # lineage/interfaces: extend android.hardware.vibrator@1.0
 kpick 213867 # lineage/interfaces: vibrator: read light/medium/strong voltage from sysfs
 kpick 213868 # lineage/interfaces: vibrator: implement vendor.lineage methods
 kpick 214027 # livedisplay: Port mm-disp implementation
-kpick 214095 # livedisplay: Move extra inclusions out of header files
-kpick 214096 # livedisplay: Avoid using::xxxx in header files
 
 # hardware/lineage/lineagehw
+kpick 215118 # lineagehw: Introduce Reader mode backend
 
 # hardware/qcom/audio-caf/msm8974
 kpick 213856 # hal: msim_voice_extn: Cleanup code a bit
@@ -649,13 +648,13 @@ kpick 213367 # NetworkTraffic: Include tethering traffic statistics
 kpick 213641 # lineage-sdk lights: Genericize adjustable brightness capability
 kpick 214025 # sdk: Add an option to force pre-O apps to use full screen aspect ratio
 kpick 214854 # [3/3] lineagesdk: single hand for hw keys
+kpick 215119 # lineage-sdk: Add backend for reading enhancement
 
 # packages/apps/Camera2
 
 # packages/apps/Contacts
 
 # packages/apps/Dialer
-kpick 209824 # Add setting to enable Do Not Disturb during calls
 kpick 211135 # Show proper call duration
 
 # packages/apps/DeskClock
@@ -681,6 +680,7 @@ kpick 211302 # Eleven: Catch unsupported bitmap exception
 kpick 213135 # LineageParts: introduce Trust interface
 kpick 213642 # LineageParts: Update for generic adjustable brightness capability
 kpick 214309 # Parts: add NIGHT_DISPLAY_SETTINGS intent to LiveDisplay
+kpick 215120 # LineageParts: Add reader mode frontend
 
 # packages/apps/Settings
 kpick 212764 # Settings: add Trust interface hook
