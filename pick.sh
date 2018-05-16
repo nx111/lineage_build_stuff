@@ -526,7 +526,6 @@ kpick 214799 # sepolicy: qti_init_shell needs to read dir too
 
 # device/samsung/klte-common
 #kpick 212648 # klte-common: Enable AOD
-kpick 213270 # klte-common: Stop absuing global contexts for fingerprint
 
 # device/samsung/kltechnduo
 
@@ -574,7 +573,8 @@ kpick 214265 # Better QS detail clip animation
 #kpick 214867 # Expose isAutonomousGroupOwner [1/2]
 #kpick 214868 # Expose cancelWps [1/2]
 #kpick 214869 # Allow activing a saved autonomous group [1/2]
-kpick 215031 # 	Keyguard: Fix ConcurrentModificationException in KeyguardUpdateMonitor
+kpick 215031 # Keyguard: Fix ConcurrentModificationException in KeyguardUpdateMonitor
+kpick 215182 # SystemUI: update heads up, sync and volume panel drawables
 
 # frameworks/native
 kpick 213549 # SurfaceFlinger: Support get/set ActiveConfigs
@@ -686,7 +686,6 @@ kpick 215120 # LineageParts: Add reader mode frontend
 kpick 212764 # Settings: add Trust interface hook
 kpick 212765 # Settings: show Trust branding in confirm_lock_password UI
 kpick 213372 # Settings: Add an option to let pre-O apps to use full screen aspect ratio
-kpick 214283 # Settings: center USB mode selection title
 
 # packages/apps/Snap
 kpick 206595 # Use transparent navigation bar
@@ -706,6 +705,7 @@ kpick 213136 # Updater: show Trust branding when the update has been verified
 
 # packages/providers/ContactsProvider
 kpick 209030 # ContactsProvider: Prevent device contact being deleted.
+kpick 215174 # CallLogDatabase: Bump the version and try to re-run the version 5 upgrade path
 
 # packages/resources/devicesettings
 
