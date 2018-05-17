@@ -1,0 +1,369 @@
+From 279d1b0a4e9ccf27cc28444d69802ebac5926efe Mon Sep 17 00:00:00 2001
+From: "Christopher N. Hesse" <raymanfx@gmail.com>
+Date: Sat, 24 Feb 2018 23:33:49 -0800
+Subject: [PATCH 04/12] verity: Implement verity tool
+
+This allows for toggling block device verification at runtime.
+
+Both A/B and non-A/B devices as well as VB1.0 and VB2.0 (AVB)
+are supported.
+
+Change-Id: If6bec67a000074804f71fa098ad46ba395cac635
+---
+ verity_tool/Android.bp            |  28 +++++
+ verity_tool/include/verity_tool.h |  36 ++++++
+ verity_tool/main.cpp              |  64 ++++++++++
+ verity_tool/verity_tool.cpp       | 192 ++++++++++++++++++++++++++++++
+ 4 files changed, 320 insertions(+)
+ create mode 100644 verity_tool/Android.bp
+ create mode 100644 verity_tool/include/verity_tool.h
+ create mode 100644 verity_tool/main.cpp
+ create mode 100644 verity_tool/verity_tool.cpp
+
+diff --git a/verity_tool/Android.bp b/verity_tool/Android.bp
+new file mode 100644
+index 00000000..0a2ecd88
+--- /dev/null
++++ b/verity_tool/Android.bp
+@@ -0,0 +1,28 @@
++// Copyright 2018 The LineageOS Project
++
++cc_library {
++    name: "libveritytool",
++    srcs: ["verity_tool.cpp"],
++    local_include_dirs: ["include"],
++    export_include_dirs: ["include"],
++    cflags: ["-Werror"],
++    shared_libs: [
++        "libbase",
++        "libcrypto",
++        "libcrypto_utils",
++        "libfec",
++    ],
++    static_libs: [
++        "libfs_mgr",
++    ],
++    whole_static_libs: [
++        "libavb_user",
++    ],
++}
++
++cc_binary {
++    name: "veritytool",
++    srcs: ["main.cpp"],
++    shared_libs: ["libveritytool"],
++    cflags: ["-Werror"],
++}
+diff --git a/verity_tool/include/verity_tool.h b/verity_tool/include/verity_tool.h
+new file mode 100644
+index 00000000..25a6a7c2
+--- /dev/null
++++ b/verity_tool/include/verity_tool.h
+@@ -0,0 +1,36 @@
++/*
++ * Copyright (C) 2018 The LineageOS Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#pragma once
++
++#include <string>
++
++/*
++ * Return codes:
++ *
++ *    true: verity state set
++ *    false: verity state not set
++ */
++bool set_block_device_verity_enabled(const std::string& block_device,
++                                     bool enable);
++
++/*
++ * Return codes:
++ *
++ *    true: verity state set for all block devices
++ *    false: verity state not for set all block devices
++ */
++bool set_verity_enabled(bool enable);
+diff --git a/verity_tool/main.cpp b/verity_tool/main.cpp
+new file mode 100644
+index 00000000..f5f026aa
+--- /dev/null
++++ b/verity_tool/main.cpp
+@@ -0,0 +1,64 @@
++/*
++ * Copyright (C) 2018 The LineageOS Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#include "verity_tool.h"
++
++#include <getopt.h>
++#include <stdio.h>
++#include <string.h>
++
++static void print_usage() {
++    printf("veritytool - toggle block device verification\n"
++           "    --help        show this help\n"
++           "    --enable      enable dm-verity\n"
++           "    --disable     disable dm-verity\n");
++}
++
++int main(int argc, char** argv) {
++    int c, rc;
++    int enable = 0;
++    bool flag_set = false;
++    struct option long_opts[] = {
++        {"disable", no_argument, &enable, 0},
++        {"enable", no_argument, &enable, 1},
++        {NULL, 0, NULL, 0},
++    };
++
++    while ((c = getopt_long(argc, argv, "de", long_opts, NULL)) != -1) {
++        switch (c) {
++            case 0:
++                flag_set = true;
++                break;
++            default:
++                print_usage();
++                exit(0);
++        }
++    }
++
++    if (!flag_set) {
++        print_usage();
++        exit(0);
++    }
++
++    if (!set_verity_enabled(enable)) {
++        printf("Error occurred in set_verity_enable\n");
++        exit(EXIT_FAILURE);
++    }
++
++    printf("Set verity mode to: %s\n", enable ? "enabled" : "disabled");
++    printf("Now reboot your device for settings to take effect\n");
++    return 0;
++}
+diff --git a/verity_tool/verity_tool.cpp b/verity_tool/verity_tool.cpp
+new file mode 100644
+index 00000000..9575c4c1
+--- /dev/null
++++ b/verity_tool/verity_tool.cpp
+@@ -0,0 +1,192 @@
++/*
++ * Copyright (C) 2014 The Android Open Source Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#include "verity_tool.h"
++
++#include <android-base/logging.h>
++#include <android-base/properties.h>
++#include <fs_mgr.h>
++#include <fec/io.h>
++#include <libavb_user/libavb_user.h>
++
++#include <linux/fs.h>
++
++#include <errno.h>
++
++static int make_block_device_writable(const std::string& block_device) {
++    int fd = open(block_device.c_str(), O_RDONLY | O_CLOEXEC);
++    if (fd < 0) {
++        return -errno;
++    }
++
++    int OFF = 0;
++    int rc = ioctl(fd, BLKROSET, &OFF);
++    if (rc < 0) {
++        rc = -errno;
++        goto out;
++    }
++    rc = 0;
++out:
++    close(fd);
++    return rc;
++}
++
++/* Turn verity on/off */
++bool set_block_device_verity_enabled(const std::string& block_device,
++        bool enable) {
++    int rc = make_block_device_writable(block_device);
++    if (rc) {
++        LOG(ERROR) << "Could not make block device "
++                   << block_device << " writable:" << rc;
++        return false;
++    }
++
++    fec::io fh(block_device, O_RDWR);
++    if (!fh) {
++        PLOG(ERROR) << "Could not open block device " << block_device;
++        return false;
++    }
++
++    fec_verity_metadata metadata;
++    if (!fh.get_verity_metadata(metadata)) {
++        LOG(ERROR) << "Couldn't find verity metadata!";
++        return false;
++    }
++
++    if (!enable && metadata.disabled) {
++        LOG(ERROR) << "Verity already disabled on " << block_device;
++        return false;
++    }
++
++    if (enable && !metadata.disabled) {
++        LOG(WARNING) << "Verity already enabled on " << block_device;
++        return false;
++    }
++
++    if (!fh.set_verity_status(enable)) {
++        PLOG(ERROR) << "Could not set verity "
++                    << (enable ? "enabled" : "disabled")
++                    << " flag on device " << block_device;
++        return false;
++    }
++
++    LOG(DEBUG) << "Verity " << (enable ? "enabled" : "disabled")
++               << " on " << block_device;
++    return true;
++}
++
++/* Helper function to get A/B suffix, if any. If the device isn't
++ * using A/B the empty string is returned. Otherwise either "_a",
++ * "_b", ... is returned.
++ *
++ * Note that since sometime in O androidboot.slot_suffix is deprecated
++ * and androidboot.slot should be used instead. Since bootloaders may
++ * be out of sync with the OS, we check both and for extra safety
++ * prepend a leading underscore if there isn't one already.
++ */
++static std::string get_ab_suffix() {
++    std::string ab_suffix = android::base::GetProperty("ro.boot.slot_suffix", "");
++    if (ab_suffix.empty()) {
++        ab_suffix = android::base::GetProperty("ro.boot.slot", "");
++    }
++    if (ab_suffix.size() > 0 && ab_suffix[0] != '_') {
++        ab_suffix = std::string("_") + ab_suffix;
++    }
++    return ab_suffix;
++}
++
++/* Use AVB to turn verity on/off */
++static bool set_avb_verity_enabled_state(AvbOps* ops, bool enable_verity) {
++    std::string ab_suffix = get_ab_suffix();
++
++    bool verity_enabled;
++    if (!avb_user_verity_get(ops, ab_suffix.c_str(), &verity_enabled)) {
++        LOG(ERROR) << "Error getting verity state";
++        return false;
++    }
++
++    if ((verity_enabled && enable_verity) ||
++        (!verity_enabled && !enable_verity)) {
++        LOG(WARNING) << "verity is already "
++                     << verity_enabled ? "enabled" : "disabled";
++        return false;
++    }
++
++    if (!avb_user_verity_set(ops, ab_suffix.c_str(), enable_verity)) {
++        LOG(ERROR) << "Error setting verity";
++        return false;
++    }
++
++    LOG(DEBUG) << "Successfully " << (enable_verity ? "enabled" : "disabled")
++               << " verity";
++    return true;
++}
++
++bool set_verity_enabled(bool enable) {
++    bool rc = true;
++
++    // Do not allow changing verity on user builds
++    bool is_user = (android::base::GetProperty("ro.build.type", "") == "user");
++    if (is_user) {
++        LOG(ERROR) << "Cannot disable verity - USER BUILD";
++        return false;
++    }
++
++    // Figure out if we're using VB1.0 or VB2.0 (aka AVB) - by
++    // contract, androidboot.vbmeta.digest is set by the bootloader
++    // when using AVB).
++    bool using_avb = !android::base::GetProperty("ro.boot.vbmeta.digest", "").empty();
++
++    // If using AVB, dm-verity is used on any build so we want it to
++    // be possible to disable/enable on any build (except USER). For
++    // VB1.0 dm-verity is only enabled on certain builds.
++    if (using_avb) {
++        // Yep, the system is using AVB.
++        AvbOps* ops = avb_ops_user_new();
++        if (ops == nullptr) {
++            LOG(ERROR) << "Error getting AVB ops";
++            return false;
++        }
++        rc = set_avb_verity_enabled_state(ops, enable);
++        avb_ops_user_free(ops);
++    } else {
++        // Not using AVB - assume VB1.0.
++
++        // read all fstab entries at once from all sources
++        struct fstab* fstab = fs_mgr_read_fstab_default();
++        if (!fstab) {
++            LOG(ERROR) << "Failed to read fstab";
++            return false;
++        }
++
++        // Loop through entries looking for ones that vold manages.
++        for (int i = 0; i < fstab->num_entries; i++) {
++            if (fs_mgr_is_verified(&fstab->recs[i])) {
++                bool result = set_block_device_verity_enabled(
++                        fstab->recs[i].blk_device, enable);
++                if (!result) {
++                    // Warn, but continue if failure occurred
++                    LOG(WARNING) << "Failed to set state "
++                                 << (enable ? "enabled" : "disabled")
++                                 << " on " << fstab->recs[i].mount_point;
++                }
++                rc = rc && result;
++            }
++        }
++    }
++
++    return rc;
++}
+-- 
+2.17.0
+

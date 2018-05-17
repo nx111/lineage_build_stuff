@@ -574,6 +574,7 @@ kpick 214265 # Better QS detail clip animation
 #kpick 214868 # Expose cancelWps [1/2]
 #kpick 214869 # Allow activing a saved autonomous group [1/2]
 kpick 215031 # Keyguard: Fix ConcurrentModificationException in KeyguardUpdateMonitor
+kpick 215128 # Make the startup of SoundTrigger service conditional
 kpick 215182 # SystemUI: update heads up, sync and volume panel drawables
 
 # frameworks/native
@@ -588,6 +589,7 @@ kpick 213549 # SurfaceFlinger: Support get/set ActiveConfigs
 kpick 213487 # GsmCdmaPhone: Return dummy ICCID serial for NV sub
 kpick 213488 # GsmCdmaPhone: Fix GSM SIM card ICCID on NV sub CDMA devices
 kpick 214316 # RIL: Allow overriding RadioResponse and RadioIndication
+kpick 215188 # Don't assume 3GPP as active app on CDMA with LTE device
 
 # frameworks/opt/net/wifi
 #kpick 214870 # Expose cancelWps [2/2]
@@ -631,6 +633,7 @@ kpick 209093 # msm8974: hwc: Set ioprio for vsync thread
 
 # lineage/charter
 kpick 213574 # charter: Add some new USB rules
+kpick 213836 # charter: add vendor patch level requirement 
 kpick 214349 # charger: Improve 'Stability' compliances details
 
 # lineage/jenkins
@@ -718,6 +721,7 @@ kpick 209045 # Telephony: Fallback gracefully for emergency calls if suitable ap
 kpick 215059 # PhoneInterfaceManager: Simplify permission checks for endCallForSubscriber()
 
 # system/core
+kpick 206029 # init: Add command to disable verity
 kpick 209385 # init: optimize shutdown time
 kpick 213876 # healthd: charger: Add tricolor led to indicate battery capacity
 kpick 214001 # camera: Add L-compatible camera feature enums
@@ -736,11 +740,13 @@ kpick 213187 # Memory leak fix in NFA_SetRfDiscoveryDuration()
 # system/qcom
 
 # system/sepolicy
+kpick 206037 # sepolicy: Allow init to modify system_blk_device
 kpick 206136 # sepolicy: allow update_engine to bypass neverallows for backuptool
 
 # vendor/lineage
 kpick 206138 # vendor: add custom backuptools and postinstall script for A/B OTAs
 kpick 206139 # backuptool: introduce addon.d script versioning
+kpick 207769 # verity: Implement verity tool
 kpick 210664 # extract_utils: Support multidex
 kpick 212640 # repopick: Update SSH queries result to match HTTP queries
 kpick 212766 # vendor: introduce Trust interface
