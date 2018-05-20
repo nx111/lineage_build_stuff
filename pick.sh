@@ -509,14 +509,12 @@ kpick 213572 # Allow to exclude imgs from target-files zip
 kpick 214842 # dex2oat: disable multithreading
 kpick 214883 # core: config: Use host ijar if requested
 kpick 214892 # Add detection for WSL
-kpick 214964 # build: Include LineageOS specific properties in build.prop
 
 # build/soong
 
 # device/lineage/sepolicy
 kpick 210014 # sepolicy: Label aw2013 HIDL light HAL
 kpick 212763 # sepolicy: introduce Trust interface
-kpick 214121 # sepolicy: Add legacy-mm livedisplay label
 #kpick 214160 # sepolicy: Allow priv_app rw-access to system_app_data_file
 
 # device/qcom/sepolicy
@@ -538,6 +536,9 @@ kpick 210666 # wacom: Report touch when pen button is pressed if gestures are of
 kpick 214900 # ANDROID: sdcardfs: Don't d_drop in d_revalidate
 
 # external/chromium-webview
+
+# external/tinecompress
+kpick 215115 # tinycompress: Replace deprecated kernel header path
 
 # external/toybox
 kpick 209019 # toybox: Use ISO C/clang compatible __typeof__ in minof/maxof macros
@@ -564,8 +565,6 @@ kpick 209929 # SystemUI: fix black scrim when turning screen on from AOD
 #kpick 211301 # Store Network Mode selected in subId Table.
 kpick 213133 # base: introduce trust interface
 kpick 213371 # Add an option to let pre-O apps to use full screen aspect ratio
-kpick 214043 # UsbDeviceManager: Use isNormalBoot() where possible
-kpick 214044 # UsbDeviceManager: Allow custom boot modes to be treated as normal mode
 kpick 214262 # Bind app name to menu row when notification updated
 kpick 214263 # Fix intercepting touch events for guts
 kpick 214264 # Update text size of overflow number view
@@ -589,7 +588,6 @@ kpick 213549 # SurfaceFlinger: Support get/set ActiveConfigs
 kpick 213487 # GsmCdmaPhone: Return dummy ICCID serial for NV sub
 kpick 213488 # GsmCdmaPhone: Fix GSM SIM card ICCID on NV sub CDMA devices
 kpick 214316 # RIL: Allow overriding RadioResponse and RadioIndication
-kpick 215188 # Don't assume 3GPP as active app on CDMA with LTE device
 
 # frameworks/opt/net/wifi
 #kpick 214870 # Expose cancelWps [2/2]
@@ -611,7 +609,6 @@ kpick 213865 # lineage/interfaces: move vibrator to the proper directory
 kpick 213866 # lineage/interfaces: extend android.hardware.vibrator@1.0
 kpick 213867 # lineage/interfaces: vibrator: read light/medium/strong voltage from sysfs
 kpick 213868 # lineage/interfaces: vibrator: implement vendor.lineage methods
-kpick 214027 # livedisplay: Port mm-disp implementation
 
 # hardware/lineage/lineagehw
 kpick 215118 # lineagehw: Introduce Reader mode backend
@@ -676,6 +673,7 @@ kpick 211302 # Eleven: Catch unsupported bitmap exception
 # packages/apps/Flipflap
 
 # packages/apps/Gallery2
+kpick 215417 # Add new rule about watermark
 
 # packages/apps/Jelly
 
@@ -684,6 +682,13 @@ kpick 213135 # LineageParts: introduce Trust interface
 kpick 213642 # LineageParts: Update for generic adjustable brightness capability
 kpick 214309 # Parts: add NIGHT_DISPLAY_SETTINGS intent to LiveDisplay
 kpick 215120 # LineageParts: Add reader mode frontend
+
+# packages/apps/Recoder
+kpick 215411 # Recorder: update gradle deps
+kpick 215412 # Recorder: update aar libs
+kpick 215413 # Recorder: update deprecated methods to new ones
+kpick 215414 # Recorder: set build.gradle minsdk to 25 to match lineage build env
+kpick 215415 # Recorder: update assets to use rounded style
 
 # packages/apps/Settings
 kpick 212764 # Settings: add Trust interface hook
@@ -699,6 +704,8 @@ kpick 212750 # Icons: wrap all legacy icons to adaptive icons
 kpick 212751 # config: enable LEGACY_ICON_TREATMENT
 kpick 212752 # IconCache: fix crash if icon is an AdaptiveIconDrawable
 kpick 212761 # Trebuchet: make forced adaptive icons optional
+kpick 214336 # [WIP] Trebuchet: initial protected apps implementation
+kpick 215397 # Trebuchet: improve predictive apps
 
 # packages/apps/UnifiedEmail
 #kpick 211379 # UnifiedEmail: bring up changes from cm14.1 migrate to lineage-sdk LightsCapabilities and LineageNotification
@@ -718,7 +725,6 @@ kpick 214244 # Telecomm: Fix in-call audio edge case for legacy MSIM devices
 # packages/service/Telephony
 kpick 209045 # Telephony: Fallback gracefully for emergency calls if suitable app isn't found
 #kpick 211270 # Telephony: add external network selection activity (******WIP*****)
-kpick 215059 # PhoneInterfaceManager: Simplify permission checks for endCallForSubscriber()
 
 # system/core
 kpick 206029 # init: Add command to disable verity
@@ -738,6 +744,7 @@ kpick 213186 # Correct the parameter length for core_initialized()
 kpick 213187 # Memory leak fix in NFA_SetRfDiscoveryDuration()
 
 # system/qcom
+kpick 215122 # libQWiFiSoftApCfg: Replace deprecated kernel header path
 
 # system/sepolicy
 kpick 206037 # sepolicy: Allow init to modify system_blk_device
@@ -746,15 +753,13 @@ kpick 206136 # sepolicy: allow update_engine to bypass neverallows for backuptoo
 # vendor/lineage
 kpick 206138 # vendor: add custom backuptools and postinstall script for A/B OTAs
 kpick 206139 # backuptool: introduce addon.d script versioning
-kpick 207769 # verity: Implement verity tool
 kpick 210664 # extract_utils: Support multidex
 kpick 212640 # repopick: Update SSH queries result to match HTTP queries
 kpick 212766 # vendor: introduce Trust interface
 kpick 213815 # Place ADB auth property override to system
 kpick 214400 # backuptool: Resolve incompatible version grep syntax
-#kpick 214572 # backuptool: Temporarily render version check permissive
 kpick 214782 # lineage: extract_utils: Fix rootfs targets after a48b9fe9b6c25746940a2410db640d5e5438363d 
-kpick 214899 # lineage: Keep LineageOS versions properties in build.prop
+kpick 215341 # backuptool: Revert "Temporarily render version check permissive"
 
 # vendor/qcom/opensource/cryptfs_hw
 

@@ -1,21 +1,21 @@
-From 3ecdddcb8a782153e86b1ab6c048aa0b0c7417fa Mon Sep 17 00:00:00 2001
+From 7d8124d2516278d3945a8092bcbdb15f6517434c Mon Sep 17 00:00:00 2001
 From: Ethan Chen <intervigil@gmail.com>
 Date: Wed, 25 Apr 2018 23:15:06 -0700
-Subject: [PATCH 2/7] livedisplay: Don't use singletons for the stack
+Subject: [PATCH 2/6] livedisplay: Don't use singletons for the stack
 
 * Rely on plain RAII semantics with object lifetimes to manage resources
   instead of singletons.
 
 Change-Id: I5c5a06349574edc534c2814cb30da9cb04f72578
 ---
- .../1.0/default/controller/SDMController.cpp  | 16 ++----
- livedisplay/1.0/default/impl/SDM.cpp          | 40 ++++++--------
- livedisplay/1.0/default/include/Color.h       |  5 +-
+ .../1.0/default/controller/SDMController.cpp  | 16 ++-----
+ livedisplay/1.0/default/impl/SDM.cpp          | 40 +++++++----------
+ livedisplay/1.0/default/include/Color.h       |  5 +--
  .../include/controller/SDMController.h        |  7 +--
  livedisplay/1.0/default/include/impl/SDM.h    |  1 +
  livedisplay/1.0/default/service.cpp           |  9 +---
- livedisplay/1.0/default/src/Color.cpp         | 53 +++++++------------
- 7 files changed, 45 insertions(+), 86 deletions(-)
+ livedisplay/1.0/default/src/Color.cpp         | 44 ++++++++-----------
+ 7 files changed, 43 insertions(+), 79 deletions(-)
 
 diff --git a/livedisplay/1.0/default/controller/SDMController.cpp b/livedisplay/1.0/default/controller/SDMController.cpp
 index 31e0ec7..1355ce2 100644
@@ -233,10 +233,10 @@ index 7d7bfd0..ea236e4 100644
      bool mFOSSEnabled;
      bool mCachedFOSSStatus;
 diff --git a/livedisplay/1.0/default/service.cpp b/livedisplay/1.0/default/service.cpp
-index 1a082db..1ce6eb6 100644
+index b8f5cb5..026c26c 100644
 --- a/livedisplay/1.0/default/service.cpp
 +++ b/livedisplay/1.0/default/service.cpp
-@@ -37,21 +37,14 @@ using ::vendor::lineage::livedisplay::V1_0::implementation::Color;
+@@ -39,21 +39,14 @@ using ::vendor::lineage::livedisplay::V1_0::implementation::Color;
  
  int main() {
      status_t status;
@@ -260,22 +260,10 @@ index 1a082db..1ce6eb6 100644
      if (status != OK) {
          LOG(ERROR) << "Could not register service for LiveDisplay HAL Iface (" << status << ")";
 diff --git a/livedisplay/1.0/default/src/Color.cpp b/livedisplay/1.0/default/src/Color.cpp
-index 6f2e6b5..f43a5ca 100644
+index accd1d3..8e2cd6d 100644
 --- a/livedisplay/1.0/default/src/Color.cpp
 +++ b/livedisplay/1.0/default/src/Color.cpp
-@@ -60,49 +60,45 @@ using ::android::OK;
- using ::android::sp;
- using ::android::status_t;
- 
--sp<Color> Color::sInstance = nullptr;
--
--Color::Color() : mConnected(false), mBackend(nullptr) {
--#ifdef COLOR_BACKEND_SDM
--    mBackend = std::make_unique<SDM>();
--#endif
--    LOG(DEBUG) << "Loaded LiveDisplay native interface";
-+Color::Color() : mFeatures(0), mConnected(false), mBackend(nullptr) {
-+    connect();
+@@ -72,39 +72,40 @@ Color::Color() : mConnected(false), mBackend(nullptr) {
  }
  
  Color::~Color() {
@@ -332,15 +320,15 @@ index 6f2e6b5..f43a5ca 100644
      }
  
      for (uint32_t i = 1; i <= (uint32_t)Feature::MAX; i <<= 1) {
-@@ -111,20 +107,11 @@ bool Color::connect() {
+@@ -113,20 +114,11 @@ bool Color::connect() {
              addFeature(f);
          }
      }
 -    mConnected = true;
--
+ 
 -    return mFeatures > 0;
 -}
- 
+-
 -sp<Color> Color::getInstance() {
 -    if (sInstance == nullptr) {
 -        sInstance = new Color();

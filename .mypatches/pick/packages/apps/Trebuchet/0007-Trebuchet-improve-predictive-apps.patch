@@ -1,0 +1,530 @@
+From 9432081749542712bf2c0d1885dc675499a745ec Mon Sep 17 00:00:00 2001
+From: Joey <joey@lineageos.org>
+Date: Sat, 19 May 2018 17:14:02 +0200
+Subject: [PATCH 7/7] Trebuchet: improve predictive apps
+
+- Store data in a sql db
+- Categorize app launch between
+  - Day
+  - Night
+  - Headphones
+
+The suggestions will change on the go basing on
+whether an headset is plugged in or it's day or night
+
+Change-Id: Ic9d8dd4dafbb1a56157140119df71efd6fb4349a
+Signed-off-by: Joey <joey@lineageos.org>
+---
+ src/com/android/launcher3/Launcher.java       |   6 +-
+ src/com/android/launcher3/Utilities.java      |  29 +++
+ .../allapps/PredictiveAppsProvider.java       | 115 ++----------
+ .../suggestions/SuggestionCandidate.java      |  69 +++++++
+ .../SuggestionsDatabaseHelper.java            | 174 ++++++++++++++++++
+ 5 files changed, 296 insertions(+), 97 deletions(-)
+ create mode 100644 src/com/android/launcher3/discovery/suggestions/SuggestionCandidate.java
+ create mode 100644 src/com/android/launcher3/discovery/suggestions/SuggestionsDatabaseHelper.java
+
+diff --git a/src/com/android/launcher3/Launcher.java b/src/com/android/launcher3/Launcher.java
+index 8f6e23cbc..c2131f90a 100644
+--- a/src/com/android/launcher3/Launcher.java
++++ b/src/com/android/launcher3/Launcher.java
+@@ -60,6 +60,7 @@ import android.os.SystemClock;
+ import android.os.Trace;
+ import android.os.UserHandle;
+ import android.support.annotation.Nullable;
++import android.support.v4.content.LocalBroadcastManager;
+ import android.text.Selection;
+ import android.text.SpannableStringBuilder;
+ import android.text.TextUtils;
+@@ -509,6 +510,7 @@ public class Launcher extends BaseActivity
+         IntentFilter filter = new IntentFilter();
+         filter.addAction(Intent.ACTION_SCREEN_OFF);
+         filter.addAction(Intent.ACTION_USER_PRESENT); // When the device wakes up + keyguard is gone
++        filter.addAction(Intent.ACTION_HEADSET_PLUG); // Change suggestions when headset is plugged in
+         registerReceiver(mReceiver, filter);
+         mShouldFadeInScrim = true;
+ 
+@@ -1596,6 +1598,9 @@ public class Launcher extends BaseActivity
+                 // ACTION_USER_PRESENT is sent after onStart/onResume. This covers the case where
+                 // the user unlocked and the Launcher is not in the foreground.
+                 mShouldFadeInScrim = false;
++            } else if (Intent.ACTION_HEADSET_PLUG.equals(action)) {
++                // We propose the user different suggestions when headset is plugged in
++                tryAndUpdatePredictedApps();
+             }
+         }
+     };
+@@ -3132,7 +3137,6 @@ public class Launcher extends BaseActivity
+             List<ComponentKeyMapper<AppInfo>> apps;
+         if (mLauncherCallbacks == null) {
+             apps = mPredictiveAppsProvider.getPredictions();
+-            mPredictiveAppsProvider.updateTopPredictedApps();
+         } else {
+             apps = mLauncherCallbacks.getPredictedApps();
+         }
+diff --git a/src/com/android/launcher3/Utilities.java b/src/com/android/launcher3/Utilities.java
+index 2fd66cd25..0497dfbe3 100644
+--- a/src/com/android/launcher3/Utilities.java
++++ b/src/com/android/launcher3/Utilities.java
+@@ -37,6 +37,8 @@ import android.graphics.drawable.AdaptiveIconDrawable;
+ import android.graphics.drawable.BitmapDrawable;
+ import android.graphics.drawable.Drawable;
+ import android.graphics.drawable.LayerDrawable;
++import android.media.AudioDeviceInfo;
++import android.media.AudioManager;
+ import android.os.Build;
+ import android.os.Bundle;
+ import android.os.DeadObjectException;
+@@ -63,6 +65,7 @@ import java.io.Closeable;
+ import java.io.IOException;
+ import java.lang.reflect.InvocationTargetException;
+ import java.lang.reflect.Method;
++import java.util.Calendar;
+ import java.util.Collection;
+ import java.util.HashSet;
+ import java.util.Locale;
+@@ -749,4 +752,30 @@ public final class Utilities {
+         SharedPreferences prefs = getPrefs(context.getApplicationContext());
+         return prefs.getBoolean(SettingsActivity.KEY_FORCE_ADAPTIVE_ICONS, false);
+     }
++
++    public static boolean hasHeadset(Context context) {
++        AudioManager manager = context.getSystemService(AudioManager.class);
++        if (manager == null) {
++            return false;
++        }
++
++        AudioDeviceInfo[] devices = manager.getDevices(AudioManager.GET_DEVICES_OUTPUTS);
++        for (AudioDeviceInfo device : devices) {
++            switch (device.getType()) {
++                case AudioDeviceInfo.TYPE_BLUETOOTH_A2DP:
++                case AudioDeviceInfo.TYPE_USB_HEADSET:
++                case AudioDeviceInfo.TYPE_WIRED_HEADPHONES:
++                case AudioDeviceInfo.TYPE_WIRED_HEADSET:
++                    return true;
++            }
++        }
++
++        return false;
++    }
++
++    public static boolean isDayTime() {
++        Calendar calendar = Calendar.getInstance();
++        int hours = calendar.get(Calendar.HOUR_OF_DAY);
++        return hours > 5 && hours < 21;
++    }
+ }
+diff --git a/src/com/android/launcher3/allapps/PredictiveAppsProvider.java b/src/com/android/launcher3/allapps/PredictiveAppsProvider.java
+index 43d7115aa..42ad51ade 100644
+--- a/src/com/android/launcher3/allapps/PredictiveAppsProvider.java
++++ b/src/com/android/launcher3/allapps/PredictiveAppsProvider.java
+@@ -2,33 +2,30 @@ package com.android.launcher3.allapps;
+ 
+ import android.content.ComponentName;
+ import android.content.Context;
+-import android.content.SharedPreferences;
+ import android.os.Process;
++import android.os.UserHandle;
+ import android.util.Log;
+ 
+ import com.android.launcher3.AppInfo;
+-import com.android.launcher3.Utilities;
++import com.android.launcher3.discovery.suggestions.SuggestionCandidate;
++import com.android.launcher3.discovery.suggestions.SuggestionsDatabaseHelper;
+ import com.android.launcher3.util.ComponentKey;
+ import com.android.launcher3.util.ComponentKeyMapper;
+ 
+ import java.util.ArrayList;
+-import java.util.Collections;
+-import java.util.HashSet;
+ import java.util.List;
+-import java.util.Set;
+ 
+ public class PredictiveAppsProvider {
+-    private static final String TAG = "PredictiveAppsProvider";
+-
+-    private static final int NUM_PREDICTIVE_APPS_TO_HOLD = 9; // since we can't have more than 9 columns
++    public static final int MAX_SUGGESTIONS = 9;
+ 
+-    private static final String PREDICTIVE_APPS_KEY = "predictive_apps";
+-    private static final String TOP_PREDICTIVE_APPS_KEY = "top_predictive_apps";
++    private static final String TAG = "PredictiveAppsProvider";
+ 
+-    private SharedPreferences mPrefs;
++    private Context mContext;
++    private SuggestionsDatabaseHelper mHelper;
+ 
+     public PredictiveAppsProvider(Context context) {
+-        this.mPrefs = Utilities.getPrefs(context.getApplicationContext());
++        mContext = context;
++        mHelper = SuggestionsDatabaseHelper.getInstance(context);
+     }
+ 
+     public void updateComponentCount(ComponentName component) {
+@@ -37,97 +34,23 @@ public class PredictiveAppsProvider {
+             return;
+         }
+ 
+-        String key = buildComponentString(component);
+-        long current = mPrefs.getLong(key, 0);
+-
+-        mPrefs.edit().putLong(key, current + 1).apply();
+-
+-        // ensure that the set of predictive apps contains this one
+-        Set<String> predictiveApps =
+-                mPrefs.getStringSet(PREDICTIVE_APPS_KEY, new HashSet<>());
+-        if (!predictiveApps.contains(key)) {
+-            predictiveApps.add(key);
+-            mPrefs.edit().putStringSet(PREDICTIVE_APPS_KEY, predictiveApps).apply();
+-        }
+-    }
+-
+-    public void updateTopPredictedApps() {
+-        new Thread(() -> {
+-            List< PredictedApp > allPredictions = new ArrayList<>();
+-            Set<String> predictiveAppsSet =
+-                    mPrefs.getStringSet(PREDICTIVE_APPS_KEY, new HashSet<>());
+-
+-            for (String s : predictiveAppsSet) {
+-                allPredictions.add(new PredictedApp(buildComponentFromString(s),
+-                        mPrefs.getLong(s, 0)));
+-            }
+-
+-            Collections.sort(allPredictions, (result1, result2) ->
+-                    Long.valueOf(result2.count).compareTo(result1.count));
+-
+-            if (allPredictions.size() > NUM_PREDICTIVE_APPS_TO_HOLD) {
+-                allPredictions = allPredictions.subList(0, NUM_PREDICTIVE_APPS_TO_HOLD);
+-            }
+-
+-            mPrefs.edit().putString(TOP_PREDICTIVE_APPS_KEY,
+-                    buildStringFromAppList(allPredictions)).apply();
+-        }).start();
++        SuggestionCandidate candidate = mHelper.getCandidate(component.getPackageName(),
++                component.getClassName());
++        mHelper.increaseCounter(mContext, candidate);
+     }
+ 
+     public List<ComponentKeyMapper<AppInfo>> getPredictions() {
+-        String predictions = mPrefs.getString(TOP_PREDICTIVE_APPS_KEY, "");
+-        if (predictions.isEmpty()) {
+-            return new ArrayList<>();
+-        }
+-
+-        String[] topPredictions = predictions.split(" ");
++        List<SuggestionCandidate> candidates = mHelper.getSuggestionCandidates(mContext);
+         List<ComponentKeyMapper<AppInfo>> keys = new ArrayList<>();
++        UserHandle handle = Process.myUserHandle();
+ 
+-        for (int i = 0; i < topPredictions.length - 1; i++) {
+-            keys.add(buildComponentKey(topPredictions[i] + " " + topPredictions[i + 1]));
+-        }
++        for (SuggestionCandidate candidate : candidates) {
++            ComponentName name = new ComponentName(candidate.getPackageName(),
++                    candidate.getClassName());
+ 
+-        return keys;
+-    }
+-
+-    private String buildStringFromAppList(List<PredictedApp> apps) {
+-        StringBuilder string = new StringBuilder();
+-        for (PredictedApp app : apps) {
+-            string.append(buildComponentString(app.component)).append(" ");
+-        }
+-
+-        try {
+-            return string.substring(0, string.length() - 1);
+-        } catch (StringIndexOutOfBoundsException e) {
+-            return "";
++            keys.add(new ComponentKeyMapper<>(new ComponentKey(name, handle)));
+         }
+-    }
+-
+-    private String buildComponentString(ComponentName component) {
+-        return component.getPackageName() + " " + component.getClassName();
+-    }
+-
+-    private ComponentName buildComponentFromString(String key) {
+-        String[] arr = key.split(" ");
+-        return new ComponentName(arr[0], arr[1]);
+-    }
+ 
+-    private ComponentKeyMapper<AppInfo> buildComponentKey(String key) {
+-        return buildComponentKey(buildComponentFromString(key));
+-    }
+-
+-    private ComponentKeyMapper<AppInfo> buildComponentKey(ComponentName component) {
+-        return new ComponentKeyMapper<>(new ComponentKey(component, Process.myUserHandle()));
+-    }
+-
+-    private class PredictedApp {
+-        public ComponentName component;
+-        public long count;
+-
+-        public PredictedApp(ComponentName component, long count) {
+-            this.component = component;
+-            this.count = count;
+-        }
++        return keys;
+     }
+-
+ }
+\ No newline at end of file
+diff --git a/src/com/android/launcher3/discovery/suggestions/SuggestionCandidate.java b/src/com/android/launcher3/discovery/suggestions/SuggestionCandidate.java
+new file mode 100644
+index 000000000..c4a4dbf2e
+--- /dev/null
++++ b/src/com/android/launcher3/discovery/suggestions/SuggestionCandidate.java
+@@ -0,0 +1,69 @@
++package com.android.launcher3.discovery.suggestions;
++
++import android.content.ContentValues;
++import android.content.Context;
++import android.support.annotation.NonNull;
++
++import com.android.launcher3.Utilities;
++
++import java.util.Calendar;
++
++public class SuggestionCandidate {
++    @NonNull
++    private String mPackageName;
++    @NonNull
++    private String mClassName;
++
++    private int mDayCounter;
++    private int mNightCounter;
++    private int mHeadphonesCounter;
++
++    SuggestionCandidate(@NonNull String packageName, @NonNull String className) {
++        mPackageName = packageName;
++        mClassName = className;
++        mDayCounter = -1;
++        mNightCounter = -1;
++        mHeadphonesCounter = -1;
++    }
++
++    SuggestionCandidate(@NonNull String packageName, @NonNull String className,
++                               int dayCounter, int nightCounter, int headphonesCounter) {
++        mPackageName = packageName;
++        mClassName = className;
++        mDayCounter = dayCounter;
++        mNightCounter = nightCounter;
++        mHeadphonesCounter = headphonesCounter;
++    }
++
++    @NonNull
++    public String getPackageName() {
++        return mPackageName;
++    }
++
++    @NonNull
++    public String getClassName() {
++        return mClassName;
++    }
++
++    public int getDayCounter() {
++        return mDayCounter;
++    }
++
++    public int getNightCounter() {
++        return mNightCounter;
++    }
++
++    public int getHeadsetCounter() {
++        return mHeadphonesCounter;
++    }
++
++    public void increaseCounter(Context context) {
++        if (Utilities.hasHeadset(context)) {
++            mHeadphonesCounter++;
++        } else if (Utilities.isDayTime()) {
++            mDayCounter++;
++        } else {
++            mNightCounter++;
++        }
++    }
++}
+diff --git a/src/com/android/launcher3/discovery/suggestions/SuggestionsDatabaseHelper.java b/src/com/android/launcher3/discovery/suggestions/SuggestionsDatabaseHelper.java
+new file mode 100644
+index 000000000..d18f9c9ce
+--- /dev/null
++++ b/src/com/android/launcher3/discovery/suggestions/SuggestionsDatabaseHelper.java
+@@ -0,0 +1,174 @@
++package com.android.launcher3.discovery.suggestions;
++
++import android.content.ContentValues;
++import android.content.Context;
++import android.database.Cursor;
++import android.database.sqlite.SQLiteDatabase;
++import android.database.sqlite.SQLiteOpenHelper;
++import android.support.annotation.NonNull;
++import android.support.annotation.Nullable;
++
++import com.android.launcher3.Utilities;
++import com.android.launcher3.allapps.PredictiveAppsProvider;
++
++import java.util.ArrayList;
++import java.util.List;
++
++public class SuggestionsDatabaseHelper extends SQLiteOpenHelper {
++    private static final int DATABASE_VERSION = 1;
++    private static final String DATABASE_NAME = "trebuchet_suggestions_db";
++
++    private static final String TABLE_NAME = "suggestion_candidates";
++    private static final String KEY_UID = "uid";
++    private static final String KEY_PACKAGE_NAME = "packageName";
++    private static final String KEY_CLASS_NAME = "className";
++    private static final String KEY_DAY_COUNTER = "dayCounter";
++    private static final String KEY_NIGHT_COUNTER = "nightCounter";
++    private static final String KEY_HEADSET_COUNTER = "headsetCounter";
++
++    private static final String[] ALL_COLUMNS = {
++            KEY_UID, KEY_PACKAGE_NAME, KEY_CLASS_NAME,
++            KEY_DAY_COUNTER, KEY_NIGHT_COUNTER, KEY_HEADSET_COUNTER
++    };
++    private static final String QUERY_FILTER =
++            KEY_PACKAGE_NAME + " = ? AND " + KEY_CLASS_NAME + " = ?";
++
++    private static final String CMD_CREATE_TABLE = "CREATE TABLE %1$s (" +
++            "%2$s INTEGER PRIMARY KEY AUTOINCREMENT," + // uid
++            "%3$s TEXT NOT NULL," + // packageName
++            "%4$s TEXT NOT NULL, " + // className
++            "%5$s INTEGER NOT NULL DEFAULT -1, " + // dayCounter
++            "%6$s INTEGER NOT NULL DEFAULT -1, " + // nightCounter
++            "%7$s INTEGER NOT NULL DEFAULT -1);"; // headsetCounter
++
++    private static SuggestionsDatabaseHelper sInstance = null;
++
++    private SuggestionsDatabaseHelper(Context context) {
++        super(context, DATABASE_NAME, null, DATABASE_VERSION);
++    }
++
++    public static SuggestionsDatabaseHelper getInstance(Context context) {
++        if (sInstance == null) {
++            sInstance = new SuggestionsDatabaseHelper(context);
++        }
++        return sInstance;
++    }
++
++    @Override
++    public void onCreate(SQLiteDatabase db) {
++        db.execSQL(String.format(CMD_CREATE_TABLE, TABLE_NAME, KEY_UID, KEY_PACKAGE_NAME,
++                KEY_CLASS_NAME, KEY_DAY_COUNTER, KEY_NIGHT_COUNTER, KEY_HEADSET_COUNTER));
++    }
++
++    @Override
++    public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
++    }
++
++    public void increaseCounter(Context context, @NonNull SuggestionCandidate candidate) {
++        candidate.increaseCounter(context);
++        saveSuggestion(candidate);
++    }
++
++    public List<SuggestionCandidate> getSuggestionCandidates(Context context) {
++        List<SuggestionCandidate> candidates = new ArrayList<>();
++        int i = 0;
++
++        String counterColumn;
++        if (Utilities.hasHeadset(context)) {
++            counterColumn = KEY_HEADSET_COUNTER;
++        } else if (Utilities.isDayTime()) {
++            counterColumn = KEY_DAY_COUNTER;
++        } else {
++            counterColumn = KEY_NIGHT_COUNTER;
++        }
++
++        SQLiteDatabase db = getReadableDatabase();
++        Cursor cursor = db.query(TABLE_NAME, ALL_COLUMNS, null, null,
++                null, null, counterColumn + " DESC");
++        if (cursor == null) {
++            return candidates;
++        }
++
++        if (!cursor.moveToFirst()) {
++            cursor.close();
++            return candidates;
++        }
++
++        do {
++            candidates.add(new SuggestionCandidate(
++                    cursor.getString(cursor.getColumnIndex(KEY_PACKAGE_NAME)),
++                    cursor.getString(cursor.getColumnIndex(KEY_CLASS_NAME)),
++                    cursor.getInt(cursor.getColumnIndex(KEY_DAY_COUNTER)),
++                    cursor.getInt(cursor.getColumnIndex(KEY_NIGHT_COUNTER)),
++                    cursor.getInt(cursor.getColumnIndex(KEY_HEADSET_COUNTER))));
++            i++;
++        } while (i < PredictiveAppsProvider.MAX_SUGGESTIONS && cursor.moveToNext());
++
++        return candidates;
++    }
++
++    private void saveSuggestion(@NonNull SuggestionCandidate candidate) {
++        boolean shouldUpdate = hasCandidate(candidate.getPackageName(), candidate.getClassName());
++
++        ContentValues values = new ContentValues();
++        values.put(KEY_PACKAGE_NAME, candidate.getPackageName());
++        values.put(KEY_CLASS_NAME, candidate.getClassName());
++        values.put(KEY_DAY_COUNTER, candidate.getDayCounter());
++        values.put(KEY_NIGHT_COUNTER, candidate.getNightCounter());
++        values.put(KEY_HEADSET_COUNTER, candidate.getHeadsetCounter());
++
++        SQLiteDatabase db = getWritableDatabase();
++        if (shouldUpdate) {
++            String[] arguments = new String[] {
++                    candidate.getPackageName(), candidate.getClassName()
++            };
++            db.update(TABLE_NAME, values, QUERY_FILTER, arguments);
++        } else {
++            db.insert(TABLE_NAME, null, values);
++        }
++
++        db.close();
++    }
++
++    @NonNull
++    public SuggestionCandidate getCandidate(@NonNull String packageName,
++                                            @NonNull String className) {
++        SQLiteDatabase db = getReadableDatabase();
++        String[] arguments = new String[] { packageName, className };
++        Cursor cursor = db.query(TABLE_NAME, ALL_COLUMNS, QUERY_FILTER, arguments,
++                null, null, null, null);
++        if (cursor == null) {
++            return new SuggestionCandidate(packageName, className);
++        }
++
++        if (!cursor.moveToFirst()) {
++            cursor.close();
++            return new SuggestionCandidate(packageName, className);
++        }
++
++        SuggestionCandidate result = new SuggestionCandidate(
++                cursor.getString(cursor.getColumnIndex(KEY_PACKAGE_NAME)),
++                cursor.getString(cursor.getColumnIndex(KEY_CLASS_NAME)),
++                cursor.getInt(cursor.getColumnIndex(KEY_DAY_COUNTER)),
++                cursor.getInt(cursor.getColumnIndex(KEY_NIGHT_COUNTER)),
++                cursor.getInt(cursor.getColumnIndex(KEY_HEADSET_COUNTER))
++        );
++        cursor.close();
++        return result;
++    }
++
++    private boolean hasCandidate(@NonNull String packageName,
++                                 @NonNull String className) {
++        SQLiteDatabase db = getReadableDatabase();
++        String[] columns = new String[]{KEY_PACKAGE_NAME, KEY_CLASS_NAME};
++        String[] arguments = new String[]{packageName, className};
++        Cursor cursor = db.query(TABLE_NAME, columns, QUERY_FILTER, arguments,
++                null, null, null, null);
++
++        boolean result = cursor != null && cursor.getCount() > 0;
++        if (cursor != null) {
++            cursor.close();
++        }
++        return result;
++    }
++}
+-- 
+2.17.0
+
