@@ -1,23 +1,21 @@
-From 51aac4ab136ed5dba717cdfdce2038c5a67a8e33 Mon Sep 17 00:00:00 2001
+From a3c0030ae3075345abf7e3b9a3edf3b9ea9971a2 Mon Sep 17 00:00:00 2001
 From: Joey <joey@lineageos.org>
 Date: Sat, 19 May 2018 22:23:55 +0200
-Subject: [PATCH 4/5] Recorder: set build.gradle minsdk to 25 to match lineage
- build env
-
-and fix sdk25 support
+Subject: [PATCH 4/5] Recorder: support down to api24
 
 Change-Id: I31595a77c939877de5f4c69d96f135e551fc181a
 Signed-off-by: Joey <joey@lineageos.org>
 ---
- app/build.gradle                                 |  2 +-
- .../recorder/screen/OverlayService.java          | 10 +++++++++-
- .../recorder/screen/ScreencastService.java       | 16 +++++++++++-----
- .../recorder/sounds/SoundRecorderService.java    | 10 ++++++++--
- .../org/lineageos/recorder/ui/OverlayLayer.java  |  5 ++++-
- 5 files changed, 33 insertions(+), 10 deletions(-)
+ app/build.gradle                               |  2 +-
+ app/src/main/AndroidManifest.xml               |  2 +-
+ .../recorder/screen/OverlayService.java        |  8 ++++++++
+ .../recorder/screen/ScreencastService.java     | 18 +++++++++++++-----
+ .../recorder/sounds/SoundRecorderService.java  | 12 ++++++++++--
+ .../lineageos/recorder/ui/OverlayLayer.java    |  5 ++++-
+ 6 files changed, 37 insertions(+), 10 deletions(-)
 
 diff --git a/app/build.gradle b/app/build.gradle
-index 6145fb4..7fbbbe5 100644
+index 6145fb4..19840a1 100644
 --- a/app/build.gradle
 +++ b/app/build.gradle
 @@ -5,7 +5,7 @@ android {
@@ -25,12 +23,25 @@ index 6145fb4..7fbbbe5 100644
      defaultConfig {
          applicationId "org.lineageos.recorder"
 -        minSdkVersion 26
-+        minSdkVersion 25
++        minSdkVersion 24
          targetSdkVersion 27
          versionCode 1
          versionName "1.1"
+diff --git a/app/src/main/AndroidManifest.xml b/app/src/main/AndroidManifest.xml
+index 7d7479d..1dd8782 100644
+--- a/app/src/main/AndroidManifest.xml
++++ b/app/src/main/AndroidManifest.xml
+@@ -27,7 +27,7 @@
+     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+ 
+     <!-- This is needed for aosp build env -->
+-    <uses-sdk android:minSdkVersion='25'
++    <uses-sdk android:minSdkVersion='24'
+         tools:ignore="GradleOverrides" />
+ 
+     <application
 diff --git a/app/src/main/java/org/lineageos/recorder/screen/OverlayService.java b/app/src/main/java/org/lineageos/recorder/screen/OverlayService.java
-index 4526366..e0fe56c 100644
+index 4526366..0455321 100644
 --- a/app/src/main/java/org/lineageos/recorder/screen/OverlayService.java
 +++ b/app/src/main/java/org/lineageos/recorder/screen/OverlayService.java
 @@ -21,6 +21,7 @@ import android.app.NotificationManager;
@@ -41,31 +52,22 @@ index 4526366..e0fe56c 100644
  import android.os.IBinder;
  import android.support.v4.app.NotificationCompat;
  
-@@ -81,6 +82,10 @@ public class OverlayService extends Service {
-     public void onCreate() {
+@@ -82,6 +83,13 @@ public class OverlayService extends Service {
          super.onCreate();
  
-+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+         NotificationManager notificationManager = getSystemService(NotificationManager.class);
++
++        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O ||
++                notificationManager == null || notificationManager
++                .getNotificationChannel(SCREENCAST_OVERLAY_NOTIFICATION_CHANNEL) != null) {
 +            return;
 +        }
 +
-         NotificationManager notificationManager = getSystemService(NotificationManager.class);
          CharSequence name = getString(R.string.screen_overlay_channel_title);
          String description = getString(R.string.screen_overlay_channel_desc);
-@@ -88,7 +93,10 @@ public class OverlayService extends Service {
-                 new NotificationChannel(SCREENCAST_OVERLAY_NOTIFICATION_CHANNEL,
-                         name, NotificationManager.IMPORTANCE_LOW);
-         notificationChannel.setDescription(description);
--        notificationManager.createNotificationChannel(notificationChannel);
-+
-+        if (notificationManager != null) {
-+            notificationManager.createNotificationChannel(notificationChannel);
-+        }
-     }
- 
-     @Override
+         NotificationChannel notificationChannel =
 diff --git a/app/src/main/java/org/lineageos/recorder/screen/ScreencastService.java b/app/src/main/java/org/lineageos/recorder/screen/ScreencastService.java
-index 180357f..c11302a 100644
+index 180357f..0fb6111 100644
 --- a/app/src/main/java/org/lineageos/recorder/screen/ScreencastService.java
 +++ b/app/src/main/java/org/lineageos/recorder/screen/ScreencastService.java
 @@ -27,6 +27,7 @@ import android.content.IntentFilter;
@@ -76,7 +78,7 @@ index 180357f..c11302a 100644
  import android.os.Environment;
  import android.os.IBinder;
  import android.os.StatFs;
-@@ -113,7 +114,17 @@ public class ScreencastService extends Service {
+@@ -113,7 +114,19 @@ public class ScreencastService extends Service {
      public void onCreate() {
          super.onCreate();
  
@@ -87,14 +89,16 @@ index 180357f..c11302a 100644
 +
          mNotificationManager = getSystemService(NotificationManager.class);
 +
-+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
++        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O ||
++                mNotificationManager == null || mNotificationManager.getNotificationChannel(
++                        SCREENCAST_NOTIFICATION_CHANNEL) != null) {
 +            return;
 +        }
 +
          CharSequence name = getString(R.string.screen_channel_title);
          String description = getString(R.string.screen_channel_desc);
          NotificationChannel notificationChannel =
-@@ -121,11 +132,6 @@ public class ScreencastService extends Service {
+@@ -121,11 +134,6 @@ public class ScreencastService extends Service {
                          name, NotificationManager.IMPORTANCE_LOW);
          notificationChannel.setDescription(description);
          mNotificationManager.createNotificationChannel(notificationChannel);
@@ -107,7 +111,7 @@ index 180357f..c11302a 100644
  
      @Override
 diff --git a/app/src/main/java/org/lineageos/recorder/sounds/SoundRecorderService.java b/app/src/main/java/org/lineageos/recorder/sounds/SoundRecorderService.java
-index 19bd3e9..7583481 100644
+index 19bd3e9..003bb97 100644
 --- a/app/src/main/java/org/lineageos/recorder/sounds/SoundRecorderService.java
 +++ b/app/src/main/java/org/lineageos/recorder/sounds/SoundRecorderService.java
 @@ -27,6 +27,7 @@ import android.content.IntentFilter;
@@ -118,7 +122,7 @@ index 19bd3e9..7583481 100644
  import android.os.Environment;
  import android.os.IBinder;
  import android.support.v4.app.NotificationCompat;
-@@ -111,7 +112,14 @@ public class SoundRecorderService extends Service {
+@@ -111,7 +112,16 @@ public class SoundRecorderService extends Service {
      public void onCreate() {
          super.onCreate();
  
@@ -126,14 +130,16 @@ index 19bd3e9..7583481 100644
 +
          mNotificationManager = getSystemService(NotificationManager.class);
 +
-+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
++        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O ||
++                mNotificationManager == null || mNotificationManager.getNotificationChannel(
++                        SOUNDRECORDER_NOTIFICATION_CHANNEL) != null) {
 +            return;
 +        }
 +
          CharSequence name = getString(R.string.sound_channel_title);
          String description = getString(R.string.sound_channel_desc);
          NotificationChannel notificationChannel =
-@@ -119,8 +127,6 @@ public class SoundRecorderService extends Service {
+@@ -119,8 +129,6 @@ public class SoundRecorderService extends Service {
                          name, NotificationManager.IMPORTANCE_LOW);
          notificationChannel.setDescription(description);
          mNotificationManager.createNotificationChannel(notificationChannel);

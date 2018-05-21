@@ -487,11 +487,10 @@ find $topdir/.mypatches/local/vendor/lineage/ -type f -name "*-\[ALWAYS\]-*.patc
 done
 
 # android
-#kpick 213704 # Track our own chips
-#kpick 213705 # 	Build Exchange
-#repo sync --force-sync frameworks/opt/chips
-#repo sync --force-sync packages/apps/Exchange
-repo sync --force-sync frameworks/opt/datetimepicker
+kpick 213704 # Track our own chips
+kpick 213705 # 	Build Exchange
+repo sync --force-sync frameworks/opt/chips
+repo sync --force-sync packages/apps/Exchange
 
 # bionic
 kpick 212920 # libc: Mark libstdc++ as vendor available
@@ -521,6 +520,8 @@ kpick 212763 # sepolicy: introduce Trust interface
 kpick 211273 # qcom/sepol: Fix timeservice app context
 kpick 212643 # qcom/sepol: Allow mm-qcamerad to use binder even in vendor
 kpick 214799 # sepolicy: qti_init_shell needs to read dir too
+kpick 214800 # sepolicy: allow vold to read persist dirs
+kpick 215463 # legacy: perf: allow checking for existence of other processes (signull)
 
 # device/samsung/klte-common
 #kpick 212648 # klte-common: Enable AOD
@@ -574,20 +575,18 @@ kpick 214265 # Better QS detail clip animation
 #kpick 214869 # Allow activing a saved autonomous group [1/2]
 kpick 215031 # Keyguard: Fix ConcurrentModificationException in KeyguardUpdateMonitor
 kpick 215128 # Make the startup of SoundTrigger service conditional
-kpick 215182 # SystemUI: update heads up, sync and volume panel drawables
 
 # frameworks/native
 kpick 213549 # SurfaceFlinger: Support get/set ActiveConfigs
 
 # frameworks/opt/chips
-#kpick 211435 # chips: bring up changes from cm14.1
+kpick 211435 # chips: bring up changes from cm14.1
 
 # frameworks/opt/telephony
-#kpick 211280 # telephony: Respect user nw mode, handle DSDS non-multi-rat.
-#kpick 211338 # Add the user set network mode to the siminfo table
 kpick 213487 # GsmCdmaPhone: Return dummy ICCID serial for NV sub
 kpick 213488 # GsmCdmaPhone: Fix GSM SIM card ICCID on NV sub CDMA devices
 kpick 214316 # RIL: Allow overriding RadioResponse and RadioIndication
+kpick 215450 # Add changes for sending ATEL UI Ready to RIL.
 
 # frameworks/opt/net/wifi
 #kpick 214870 # Expose cancelWps [2/2]
@@ -665,15 +664,14 @@ kpick 213051 # Deskclock: set targetSdk to 27
 kpick 211302 # Eleven: Catch unsupported bitmap exception
 
 # packages/apps/Email
-#kpick 211380 # Email: bring up changes from cm14.1 migrate to lineage-sdk LightsCapabilities revert parts from acc49fed1 ...
+kpick 211380 # Email: bring up changes from cm14.1 migrate to lineage-sdk LightsCapabilities revert parts from acc49fed1 ...
 
 # packages/apps/Exchange
-#kpick 211382 # Exchange: correct the targeted SDK version to avoid permission fails
+kpick 211382 # Exchange: correct the targeted SDK version to avoid permission fails
 
 # packages/apps/Flipflap
 
 # packages/apps/Gallery2
-kpick 215417 # Add new rule about watermark
 
 # packages/apps/Jelly
 
@@ -699,22 +697,16 @@ kpick 213372 # Settings: Add an option to let pre-O apps to use full screen aspe
 kpick 206595 # Use transparent navigation bar
 
 # packages/apps/Trebuchet
-kpick 212749 # Icons: fix non-adaptive icon handling
-kpick 212750 # Icons: wrap all legacy icons to adaptive icons
-kpick 212751 # config: enable LEGACY_ICON_TREATMENT
 kpick 212752 # IconCache: fix crash if icon is an AdaptiveIconDrawable
-kpick 212761 # Trebuchet: make forced adaptive icons optional
 kpick 214336 # [WIP] Trebuchet: initial protected apps implementation
-kpick 215397 # Trebuchet: improve predictive apps
 
 # packages/apps/UnifiedEmail
-#kpick 211379 # UnifiedEmail: bring up changes from cm14.1 migrate to lineage-sdk LightsCapabilities and LineageNotification
+kpick 211379 # UnifiedEmail: bring up changes from cm14.1 migrate to lineage-sdk LightsCapabilities and LineageNotification
 
 # packages/apps/Updater
 kpick 213136 # Updater: show Trust branding when the update has been verified
 
 # packages/providers/ContactsProvider
-kpick 209030 # ContactsProvider: Prevent device contact being deleted.
 kpick 215174 # CallLogDatabase: Bump the version and try to re-run the version 5 upgrade path
 
 # packages/resources/devicesettings
@@ -738,10 +730,6 @@ kpick 211210 # ext4: Add /data/stache/ to encryption exclusion list
 # system/netd
 
 # system/nfc
-kpick 213184 # Fix GKI task release twice issue
-kpick 213185 # Fix TASKPTR's definition to match actual function signatures
-kpick 213186 # Correct the parameter length for core_initialized()
-kpick 213187 # Memory leak fix in NFA_SetRfDiscoveryDuration()
 
 # system/qcom
 kpick 215122 # libQWiFiSoftApCfg: Replace deprecated kernel header path
@@ -760,6 +748,9 @@ kpick 213815 # Place ADB auth property override to system
 kpick 214400 # backuptool: Resolve incompatible version grep syntax
 kpick 214782 # lineage: extract_utils: Fix rootfs targets after a48b9fe9b6c25746940a2410db640d5e5438363d 
 kpick 215341 # backuptool: Revert "Temporarily render version check permissive"
+#kpick 215538 # build: Clean up makefile inclusions
+#kpick 215540 # build: Remove maven make rules
+#kpick 215541 # build: Use TOPDIR, not TOP
 
 # vendor/qcom/opensource/cryptfs_hw
 
