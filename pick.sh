@@ -502,7 +502,6 @@ kpick 213265 # recovery: Do not load time from /persist
 # build/make
 kpick 208102 # Adapt ijar for WSL
 kpick 208567 # [DNM] updater: Don't check fingerprint for incrementals
-kpick 209323 # envsetup: stop jack server once build completed
 kpick 213515 # build: Use minimial compression when zipping targetfiles
 kpick 213572 # Allow to exclude imgs from target-files zip
 kpick 214842 # dex2oat: disable multithreading
@@ -594,9 +593,12 @@ kpick 215450 # Add changes for sending ATEL UI Ready to RIL.
 #kpick 214872 # Expose isAutonomousGroupOwner [2/2]
 
 # hardware/broadcom/libbt
+kpick 215613 # libbt: Build with BOARD_VNDK_VERSION
 
 # hardware/broadcom/wlan
 kpick 212922 # wlan:bcmdhd: fixup build errors when building the library under vndk.
+kpick 215615 # wpa_supplicant_8_lib: Added LOCAL_VENDOR_MODULE to set output path of the ...
+kpick 215616 # wifi_hal: Build with BOARD_VNDK_VERSION
 
 # hardware/interfaces
 kpick 206140 # gps.default.so: fix crash on access to unset AGpsRilCallbacks::request_refloc
@@ -615,6 +617,11 @@ kpick 215118 # lineagehw: Introduce Reader mode backend
 # hardware/qcom/audio-caf/msm8974
 kpick 213856 # hal: msim_voice_extn: Cleanup code a bit
 kpick 213857 # hal: msim_voice_extn: Set msim_phone based on phone_type parameter
+kpick 215604 # hal: Build with BOARD_VNDK_VERSION
+kpick 215605 # mm-audio: Build with BOARD_VNDK_VERSION
+kpick 215606 # post_proc: Build with BOARD_VNDK_VERSION
+kpick 215607 # voice_processing: Build with BOARD_VNDK_VERSION
+kpick 215608 # visualizer: Build with BOARD_VNDK_VERSION
 
 # hardware/qcom/bt-caf
 
@@ -623,7 +630,17 @@ kpick 209093 # msm8974: hwc: Set ioprio for vsync thread
 
 # hardware/qcom/display-caf/msm8974
 
+# hardware/qcom/media-caf/msm8974
+kpick 215598 # Build mm-video-v4l2 with BOARD_VNDK_VERSION
+kpick 215599 # Build libc2dcolorconvert with BOARD_VNDK_VERSION
+kpick 215609 # Build libstagefrighthw with BOARD_VNDK_VERSION
+
+# hardware/qcom/keymaster
+kpick 215601 # keymaster: Build with BOARD_VNDK_VERSION
+kpick 215612 # Keymaster: Move test to std::unique_ptr
+
 # hardware/qcom/power
+kpick 215602 # power: msm8974: Build with with BOARD_VNDK_VERSION
 
 # hardware/samsung
 
@@ -682,11 +699,6 @@ kpick 214309 # Parts: add NIGHT_DISPLAY_SETTINGS intent to LiveDisplay
 kpick 215120 # LineageParts: Add reader mode frontend
 
 # packages/apps/Recoder
-kpick 215411 # Recorder: update gradle deps
-kpick 215412 # Recorder: update aar libs
-kpick 215413 # Recorder: update deprecated methods to new ones
-kpick 215414 # Recorder: set build.gradle minsdk to 25 to match lineage build env
-kpick 215415 # Recorder: update assets to use rounded style
 
 # packages/apps/Settings
 kpick 212764 # Settings: add Trust interface hook
@@ -723,6 +735,7 @@ kpick 206029 # init: Add command to disable verity
 kpick 209385 # init: optimize shutdown time
 kpick 213876 # healthd: charger: Add tricolor led to indicate battery capacity
 kpick 214001 # camera: Add L-compatible camera feature enums
+kpick 215626 # Add vendor hook to handle_control_message
 
 # system/extras
 kpick 211210 # ext4: Add /data/stache/ to encryption exclusion list
@@ -746,7 +759,6 @@ kpick 212640 # repopick: Update SSH queries result to match HTTP queries
 kpick 212766 # vendor: introduce Trust interface
 kpick 213815 # Place ADB auth property override to system
 kpick 214400 # backuptool: Resolve incompatible version grep syntax
-kpick 214782 # lineage: extract_utils: Fix rootfs targets after a48b9fe9b6c25746940a2410db640d5e5438363d 
 kpick 215341 # backuptool: Revert "Temporarily render version check permissive"
 #kpick 215538 # build: Clean up makefile inclusions
 #kpick 215540 # build: Remove maven make rules
