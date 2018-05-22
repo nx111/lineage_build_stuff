@@ -518,9 +518,6 @@ kpick 212763 # sepolicy: introduce Trust interface
 # device/qcom/sepolicy
 kpick 211273 # qcom/sepol: Fix timeservice app context
 kpick 212643 # qcom/sepol: Allow mm-qcamerad to use binder even in vendor
-kpick 214799 # sepolicy: qti_init_shell needs to read dir too
-kpick 214800 # sepolicy: allow vold to read persist dirs
-kpick 215463 # legacy: perf: allow checking for existence of other processes (signull)
 
 # device/samsung/klte-common
 #kpick 212648 # klte-common: Enable AOD
@@ -567,7 +564,6 @@ kpick 213133 # base: introduce trust interface
 kpick 213371 # Add an option to let pre-O apps to use full screen aspect ratio
 kpick 214262 # Bind app name to menu row when notification updated
 kpick 214263 # Fix intercepting touch events for guts
-kpick 214264 # Update text size of overflow number view
 kpick 214265 # Better QS detail clip animation
 #kpick 214867 # Expose isAutonomousGroupOwner [1/2]
 #kpick 214868 # Expose cancelWps [1/2]
