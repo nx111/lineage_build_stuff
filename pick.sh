@@ -588,6 +588,9 @@ kpick 215450 # Add changes for sending ATEL UI Ready to RIL.
 #kpick 214871 # Allow activing a saved autonomous group [2/2]
 #kpick 214872 # Expose isAutonomousGroupOwner [2/2]
 
+# hardware/broadcom/fm
+#kpick 206479 # fm: Update brcm-uim-sysfs to O
+
 # hardware/broadcom/libbt
 kpick 215613 # libbt: Build with BOARD_VNDK_VERSION
 
@@ -609,10 +612,9 @@ kpick 213868 # lineage/interfaces: vibrator: implement vendor.lineage methods
 
 # hardware/lineage/lineagehw
 kpick 215118 # lineagehw: Introduce Reader mode backend
+kpick 215629 # ReadingEnhancement: Don't apply grayscale on top of RGB calibration
 
 # hardware/qcom/audio-caf/msm8974
-kpick 213856 # hal: msim_voice_extn: Cleanup code a bit
-kpick 213857 # hal: msim_voice_extn: Set msim_phone based on phone_type parameter
 kpick 215604 # hal: Build with BOARD_VNDK_VERSION
 kpick 215605 # mm-audio: Build with BOARD_VNDK_VERSION
 kpick 215606 # post_proc: Build with BOARD_VNDK_VERSION
@@ -703,6 +705,7 @@ kpick 213372 # Settings: Add an option to let pre-O apps to use full screen aspe
 
 # packages/apps/Snap
 kpick 206595 # Use transparent navigation bar
+kpick 215669 # SnapdragonCamera: Change static nature for persist flag
 
 # packages/apps/Trebuchet
 kpick 212752 # IconCache: fix crash if icon is an AdaptiveIconDrawable
@@ -720,7 +723,6 @@ kpick 215174 # CallLogDatabase: Bump the version and try to re-run the version 5
 # packages/resources/devicesettings
 
 # pakcages/service/Telecomm
-kpick 214244 # Telecomm: Fix in-call audio edge case for legacy MSIM devices
 
 # packages/service/Telephony
 kpick 209045 # Telephony: Fallback gracefully for emergency calls if suitable app isn't found
@@ -757,8 +759,7 @@ kpick 213815 # Place ADB auth property override to system
 kpick 214400 # backuptool: Resolve incompatible version grep syntax
 kpick 215341 # backuptool: Revert "Temporarily render version check permissive"
 #kpick 215538 # build: Clean up makefile inclusions
-#kpick 215540 # build: Remove maven make rules
-#kpick 215541 # build: Use TOPDIR, not TOP
+kpick 215541 # build: Use TOPDIR, not TOP
 
 # vendor/qcom/opensource/cryptfs_hw
 
