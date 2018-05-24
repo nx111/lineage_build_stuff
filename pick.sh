@@ -487,7 +487,6 @@ find $topdir/.mypatches/local/vendor/lineage/ -type f -name "*-\[ALWAYS\]-*.patc
 done
 
 # android
-kpick 213704 # Track our own chips
 kpick 213705 # 	Build Exchange
 repo sync --force-sync frameworks/opt/chips
 repo sync --force-sync packages/apps/Exchange
@@ -521,6 +520,7 @@ kpick 212643 # qcom/sepol: Allow mm-qcamerad to use binder even in vendor
 
 # device/samsung/klte-common
 #kpick 212648 # klte-common: Enable AOD
+kpick 215729 #  Added display burn-in protection on OLED device
 
 # device/samsung/kltechnduo
 
@@ -530,7 +530,6 @@ kpick 210313 # msm8974-common: Binderize them all
 # kernel/samsung/msm8974
 kpick 210665 # wacom: Follow-up from gestures patch
 kpick 210666 # wacom: Report touch when pen button is pressed if gestures are off
-kpick 214900 # ANDROID: sdcardfs: Don't d_drop in d_revalidate
 
 # external/chromium-webview
 
@@ -551,6 +550,9 @@ kpick 209909 # Camera2Client: Add support for enabling QTI DIS feature
 kpick 209910 # Camera2Client: Add support for enabling QTI Video/Sensor HDR feature
 kpick 209911 # Camera2Client: Add support for QTI specific AutoHDR and Histogram feature
 kpick 209912 # Camera: Skip stream size check for whitelisted apps
+#kpick 210873 # stagefright: Add qcom dolby-vision implementation
+kpick 213115 # camera: Disable extra HDR frame on QCOM_HARDWARE
+#kpick 215693 # stagefright: Add support for loading a custom OMXPlugin
 
 # frameworks/base
 kpick 206568 # base: audioservice: Set BT_SCO status
@@ -575,7 +577,6 @@ kpick 215128 # Make the startup of SoundTrigger service conditional
 kpick 213549 # SurfaceFlinger: Support get/set ActiveConfigs
 
 # frameworks/opt/chips
-kpick 211435 # chips: bring up changes from cm14.1
 
 # frameworks/opt/telephony
 kpick 213487 # GsmCdmaPhone: Return dummy ICCID serial for NV sub
@@ -679,10 +680,10 @@ kpick 213051 # Deskclock: set targetSdk to 27
 kpick 211302 # Eleven: Catch unsupported bitmap exception
 
 # packages/apps/Email
-kpick 211380 # Email: bring up changes from cm14.1 migrate to lineage-sdk LightsCapabilities revert parts from acc49fed1 ...
 
 # packages/apps/Exchange
-kpick 211382 # Exchange: correct the targeted SDK version to avoid permission fails
+kpick 209820 # Revert changes to make Exchange buildable.
+
 
 # packages/apps/Flipflap
 
@@ -702,17 +703,16 @@ kpick 215120 # LineageParts: Add reader mode frontend
 kpick 212764 # Settings: add Trust interface hook
 kpick 212765 # Settings: show Trust branding in confirm_lock_password UI
 kpick 213372 # Settings: Add an option to let pre-O apps to use full screen aspect ratio
+kpick 215672 # SimSettings: Fix dialog in dark mode
 
 # packages/apps/Snap
 kpick 206595 # Use transparent navigation bar
-kpick 215669 # SnapdragonCamera: Change static nature for persist flag
 
 # packages/apps/Trebuchet
 kpick 212752 # IconCache: fix crash if icon is an AdaptiveIconDrawable
 kpick 214336 # [WIP] Trebuchet: initial protected apps implementation
 
 # packages/apps/UnifiedEmail
-kpick 211379 # UnifiedEmail: bring up changes from cm14.1 migrate to lineage-sdk LightsCapabilities and LineageNotification
 
 # packages/apps/Updater
 kpick 213136 # Updater: show Trust branding when the update has been verified
@@ -758,8 +758,9 @@ kpick 212766 # vendor: introduce Trust interface
 kpick 213815 # Place ADB auth property override to system
 kpick 214400 # backuptool: Resolve incompatible version grep syntax
 kpick 215341 # backuptool: Revert "Temporarily render version check permissive"
-#kpick 215538 # build: Clean up makefile inclusions
 kpick 215541 # build: Use TOPDIR, not TOP
+#kpick 215538 # build: Clean up makefile inclusions
+kpick 215713 # clear_vars: Remove Maven leftovers
 
 # vendor/qcom/opensource/cryptfs_hw
 
