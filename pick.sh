@@ -520,7 +520,6 @@ kpick 212643 # qcom/sepol: Allow mm-qcamerad to use binder even in vendor
 
 # device/samsung/klte-common
 #kpick 212648 # klte-common: Enable AOD
-kpick 215729 #  Added display burn-in protection on OLED device
 
 # device/samsung/kltechnduo
 
@@ -612,7 +611,6 @@ kpick 213867 # lineage/interfaces: vibrator: read light/medium/strong voltage fr
 kpick 213868 # lineage/interfaces: vibrator: implement vendor.lineage methods
 
 # hardware/lineage/lineagehw
-kpick 215118 # lineagehw: Introduce Reader mode backend
 kpick 215629 # ReadingEnhancement: Don't apply grayscale on top of RGB calibration
 
 # hardware/qcom/audio-caf/msm8974
@@ -663,7 +661,6 @@ kpick 213367 # NetworkTraffic: Include tethering traffic statistics
 kpick 213641 # lineage-sdk lights: Genericize adjustable brightness capability
 kpick 214025 # sdk: Add an option to force pre-O apps to use full screen aspect ratio
 kpick 214854 # [3/3] lineagesdk: single hand for hw keys
-kpick 215119 # lineage-sdk: Add backend for reading enhancement
 
 # packages/apps/Camera2
 
@@ -683,19 +680,19 @@ kpick 211302 # Eleven: Catch unsupported bitmap exception
 
 # packages/apps/Exchange
 kpick 209820 # Revert changes to make Exchange buildable.
-
+kpick 211382 # correct the targeted SDK version to avoid permission fails otherwise not manually granted permissions lead to fc on account setup
 
 # packages/apps/Flipflap
 
 # packages/apps/Gallery2
 
 # packages/apps/Jelly
+kpick 215736 # Jelly: Add support for multiple windows
 
 # packages/apps/LineageParts
 kpick 213135 # LineageParts: introduce Trust interface
 kpick 213642 # LineageParts: Update for generic adjustable brightness capability
 kpick 214309 # Parts: add NIGHT_DISPLAY_SETTINGS intent to LiveDisplay
-kpick 215120 # LineageParts: Add reader mode frontend
 
 # packages/apps/Recoder
 
@@ -760,7 +757,6 @@ kpick 214400 # backuptool: Resolve incompatible version grep syntax
 kpick 215341 # backuptool: Revert "Temporarily render version check permissive"
 kpick 215541 # build: Use TOPDIR, not TOP
 #kpick 215538 # build: Clean up makefile inclusions
-kpick 215713 # clear_vars: Remove Maven leftovers
 
 # vendor/qcom/opensource/cryptfs_hw
 
