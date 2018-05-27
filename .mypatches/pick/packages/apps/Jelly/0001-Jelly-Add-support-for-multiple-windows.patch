@@ -1,31 +1,249 @@
-From 2e6a074860fed7b697fe5befdf1d991a533a4b3f Mon Sep 17 00:00:00 2001
+From 8e25e3802fef8b966d47fc4b79ef8383a4fd3e53 Mon Sep 17 00:00:00 2001
 From: Luca Stefani <luca.stefani.ge1@gmail.com>
 Date: Thu, 24 May 2018 20:00:16 +0200
 Subject: [PATCH] Jelly: Add support for multiple windows
 
 Change-Id: Ic1d2b395fd4343c442243f1008f72b363270206d
 ---
- .../java/org/lineageos/jelly/MainActivity.java  |  2 +-
- .../lineageos/jelly/webview/ChromeClient.java   | 17 +++++++++++++++++
- .../org/lineageos/jelly/webview/WebViewExt.java |  1 +
- 3 files changed, 19 insertions(+), 1 deletion(-)
+ .../org/lineageos/jelly/MainActivity.java     | 45 +++++++------------
+ .../org/lineageos/jelly/SettingsActivity.java |  5 ++-
+ .../lineageos/jelly/utils/IntentUtils.java    | 27 +++++++++++
+ .../org/lineageos/jelly/utils/TabUtils.java   | 34 ++++++++++++++
+ .../lineageos/jelly/webview/ChromeClient.java | 12 +++++
+ .../lineageos/jelly/webview/WebClient.java    |  5 ++-
+ .../lineageos/jelly/webview/WebViewExt.java   |  1 +
+ 7 files changed, 95 insertions(+), 34 deletions(-)
+ create mode 100644 app/src/main/java/org/lineageos/jelly/utils/IntentUtils.java
+ create mode 100644 app/src/main/java/org/lineageos/jelly/utils/TabUtils.java
 
 diff --git a/app/src/main/java/org/lineageos/jelly/MainActivity.java b/app/src/main/java/org/lineageos/jelly/MainActivity.java
-index 71990dd..6dee049 100644
+index 71990dd..be85bfc 100644
 --- a/app/src/main/java/org/lineageos/jelly/MainActivity.java
 +++ b/app/src/main/java/org/lineageos/jelly/MainActivity.java
-@@ -98,8 +98,8 @@ public class MainActivity extends WebViewExtActivity implements
+@@ -83,7 +83,9 @@ import org.lineageos.jelly.history.HistoryActivity;
+ import org.lineageos.jelly.suggestions.SuggestionsAdapter;
+ import org.lineageos.jelly.ui.SearchBarController;
+ import org.lineageos.jelly.ui.UrlBarController;
++import org.lineageos.jelly.utils.IntentUtils;
+ import org.lineageos.jelly.utils.PrefsUtils;
++import org.lineageos.jelly.utils.TabUtils;
+ import org.lineageos.jelly.utils.UiUtils;
+ import org.lineageos.jelly.webview.WebViewCompat;
+ import org.lineageos.jelly.webview.WebViewExt;
+@@ -98,23 +100,16 @@ public class MainActivity extends WebViewExtActivity implements
           SearchBarController.OnCancelListener {
      private static final String TAG = MainActivity.class.getSimpleName();
      private static final String PROVIDER = "org.lineageos.jelly.fileprovider";
 -    private static final String EXTRA_INCOGNITO = "extra_incognito";
-     private static final String EXTRA_DESKTOP_MODE = "extra_desktop_mode";
+-    private static final String EXTRA_DESKTOP_MODE = "extra_desktop_mode";
+-    public static final String EXTRA_URL = "extra_url";
+-    public static final String EXTRA_UI_MODE = "extra_ui_mode";
+-    public static final String EVENT_CHANGE_UI_MODE = "intent_change_ui_mode";
+     private static final String STATE_KEY_THEME_COLOR = "theme_color";
+     private static final int STORAGE_PERM_REQ = 423;
+     private static final int LOCATION_PERM_REQ = 424;
+ 
+-    public static final String ACTION_URL_RESOLVED = "org.lineageos.jelly.action.URL_RESOLVED";
+-
+     private final BroadcastReceiver mUrlResolvedReceiver = new BroadcastReceiver() {
+         @Override
+         public void onReceive(Context context, Intent intent) {
+             Intent resolvedIntent = intent.getParcelableExtra(Intent.EXTRA_INTENT);
+             if (TextUtils.equals(getPackageName(), resolvedIntent.getPackage())) {
+-                String url = intent.getStringExtra(EXTRA_URL);
++                String url = intent.getStringExtra(IntentUtils.EXTRA_URL);
+                 mWebView.loadUrl(url);
+             } else {
+                 startActivity(resolvedIntent);
+@@ -199,16 +194,16 @@ public class MainActivity extends WebViewExtActivity implements
+ 
+         Intent intent = getIntent();
+         String url = intent.getDataString();
+-        mIncognito = intent.getBooleanExtra(EXTRA_INCOGNITO, false);
++        mIncognito = intent.getBooleanExtra(IntentUtils.EXTRA_INCOGNITO, false);
+         boolean desktopMode = false;
+ 
+         // Restore from previous instance
+         if (savedInstanceState != null) {
+-            mIncognito = savedInstanceState.getBoolean(EXTRA_INCOGNITO, mIncognito);
++            mIncognito = savedInstanceState.getBoolean(IntentUtils.EXTRA_INCOGNITO, mIncognito);
+             if (url == null || url.isEmpty()) {
+-                url = savedInstanceState.getString(EXTRA_URL, null);
++                url = savedInstanceState.getString(IntentUtils.EXTRA_URL, null);
+             }
+-            desktopMode = savedInstanceState.getBoolean(EXTRA_DESKTOP_MODE, false);
++            desktopMode = savedInstanceState.getBoolean(IntentUtils.EXTRA_DESKTOP_MODE, false);
+             mThemeColor = savedInstanceState.getInt(STATE_KEY_THEME_COLOR, 0);
+         }
+ 
+@@ -262,7 +257,7 @@ public class MainActivity extends WebViewExtActivity implements
+     @Override
+     protected void onStart() {
+         super.onStart();
+-        registerReceiver(mUrlResolvedReceiver, new IntentFilter(ACTION_URL_RESOLVED));
++        registerReceiver(mUrlResolvedReceiver, new IntentFilter(IntentUtils.EVENT_URL_RESOLVED));
+     }
+ 
+     @Override
+@@ -355,9 +350,9 @@ public class MainActivity extends WebViewExtActivity implements
+         super.onSaveInstanceState(outState);
+ 
+         // Preserve webView status
+-        outState.putString(EXTRA_URL, mWebView.getUrl());
+-        outState.putBoolean(EXTRA_INCOGNITO, mWebView.isIncognito());
+-        outState.putBoolean(EXTRA_DESKTOP_MODE, mWebView.isDesktopMode());
++        outState.putString(IntentUtils.EXTRA_URL, mWebView.getUrl());
++        outState.putBoolean(IntentUtils.EXTRA_INCOGNITO, mWebView.isIncognito());
++        outState.putBoolean(IntentUtils.EXTRA_DESKTOP_MODE, mWebView.isDesktopMode());
+         outState.putInt(STATE_KEY_THEME_COLOR, mThemeColor);
+     }
+ 
+@@ -381,10 +376,10 @@ public class MainActivity extends WebViewExtActivity implements
+             popupMenu.setOnMenuItemClickListener(item -> {
+                 switch (item.getItemId()) {
+                     case R.id.menu_new:
+-                        openInNewTab(null, false);
++                        TabUtils.openInNewTab(this, null, false);
+                         break;
+                     case R.id.menu_incognito:
+-                        openInNewTab(null, true);
++                        TabUtils.openInNewTab(this, null, true);
+                         break;
+                     case R.id.menu_reload:
+                         mWebView.reload();
+@@ -448,16 +443,6 @@ public class MainActivity extends WebViewExtActivity implements
+         mSearchActive = false;
+     }
+ 
+-    private void openInNewTab(String url, boolean incognito) {
+-        Intent intent = new Intent(this, MainActivity.class);
+-        if (url != null && !url.isEmpty()) {
+-            intent.setData(Uri.parse(url));
+-        }
+-        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_DOCUMENT | Intent.FLAG_ACTIVITY_MULTIPLE_TASK);
+-        intent.putExtra(EXTRA_INCOGNITO, incognito);
+-        startActivity(intent);
+-    }
+-
+     private void shareUrl(String url) {
+         Intent intent = new Intent(Intent.ACTION_SEND);
+         intent.putExtra(Intent.EXTRA_TEXT, url);
+@@ -547,7 +532,7 @@ public class MainActivity extends WebViewExtActivity implements
+         View downloadLayout = view.findViewById(R.id.sheet_download);
+ 
+         tabLayout.setOnClickListener(v -> {
+-            openInNewTab(url, mIncognito);
++            TabUtils.openInNewTab(this, url, mIncognito);
+             sheet.dismiss();
+         });
+         shareLayout.setOnClickListener(v -> {
+@@ -757,7 +742,7 @@ public class MainActivity extends WebViewExtActivity implements
+         LocalBroadcastManager manager = LocalBroadcastManager.getInstance(this);
+ 
+         if (!UiUtils.isTablet(this)) {
+-            manager.registerReceiver(mUiModeChangeReceiver, new IntentFilter(EVENT_CHANGE_UI_MODE));
++            manager.registerReceiver(mUiModeChangeReceiver, new IntentFilter(IntentUtils.EVENT_CHANGE_UI_MODE));
+         }
+     }
+ 
+diff --git a/app/src/main/java/org/lineageos/jelly/SettingsActivity.java b/app/src/main/java/org/lineageos/jelly/SettingsActivity.java
+index 0ca72d5..d3c9b3c 100644
+--- a/app/src/main/java/org/lineageos/jelly/SettingsActivity.java
++++ b/app/src/main/java/org/lineageos/jelly/SettingsActivity.java
+@@ -32,6 +32,7 @@ import android.widget.EditText;
+ import android.widget.LinearLayout;
+ import android.widget.Toast;
+ 
++import org.lineageos.jelly.utils.IntentUtils;
+ import org.lineageos.jelly.utils.PrefsUtils;
+ import org.lineageos.jelly.utils.UiUtils;
+ 
+@@ -76,8 +77,8 @@ public class SettingsActivity extends AppCompatActivity {
+                 getPreferenceScreen().removePreference(reachMode);
+             } else {
+                 reachMode.setOnPreferenceClickListener(preference -> {
+-                    Intent intent = new Intent(MainActivity.EVENT_CHANGE_UI_MODE);
+-                    intent.putExtra(MainActivity.EVENT_CHANGE_UI_MODE, reachMode.isChecked());
++                    Intent intent = new Intent(IntentUtils.EVENT_CHANGE_UI_MODE);
++                    intent.putExtra(IntentUtils.EVENT_CHANGE_UI_MODE, reachMode.isChecked());
+                     LocalBroadcastManager.getInstance(getContext()).sendBroadcast(intent);
+                     return true;
+                 });
+diff --git a/app/src/main/java/org/lineageos/jelly/utils/IntentUtils.java b/app/src/main/java/org/lineageos/jelly/utils/IntentUtils.java
+new file mode 100644
+index 0000000..024057f
+--- /dev/null
++++ b/app/src/main/java/org/lineageos/jelly/utils/IntentUtils.java
+@@ -0,0 +1,27 @@
++/*
++ * Copyright (C) 2018 The LineageOS Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++package org.lineageos.jelly.utils;
++
++public final class IntentUtils {
++    public static final String EXTRA_DESKTOP_MODE = "extra_desktop_mode";
 +    public static final String EXTRA_INCOGNITO = "extra_incognito";
-     public static final String EXTRA_URL = "extra_url";
-     public static final String EXTRA_UI_MODE = "extra_ui_mode";
-     public static final String EVENT_CHANGE_UI_MODE = "intent_change_ui_mode";
++    public static final String EXTRA_URL = "extra_url";
++    public static final String EXTRA_UI_MODE = "extra_ui_mode";
++
++    public static final String EVENT_CHANGE_UI_MODE = "intent_change_ui_mode";
++
++    public static final String EVENT_URL_RESOLVED = "intent_url_resolved";
++}
+diff --git a/app/src/main/java/org/lineageos/jelly/utils/TabUtils.java b/app/src/main/java/org/lineageos/jelly/utils/TabUtils.java
+new file mode 100644
+index 0000000..291005b
+--- /dev/null
++++ b/app/src/main/java/org/lineageos/jelly/utils/TabUtils.java
+@@ -0,0 +1,34 @@
++/*
++ * Copyright (C) 2018 The LineageOS Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++package org.lineageos.jelly.utils;
++
++import android.content.Context;
++import android.content.Intent;
++import android.net.Uri;
++
++import org.lineageos.jelly.MainActivity;
++
++public final class TabUtils {
++    public static void openInNewTab(Context context, String url, boolean incognito) {
++        Intent intent = new Intent(context, MainActivity.class);
++        if (url != null && !url.isEmpty()) {
++            intent.setData(Uri.parse(url));
++        }
++        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_DOCUMENT | Intent.FLAG_ACTIVITY_MULTIPLE_TASK);
++        intent.putExtra(IntentUtils.EXTRA_INCOGNITO, incognito);
++        context.startActivity(intent);
++    }
++}
 diff --git a/app/src/main/java/org/lineageos/jelly/webview/ChromeClient.java b/app/src/main/java/org/lineageos/jelly/webview/ChromeClient.java
-index acf91be..3c59294 100644
+index acf91be..b5aabf5 100644
 --- a/app/src/main/java/org/lineageos/jelly/webview/ChromeClient.java
 +++ b/app/src/main/java/org/lineageos/jelly/webview/ChromeClient.java
 @@ -18,6 +18,7 @@ package org.lineageos.jelly.webview;
@@ -36,7 +254,7 @@ index acf91be..3c59294 100644
  import android.net.Uri;
  import android.view.View;
  import android.webkit.GeolocationPermissions;
-@@ -27,6 +28,7 @@ import android.webkit.WebView;
+@@ -27,9 +28,11 @@ import android.webkit.WebView;
  import android.widget.ProgressBar;
  import android.widget.Toast;
  
@@ -44,7 +262,11 @@ index acf91be..3c59294 100644
  import org.lineageos.jelly.R;
  import org.lineageos.jelly.history.HistoryProvider;
  import org.lineageos.jelly.ui.UrlBarController;
-@@ -106,4 +108,19 @@ class ChromeClient extends WebChromeClientCompat {
++import org.lineageos.jelly.utils.TabUtils;
+ 
+ class ChromeClient extends WebChromeClientCompat {
+     private final WebViewExtActivity mActivity;
+@@ -106,4 +109,13 @@ class ChromeClient extends WebChromeClientCompat {
      public void onHideCustomView() {
          mActivity.onHideCustomView();
      }
@@ -53,17 +275,35 @@ index acf91be..3c59294 100644
 +    public boolean onCreateWindow(WebView view, boolean isDialog,
 +                                  boolean isUserGesture, Message resultMsg) {
 +        WebView.HitTestResult result = view.getHitTestResult();
-+        String data = result.getExtra();
-+        Intent intent = new Intent(mActivity, MainActivity.class);
-+        if (data != null && !data.isEmpty()) {
-+            intent.setData(Uri.parse(data));
-+        }
-+        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_DOCUMENT | Intent.FLAG_ACTIVITY_MULTIPLE_TASK);
-+        intent.putExtra(MainActivity.EXTRA_INCOGNITO, mIncognito);
-+        mActivity.startActivity(intent);
++        String url = result.getExtra();
++        TabUtils.openInNewTab(mActivity, url, mIncognito);
 +        return true;
 +    }
  }
+diff --git a/app/src/main/java/org/lineageos/jelly/webview/WebClient.java b/app/src/main/java/org/lineageos/jelly/webview/WebClient.java
+index 1962b9c..f2fb7b2 100644
+--- a/app/src/main/java/org/lineageos/jelly/webview/WebClient.java
++++ b/app/src/main/java/org/lineageos/jelly/webview/WebClient.java
+@@ -42,6 +42,7 @@ import org.lineageos.jelly.IntentFilterCompat;
+ import org.lineageos.jelly.MainActivity;
+ import org.lineageos.jelly.R;
+ import org.lineageos.jelly.ui.UrlBarController;
++import org.lineageos.jelly.utils.IntentUtils;
+ import org.lineageos.jelly.utils.UrlUtils;
+ 
+ import java.net.URISyntaxException;
+@@ -199,9 +200,9 @@ class WebClient extends WebViewClient {
+             return TextUtils.equals(lastIntent.getPackage(), ourPackageName) ? null : lastIntent;
+         }
+ 
+-        Intent changeIntent = new Intent(MainActivity.ACTION_URL_RESOLVED)
++        Intent changeIntent = new Intent(IntentUtils.EVENT_URL_RESOLVED)
+                 .addFlags(Intent.FLAG_RECEIVER_REGISTERED_ONLY)
+-                .putExtra(MainActivity.EXTRA_URL, url);
++                .putExtra(IntentUtils.EXTRA_URL, url);
+         PendingIntent pi = PendingIntent.getBroadcast(context, 0, changeIntent,
+                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_ONE_SHOT);
+ 
 diff --git a/app/src/main/java/org/lineageos/jelly/webview/WebViewExt.java b/app/src/main/java/org/lineageos/jelly/webview/WebViewExt.java
 index 37f8af4..6009234 100644
 --- a/app/src/main/java/org/lineageos/jelly/webview/WebViewExt.java

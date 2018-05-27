@@ -506,6 +506,7 @@ kpick 213572 # Allow to exclude imgs from target-files zip
 kpick 214842 # dex2oat: disable multithreading
 kpick 214883 # core: config: Use host ijar if requested
 kpick 214892 # Add detection for WSL
+kpick 215536 # build: Clean up makefile hook inclusions
 
 # build/soong
 
@@ -520,6 +521,7 @@ kpick 212643 # qcom/sepol: Allow mm-qcamerad to use binder even in vendor
 
 # device/samsung/klte-common
 #kpick 212648 # klte-common: Enable AOD
+kpick 216090 # klte-common: Inherit shims from msm8974-common
 
 # device/samsung/kltechnduo
 
@@ -582,6 +584,7 @@ kpick 213487 # GsmCdmaPhone: Return dummy ICCID serial for NV sub
 kpick 213488 # GsmCdmaPhone: Fix GSM SIM card ICCID on NV sub CDMA devices
 kpick 214316 # RIL: Allow overriding RadioResponse and RadioIndication
 kpick 215450 # Add changes for sending ATEL UI Ready to RIL.
+kpick 216091 # Add ContentObserver when sms sent limit changed
 
 # frameworks/opt/net/wifi
 #kpick 214870 # Expose cancelWps [2/2]
@@ -638,6 +641,11 @@ kpick 215612 # Keymaster: Move test to std::unique_ptr
 
 # hardware/qcom/power
 kpick 215602 # power: msm8974: Build with with BOARD_VNDK_VERSION
+kpick 215821 # power: Remove unused camera_hint_ref_count
+kpick 215822 # power: Spring cleanup
+
+# hardware/qcom/wlan-caf
+kpick 215847 # Make wcnss_service build with the VNDK.
 
 # hardware/samsung
 
@@ -692,7 +700,7 @@ kpick 215736 # Jelly: Add support for multiple windows
 # packages/apps/LineageParts
 kpick 213135 # LineageParts: introduce Trust interface
 kpick 213642 # LineageParts: Update for generic adjustable brightness capability
-kpick 214309 # Parts: add NIGHT_DISPLAY_SETTINGS intent to LiveDisplay
+kpick 216092 # parts: add SMS rate limit setting
 
 # packages/apps/Recoder
 
@@ -713,6 +721,9 @@ kpick 214336 # [WIP] Trebuchet: initial protected apps implementation
 
 # packages/apps/Updater
 kpick 213136 # Updater: show Trust branding when the update has been verified
+
+# packages/overlays/Lineage
+kpick 215846 # dark: Add Theme.DeviceDefault.Settings.Dialog.NoActionBar style
 
 # packages/providers/ContactsProvider
 kpick 215174 # CallLogDatabase: Bump the version and try to re-run the version 5 upgrade path
@@ -753,10 +764,10 @@ kpick 210664 # extract_utils: Support multidex
 kpick 212640 # repopick: Update SSH queries result to match HTTP queries
 kpick 212766 # vendor: introduce Trust interface
 kpick 213815 # Place ADB auth property override to system
-kpick 214400 # backuptool: Resolve incompatible version grep syntax
 kpick 215341 # backuptool: Revert "Temporarily render version check permissive"
+kpick 214400 # backuptool: Resolve incompatible version grep syntax
 kpick 215541 # build: Use TOPDIR, not TOP
-#kpick 215538 # build: Clean up makefile inclusions
+kpick 215538 # build: Clean up makefile inclusions
 
 # vendor/qcom/opensource/cryptfs_hw
 
