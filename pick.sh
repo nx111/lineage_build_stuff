@@ -491,6 +491,10 @@ kpick 213705 # 	Build Exchange
 repo sync --force-sync frameworks/opt/chips
 repo sync --force-sync packages/apps/Exchange
 
+kpick 216428 # lineage: Sync qcom thermal and vr HALs
+repo sync --force-sync hardware/qcom/thermal
+repo sync --force-sync hardware/qcom/vr
+
 # bionic
 kpick 212920 # libc: Mark libstdc++ as vendor available
 
@@ -573,6 +577,7 @@ kpick 214265 # Better QS detail clip animation
 #kpick 214869 # Allow activing a saved autonomous group [1/2]
 kpick 215031 # Keyguard: Fix ConcurrentModificationException in KeyguardUpdateMonitor
 kpick 215128 # Make the startup of SoundTrigger service conditional
+kpick 216417 # SignalClusterView: Hide signal icons for disabled SIMs
 
 # frameworks/native
 kpick 213549 # SurfaceFlinger: Support get/set ActiveConfigs
@@ -644,6 +649,12 @@ kpick 215602 # power: msm8974: Build with with BOARD_VNDK_VERSION
 kpick 215821 # power: Remove unused camera_hint_ref_count
 kpick 215822 # power: Spring cleanup
 
+# hardware/qcom/thermal
+kpick 216424 # thermal: Use project pathmap
+
+# haedware/qcom/vr
+kpick 216423 # vr: Use project pathmap
+
 # hardware/qcom/wlan-caf
 kpick 215847 # Make wcnss_service build with the VNDK.
 
@@ -669,6 +680,7 @@ kpick 213367 # NetworkTraffic: Include tethering traffic statistics
 kpick 213641 # lineage-sdk lights: Genericize adjustable brightness capability
 kpick 214025 # sdk: Add an option to force pre-O apps to use full screen aspect ratio
 kpick 214854 # [3/3] lineagesdk: single hand for hw keys
+kpick 216410 # Revert "lineage-sdk: Switch back to AOSP TwilightService"
 
 # packages/apps/Camera2
 
@@ -768,6 +780,8 @@ kpick 215341 # backuptool: Revert "Temporarily render version check permissive"
 kpick 214400 # backuptool: Resolve incompatible version grep syntax
 kpick 215541 # build: Use TOPDIR, not TOP
 kpick 215538 # build: Clean up makefile inclusions
+#kpick 216425 # lineage: qcom: Set thermal & vr HAL pathmaps
+kpick 216426 # lineage: qcom: Enable TARGET_USES_COLOR_METADATA for msm8937 & msm8953
 
 # vendor/qcom/opensource/cryptfs_hw
 
