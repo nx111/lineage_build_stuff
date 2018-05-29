@@ -1,0 +1,69 @@
+From 1a0e50b737e7fc93c223ac22a6039ab2fdad362e Mon Sep 17 00:00:00 2001
+From: Vladimir Oltean <olteanv@gmail.com>
+Date: Sat, 26 May 2018 15:28:49 +0300
+Subject: [PATCH 9/9] build: define BOARD_SYSTEM_EXTRA_SYMLINKS variable
+
+* This mirrors the existence of BOARD_ROOT_EXTRA_SYMLINKS, which is
+  parsed and created in system/core/rootdir/Android.mk.
+* A simple $(find . -name '*.mk' | xargs -r grep "ln -s") will reveal
+  some atrocities in device makefiles to pin these down just right.
+  Maybe some system-level support would help them clean up a bit.
+
+Change-Id: I33a1ff150a2760a4675e526dce945c80e208c6de
+Signed-off-by: Vladimir Oltean <olteanv@gmail.com>
+---
+ core/Makefile       | 15 +++++++++++++++
+ core/definitions.mk | 11 +++++++++++
+ 2 files changed, 26 insertions(+)
+
+diff --git a/core/Makefile b/core/Makefile
+index 1555aca46..583db35f8 100644
+--- a/core/Makefile
++++ b/core/Makefile
+@@ -13,6 +13,21 @@ else
+   FILE_NAME_TAG := $(BUILD_NUMBER)
+ endif
+ 
++# -----------------------------------------------------------------
++# Define rules to create BOARD_SYSTEM_EXTRA_SYMLINKS defined by
++# the product. Very similar in role to the ramdisk board-defined
++# symlinks created in system/core/rootdir/Android.mk.
++# BOARD_SYSTEM_EXTRA_SYMLINKS is a list of <target>:<link_name>.
++ifdef BOARD_SYSTEM_EXTRA_SYMLINKS
++  $(foreach pair, $(BOARD_SYSTEM_EXTRA_SYMLINKS), \
++    $(eval target := $(call word-colon,1,$(pair))) \
++    $(eval link_name := $(call word-colon,2,$(pair))) \
++    $(eval full_link_name := $(call append-path,$(PRODUCT_OUT)/$(TARGET_COPY_OUT_SYSTEM),$(link_name))) \
++    $(eval $(call create-symlink,$(target),$(full_link_name))) \
++    $(eval ALL_DEFAULT_INSTALLED_MODULES += $(full_link_name)))
++endif
++
++
+ # -----------------------------------------------------------------
+ # Define rules to copy PRODUCT_COPY_FILES defined by the product.
+ # PRODUCT_COPY_FILES contains words like <source file>:<dest file>[:<owner>].
+diff --git a/core/definitions.mk b/core/definitions.mk
+index 3b7a9c019..f22e75f42 100644
+--- a/core/definitions.mk
++++ b/core/definitions.mk
+@@ -2769,6 +2769,17 @@ endef
+ ## Commands for copying files
+ ###########################################################
+ 
++# Define a rule to create a symlink.  For use via $(eval).
++# $(1): symlink target
++# $(2): symlink file name
++define create-symlink
++$2:
++	@echo "Symbolic link: $2 -> $1"
++	mkdir -p $(dir $2)
++	rm -rf $2
++	ln -sf $1 $2
++endef
++
+ # Define a rule to copy a header.  Used via $(eval) by copy_headers.make.
+ # $(1): source header
+ # $(2): destination header
+-- 
+2.17.0
+

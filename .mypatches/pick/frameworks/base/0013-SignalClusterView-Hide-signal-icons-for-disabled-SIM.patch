@@ -1,18 +1,32 @@
-From f08af3b7eb379468f41b2e6c254a96fde11052fc Mon Sep 17 00:00:00 2001
+From bbe513eb51538a03a51df8f11209d8935eab78b3 Mon Sep 17 00:00:00 2001
 From: Paul Keith <javelinanddart@gmail.com>
 Date: Mon, 28 May 2018 04:23:30 +0200
-Subject: [PATCH 14/14] SignalClusterView: Hide signal icons for disabled SIMs
+Subject: [PATCH 13/14] SignalClusterView: Hide signal icons for disabled SIMs
 
 Change-Id: If79814cb6bd77150640f977764dfd59b87448c64
 ---
- .../systemui/statusbar/SignalClusterView.java | 58 ++++++++++++++++++-
- 1 file changed, 57 insertions(+), 1 deletion(-)
+ packages/SystemUI/Android.mk                  |  2 +-
+ .../systemui/statusbar/SignalClusterView.java | 63 ++++++++++++++++++-
+ 2 files changed, 63 insertions(+), 2 deletions(-)
 
+diff --git a/packages/SystemUI/Android.mk b/packages/SystemUI/Android.mk
+index 0e25717a099..63c6b566e6a 100644
+--- a/packages/SystemUI/Android.mk
++++ b/packages/SystemUI/Android.mk
+@@ -45,7 +45,7 @@ LOCAL_STATIC_JAVA_LIBRARIES := \
+     SystemUI-proto \
+     org.lineageos.platform.internal
+ 
+-LOCAL_JAVA_LIBRARIES := telephony-common
++LOCAL_JAVA_LIBRARIES := telephony-common telephony-ext
+ LOCAL_JAVA_LIBRARIES += android.car
+ LOCAL_FULL_LIBS_MANIFEST_FILES := $(LOCAL_PATH)/LineageManifest.xml
+ 
 diff --git a/packages/SystemUI/src/com/android/systemui/statusbar/SignalClusterView.java b/packages/SystemUI/src/com/android/systemui/statusbar/SignalClusterView.java
-index 274244ef267..58518a7bce8 100644
+index 274244ef267..d59857ad83c 100644
 --- a/packages/SystemUI/src/com/android/systemui/statusbar/SignalClusterView.java
 +++ b/packages/SystemUI/src/com/android/systemui/statusbar/SignalClusterView.java
-@@ -17,13 +17,17 @@
+@@ -17,13 +17,19 @@
  package com.android.systemui.statusbar;
  
  import android.annotation.DrawableRes;
@@ -25,22 +39,32 @@ index 274244ef267..58518a7bce8 100644
  import android.graphics.Color;
  import android.graphics.Rect;
  import android.graphics.drawable.Drawable;
++import android.os.RemoteException;
++import android.os.ServiceManager;
  import android.telephony.SubscriptionInfo;
 +import android.telephony.SubscriptionManager;
  import android.util.ArraySet;
  import android.util.AttributeSet;
  import android.util.Log;
-@@ -35,6 +39,9 @@ import android.view.accessibility.AccessibilityEvent;
+@@ -35,6 +41,7 @@ import android.view.accessibility.AccessibilityEvent;
  import android.widget.ImageView;
  import android.widget.LinearLayout;
  
-+import com.android.internal.telephony.Phone;
 +import com.android.internal.telephony.PhoneConstants;
-+import com.android.internal.telephony.PhoneFactory;
  import com.android.systemui.Dependency;
  import com.android.systemui.R;
  import com.android.systemui.statusbar.phone.SignalDrawable;
-@@ -67,6 +74,15 @@ public class SignalClusterView extends LinearLayout implements NetworkController
+@@ -49,6 +56,9 @@ import com.android.systemui.statusbar.policy.SecurityController;
+ import com.android.systemui.tuner.TunerService;
+ import com.android.systemui.tuner.TunerService.Tunable;
+ 
++import org.codeaurora.internal.IExtTelephony;
++
++import java.lang.NoClassDefFoundError;
+ import java.util.ArrayList;
+ import java.util.List;
+ import java.util.Objects;
+@@ -67,6 +77,15 @@ public class SignalClusterView extends LinearLayout implements NetworkController
      private static final String SLOT_ETHERNET = "ethernet";
      private static final String SLOT_VPN = "vpn";
  
@@ -56,7 +80,7 @@ index 274244ef267..58518a7bce8 100644
      private final NetworkController mNetworkController;
      private final SecurityController mSecurityController;
  
-@@ -149,6 +165,26 @@ public class SignalClusterView extends LinearLayout implements NetworkController
+@@ -149,6 +168,30 @@ public class SignalClusterView extends LinearLayout implements NetworkController
          mNetworkController = Dependency.get(NetworkController.class);
          mSecurityController = Dependency.get(SecurityController.class);
          updateActivityEnabled();
@@ -70,9 +94,13 @@ index 274244ef267..58518a7bce8 100644
 +                            SubscriptionManager.INVALID_SUBSCRIPTION_ID);
 +                    int newProvisionedState = intent.getIntExtra(EXTRA_NEW_PROVISION_STATE,
 +                            NOT_PROVISIONED);
-+                    Phone phone = PhoneFactory.getPhone(phoneId);
-+                    if (phone != null) {
-+                        setProvisioned(phone.getSubId(), newProvisionedState == PROVISIONED);
++                    int[] subId = SubscriptionManager.getSubId(phoneId);
++                    if (subId != null) {
++                        PhoneState state = getState(subId[0]);
++                        if (state != null) {
++                            state.mProvisioned = newProvisionedState == PROVISIONED;
++                        }
++                        apply();
 +                    }
 +                }
 +            }
@@ -83,42 +111,16 @@ index 274244ef267..58518a7bce8 100644
      }
  
      public void setForceBlockWifi() {
-@@ -304,7 +340,7 @@ public class SignalClusterView extends LinearLayout implements NetworkController
+@@ -304,7 +347,7 @@ public class SignalClusterView extends LinearLayout implements NetworkController
          if (state == null) {
              return;
          }
 -        state.mMobileVisible = statusIcon.visible && !mBlockMobile;
-+        state.mMobileVisible = statusIcon.visible && !mBlockMobile && getProvisioned(subId);
++        state.mMobileVisible = statusIcon.visible && !mBlockMobile && state.mProvisioned;
          state.mMobileStrengthId = statusIcon.icon;
          state.mMobileTypeId = statusType;
          state.mMobileDescription = statusIcon.contentDescription;
-@@ -383,6 +419,25 @@ public class SignalClusterView extends LinearLayout implements NetworkController
-         return state;
-     }
- 
-+    private boolean getProvisioned(int subId) {
-+        for (PhoneState state : mPhoneStates) {
-+            if (state.mSubId == subId) {
-+                return state.mProvisioned;
-+            }
-+        }
-+
-+        return true;
-+    }
-+
-+    private void setProvisioned(int subId, boolean provisioned) {
-+        for (PhoneState state : mPhoneStates) {
-+            if (state.mSubId == subId) {
-+                state.mProvisioned = provisioned;
-+                break;
-+            }
-+        }
-+    }
-+
-     @Override
-     public void setIsAirplaneMode(IconState icon) {
-         mIsAirplaneMode = icon.visible && !mBlockAirplane;
-@@ -640,6 +695,7 @@ public class SignalClusterView extends LinearLayout implements NetworkController
+@@ -640,6 +683,7 @@ public class SignalClusterView extends LinearLayout implements NetworkController
  
      private class PhoneState {
          private final int mSubId;
@@ -126,6 +128,30 @@ index 274244ef267..58518a7bce8 100644
          private boolean mMobileVisible = false;
          private int mMobileStrengthId = 0, mMobileTypeId = 0;
          private int mLastMobileStrengthId = -1;
+@@ -660,6 +704,23 @@ public class SignalClusterView extends LinearLayout implements NetworkController
+                     .inflate(R.layout.mobile_signal_group, null);
+             setViews(root);
+             mSubId = subId;
++            try {
++                IExtTelephony extTelephony = IExtTelephony.Stub.asInterface(
++                        ServiceManager.getService("extphone"));
++                if (extTelephony != null) {
++                    int slotId = SubscriptionManager.getSlotIndex(subId);
++                    if (slotId != SubscriptionManager.INVALID_SIM_SLOT_INDEX) {
++                        try {
++                            mProvisioned = extTelephony.getCurrentUiccCardProvisioningStatus(
++                                    slotId) == PROVISIONED;
++                        } catch (RemoteException ex) {
++                            // ignore, fall back to default.
++                        }
++                    }
++                }
++            } catch (NoClassDefFoundError ex) {
++                // ignore, device does not compile telephony-ext.
++            }
+         }
+ 
+         public void setViews(ViewGroup root) {
 -- 
 2.17.0
 

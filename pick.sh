@@ -491,9 +491,9 @@ kpick 213705 # 	Build Exchange
 repo sync --force-sync frameworks/opt/chips
 repo sync --force-sync packages/apps/Exchange
 
-kpick 216428 # lineage: Sync qcom thermal and vr HALs
-repo sync --force-sync hardware/qcom/thermal
-repo sync --force-sync hardware/qcom/vr
+#kpick 216428 # lineage: Sync qcom thermal and vr HALs
+#repo sync --force-sync hardware/qcom/thermal
+#repo sync --force-sync hardware/qcom/vr
 
 # bionic
 kpick 212920 # libc: Mark libstdc++ as vendor available
@@ -511,6 +511,7 @@ kpick 214842 # dex2oat: disable multithreading
 kpick 214883 # core: config: Use host ijar if requested
 kpick 214892 # Add detection for WSL
 kpick 215536 # build: Clean up makefile hook inclusions
+kpick 216481 # build: define BOARD_SYSTEM_EXTRA_SYMLINKS variable
 
 # build/soong
 
@@ -555,7 +556,6 @@ kpick 209909 # Camera2Client: Add support for enabling QTI DIS feature
 kpick 209910 # Camera2Client: Add support for enabling QTI Video/Sensor HDR feature
 kpick 209911 # Camera2Client: Add support for QTI specific AutoHDR and Histogram feature
 kpick 209912 # Camera: Skip stream size check for whitelisted apps
-#kpick 210873 # stagefright: Add qcom dolby-vision implementation
 kpick 213115 # camera: Disable extra HDR frame on QCOM_HARDWARE
 #kpick 215693 # stagefright: Add support for loading a custom OMXPlugin
 
@@ -565,16 +565,11 @@ kpick 207583 # BatteryService: Add support for oem fast charger detection
 kpick 209031 # TelephonyManager: Prevent NPE when registering phone state listener
 kpick 206940 # Avoid crash when the actionbar is disabled in settings
 kpick 209929 # SystemUI: fix black scrim when turning screen on from AOD
-#kpick 211300 # Add the user set network mode to the siminfo table
-#kpick 211301 # Store Network Mode selected in subId Table.
 kpick 213133 # base: introduce trust interface
 kpick 213371 # Add an option to let pre-O apps to use full screen aspect ratio
 kpick 214262 # Bind app name to menu row when notification updated
 kpick 214263 # Fix intercepting touch events for guts
 kpick 214265 # Better QS detail clip animation
-#kpick 214867 # Expose isAutonomousGroupOwner [1/2]
-#kpick 214868 # Expose cancelWps [1/2]
-#kpick 214869 # Allow activing a saved autonomous group [1/2]
 kpick 215031 # Keyguard: Fix ConcurrentModificationException in KeyguardUpdateMonitor
 kpick 215128 # Make the startup of SoundTrigger service conditional
 kpick 216417 # SignalClusterView: Hide signal icons for disabled SIMs
@@ -591,13 +586,6 @@ kpick 214316 # RIL: Allow overriding RadioResponse and RadioIndication
 kpick 215450 # Add changes for sending ATEL UI Ready to RIL.
 kpick 216091 # Add ContentObserver when sms sent limit changed
 
-# frameworks/opt/net/wifi
-#kpick 214870 # Expose cancelWps [2/2]
-#kpick 214871 # Allow activing a saved autonomous group [2/2]
-#kpick 214872 # Expose isAutonomousGroupOwner [2/2]
-
-# hardware/broadcom/fm
-#kpick 206479 # fm: Update brcm-uim-sysfs to O
 
 # hardware/broadcom/libbt
 kpick 215613 # libbt: Build with BOARD_VNDK_VERSION
@@ -619,7 +607,7 @@ kpick 213867 # lineage/interfaces: vibrator: read light/medium/strong voltage fr
 kpick 213868 # lineage/interfaces: vibrator: implement vendor.lineage methods
 
 # hardware/lineage/lineagehw
-kpick 215629 # ReadingEnhancement: Don't apply grayscale on top of RGB calibration
+kpick 216416 # lineagehw: Enable ReadingEnhancement for HWC1 as well
 
 # hardware/qcom/audio-caf/msm8974
 kpick 215604 # hal: Build with BOARD_VNDK_VERSION
@@ -649,12 +637,6 @@ kpick 215602 # power: msm8974: Build with with BOARD_VNDK_VERSION
 kpick 215821 # power: Remove unused camera_hint_ref_count
 kpick 215822 # power: Spring cleanup
 
-# hardware/qcom/thermal
-kpick 216424 # thermal: Use project pathmap
-
-# haedware/qcom/vr
-kpick 216423 # vr: Use project pathmap
-
 # hardware/qcom/wlan-caf
 kpick 215847 # Make wcnss_service build with the VNDK.
 
@@ -681,6 +663,8 @@ kpick 213641 # lineage-sdk lights: Genericize adjustable brightness capability
 kpick 214025 # sdk: Add an option to force pre-O apps to use full screen aspect ratio
 kpick 214854 # [3/3] lineagesdk: single hand for hw keys
 kpick 216410 # Revert "lineage-sdk: Switch back to AOSP TwilightService"
+kpick 216474 # Add led capability LIGHTS_ADJUSTABLE_BATTERY_LED_BRIGHTNESS
+kpick 216505 # Regen lineage_current
 
 # packages/apps/Camera2
 
@@ -746,11 +730,9 @@ kpick 215174 # CallLogDatabase: Bump the version and try to re-run the version 5
 
 # packages/service/Telephony
 kpick 209045 # Telephony: Fallback gracefully for emergency calls if suitable app isn't found
-#kpick 211270 # Telephony: add external network selection activity (******WIP*****)
 
 # system/core
 kpick 206029 # init: Add command to disable verity
-kpick 209385 # init: optimize shutdown time
 kpick 213876 # healthd: charger: Add tricolor led to indicate battery capacity
 kpick 214001 # camera: Add L-compatible camera feature enums
 kpick 215626 # Add vendor hook to handle_control_message
@@ -778,9 +760,7 @@ kpick 212766 # vendor: introduce Trust interface
 kpick 213815 # Place ADB auth property override to system
 kpick 215341 # backuptool: Revert "Temporarily render version check permissive"
 kpick 214400 # backuptool: Resolve incompatible version grep syntax
-kpick 215541 # build: Use TOPDIR, not TOP
 kpick 215538 # build: Clean up makefile inclusions
-#kpick 216425 # lineage: qcom: Set thermal & vr HAL pathmaps
 kpick 216426 # lineage: qcom: Enable TARGET_USES_COLOR_METADATA for msm8937 & msm8953
 
 # vendor/qcom/opensource/cryptfs_hw
