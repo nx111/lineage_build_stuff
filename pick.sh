@@ -646,6 +646,9 @@ kpick 215847 # Make wcnss_service build with the VNDK.
 kpick 213574 # charter: Add some new USB rules
 kpick 213836 # charter: add vendor patch level requirement 
 kpick 214349 # charger: Improve 'Stability' compliances details
+kpick 216517 # Clarify pre-built kernels.
+kpick 216518 # Treble exemptions
+kpick 216519 # Cleanup markdown formatting
 
 # lineage/jenkins
 
@@ -655,6 +658,8 @@ kpick 207545 # Add batch gerrit script
 # lineage/wiki
 kpick 212483 # This command line is more universal, it works too in foreign langages
 kpick 212615 # gts28vewifi: Add reminder to check that bootloader is unlocked
+kpick 215187 # wiki: Use triple backticks for code blocks instead of 8 spaces
+kpick 215543 # wiki: Add BQ bardock/bardockpro devices
 
 # lineage-sdk
 kpick 213134 # sdk: Introduce Trust Interface
