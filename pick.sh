@@ -607,7 +607,6 @@ kpick 213867 # lineage/interfaces: vibrator: read light/medium/strong voltage fr
 kpick 213868 # lineage/interfaces: vibrator: implement vendor.lineage methods
 
 # hardware/lineage/lineagehw
-kpick 216416 # lineagehw: Enable ReadingEnhancement for HWC1 as well
 
 # hardware/qcom/audio-caf/msm8974
 kpick 215604 # hal: Build with BOARD_VNDK_VERSION
@@ -638,17 +637,16 @@ kpick 215821 # power: Remove unused camera_hint_ref_count
 kpick 215822 # power: Spring cleanup
 
 # hardware/qcom/wlan-caf
-kpick 215847 # Make wcnss_service build with the VNDK.
 
 # hardware/samsung
 
 # lineage/charter
 kpick 213574 # charter: Add some new USB rules
 kpick 213836 # charter: add vendor patch level requirement 
-kpick 214349 # charger: Improve 'Stability' compliances details
-kpick 216517 # Clarify pre-built kernels.
-kpick 216518 # Treble exemptions
+kpick 215665 # Add hardware codecs section and exempt some tegra chipsets
 kpick 216519 # Cleanup markdown formatting
+kpick 216517 # Clarify pre-built kernels.
+#kpick 216518 # Treble exemptions
 
 # lineage/jenkins
 
@@ -664,7 +662,6 @@ kpick 215543 # wiki: Add BQ bardock/bardockpro devices
 # lineage-sdk
 kpick 213134 # sdk: Introduce Trust Interface
 kpick 213367 # NetworkTraffic: Include tethering traffic statistics
-kpick 213641 # lineage-sdk lights: Genericize adjustable brightness capability
 kpick 214025 # sdk: Add an option to force pre-O apps to use full screen aspect ratio
 kpick 214854 # [3/3] lineagesdk: single hand for hw keys
 kpick 216410 # Revert "lineage-sdk: Switch back to AOSP TwilightService"
@@ -683,7 +680,6 @@ kpick 210074 # Adding Notification Channel
 kpick 213051 # Deskclock: set targetSdk to 27
 
 # packages/apps/Eleven
-kpick 211302 # Eleven: Catch unsupported bitmap exception
 
 # packages/apps/Email
 
@@ -700,7 +696,6 @@ kpick 215736 # Jelly: Add support for multiple windows
 
 # packages/apps/LineageParts
 kpick 213135 # LineageParts: introduce Trust interface
-kpick 213642 # LineageParts: Update for generic adjustable brightness capability
 kpick 216092 # parts: add SMS rate limit setting
 
 # packages/apps/Recoder
@@ -710,6 +705,7 @@ kpick 212764 # Settings: add Trust interface hook
 kpick 212765 # Settings: show Trust branding in confirm_lock_password UI
 kpick 213372 # Settings: Add an option to let pre-O apps to use full screen aspect ratio
 kpick 215672 # SimSettings: Fix dialog in dark mode
+kpick 216687 # settings: wifi: Default to numeric keyboard for static IP items
 
 # packages/apps/Snap
 kpick 206595 # Use transparent navigation bar
@@ -727,7 +723,6 @@ kpick 213136 # Updater: show Trust branding when the update has been verified
 kpick 215846 # dark: Add Theme.DeviceDefault.Settings.Dialog.NoActionBar style
 
 # packages/providers/ContactsProvider
-kpick 215174 # CallLogDatabase: Bump the version and try to re-run the version 5 upgrade path
 
 # packages/resources/devicesettings
 
