@@ -491,9 +491,9 @@ kpick 213705 # 	Build Exchange
 repo sync --force-sync frameworks/opt/chips
 repo sync --force-sync packages/apps/Exchange
 
-#kpick 216428 # lineage: Sync qcom thermal and vr HALs
-#repo sync --force-sync hardware/qcom/thermal
-#repo sync --force-sync hardware/qcom/vr
+kpick 216428 # lineage: Sync qcom thermal and vr HALs
+repo sync --force-sync hardware/qcom/thermal
+repo sync --force-sync hardware/qcom/vr
 
 # bionic
 kpick 212920 # libc: Mark libstdc++ as vendor available
@@ -510,7 +510,7 @@ kpick 213572 # Allow to exclude imgs from target-files zip
 kpick 214842 # dex2oat: disable multithreading
 kpick 214883 # core: config: Use host ijar if requested
 kpick 214892 # Add detection for WSL
-kpick 215536 # build: Clean up makefile hook inclusions
+kpick 215369 # core: Remove deprecated kernel header dependency path warning
 kpick 216481 # build: define BOARD_SYSTEM_EXTRA_SYMLINKS variable
 
 # build/soong
@@ -636,6 +636,10 @@ kpick 215602 # power: msm8974: Build with with BOARD_VNDK_VERSION
 kpick 215821 # power: Remove unused camera_hint_ref_count
 kpick 215822 # power: Spring cleanup
 
+# hardware/qcom/thermal
+
+# haedware/qcom/vr
+
 # hardware/qcom/wlan-caf
 
 # hardware/samsung
@@ -693,6 +697,7 @@ kpick 211382 # correct the targeted SDK version to avoid permission fails otherw
 
 # packages/apps/Jelly
 kpick 215736 # Jelly: Add support for multiple windows
+kpick 216413 # Jelly: Adapt ProgressBar location based on reach mode
 
 # packages/apps/LineageParts
 kpick 213135 # LineageParts: introduce Trust interface
@@ -760,7 +765,7 @@ kpick 212766 # vendor: introduce Trust interface
 kpick 213815 # Place ADB auth property override to system
 kpick 215341 # backuptool: Revert "Temporarily render version check permissive"
 kpick 214400 # backuptool: Resolve incompatible version grep syntax
-kpick 215538 # build: Clean up makefile inclusions
+kpick 216425 # lineage: qcom: Set thermal & vr HAL pathmaps
 kpick 216426 # lineage: qcom: Enable TARGET_USES_COLOR_METADATA for msm8937 & msm8953
 
 # vendor/qcom/opensource/cryptfs_hw
