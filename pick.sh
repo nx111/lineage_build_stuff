@@ -573,6 +573,8 @@ kpick 214265 # Better QS detail clip animation
 kpick 215031 # Keyguard: Fix ConcurrentModificationException in KeyguardUpdateMonitor
 kpick 215128 # Make the startup of SoundTrigger service conditional
 kpick 216417 # SignalClusterView: Hide signal icons for disabled SIMs
+kpick 216831 # SystemUI: Fix alignment glitch with brightness mirror
+kpick 216854 # Keyguard: Remove carrier text for disabled SIMs
 
 # frameworks/native
 kpick 213549 # SurfaceFlinger: Support get/set ActiveConfigs
@@ -702,6 +704,10 @@ kpick 216413 # Jelly: Adapt ProgressBar location based on reach mode
 # packages/apps/LineageParts
 kpick 213135 # LineageParts: introduce Trust interface
 kpick 216092 # parts: add SMS rate limit setting
+kpick 216770 # LineageParts: Use the battery HAL lights brightness capability
+
+# packages/apps/OpenWeatherMapProvider
+kpick 207864 # Updated Gradle to 3.0.1; The Lineage-SDK jar is now contained in the project files
 
 # packages/apps/Recoder
 
@@ -711,9 +717,13 @@ kpick 212765 # Settings: show Trust branding in confirm_lock_password UI
 kpick 213372 # Settings: Add an option to let pre-O apps to use full screen aspect ratio
 kpick 215672 # SimSettings: Fix dialog in dark mode
 kpick 216687 # settings: wifi: Default to numeric keyboard for static IP items
+kpick 216822 # Settings: Allow setting device phone number
 
 # packages/apps/Snap
 kpick 206595 # Use transparent navigation bar
+kpick 216710 # Snap: remove unused shutter buttons
+kpick 216711 # SnapdragonCamera: Panorama, replace border drawable
+kpick 216712 # Snap: use vector image for video stop button
 
 # packages/apps/Trebuchet
 kpick 212752 # IconCache: fix crash if icon is an AdaptiveIconDrawable
@@ -735,6 +745,7 @@ kpick 215846 # dark: Add Theme.DeviceDefault.Settings.Dialog.NoActionBar style
 
 # packages/service/Telephony
 kpick 209045 # Telephony: Fallback gracefully for emergency calls if suitable app isn't found
+kpick 216722 # phone: Add option for setting device phone number (squashed)
 
 # system/core
 kpick 206029 # init: Add command to disable verity
@@ -759,6 +770,7 @@ kpick 206136 # sepolicy: allow update_engine to bypass neverallows for backuptoo
 # vendor/lineage
 kpick 206138 # vendor: add custom backuptools and postinstall script for A/B OTAs
 kpick 206139 # backuptool: introduce addon.d script versioning
+kpick 206154 # Include build manifest on target
 kpick 210664 # extract_utils: Support multidex
 kpick 212640 # repopick: Update SSH queries result to match HTTP queries
 kpick 212766 # vendor: introduce Trust interface
@@ -772,6 +784,7 @@ kpick 216426 # lineage: qcom: Enable TARGET_USES_COLOR_METADATA for msm8937 & ms
 
 #-----------------------
 # translations
+repopick 216840-216853
 
 ##################################
 
