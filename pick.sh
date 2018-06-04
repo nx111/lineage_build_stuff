@@ -510,8 +510,6 @@ kpick 213572 # Allow to exclude imgs from target-files zip
 kpick 214842 # dex2oat: disable multithreading
 kpick 214883 # core: config: Use host ijar if requested
 kpick 214892 # Add detection for WSL
-kpick 215369 # core: Remove deprecated kernel header dependency path warning
-kpick 216481 # build: define BOARD_SYSTEM_EXTRA_SYMLINKS variable
 
 # build/soong
 
@@ -582,8 +580,6 @@ kpick 213549 # SurfaceFlinger: Support get/set ActiveConfigs
 # frameworks/opt/chips
 
 # frameworks/opt/telephony
-kpick 213487 # GsmCdmaPhone: Return dummy ICCID serial for NV sub
-kpick 213488 # GsmCdmaPhone: Fix GSM SIM card ICCID on NV sub CDMA devices
 kpick 214316 # RIL: Allow overriding RadioResponse and RadioIndication
 kpick 215450 # Add changes for sending ATEL UI Ready to RIL.
 kpick 216091 # Add ContentObserver when sms sent limit changed
@@ -650,8 +646,6 @@ kpick 215822 # power: Spring cleanup
 kpick 213574 # charter: Add some new USB rules
 kpick 213836 # charter: add vendor patch level requirement 
 kpick 215665 # Add hardware codecs section and exempt some tegra chipsets
-kpick 216519 # Cleanup markdown formatting
-kpick 216517 # Clarify pre-built kernels.
 #kpick 216518 # Treble exemptions
 
 # lineage/jenkins
@@ -778,14 +772,11 @@ kpick 213815 # Place ADB auth property override to system
 kpick 215341 # backuptool: Revert "Temporarily render version check permissive"
 kpick 214400 # backuptool: Resolve incompatible version grep syntax
 kpick 216425 # lineage: qcom: Set thermal & vr HAL pathmaps
-kpick 216426 # lineage: qcom: Enable TARGET_USES_COLOR_METADATA for msm8937 & msm8953
 
 # vendor/qcom/opensource/cryptfs_hw
 
 #-----------------------
 # translations
-repopick 216840-216853
-
 ##################################
 
 [ $op_pick_remote_only -eq 0 ] && patch_local local
