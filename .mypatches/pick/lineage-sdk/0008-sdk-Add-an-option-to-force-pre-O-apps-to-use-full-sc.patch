@@ -1,0 +1,190 @@
+From 16db9ca0daa26499e1778bd82948458291a90df6 Mon Sep 17 00:00:00 2001
+From: Jesse Chan <jc@lineageos.org>
+Date: Mon, 30 Apr 2018 23:06:42 -0700
+Subject: [PATCH 8/9] sdk: Add an option to force pre-O apps to use full screen
+ aspect ratio
+
+When an app target pre-O releases, the default max aspect ratio
+is 1.86:1 which leads to ugly black areas on devices that have
+screens with higher aspect ratio (for example Galaxy S8/S9).
+
+This change adds an option to allow users to change default
+aspect ratio for pre-O apps to 2.1 which would fit recent devices.
+
+Change-Id: I2531542f736ee7b809ef7faffd72e5963e7d20d6
+---
+ lineage/res/res/values/config.xml             |   3 +
+ lineage/res/res/values/symbols.xml            |   3 +
+ .../lineageos/providers/LineageSettings.java  |  11 ++
+ .../internal/applications/LongScreen.java     | 106 ++++++++++++++++++
+ 4 files changed, 123 insertions(+)
+ create mode 100644 sdk/src/java/org/lineageos/internal/applications/LongScreen.java
+
+diff --git a/lineage/res/res/values/config.xml b/lineage/res/res/values/config.xml
+index 9e961f5..eb65699 100644
+--- a/lineage/res/res/values/config.xml
++++ b/lineage/res/res/values/config.xml
+@@ -246,4 +246,7 @@
+ 
+     <!-- Aspect ratio of screen -->
+     <item name="config_screenAspectRatio" format="float" type="dimen">2.1</item>
++
++    <!-- Whether device has screen with higher aspect ratio -->
++    <bool name="config_haveHigherAspectRatioScreen">false</bool>
+ </resources>
+diff --git a/lineage/res/res/values/symbols.xml b/lineage/res/res/values/symbols.xml
+index 28bbc0e..a8369d3 100644
+--- a/lineage/res/res/values/symbols.xml
++++ b/lineage/res/res/values/symbols.xml
+@@ -179,4 +179,7 @@
+     <!-- Full screen aspect ratio -->
+     <java-symbol type="bool" name="config_haveHigherAspectRatioScreen" />
+     <java-symbol type="dimen" name="config_screenAspectRatio" />
++
++    <!-- Full screen aspect ratio -->
++    <java-symbol type="bool" name="config_haveHigherAspectRatioScreen" />
+ </resources>
+diff --git a/sdk/src/java/lineageos/providers/LineageSettings.java b/sdk/src/java/lineageos/providers/LineageSettings.java
+index 347fbdc..c6e7bdb 100644
+--- a/sdk/src/java/lineageos/providers/LineageSettings.java
++++ b/sdk/src/java/lineageos/providers/LineageSettings.java
+@@ -2038,6 +2038,15 @@ public final class LineageSettings {
+         public static final Validator ACCELEROMETER_ROTATION_ANGLES_VALIDATOR =
+                 sNonNegativeIntegerValidator;
+ 
++        /**
++         * List of long-screen apps.
++         */
++        public static final String LONG_SCREEN_APPS = "long_screen_apps";
++
++        /** @hide */
++        public static final Validator LONG_SCREEN_APPS_VALIDATOR =
++                sAlwaysTrueValidator;
++
+         /**
+          * I can haz more bukkits
+          * @hide
+@@ -2328,6 +2337,8 @@ public final class LineageSettings {
+                     DISPLAY_PICTURE_ADJUSTMENT_VALIDATOR);
+             VALIDATORS.put(ACCELEROMETER_ROTATION_ANGLES,
+                     ACCELEROMETER_ROTATION_ANGLES_VALIDATOR);
++            VALIDATORS.put(LONG_SCREEN_APPS,
++                    LONG_SCREEN_APPS_VALIDATOR);
+             VALIDATORS.put(__MAGICAL_TEST_PASSING_ENABLER,
+                     __MAGICAL_TEST_PASSING_ENABLER_VALIDATOR);
+         };
+diff --git a/sdk/src/java/org/lineageos/internal/applications/LongScreen.java b/sdk/src/java/org/lineageos/internal/applications/LongScreen.java
+new file mode 100644
+index 0000000..37cbd07
+--- /dev/null
++++ b/sdk/src/java/org/lineageos/internal/applications/LongScreen.java
+@@ -0,0 +1,106 @@
++/**
++ * Copyright (C) 2018 The LineageOS project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++package org.lineageos.internal.applications;
++
++import android.content.ContentResolver;
++import android.content.Context;
++import android.database.ContentObserver;
++import android.os.Handler;
++import android.os.Looper;
++import android.os.UserHandle;
++
++import java.util.Arrays;
++import java.util.HashSet;
++import java.util.Set;
++
++import lineageos.providers.LineageSettings;
++
++public class LongScreen {
++    private Set<String> mApps = new HashSet<>();
++    private Context mContext;
++
++    public LongScreen(Context context) {
++        mContext = context;
++
++        SettingsObserver observer = new SettingsObserver(
++                new Handler(Looper.getMainLooper()), this);
++        observer.observe();
++    }
++
++    public boolean isSupported() {
++        return mContext.getResources().getBoolean(
++                org.lineageos.platform.internal.R.bool.config_haveHigherAspectRatioScreen);
++    }
++
++    public Set<String> getApps() {
++        return mApps;
++    }
++
++    public void addApp(String packageName) {
++        mApps.add(packageName);
++        LineageSettings.System.putString(mContext.getContentResolver(),
++                LineageSettings.System.LONG_SCREEN_APPS, String.join(",", mApps));
++    }
++
++    public void removeApp(String packageName) {
++        mApps.remove(packageName);
++        LineageSettings.System.putString(mContext.getContentResolver(),
++                LineageSettings.System.LONG_SCREEN_APPS, String.join(",", mApps));
++    }
++
++    public void setApps(Set<String> apps) {
++        mApps = apps;
++    }
++
++    class SettingsObserver extends ContentObserver {
++        private LongScreen mLongScreen;
++
++        SettingsObserver(Handler handler, LongScreen longScreen) {
++            super(handler);
++
++            mLongScreen = longScreen;
++        }
++
++        void observe() {
++            ContentResolver resolver = mContext.getContentResolver();
++
++            resolver.registerContentObserver(LineageSettings.System.getUriFor(
++                    LineageSettings.System.LONG_SCREEN_APPS), false, this,
++                    UserHandle.USER_ALL);
++
++            update();
++        }
++
++        @Override
++        public void onChange(boolean selfChange) {
++            update();
++        }
++
++        public void update() {
++            ContentResolver resolver = mContext.getContentResolver();
++
++            String apps = LineageSettings.System.getStringForUser(resolver,
++                    LineageSettings.System.LONG_SCREEN_APPS,
++                    UserHandle.USER_CURRENT);
++            if (apps != null) {
++                mLongScreen.setApps(new HashSet<>(Arrays.asList(apps.split(","))));
++            } else {
++                mLongScreen.setApps(new HashSet<>());
++            }
++        }
++    }
++}
+-- 
+2.17.0
+

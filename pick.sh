@@ -284,6 +284,28 @@ function restore_snapshot()
     cd $topdir
 }
 
+function rrCache()
+{
+    [ $# -eq 0 ] && return -1
+    if [ "$1" = "-backup" -o "$1" = "backup" ]; then
+         cat $topdir/.repo/project.list | while read project; do
+             if [ ! -z "$(ls -A $topdir/$project/.git/rr-cache)" ]; then
+                   rm -rf $topdir/.mypatches/rr-cache/$project/*
+                   [ -d $topdir/.mypatches/rr-cache/$project ] || mkdir -p $topdir/.mypatches/rr-cache/$project
+                   cp -r $topdir/$project/.git/rr-cache/* $topdir/.mypatches/rr-cache/$project/
+             fi
+         done
+    elif [ "$1" = "-restore" -o "$1" = "restore" ]; then
+         cat $topdir/.repo/project.list | while read project; do
+             if [ ! -z "$(ls -A $topdir/.mypatches/rr-cache/$project)" ]; then
+                   rm -rf $topdir/$project/.git/rr-cache/*
+                   [ -d $topdir/$project/.git/rr-cache ] || mkdir -p $topdir/$project/.git/rr-cache
+                   cp -r $topdir/.mypatches/rr-cache/$project/* $topdir/$project/.git/rr-cache/
+             fi
+         done
+    fi
+}
+
 ##################################
 function fix_repopick_output()
 {
@@ -478,6 +500,9 @@ fi
 ###############################################################
 # patch repopick first
 topdir=$(gettop)
+
+rrCache restore # restore rr-cache
+
 find $topdir/.mypatches/local/vendor/lineage/ -type f -name "*-\[ALWAYS\]-*.patch" -o -name "*-\[ALWAYS\]-*.diff" \
   | while read f; do
      cd $topdir/vendor/lineage;
@@ -521,6 +546,9 @@ kpick 212763 # sepolicy: introduce Trust interface
 # device/qcom/sepolicy
 kpick 211273 # qcom/sepol: Fix timeservice app context
 kpick 212643 # qcom/sepol: Allow mm-qcamerad to use binder even in vendor
+kpick 216893 # sepolicy: Fix video4linux "name" node labeling
+kpick 216894 # sepolicy: Allow mm-qcamerad to access v4L "name" node
+kpick 216898 # sepolicy: Allow perf HAL to set freq props
 
 # device/samsung/klte-common
 #kpick 212648 # klte-common: Enable AOD
@@ -573,6 +601,9 @@ kpick 215128 # Make the startup of SoundTrigger service conditional
 kpick 216417 # SignalClusterView: Hide signal icons for disabled SIMs
 kpick 216831 # SystemUI: Fix alignment glitch with brightness mirror
 kpick 216854 # Keyguard: Remove carrier text for disabled SIMs
+kpick 216872 # SystemUI: Fix systemui crash when showing data usage detail
+kpick 216881 # PhoneWindowManager: Improve home button wake haptic feedback handling
+kpick 216889 # Add an option to force pre-O apps to use full screen aspect ratio
 
 # frameworks/native
 kpick 213549 # SurfaceFlinger: Support get/set ActiveConfigs
@@ -667,6 +698,7 @@ kpick 214854 # [3/3] lineagesdk: single hand for hw keys
 kpick 216410 # Revert "lineage-sdk: Switch back to AOSP TwilightService"
 kpick 216474 # Add led capability LIGHTS_ADJUSTABLE_BATTERY_LED_BRIGHTNESS
 kpick 216505 # Regen lineage_current
+kpick 216888 # sdk: Add an option to force pre-O apps to use full screen aspect ratio
 
 # packages/apps/Camera2
 
@@ -699,7 +731,7 @@ kpick 216413 # Jelly: Adapt ProgressBar location based on reach mode
 kpick 213135 # LineageParts: introduce Trust interface
 kpick 216092 # parts: add SMS rate limit setting
 kpick 216770 # LineageParts: Use the battery HAL lights brightness capability
-
+kpick 216889 # LineageParts: Add an option to force pre-O apps to use full screen aspect ratio
 # packages/apps/OpenWeatherMapProvider
 kpick 207864 # Updated Gradle to 3.0.1; The Lineage-SDK jar is now contained in the project files
 
@@ -712,12 +744,12 @@ kpick 213372 # Settings: Add an option to let pre-O apps to use full screen aspe
 kpick 215672 # SimSettings: Fix dialog in dark mode
 kpick 216687 # settings: wifi: Default to numeric keyboard for static IP items
 kpick 216822 # Settings: Allow setting device phone number
+kpick 216890 # Settings: Add an option to force pre-O apps to use full screen aspect ratio
 
 # packages/apps/Snap
 kpick 206595 # Use transparent navigation bar
 kpick 216710 # Snap: remove unused shutter buttons
 kpick 216711 # SnapdragonCamera: Panorama, replace border drawable
-kpick 216712 # Snap: use vector image for video stop button
 
 # packages/apps/Trebuchet
 kpick 212752 # IconCache: fix crash if icon is an AdaptiveIconDrawable
@@ -781,4 +813,5 @@ kpick 216425 # lineage: qcom: Set thermal & vr HAL pathmaps
 
 [ $op_pick_remote_only -eq 0 ] && patch_local local
 [ -f $script_file.tmp ] && mv $script_file.tmp $script_file.new
+rrCache backup # backup rr-cache
 

@@ -1,0 +1,66 @@
+From 6589bb3f32d58dbcdde395770ead56e50ae60fcb Mon Sep 17 00:00:00 2001
+From: Jesse Chan <jc@lineageos.org>
+Date: Sat, 21 Apr 2018 23:45:57 -0700
+Subject: [PATCH 18/19] Add an option to force pre-O apps to use full screen
+ aspect ratio
+
+When an app target pre-O releases, the default max aspect ratio
+is 1.86:1 which leads to ugly black areas on devices that have
+screens with higher aspect ratio (for example Galaxy S8/S9).
+
+This change adds an option to allow users to change default
+aspect ratio for pre-O apps to 2.1 which would fit recent devices.
+
+Change-Id: I41d5408841593a12443be885e11959bffaebb67b
+---
+ .../java/com/android/server/am/ActivityRecord.java    | 11 ++++++++++-
+ 1 file changed, 10 insertions(+), 1 deletion(-)
+
+diff --git a/services/core/java/com/android/server/am/ActivityRecord.java b/services/core/java/com/android/server/am/ActivityRecord.java
+index 21ec9971a5d..ce37d195653 100644
+--- a/services/core/java/com/android/server/am/ActivityRecord.java
++++ b/services/core/java/com/android/server/am/ActivityRecord.java
+@@ -161,6 +161,7 @@ import android.view.WindowManager.LayoutParams;
+ import com.android.internal.annotations.VisibleForTesting;
+ 
+ import lineageos.providers.LineageSettings;
++import org.lineageos.internal.applications.LongScreen;
+ 
+ import com.android.internal.app.ResolverActivity;
+ import com.android.internal.content.ReferrerIntent;
+@@ -354,6 +355,7 @@ final class ActivityRecord extends ConfigurationContainer implements AppWindowCo
+ 
+     private final float mFullScreenAspectRatio = Resources.getSystem().getFloat(
+                     org.lineageos.platform.internal.R.dimen.config_screenAspectRatio);
++    private LongScreen mLongScreen;
+ 
+     /**
+      * Temp configs used in {@link #ensureActivityConfigurationLocked(int, boolean)}
+@@ -924,6 +926,8 @@ final class ActivityRecord extends ConfigurationContainer implements AppWindowCo
+ 
+         mShowWhenLocked = (aInfo.flags & FLAG_SHOW_WHEN_LOCKED) != 0;
+         mTurnScreenOn = (aInfo.flags & FLAG_TURN_SCREEN_ON) != 0;
++
++        mLongScreen = new LongScreen(service.mContext);
+     }
+ 
+     AppWindowContainerController getWindowContainerController() {
+@@ -2318,9 +2322,14 @@ final class ActivityRecord extends ConfigurationContainer implements AppWindowCo
+     // TODO(b/36505427): Consider moving this method and similar ones to ConfigurationContainer.
+     private void computeBounds(Rect outBounds) {
+         outBounds.setEmpty();
+-        final float maxAspectRatio = (LineageSettings.System.getInt(service.mContext.
++        float maxAspectRatio = (LineageSettings.System.getInt(service.mContext.
+                 getContentResolver(), LineageSettings.System.FULL_SCREEN_ASPECT_RATIO, 0) != 0)
+                         ? mFullScreenAspectRatio : info.maxAspectRatio;
++
++        if (mLongScreen.isSupported() && mLongScreen.getApps().contains(packageName)) {
++            maxAspectRatio = 0.0f;
++        }
++
+         final ActivityStack stack = getStack();
+         if (task == null || stack == null || !task.mFullscreen || maxAspectRatio == 0
+                 || isInVrUiMode(getConfiguration())) {
+-- 
+2.17.0
+
