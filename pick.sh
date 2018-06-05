@@ -10,6 +10,7 @@ op_snap_project=""
 op_patches_dir=""
 default_remote="github"
 script_file=$0
+conflict_resolved=0
 
 ##### apply patch saved first ########
 function get_defaul_remote()
@@ -288,16 +289,21 @@ function rrCache()
 {
     [ $# -eq 0 ] && return -1
     if [ "$1" = "-backup" -o "$1" = "backup" ]; then
-         cat $topdir/.repo/project.list | while read project; do
-             if [ ! -z "$(ls -A $topdir/$project/.git/rr-cache)" ]; then
-                   rm -rf $topdir/.mypatches/rr-cache/$project/*
-                   [ -d $topdir/.mypatches/rr-cache/$project ] || mkdir -p $topdir/.mypatches/rr-cache/$project
-                   cp -r $topdir/$project/.git/rr-cache/* $topdir/.mypatches/rr-cache/$project/
+         [ -f $topdir/.mypatches/rr-cache/projects.list ] && \
+         cat $topdir/.mypatches/rr-cache/projects.list | while read project; do
+             if [ -d $topdir/$project/.git/rr-cache ]; then
+                  if  [ ! -z "$(ls -A $topdir/$project/.git/rr-cache)" ]; then
+                      rm -rf $topdir/.mypatches/rr-cache/$project/*
+                      [ -d $topdir/.mypatches/rr-cache/$project ] || mkdir -p $topdir/.mypatches/rr-cache/$project
+                      cp -r $topdir/$project/.git/rr-cache/* $topdir/.mypatches/rr-cache/$project/
+                  else
+                      rmdir -p --ignore-fail-on-non-empty $topdir/.mypatches/rr-cache/$project
+                  fi
              fi
          done
     elif [ "$1" = "-restore" -o "$1" = "restore" ]; then
-         cat $topdir/.repo/project.list | while read project; do
-             if [ ! -z "$(ls -A $topdir/.mypatches/rr-cache/$project)" ]; then
+         cat $topdir/.mypatches/rr-cache/projects.list | while read project; do
+             if [ -d $topdir/.mypatches/rr-cache/$project ] && [ ! -z "$(ls -A $topdir/.mypatches/rr-cache/$project)" ]; then
                    rm -rf $topdir/$project/.git/rr-cache/*
                    [ -d $topdir/$project/.git/rr-cache ] || mkdir -p $topdir/$project/.git/rr-cache
                    cp -r $topdir/.mypatches/rr-cache/$project/* $topdir/$project/.git/rr-cache/
@@ -326,6 +332,7 @@ function fix_repopick_output()
 function kpick()
 {
     topdir=$(gettop)
+    conflict_resolved=0
     logfile=/tmp/__repopick_tmp.log
     errfile=$(echo $logfile | sed -e "s/\.log$/\.err/")
 
@@ -350,12 +357,13 @@ function kpick()
     local tries=0
     local breakout=0
     while [ $rc -ne 0 -a -f $errfile ];  do
+          echo ".... try "$(expr $tries + 1)"..."
           #cat  $errfile
           if [ $tries -ge 30 ]; then
                 echo "    >> pick faild !!!!!"
                 breakout=-1
                 break
-           fi
+          fi
 
           grep -q -E "nothing to commit|allow-empty" $errfile && breakout=1 && break
 
@@ -391,6 +399,7 @@ function kpick()
                            | xargs git add -f
                        if git cherry-pick --continue; then
                           breakout=0
+                          conflict_resolved=1
                           cd $topdir
                           break
                        fi
@@ -414,6 +423,7 @@ function kpick()
               if [ $rc -eq 0 ]; then
                   echo "  conflicts resolved,continue ..."
                   breakout=0
+                  conflict_resolved=1
                   break
               else
                   cat $logfile | sed -e "/ERROR: git command failed/d"
@@ -426,6 +436,15 @@ function kpick()
           breakout=-1
           break
     done
+    if [ $conflict_resolved -eq 1 ]; then
+         if [ ! -f $topdir/.mypatches/rr-cache/projects.list.tmp ]; then
+             [ -d $topdir/.mypatches/rr-cache ] || mkdir -p $topdir/.mypatches/rr-cache
+             touch $topdir/.mypatches/rr-cache/projects.list.tmp
+         fi
+         if ! grep -q -E "^$project$" $topdir/.mypatches/rr-cache/projects.list.tmp; then
+             echo $project >> $topdir/.mypatches/rr-cache/projects.list.tmp
+         fi
+    fi
     if [ $breakout -lt 0 ]; then
         [ -f $errfile ] && cat $errfile
         rm -f $errfile
@@ -466,7 +485,13 @@ for op in $*; do
     elif [ "$op" = "--remote-only" -o "$op" = "-ro" ]; then
          op_pick_remote_only=1
     elif [ "$op" = "-rp" -o "$op" = "-pr" ]; then
-        op_reset_projects=1
+         op_reset_projects=1
+    elif [ "$op" = "--backup-rr-cache" ]; then
+         rrCache -backup
+         exit $?
+    elif [ "$op" = "--restore-rr-cache" ]; then
+         rrCache -restore
+         exit $?
     elif [ $op_patch_local -eq 1 ]; then
             op_patches_dir="$op"
     elif [ $op_project_snapshot -eq 1 -a  -d "$(gettop)/$op" ]; then
@@ -699,6 +724,7 @@ kpick 216410 # Revert "lineage-sdk: Switch back to AOSP TwilightService"
 kpick 216474 # Add led capability LIGHTS_ADJUSTABLE_BATTERY_LED_BRIGHTNESS
 kpick 216505 # Regen lineage_current
 kpick 216888 # sdk: Add an option to force pre-O apps to use full screen aspect ratio
+kpick 216905 # sdk: add aqua accent
 
 # packages/apps/Camera2
 
@@ -731,7 +757,8 @@ kpick 216413 # Jelly: Adapt ProgressBar location based on reach mode
 kpick 213135 # LineageParts: introduce Trust interface
 kpick 216092 # parts: add SMS rate limit setting
 kpick 216770 # LineageParts: Use the battery HAL lights brightness capability
-kpick 216889 # LineageParts: Add an option to force pre-O apps to use full screen aspect ratio
+kpick 216887 # LineageParts: Add an option to force pre-O apps to use full screen aspect ratio
+
 # packages/apps/OpenWeatherMapProvider
 kpick 207864 # Updated Gradle to 3.0.1; The Lineage-SDK jar is now contained in the project files
 
@@ -745,6 +772,7 @@ kpick 215672 # SimSettings: Fix dialog in dark mode
 kpick 216687 # settings: wifi: Default to numeric keyboard for static IP items
 kpick 216822 # Settings: Allow setting device phone number
 kpick 216890 # Settings: Add an option to force pre-O apps to use full screen aspect ratio
+kpick 216909 # Settings: Apply accent color to on-body detection icon
 
 # packages/apps/Snap
 kpick 206595 # Use transparent navigation bar
@@ -762,6 +790,7 @@ kpick 213136 # Updater: show Trust branding when the update has been verified
 
 # packages/overlays/Lineage
 kpick 215846 # dark: Add Theme.DeviceDefault.Settings.Dialog.NoActionBar style
+kpick 216904 # overlays: add aqua accent
 
 # packages/providers/ContactsProvider
 
@@ -804,6 +833,7 @@ kpick 213815 # Place ADB auth property override to system
 kpick 215341 # backuptool: Revert "Temporarily render version check permissive"
 kpick 214400 # backuptool: Resolve incompatible version grep syntax
 kpick 216425 # lineage: qcom: Set thermal & vr HAL pathmaps
+kpick 216906 # lineage: build aqua accent
 
 # vendor/qcom/opensource/cryptfs_hw
 
@@ -813,5 +843,7 @@ kpick 216425 # lineage: qcom: Set thermal & vr HAL pathmaps
 
 [ $op_pick_remote_only -eq 0 ] && patch_local local
 [ -f $script_file.tmp ] && mv $script_file.tmp $script_file.new
+[ -f $topdir/.mypatches/rr-cache/projects.list.tmp ] && \
+   mv $topdir/.mypatches/rr-cache/projects.list.tmp $topdir/.mypatches/rr-cache/projects.list
 rrCache backup # backup rr-cache
 
