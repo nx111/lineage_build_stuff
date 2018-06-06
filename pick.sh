@@ -629,6 +629,8 @@ kpick 216854 # Keyguard: Remove carrier text for disabled SIMs
 kpick 216872 # SystemUI: Fix systemui crash when showing data usage detail
 kpick 216881 # PhoneWindowManager: Improve home button wake haptic feedback handling
 kpick 216889 # Add an option to force pre-O apps to use full screen aspect ratio
+kpick 216910 # Expose and tint settings dashboard icon tint
+kpick 216920 # base: apply accent color to dashboard icons
 
 # frameworks/native
 kpick 213549 # SurfaceFlinger: Support get/set ActiveConfigs
@@ -721,10 +723,10 @@ kpick 213367 # NetworkTraffic: Include tethering traffic statistics
 kpick 214025 # sdk: Add an option to force pre-O apps to use full screen aspect ratio
 kpick 214854 # [3/3] lineagesdk: single hand for hw keys
 kpick 216410 # Revert "lineage-sdk: Switch back to AOSP TwilightService"
-kpick 216474 # Add led capability LIGHTS_ADJUSTABLE_BATTERY_LED_BRIGHTNESS
 kpick 216505 # Regen lineage_current
 kpick 216888 # sdk: Add an option to force pre-O apps to use full screen aspect ratio
 kpick 216905 # sdk: add aqua accent
+kpick 216915 # lineage-sdk: Introduce TelephonyExtUtils
 
 # packages/apps/Camera2
 
@@ -756,7 +758,6 @@ kpick 216413 # Jelly: Adapt ProgressBar location based on reach mode
 # packages/apps/LineageParts
 kpick 213135 # LineageParts: introduce Trust interface
 kpick 216092 # parts: add SMS rate limit setting
-kpick 216770 # LineageParts: Use the battery HAL lights brightness capability
 kpick 216887 # LineageParts: Add an option to force pre-O apps to use full screen aspect ratio
 
 # packages/apps/OpenWeatherMapProvider
@@ -773,6 +774,7 @@ kpick 216687 # settings: wifi: Default to numeric keyboard for static IP items
 kpick 216822 # Settings: Allow setting device phone number
 kpick 216890 # Settings: Add an option to force pre-O apps to use full screen aspect ratio
 kpick 216909 # Settings: Apply accent color to on-body detection icon
+kpick 216918 # SimSettings: Use TelephonyExtUtils from Lineage SDK
 
 # packages/apps/Snap
 kpick 206595 # Use transparent navigation bar

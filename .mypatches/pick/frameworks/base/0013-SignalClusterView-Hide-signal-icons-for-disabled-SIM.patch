@@ -1,13 +1,13 @@
-From 0f7d725d547555660de778d0c6589f86f4e0d8fa Mon Sep 17 00:00:00 2001
+From a48831663f70cf3c40764cff4ea8639c97ddcd56 Mon Sep 17 00:00:00 2001
 From: Paul Keith <javelinanddart@gmail.com>
 Date: Mon, 28 May 2018 04:23:30 +0200
-Subject: [PATCH 13/19] SignalClusterView: Hide signal icons for disabled SIMs
+Subject: [PATCH 13/21] SignalClusterView: Hide signal icons for disabled SIMs
 
 Change-Id: If79814cb6bd77150640f977764dfd59b87448c64
 ---
  packages/SystemUI/Android.mk                  |  2 +-
- .../systemui/statusbar/SignalClusterView.java | 70 ++++++++++++++++++-
- 2 files changed, 70 insertions(+), 2 deletions(-)
+ .../systemui/statusbar/SignalClusterView.java | 31 +++++++++++++++++--
+ 2 files changed, 30 insertions(+), 3 deletions(-)
 
 diff --git a/packages/SystemUI/Android.mk b/packages/SystemUI/Android.mk
 index 0e25717a099..63c6b566e6a 100644
@@ -23,108 +23,63 @@ index 0e25717a099..63c6b566e6a 100644
  LOCAL_FULL_LIBS_MANIFEST_FILES := $(LOCAL_PATH)/LineageManifest.xml
  
 diff --git a/packages/SystemUI/src/com/android/systemui/statusbar/SignalClusterView.java b/packages/SystemUI/src/com/android/systemui/statusbar/SignalClusterView.java
-index 274244ef267..906fc88c1df 100644
+index 274244ef267..164dd647ee6 100644
 --- a/packages/SystemUI/src/com/android/systemui/statusbar/SignalClusterView.java
 +++ b/packages/SystemUI/src/com/android/systemui/statusbar/SignalClusterView.java
-@@ -17,13 +17,19 @@
- package com.android.systemui.statusbar;
- 
- import android.annotation.DrawableRes;
-+import android.content.BroadcastReceiver;
- import android.content.Context;
-+import android.content.Intent;
-+import android.content.IntentFilter;
- import android.content.res.ColorStateList;
- import android.content.res.Resources;
- import android.graphics.Color;
+@@ -24,6 +24,7 @@ import android.graphics.Color;
  import android.graphics.Rect;
  import android.graphics.drawable.Drawable;
-+import android.os.RemoteException;
-+import android.os.ServiceManager;
  import android.telephony.SubscriptionInfo;
 +import android.telephony.SubscriptionManager;
  import android.util.ArraySet;
  import android.util.AttributeSet;
  import android.util.Log;
-@@ -35,6 +41,7 @@ import android.view.accessibility.AccessibilityEvent;
- import android.widget.ImageView;
- import android.widget.LinearLayout;
- 
-+import com.android.internal.telephony.PhoneConstants;
- import com.android.systemui.Dependency;
- import com.android.systemui.R;
- import com.android.systemui.statusbar.phone.SignalDrawable;
-@@ -49,6 +56,9 @@ import com.android.systemui.statusbar.policy.SecurityController;
+@@ -49,6 +50,9 @@ import com.android.systemui.statusbar.policy.SecurityController;
  import com.android.systemui.tuner.TunerService;
  import com.android.systemui.tuner.TunerService.Tunable;
  
-+import org.codeaurora.internal.IExtTelephony;
++import org.lineageos.internal.util.TelephonyExtUtils;
++import org.lineageos.internal.util.TelephonyExtUtils.ProvisioningChangedListener;
 +
-+import java.lang.NoClassDefFoundError;
  import java.util.ArrayList;
  import java.util.List;
  import java.util.Objects;
-@@ -67,6 +77,17 @@ public class SignalClusterView extends LinearLayout implements NetworkController
-     private static final String SLOT_ETHERNET = "ethernet";
-     private static final String SLOT_VPN = "vpn";
+@@ -56,7 +60,7 @@ import java.util.Objects;
+ // Intimately tied to the design of res/layout/signal_cluster_view.xml
+ public class SignalClusterView extends LinearLayout implements NetworkControllerImpl.SignalCallback,
+         SecurityController.SecurityControllerCallback, Tunable,
+-        DarkReceiver {
++        DarkReceiver, ProvisioningChangedListener {
  
-+    private static final String ACTION_UICC_MANUAL_PROVISION_STATUS_CHANGED =
-+            "org.codeaurora.intent.action.ACTION_UICC_MANUAL_PROVISION_STATUS_CHANGED";
-+    private static final String EXTRA_NEW_PROVISION_STATE = "newProvisionState";
-+
-+    private static final int PROVISIONED = 1;
-+    private static final int NOT_PROVISIONED = 0;
-+
-+    private IExtTelephony mExtTelephony;
-+
-+    private BroadcastReceiver mReceiver;
-+
-     private final NetworkController mNetworkController;
-     private final SecurityController mSecurityController;
- 
-@@ -149,6 +170,41 @@ public class SignalClusterView extends LinearLayout implements NetworkController
+     static final String TAG = "SignalClusterView";
+     static final boolean DEBUG = Log.isLoggable(TAG, Log.DEBUG);
+@@ -149,6 +153,25 @@ public class SignalClusterView extends LinearLayout implements NetworkController
          mNetworkController = Dependency.get(NetworkController.class);
          mSecurityController = Dependency.get(SecurityController.class);
          updateActivityEnabled();
 +
-+        try {
-+            mExtTelephony = IExtTelephony.Stub.asInterface(ServiceManager.getService("extphone"));
-+        } catch (NoClassDefFoundError ex) {
-+            // Device does not compile telephony-ext, so ignore the exception
-+            // and also skip initializing and registering the broadcast receiver.
-+            return;
++        if (!TelephonyExtUtils.hasService(context)) {
++            TelephonyExtUtils.addListener(this);
 +        }
++    }
 +
-+        mReceiver = new BroadcastReceiver() {
-+            @Override
-+            public void onReceive(Context context, Intent intent) {
-+                String action = intent.getAction();
-+                if (ACTION_UICC_MANUAL_PROVISION_STATUS_CHANGED.equals(action)) {
-+                    int phoneId = intent.getIntExtra(PhoneConstants.PHONE_KEY,
-+                            SubscriptionManager.INVALID_SUBSCRIPTION_ID);
-+                    int newProvisionedState = intent.getIntExtra(EXTRA_NEW_PROVISION_STATE,
-+                            NOT_PROVISIONED);
-+                    int[] subId = SubscriptionManager.getSubId(phoneId);
-+                    if (subId != null) {
-+                        PhoneState state = getState(subId[0]);
-+                        if (state != null) {
-+                            state.mProvisioned = newProvisionedState == PROVISIONED;
-+                            if (!state.mProvisioned) {
-+                                state.mMobileVisible = false;
-+                            }
-+                        }
-+                        apply();
-+                    }
++    @Override
++    public void onProvisioningChanged(int slotId, boolean isProvisioned) {
++        int[] subId = SubscriptionManager.getSubId(slotId);
++        if (subId != null) {
++            PhoneState state = getState(subId[0]);
++            if (state != null) {
++                state.mProvisioned = isProvisioned;
++                if (!isProvisioned) {
++                    state.mMobileVisible = false;
 +                }
 +            }
-+        };
-+
-+        IntentFilter intentFilter = new IntentFilter(ACTION_UICC_MANUAL_PROVISION_STATUS_CHANGED);
-+        context.registerReceiver(mReceiver, intentFilter);
++            apply();
++        }
      }
  
      public void setForceBlockWifi() {
-@@ -304,7 +360,7 @@ public class SignalClusterView extends LinearLayout implements NetworkController
+@@ -304,7 +327,7 @@ public class SignalClusterView extends LinearLayout implements NetworkController
          if (state == null) {
              return;
          }
@@ -133,7 +88,7 @@ index 274244ef267..906fc88c1df 100644
          state.mMobileStrengthId = statusIcon.icon;
          state.mMobileTypeId = statusType;
          state.mMobileDescription = statusIcon.contentDescription;
-@@ -641,6 +697,7 @@ public class SignalClusterView extends LinearLayout implements NetworkController
+@@ -641,6 +664,7 @@ public class SignalClusterView extends LinearLayout implements NetworkController
      private class PhoneState {
          private final int mSubId;
          private boolean mMobileVisible = false;
@@ -141,24 +96,16 @@ index 274244ef267..906fc88c1df 100644
          private int mMobileStrengthId = 0, mMobileTypeId = 0;
          private int mLastMobileStrengthId = -1;
          private int mLastMobileTypeId = -1;
-@@ -660,6 +717,17 @@ public class SignalClusterView extends LinearLayout implements NetworkController
+@@ -660,6 +684,9 @@ public class SignalClusterView extends LinearLayout implements NetworkController
                      .inflate(R.layout.mobile_signal_group, null);
              setViews(root);
              mSubId = subId;
-+            if (mExtTelephony != null) {
-+                int slotId = SubscriptionManager.getSlotIndex(subId);
-+                if (slotId != SubscriptionManager.INVALID_SIM_SLOT_INDEX) {
-+                    try {
-+                        mProvisioned = mExtTelephony.getCurrentUiccCardProvisioningStatus(
-+                                slotId) == PROVISIONED;
-+                    } catch (RemoteException ex) {
-+                        // ignore, fall back to default.
-+                    }
-+                }
++            if (TelephonyExtUtils.hasService(context)) {
++                mProvisioned = TelephonyExtUtils.isSubProvisioned(subId);
 +            }
          }
  
          public void setViews(ViewGroup root) {
 -- 
-2.17.0
+2.17.1
 
