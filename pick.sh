@@ -628,9 +628,7 @@ kpick 216831 # SystemUI: Fix alignment glitch with brightness mirror
 kpick 216854 # Keyguard: Remove carrier text for disabled SIMs
 kpick 216872 # SystemUI: Fix systemui crash when showing data usage detail
 kpick 216881 # PhoneWindowManager: Improve home button wake haptic feedback handling
-kpick 216889 # Add an option to force pre-O apps to use full screen aspect ratio
-kpick 216910 # Expose and tint settings dashboard icon tint
-kpick 216920 # base: apply accent color to dashboard icons
+#kpick 216889 # Add an option to force pre-O apps to use full screen aspect ratio
 
 # frameworks/native
 kpick 213549 # SurfaceFlinger: Support get/set ActiveConfigs
@@ -714,19 +712,19 @@ kpick 207545 # Add batch gerrit script
 # lineage/wiki
 kpick 212483 # This command line is more universal, it works too in foreign langages
 kpick 212615 # gts28vewifi: Add reminder to check that bootloader is unlocked
-kpick 215187 # wiki: Use triple backticks for code blocks instead of 8 spaces
 kpick 215543 # wiki: Add BQ bardock/bardockpro devices
+kpick 216972 # wiki: build: Remove libesd0-dev on ubuntu 18.04
 
 # lineage-sdk
 kpick 213134 # sdk: Introduce Trust Interface
 kpick 213367 # NetworkTraffic: Include tethering traffic statistics
 kpick 214025 # sdk: Add an option to force pre-O apps to use full screen aspect ratio
 kpick 214854 # [3/3] lineagesdk: single hand for hw keys
-kpick 216410 # Revert "lineage-sdk: Switch back to AOSP TwilightService"
 kpick 216505 # Regen lineage_current
-kpick 216888 # sdk: Add an option to force pre-O apps to use full screen aspect ratio
+#kpick 216888 # sdk: Add an option to force pre-O apps to use full screen aspect ratio
 kpick 216905 # sdk: add aqua accent
 kpick 216915 # lineage-sdk: Introduce TelephonyExtUtils
+kpick 216978 # sdk: add torch accent
 
 # packages/apps/Camera2
 
@@ -758,7 +756,7 @@ kpick 216413 # Jelly: Adapt ProgressBar location based on reach mode
 # packages/apps/LineageParts
 kpick 213135 # LineageParts: introduce Trust interface
 kpick 216092 # parts: add SMS rate limit setting
-kpick 216887 # LineageParts: Add an option to force pre-O apps to use full screen aspect ratio
+#kpick 216887 # LineageParts: Add an option to force pre-O apps to use full screen aspect ratio
 
 # packages/apps/OpenWeatherMapProvider
 kpick 207864 # Updated Gradle to 3.0.1; The Lineage-SDK jar is now contained in the project files
@@ -772,7 +770,7 @@ kpick 213372 # Settings: Add an option to let pre-O apps to use full screen aspe
 kpick 215672 # SimSettings: Fix dialog in dark mode
 kpick 216687 # settings: wifi: Default to numeric keyboard for static IP items
 kpick 216822 # Settings: Allow setting device phone number
-kpick 216890 # Settings: Add an option to force pre-O apps to use full screen aspect ratio
+#kpick 216890 # Settings: Add an option to force pre-O apps to use full screen aspect ratio
 kpick 216909 # Settings: Apply accent color to on-body detection icon
 kpick 216918 # SimSettings: Use TelephonyExtUtils from Lineage SDK
 
@@ -793,6 +791,7 @@ kpick 213136 # Updater: show Trust branding when the update has been verified
 # packages/overlays/Lineage
 kpick 215846 # dark: Add Theme.DeviceDefault.Settings.Dialog.NoActionBar style
 kpick 216904 # overlays: add aqua accent
+kpick 216979 # overlays: add torch accent
 
 # packages/providers/ContactsProvider
 
@@ -836,12 +835,16 @@ kpick 215341 # backuptool: Revert "Temporarily render version check permissive"
 kpick 214400 # backuptool: Resolve incompatible version grep syntax
 kpick 216425 # lineage: qcom: Set thermal & vr HAL pathmaps
 kpick 216906 # lineage: build aqua accent
+kpick 216977 # lineage: build torch accent
 
 # vendor/qcom/opensource/cryptfs_hw
 
 #-----------------------
 # translations
 ##################################
+echo
+echo "---------------------------------------------------------------"
+read -n1 -r -p "  Picking remote changes finished, Press any key to continue..." key
 
 [ $op_pick_remote_only -eq 0 ] && patch_local local
 [ -f $script_file.tmp ] && mv $script_file.tmp $script_file.new
