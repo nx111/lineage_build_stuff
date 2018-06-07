@@ -1,0 +1,90 @@
+From c3fa8617f66e37987c05fc08ba2497d0c4a268c8 Mon Sep 17 00:00:00 2001
+From: Michael W <baddaemon87@gmail.com>
+Date: Sat, 2 Jun 2018 17:52:56 +0200
+Subject: [PATCH 14/17] Keyguard: Remove carrier text for disabled SIMs
+
+* By setting the State to "ABSENT", the behaviour of the carrier text on
+  lockscreen is the same as it would be with one sim only
+
+Change-Id: Iafe7ad820e59f4d960383309a7c4e1a87581cc51
+---
+ .../keyguard/KeyguardUpdateMonitor.java       | 28 ++++++++++++++++++-
+ 1 file changed, 27 insertions(+), 1 deletion(-)
+
+diff --git a/packages/SystemUI/src/com/android/keyguard/KeyguardUpdateMonitor.java b/packages/SystemUI/src/com/android/keyguard/KeyguardUpdateMonitor.java
+index e5eb78f3e1f..bf8c63c2217 100644
+--- a/packages/SystemUI/src/com/android/keyguard/KeyguardUpdateMonitor.java
++++ b/packages/SystemUI/src/com/android/keyguard/KeyguardUpdateMonitor.java
+@@ -81,6 +81,9 @@ import com.android.systemui.recents.misc.SystemServicesProxy.TaskStackListener;
+ 
+ import com.google.android.collect.Lists;
+ 
++import org.lineageos.internal.util.TelephonyExtUtils;
++import org.lineageos.internal.util.TelephonyExtUtils.ProvisioningChangedListener;
++
+ import java.io.FileDescriptor;
+ import java.io.PrintWriter;
+ import java.lang.ref.WeakReference;
+@@ -100,7 +103,8 @@ import java.util.concurrent.ConcurrentHashMap;
+  * the device, and {@link #getFailedUnlockAttempts()}, {@link #reportFailedAttempt()}
+  * and {@link #clearFailedUnlockAttempts()}.  Maybe we should rename this 'KeyguardContext'...
+  */
+-public class KeyguardUpdateMonitor implements TrustManager.TrustListener {
++public class KeyguardUpdateMonitor implements TrustManager.TrustListener,
++        ProvisioningChangedListener {
+ 
+     private static final String TAG = "KeyguardUpdateMonitor";
+     private static final boolean DEBUG = KeyguardConstants.DEBUG;
+@@ -184,6 +188,7 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener {
+     private final Context mContext;
+     ConcurrentHashMap<Integer, SimData> mSimDatas = new ConcurrentHashMap<Integer, SimData>();
+     HashMap<Integer, ServiceState> mServiceStates = new HashMap<Integer, ServiceState>();
++    HashMap<Integer, State> mProvisionStates = new HashMap<Integer, State>();
+ 
+     private int mRingMode;
+     private int mPhoneState;
+@@ -334,6 +339,11 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener {
+         }
+     };
+ 
++    @Override
++    public void onProvisioningChanged(int slotId, boolean isProvisioned) {
++        mProvisionStates.put(slotId, isProvisioned ? State.UNKNOWN : State.NOT_READY);
++    }
++
+     private OnSubscriptionsChangedListener mSubscriptionListener =
+             new OnSubscriptionsChangedListener() {
+         @Override
+@@ -1146,6 +1156,8 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener {
+         filter.addAction(AudioManager.RINGER_MODE_CHANGED_ACTION);
+         context.registerReceiver(mBroadcastReceiver, filter);
+ 
++        TelephonyExtUtils.addListener(this);
++
+         final IntentFilter bootCompleteFilter = new IntentFilter();
+         bootCompleteFilter.setPriority(IntentFilter.SYSTEM_HIGH_PRIORITY);
+         bootCompleteFilter.addAction(Intent.ACTION_BOOT_COMPLETED);
+@@ -1828,6 +1840,20 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener {
+             Log.w(TAG, "Unknown sim state: " + simState);
+             state = State.UNKNOWN;
+         }
++
++        // Try to get provision-status from telephony extensions and override the state if valid
++        if (TelephonyExtUtils.hasService(mContext)) {
++            State extState = mProvisionStates.get(slotId);
++            if (extState == null) {
++                extState = TelephonyExtUtils.isSlotProvisioned(slotId)
++                        ? State.UNKNOWN : State.NOT_READY;
++                mProvisionStates.put(slotId, extState);
++            }
++            if (extState != null && extState != State.UNKNOWN) {
++                state = extState;
++            }
++        }
++
+         SimData data = mSimDatas.get(subId);
+         final boolean changed;
+         if (data == null) {
+-- 
+2.17.1
+

@@ -624,7 +624,6 @@ kpick 214265 # Better QS detail clip animation
 kpick 215031 # Keyguard: Fix ConcurrentModificationException in KeyguardUpdateMonitor
 kpick 215128 # Make the startup of SoundTrigger service conditional
 kpick 216417 # SignalClusterView: Hide signal icons for disabled SIMs
-kpick 216831 # SystemUI: Fix alignment glitch with brightness mirror
 kpick 216854 # Keyguard: Remove carrier text for disabled SIMs
 kpick 216872 # SystemUI: Fix systemui crash when showing data usage detail
 kpick 216881 # PhoneWindowManager: Improve home button wake haptic feedback handling
@@ -687,8 +686,6 @@ kpick 215612 # Keymaster: Move test to std::unique_ptr
 
 # hardware/qcom/power
 kpick 215602 # power: msm8974: Build with with BOARD_VNDK_VERSION
-kpick 215821 # power: Remove unused camera_hint_ref_count
-kpick 215822 # power: Spring cleanup
 
 # hardware/qcom/thermal
 
@@ -713,7 +710,6 @@ kpick 207545 # Add batch gerrit script
 kpick 212483 # This command line is more universal, it works too in foreign langages
 kpick 212615 # gts28vewifi: Add reminder to check that bootloader is unlocked
 kpick 215543 # wiki: Add BQ bardock/bardockpro devices
-kpick 216972 # wiki: build: Remove libesd0-dev on ubuntu 18.04
 
 # lineage-sdk
 kpick 213134 # sdk: Introduce Trust Interface
