@@ -538,14 +538,17 @@ done
 
 # android
 kpick 213705 # 	Build Exchange
-repo sync --force-sync frameworks/opt/chips
 repo sync --force-sync packages/apps/Exchange
 
 kpick 216428 # lineage: Sync qcom thermal and vr HALs
 repo sync --force-sync hardware/qcom/thermal
 repo sync --force-sync hardware/qcom/vr
 
+kpick 217068 # Switch to our system/security fork
+repo sync --force-sync system/security
+
 # bionic
+kpick 206123 # bionic: Sort and cache hosts file data for fast lookup
 kpick 212920 # libc: Mark libstdc++ as vendor available
 
 # bootable/recovery
@@ -628,6 +631,8 @@ kpick 216854 # Keyguard: Remove carrier text for disabled SIMs
 kpick 216872 # SystemUI: Fix systemui crash when showing data usage detail
 kpick 216881 # PhoneWindowManager: Improve home button wake haptic feedback handling
 #kpick 216889 # Add an option to force pre-O apps to use full screen aspect ratio
+kpick 217039 # Make berry overlays selection more generic	
+kpick 217042 # Add support for black berry style
 
 # frameworks/native
 kpick 213549 # SurfaceFlinger: Support get/set ActiveConfigs
@@ -638,7 +643,9 @@ kpick 213549 # SurfaceFlinger: Support get/set ActiveConfigs
 kpick 214316 # RIL: Allow overriding RadioResponse and RadioIndication
 kpick 215450 # Add changes for sending ATEL UI Ready to RIL.
 kpick 216091 # Add ContentObserver when sms sent limit changed
-
+kpick 216412 # Revert "Don't assume 3GPP as active app on CDMA with LTE device"
+kpick 217091 # Revert "PhoneFactory: fix creating a cdma phone type"
+kpick 217092 # TelephonyComponentFactory: Fix invalid phone creation another way
 
 # hardware/broadcom/libbt
 kpick 215613 # libbt: Build with BOARD_VNDK_VERSION
@@ -653,11 +660,13 @@ kpick 206140 # gps.default.so: fix crash on access to unset AGpsRilCallbacks::re
 
 # hardware/lineage/interfaces
 kpick 210009 # lineage/interfaces: Add aw2013 lights HIDL HAL implementation
-kpick 213817 # livedisplay: Don't use singletons for the stack
 kpick 213865 # lineage/interfaces: move vibrator to the proper directory
 kpick 213866 # lineage/interfaces: extend android.hardware.vibrator@1.0
 kpick 213867 # lineage/interfaces: vibrator: read light/medium/strong voltage from sysfs
 kpick 213868 # lineage/interfaces: vibrator: implement vendor.lineage methods
+kpick 217073 # livedisplay: Move LegacyMMController inclusion to impl
+kpick 217074 # livedisplay: Remove unused using statements
+kpick 213817 # livedisplay: Don't use singletons for the stack
 
 # hardware/lineage/lineagehw
 
@@ -721,6 +730,7 @@ kpick 216505 # Regen lineage_current
 kpick 216905 # sdk: add aqua accent
 kpick 216915 # lineage-sdk: Introduce TelephonyExtUtils
 kpick 216978 # sdk: add torch accent
+kpick 217041 # sdk: add black berry style support
 
 # packages/apps/Camera2
 
@@ -753,6 +763,7 @@ kpick 216413 # Jelly: Adapt ProgressBar location based on reach mode
 kpick 213135 # LineageParts: introduce Trust interface
 kpick 216092 # parts: add SMS rate limit setting
 #kpick 216887 # LineageParts: Add an option to force pre-O apps to use full screen aspect ratio
+kpick 217044 # LineageParts: add black theme support
 
 # packages/apps/OpenWeatherMapProvider
 kpick 207864 # Updated Gradle to 3.0.1; The Lineage-SDK jar is now contained in the project files
@@ -774,6 +785,8 @@ kpick 216918 # SimSettings: Use TelephonyExtUtils from Lineage SDK
 kpick 206595 # Use transparent navigation bar
 kpick 216710 # Snap: remove unused shutter buttons
 kpick 216711 # SnapdragonCamera: Panorama, replace border drawable
+kpick 217087 # Snap: turn developer category title into a translatable string
+kpick 217093 # Snap: fix typo in preferences strings
 
 # packages/apps/Trebuchet
 kpick 212752 # IconCache: fix crash if icon is an AdaptiveIconDrawable
@@ -788,6 +801,7 @@ kpick 213136 # Updater: show Trust branding when the update has been verified
 kpick 215846 # dark: Add Theme.DeviceDefault.Settings.Dialog.NoActionBar style
 kpick 216904 # overlays: add aqua accent
 kpick 216979 # overlays: add torch accent
+kpick 217046 # Add support for black berry style
 
 # packages/providers/ContactsProvider
 
@@ -807,6 +821,7 @@ kpick 215626 # Add vendor hook to handle_control_message
 
 # system/extras
 kpick 211210 # ext4: Add /data/stache/ to encryption exclusion list
+kpick 217086 # ext4_utils: Fix FS creation for filesystems with exactly 32768 blocks.
 
 # system/netd
 
@@ -814,6 +829,9 @@ kpick 211210 # ext4: Add /data/stache/ to encryption exclusion list
 
 # system/qcom
 kpick 215122 # libQWiFiSoftApCfg: Replace deprecated kernel header path
+
+# system/security
+kpick 217069 # key_store:Using euid instead of uid when upgrade wifi blobs
 
 # system/sepolicy
 kpick 206037 # sepolicy: Allow init to modify system_blk_device
@@ -832,6 +850,10 @@ kpick 214400 # backuptool: Resolve incompatible version grep syntax
 kpick 216425 # lineage: qcom: Set thermal & vr HAL pathmaps
 kpick 216906 # lineage: build aqua accent
 kpick 216977 # lineage: build torch accent
+kpick 217045 # vendor: build black berry theme
+kpick 217088 # Revert "extract_utils: Fix makefile generation issues"
+kpick 217089 # Revert "extract_files: Add support for paths without system/"
+kpick 217090 # extract_utils: cleanup in extract() function
 
 # vendor/qcom/opensource/cryptfs_hw
 
