@@ -1,0 +1,65 @@
+From e2da8f67f2bbdec25f8c1545a66c8ecf5405d869 Mon Sep 17 00:00:00 2001
+From: Paul Keith <javelinanddart@gmail.com>
+Date: Sun, 27 May 2018 22:02:58 +0200
+Subject: [PATCH 3/5] Revert "Don't assume 3GPP as active app on CDMA with LTE
+ device"
+
+* This breaks Sprint devices.
+
+This reverts commit b30f20ad28db28480bec8246d3ecebacb0c43aca.
+
+Change-Id: Ib19e56b5fb2e0054c1e4d03e882a7dbad27542bd
+---
+ .../internal/telephony/uicc/IccCardProxy.java | 19 +++++++++++++++++--
+ 1 file changed, 17 insertions(+), 2 deletions(-)
+
+diff --git a/src/java/com/android/internal/telephony/uicc/IccCardProxy.java b/src/java/com/android/internal/telephony/uicc/IccCardProxy.java
+index 824bf5839..1d0d12b1e 100644
+--- a/src/java/com/android/internal/telephony/uicc/IccCardProxy.java
++++ b/src/java/com/android/internal/telephony/uicc/IccCardProxy.java
+@@ -169,17 +169,31 @@ public class IccCardProxy extends Handler implements IccCard {
+      */
+     private void updateQuietMode() {
+         synchronized (mLock) {
++            boolean oldQuietMode = mQuietMode;
+             boolean newQuietMode;
+             int cdmaSource = Phone.CDMA_SUBSCRIPTION_UNKNOWN;
++            boolean isLteOnCdmaMode = TelephonyManager.getLteOnCdmaModeStatic()
++                    == PhoneConstants.LTE_ON_CDMA_TRUE;
+             if (mCurrentAppType == UiccController.APP_FAM_3GPP) {
+                 newQuietMode = false;
+                 if (DBG) log("updateQuietMode: 3GPP subscription -> newQuietMode=" + newQuietMode);
+             } else {
++                if (isLteOnCdmaMode) {
++                    log("updateQuietMode: is cdma/lte device, force IccCardProxy into 3gpp mode");
++                    mCurrentAppType = UiccController.APP_FAM_3GPP;
++                }
+                 cdmaSource = mCdmaSSM != null ?
+                         mCdmaSSM.getCdmaSubscriptionSource() : Phone.CDMA_SUBSCRIPTION_UNKNOWN;
+ 
+                 newQuietMode = (cdmaSource == Phone.CDMA_SUBSCRIPTION_NV)
+-                        && (mCurrentAppType == UiccController.APP_FAM_3GPP2);
++                        && (mCurrentAppType == UiccController.APP_FAM_3GPP2)
++                        && !isLteOnCdmaMode;
++                if (DBG) {
++                    log("updateQuietMode: cdmaSource=" + cdmaSource
++                            + " mCurrentAppType=" + mCurrentAppType
++                            + " isLteOnCdmaMode=" + isLteOnCdmaMode
++                            + " newQuietMode=" + newQuietMode);
++                }
+             }
+ 
+             if (mQuietMode == false && newQuietMode == true) {
+@@ -200,7 +214,8 @@ public class IccCardProxy extends Handler implements IccCard {
+             }
+             if (DBG) {
+                 log("updateQuietMode: QuietMode is " + mQuietMode + " (app_type="
+-                    + mCurrentAppType + " cdmaSource=" + cdmaSource + ")");
++                    + mCurrentAppType + " isLteOnCdmaMode=" + isLteOnCdmaMode
++                    + " cdmaSource=" + cdmaSource + ")");
+             }
+             mInitialized = true;
+             sendMessage(obtainMessage(EVENT_ICC_CHANGED));
+-- 
+2.17.1
+

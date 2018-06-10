@@ -1,4 +1,4 @@
-From 3509466bb7ae1e43bae1d1129c500ad6f49408f8 Mon Sep 17 00:00:00 2001
+From f33172edd18222a4573f08a0ac53835d27695a35 Mon Sep 17 00:00:00 2001
 From: KevMck <kxzxxx@gmail.com>
 Date: Sun, 2 Apr 2017 08:05:40 +0800
 Subject: [PATCH 1/7] Adapt ijar for WSL
@@ -9,47 +9,80 @@ https://github.com/bazelbuild/bazel)
 
 Change-Id: Ibf45c7f6afa5099e4440a8e33aac01b374ad3480
 ---
- tools/ijar/zip.cc | 8 +++++---
- 1 file changed, 5 insertions(+), 3 deletions(-)
+ tools/ijar/Android.mk |  3 +++
+ tools/ijar/zip.cc     | 24 +++++++++++++++++++++---
+ 2 files changed, 24 insertions(+), 3 deletions(-)
+ create mode 100644 tools/ijar/Android.mk
 
+diff --git a/tools/ijar/Android.mk b/tools/ijar/Android.mk
+new file mode 100644
+index 000000000..005c4d556
+--- /dev/null
++++ b/tools/ijar/Android.mk
+@@ -0,0 +1,3 @@
++ifeq ($(HOST_OS_IS_WSL), true)
++LOCAL_C_FLAGS += -DHOST_OS_IS_WSL
++endif
+\ No newline at end of file
 diff --git a/tools/ijar/zip.cc b/tools/ijar/zip.cc
-index 3aa06dbb7..3031767ce 100644
+index 3aa06dbb7..6af256db9 100644
 --- a/tools/ijar/zip.cc
 +++ b/tools/ijar/zip.cc
-@@ -197,8 +197,9 @@ class InputZipFile : public ZipExtractor {
+@@ -197,12 +197,22 @@ class InputZipFile : public ZipExtractor {
  //
  class OutputZipFile : public ZipBuilder {
   public:
--  OutputZipFile(int fd, u1 * const zipdata_out) :
-+  OutputZipFile(int fd, u1 * const zipdata_out, size_t mmap_length) :
++  #ifndef HOST_OS_IS_WSL
+   OutputZipFile(int fd, u1 * const zipdata_out) :
        fd_out(fd),
-+      mmap_length_(mmap_length),
        zipdata_out_(zipdata_out),
        q(zipdata_out) {
      errmsg[0] = 0;
-@@ -252,7 +253,7 @@ class OutputZipFile : public ZipBuilder {
+   }
++  #else
++  OutputZipFile(int fd, u1 * const zipdata_out, size_t mmap_length) :
++      fd_out(fd),
++      mmap_length_(mmap_length),
++      zipdata_out_(zipdata_out),
++      q(zipdata_out) {
++    errmsg[0] = 0;
++  }
++  #endif
+ 
+   virtual const char* GetError() {
+     if (errmsg[0] == 0) {
+@@ -252,7 +262,9 @@ class OutputZipFile : public ZipBuilder {
    };
  
    int fd_out;  // file descriptor for the output file
 -
-+  size_t mmap_length_;
++  #ifdef HOST_OS_IS_WSL
++      size_t mmap_length_;
++  #endif
    // OutputZipFile is responsible for maintaining the following
    // pointers. They are allocated by the Create() method before
    // the object is actually created using mmap.
-@@ -933,6 +934,7 @@ size_t OutputZipFile::WriteFileSizeInLocalFileHeader(u1 *header_ptr,
+@@ -933,6 +945,9 @@ size_t OutputZipFile::WriteFileSizeInLocalFileHeader(u1 *header_ptr,
  int OutputZipFile::Finish() {
    if (fd_out > 0) {
      WriteCentralDirectory();
-+    munmap(zipdata_out_, mmap_length_);
++    #ifdef HOST_OS_IS_WSL
++        munmap(zipdata_out_, mmap_length_);
++    #endif
      if (ftruncate(fd_out, GetSize()) < 0) {
        return error("ftruncate(fd_out, GetSize()): %s", strerror(errno));
      }
-@@ -1001,7 +1003,7 @@ ZipBuilder* ZipBuilder::Create(const char* zip_file, u8 estimated_size) {
+@@ -1000,8 +1015,11 @@ ZipBuilder* ZipBuilder::Create(const char* zip_file, u8 estimated_size) {
+     fprintf(stderr, "output_length=%llu\n", estimated_size);
      return NULL;
    }
- 
+-
 -  return new OutputZipFile(fd_out, (u1*) zipdata_out);
-+  return new OutputZipFile(fd_out, (u1*) zipdata_out, mmap_length);
++  #ifndef HOST_OS_IS_WSL
++      return new OutputZipFile(fd_out, (u1*) zipdata_out);
++  #else
++      return new OutputZipFile(fd_out, (u1*) zipdata_out, mmap_length);
++  #endif
  }
  
  u8 ZipBuilder::EstimateSize(char **files) {

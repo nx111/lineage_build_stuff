@@ -550,6 +550,8 @@ repo sync --force-sync system/security
 # bionic
 kpick 206123 # bionic: Sort and cache hosts file data for fast lookup
 kpick 212920 # libc: Mark libstdc++ as vendor available
+#kpick 217149 # linker: Provide soinfo path of the shimmed binary
+#kpick 217152 # Revert "linker: allow the linker to shim executables"
 
 # bootable/recovery
 kpick 211098 # recovery/ui: Hide emulated storage for encrypted devices
@@ -568,14 +570,11 @@ kpick 214892 # Add detection for WSL
 
 # device/lineage/sepolicy
 kpick 210014 # sepolicy: Label aw2013 HIDL light HAL
-kpick 212763 # sepolicy: introduce Trust interface
 #kpick 214160 # sepolicy: Allow priv_app rw-access to system_app_data_file
 
 # device/qcom/sepolicy
 kpick 211273 # qcom/sepol: Fix timeservice app context
 kpick 212643 # qcom/sepol: Allow mm-qcamerad to use binder even in vendor
-kpick 216893 # sepolicy: Fix video4linux "name" node labeling
-kpick 216894 # sepolicy: Allow mm-qcamerad to access v4L "name" node
 kpick 216898 # sepolicy: Allow perf HAL to set freq props
 
 # device/samsung/klte-common
@@ -619,7 +618,6 @@ kpick 207583 # BatteryService: Add support for oem fast charger detection
 kpick 209031 # TelephonyManager: Prevent NPE when registering phone state listener
 kpick 206940 # Avoid crash when the actionbar is disabled in settings
 kpick 209929 # SystemUI: fix black scrim when turning screen on from AOD
-kpick 213133 # base: introduce trust interface
 kpick 213371 # Add an option to let pre-O apps to use full screen aspect ratio
 kpick 214262 # Bind app name to menu row when notification updated
 kpick 214263 # Fix intercepting touch events for guts
@@ -629,7 +627,6 @@ kpick 215128 # Make the startup of SoundTrigger service conditional
 kpick 216417 # SignalClusterView: Hide signal icons for disabled SIMs
 kpick 216854 # Keyguard: Remove carrier text for disabled SIMs
 kpick 216872 # SystemUI: Fix systemui crash when showing data usage detail
-kpick 216881 # PhoneWindowManager: Improve home button wake haptic feedback handling
 #kpick 216889 # Add an option to force pre-O apps to use full screen aspect ratio
 kpick 217039 # Make berry overlays selection more generic	
 kpick 217042 # Add support for black berry style
@@ -642,7 +639,6 @@ kpick 213549 # SurfaceFlinger: Support get/set ActiveConfigs
 # frameworks/opt/telephony
 kpick 214316 # RIL: Allow overriding RadioResponse and RadioIndication
 kpick 215450 # Add changes for sending ATEL UI Ready to RIL.
-kpick 216091 # Add ContentObserver when sms sent limit changed
 kpick 216412 # Revert "Don't assume 3GPP as active app on CDMA with LTE device"
 kpick 217091 # Revert "PhoneFactory: fix creating a cdma phone type"
 kpick 217092 # TelephonyComponentFactory: Fix invalid phone creation another way
@@ -664,8 +660,6 @@ kpick 213865 # lineage/interfaces: move vibrator to the proper directory
 kpick 213866 # lineage/interfaces: extend android.hardware.vibrator@1.0
 kpick 213867 # lineage/interfaces: vibrator: read light/medium/strong voltage from sysfs
 kpick 213868 # lineage/interfaces: vibrator: implement vendor.lineage methods
-kpick 217073 # livedisplay: Move LegacyMMController inclusion to impl
-kpick 217074 # livedisplay: Remove unused using statements
 kpick 213817 # livedisplay: Don't use singletons for the stack
 
 # hardware/lineage/lineagehw
@@ -695,6 +689,11 @@ kpick 215612 # Keymaster: Move test to std::unique_ptr
 
 # hardware/qcom/power
 kpick 215602 # power: msm8974: Build with with BOARD_VNDK_VERSION
+kpick 217166 # power: Remove powerhintparser
+kpick 217167 # power: Remove support for msm-dcvs governor
+kpick 217168 # power: Remove unused ondemand related functions
+kpick 217169 # power: Remove interaction_with_handle
+kpick 217170 # power: Remove unused list utils
 
 # hardware/qcom/thermal
 
@@ -719,18 +718,18 @@ kpick 207545 # Add batch gerrit script
 kpick 212483 # This command line is more universal, it works too in foreign langages
 kpick 212615 # gts28vewifi: Add reminder to check that bootloader is unlocked
 kpick 215543 # wiki: Add BQ bardock/bardockpro devices
+kpick 217198 # wiki: Remove required_bootloader from zero devices
 
 # lineage-sdk
-kpick 213134 # sdk: Introduce Trust Interface
 kpick 213367 # NetworkTraffic: Include tethering traffic statistics
 kpick 214025 # sdk: Add an option to force pre-O apps to use full screen aspect ratio
 kpick 214854 # [3/3] lineagesdk: single hand for hw keys
 kpick 216505 # Regen lineage_current
 #kpick 216888 # sdk: Add an option to force pre-O apps to use full screen aspect ratio
-kpick 216905 # sdk: add aqua accent
 kpick 216915 # lineage-sdk: Introduce TelephonyExtUtils
 kpick 216978 # sdk: add torch accent
 kpick 217041 # sdk: add black berry style support
+kpick 217204 # TrustInterface: Fix default root access value
 
 # packages/apps/Camera2
 
@@ -740,7 +739,6 @@ kpick 217041 # sdk: add black berry style support
 kpick 211135 # Show proper call duration
 
 # packages/apps/DeskClock
-kpick 210074 # Adding Notification Channel
 kpick 213051 # Deskclock: set targetSdk to 27
 
 # packages/apps/Eleven
@@ -756,14 +754,14 @@ kpick 211382 # correct the targeted SDK version to avoid permission fails otherw
 # packages/apps/Gallery2
 
 # packages/apps/Jelly
-kpick 215736 # Jelly: Add support for multiple windows
 kpick 216413 # Jelly: Adapt ProgressBar location based on reach mode
 
 # packages/apps/LineageParts
-kpick 213135 # LineageParts: introduce Trust interface
-kpick 216092 # parts: add SMS rate limit setting
 #kpick 216887 # LineageParts: Add an option to force pre-O apps to use full screen aspect ratio
 kpick 217044 # LineageParts: add black theme support
+kpick 217171 # Trust: enforce vendor security patch level check
+#kpick 217197 # LineageParts: remove unused network mode picker intent
+kpick 217203 # LineageParts: fix Trust onBoarding completion when clicking 
 
 # packages/apps/OpenWeatherMapProvider
 kpick 207864 # Updated Gradle to 3.0.1; The Lineage-SDK jar is now contained in the project files
@@ -771,8 +769,6 @@ kpick 207864 # Updated Gradle to 3.0.1; The Lineage-SDK jar is now contained in 
 # packages/apps/Recoder
 
 # packages/apps/Settings
-kpick 212764 # Settings: add Trust interface hook
-kpick 212765 # Settings: show Trust branding in confirm_lock_password UI
 kpick 213372 # Settings: Add an option to let pre-O apps to use full screen aspect ratio
 kpick 215672 # SimSettings: Fix dialog in dark mode
 kpick 216687 # settings: wifi: Default to numeric keyboard for static IP items
@@ -783,10 +779,7 @@ kpick 216918 # SimSettings: Use TelephonyExtUtils from Lineage SDK
 
 # packages/apps/Snap
 kpick 206595 # Use transparent navigation bar
-kpick 216710 # Snap: remove unused shutter buttons
-kpick 216711 # SnapdragonCamera: Panorama, replace border drawable
 kpick 217087 # Snap: turn developer category title into a translatable string
-kpick 217093 # Snap: fix typo in preferences strings
 
 # packages/apps/Trebuchet
 kpick 212752 # IconCache: fix crash if icon is an AdaptiveIconDrawable
@@ -799,7 +792,6 @@ kpick 213136 # Updater: show Trust branding when the update has been verified
 
 # packages/overlays/Lineage
 kpick 215846 # dark: Add Theme.DeviceDefault.Settings.Dialog.NoActionBar style
-kpick 216904 # overlays: add aqua accent
 kpick 216979 # overlays: add torch accent
 kpick 217046 # Add support for black berry style
 
@@ -843,12 +835,10 @@ kpick 206139 # backuptool: introduce addon.d script versioning
 kpick 206154 # Include build manifest on target
 kpick 210664 # extract_utils: Support multidex
 kpick 212640 # repopick: Update SSH queries result to match HTTP queries
-kpick 212766 # vendor: introduce Trust interface
 kpick 213815 # Place ADB auth property override to system
 kpick 215341 # backuptool: Revert "Temporarily render version check permissive"
 kpick 214400 # backuptool: Resolve incompatible version grep syntax
 kpick 216425 # lineage: qcom: Set thermal & vr HAL pathmaps
-kpick 216906 # lineage: build aqua accent
 kpick 216977 # lineage: build torch accent
 kpick 217045 # vendor: build black berry theme
 kpick 217088 # Revert "extract_utils: Fix makefile generation issues"
