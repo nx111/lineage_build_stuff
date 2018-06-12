@@ -464,7 +464,9 @@ function kpick()
         elif grep -q -E "Change status is ABANDONED." $logfile; then
            [ -f $script_file.tmp ] || cp $script_file $script_file.tmp
            eval  sed -e \"/[[:space:]]*kpick $changeNumber[[:space:]]*.*/d\" -i $script_file.tmp
-           #eval  sed -e \"s/\\\(^[[:space:]]*kpick $changeNumber[[:space:]]*.*\\\)/#\[A\] \\1/\" -i $script_file.tmp
+        elif grep -q -E "Change $changeNumber not found, skipping" $logfile; then
+           [ -f $script_file.tmp ] || cp $script_file $script_file.tmp
+           eval  sed -e \"/[[:space:]]*kpick $changeNumber[[:space:]]*.*/d\" -i $script_file.tmp
         fi
     fi
 }
@@ -544,7 +546,6 @@ kpick 216428 # lineage: Sync qcom thermal and vr HALs
 repo sync --force-sync hardware/qcom/thermal
 repo sync --force-sync hardware/qcom/vr
 
-kpick 217068 # Switch to our system/security fork
 repo sync --force-sync system/security
 
 # bionic
@@ -552,10 +553,11 @@ kpick 206123 # bionic: Sort and cache hosts file data for fast lookup
 kpick 212920 # libc: Mark libstdc++ as vendor available
 #kpick 217149 # linker: Provide soinfo path of the shimmed binary
 #kpick 217152 # Revert "linker: allow the linker to shim executables"
+kpick 217311 # linker: add support for odm partition
+kpick 217312 # libc: add /odm/bin to the DEFPATH
 
 # bootable/recovery
 kpick 211098 # recovery/ui: Hide emulated storage for encrypted devices
-kpick 213265 # recovery: Do not load time from /persist
 
 # build/make
 kpick 208102 # Adapt ijar for WSL
@@ -570,7 +572,6 @@ kpick 214892 # Add detection for WSL
 
 # device/lineage/sepolicy
 kpick 210014 # sepolicy: Label aw2013 HIDL light HAL
-#kpick 214160 # sepolicy: Allow priv_app rw-access to system_app_data_file
 
 # device/qcom/sepolicy
 kpick 211273 # qcom/sepol: Fix timeservice app context
@@ -579,7 +580,6 @@ kpick 216898 # sepolicy: Allow perf HAL to set freq props
 
 # device/samsung/klte-common
 #kpick 212648 # klte-common: Enable AOD
-kpick 216090 # klte-common: Inherit shims from msm8974-common
 
 # device/samsung/kltechnduo
 
@@ -617,8 +617,6 @@ kpick 206568 # base: audioservice: Set BT_SCO status
 kpick 207583 # BatteryService: Add support for oem fast charger detection
 kpick 209031 # TelephonyManager: Prevent NPE when registering phone state listener
 kpick 206940 # Avoid crash when the actionbar is disabled in settings
-kpick 209929 # SystemUI: fix black scrim when turning screen on from AOD
-kpick 213371 # Add an option to let pre-O apps to use full screen aspect ratio
 kpick 214262 # Bind app name to menu row when notification updated
 kpick 214263 # Fix intercepting touch events for guts
 kpick 214265 # Better QS detail clip animation
@@ -627,9 +625,9 @@ kpick 215128 # Make the startup of SoundTrigger service conditional
 kpick 216417 # SignalClusterView: Hide signal icons for disabled SIMs
 kpick 216854 # Keyguard: Remove carrier text for disabled SIMs
 kpick 216872 # SystemUI: Fix systemui crash when showing data usage detail
-#kpick 216889 # Add an option to force pre-O apps to use full screen aspect ratio
 kpick 217039 # Make berry overlays selection more generic	
 kpick 217042 # Add support for black berry style
+kpick 217371 # SystemUI: Toggle USB tethering only when USB is connected
 
 # frameworks/native
 kpick 213549 # SurfaceFlinger: Support get/set ActiveConfigs
@@ -714,26 +712,28 @@ kpick 215665 # Add hardware codecs section and exempt some tegra chipsets
 # lineage/scripts
 kpick 207545 # Add batch gerrit script
 
+# lineage/website(LineageOS/www)
+kpick 216685 # Engineering layout
+kpick 217341 # Trust me, I'm an engineer
+
 # lineage/wiki
 kpick 212483 # This command line is more universal, it works too in foreign langages
 kpick 212615 # gts28vewifi: Add reminder to check that bootloader is unlocked
 kpick 215543 # wiki: Add BQ bardock/bardockpro devices
-kpick 217198 # wiki: Remove required_bootloader from zero devices
+kpick 217375 # crackling, klte, lux: add physical dimensions
 
 # lineage-sdk
 kpick 213367 # NetworkTraffic: Include tethering traffic statistics
-kpick 214025 # sdk: Add an option to force pre-O apps to use full screen aspect ratio
 kpick 214854 # [3/3] lineagesdk: single hand for hw keys
 kpick 216505 # Regen lineage_current
-#kpick 216888 # sdk: Add an option to force pre-O apps to use full screen aspect ratio
 kpick 216915 # lineage-sdk: Introduce TelephonyExtUtils
 kpick 216978 # sdk: add torch accent
 kpick 217041 # sdk: add black berry style support
-kpick 217204 # TrustInterface: Fix default root access value
 
 # packages/apps/Camera2
 
 # packages/apps/Contacts
+kpick 217239 # Revert "Automatically set SIM number to my profile"
 
 # packages/apps/Dialer
 kpick 211135 # Show proper call duration
@@ -752,6 +752,7 @@ kpick 211382 # correct the targeted SDK version to avoid permission fails otherw
 # packages/apps/Flipflap
 
 # packages/apps/Gallery2
+kpick 217379 # Revert "Gallery2: set module privileged in Android.mk to delete photos on SD card.
 
 # packages/apps/Jelly
 kpick 216413 # Jelly: Adapt ProgressBar location based on reach mode
@@ -761,7 +762,6 @@ kpick 216413 # Jelly: Adapt ProgressBar location based on reach mode
 kpick 217044 # LineageParts: add black theme support
 kpick 217171 # Trust: enforce vendor security patch level check
 #kpick 217197 # LineageParts: remove unused network mode picker intent
-kpick 217203 # LineageParts: fix Trust onBoarding completion when clicking 
 
 # packages/apps/OpenWeatherMapProvider
 kpick 207864 # Updated Gradle to 3.0.1; The Lineage-SDK jar is now contained in the project files
@@ -769,11 +769,10 @@ kpick 207864 # Updated Gradle to 3.0.1; The Lineage-SDK jar is now contained in 
 # packages/apps/Recoder
 
 # packages/apps/Settings
-kpick 213372 # Settings: Add an option to let pre-O apps to use full screen aspect ratio
 kpick 215672 # SimSettings: Fix dialog in dark mode
 kpick 216687 # settings: wifi: Default to numeric keyboard for static IP items
 kpick 216822 # Settings: Allow setting device phone number
-#kpick 216890 # Settings: Add an option to force pre-O apps to use full screen aspect ratio
+kpick 216871 # Utils: Always show SIM Settings menu
 kpick 216909 # Settings: Apply accent color to on-body detection icon
 kpick 216918 # SimSettings: Use TelephonyExtUtils from Lineage SDK
 
@@ -782,8 +781,9 @@ kpick 206595 # Use transparent navigation bar
 kpick 217087 # Snap: turn developer category title into a translatable string
 
 # packages/apps/Trebuchet
-kpick 212752 # IconCache: fix crash if icon is an AdaptiveIconDrawable
 kpick 214336 # [WIP] Trebuchet: initial protected apps implementation
+kpick 217376 # Trebuchet: don't log apps for predictive suggestions when disabled
+kpick 217386 # IconCache: fix nullpointer exceptions
 
 # packages/apps/UnifiedEmail
 
@@ -810,6 +810,8 @@ kpick 206029 # init: Add command to disable verity
 kpick 213876 # healthd: charger: Add tricolor led to indicate battery capacity
 kpick 214001 # camera: Add L-compatible camera feature enums
 kpick 215626 # Add vendor hook to handle_control_message
+kpick 217313 # add odm partition to ld.config.legacy
+kpick 217314 # Allow firmware loading from ODM partition
 
 # system/extras
 kpick 211210 # ext4: Add /data/stache/ to encryption exclusion list
@@ -834,7 +836,6 @@ kpick 206138 # vendor: add custom backuptools and postinstall script for A/B OTA
 kpick 206139 # backuptool: introduce addon.d script versioning
 kpick 206154 # Include build manifest on target
 kpick 210664 # extract_utils: Support multidex
-kpick 212640 # repopick: Update SSH queries result to match HTTP queries
 kpick 213815 # Place ADB auth property override to system
 kpick 215341 # backuptool: Revert "Temporarily render version check permissive"
 kpick 214400 # backuptool: Resolve incompatible version grep syntax
@@ -844,6 +845,8 @@ kpick 217045 # vendor: build black berry theme
 kpick 217088 # Revert "extract_utils: Fix makefile generation issues"
 kpick 217089 # Revert "extract_files: Add support for paths without system/"
 kpick 217090 # extract_utils: cleanup in extract() function
+kpick 217322 # Build wireguard kernel module
+kpick 217354 # addonsu: Fix package for modern devices
 
 # vendor/qcom/opensource/cryptfs_hw
 

@@ -1,0 +1,161 @@
+From 0b364e99cc51895e82894f8422fa945123d98748 Mon Sep 17 00:00:00 2001
+From: "Christopher N. Hesse" <raymanfx@gmail.com>
+Date: Mon, 11 Jun 2018 21:56:24 +0200
+Subject: [PATCH 15/17] addonsu: Fix package for modern devices
+
+Recent devices (e.g. Pixel 2XL aka taimen) do not define any "system"
+partition in their fstab, so a plain "mount /system" fails.
+
+Furthermore, trying to get the entry from /etc/recovery.fstab also fails
+because the partitions have slot suffixes (e.g. system_a).
+So for these devices, we need to figure out the active slot, mount the
+system partition (which really contains the whole root) and lastly mount
+the actual system partition from the rootfs.
+
+Change-Id: Ibb73a82896c1f6ce6af9c334b8d0908a183913b9
+---
+ addonsu/mount-system.sh        | 15 +++++++++++++++
+ addonsu/unmount-system.sh      | 15 +++++++++++++++
+ addonsu/updater-script-install | 22 ++++++++--------------
+ addonsu/updater-script-remove  | 19 +++++++------------
+ build/tasks/addonsu.mk         |  2 ++
+ 5 files changed, 47 insertions(+), 26 deletions(-)
+ create mode 100644 addonsu/unmount-system.sh
+
+diff --git a/addonsu/mount-system.sh b/addonsu/mount-system.sh
+index 2e209fb2..5886f153 100644
+--- a/addonsu/mount-system.sh
++++ b/addonsu/mount-system.sh
+@@ -10,4 +10,19 @@ if [ -n "$block" ] && mount $block /system; then
+     exit 0
+ fi
+ 
++# Modern devices use /system as root ("/")
++system_as_root=`getprop ro.build.system_root_image`
++if [ "$system_as_root" == "true" ]; then
++  active_slot=`getprop ro.boot.slot_suffix`
++  if [ ! -z "$active_slot" ]; then
++    block=/dev/block/bootdevice/by-name/system$active_slot
++  else
++    block=/dev/block/bootdevice/by-name/system
++  fi
++  mkdir -p /system_root
++  if mount -o rw $block /system_root && mount /system_root/system /system; then
++    exit 0
++  fi
++fi
++
+ exit 1
+diff --git a/addonsu/unmount-system.sh b/addonsu/unmount-system.sh
+new file mode 100644
+index 00000000..60c5e18f
+--- /dev/null
++++ b/addonsu/unmount-system.sh
+@@ -0,0 +1,15 @@
++#!/sbin/sh
++
++# Modern devices use /system as root ("/")
++system_as_root=`getprop ro.build.system_root_image`
++if [ "$system_as_root" == "true" ]; then
++  if umount /system && umount /system_root; then
++    exit 0
++  fi
++fi
++
++if umount /system; then
++    exit 0
++fi
++
++exit 1
+diff --git a/addonsu/updater-script-install b/addonsu/updater-script-install
+index 60c167e4..c807739f 100644
+--- a/addonsu/updater-script-install
++++ b/addonsu/updater-script-install
+@@ -1,23 +1,17 @@
+ ui_print("Installing su addon...");
+ ifelse(is_mounted("/system"), unmount("/system"));
+ package_extract_file("mount-system.sh", "/tmp/mount-system.sh");
++package_extract_file("unmount-system.sh", "/tmp/unmount-system.sh");
+ set_metadata("/tmp/mount-system.sh", "uid", 0, "gid", 0, "mode", 0755);
++set_metadata("/tmp/unmount-system.sh", "uid", 0, "gid", 0, "mode", 0755);
+ run_program("/tmp/mount-system.sh") == 0 || abort("Could not mount /system");
+ 
+-if getprop("ro.build.system_root_image") != "true" then
+-  package_extract_dir("system", "/system");
+-  set_metadata("/system/addon.d/51-addonsu.sh", "uid", 0, "gid", 0, "mode", 0755, "selabel", "u:object_r:system_file:s0");
+-  set_metadata("/system/etc/init/superuser.rc", "uid", 0, "gid", 0, "mode", 0644, "selabel", "u:object_r:system_file:s0");
+-  set_metadata("/system/xbin/su", "uid", 0, "gid", 2000, "mode", 0755, "selabel", "u:object_r:su_exec:s0");
+-  symlink("/system/xbin/su", "/system/bin/su");
+-else
+-  package_extract_dir("system", "/system/system");
+-  set_metadata("/system/system/addon.d/51-addonsu.sh", "uid", 0, "gid", 0, "mode", 0755, "selabel", "u:object_r:system_file:s0");
+-  set_metadata("/system/system/etc/init/superuser.rc", "uid", 0, "gid", 0, "mode", 0644, "selabel", "u:object_r:system_file:s0");
+-  set_metadata("/system/system/xbin/su", "uid", 0, "gid", 2000, "mode", 0755, "selabel", "u:object_r:su_exec:s0");
+-  symlink("/system/xbin/su", "/system/system/bin/su");
+-endif;
++package_extract_dir("system", "/system");
++set_metadata("/system/addon.d/51-addonsu.sh", "uid", 0, "gid", 0, "mode", 0755, "selabel", "u:object_r:system_file:s0");
++set_metadata("/system/etc/init/superuser.rc", "uid", 0, "gid", 0, "mode", 0644, "selabel", "u:object_r:system_file:s0");
++set_metadata("/system/xbin/su", "uid", 0, "gid", 2000, "mode", 0755, "selabel", "u:object_r:su_exec:s0");
++symlink("/system/xbin/su", "/system/bin/su");
+ 
+-unmount("/system");
++run_program("/tmp/unmount-system.sh") == 0 || ui_print("Could not unmount /system");
+ ui_print("Done");
+ set_progress(1.000000);
+diff --git a/addonsu/updater-script-remove b/addonsu/updater-script-remove
+index b89b572d..ba4fcaa8 100644
+--- a/addonsu/updater-script-remove
++++ b/addonsu/updater-script-remove
+@@ -1,21 +1,16 @@
+ ui_print("Removing su addon...");
+ ifelse(is_mounted("/system"), unmount("/system"));
+ package_extract_file("mount-system.sh", "/tmp/mount-system.sh");
++package_extract_file("unmount-system.sh", "/tmp/unmount-system.sh");
+ set_metadata("/tmp/mount-system.sh", "uid", 0, "gid", 0, "mode", 0755);
++set_metadata("/tmp/unmount-system.sh", "uid", 0, "gid", 0, "mode", 0755);
+ run_program("/tmp/mount-system.sh") == 0 || abort("Could not mount /system");
+ 
+-if getprop("ro.build.system_root_image") != "true" then
+-  delete("/system/addon.d/51-addonsu.sh");
+-  delete("/system/bin/su");
+-  delete("/system/etc/init/superuser.rc");
+-  delete("/system/xbin/su");
+-else
+-  delete("/system/system/addon.d/51-addonsu.sh");
+-  delete("/system/system/bin/su");
+-  delete("/system/system/etc/init/superuser.rc");
+-  delete("/system/system/xbin/su");
+-endif;
++delete("/system/addon.d/51-addonsu.sh");
++delete("/system/bin/su");
++delete("/system/etc/init/superuser.rc");
++delete("/system/xbin/su");
+ 
+-unmount("/system");
++run_program("/tmp/unmount-system.sh") == 0 || ui_print("Could not unmount /system");
+ ui_print("Done");
+ set_progress(1.000000);
+diff --git a/build/tasks/addonsu.mk b/build/tasks/addonsu.mk
+index 9b367c11..8f963872 100644
+--- a/build/tasks/addonsu.mk
++++ b/build/tasks/addonsu.mk
+@@ -15,6 +15,7 @@ $(ADDONSU_INSTALL_TARGET): $(ALL_MODULES.updater.BUILT) \
+ 	$(hide) cp $(ALL_MODULES.updater.BUILT) $(ADDONSU_INSTALL_OUT)/META-INF/com/google/android/update-binary
+ 	$(hide) cp $(ADDONSU_PREBUILTS_PATH)/51-addonsu.sh $(ADDONSU_INSTALL_OUT)/system/addon.d/
+ 	$(hide) cp $(ADDONSU_PREBUILTS_PATH)/mount-system.sh $(ADDONSU_INSTALL_OUT)/
++	$(hide) cp $(ADDONSU_PREBUILTS_PATH)/unmount-system.sh $(ADDONSU_INSTALL_OUT)/
+ 	$(hide) cp $(ADDONSU_PREBUILTS_PATH)/updater-script-install $(ADDONSU_INSTALL_OUT)/META-INF/com/google/android/updater-script
+ 	$(hide) (cd $(ADDONSU_INSTALL_OUT) && zip -qr $@ *)
+ 
+@@ -31,6 +32,7 @@ $(ADDONSU_REMOVE_TARGET): $(ALL_MODULES.updater.BUILT)
+ 	$(hide) mkdir -p $(ADDONSU_REMOVE_OUT)/META-INF/com/google/android/
+ 	$(hide) cp $(ALL_MODULES.updater.BUILT) $(ADDONSU_REMOVE_OUT)/META-INF/com/google/android/update-binary
+ 	$(hide) cp $(ADDONSU_PREBUILTS_PATH)/mount-system.sh $(ADDONSU_REMOVE_OUT)/
++	$(hide) cp $(ADDONSU_PREBUILTS_PATH)/unmount-system.sh $(ADDONSU_REMOVE_OUT)/
+ 	$(hide) cp $(ADDONSU_PREBUILTS_PATH)/updater-script-remove $(ADDONSU_REMOVE_OUT)/META-INF/com/google/android/updater-script
+ 	$(hide) (cd $(ADDONSU_REMOVE_OUT) && zip -qr $@ *)
+ 
+-- 
+2.17.1
+

@@ -1,0 +1,723 @@
+From c17db586367e4e535b701e1c7100d011b1f0c579 Mon Sep 17 00:00:00 2001
+From: Arne Coucheron <arco68@gmail.com>
+Date: Sun, 10 Jun 2018 19:26:43 +0200
+Subject: [PATCH] Revert "Automatically set SIM number to my profile"
+
+This commit introduces an issue with the SIM number and users handling.
+
+In Settings / System / About / Status / SIM Status, the field
+"My phone number" will either be "Unknown" or the real number,
+depending on what is stored on the SIM card.
+
+If it is the real number, the "Current user" in Settings dashboard will
+be listed as the number "2" instead of "Owner".
+
+If it is "Unknown", the "Current user" is correctly shown as "Owner".
+But if you open the AOSP Contacts app, edit your profile and add your
+phone number, the current user will be shown as "2".
+
+Correct: http://i65.tinypic.com/33vnofa.jpg
+Bug: http://i63.tinypic.com/1zwoh2a.jpg
+
+This reverts commit 7f3c3a32b5d0dd02605c761eb0982dee1878ed92.
+
+Change-Id: Idcab75bc99c5f1d47cd8645417e7d3ba27659a5c
+---
+ .../android/contacts/ContactsApplication.java |   3 +-
+ .../editor/ContactEditorFragment.java         |  59 ----
+ .../contacts/editor/KindSectionView.java      |   4 -
+ .../android/contacts/model/ContactLoader.java |   5 -
+ .../ContactsPreferenceActivity.java           |   3 -
+ .../android/contacts/util/LocalProfile.java   | 325 ------------------
+ src/com/android/contacts/util/SimUtil.java    | 173 ----------
+ 7 files changed, 1 insertion(+), 571 deletions(-)
+ delete mode 100644 src/com/android/contacts/util/LocalProfile.java
+ delete mode 100644 src/com/android/contacts/util/SimUtil.java
+
+diff --git a/src/com/android/contacts/ContactsApplication.java b/src/com/android/contacts/ContactsApplication.java
+index 7cf425a62..1507ace31 100644
+--- a/src/com/android/contacts/ContactsApplication.java
++++ b/src/com/android/contacts/ContactsApplication.java
+@@ -31,7 +31,6 @@ import android.util.Log;
+ 
+ import com.android.contacts.testing.InjectedServices;
+ import com.android.contacts.util.Constants;
+-import com.android.contacts.util.LocalProfile;
+ import com.android.contactsbind.analytics.AnalyticsUtil;
+ 
+ import com.google.common.annotations.VisibleForTesting;
+@@ -131,7 +130,7 @@ public class ContactsApplication extends Application {
+             // (and thus not have the get accounts permission).
+             PreferenceManager.getDefaultSharedPreferences(context);
+             getContentResolver().getType(ContentUris.withAppendedId(Contacts.CONTENT_URI, 1));
+-            LocalProfile.updateProfileWithSimNumber(context);
++
+             return null;
+         }
+ 
+diff --git a/src/com/android/contacts/editor/ContactEditorFragment.java b/src/com/android/contacts/editor/ContactEditorFragment.java
+index 9f8e025b3..ac07342ae 100644
+--- a/src/com/android/contacts/editor/ContactEditorFragment.java
++++ b/src/com/android/contacts/editor/ContactEditorFragment.java
+@@ -54,7 +54,6 @@ import android.widget.AdapterView;
+ import android.widget.BaseAdapter;
+ import android.widget.LinearLayout;
+ import android.widget.ListPopupWindow;
+-import android.widget.TextView;
+ import android.widget.Toast;
+ 
+ import com.android.contacts.ContactSaveService;
+@@ -88,7 +87,6 @@ import com.android.contacts.util.ContactDisplayUtils;
+ import com.android.contacts.util.ContactPhotoUtils;
+ import com.android.contacts.util.ImplicitIntentsUtil;
+ import com.android.contacts.util.MaterialColorMapUtils;
+-import com.android.contacts.util.SimUtil;
+ import com.android.contacts.util.UiClosables;
+ import com.android.contactsbind.HelpUtils;
+ 
+@@ -1287,9 +1285,6 @@ public class ContactEditorFragment extends Fragment implements
+         editorView.setEnabled(mEnabled);
+         editorView.setVisibility(View.VISIBLE);
+ 
+-        if (mIsUserProfile) {
+-            disableSimNumberEditingIfNeeded(editorView);
+-        }
+         // Refresh the ActionBar as the visibility of the join command
+         // Activity can be null if we have been detached from the Activity.
+         invalidateOptionsMenu();
+@@ -1755,58 +1750,4 @@ public class ContactEditorFragment extends Fragment implements
+     private RawContactEditorView getContent() {
+         return (RawContactEditorView) mContent;
+     }
+-
+-    public void disableSimNumberEditingIfNeeded(ViewGroup viewGroup) {
+-        KindSectionView phoneSectionView = getPhoneSectionView(viewGroup);
+-        disableSimNumberEditingIfNeeded(getContext(), phoneSectionView);
+-    }
+-
+-    private KindSectionView getPhoneSectionView(ViewGroup viewGroup) {
+-        for (int i = 0; i < viewGroup.getChildCount(); i++) {
+-            View child = viewGroup.getChildAt(i);
+-            if (child instanceof KindSectionView) {
+-                KindSectionView section = (KindSectionView)child;
+-                if (Phone.CONTENT_ITEM_TYPE.equals(section.getKind().mimeType)) {
+-                    return section;
+-                }
+-            } else if (child instanceof ViewGroup) {
+-                KindSectionView section = getPhoneSectionView((ViewGroup)child);
+-                if (section != null) {
+-                    return section;
+-                }
+-            }
+-        }
+-        return null;
+-    }
+-
+-    private static void disableSimNumberEditingIfNeeded(Context context,
+-            KindSectionView phoneSectionView) {
+-        if (phoneSectionView == null) {
+-            return;
+-        }
+-
+-        ViewGroup vg = (ViewGroup)phoneSectionView.findViewById(R.id.kind_editors);
+-
+-        List<String> simNumbers = SimUtil.getLine1Numbers(context);
+-
+-        for (String simNumber : simNumbers) {
+-            if (TextUtils.isEmpty(simNumber)) {
+-                continue;
+-            }
+-            TextFieldsEditorView row = null;
+-            for (int i = 0; i < vg.getChildCount(); i++) {
+-                row = (TextFieldsEditorView) vg.getChildAt(i);
+-                View editor = row.findViewById(R.id.editors);
+-                View editTextView = ((ViewGroup) editor).getChildAt(0);
+-                TextView editText = (TextView) editTextView;
+-                String number = editText.getText().toString();
+-                if (number.equals(simNumber)) {
+-                    row.setEnabled(false);
+-                    row.setAlpha(0.3f);
+-                    row.setDeleteButtonVisible(false);
+-                    break;
+-                }
+-            }
+-        }
+-    }
+ }
+diff --git a/src/com/android/contacts/editor/KindSectionView.java b/src/com/android/contacts/editor/KindSectionView.java
+index c55dfa713..94f8a3205 100644
+--- a/src/com/android/contacts/editor/KindSectionView.java
++++ b/src/com/android/contacts/editor/KindSectionView.java
+@@ -580,8 +580,4 @@ public class KindSectionView extends LinearLayout {
+         }
+         return emptyEditors;
+     }
+-
+-    public DataKind getKind() {
+-        return mKindSectionData.getDataKind();
+-    }
+ }
+diff --git a/src/com/android/contacts/model/ContactLoader.java b/src/com/android/contacts/model/ContactLoader.java
+index 8aa526fff..acb821203 100644
+--- a/src/com/android/contacts/model/ContactLoader.java
++++ b/src/com/android/contacts/model/ContactLoader.java
+@@ -34,7 +34,6 @@ import android.provider.ContactsContract.Contacts;
+ import android.provider.ContactsContract.Data;
+ import android.provider.ContactsContract.Directory;
+ import android.provider.ContactsContract.Groups;
+-import android.provider.ContactsContract.Profile;
+ import android.provider.ContactsContract.RawContacts;
+ import android.text.TextUtils;
+ import android.util.Log;
+@@ -51,7 +50,6 @@ import com.android.contacts.model.dataitem.PhotoDataItem;
+ import com.android.contacts.util.Constants;
+ import com.android.contacts.util.ContactLoaderUtils;
+ import com.android.contacts.util.DataStatus;
+-import com.android.contacts.util.LocalProfile;
+ import com.android.contacts.util.UriUtils;
+ 
+ import com.google.common.collect.ImmutableList;
+@@ -321,9 +319,6 @@ public class ContactLoader extends AsyncTaskLoader<Contact> {
+                 result = new Contact(mRequestedUri, cachedResult);
+                 resultIsCached = true;
+             } else {
+-                if (mRequestedUri != null && Profile.CONTENT_URI.equals(mRequestedUri)) {
+-                    LocalProfile.updateProfileWithSimNumber(getContext());
+-                }
+                 if (uriCurrentFormat.getLastPathSegment().equals(Constants.LOOKUP_URI_ENCODED)) {
+                     result = loadEncodedContactEntity(uriCurrentFormat, mLookupUri);
+                 } else {
+diff --git a/src/com/android/contacts/preference/ContactsPreferenceActivity.java b/src/com/android/contacts/preference/ContactsPreferenceActivity.java
+index ee683cfe3..2d83bf198 100644
+--- a/src/com/android/contacts/preference/ContactsPreferenceActivity.java
++++ b/src/com/android/contacts/preference/ContactsPreferenceActivity.java
+@@ -34,7 +34,6 @@ import android.view.View;
+ import android.view.ViewGroup;
+ 
+ import com.android.contacts.R;
+-import com.android.contacts.activities.RequestPermissionsActivity;
+ import com.android.contacts.editor.SelectAccountDialogFragment;
+ import com.android.contacts.interactions.ImportDialogFragment;
+ import com.android.contacts.list.ProviderStatusWatcher;
+@@ -68,8 +67,6 @@ public final class ContactsPreferenceActivity extends PreferenceActivity
+         super.onCreate(savedInstanceState);
+         mCompatDelegate.onCreate(savedInstanceState);
+ 
+-        // Request Requireied permission if needed
+-        RequestPermissionsActivity.startPermissionActivityIfNeeded(this);
+ 
+         final ActionBar actionBar = mCompatDelegate.getSupportActionBar();
+         if (actionBar != null) {
+diff --git a/src/com/android/contacts/util/LocalProfile.java b/src/com/android/contacts/util/LocalProfile.java
+deleted file mode 100644
+index 76406a0fe..000000000
+--- a/src/com/android/contacts/util/LocalProfile.java
++++ /dev/null
+@@ -1,325 +0,0 @@
+-package com.android.contacts.util;
+-
+-import android.content.ContentProviderOperation;
+-import android.content.ContentProviderOperation.Builder;
+-import android.content.ContentResolver;
+-import android.content.ContentUris;
+-import android.content.ContentValues;
+-import android.content.Context;
+-import android.content.OperationApplicationException;
+-import android.database.Cursor;
+-import android.net.Uri;
+-import android.os.RemoteException;
+-import android.provider.ContactsContract;
+-import android.provider.ContactsContract.CommonDataKinds.Phone;
+-import android.provider.ContactsContract.Data;
+-import android.provider.ContactsContract.Profile;
+-import android.provider.ContactsContract.RawContacts;
+-import android.provider.ContactsContract.RawContactsEntity;
+-import android.text.TextUtils;
+-import android.util.Log;
+-
+-import com.android.contacts.R;
+-import com.android.contacts.model.ContactLoader;
+-import com.android.contacts.model.RawContactDelta;
+-import com.android.contacts.model.RawContactDeltaList;
+-import com.android.contacts.model.ValuesDelta;
+-import com.android.contacts.model.account.AccountWithDataSet;
+-import com.android.contacts.util.SimUtil;
+-
+-import java.util.ArrayList;
+-import java.util.HashSet;
+-
+-/**
+- * "AutoFillProfile" feature allows auto gathering of the device's owner's data
+- * from the device and saving it as the regular data rows in the profile database
+- * for the "local" account's profile contact.
+- * The intention of "AutoFillProfile" feature is to supply gathered information
+- * as a part of the profile contact without involving user in adding them by
+- * editing the profile contact manually.
+- */
+-public class LocalProfile {
+-    private static final String TAG = LocalProfile.class.getSimpleName();
+-
+-    // for the identification of the data written by LocalProfile
+-    public static final String FLAG_COLUMN = Data.SYNC2;
+-    public static final String FLAG_VALUE = "autoset:";
+-
+-    // for the identification of dual SIM Slots in DSDS
+-    private static final String FLAG_SLOT_COLUMN = Data.SYNC3;
+-
+-    private static final int SINGLE_SLOT = -1;
+-
+-    private static boolean sIsSimNumberUpdated = false;
+-
+-    /**
+-     * Creates a "local profile" raw_contact in the profile database if one already doesn't exist.
+-     * If a sim number doesn't exits, it will also update the number of "local profile".
+-     * This method performs database operations and shouldn't be called on the main thread.
+-     *
+-     * @param context
+-     */
+-    public static synchronized void updateProfileWithSimNumber(Context context) {
+-        // Check whether this method had been executed once due to performance advances.
+-        Log.d(TAG, "updateProfileWithSimNumber sIsSimNumberUpdated:" + sIsSimNumberUpdated);
+-        if (sIsSimNumberUpdated) {
+-            return;
+-        }
+-
+-        // - If no SIM and no raw contact, this is first boot-up without SIM.
+-        //   In this case, nothing to do. Just return.
+-        // - If SIM exists and no raw contact, this is boot-up after SIM is inserted.
+-        //   In this case, needs to add SIM number.
+-        // - If no SIM and raw contact exists, this is boot-up after SIM is removed.
+-        //   In this case, needs to remove SIM number.
+-        if (!isSimExist(context) && !isRawContactExist(context)) {
+-            return;
+-        }
+-
+-        long rawContactId = getRawContactId(context);
+-        Log.v(TAG, "rawContactId:" + rawContactId);
+-
+-        if (rawContactId != -1) {
+-            autoFillProfile(context, rawContactId, Phone.CONTENT_ITEM_TYPE);
+-        }
+-
+-        sIsSimNumberUpdated = true;
+-    }
+-
+-    private static boolean isSimExist(Context context) {
+-        int simCount = SimUtil.getSimCount(context);
+-        for (int slot = 0; slot < simCount; slot++) {
+-            if (!SimUtil.isSimAbsent(context, slot)) {
+-                return true;
+-            }
+-        }
+-        return false;
+-    }
+-
+-    private static boolean isRawContactExist(Context context) {
+-        boolean isRawContactExist = false;
+-        try (Cursor cursor = queryRawContact(context)) {
+-            if (cursor != null && cursor.getCount() > 0) {
+-                return true;
+-            }
+-        } catch (Exception e) {
+-            Log.d(TAG, "queryRawContact e = " + e.toString());
+-        }
+-        return false;
+-    }
+-
+-    private static void autoFillProfile(Context context, long rawContactId, String mimeType) {
+-        StringBuilder whereClause = new StringBuilder()
+-                .append(RawContactsEntity.DELETED).append("=0 AND ")
+-                .append(Data.MIMETYPE).append(" IN ('")
+-                .append(mimeType).append("')");
+-        RawContactDeltaList set = RawContactDeltaList.fromQuery(
+-                RawContactsEntity.PROFILE_CONTENT_URI,
+-                context.getContentResolver(),
+-                whereClause.toString(), null, null);
+-        RawContactDelta entity = set.getByRawContactId(rawContactId);
+-        doUpdateWithDelta(context, entity, rawContactId, mimeType);
+-    }
+-
+-    private static void doUpdateWithDelta(Context context, final RawContactDelta entity,
+-                                          long rawContactId, String mimeType) {
+-        ArrayList<ContentProviderOperation> ops = new ArrayList<ContentProviderOperation>();
+-
+-        // Handle phone update
+-        int simCount = SimUtil.getSimCount(context);
+-        Log.d(TAG, "simCount:" + simCount);
+-        if (simCount > 1) {
+-            for (int slot = 0; slot < simCount; slot++) {
+-                pushSimOperation(context, entity, rawContactId, ops, slot, mimeType);
+-            }
+-        } else {
+-            pushSimOperation(context, entity, rawContactId, ops, SINGLE_SLOT, mimeType);
+-        }
+-
+-        if (ops.size() > 0) {
+-            // update the local profile
+-            try {
+-                context.getContentResolver().applyBatch(ContactsContract.AUTHORITY, ops);
+-            } catch (RemoteException e) {
+-                Log.e(TAG, e.toString());
+-            } catch (OperationApplicationException e) {
+-                Log.e(TAG, e.toString());
+-            }
+-        }
+-    }
+-
+-    private static void pushSimOperation(Context context, final RawContactDelta entity,
+-                                         long rawContactId, ArrayList<ContentProviderOperation> ops,
+-                                         int sub, String mimeType) {
+-        ArrayList<ValuesDelta> phones = null;
+-        ValuesDelta phoneRowDelta = null;
+-        if (entity != null) {
+-            phones = entity.getMimeEntries(mimeType);
+-        }
+-
+-        String simPhoneNumber = SimUtil.getLine1Number(context, sub);
+-        Log.d(TAG, "pushSimOperation simPhoneNumber:" + simPhoneNumber);
+-
+-        if (phones != null) {
+-            for (ValuesDelta phoneRow : phones) {
+-                String phoneNumber = phoneRow.getAsString(Phone.NORMALIZED_NUMBER);
+-                String flag = phoneRow.getAsString(FLAG_COLUMN);
+-                Integer subscription = phoneRow.getAsInteger(FLAG_SLOT_COLUMN, SINGLE_SLOT);
+-                if ((FLAG_VALUE.equals(flag) || (phoneNumber != null && phoneNumber
+-                        .equals(simPhoneNumber))) && sub == subscription) {
+-                    // users already registered a similar phone number
+-                    // or we already registered it for them
+-                    phoneRowDelta = phoneRow;
+-                    break;
+-                }
+-            }
+-        }
+-
+-        if (TextUtils.isEmpty(simPhoneNumber)) {
+-            if (phoneRowDelta != null) {
+-                phoneRowDelta.markDeleted();
+-            }
+-        } else {
+-            // find the old phone number, replace with the new one
+-            if (phoneRowDelta != null) {
+-                phoneRowDelta.put(Phone.NUMBER, simPhoneNumber);
+-                phoneRowDelta.put(FLAG_COLUMN, FLAG_VALUE);
+-                if (sub != SINGLE_SLOT) {
+-                    phoneRowDelta.put(FLAG_SLOT_COLUMN, sub);
+-                }
+-            } else {
+-                ContentValues values = new ContentValues();
+-                values.put(Phone.MIMETYPE, mimeType);
+-                values.put(Phone.NUMBER, simPhoneNumber);
+-                values.put(Phone.TYPE, Phone.TYPE_MOBILE);
+-                values.put(FLAG_COLUMN, FLAG_VALUE);
+-                values.put(Phone.IS_PRIMARY, 1);
+-                values.put(Phone.RAW_CONTACT_ID, rawContactId);
+-                if (sub != SINGLE_SLOT) {
+-                    values.put(FLAG_SLOT_COLUMN, sub);
+-                }
+-                phoneRowDelta = ValuesDelta.fromAfter(values);
+-            }
+-        }
+-
+-        // update the phone number
+-        if (phoneRowDelta != null) {
+-            Builder builder = phoneRowDelta.buildDiff(Uri.withAppendedPath(Profile.CONTENT_URI,
+-                    RawContacts.Data.CONTENT_DIRECTORY));
+-            if (builder != null) {
+-                ops.add(builder.build());
+-            }
+-        }
+-    }
+-
+-    /**
+-     * Only one local-contact rawcontact will be created in the profile
+-     * database. Thus, the rawcontact id won't be saved in the shared preference
+-     * any more.
+-     * <br />
+-     * The method will return the only one raw contact belonging to
+-     * local-contact and remove the abundant records if there're more than one
+-     * contact. If there's no such a contact, it'll create one.
+-     *
+-     * @return the raw contact id
+-     */
+-    public static long getRawContactId(Context context) {
+-        long id = -1;
+-        AccountWithDataSet localAccount = getLocalAccount(context);
+-        Cursor cursor = null;
+-        try {
+-            cursor = queryRawContact(context);
+-            if (cursor != null) {
+-                if (cursor.getCount() == 0) {
+-                    // Create local profile if it's not existent
+-                    id = createProfile(context, localAccount);
+-                } else if (cursor.moveToFirst()) {
+-                    id = cursor.getLong(0);
+-                    if (cursor.getCount() > 1) {
+-                        // Remove the abundant records and keep the first one
+-                        // This should really never happen...
+-                        Log.e(TAG,
+-                                "More than one local profile row_contact in profile database.");
+-                        String nameString;
+-                        String typeString;
+-                        String dataSetString;
+-
+-                        if (localAccount.name == null) {
+-                            nameString = " is null";
+-                        } else {
+-                            nameString = " = '" +  localAccount.name + "'";
+-                        }
+-                        if (localAccount.type == null) {
+-                            typeString = " is null";
+-                        } else {
+-                            typeString = " = '" +  localAccount.type + "'";
+-                        }
+-                        if (localAccount.dataSet == null) {
+-                            dataSetString = " is null";
+-                        } else {
+-                            dataSetString = " = '" +  localAccount.dataSet + "'";
+-                        }
+-                        StringBuilder localProfileQuery = new StringBuilder(
+-                                RawContacts.ACCOUNT_NAME).append(nameString).append(" AND ").
+-                                append(RawContacts.ACCOUNT_TYPE).append(typeString).append(" AND ").
+-                                append(RawContacts.DATA_SET).append(dataSetString);
+-
+-                        context.getContentResolver().delete(
+-                                Profile.CONTENT_RAW_CONTACTS_URI,
+-                                localProfileQuery.toString(), null);
+-                    }
+-                }
+-            }
+-        } finally {
+-            if (cursor != null) {
+-                cursor.close();
+-            }
+-        }
+-
+-        return id;
+-    }
+-
+-    private static Cursor queryRawContact(Context context) {
+-        AccountWithDataSet localAccount = getLocalAccount(context);
+-        String nameString;
+-        String typeString;
+-        String dataSetString;
+-
+-        if (localAccount.name == null) {
+-            nameString = " is null";
+-        } else {
+-            nameString = " = '" +  localAccount.name + "'";
+-        }
+-        if (localAccount.type == null) {
+-            typeString = " is null";
+-        } else {
+-            typeString = " = '" +  localAccount.type + "'";
+-        }
+-        if (localAccount.dataSet == null) {
+-            dataSetString = " is null";
+-        } else {
+-            dataSetString = " = '" +  localAccount.dataSet + "'";
+-        }
+-        StringBuilder localProfileQuery = new StringBuilder(
+-                RawContacts.ACCOUNT_NAME).append(nameString).append(" AND ").
+-                append(RawContacts.ACCOUNT_TYPE).append(typeString).append(" AND ").
+-                append(RawContacts.DATA_SET).append(dataSetString).append(" AND ").
+-                append(RawContacts.DELETED).append("= 0");
+-        return context.getContentResolver().query(Profile.CONTENT_RAW_CONTACTS_URI,
+-                new String[]{RawContacts._ID}, localProfileQuery.toString(), null, null);
+-    }
+-
+-    private static long createProfile(Context context, AccountWithDataSet localAccount) {
+-        ContentValues values = new ContentValues();
+-        values.put(RawContacts.ACCOUNT_NAME, localAccount.name);
+-        values.put(RawContacts.ACCOUNT_TYPE, localAccount.type);
+-        values.put(RawContacts.DATA_SET, localAccount.dataSet);
+-        Uri contentUri = context.getContentResolver().insert(
+-                Profile.CONTENT_RAW_CONTACTS_URI, values);
+-        return ContentUris.parseId(contentUri);
+-    }
+-
+-    private static AccountWithDataSet getLocalAccount(Context context) {
+-        return AccountWithDataSet.getNullAccount();
+-    }
+-}
+diff --git a/src/com/android/contacts/util/SimUtil.java b/src/com/android/contacts/util/SimUtil.java
+deleted file mode 100644
+index 88a0a564d..000000000
+--- a/src/com/android/contacts/util/SimUtil.java
++++ /dev/null
+@@ -1,173 +0,0 @@
+-package com.android.contacts.util;
+-
+-import android.content.Context;
+-import android.telephony.TelephonyManager;
+-import android.telephony.SubscriptionManager;
+-import android.telephony.SubscriptionInfo;
+-import android.util.Log;
+-
+-import java.lang.reflect.Method;
+-import java.util.ArrayList;
+-import java.util.List;
+-
+-/**
+- * Class for sim specific util methods.
+- */
+-public class SimUtil {
+-    private static final String TAG = SimUtil.class.getSimpleName();
+-
+-    /**
+-     * The method will return Single slot SIM phone number only if user is owner and number
+-     * exist in SIM memory Otherwise, return null
+-     * @param context
+-     * @return SIM phone number
+-     */
+-    public static String getLine1Number(Context context) {
+-        return getLine1Number(context, 0);
+-    }
+-
+-    /**
+-     * The method will return all SIM phone numbers only if user is owner and number
+-     * exist in SIM memory Otherwise, return null
+-     * @param context
+-     * @return SIM phone number
+-     */
+-    public static List<String> getLine1Numbers(Context context) {
+-        ArrayList<String> list = new ArrayList<String>();
+-        int count = getSimCount(context);
+-
+-        if (count > 1) {
+-            for (int i = 0; i < count; i++) {
+-                list.add(getLine1Number(context, i));
+-            }
+-            return list;
+-        } else {
+-            list.add(getLine1Number(context));
+-            return list;
+-        }
+-    }
+-
+-    /**
+-     * The method will return SIM phone number only if user is owner and number
+-     * exist in SIM memory Otherwise, return null
+-     * @param context
+-     * @param slotId The slot id. If Single Slot, ignore this paramter.
+-     * @return SIM phone number
+-     */
+-    public static String getLine1Number(Context context, int slotId) {
+-        if (!isMultiSimEnabled(context)) {
+-            return getTelephonyManager(context).getLine1Number();
+-        } else {
+-            SubscriptionInfo sir = getActiveSubscriptionInfo(context, slotId);
+-            if (sir != null) {
+-                return sir.getNumber();
+-            } else {
+-                return null;
+-            }
+-        }
+-    }
+-
+-    /**
+-     * Return whether or not the device is multi sim capable.
+-     * @return true if the device is multi sim capable, otherwise false.
+-     */
+-    public static boolean isMultiSimEnabled(Context context) {
+-        boolean ret = false;
+-        TelephonyManager tm = getTelephonyManager(context);
+-
+-        try {
+-            Method get = tm.getClass().getMethod("isMultiSimEnabled");
+-
+-            ret = (boolean) get.invoke(tm);
+-        } catch (Exception e) {
+-            Log.e(TAG, "isMultiSimEnabled exception: " + e.toString());
+-        }
+-
+-        return ret;
+-    }
+-
+-    /**
+-     * The method will return SIM count.
+-     * @param context
+-     * @return SIM count
+-     */
+-    public static int getSimCount(Context context) {
+-        return getTelephonyManager(context).getPhoneCount();
+-    }
+-
+-    /**
+-     * Checks whether SIM card is absent.
+-     *
+-     * @param context the calling {@link Context}
+-     * @param slotId slot of the SIM card to be checked. If Single Slot, ignore this paramter.
+-     * @return <code>true</code> if SIM card is not ready, <code>false</code>
+-     *         otherwise.
+-     */
+-    public static boolean isSimAbsent(Context context, int slotId) {
+-        return getSimState(context, slotId) != TelephonyManager.SIM_STATE_READY;
+-    }
+-
+-    /**
+-     * Returns a constant indicating the state of the default SIM card.
+-     *
+-     * @param slotId The slot id of the SIM. If Single Slot, ignore this paramter.
+-     * @return The SIM state
+-     * @see #SIM_STATE_UNKNOWN
+-     * @see #SIM_STATE_ABSENT
+-     * @see #SIM_STATE_PIN_REQUIRED
+-     * @see #SIM_STATE_PUK_REQUIRED
+-     * @see #SIM_STATE_NETWORK_LOCKED
+-     * @see #SIM_STATE_READY
+-     * @see #SIM_STATE_NOT_READY
+-     * @see #SIM_STATE_PERM_DISABLED
+-     * @see #SIM_STATE_CARD_IO_ERROR
+-     */
+-    public static int getSimState(Context context, int slotId) {
+-        TelephonyManager tm = getTelephonyManager(context);
+-        if (tm != null) {
+-            if (!isMultiSimEnabled(context)) {
+-                return tm.getSimState();
+-            } else {
+-                return getSimState(tm, slotId);
+-            }
+-        }
+-        return TelephonyManager.SIM_STATE_UNKNOWN;
+-    }
+-
+-    private static int getSimState(TelephonyManager tm, int slotId) {
+-        int ret = TelephonyManager.SIM_STATE_UNKNOWN;
+-
+-        try {
+-            Class[] paramTypes = { int.class };
+-            Method get = tm.getClass().getMethod("getSimState", paramTypes);
+-
+-            Object[] params = { slotId };
+-            ret = (int) get.invoke(tm, params);
+-        } catch (Exception e) {
+-            Log.e(TAG, "getSimState exception: " + e.toString());
+-        }
+-
+-        return ret;
+-    }
+-
+-    private static SubscriptionInfo getActiveSubscriptionInfo(Context context, final int slotId) {
+-        final List<SubscriptionInfo> subInfoList =
+-                SubscriptionManager.from(context).getActiveSubscriptionInfoList();
+-        if (subInfoList != null) {
+-            final int subInfoLength = subInfoList.size();
+-
+-            for (int i = 0; i < subInfoLength; ++i) {
+-                final SubscriptionInfo sir = subInfoList.get(i);
+-                if (sir.getSimSlotIndex() == slotId) {
+-                    return sir;
+-                }
+-            }
+-        }
+-
+-        return null;
+-    }
+-
+-    private static TelephonyManager getTelephonyManager(Context context) {
+-        return (TelephonyManager)context.getSystemService(Context.TELEPHONY_SERVICE);
+-    }
+-}
+-- 
+2.17.1
+
