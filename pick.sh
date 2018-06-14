@@ -542,7 +542,6 @@ done
 kpick 213705 # 	Build Exchange
 repo sync --force-sync packages/apps/Exchange
 
-kpick 216428 # lineage: Sync qcom thermal and vr HALs
 repo sync --force-sync hardware/qcom/thermal
 repo sync --force-sync hardware/qcom/vr
 
@@ -577,6 +576,7 @@ kpick 210014 # sepolicy: Label aw2013 HIDL light HAL
 kpick 211273 # qcom/sepol: Fix timeservice app context
 kpick 212643 # qcom/sepol: Allow mm-qcamerad to use binder even in vendor
 kpick 216898 # sepolicy: Allow perf HAL to set freq props
+kpick 217401 # common: Fix labelling of lcd-backlight
 
 # device/samsung/klte-common
 #kpick 212648 # klte-common: Enable AOD
@@ -627,7 +627,6 @@ kpick 216854 # Keyguard: Remove carrier text for disabled SIMs
 kpick 216872 # SystemUI: Fix systemui crash when showing data usage detail
 kpick 217039 # Make berry overlays selection more generic	
 kpick 217042 # Add support for black berry style
-kpick 217371 # SystemUI: Toggle USB tethering only when USB is connected
 
 # frameworks/native
 kpick 213549 # SurfaceFlinger: Support get/set ActiveConfigs
@@ -658,7 +657,6 @@ kpick 213865 # lineage/interfaces: move vibrator to the proper directory
 kpick 213866 # lineage/interfaces: extend android.hardware.vibrator@1.0
 kpick 213867 # lineage/interfaces: vibrator: read light/medium/strong voltage from sysfs
 kpick 213868 # lineage/interfaces: vibrator: implement vendor.lineage methods
-kpick 213817 # livedisplay: Don't use singletons for the stack
 
 # hardware/lineage/lineagehw
 
@@ -686,12 +684,6 @@ kpick 215601 # keymaster: Build with BOARD_VNDK_VERSION
 kpick 215612 # Keymaster: Move test to std::unique_ptr
 
 # hardware/qcom/power
-kpick 215602 # power: msm8974: Build with with BOARD_VNDK_VERSION
-kpick 217166 # power: Remove powerhintparser
-kpick 217167 # power: Remove support for msm-dcvs governor
-kpick 217168 # power: Remove unused ondemand related functions
-kpick 217169 # power: Remove interaction_with_handle
-kpick 217170 # power: Remove unused list utils
 
 # hardware/qcom/thermal
 
@@ -713,8 +705,6 @@ kpick 215665 # Add hardware codecs section and exempt some tegra chipsets
 kpick 207545 # Add batch gerrit script
 
 # lineage/website(LineageOS/www)
-kpick 216685 # Engineering layout
-kpick 217341 # Trust me, I'm an engineer
 
 # lineage/wiki
 kpick 212483 # This command line is more universal, it works too in foreign langages
@@ -729,6 +719,9 @@ kpick 216505 # Regen lineage_current
 kpick 216915 # lineage-sdk: Introduce TelephonyExtUtils
 kpick 216978 # sdk: add torch accent
 kpick 217041 # sdk: add black berry style support
+kpick 217417 # Parts: expose toggle for disabling trust alerts	
+kpick 217418 # Trust: add action to disable alerts to notifications
+kpick 217419 # Add vendor security patch level to device info
 
 # packages/apps/Camera2
 
@@ -752,7 +745,7 @@ kpick 211382 # correct the targeted SDK version to avoid permission fails otherw
 # packages/apps/Flipflap
 
 # packages/apps/Gallery2
-kpick 217379 # Revert "Gallery2: set module privileged in Android.mk to delete photos on SD card.
+kpick 217421 # Allow to opt in installing Gallery2 as non-privileged apk.
 
 # packages/apps/Jelly
 kpick 216413 # Jelly: Adapt ProgressBar location based on reach mode
@@ -762,6 +755,10 @@ kpick 216413 # Jelly: Adapt ProgressBar location based on reach mode
 kpick 217044 # LineageParts: add black theme support
 kpick 217171 # Trust: enforce vendor security patch level check
 #kpick 217197 # LineageParts: remove unused network mode picker intent
+kpick 217400 # LineageParts: Complete and correct SMS limits port
+
+# packages/apps/Nfc
+kpick 217425 # AndroidManifest: Remove duplicates uses-permissions
 
 # packages/apps/OpenWeatherMapProvider
 kpick 207864 # Updated Gradle to 3.0.1; The Lineage-SDK jar is now contained in the project files
@@ -775,6 +772,7 @@ kpick 216822 # Settings: Allow setting device phone number
 kpick 216871 # Utils: Always show SIM Settings menu
 kpick 216909 # Settings: Apply accent color to on-body detection icon
 kpick 216918 # SimSettings: Use TelephonyExtUtils from Lineage SDK
+kpick 217420 # Add vendor security patch level to device info
 
 # packages/apps/Snap
 kpick 206595 # Use transparent navigation bar
@@ -839,13 +837,11 @@ kpick 210664 # extract_utils: Support multidex
 kpick 213815 # Place ADB auth property override to system
 kpick 215341 # backuptool: Revert "Temporarily render version check permissive"
 kpick 214400 # backuptool: Resolve incompatible version grep syntax
-kpick 216425 # lineage: qcom: Set thermal & vr HAL pathmaps
 kpick 216977 # lineage: build torch accent
 kpick 217045 # vendor: build black berry theme
 kpick 217088 # Revert "extract_utils: Fix makefile generation issues"
 kpick 217089 # Revert "extract_files: Add support for paths without system/"
 kpick 217090 # extract_utils: cleanup in extract() function
-kpick 217322 # Build wireguard kernel module
 kpick 217354 # addonsu: Fix package for modern devices
 
 # vendor/qcom/opensource/cryptfs_hw
