@@ -542,11 +542,6 @@ done
 kpick 213705 # 	Build Exchange
 repo sync --force-sync packages/apps/Exchange
 
-repo sync --force-sync hardware/qcom/thermal
-repo sync --force-sync hardware/qcom/vr
-
-repo sync --force-sync system/security
-
 # bionic
 kpick 206123 # bionic: Sort and cache hosts file data for fast lookup
 kpick 212920 # libc: Mark libstdc++ as vendor available
@@ -745,7 +740,6 @@ kpick 211382 # correct the targeted SDK version to avoid permission fails otherw
 # packages/apps/Flipflap
 
 # packages/apps/Gallery2
-kpick 217421 # Allow to opt in installing Gallery2 as non-privileged apk.
 
 # packages/apps/Jelly
 kpick 216413 # Jelly: Adapt ProgressBar location based on reach mode
@@ -758,7 +752,6 @@ kpick 217171 # Trust: enforce vendor security patch level check
 kpick 217400 # LineageParts: Complete and correct SMS limits port
 
 # packages/apps/Nfc
-kpick 217425 # AndroidManifest: Remove duplicates uses-permissions
 
 # packages/apps/OpenWeatherMapProvider
 kpick 207864 # Updated Gradle to 3.0.1; The Lineage-SDK jar is now contained in the project files
@@ -780,7 +773,6 @@ kpick 217087 # Snap: turn developer category title into a translatable string
 
 # packages/apps/Trebuchet
 kpick 214336 # [WIP] Trebuchet: initial protected apps implementation
-kpick 217376 # Trebuchet: don't log apps for predictive suggestions when disabled
 kpick 217386 # IconCache: fix nullpointer exceptions
 
 # packages/apps/UnifiedEmail
