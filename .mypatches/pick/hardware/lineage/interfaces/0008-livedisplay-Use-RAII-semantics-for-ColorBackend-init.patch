@@ -1,0 +1,262 @@
+From 9e605dac47530c3239f0de2324012c7f7e41eef6 Mon Sep 17 00:00:00 2001
+From: Ethan Chen <intervigil@gmail.com>
+Date: Thu, 14 Jun 2018 23:49:21 -0700
+Subject: [PATCH 8/8] livedisplay: Use RAII semantics for ColorBackend
+ initialization
+
+* Don't have explicit init/deinit functions, rely on object creation to
+  perform the initialization associated with those resources.
+
+Change-Id: I49e7ca0bcdb5a83dc500b4ad2d6158a2ef6e6597
+---
+ livedisplay/1.0/default/impl/LegacyMM.cpp     | 81 +++++++++----------
+ livedisplay/1.0/default/impl/SDM.cpp          | 22 ++---
+ .../1.0/default/include/ColorBackend.h        |  2 -
+ .../1.0/default/include/impl/LegacyMM.h       |  2 -
+ livedisplay/1.0/default/include/impl/SDM.h    |  2 -
+ livedisplay/1.0/default/src/Color.cpp         | 17 ++--
+ 6 files changed, 48 insertions(+), 78 deletions(-)
+
+diff --git a/livedisplay/1.0/default/impl/LegacyMM.cpp b/livedisplay/1.0/default/impl/LegacyMM.cpp
+index a83a24e..f7ff180 100644
+--- a/livedisplay/1.0/default/impl/LegacyMM.cpp
++++ b/livedisplay/1.0/default/impl/LegacyMM.cpp
+@@ -63,10 +63,45 @@ using android::OK;
+ using android::sp;
+ using android::status_t;
+ 
+-LegacyMM::LegacyMM() : mController(nullptr) {
++LegacyMM::LegacyMM() {
++    mController = std::make_unique<LegacyMMController>();
++    if (mController == nullptr) {
++        LOG(ERROR) << "Failed to create LegacyMMController";
++        return;
++    }
++
++    status_t rc = mController->init(0);
++    if (rc != OK) {
++        LOG(ERROR) << "Failed to initialize LegacyMMController";
++        return;
++    }
++
++    if (hasFeature(Feature::DISPLAY_MODES)) {
++        int32_t id;
++        // Get the initial mode from Utils
++        rc = Utils::readInitialModeId(&id);
++        if (rc != OK || id < 0) {
++            // Get controller default mode and save it
++            rc = mController->get_default_display_mode(0, &id);
++            if (rc == OK && id >= 0) {
++                Utils::writeInitialModeId(id);
++            } else {
++                Utils::writeInitialModeId(0);
++            }
++        }
++
++        auto mode = getDefaultDisplayMode();
++        if (mode != nullptr) {
++            setDisplayMode(mode->id, false);
++        }
++    }
+ }
+ 
+ LegacyMM::~LegacyMM() {
++    status_t rc = mController->init(1);
++    if (rc != OK) {
++        LOG(ERROR) << "Failed to deinitialize LegacyMMController";
++    }
+ }
+ 
+ status_t LegacyMM::getColorBalanceRange(Range& range) {
+@@ -246,50 +281,6 @@ status_t LegacyMM::setPictureAdjustment(const HSIC& hsic) {
+     return mController->set_pa_config(0, &config);
+ }
+ 
+-status_t LegacyMM::initialize() {
+-    mController = std::make_unique<LegacyMMController>();
+-    if (mController == nullptr) {
+-        LOG(ERROR) << "Failed to create LegacyMMController";
+-        return NO_INIT;
+-    }
+-    status_t rc = mController->init(0);
+-    if (rc != OK) {
+-        LOG(ERROR) << "Failed to initialize LegacyMMController";
+-        return rc;
+-    }
+-
+-    if (hasFeature(Feature::DISPLAY_MODES)) {
+-        int32_t id;
+-        // Get the initial mode from Utils
+-        rc = Utils::readInitialModeId(&id);
+-        if (rc != OK || id < 0) {
+-            // Get controller default mode and save it
+-            rc = mController->get_default_display_mode(0, &id);
+-            if (rc == OK && id >= 0) {
+-                Utils::writeInitialModeId(id);
+-            } else {
+-                Utils::writeInitialModeId(0);
+-            }
+-        }
+-
+-        auto mode = getDefaultDisplayMode();
+-        if (mode != nullptr) {
+-            setDisplayMode(mode->id, false);
+-        }
+-    }
+-    return OK;
+-}
+-
+-status_t LegacyMM::deinitialize() {
+-    status_t rc = NO_INIT;
+-    rc = mController->init(1);
+-    mController = nullptr;
+-    if (rc != OK) {
+-        return rc;
+-    }
+-    return OK;
+-}
+-
+ bool LegacyMM::hasFeature(Feature feature) {
+     uint32_t id;
+     switch (feature) {
+diff --git a/livedisplay/1.0/default/impl/SDM.cpp b/livedisplay/1.0/default/impl/SDM.cpp
+index cd3c23d..80eccec 100644
+--- a/livedisplay/1.0/default/impl/SDM.cpp
++++ b/livedisplay/1.0/default/impl/SDM.cpp
+@@ -92,29 +92,24 @@ using ::android::OK;
+ using ::android::sp;
+ using ::android::status_t;
+ 
+-SDM::SDM() : mController(nullptr), mActiveModeId(-1) {
+-}
+-
+-SDM::~SDM() {
+-}
+-
+-status_t SDM::initialize() {
++SDM::SDM() : mActiveModeId(-1) {
+     mController = std::make_unique<SDMController>();
+     if (mController == nullptr) {
+         LOG(ERROR) << "Failed to create SDMController";
+-        return NO_INIT;
++        return;
+     }
+ 
+     status_t rc = mController->init(&mHandle, 0);
+     if (rc != OK) {
+-        return rc;
++        LOG(ERROR) << "Failed to initialize SDMController";
++        return;
+     }
+ 
+     if (hasFeature(Feature::DISPLAY_MODES)) {
+         rc = saveInitialDisplayMode();
+         if (rc != OK) {
+             LOG(ERROR) << "Failed to save initial display mode! err=" << rc;
+-            return rc;
++            return;
+         }
+         sp<disp_mode> defMode = getDefaultDisplayMode();
+         if (defMode != nullptr) {
+@@ -123,15 +118,10 @@ status_t SDM::initialize() {
+     }
+ 
+     mFOSSEnabled = android::base::GetBoolProperty(kFossProperty, false);
+-
+-    return OK;
+ }
+ 
+-status_t SDM::deinitialize() {
++SDM::~SDM() {
+     mController->deinit(mHandle, 0);
+-    mHandle = 0;
+-    mController = nullptr;
+-    return OK;
+ }
+ 
+ uint32_t SDM::getNumSDMDisplayModes() {
+diff --git a/livedisplay/1.0/default/include/ColorBackend.h b/livedisplay/1.0/default/include/ColorBackend.h
+index 4abd11b..c5d06fa 100644
+--- a/livedisplay/1.0/default/include/ColorBackend.h
++++ b/livedisplay/1.0/default/include/ColorBackend.h
+@@ -49,8 +49,6 @@ class ColorBackend {
+     virtual HSIC getDefaultPictureAdjustment() = 0;
+     virtual android::status_t setPictureAdjustment(const HSIC& hsic) = 0;
+ 
+-    virtual android::status_t initialize() = 0;
+-    virtual android::status_t deinitialize() = 0;
+     virtual bool hasFeature(Feature feature) = 0;
+ 
+     virtual ~ColorBackend() {
+diff --git a/livedisplay/1.0/default/include/impl/LegacyMM.h b/livedisplay/1.0/default/include/impl/LegacyMM.h
+index 3401908..f7bcc41 100644
+--- a/livedisplay/1.0/default/include/impl/LegacyMM.h
++++ b/livedisplay/1.0/default/include/impl/LegacyMM.h
+@@ -62,8 +62,6 @@ class LegacyMM : public ColorBackend {
+     virtual HSIC getDefaultPictureAdjustment() override;
+     virtual android::status_t setPictureAdjustment(const HSIC& hsic) override;
+ 
+-    virtual android::status_t initialize() override;
+-    virtual android::status_t deinitialize() override;
+     virtual bool hasFeature(Feature feature) override;
+ 
+   private:
+diff --git a/livedisplay/1.0/default/include/impl/SDM.h b/livedisplay/1.0/default/include/impl/SDM.h
+index a5fc577..805172c 100644
+--- a/livedisplay/1.0/default/include/impl/SDM.h
++++ b/livedisplay/1.0/default/include/impl/SDM.h
+@@ -66,8 +66,6 @@ class SDM : public ColorBackend {
+     virtual HSIC getDefaultPictureAdjustment() override;
+ 
+     virtual bool hasFeature(Feature f);
+-    virtual android::status_t initialize();
+-    virtual android::status_t deinitialize();
+ 
+   private:
+     android::status_t saveInitialDisplayMode();
+diff --git a/livedisplay/1.0/default/src/Color.cpp b/livedisplay/1.0/default/src/Color.cpp
+index 54fab09..ca02f57 100644
+--- a/livedisplay/1.0/default/src/Color.cpp
++++ b/livedisplay/1.0/default/src/Color.cpp
+@@ -61,12 +61,6 @@ using ::android::sp;
+ using ::android::status_t;
+ 
+ Color::Color() : mConnected(false), mBackend(nullptr) {
+-#if defined(COLOR_BACKEND_SDM)
+-    mBackend = std::make_unique<SDM>();
+-#elif defined(COLOR_BACKEND_LEGACYMM)
+-    mBackend = std::make_unique<LegacyMM>();
+-#endif
+-    LOG(DEBUG) << "Loaded LiveDisplay native interface";
+ }
+ 
+ Color::~Color() {
+@@ -75,7 +69,7 @@ Color::~Color() {
+ 
+ void Color::reset() {
+     if (mConnected) {
+-        mBackend->deinitialize();
++        mBackend = nullptr;
+     }
+     mFeatures = 0;
+     mConnected = false;
+@@ -100,11 +94,12 @@ bool Color::connect() {
+ 
+     mFeatures = 0;
+ 
++#if defined(COLOR_BACKEND_SDM)
++    mBackend.reset(new SDM());
++#elif defined(COLOR_BACKEND_LEGACYMM)
++    mBackend.reset(new LegacyMM());
++#endif
+     if (mBackend == nullptr) {
+-        return false;
+-    }
+-
+-    if (mBackend->initialize() != OK) {
+         LOG(ERROR) << "Failed to initialize backend!";
+         return false;
+     }
+-- 
+2.17.1
+

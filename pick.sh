@@ -625,6 +625,8 @@ kpick 216854 # Keyguard: Remove carrier text for disabled SIMs
 kpick 216872 # SystemUI: Fix systemui crash when showing data usage detail
 kpick 217039 # Make berry overlays selection more generic	
 kpick 217042 # Add support for black berry style
+kpick 217453 # PhoneWindowManager: Allow torch and track skip during ambient display
+kpick 217499 # SystemUI: disable wallpaper-based tint for scrim
 kpick 217505 # frameworks: base: Port password retention feature
 
 # frameworks/native
@@ -656,7 +658,9 @@ kpick 213865 # lineage/interfaces: move vibrator to the proper directory
 kpick 213866 # lineage/interfaces: extend android.hardware.vibrator@1.0
 kpick 213867 # lineage/interfaces: vibrator: read light/medium/strong voltage from sysfs
 kpick 213868 # lineage/interfaces: vibrator: implement vendor.lineage methods
-kpick 217497 # Revert "livedisplay: Don't use singletons for the stack"
+kpick 217554 # PhoneWindowManager: Allow torch and track skip during ambient display
+kpick 217555 # livedisplay: Move initialization of mActiveModeId to constructor
+kpick 217559 # livedisplay: Use RAII semantics for ColorBackend initialization
 
 # hardware/lineage/lineagehw
 
