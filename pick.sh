@@ -542,6 +542,9 @@ done
 kpick 213705 # 	Build Exchange
 repo sync --force-sync packages/apps/Exchange
 
+kpick 217452 # manifest: Remove external/libvorbis
+repo sync --force-sync external/libvorbis
+
 # bionic
 kpick 206123 # bionic: Sort and cache hosts file data for fast lookup
 kpick 212920 # libc: Mark libstdc++ as vendor available
@@ -622,6 +625,7 @@ kpick 216854 # Keyguard: Remove carrier text for disabled SIMs
 kpick 216872 # SystemUI: Fix systemui crash when showing data usage detail
 kpick 217039 # Make berry overlays selection more generic	
 kpick 217042 # Add support for black berry style
+kpick 217505 # frameworks: base: Port password retention feature
 
 # frameworks/native
 kpick 213549 # SurfaceFlinger: Support get/set ActiveConfigs
@@ -652,6 +656,7 @@ kpick 213865 # lineage/interfaces: move vibrator to the proper directory
 kpick 213866 # lineage/interfaces: extend android.hardware.vibrator@1.0
 kpick 213867 # lineage/interfaces: vibrator: read light/medium/strong voltage from sysfs
 kpick 213868 # lineage/interfaces: vibrator: implement vendor.lineage methods
+kpick 217497 # Revert "livedisplay: Don't use singletons for the stack"
 
 # hardware/lineage/lineagehw
 
@@ -717,6 +722,7 @@ kpick 217041 # sdk: add black berry style support
 kpick 217417 # Parts: expose toggle for disabling trust alerts	
 kpick 217418 # Trust: add action to disable alerts to notifications
 kpick 217419 # Add vendor security patch level to device info
+kpick 217521 # [2/2] Trust: warn if build is unsecure	
 
 # packages/apps/Camera2
 
@@ -742,7 +748,6 @@ kpick 211382 # correct the targeted SDK version to avoid permission fails otherw
 # packages/apps/Gallery2
 
 # packages/apps/Jelly
-kpick 216413 # Jelly: Adapt ProgressBar location based on reach mode
 
 # packages/apps/LineageParts
 #kpick 216887 # LineageParts: Add an option to force pre-O apps to use full screen aspect ratio
@@ -750,6 +755,7 @@ kpick 217044 # LineageParts: add black theme support
 kpick 217171 # Trust: enforce vendor security patch level check
 #kpick 217197 # LineageParts: remove unused network mode picker intent
 kpick 217400 # LineageParts: Complete and correct SMS limits port
+kpick 217522 # [1/2] Trust: warn if build is unsecure
 
 # packages/apps/Nfc
 
@@ -820,6 +826,9 @@ kpick 217069 # key_store:Using euid instead of uid when upgrade wifi blobs
 # system/sepolicy
 kpick 206037 # sepolicy: Allow init to modify system_blk_device
 kpick 206136 # sepolicy: allow update_engine to bypass neverallows for backuptool
+
+# system/vold
+kpick 209189 # vold: Conditionally remove secdiscard command
 
 # vendor/lineage
 kpick 206138 # vendor: add custom backuptools and postinstall script for A/B OTAs
