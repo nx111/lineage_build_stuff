@@ -1,0 +1,111 @@
+From fde368a21e32530cab9f60d3f8707527ab88903c Mon Sep 17 00:00:00 2001
+From: Sultanxda <sultanxda@gmail.com>
+Date: Sat, 15 Apr 2017 17:43:52 -0700
+Subject: [PATCH 18/20] Fingerprint: Speed up wake-and-unlock scenario
+
+ * Directly dismiss keyguard instead of using a fade-out animation
+ * Skip virtual navigation button animation on wake
+
+This patch is for Nougat.
+
+Change-Id: I7d479ce76526e0051b838053fdeba99dd5c86dd2
+---
+ .../systemui/keyguard/KeyguardViewMediator.java    |  7 ++++++-
+ .../phone/FingerprintUnlockController.java         |  1 -
+ .../statusbar/phone/NavigationBarView.java         |  2 +-
+ .../systemui/statusbar/phone/StatusBar.java        |  7 ++++---
+ .../phone/StatusBarKeyguardViewManager.java        | 14 ++++++++++++++
+ 5 files changed, 25 insertions(+), 6 deletions(-)
+
+diff --git a/packages/SystemUI/src/com/android/systemui/keyguard/KeyguardViewMediator.java b/packages/SystemUI/src/com/android/systemui/keyguard/KeyguardViewMediator.java
+index 83141f135c9..1c80c04be0a 100644
+--- a/packages/SystemUI/src/com/android/systemui/keyguard/KeyguardViewMediator.java
++++ b/packages/SystemUI/src/com/android/systemui/keyguard/KeyguardViewMediator.java
+@@ -1870,10 +1870,15 @@ public class KeyguardViewMediator extends SystemUI {
+                 playSounds(false);
+             }
+ 
++            boolean wakeAndUnlocking = mWakeAndUnlocking;
+             mWakeAndUnlocking = false;
+             setShowingLocked(false);
+             mDismissCallbackRegistry.notifyDismissSucceeded();
+-            mStatusBarKeyguardViewManager.hide(startTime, fadeoutDuration);
++            if (wakeAndUnlocking) {
++                mStatusBarKeyguardViewManager.hideNoAnimation();
++            } else {
++                mStatusBarKeyguardViewManager.hide(startTime, fadeoutDuration);
++            }
+             resetKeyguardDonePendingLocked();
+             mHideAnimationRun = false;
+             adjustStatusBarLocked();
+diff --git a/packages/SystemUI/src/com/android/systemui/statusbar/phone/FingerprintUnlockController.java b/packages/SystemUI/src/com/android/systemui/statusbar/phone/FingerprintUnlockController.java
+index 91369dbd5f8..90899f2047e 100644
+--- a/packages/SystemUI/src/com/android/systemui/statusbar/phone/FingerprintUnlockController.java
++++ b/packages/SystemUI/src/com/android/systemui/statusbar/phone/FingerprintUnlockController.java
+@@ -253,7 +253,6 @@ public class FingerprintUnlockController extends KeyguardUpdateMonitorCallback {
+                 }
+                 mStatusBarWindowManager.setStatusBarFocusable(false);
+                 mKeyguardViewMediator.onWakeAndUnlocking();
+-                mScrimController.setWakeAndUnlocking();
+                 mDozeScrimController.setWakeAndUnlocking();
+                 if (mStatusBar.getNavigationBarView() != null) {
+                     mStatusBar.getNavigationBarView().setWakeAndUnlocking(true);
+diff --git a/packages/SystemUI/src/com/android/systemui/statusbar/phone/NavigationBarView.java b/packages/SystemUI/src/com/android/systemui/statusbar/phone/NavigationBarView.java
+index 42b743d2d98..fd3407efd26 100644
+--- a/packages/SystemUI/src/com/android/systemui/statusbar/phone/NavigationBarView.java
++++ b/packages/SystemUI/src/com/android/systemui/statusbar/phone/NavigationBarView.java
+@@ -498,7 +498,7 @@ public class NavigationBarView extends FrameLayout implements PluginListener<Nav
+     }
+ 
+     public void setWakeAndUnlocking(boolean wakeAndUnlocking) {
+-        setUseFadingAnimations(wakeAndUnlocking);
++        setUseFadingAnimations(!wakeAndUnlocking);
+         mWakeAndUnlocking = wakeAndUnlocking;
+         updateLayoutTransitionsEnabled();
+     }
+diff --git a/packages/SystemUI/src/com/android/systemui/statusbar/phone/StatusBar.java b/packages/SystemUI/src/com/android/systemui/statusbar/phone/StatusBar.java
+index ded9fa10f2c..44c0252e0dd 100644
+--- a/packages/SystemUI/src/com/android/systemui/statusbar/phone/StatusBar.java
++++ b/packages/SystemUI/src/com/android/systemui/statusbar/phone/StatusBar.java
+@@ -2690,9 +2690,10 @@ public class StatusBar extends SystemUI implements DemoMode,
+                 if (DEBUG_MEDIA) {
+                     Log.v(TAG, "DEBUG_MEDIA: Fading out album artwork");
+                 }
+-                if (mFingerprintUnlockController.getMode()
+-                        == FingerprintUnlockController.MODE_WAKE_AND_UNLOCK_PULSING
+-                        || hideBecauseOccluded) {
++                int fpMode = mFingerprintUnlockController.getMode();
++                if (fpMode == FingerprintUnlockController.MODE_WAKE_AND_UNLOCK_PULSING ||
++                        fpMode == FingerprintUnlockController.MODE_WAKE_AND_UNLOCK ||
++                        hideBecauseOccluded) {
+ 
+                     // We are unlocking directly - no animation!
+                     mBackdrop.setVisibility(View.GONE);
+diff --git a/packages/SystemUI/src/com/android/systemui/statusbar/phone/StatusBarKeyguardViewManager.java b/packages/SystemUI/src/com/android/systemui/statusbar/phone/StatusBarKeyguardViewManager.java
+index df88d6950da..cf3b2e26c55 100644
+--- a/packages/SystemUI/src/com/android/systemui/statusbar/phone/StatusBarKeyguardViewManager.java
++++ b/packages/SystemUI/src/com/android/systemui/statusbar/phone/StatusBarKeyguardViewManager.java
+@@ -478,6 +478,20 @@ public class StatusBarKeyguardViewManager implements RemoteInputController.Callb
+         mBouncer.prepare();
+     }
+ 
++    public void hideNoAnimation() {
++        mShowing = false;
++        mStatusBar.setKeyguardFadingAway(SystemClock.uptimeMillis(), 0, 0);
++        mStatusBar.hideKeyguard();
++        mStatusBar.finishKeyguardFadingAway();
++        mStatusBarWindowManager.setKeyguardShowing(false);
++        mBouncer.hide(true /* destroyView */);
++        mViewMediatorCallback.keyguardGone();
++        mFingerprintUnlockController.finishKeyguardFadingAway();
++        updateStates();
++        WindowManagerGlobal.getInstance().trimMemory(
++                ComponentCallbacks2.TRIM_MEMORY_UI_HIDDEN);
++    }
++
+     private void animateScrimControllerKeyguardFadingOut(long delay, long duration,
+             boolean skipFirstFrame) {
+         animateScrimControllerKeyguardFadingOut(delay, duration, null /* endRunnable */,
+-- 
+2.17.1
+

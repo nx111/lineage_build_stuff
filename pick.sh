@@ -542,7 +542,6 @@ done
 kpick 213705 # 	Build Exchange
 repo sync --force-sync packages/apps/Exchange
 
-kpick 217452 # manifest: Remove external/libvorbis
 repo sync --force-sync external/libvorbis
 
 # bionic
@@ -628,6 +627,8 @@ kpick 217042 # Add support for black berry style
 kpick 217453 # PhoneWindowManager: Allow torch and track skip during ambient display
 kpick 217499 # SystemUI: disable wallpaper-based tint for scrim
 kpick 217505 # frameworks: base: Port password retention feature
+kpick 217594 # Fingerprint: Speed up wake-and-unlock scenario
+kpick 217595 # display: Don't animate screen brightness when turning the screen on
 
 # frameworks/native
 kpick 213549 # SurfaceFlinger: Support get/set ActiveConfigs
@@ -786,9 +787,6 @@ kpick 214336 # [WIP] Trebuchet: initial protected apps implementation
 kpick 217386 # IconCache: fix nullpointer exceptions
 
 # packages/apps/UnifiedEmail
-
-# packages/apps/Updater
-kpick 213136 # Updater: show Trust branding when the update has been verified
 
 # packages/overlays/Lineage
 kpick 215846 # dark: Add Theme.DeviceDefault.Settings.Dialog.NoActionBar style
