@@ -762,6 +762,7 @@ kpick 216978 # sdk: add torch accent
 kpick 217041 # sdk: add black berry style support
 kpick 217419 # Add vendor security patch level to device info
 kpick 217521 # [2/2] Trust: warn if build is unsecure	
+kpick 217841 # TrustInterface: Handle unsupported encryption state
 
 # packages/apps/Camera2
 
@@ -785,6 +786,9 @@ kpick 211382 # correct the targeted SDK version to avoid permission fails otherw
 # packages/apps/Flipflap
 
 # packages/apps/Gallery2
+kpick 217843 # Revert "Gallery2: Get rid of packages monitor"
+kpick 217844 # SDGallery:Fix focus close when receive package changed intent
+kpick 217845 # Fix focus close when select video in picker
 
 # packages/apps/Jelly
 
@@ -795,6 +799,8 @@ kpick 217171 # Trust: enforce vendor security patch level check
 #kpick 217197 # LineageParts: remove unused network mode picker intent
 kpick 217642 # Align learn more and got it horizontally
 kpick 217644 # LineageParts: Set proper PreferenceTheme parent	
+kpick 217838 # LineageParts: Add category title for options
+kpick 217839 # LineageParts: Add Trust entry summary
 
 # packages/apps/Nfc
 
@@ -815,6 +821,7 @@ kpick 217420 # Add vendor security patch level to device info
 # packages/apps/Snap
 kpick 206595 # Use transparent navigation bar
 kpick 217087 # Snap: turn developer category title into a translatable string
+kpick 217842 # SnapdragonCamera: Fix compilation issues for AOSP upgrade
 
 # packages/apps/Trebuchet
 kpick 214336 # [WIP] Trebuchet: initial protected apps implementation
@@ -883,6 +890,8 @@ kpick 217354 # addonsu: Fix package for modern devices
 kpick 217628 # lineage: add generic x86_64 target
 kpick 217629 # kernel: Add TARGET_KERNEL_ADDITIONAL_FLAGS to allow setting extra cflags
 kpick 217630 # kernel: Add kernelversion recipe to generate MAJOR.MINOR kernel version
+kpick 217837 # envsetup: Fix adb recovery state detections
+kpick 217846 # Fix focus close when select video in picker
 
 # vendor/qcom/opensource/cryptfs_hw
 

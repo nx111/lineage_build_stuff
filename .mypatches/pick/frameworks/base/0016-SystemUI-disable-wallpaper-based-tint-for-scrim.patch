@@ -1,4 +1,4 @@
-From a44e09f6e6ab56739e7f1690ed4b24b886b7eacc Mon Sep 17 00:00:00 2001
+From 58a67dacf7d2932d7f8d3b25b4c02dbdafd7f92a Mon Sep 17 00:00:00 2001
 From: Joey <joey@lineageos.org>
 Date: Thu, 14 Jun 2018 11:11:35 +0200
 Subject: [PATCH 16/20] SystemUI: disable wallpaper-based tint for scrim
@@ -13,22 +13,133 @@ Also it was removed in P dp1 and it never came back in later P builds.
 Change-Id: I5ce5d5ff002f3be9b13a4cbb8df2300d0d7dcb3b
 Signed-off-by: Joey <joey@lineageos.org>
 ---
- .../com/android/systemui/statusbar/phone/ScrimController.java   | 2 +-
- 1 file changed, 1 insertion(+), 1 deletion(-)
+ .../globalactions/GlobalActionsDialog.java    | 23 +++++++++++++---
+ .../statusbar/phone/ScrimController.java      | 27 +++++++++++++------
+ 2 files changed, 38 insertions(+), 12 deletions(-)
 
+diff --git a/packages/SystemUI/src/com/android/systemui/globalactions/GlobalActionsDialog.java b/packages/SystemUI/src/com/android/systemui/globalactions/GlobalActionsDialog.java
+index 2951c622929..0c9c0b8892e 100644
+--- a/packages/SystemUI/src/com/android/systemui/globalactions/GlobalActionsDialog.java
++++ b/packages/SystemUI/src/com/android/systemui/globalactions/GlobalActionsDialog.java
+@@ -55,6 +55,7 @@ import android.database.ContentObserver;
+ import android.graphics.Bitmap;
+ import android.graphics.BitmapShader;
+ import android.graphics.Canvas;
++import android.graphics.Color;
+ import android.graphics.Matrix;
+ import android.graphics.Paint;
+ import android.graphics.Point;
+@@ -129,6 +130,9 @@ class GlobalActionsDialog implements DialogInterface.OnDismissListener, DialogIn
+ 
+     private static final boolean SHOW_SILENT_TOGGLE = false;
+ 
++    // Default scrim color
++    private static final int SCRIM_DEFAULT_COLOR = Color.BLACK;
++
+     private final Context mContext;
+     private final GlobalActionsManager mWindowManagerFuncs;
+     private final AudioManager mAudioManager;
+@@ -1662,8 +1666,9 @@ class GlobalActionsDialog implements DialogInterface.OnDismissListener, DialogIn
+             mContext.getDisplay().getRealSize(displaySize);
+             mColorExtractor.addOnColorsChangedListener(this);
+             mGradientDrawable.setScreenSize(displaySize.x, displaySize.y);
+-            GradientColors colors = mColorExtractor.getColors(mKeyguardShowing ?
+-                    WallpaperManager.FLAG_LOCK : WallpaperManager.FLAG_SYSTEM);
++            GradientColors colors = getDarkGradientColor(
++                    mColorExtractor.getColors(mKeyguardShowing ? 
++                    WallpaperManager.FLAG_LOCK : WallpaperManager.FLAG_SYSTEM));
+             mGradientDrawable.setColors(colors, false);
+         }
+ 
+@@ -1734,15 +1739,25 @@ class GlobalActionsDialog implements DialogInterface.OnDismissListener, DialogIn
+         public void onColorsChanged(ColorExtractor extractor, int which) {
+             if (mKeyguardShowing) {
+                 if ((WallpaperManager.FLAG_LOCK & which) != 0) {
+-                    mGradientDrawable.setColors(extractor.getColors(WallpaperManager.FLAG_LOCK));
++                    mGradientDrawable.setColors(getDarkGradientColor(
++                            extractor.getColors(WallpaperManager.FLAG_LOCK)));
+                 }
+             } else {
+                 if ((WallpaperManager.FLAG_SYSTEM & which) != 0) {
+-                    mGradientDrawable.setColors(extractor.getColors(WallpaperManager.FLAG_SYSTEM));
++                    mGradientDrawable.setColors(getDarkGradientColor(
++                            extractor.getColors(WallpaperManager.FLAG_SYSTEM)));
+                 }
+             }
+         }
+ 
++        private GradientColors getDarkGradientColor(GradientColors fromWallpaper) {
++            GradientColors colors = new GradientColors();
++            colors.setMainColor(SCRIM_DEFAULT_COLOR);
++            colors.setSecondaryColor(SCRIM_DEFAULT_COLOR);
++            colors.setSupportsDarkText(fromWallpaper.supportsDarkText());
++            return colors;
++        }
++
+         public void setKeyguardShowing(boolean keyguardShowing) {
+             mKeyguardShowing = keyguardShowing;
+         }
 diff --git a/packages/SystemUI/src/com/android/systemui/statusbar/phone/ScrimController.java b/packages/SystemUI/src/com/android/systemui/statusbar/phone/ScrimController.java
-index 702afa3a38b..961b2ae9a3b 100644
+index 702afa3a38b..258e6b2bf81 100644
 --- a/packages/SystemUI/src/com/android/systemui/statusbar/phone/ScrimController.java
 +++ b/packages/SystemUI/src/com/android/systemui/statusbar/phone/ScrimController.java
-@@ -63,7 +63,7 @@ public class ScrimController implements ViewTreeObserver.OnPreDrawListener,
-     public static final Interpolator KEYGUARD_FADE_OUT_INTERPOLATOR_LOCKED
-             = new PathInterpolator(0.3f, 0f, 0.8f, 1f);
-     // Default alpha value for most scrims, if unsure use this constant
--    public static final float GRADIENT_SCRIM_ALPHA = 0.45f;
-+    public static final float GRADIENT_SCRIM_ALPHA = 0.0f;
-     // A scrim varies its opacity based on a busyness factor, for example
-     // how many notifications are currently visible.
-     public static final float GRADIENT_SCRIM_ALPHA_BUSY = 0.70f;
+@@ -77,6 +77,9 @@ public class ScrimController implements ViewTreeObserver.OnPreDrawListener,
+     private static final int TAG_END_ALPHA = R.id.scrim_alpha_end;
+     private static final float NOT_INITIALIZED = -1;
+ 
++    // Default scrim color
++    private static final int SCRIM_DEFAULT_COLOR = Color.BLACK;
++
+     private final LightBarController mLightBarController;
+     protected final ScrimView mScrimBehind;
+     protected final ScrimView mScrimInFront;
+@@ -152,10 +155,10 @@ public class ScrimController implements ViewTreeObserver.OnPreDrawListener,
+ 
+         mColorExtractor = Dependency.get(SysuiColorExtractor.class);
+         mColorExtractor.addOnColorsChangedListener(this);
+-        mLockColors = mColorExtractor.getColors(WallpaperManager.FLAG_LOCK,
+-                ColorExtractor.TYPE_DARK, true /* ignoreVisibility */);
+-        mSystemColors = mColorExtractor.getColors(WallpaperManager.FLAG_SYSTEM,
+-                ColorExtractor.TYPE_DARK, true /* ignoreVisibility */);
++        mLockColors = getDarkGradientColor(mColorExtractor.getColors(
++                WallpaperManager.FLAG_LOCK, ColorExtractor.TYPE_DARK, true));
++        mSystemColors = getDarkGradientColor(mColorExtractor.getColors(
++                WallpaperManager.FLAG_SYSTEM, ColorExtractor.TYPE_DARK, true));
+         mNeedsDrawableColorUpdate = true;
+ 
+         updateHeadsUpScrim(false);
+@@ -757,19 +760,27 @@ public class ScrimController implements ViewTreeObserver.OnPreDrawListener,
+     @Override
+     public void onColorsChanged(ColorExtractor colorExtractor, int which) {
+         if ((which & WallpaperManager.FLAG_LOCK) != 0) {
+-            mLockColors = mColorExtractor.getColors(WallpaperManager.FLAG_LOCK,
+-                    ColorExtractor.TYPE_DARK, true /* ignoreVisibility */);
++            mLockColors = getDarkGradientColor(mColorExtractor.getColors(
++                    WallpaperManager.FLAG_LOCK, ColorExtractor.TYPE_DARK, true));
+             mNeedsDrawableColorUpdate = true;
+             scheduleUpdate();
+         }
+         if ((which & WallpaperManager.FLAG_SYSTEM) != 0) {
+-            mSystemColors = mColorExtractor.getColors(WallpaperManager.FLAG_SYSTEM,
+-                    ColorExtractor.TYPE_DARK, mKeyguardShowing);
++            mSystemColors = getDarkGradientColor(mColorExtractor.getColors(
++                    WallpaperManager.FLAG_SYSTEM, ColorExtractor.TYPE_DARK, mKeyguardShowing));
+             mNeedsDrawableColorUpdate = true;
+             scheduleUpdate();
+         }
+     }
+ 
++    private GradientColors getDarkGradientColor(GradientColors fromWallpaper) {
++        GradientColors colors = new GradientColors();
++        colors.setMainColor(SCRIM_DEFAULT_COLOR);
++        colors.setSecondaryColor(SCRIM_DEFAULT_COLOR);
++        colors.setSupportsDarkText(fromWallpaper.supportsDarkText());
++        return colors;
++    }
++
+     public void dump(PrintWriter pw) {
+         pw.println(" ScrimController:");
+ 
 -- 
 2.17.1
 

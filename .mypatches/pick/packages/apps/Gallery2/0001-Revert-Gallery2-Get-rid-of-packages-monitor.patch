@@ -1,0 +1,182 @@
+From fa019f59c0e503982db7c8dd93906e9391fb2758 Mon Sep 17 00:00:00 2001
+From: Arne Coucheron <arco68@gmail.com>
+Date: Fri, 15 Jun 2018 03:08:30 +0200
+Subject: [PATCH 1/3] Revert "Gallery2: Get rid of packages monitor"
+
+This reverts commit 1075db3c344553e46ab463bf908d5eda8f105986.
+
+Change-Id: Ic3b76b41527bd70f1d5d7f3a4840f1d0262fe8c3
+---
+ AndroidManifest.xml                           |  9 +++
+ .../gallery3d/app/PackagesMonitor.java        | 71 +++++++++++++++++++
+ .../android/gallery3d/util/GalleryUtils.java  | 12 +---
+ .../gallery3d/picasasource/PicasaSource.java  |  6 ++
+ 4 files changed, 89 insertions(+), 9 deletions(-)
+ create mode 100644 src/com/android/gallery3d/app/PackagesMonitor.java
+
+diff --git a/AndroidManifest.xml b/AndroidManifest.xml
+index dbdd39bed..f77e439d2 100755
+--- a/AndroidManifest.xml
++++ b/AndroidManifest.xml
+@@ -360,6 +360,15 @@
+             <meta-data android:name="android.appwidget.provider"
+                     android:resource="@xml/widget_info" />
+         </receiver>
++        <receiver android:name="com.android.gallery3d.app.PackagesMonitor">
++            <intent-filter>
++                <action android:name="android.intent.action.PACKAGE_ADDED"/>
++                <action android:name="android.intent.action.PACKAGE_REMOVED"/>
++                <action android:name="android.intent.action.PACKAGE_CHANGED"/>
++                <data android:scheme="package"/>
++            </intent-filter>
++        </receiver>
++        <service android:name="com.android.gallery3d.app.PackagesMonitor$AsyncService"/>
+         <service android:name="com.android.gallery3d.gadget.WidgetService"
+                 android:permission="android.permission.BIND_REMOTEVIEWS"/>
+         <activity android:name="com.android.gallery3d.gadget.WidgetConfigure"
+diff --git a/src/com/android/gallery3d/app/PackagesMonitor.java b/src/com/android/gallery3d/app/PackagesMonitor.java
+new file mode 100644
+index 000000000..9b2412f1b
+--- /dev/null
++++ b/src/com/android/gallery3d/app/PackagesMonitor.java
+@@ -0,0 +1,71 @@
++/*
++ * Copyright (C) 2010 The Android Open Source Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++package com.android.gallery3d.app;
++
++import android.app.IntentService;
++import android.content.BroadcastReceiver;
++import android.content.Context;
++import android.content.Intent;
++import android.content.SharedPreferences;
++import android.preference.PreferenceManager;
++
++import com.android.gallery3d.picasasource.PicasaSource;
++import com.android.gallery3d.util.LightCycleHelper;
++
++public class PackagesMonitor extends BroadcastReceiver {
++    public static final String KEY_PACKAGES_VERSION  = "packages-version";
++
++    public synchronized static int getPackagesVersion(Context context) {
++        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(context);
++        return prefs.getInt(KEY_PACKAGES_VERSION, 1);
++    }
++
++    @Override
++    public void onReceive(final Context context, final Intent intent) {
++        intent.setClass(context, AsyncService.class);
++        context.startService(intent);
++    }
++
++    public static class AsyncService extends IntentService {
++        public AsyncService() {
++            super("GalleryPackagesMonitorAsync");
++        }
++
++        @Override
++        protected void onHandleIntent(Intent intent) {
++            onReceiveAsync(this, intent);
++        }
++    }
++
++    // Runs in a background thread.
++    private static void onReceiveAsync(Context context, Intent intent) {
++        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(context);
++
++        int version = prefs.getInt(KEY_PACKAGES_VERSION, 1);
++        prefs.edit().putInt(KEY_PACKAGES_VERSION, version + 1).commit();
++
++        String action = intent.getAction();
++        String packageName = intent.getData().getSchemeSpecificPart();
++        if (Intent.ACTION_PACKAGE_ADDED.equals(action)) {
++            PicasaSource.onPackageAdded(context, packageName);
++        } else if (Intent.ACTION_PACKAGE_REMOVED.equals(action)) {
++            PicasaSource.onPackageRemoved(context, packageName);
++        } else if (Intent.ACTION_PACKAGE_CHANGED.equals(action)) {
++            PicasaSource.onPackageChanged(context, packageName);
++        }
++    }
++}
+diff --git a/src/com/android/gallery3d/util/GalleryUtils.java b/src/com/android/gallery3d/util/GalleryUtils.java
+index 3507b089e..c62442d9a 100644
+--- a/src/com/android/gallery3d/util/GalleryUtils.java
++++ b/src/com/android/gallery3d/util/GalleryUtils.java
+@@ -42,6 +42,7 @@ import android.widget.Toast;
+ 
+ import org.codeaurora.gallery.R;
+ import com.android.gallery3d.app.GalleryActivity;
++import com.android.gallery3d.app.PackagesMonitor;
+ import com.android.gallery3d.common.ApiHelper;
+ import com.android.gallery3d.data.DataManager;
+ import com.android.gallery3d.data.MediaItem;
+@@ -74,8 +75,6 @@ public class GalleryUtils {
+     private static final String KEY_CAMERA_UPDATE = "camera-update";
+     private static final String KEY_HAS_CAMERA = "has-camera";
+ 
+-    private static final String KEY_PACKAGES_VERSION  = "packages-version";
+-
+     private static float sPixelDensity = -1f;
+     private static boolean sCameraAvailableInitialized = false;
+     private static boolean sCameraAvailable;
+@@ -205,7 +204,7 @@ public class GalleryUtils {
+     }
+ 
+     public static boolean isEditorAvailable(Context context, String mimeType) {
+-        int version = getPackagesVersion(context);
++        int version = PackagesMonitor.getPackagesVersion(context);
+ 
+         String updateKey = PREFIX_PHOTO_EDITOR_UPDATE + mimeType;
+         String hasKey = PREFIX_HAS_PHOTO_EDITOR + mimeType;
+@@ -224,7 +223,7 @@ public class GalleryUtils {
+     }
+ 
+     public static boolean isAnyCameraAvailable(Context context) {
+-        int version = getPackagesVersion(context);
++        int version = PackagesMonitor.getPackagesVersion(context);
+         SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(context);
+         if (prefs.getInt(KEY_CAMERA_UPDATE, 0) != version) {
+             PackageManager packageManager = context.getPackageManager();
+@@ -471,9 +470,4 @@ public class GalleryUtils {
+                 (TelephonyManager) context.getSystemService(Context.TELEPHONY_SERVICE);
+         return telephonyManager.getCallState() != TelephonyManager.CALL_STATE_IDLE;
+     }
+-
+-    public static int getPackagesVersion(Context context) {
+-        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(context);
+-        return prefs.getInt(KEY_PACKAGES_VERSION, 1);
+-    }
+ }
+diff --git a/src_pd/com/android/gallery3d/picasasource/PicasaSource.java b/src_pd/com/android/gallery3d/picasasource/PicasaSource.java
+index fce670b69..5e800e23b 100644
+--- a/src_pd/com/android/gallery3d/picasasource/PicasaSource.java
++++ b/src_pd/com/android/gallery3d/picasasource/PicasaSource.java
+@@ -136,6 +136,12 @@ public class PicasaSource extends MediaSource {
+ 
+     public static void showSignInReminder(Activity context) {/*do nothing*/}
+ 
++    public static void onPackageAdded(Context context, String packageName) {/*do nothing*/}
++
++    public static void onPackageRemoved(Context context, String packageName) {/*do nothing*/}
++
++    public static void onPackageChanged(Context context, String packageName) {/*do nothing*/}
++
+     public static Dialog getVersionCheckDialog(Activity activity){
+         return null;
+     }
+-- 
+2.17.1
+
