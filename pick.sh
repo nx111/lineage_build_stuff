@@ -664,9 +664,10 @@ kpick 217039 # Make berry overlays selection more generic
 kpick 217042 # Add support for black berry style
 kpick 217453 # PhoneWindowManager: Allow torch and track skip during ambient display
 kpick 217499 # SystemUI: disable wallpaper-based tint for scrim
-kpick 217505 # frameworks: base: Port password retention feature
 kpick 217594 # Fingerprint: Speed up wake-and-unlock scenario
 kpick 217595 # display: Don't animate screen brightness when turning the screen on
+kpick 217952 # SystemUI: Resolve status bar VPN icon tints
+kpick 217953 # SystemUI: Resolve status bar battery percentage tints
 
 # frameworks/native
 kpick 213549 # SurfaceFlinger: Support get/set ActiveConfigs
@@ -739,7 +740,6 @@ kpick 215665 # Add hardware codecs section and exempt some tegra chipsets
 #kpick 216518 # Treble exemptions
 
 # lineage/jenkins
-kpick 213338 # Mix up Oreo
 
 # lineage/scripts
 kpick 207545 # Add batch gerrit script
@@ -747,11 +747,7 @@ kpick 207545 # Add batch gerrit script
 # lineage/website(LineageOS/www)
 
 # lineage/wiki
-kpick 212483 # This command line is more universal, it works too in foreign langages
-kpick 212615 # gts28vewifi: Add reminder to check that bootloader is unlocked
-kpick 213339 # Mix up Oreo
 kpick 215543 # wiki: Add BQ bardock/bardockpro devices
-kpick 217375 # crackling, klte, lux: add physical dimensions
 
 # lineage-sdk
 kpick 213367 # NetworkTraffic: Include tethering traffic statistics
@@ -761,8 +757,8 @@ kpick 216915 # lineage-sdk: Introduce TelephonyExtUtils
 kpick 216978 # sdk: add torch accent
 kpick 217041 # sdk: add black berry style support
 kpick 217419 # Add vendor security patch level to device info
-kpick 217521 # [2/2] Trust: warn if build is unsecure	
-kpick 217841 # TrustInterface: Handle unsupported encryption state
+kpick 217521 # Trust: warn if build is signed with insecure keys	
+kpick 217951 # NetworkTraffic: Resolve status bar indicators tints
 
 # packages/apps/Camera2
 
