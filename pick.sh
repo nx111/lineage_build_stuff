@@ -289,24 +289,29 @@ function rrCache()
 {
     [ $# -eq 0 ] && return -1
     if [ "$1" = "-backup" -o "$1" = "backup" ]; then
-         [ -f $topdir/.mypatches/rr-cache/projects.list ] && \
-         cat $topdir/.mypatches/rr-cache/projects.list | while read project; do
-             if [ -d $topdir/$project/.git/rr-cache ]; then
-                  if  [ ! -z "$(ls -A $topdir/$project/.git/rr-cache)" ]; then
-                      rm -rf $topdir/.mypatches/rr-cache/$project/*
-                      [ -d $topdir/.mypatches/rr-cache/$project ] || mkdir -p $topdir/.mypatches/rr-cache/$project
-                      cp -r $topdir/$project/.git/rr-cache/* $topdir/.mypatches/rr-cache/$project/
-                  else
-                      rmdir -p --ignore-fail-on-non-empty $topdir/.mypatches/rr-cache/$project
+         [ -f $topdir/.mypatches/rr-cache/rr-cache.list ] && \
+         find $topdir/.mypatches/rr-cache/ -mindepth 1 -maxdepth 1 -type d | xargs rm -rf  &&\
+         cat $topdir/.mypatches/rr-cache/rr-cache.list | while read line; do
+             project=$(echo $line | sed -e "s: \{2,\}: :g" | sed -e "s:^ ::g" | cut -d' ' -f2)
+             rrid=$(echo $line | sed -e "s: \{2,\}: :g" | sed -e "s:^ ::g" | cut -d' ' -f1)
+             if [ -d $topdir/$project/.git/rr-cache/$rrid ]; then
+                  rm -rf  $topdir/.mypatches/rr-cache/$project/$rrid
+                  rmdir -p --ignore-fail-on-non-empty $topdir/.mypatches/rr-cache/$project >/dev/null 2>/dev/null
+                  if  [ -d $topdir/$project/.git/rr-cache/$rrid ] && find $topdir/$project/.git/rr-cache/$rrid -name "postimage*" > /dev/null 2>/dev/null; then
+                      [ -d $topdir/.mypatches/rr-cache/$project/$rrid ] || mkdir -p $topdir/.mypatches/rr-cache/$project/$rrid
+                      cp -r $topdir/$project/.git/rr-cache/$rrid $topdir/.mypatches/rr-cache/$project/
                   fi
              fi
          done
     elif [ "$1" = "-restore" -o "$1" = "restore" ]; then
-         cat $topdir/.mypatches/rr-cache/projects.list | while read project; do
-             if [ -d $topdir/.mypatches/rr-cache/$project ] && [ ! -z "$(ls -A $topdir/.mypatches/rr-cache/$project)" ]; then
-                   rm -rf $topdir/$project/.git/rr-cache/*
-                   [ -d $topdir/$project/.git/rr-cache ] || mkdir -p $topdir/$project/.git/rr-cache
-                   cp -r $topdir/.mypatches/rr-cache/$project/* $topdir/$project/.git/rr-cache/
+         [ -f  $topdir/.mypatches/rr-cache/rr-cache.list ] && \
+         cat $topdir/.mypatches/rr-cache/rr-cache.list | while read line; do
+             project=$(echo $line | sed -e "s: \{2,\}: :g" | sed -e "s:^ ::g" | cut -d' ' -f2)
+             rrid=$(echo $line | sed -e "s: \{2,\}: :g" | sed -e "s:^ ::g" | cut -d' ' -f1)
+             if [ -d $topdir/.mypatches/rr-cache/$project/$rrid ] && [ ! -z "$(ls -A $topdir/.mypatches/rr-cache/$project/$rrid)" ]; then
+                   rm -rf $topdir/$project/.git/rr-cache/$rrid
+                   [ -d $topdir/$project/.git/rr-cache/$rrid ] || mkdir -p $topdir/$project/.git/rr-cache/$rrid
+                   cp -r $topdir/.mypatches/rr-cache/$project/$rrid/* $topdir/$project/.git/rr-cache/$rrid/
              fi
          done
     fi
@@ -327,6 +332,37 @@ function fix_repopick_output()
         eval sed -n "'1,$(expr $bLineNo - 1)p'" $logfile >> $logfile.fix
         mv $logfile.fix $logfile
     fi
+}
+
+function get_active_rrcache()
+{
+    [ $# -lt 2 ] && return -1
+    local project=$1
+    [ -d $topdir/$project ] || return -1
+
+    local md5file=$2
+    [ -f "$md5file" ] || return -1
+    rrtmp=/tmp/$(echo $project | sed -e "s:/:_:g")_rr.tmp
+    while read line; do
+        #key=$(echo $line | sed -e "s: \{2,\}: :g" | cut -d' ' -f1)
+        fil=$(echo $line | sed -e "s: \{2,\}: :g" | cut -d' ' -f2)
+        #typ=$(echo $line | sed -e "s: \{2,\}: :g" | cut -d' ' -f3)
+        key=$(md5sum $topdir/$project/$fil | sed -e "s/ .*//g")
+        find $topdir/$project/.git/rr-cache/ -mindepth 2 -maxdepth 2 -type f -name "postimage*" > $rrtmp
+        [ -f "$rrtmp" ] && while read rrf; do
+            md5num=$(md5sum $rrf|cut -d' ' -f1)
+            #echo "$key ?= $md5num   ----->  $rrf"
+            if [ "$key" = "$md5num" ]; then
+               rrid=$(basename $(dirname $rrf))
+               [ -f $topdir/.mypatches/rr-cache/rr-cache.tmp ] || touch $topdir/.mypatches/rr-cache/rr-cache.tmp
+               if ! grep -q "$rrid $project" $topdir/.mypatches/rr-cache/rr-cache.tmp; then
+                    echo "$rrid $project" >> $topdir/.mypatches/rr-cache/rr-cache.tmp
+               fi
+            fi
+        done < $rrtmp
+        rm -rf $rrtmp
+    done < $md5file
+    rm -rf $md5file
 }
 
 function kpick()
@@ -391,20 +427,30 @@ function kpick()
               echo "!!!!!!!!!!!!!"
               cat $errfile
               project=$(cat $logfile | grep "Project path" | cut -d: -f2 | sed "s/ //g")
+              md5file=/tmp/$(echo $project | sed -e "s:/:_:g")_rrmd5.txt
+              rm -rf $md5file
               if [ "$project" != "" -a -d $topdir/$project ]; then
+                    touch $md5file
                     if grep -q "using previous resolution" $errfile; then
                        echo "------------"
                        cd $project
+                       grep "using previous resolution" $errfile | sed -e "s/Resolved '\(.*\)' using previous resolution.*/\1/" \
+                           | xargs md5sum | sed -e "s/\(.*\)/\1 postimage/" >>$md5file
                        grep "using previous resolution" $errfile | sed -e "s/Resolved '\(.*\)' using previous resolution.*/\1/" \
                            | xargs git add -f
                        if git cherry-pick --continue; then
                           breakout=0
                           conflict_resolved=1
+                          get_active_rrcache $project $md5file
                           cd $topdir
                           break
                        fi
                        cd $topdir
                        echo "------------"
+                    elif grep -q "Recorded preimage for" $errfile; then
+                       cd $project
+                       grep "Recorded preimage for" $errfile | cut -d\' -f2 | xargs md5sum | sed -e "s/\(.*\)/\1 preimage/" >>$md5file
+                       cd $topdir
                     fi
               fi
               echo  "  >> pick changes conflict, please resolv it, then press ENTER to continue, or press 's' skip it ..."
@@ -424,6 +470,7 @@ function kpick()
                   echo "  conflicts resolved,continue ..."
                   breakout=0
                   conflict_resolved=1
+                  get_active_rrcache $project $md5file
                   break
               else
                   cat $logfile | sed -e "/ERROR: git command failed/d"
@@ -436,15 +483,6 @@ function kpick()
           breakout=-1
           break
     done
-    if [ $conflict_resolved -eq 1 ]; then
-         if [ ! -f $topdir/.mypatches/rr-cache/projects.list.tmp ]; then
-             [ -d $topdir/.mypatches/rr-cache ] || mkdir -p $topdir/.mypatches/rr-cache
-             touch $topdir/.mypatches/rr-cache/projects.list.tmp
-         fi
-         if ! grep -q -E "^$project$" $topdir/.mypatches/rr-cache/projects.list.tmp; then
-             echo $project >> $topdir/.mypatches/rr-cache/projects.list.tmp
-         fi
-    fi
     if [ $breakout -lt 0 ]; then
         [ -f $errfile ] && cat $errfile
         rm -f $errfile
@@ -498,6 +536,8 @@ for op in $*; do
             op_patches_dir="$op"
     elif [ $op_project_snapshot -eq 1 -a  -d "$(gettop)/$op" ]; then
          op_snap_project=$op
+    elif [ "$op" = "-nop" ]; then
+          return 0
     else
          echo "kpick $op"
          kpick $op
@@ -542,8 +582,6 @@ done
 kpick 213705 # 	Build Exchange
 repo sync --force-sync packages/apps/Exchange
 
-repo sync --force-sync external/libvorbis
-
 # bionic
 kpick 206123 # bionic: Sort and cache hosts file data for fast lookup
 kpick 212920 # libc: Mark libstdc++ as vendor available
@@ -554,6 +592,7 @@ kpick 217312 # libc: add /odm/bin to the DEFPATH
 
 # bootable/recovery
 kpick 211098 # recovery/ui: Hide emulated storage for encrypted devices
+#kpick 217627 # recovery: Do not show emulated when data is encrypted
 
 # build/make
 kpick 208102 # Adapt ijar for WSL
@@ -573,7 +612,6 @@ kpick 210014 # sepolicy: Label aw2013 HIDL light HAL
 kpick 211273 # qcom/sepol: Fix timeservice app context
 kpick 212643 # qcom/sepol: Allow mm-qcamerad to use binder even in vendor
 kpick 216898 # sepolicy: Allow perf HAL to set freq props
-kpick 217401 # common: Fix labelling of lcd-backlight
 
 # device/samsung/klte-common
 #kpick 212648 # klte-common: Enable AOD
@@ -646,7 +684,6 @@ kpick 217092 # TelephonyComponentFactory: Fix invalid phone creation another way
 kpick 215613 # libbt: Build with BOARD_VNDK_VERSION
 
 # hardware/broadcom/wlan
-kpick 212922 # wlan:bcmdhd: fixup build errors when building the library under vndk.
 kpick 215615 # wpa_supplicant_8_lib: Added LOCAL_VENDOR_MODULE to set output path of the ...
 kpick 215616 # wifi_hal: Build with BOARD_VNDK_VERSION
 
@@ -659,9 +696,6 @@ kpick 213865 # lineage/interfaces: move vibrator to the proper directory
 kpick 213866 # lineage/interfaces: extend android.hardware.vibrator@1.0
 kpick 213867 # lineage/interfaces: vibrator: read light/medium/strong voltage from sysfs
 kpick 213868 # lineage/interfaces: vibrator: implement vendor.lineage methods
-kpick 217554 # PhoneWindowManager: Allow torch and track skip during ambient display
-kpick 217555 # livedisplay: Move initialization of mActiveModeId to constructor
-kpick 217559 # livedisplay: Use RAII semantics for ColorBackend initialization
 
 # hardware/lineage/lineagehw
 
@@ -705,6 +739,7 @@ kpick 215665 # Add hardware codecs section and exempt some tegra chipsets
 #kpick 216518 # Treble exemptions
 
 # lineage/jenkins
+kpick 213338 # Mix up Oreo
 
 # lineage/scripts
 kpick 207545 # Add batch gerrit script
@@ -714,6 +749,7 @@ kpick 207545 # Add batch gerrit script
 # lineage/wiki
 kpick 212483 # This command line is more universal, it works too in foreign langages
 kpick 212615 # gts28vewifi: Add reminder to check that bootloader is unlocked
+kpick 213339 # Mix up Oreo
 kpick 215543 # wiki: Add BQ bardock/bardockpro devices
 kpick 217375 # crackling, klte, lux: add physical dimensions
 
@@ -724,8 +760,6 @@ kpick 216505 # Regen lineage_current
 kpick 216915 # lineage-sdk: Introduce TelephonyExtUtils
 kpick 216978 # sdk: add torch accent
 kpick 217041 # sdk: add black berry style support
-kpick 217417 # Parts: expose toggle for disabling trust alerts	
-kpick 217418 # Trust: add action to disable alerts to notifications
 kpick 217419 # Add vendor security patch level to device info
 kpick 217521 # [2/2] Trust: warn if build is unsecure	
 
@@ -759,8 +793,8 @@ kpick 211382 # correct the targeted SDK version to avoid permission fails otherw
 kpick 217044 # LineageParts: add black theme support
 kpick 217171 # Trust: enforce vendor security patch level check
 #kpick 217197 # LineageParts: remove unused network mode picker intent
-kpick 217400 # LineageParts: Complete and correct SMS limits port
-kpick 217522 # [1/2] Trust: warn if build is unsecure
+kpick 217642 # Align learn more and got it horizontally
+kpick 217644 # LineageParts: Set proper PreferenceTheme parent	
 
 # packages/apps/Nfc
 
@@ -846,6 +880,9 @@ kpick 217088 # Revert "extract_utils: Fix makefile generation issues"
 kpick 217089 # Revert "extract_files: Add support for paths without system/"
 kpick 217090 # extract_utils: cleanup in extract() function
 kpick 217354 # addonsu: Fix package for modern devices
+kpick 217628 # lineage: add generic x86_64 target
+kpick 217629 # kernel: Add TARGET_KERNEL_ADDITIONAL_FLAGS to allow setting extra cflags
+kpick 217630 # kernel: Add kernelversion recipe to generate MAJOR.MINOR kernel version
 
 # vendor/qcom/opensource/cryptfs_hw
 
@@ -858,7 +895,7 @@ read -n1 -r -p "  Picking remote changes finished, Press any key to continue..."
 
 [ $op_pick_remote_only -eq 0 ] && patch_local local
 [ -f $script_file.tmp ] && mv $script_file.tmp $script_file.new
-[ -f $topdir/.mypatches/rr-cache/projects.list.tmp ] && \
-   mv $topdir/.mypatches/rr-cache/projects.list.tmp $topdir/.mypatches/rr-cache/projects.list
+[ -f $topdir/.mypatches/rr-cache/rr-cache.tmp ] && \
+   mv $topdir/.mypatches/rr-cache/rr-cache.tmp $topdir/.mypatches/rr-cache/rr-cache.list
 rrCache backup # backup rr-cache
 
