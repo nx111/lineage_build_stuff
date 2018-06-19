@@ -447,7 +447,8 @@ function kpick()
                        fi
                        cd $topdir
                        echo "------------"
-                    elif grep -q "Recorded preimage for" $errfile; then
+                    fi
+                    if grep -q "Recorded preimage for" $errfile; then
                        cd $project
                        grep "Recorded preimage for" $errfile | cut -d\' -f2 | xargs md5sum | sed -e "s/\(.*\)/\1 preimage/" >>$md5file
                        cd $topdir
@@ -655,6 +656,9 @@ kpick 206940 # Avoid crash when the actionbar is disabled in settings
 kpick 214262 # Bind app name to menu row when notification updated
 kpick 214263 # Fix intercepting touch events for guts
 kpick 214265 # Better QS detail clip animation
+#kpick 214867 # Expose isAutonomousGroupOwner [1/2]					[shield-blake-o]
+#kpick 214868 # Expose cancelWps [1/2]							[shield-blake-o]
+#kpick 214869 # Allow activing a saved autonomous group [1/2]				[shield-blake-o]
 kpick 215031 # Keyguard: Fix ConcurrentModificationException in KeyguardUpdateMonitor
 kpick 215128 # Make the startup of SoundTrigger service conditional
 kpick 216417 # SignalClusterView: Hide signal icons for disabled SIMs
@@ -663,16 +667,33 @@ kpick 216872 # SystemUI: Fix systemui crash when showing data usage detail
 kpick 217039 # Make berry overlays selection more generic	
 kpick 217042 # Add support for black berry style
 kpick 217453 # PhoneWindowManager: Allow torch and track skip during ambient display
-kpick 217499 # SystemUI: disable wallpaper-based tint for scrim
 kpick 217594 # Fingerprint: Speed up wake-and-unlock scenario
 kpick 217595 # display: Don't animate screen brightness when turning the screen on
+#kpick 217848 # Bluetooth: Add Nvidia Custom API.					[shield-blake-o]
+#kpick 217849 # frameworks/base: Wifi application property support			[shield-blake-o]
+#kpick 217854 # Expose getChannelList [1/2]						[shield-blake-o]
+#kpick 217933 # Expose updateChannelList [1/2]						[shield-blake-o]
+#kpick 217934 # Expose isAutonomousGroupOwnerInitiated [1/2]				[shield-blake-o]
 kpick 217952 # SystemUI: Resolve status bar VPN icon tints
 kpick 217953 # SystemUI: Resolve status bar battery percentage tints
+#kpick 218012 # Add restricted channel flag to WifiChannel				[shield-blake-o]
 
 # frameworks/native
 kpick 213549 # SurfaceFlinger: Support get/set ActiveConfigs
 
 # frameworks/opt/chips
+
+# frameworks/opt/net/wifi
+#kpick 214870 # Expose isAutonomousGroupOwnerInitiated [1/2] 		[shield-blake-o]
+#kpick 214871 # Allow activing a saved autonomous group [2/2] 		[shield-blake-o]
+#kpick 214872 # Better track autonomous group creation 			[shield-blake-o]
+#kpick 217850 # Nv Wi-Fi/BT App property support integration 		[shield-blake-o]
+#kpick 217851 # Import NvWifi as library 				[shield-blake-o]
+#kpick 217852 # Android O: Release NvWifi AGO Support			[shield-blake-o]
+#kpick 217855 # Expose getChannelList [2/2]				[shield-blake-o]
+#kpick 217932 # Expose updateChannelList [2/2]				[shield-blake-o]
+#kpick 217935 # Expose isAutonomousGroupOwnerInitiated [2/2]		[shield-blake-o]
+#kpick 217993 # Expose isAutonomousGroupOwner [2/2]			[shield-blake-o]
 
 # frameworks/opt/telephony
 kpick 214316 # RIL: Allow overriding RadioResponse and RadioIndication
@@ -760,10 +781,12 @@ kpick 217419 # Add vendor security patch level to device info
 kpick 217521 # Trust: warn if build is signed with insecure keys	
 kpick 217951 # NetworkTraffic: Resolve status bar indicators tints
 
+# packages/apps/Bluetooth
+#kpick 217853 # Add sendNvCustomCommandNative to fix licensed builds [shield-blake-o]
+
 # packages/apps/Camera2
 
 # packages/apps/Contacts
-kpick 217239 # Revert "Automatically set SIM number to my profile"
 
 # packages/apps/Dialer
 kpick 211135 # Show proper call duration
@@ -795,7 +818,6 @@ kpick 217171 # Trust: enforce vendor security patch level check
 #kpick 217197 # LineageParts: remove unused network mode picker intent
 kpick 217642 # Align learn more and got it horizontally
 kpick 217644 # LineageParts: Set proper PreferenceTheme parent	
-kpick 217838 # LineageParts: Add category title for options
 kpick 217839 # LineageParts: Add Trust entry summary
 
 # packages/apps/Nfc
@@ -821,7 +843,6 @@ kpick 217842 # SnapdragonCamera: Fix compilation issues for AOSP upgrade
 
 # packages/apps/Trebuchet
 kpick 214336 # [WIP] Trebuchet: initial protected apps implementation
-kpick 217386 # IconCache: fix nullpointer exceptions
 
 # packages/apps/UnifiedEmail
 
