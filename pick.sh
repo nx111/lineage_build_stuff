@@ -656,9 +656,9 @@ kpick 206940 # Avoid crash when the actionbar is disabled in settings
 kpick 214262 # Bind app name to menu row when notification updated
 kpick 214263 # Fix intercepting touch events for guts
 kpick 214265 # Better QS detail clip animation
-#kpick 214867 # Expose isAutonomousGroupOwner [1/2]					[shield-blake-o]
-#kpick 214868 # Expose cancelWps [1/2]							[shield-blake-o]
-#kpick 214869 # Allow activing a saved autonomous group [1/2]				[shield-blake-o]
+kpick 214867 # Expose isAutonomousGroupOwner [1/2]					[shield-blake-o]
+kpick 214868 # Expose cancelWps [1/2]							[shield-blake-o]
+kpick 214869 # Allow activing a saved autonomous group [1/2]				[shield-blake-o]
 kpick 215031 # Keyguard: Fix ConcurrentModificationException in KeyguardUpdateMonitor
 kpick 215128 # Make the startup of SoundTrigger service conditional
 kpick 216417 # SignalClusterView: Hide signal icons for disabled SIMs
@@ -669,14 +669,14 @@ kpick 217042 # Add support for black berry style
 kpick 217453 # PhoneWindowManager: Allow torch and track skip during ambient display
 kpick 217594 # Fingerprint: Speed up wake-and-unlock scenario
 kpick 217595 # display: Don't animate screen brightness when turning the screen on
-#kpick 217848 # Bluetooth: Add Nvidia Custom API.					[shield-blake-o]
-#kpick 217849 # frameworks/base: Wifi application property support			[shield-blake-o]
-#kpick 217854 # Expose getChannelList [1/2]						[shield-blake-o]
-#kpick 217933 # Expose updateChannelList [1/2]						[shield-blake-o]
-#kpick 217934 # Expose isAutonomousGroupOwnerInitiated [1/2]				[shield-blake-o]
+kpick 217848 # Bluetooth: Add Nvidia Custom API.					[shield-blake-o]
+kpick 217849 # frameworks/base: Wifi application property support			[shield-blake-o]
+kpick 217854 # Expose getChannelList [1/2]						[shield-blake-o]
+kpick 217933 # Expose updateChannelList [1/2]						[shield-blake-o]
+kpick 217934 # Expose isAutonomousGroupOwnerInitiated [1/2]				[shield-blake-o]
 kpick 217952 # SystemUI: Resolve status bar VPN icon tints
 kpick 217953 # SystemUI: Resolve status bar battery percentage tints
-#kpick 218012 # Add restricted channel flag to WifiChannel				[shield-blake-o]
+kpick 218012 # Add restricted channel flag to WifiChannel				[shield-blake-o]
 
 # frameworks/native
 kpick 213549 # SurfaceFlinger: Support get/set ActiveConfigs
@@ -684,16 +684,17 @@ kpick 213549 # SurfaceFlinger: Support get/set ActiveConfigs
 # frameworks/opt/chips
 
 # frameworks/opt/net/wifi
-#kpick 214870 # Expose isAutonomousGroupOwnerInitiated [1/2] 		[shield-blake-o]
-#kpick 214871 # Allow activing a saved autonomous group [2/2] 		[shield-blake-o]
-#kpick 214872 # Better track autonomous group creation 			[shield-blake-o]
-#kpick 217850 # Nv Wi-Fi/BT App property support integration 		[shield-blake-o]
-#kpick 217851 # Import NvWifi as library 				[shield-blake-o]
-#kpick 217852 # Android O: Release NvWifi AGO Support			[shield-blake-o]
-#kpick 217855 # Expose getChannelList [2/2]				[shield-blake-o]
-#kpick 217932 # Expose updateChannelList [2/2]				[shield-blake-o]
-#kpick 217935 # Expose isAutonomousGroupOwnerInitiated [2/2]		[shield-blake-o]
-#kpick 217993 # Expose isAutonomousGroupOwner [2/2]			[shield-blake-o]
+kpick 214870 # Expose isAutonomousGroupOwnerInitiated [1/2] 		[shield-blake-o]
+kpick 214871 # Allow activing a saved autonomous group [2/2] 		[shield-blake-o]
+kpick 214872 # Better track autonomous group creation 			[shield-blake-o]
+kpick 217850 # Nv Wi-Fi/BT App property support integration 		[shield-blake-o]
+kpick 217851 # Import NvWifi as library 				[shield-blake-o]
+kpick 217852 # Android O: Release NvWifi AGO Support			[shield-blake-o]
+kpick 217855 # Expose getChannelList [2/2]				[shield-blake-o]
+kpick 217932 # Expose updateChannelList [2/2]				[shield-blake-o]
+kpick 217935 # Expose isAutonomousGroupOwnerInitiated [2/2]		[shield-blake-o]
+kpick 217993 # Expose isAutonomousGroupOwner [2/2]			[shield-blake-o]
+kpick 218116 # Don't bring down group interface when p2p group is deleted  [shield-blake-o]
 
 # frameworks/opt/telephony
 kpick 214316 # RIL: Allow overriding RadioResponse and RadioIndication
@@ -734,6 +735,10 @@ kpick 215608 # visualizer: Build with BOARD_VNDK_VERSION
 kpick 209093 # msm8974: hwc: Set ioprio for vsync thread
 
 # hardware/qcom/display-caf/msm8974
+
+# hardware/qcom/gps
+kpick 218114 # msm8974: Support moving conf files to /vendor/etc
+kpick 218115 # msm8974: Support moving conf files to /vendor/etc
 
 # hardware/qcom/media-caf/msm8974
 kpick 215598 # Build mm-video-v4l2 with BOARD_VNDK_VERSION
@@ -782,7 +787,7 @@ kpick 217521 # Trust: warn if build is signed with insecure keys
 kpick 217951 # NetworkTraffic: Resolve status bar indicators tints
 
 # packages/apps/Bluetooth
-#kpick 217853 # Add sendNvCustomCommandNative to fix licensed builds [shield-blake-o]
+kpick 217853 # Add sendNvCustomCommandNative to fix licensed builds [shield-blake-o]
 
 # packages/apps/Camera2
 
