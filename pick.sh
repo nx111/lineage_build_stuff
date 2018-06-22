@@ -592,7 +592,6 @@ kpick 217311 # linker: add support for odm partition
 kpick 217312 # libc: add /odm/bin to the DEFPATH
 
 # bootable/recovery
-kpick 211098 # recovery/ui: Hide emulated storage for encrypted devices
 #kpick 217627 # recovery: Do not show emulated when data is encrypted
 
 # build/make
@@ -671,6 +670,7 @@ kpick 217594 # Fingerprint: Speed up wake-and-unlock scenario
 kpick 217595 # display: Don't animate screen brightness when turning the screen on
 kpick 217952 # SystemUI: Resolve status bar VPN icon tints
 kpick 217953 # SystemUI: Resolve status bar battery percentage tints
+kpick 218166 # Add an option to change the device hostname (1/2).
 
 # frameworks/native
 kpick 213549 # SurfaceFlinger: Support get/set ActiveConfigs
@@ -756,7 +756,6 @@ kpick 207545 # Add batch gerrit script
 # lineage/website(LineageOS/www)
 
 # lineage/wiki
-kpick 215543 # wiki: Add BQ bardock/bardockpro devices
 
 # lineage-sdk
 kpick 213367 # NetworkTraffic: Include tethering traffic statistics
@@ -822,6 +821,8 @@ kpick 216871 # Utils: Always show SIM Settings menu
 kpick 216909 # Settings: Apply accent color to on-body detection icon
 kpick 216918 # SimSettings: Use TelephonyExtUtils from Lineage SDK
 kpick 217420 # Add vendor security patch level to device info
+kpick 218131 # settings: Add platform to "Model & Hardware" dialog
+kpick 218165 # Add an option to change the device hostname (1/2).
 
 # packages/apps/Snap
 kpick 206595 # Use transparent navigation bar
