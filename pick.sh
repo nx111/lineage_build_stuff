@@ -584,7 +584,6 @@ kpick 213705 # 	Build Exchange
 repo sync --force-sync packages/apps/Exchange
 
 # bionic
-kpick 206123 # bionic: Sort and cache hosts file data for fast lookup
 kpick 212920 # libc: Mark libstdc++ as vendor available
 #kpick 217149 # linker: Provide soinfo path of the shimmed binary
 #kpick 217152 # Revert "linker: allow the linker to shim executables"
@@ -606,7 +605,6 @@ kpick 214892 # Add detection for WSL
 # build/soong
 
 # device/lineage/sepolicy
-kpick 210014 # sepolicy: Label aw2013 HIDL light HAL
 
 # device/qcom/sepolicy
 kpick 211273 # qcom/sepol: Fix timeservice app context
@@ -671,6 +669,7 @@ kpick 217595 # display: Don't animate screen brightness when turning the screen 
 kpick 217952 # SystemUI: Resolve status bar VPN icon tints
 kpick 217953 # SystemUI: Resolve status bar battery percentage tints
 kpick 218166 # Add an option to change the device hostname (1/2).
+kpick 218317 # SystemUI: Remove duplicate permission
 
 # frameworks/native
 kpick 213549 # SurfaceFlinger: Support get/set ActiveConfigs
@@ -687,17 +686,13 @@ kpick 217091 # Revert "PhoneFactory: fix creating a cdma phone type"
 kpick 217092 # TelephonyComponentFactory: Fix invalid phone creation another way
 
 # hardware/broadcom/libbt
-kpick 215613 # libbt: Build with BOARD_VNDK_VERSION
 
 # hardware/broadcom/wlan
-kpick 215615 # wpa_supplicant_8_lib: Added LOCAL_VENDOR_MODULE to set output path of the ...
-kpick 215616 # wifi_hal: Build with BOARD_VNDK_VERSION
 
 # hardware/interfaces
 kpick 206140 # gps.default.so: fix crash on access to unset AGpsRilCallbacks::request_refloc
 
 # hardware/lineage/interfaces
-kpick 210009 # lineage/interfaces: Add aw2013 lights HIDL HAL implementation
 kpick 213865 # lineage/interfaces: move vibrator to the proper directory
 kpick 213866 # lineage/interfaces: extend android.hardware.vibrator@1.0
 kpick 213867 # lineage/interfaces: vibrator: read light/medium/strong voltage from sysfs
@@ -706,11 +701,6 @@ kpick 213868 # lineage/interfaces: vibrator: implement vendor.lineage methods
 # hardware/lineage/lineagehw
 
 # hardware/qcom/audio-caf/msm8974
-kpick 215604 # hal: Build with BOARD_VNDK_VERSION
-kpick 215605 # mm-audio: Build with BOARD_VNDK_VERSION
-kpick 215606 # post_proc: Build with BOARD_VNDK_VERSION
-kpick 215607 # voice_processing: Build with BOARD_VNDK_VERSION
-kpick 215608 # visualizer: Build with BOARD_VNDK_VERSION
 
 # hardware/qcom/bt-caf
 
@@ -724,13 +714,8 @@ kpick 218114 # msm8974: Support moving conf files to /vendor/etc
 kpick 218115 # msm8974: Support moving conf files to /vendor/etc
 
 # hardware/qcom/media-caf/msm8974
-kpick 215598 # Build mm-video-v4l2 with BOARD_VNDK_VERSION
-kpick 215599 # Build libc2dcolorconvert with BOARD_VNDK_VERSION
-kpick 215609 # Build libstagefrighthw with BOARD_VNDK_VERSION
 
 # hardware/qcom/keymaster
-kpick 215601 # keymaster: Build with BOARD_VNDK_VERSION
-kpick 215612 # Keymaster: Move test to std::unique_ptr
 
 # hardware/qcom/power
 
@@ -769,6 +754,7 @@ kpick 217521 # Trust: warn if build is signed with insecure keys
 kpick 217951 # NetworkTraffic: Resolve status bar indicators tints
 
 # packages/apps/Bluetooth
+kpick 218319 # Bluetooth: Remove duplicate permission
 
 # packages/apps/Camera2
 
@@ -783,6 +769,7 @@ kpick 213051 # Deskclock: set targetSdk to 27
 # packages/apps/Eleven
 
 # packages/apps/Email
+kpick 218318 # Email: Remove duplicate permission
 
 # packages/apps/Exchange
 kpick 209820 # Revert changes to make Exchange buildable.
@@ -805,6 +792,7 @@ kpick 217171 # Trust: enforce vendor security patch level check
 kpick 217642 # Align learn more and got it horizontally
 kpick 217644 # LineageParts: Set proper PreferenceTheme parent	
 kpick 217839 # LineageParts: Add Trust entry summary
+kpick 218315 # LineageParts: Fix brightness section
 
 # packages/apps/Nfc
 
@@ -882,7 +870,7 @@ kpick 209189 # vold: Conditionally remove secdiscard command
 kpick 206138 # vendor: add custom backuptools and postinstall script for A/B OTAs
 kpick 206139 # backuptool: introduce addon.d script versioning
 kpick 206154 # Include build manifest on target
-kpick 210664 # extract_utils: Support multidex
+#kpick 210664 # extract_utils: Support multidex
 kpick 213815 # Place ADB auth property override to system
 kpick 215341 # backuptool: Revert "Temporarily render version check permissive"
 kpick 214400 # backuptool: Resolve incompatible version grep syntax
@@ -892,6 +880,7 @@ kpick 217088 # Revert "extract_utils: Fix makefile generation issues"
 kpick 217089 # Revert "extract_files: Add support for paths without system/"
 kpick 217090 # extract_utils: cleanup in extract() function
 kpick 217354 # addonsu: Fix package for modern devices
+kpick 217358 # extract_utils: do not strip target_args from the output of prefix_match
 kpick 217628 # lineage: add generic x86_64 target
 kpick 217629 # kernel: Add TARGET_KERNEL_ADDITIONAL_FLAGS to allow setting extra cflags
 kpick 217630 # kernel: Add kernelversion recipe to generate MAJOR.MINOR kernel version
