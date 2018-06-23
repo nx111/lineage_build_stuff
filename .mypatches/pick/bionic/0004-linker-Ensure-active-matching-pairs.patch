@@ -1,0 +1,71 @@
+From db34a3c62a90aa4335709817891d89519aeaf721 Mon Sep 17 00:00:00 2001
+From: Nich <nctrenco@gmail.com>
+Date: Fri, 15 Jun 2018 03:59:05 +0800
+Subject: [PATCH 4/5] linker: Ensure active matching pairs
+
+It was meant to be initialized fresh from g_active_shim_libs but wasn't
+so since the variable was made global.
+
+Change-Id: I54c666b4560dbfb40839b0bf9132a7fd8d3ed2dd
+---
+ linker/linker.cpp      | 11 +++--------
+ linker/linker_soinfo.h |  8 +++++---
+ 2 files changed, 8 insertions(+), 11 deletions(-)
+
+diff --git a/linker/linker.cpp b/linker/linker.cpp
+index c7abaabcb..e836ec1c6 100644
+--- a/linker/linker.cpp
++++ b/linker/linker.cpp
+@@ -717,10 +717,6 @@ static std::vector<ShimDescriptor> g_ld_all_shim_libs;
+ // for libB where libA also links against libB).
+ static linked_list_t<const ShimDescriptor> g_active_shim_libs;
+ 
+-// matched_pairs are shim libs that load over their corresponding
+-// target libraries/executables, which are DT_NEEDED.
+-std::vector<const ShimDescriptor *> matched_pairs;
+-
+ static void reset_g_active_shim_libs(void) {
+   g_active_shim_libs.clear();
+   for (const auto& pair : g_ld_all_shim_libs) {
+@@ -745,12 +741,11 @@ void parse_LD_SHIM_LIBS(const char* path) {
+   reset_g_active_shim_libs();
+ }
+ 
+-void shim_matching_pairs(const char *const path) {
+-  INFO("Finding shim libs for \"%s\"\n", path);
+-
++void shim_matching_pairs(const char *const path,
++                         std::vector<const ShimDescriptor *>* matched_pairs) {
+   g_active_shim_libs.for_each([&](const ShimDescriptor *a_pair) {
+     if (a_pair->first == path) {
+-      matched_pairs.push_back(a_pair);
++      matched_pairs->push_back(a_pair);
+     }
+   });
+ 
+diff --git a/linker/linker_soinfo.h b/linker/linker_soinfo.h
+index c2398adff..6eb7b787a 100644
+--- a/linker/linker_soinfo.h
++++ b/linker/linker_soinfo.h
+@@ -346,13 +346,15 @@ uint32_t calculate_elf_hash(const char* name);
+ 
+ #ifdef LD_SHIM_LIBS
+ typedef std::pair<std::string, std::string> ShimDescriptor;
+-extern std::vector<const ShimDescriptor *> matched_pairs;
+-void shim_matching_pairs(const char *const path);
++void shim_matching_pairs(const char *const path,
++                         std::vector<const ShimDescriptor *>* matched_pairs);
+ 
+ template<typename F>
+ void for_each_matching_shim(const char *const path, F action) {
+   if (path == nullptr) return;
+-  shim_matching_pairs(path);
++  std::vector<const ShimDescriptor *> matched_pairs;
++  INFO("Finding shim libs for \"%s\"\n", path);
++  shim_matching_pairs(path, &matched_pairs);
+   for (const auto& one_pair : matched_pairs) {
+     INFO("Injecting shim lib \"%s\" as needed for %s", one_pair->second.c_str(), path);
+     action(one_pair->second.c_str());
+-- 
+2.17.1
+

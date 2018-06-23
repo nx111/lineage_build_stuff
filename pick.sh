@@ -585,10 +585,10 @@ repo sync --force-sync packages/apps/Exchange
 
 # bionic
 kpick 212920 # libc: Mark libstdc++ as vendor available
-#kpick 217149 # linker: Provide soinfo path of the shimmed binary
-#kpick 217152 # Revert "linker: allow the linker to shim executables"
 kpick 217311 # linker: add support for odm partition
 kpick 217312 # libc: add /odm/bin to the DEFPATH
+kpick 218402 # linker: Ensure active matching pairs
+kpick 218403 # linker: Don't involve shim in for_each_dt_needed
 
 # bootable/recovery
 #kpick 217627 # recovery: Do not show emulated when data is encrypted
@@ -653,9 +653,6 @@ kpick 206940 # Avoid crash when the actionbar is disabled in settings
 kpick 214262 # Bind app name to menu row when notification updated
 kpick 214263 # Fix intercepting touch events for guts
 kpick 214265 # Better QS detail clip animation
-#kpick 214867 # Expose isAutonomousGroupOwner [1/2]					[shield-blake-o]
-#kpick 214868 # Expose cancelWps [1/2]							[shield-blake-o]
-#kpick 214869 # Allow activing a saved autonomous group [1/2]				[shield-blake-o]
 kpick 215031 # Keyguard: Fix ConcurrentModificationException in KeyguardUpdateMonitor
 kpick 215128 # Make the startup of SoundTrigger service conditional
 kpick 216417 # SignalClusterView: Hide signal icons for disabled SIMs
@@ -663,13 +660,13 @@ kpick 216854 # Keyguard: Remove carrier text for disabled SIMs
 kpick 216872 # SystemUI: Fix systemui crash when showing data usage detail
 kpick 217039 # Make berry overlays selection more generic	
 kpick 217042 # Add support for black berry style
-kpick 217453 # PhoneWindowManager: Allow torch and track skip during ambient display
 kpick 217594 # Fingerprint: Speed up wake-and-unlock scenario
 kpick 217595 # display: Don't animate screen brightness when turning the screen on
 kpick 217952 # SystemUI: Resolve status bar VPN icon tints
 kpick 217953 # SystemUI: Resolve status bar battery percentage tints
 kpick 218166 # Add an option to change the device hostname (1/2).
 kpick 218317 # SystemUI: Remove duplicate permission
+kpick 218359 # Add tip to compile Heimdall from source.
 
 # frameworks/native
 kpick 213549 # SurfaceFlinger: Support get/set ActiveConfigs
@@ -720,6 +717,7 @@ kpick 218115 # msm8974: Support moving conf files to /vendor/etc
 # hardware/qcom/power
 
 # hardware/qcom/thermal
+kpick 218360 # thermal: use log/log.h header
 
 # haedware/qcom/vr
 
@@ -741,6 +739,7 @@ kpick 207545 # Add batch gerrit script
 # lineage/website(LineageOS/www)
 
 # lineage/wiki
+kpick 218356 # Add tip to compile Heimdall from source.
 
 # lineage-sdk
 kpick 213367 # NetworkTraffic: Include tethering traffic statistics
@@ -770,6 +769,25 @@ kpick 213051 # Deskclock: set targetSdk to 27
 
 # packages/apps/Email
 kpick 218318 # Email: Remove duplicate permission
+:<<EOF
+kpick 218368 # email: add an option for delete the account
+kpick 218369 # email: support for auto-sync multiple IMAP folders
+kpick 218370 # email: support per-folder notifications
+kpick 218371 # email: finish the settings activity after delete its account
+kpick 218372 # Fix NPE in getHierarchicalFolder
+kpick 218373 # email: fix eas autodiscover
+kpick 218374 # Implement IMAP push using IMAP IDLE.
+kpick 218375 # Fix crash when attempting to view EML files.
+kpick 218376 # Allow download of compressed attachments.
+kpick 218377 # email: fix empty body update
+kpick 218378 # Improve notification coalescence algorithm.
+kpick 218379 # email: Add an ActionBar to the mail app's PreferenceActivity
+kpick 218380 # Email: Fix the ActivityNotFoundException when click "Update now"
+kpick 218381 # Email: Clean duplicated WRITE_CONTACTS permission
+kpick 218382 # email: return default folder name for subfolders
+kpick 218383 # email: junk icon
+kpick 218384 # Search in folder specified via URI parameter, if possible.
+EOF
 
 # packages/apps/Exchange
 kpick 209820 # Revert changes to make Exchange buildable.
@@ -793,6 +811,9 @@ kpick 217642 # Align learn more and got it horizontally
 kpick 217644 # LineageParts: Set proper PreferenceTheme parent	
 kpick 217839 # LineageParts: Add Trust entry summary
 kpick 218315 # LineageParts: Fix brightness section
+
+# packages/apps/lockClock
+kpick 208127 # Update LockClock to use Job APIs 
 
 # packages/apps/Nfc
 
@@ -821,6 +842,25 @@ kpick 217842 # SnapdragonCamera: Fix compilation issues for AOSP upgrade
 kpick 214336 # [WIP] Trebuchet: initial protected apps implementation
 
 # packages/apps/UnifiedEmail
+:<<EOF
+kpick 218385 # unified email: prefer account display name to sender name
+kpick 218386 # email: fix back button
+kpick 218387 # unified-email: check notification support prior to create notification objects
+kpick 218388 # unified-email: respect swipe user setting
+kpick 218389 # email: linkify urls in plain text emails
+kpick 218390 # email: do not close the input attachment buffer in Conversion#parseBodyFields
+kpick 218391 # email: linkify phone numbers
+kpick 218392 # Remove obsolete theme.
+kpick 218393 # Don't assume that a string isn't empty
+kpick 218394 # Add an ActionBar to the mail app's PreferenceActivity.
+kpick 218395 # email: allow move/copy operations to more system folders
+kpick 218396 # unifiedemail: junk icon
+kpick 218397 # Remove mail signatures from notification text.
+kpick 218398 # MimeUtility: ensure streams are always closed
+kpick 218399 # Fix cut off notification sounds.
+kpick 218400 # Pass selected folder to message search.
+kpick 218401 # Properly close body InputStreams.
+EOF
 
 # packages/overlays/Lineage
 kpick 215846 # dark: Add Theme.DeviceDefault.Settings.Dialog.NoActionBar style
@@ -861,14 +901,14 @@ kpick 217069 # key_store:Using euid instead of uid when upgrade wifi blobs
 
 # system/sepolicy
 kpick 206037 # sepolicy: Allow init to modify system_blk_device
-kpick 206136 # sepolicy: allow update_engine to bypass neverallows for backuptool
 
 # system/vold
 kpick 209189 # vold: Conditionally remove secdiscard command
+kpick 218416 # vold: utils: Introduce ForkCallp
+#kpick 218417 # vold: Put recovery fstools in minivold
+#kpick 218418 # vold: Use ForkCallp for e2fsck
 
 # vendor/lineage
-kpick 206138 # vendor: add custom backuptools and postinstall script for A/B OTAs
-kpick 206139 # backuptool: introduce addon.d script versioning
 kpick 206154 # Include build manifest on target
 #kpick 210664 # extract_utils: Support multidex
 kpick 213815 # Place ADB auth property override to system
@@ -879,7 +919,6 @@ kpick 217045 # vendor: build black berry theme
 kpick 217088 # Revert "extract_utils: Fix makefile generation issues"
 kpick 217089 # Revert "extract_files: Add support for paths without system/"
 kpick 217090 # extract_utils: cleanup in extract() function
-kpick 217354 # addonsu: Fix package for modern devices
 kpick 217358 # extract_utils: do not strip target_args from the output of prefix_match
 kpick 217628 # lineage: add generic x86_64 target
 kpick 217629 # kernel: Add TARGET_KERNEL_ADDITIONAL_FLAGS to allow setting extra cflags
