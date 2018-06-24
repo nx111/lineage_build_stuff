@@ -609,10 +609,11 @@ kpick 214892 # Add detection for WSL
 # device/qcom/sepolicy
 kpick 211273 # qcom/sepol: Fix timeservice app context
 kpick 212643 # qcom/sepol: Allow mm-qcamerad to use binder even in vendor
-kpick 216898 # sepolicy: Allow perf HAL to set freq props
 
 # device/samsung/klte-common
 #kpick 212648 # klte-common: Enable AOD
+kpick 218432 # klte-common: Define Vendor security patch level
+kpick 218434 # klte-common: Reorder tetherable connection types
 
 # device/samsung/kltechnduo
 
@@ -667,6 +668,8 @@ kpick 217953 # SystemUI: Resolve status bar battery percentage tints
 kpick 218166 # Add an option to change the device hostname (1/2).
 kpick 218317 # SystemUI: Remove duplicate permission
 kpick 218359 # Add tip to compile Heimdall from source.
+kpick 218427 # SystemUI: CellularTile: Don't call showDetail() when device is locked
+kpick 218430 # SystemUI: Require unlock to toggle airplane mode
 
 # frameworks/native
 kpick 213549 # SurfaceFlinger: Support get/set ActiveConfigs
