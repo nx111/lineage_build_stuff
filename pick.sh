@@ -8,6 +8,7 @@ op_restore_snapshot=0
 op_pick_remote_only=0
 op_snap_project=""
 op_patches_dir=""
+op_mini_pick=0
 default_remote="github"
 script_file=$0
 conflict_resolved=0
@@ -44,12 +45,14 @@ function patch_local()
     find $search_dir -type f -name "*.patch" -o -name "*.diff" | sed -e "s/\.mypatches\///" -e "s/\//:/" |sort -t : -k 2 | while read line; do
          f=$(echo $line | sed -e "s/:/\//")
          patchfile=$(basename $f)
-         if [ "${patchfile:5:5}" = "[WIP]" -o "${patchfile:5:6}" = "[SKIP]" ]; then
-             echo "    skipping: $f"
-             continue
-         fi
          project=$(echo $f |  sed -e "s/^pick\///" -e "s/^local\///"  | sed "s/\/[^\/]*$//")
-         [ -d "$topdir/$project" ] || continue
+         if [ ! -d "$topdir/$project" ]; then
+            if [ -d "$topdir/$(dirname $project)" ]; then
+               project=$(dirname $project)
+            else
+                continue
+            fi 
+         fi
          if [ "$f" != "$project" ]; then
              if [ `pwd` != "$topdir/$project" ]; then
                   cd $topdir/$project
@@ -57,6 +60,11 @@ function patch_local()
                   echo "==== try apply to $project: "
                   #rm -rf .git/rebase-apply
              fi
+             if echo $f | grep -qE "[WIP]|[SKIP]"; then
+                 echo "    skipping: $f"
+                 continue
+             fi
+
              ext=${patchfile##*.}
              #rm -rf .git/rebase-apply
              changeid=$(grep "Change-Id: " $topdir/.mypatches/$f | tail -n 1 | sed -e "s/ \{1,\}/ /g" -e "s/^ //g" | cut -d' ' -f2)
@@ -169,18 +177,21 @@ function projects_snapshot()
                        if grep -q "Change-Id: $changeid" -r $topdir/.mypatches/pick/$project; then
                            pick_patch=$(grep -H "Change-Id: $changeid" -r $topdir/.mypatches/pick/$project | sed -n 1p | cut -d: -f1)
                            pick_patch_name=$(basename $pick_patch)
-                           if [ "${patch_file_name:5:5}" != "[WIP]" -a "${patch_file_name:5:6}" != "[SKIP]" -a "${patch_file_name:5:8}" != "[ALWAYS]" ]; then
-                               rm -f $patchfile
-                               mv $pick_patch $topdir/.mypatches/local/$project/
-                           else
+                           if echo $patch_file_name | grep -qE "[WIP]|[SKIP]|[ALWAYS]" ; then
                                [ "${patch_file_name:5:5}" = "[WIP]" ] && rm -f $patchfile && \
                                       mv $pick_patch $(dirname $patchfile)/${pick_patch_name:0:4}-${patch_file_name:5:5}-${pick_patch_name:5}
                                [ "${patch_file_name:5:6}" = "[SKIP]" ] && rm -f $patchfile && \
                                       mv $pick_patch $(dirname $patchfile)/${pick_patch_name:0:4}-${patch_file_name:5:6}-${pick_patch_name:5}
                                [ "${patch_file_name:5:8}" = "[ALWAYS]" ] && rm -f $patchfile && \
                                       mv $pick_patch $(dirname $patchfile)/${pick_patch_name:0:4}-${patch_file_name:5:8}-${pick_patch_name:5}
+                           elif echo $(dirname $patchfile) | grep -qE "[WIP]|[SKIP]|[ALWAYS]" ; then
+                               rm -f $patchfile
+                               mv $pick_patch $(dirname $patchfile)/
+                           else
+                               rm -f $patchfile
+                               mv $pick_patch $topdir/.mypatches/local/$project/
                            fi
-                       elif [ "${patch_file_name:5:5}" != "[WIP]" -a "${patch_file_name:5:6}" != "[SKIP]" -a "${patch_file_name:5:8}" != "[ALWAYS]" ]; then
+                       elif ! echo $patchfile | grep -qE "[WIP]|[SKIP]|[ALWAYS]"; then
                            rm -f $patchfile
                        fi
                    fi
@@ -539,6 +550,8 @@ for op in $*; do
          op_snap_project=$op
     elif [ "$op" = "-nop" ]; then
           return 0
+    elif [ "$op" = "-mini" ]; then
+         op_mini_pick=1
     else
          echo "kpick $op"
          kpick $op
@@ -562,7 +575,7 @@ if [ $# -ge 1 ]; then
          restore_snapshot
          exit $?
    fi
-   [ $op_pick_remote_only -eq 0 ] && exit 0
+   [ $op_pick_remote_only -eq 1 ] && exit 0
 fi
 
 ###############################################################
@@ -578,6 +591,29 @@ find $topdir/.mypatches/local/vendor/lineage/ -type f -name "*-\[ALWAYS\]-*.patc
         exit -1
      fi
 done
+
+###################################
+#---------mini pick --------------#
+if [ $op_mini_pick -eq 1 ]; then
+   kpick 212920 # libc: Mark libstdc++ as vendor available
+   kpick 209019 # toybox: Use ISO C/clang compatible __typeof__ in minof/maxof macros
+
+   echo 
+   echo "Apply I hate the safty net..."
+   cd $topdir/system/core;find  $topdir/.mypatches/local/system/core/ -name "*I-hate-the-safty-net*.patch" | xargs cat \
+         | git am -3; cd $topdir
+   kpick 217039 # Make berry overlays selection more generic	
+   kpick 217042 # Add support for black berry style
+   kpick 217041 # sdk: add black berry style support
+   kpick 217044 # LineageParts: add black theme support
+   kpick 217046 # Add support for black berry style
+   kpick 217045 # vendor: build black berry theme
+    
+   exit 0
+fi
+#---------------------------------#
+###################################
+
 
 # android
 kpick 213705 # 	Build Exchange
@@ -624,6 +660,9 @@ kpick 210313 # msm8974-common: Binderize them all
 kpick 210665 # wacom: Follow-up from gestures patch
 kpick 210666 # wacom: Report touch when pen button is pressed if gestures are off
 
+# external/ant-wireless/ant_native
+kpick 218447 # vfs: selectivly revert caf updates
+
 # external/chromium-webview
 
 # external/tinecompress
@@ -651,6 +690,7 @@ kpick 206568 # base: audioservice: Set BT_SCO status
 kpick 207583 # BatteryService: Add support for oem fast charger detection
 kpick 209031 # TelephonyManager: Prevent NPE when registering phone state listener
 kpick 206940 # Avoid crash when the actionbar is disabled in settings
+kpick 210106 # camera: Check if aux camera whitelist is set before restricting cameras
 kpick 214262 # Bind app name to menu row when notification updated
 kpick 214263 # Fix intercepting touch events for guts
 kpick 214265 # Better QS detail clip animation
@@ -668,8 +708,10 @@ kpick 217953 # SystemUI: Resolve status bar battery percentage tints
 kpick 218166 # Add an option to change the device hostname (1/2).
 kpick 218317 # SystemUI: Remove duplicate permission
 kpick 218359 # Add tip to compile Heimdall from source.
-kpick 218427 # SystemUI: CellularTile: Don't call showDetail() when device is locked
 kpick 218430 # SystemUI: Require unlock to toggle airplane mode
+kpick 218431 # SystemUI: Require unlock to toggle location
+kpick 218437 # SystemUI: Add activity alias for LockscreenFragment
+kpick 218473 # SystemUI: Make notification panel opaque
 
 # frameworks/native
 kpick 213549 # SurfaceFlinger: Support get/set ActiveConfigs
@@ -682,8 +724,6 @@ kpick 213549 # SurfaceFlinger: Support get/set ActiveConfigs
 kpick 214316 # RIL: Allow overriding RadioResponse and RadioIndication
 kpick 215450 # Add changes for sending ATEL UI Ready to RIL.
 kpick 216412 # Revert "Don't assume 3GPP as active app on CDMA with LTE device"
-kpick 217091 # Revert "PhoneFactory: fix creating a cdma phone type"
-kpick 217092 # TelephonyComponentFactory: Fix invalid phone creation another way
 
 # hardware/broadcom/libbt
 
@@ -835,6 +875,7 @@ kpick 216918 # SimSettings: Use TelephonyExtUtils from Lineage SDK
 kpick 217420 # Add vendor security patch level to device info
 kpick 218131 # settings: Add platform to "Model & Hardware" dialog
 kpick 218165 # Add an option to change the device hostname (1/2).
+kpick 218438 # Settings: Add lockscreen shortcuts customization to lockscreen settings
 
 # packages/apps/Snap
 kpick 206595 # Use transparent navigation bar
@@ -928,6 +969,7 @@ kpick 217629 # kernel: Add TARGET_KERNEL_ADDITIONAL_FLAGS to allow setting extra
 kpick 217630 # kernel: Add kernelversion recipe to generate MAJOR.MINOR kernel version
 kpick 217837 # envsetup: Fix adb recovery state detections
 kpick 217846 # Fix focus close when select video in picker
+kpick 218496 # vendor: Fix install[boot|recovery]
 
 # vendor/qcom/opensource/cryptfs_hw
 

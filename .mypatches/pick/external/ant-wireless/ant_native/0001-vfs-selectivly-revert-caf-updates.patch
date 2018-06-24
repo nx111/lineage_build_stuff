@@ -1,0 +1,385 @@
+From ca7dd6db71ffac7e302e226b0b157e29dcd68ccb Mon Sep 17 00:00:00 2001
+From: jrior001 <jriordan001@gmail.com>
+Date: Sat, 23 Jun 2018 23:29:55 -0400
+Subject: [PATCH] vfs: selectivly revert caf updates
+
+This partially reverts commit 84a310bf2221c04e5d24586a7a46a6d8d4a69848
+and commit 84f4b5332302793d2a4b2af01328243e8518eb81
+
+None of the "vfs-prerelease" devices got driver/fw updates to support
+this version, revert to restore legacy methods.
+
+Change-Id: I6d6cf5626b57015e7aa86f896be287925fef3e4c
+---
+ src/vfs/ant_native_chardev.c              | 148 +++++++---------------
+ src/vfs/ant_rx_chardev.c                  |  12 +-
+ src/vfs/inc/ant_hci_defines.h             |   5 +-
+ src/vfs/prerelease/ant_driver_defines.h   |  13 +-
+ src/vfs/qualcomm/smd/ant_driver_defines.h |   3 -
+ src/vfs/ste/cg29xx/ant_driver_defines.h   |   2 -
+ 6 files changed, 56 insertions(+), 127 deletions(-)
+
+diff --git a/src/vfs/ant_native_chardev.c b/src/vfs/ant_native_chardev.c
+index 2605776..759b385 100644
+--- a/src/vfs/ant_native_chardev.c
++++ b/src/vfs/ant_native_chardev.c
+@@ -34,7 +34,6 @@
+ #include <stdint.h> /* for uint64_t */
+ #include <sys/eventfd.h> /* For eventfd() */
+ #include <unistd.h> /* for read(), write(), and close() */
+-#include <string.h>
+ 
+ #include "ant_types.h"
+ #include "ant_native.h"
+@@ -45,10 +44,6 @@
+ #include "ant_hci_defines.h"
+ #include "ant_log.h"
+ 
+-#if (ANT_HCI_CHANNEL_SIZE > 0) || !defined(ANT_DEVICE_NAME)
+-#define MULTIPATH_TX
+-#endif
+-
+ #if ANT_HCI_SIZE_SIZE > 1
+ #include "ant_utils.h"  // Put HCI Size value across multiple bytes
+ #endif
+@@ -175,20 +170,16 @@ ANTStatus ant_deinit(void)
+ //  Psuedocode:
+ /*
+ LOCK enable_LOCK
+-   IF current_state != ENABLED
+-      State callback: STATE = ENABLING
+-      ant enable
+-      IF ant_enable success
+-         State callback: STATE = ENABLED
+-         RESULT = SUCCESS
+-      ELSE
+-         ant disable
+-         State callback: STATE = Current state
+-         RESULT = FAILURE
+-      ENDIF
+-   ELSE
+-      RESULT = SUCCESS
+-   ENDIF
++    State callback: STATE = ENABLING
++    ant enable
++    IF ant_enable success
++        State callback: STATE = ENABLED
++        RESULT = SUCCESS
++    ELSE
++        ant disable
++        State callback: STATE = Current state
++        RESULT = FAILURE
++    ENDIF
+ UNLOCK
+ */
+ ////////////////////////////////////////////////////////////////////
+@@ -206,28 +197,23 @@ ANTStatus ant_enable_radio(void)
+    }
+    ANT_DEBUG_V("got stEnabledStatusLock in %s", __FUNCTION__);
+ 
+-   if (ant_radio_enabled_status() != RADIO_STATUS_ENABLED) {
+-      if (g_fnStateCallback) {
+-         g_fnStateCallback(RADIO_STATUS_ENABLING);
+-      }
+-
+-      if (ant_enable() < 0) {
+-         ANT_ERROR("ant enable failed: %s", strerror(errno));
++   if (g_fnStateCallback) {
++      g_fnStateCallback(RADIO_STATUS_ENABLING);
++   }
+ 
+-         ant_disable();
++   if (ant_enable() < 0) {
++      ANT_ERROR("ant enable failed: %s", strerror(errno));
+ 
+-         if (g_fnStateCallback) {
+-            g_fnStateCallback(ant_radio_enabled_status());
+-         }
+-      } else {
+-         if (g_fnStateCallback) {
+-            g_fnStateCallback(RADIO_STATUS_ENABLED);
+-         }
++      ant_disable();
+ 
+-         result_status = ANT_STATUS_SUCCESS;
++      if (g_fnStateCallback) {
++         g_fnStateCallback(ant_radio_enabled_status());
+       }
+    } else {
+-      ANT_DEBUG_D("Ignoring redundant enable call.");
++      if (g_fnStateCallback) {
++         g_fnStateCallback(RADIO_STATUS_ENABLED);
++      }
++
+       result_status = ANT_STATUS_SUCCESS;
+    }
+ 
+@@ -350,12 +336,10 @@ out:
+ //  Psuedocode:
+ /*
+ LOCK enable_LOCK
+-   IF current_state != DISABLED
+-      State callback: STATE = DISABLING
+-      ant disable
+-      State callback: STATE = Current state
+-   ENDIF
+-   RESULT = SUCCESS
++    State callback: STATE = DISABLING
++    ant disable
++    State callback: STATE = Current state
++    RESULT = SUCCESS
+ UNLOCK
+ */
+ ////////////////////////////////////////////////////////////////////
+@@ -373,18 +357,14 @@ ANTStatus ant_disable_radio(void)
+    }
+    ANT_DEBUG_V("got stEnabledStatusLock in %s", __FUNCTION__);
+ 
+-   if (ant_radio_enabled_status() != RADIO_STATUS_DISABLED) {
+-      if (g_fnStateCallback) {
+-         g_fnStateCallback(RADIO_STATUS_DISABLING);
+-      }
++   if (g_fnStateCallback) {
++      g_fnStateCallback(RADIO_STATUS_DISABLING);
++   }
+ 
+-      ant_disable();
++   ant_disable();
+ 
+-      if (g_fnStateCallback) {
+-         g_fnStateCallback(ant_radio_enabled_status());
+-      }
+-   } else {
+-      ANT_DEBUG_D("Ignoring redundant disable call.");
++   if (g_fnStateCallback) {
++      g_fnStateCallback(ant_radio_enabled_status());
+    }
+ 
+    ret = ANT_STATUS_SUCCESS;
+@@ -743,11 +723,6 @@ ENDIF
+ ////////////////////////////////////////////////////////////////////
+ ANTStatus ant_tx_message(ANT_U8 ucLen, ANT_U8 *pucMesg)
+ {
+-#if defined(MULTIPATH_TX)
+-   ANT_BOOL bIsData;
+-#endif
+-   ant_channel_type eTxChannel;
+-   ant_channel_type eFlowChannel;
+    ANTStatus status = ANT_STATUS_FAILED;
+    // TODO ANT_HCI_MAX_MSG_SIZE is transport (driver) dependent.
+    ANT_U8 txBuffer[ANT_HCI_MAX_MSG_SIZE];
+@@ -761,37 +736,12 @@ ANTStatus ant_tx_message(ANT_U8 ucLen, ANT_U8 *pucMesg)
+       goto out;
+    }
+ 
+-#if defined(MULTIPATH_TX)
+-switch (pucMesg[ANT_MSG_ID_OFFSET]) {
+-   case MESG_BROADCAST_DATA_ID:
+-   case MESG_ACKNOWLEDGED_DATA_ID:
+-   case MESG_BURST_DATA_ID:
+-   case MESG_EXT_BROADCAST_DATA_ID:
+-   case MESG_EXT_ACKNOWLEDGED_DATA_ID:
+-   case MESG_EXT_BURST_DATA_ID:
+-   case MESG_ADV_BURST_DATA_ID:
+-      bIsData = ANT_TRUE;
+-      break;
+-   default:
+-      bIsData = ANT_FALSE;
+-      break;
+-   }
+-
+-   ANT_DEBUG_V("tx message: bIsData=%d", bIsData);
+-#endif
+-
+ #if ANT_HCI_OPCODE_SIZE == 1
+    txBuffer[ANT_HCI_OPCODE_OFFSET] = ANT_HCI_OPCODE_TX;
+ #elif ANT_HCI_OPCODE_SIZE > 1
+ #error "Specified ANT_HCI_OPCODE_SIZE not currently supported"
+ #endif
+ 
+-#if ANT_HCI_CHANNEL_SIZE == 1
+-   txBuffer[ANT_HCI_CHANNEL_OFFSET] = bIsData ? ANT_HCI_DATA_CHANNEL : ANT_HCI_COMMAND_CHANNEL;
+-#elif ANT_HCI_OPCODE_SIZE > 1
+-#error "Specified ANT_HCI_CHANNEL_SIZE not currently supported"
+-#endif
+-
+ #if ANT_HCI_SIZE_SIZE == 1
+    txBuffer[ANT_HCI_SIZE_OFFSET] = ucLen;
+ #elif ANT_HCI_SIZE_SIZE == 2
+@@ -804,24 +754,21 @@ switch (pucMesg[ANT_MSG_ID_OFFSET]) {
+ 
+    ANT_SERIAL(txBuffer, txMessageLength, 'T');
+ 
+-#ifdef ANT_DEVICE_NAME
+-   eTxChannel = SINGLE_CHANNEL;
+-   eFlowChannel = SINGLE_CHANNEL;
+-#else
+-   eTxChannel = bIsData ? DATA_CHANNEL : COMMAND_CHANNEL;
+-   eFlowChannel = COMMAND_CHANNEL;
+-#endif
+-
+-#if !defined(MULTIPATH_TX) // Single transport path
+-   status = ant_tx_message_flowcontrol_wait(eTxChannel, eFlowChannel, txMessageLength, txBuffer);
++#ifdef ANT_DEVICE_NAME // Single transport path
++   status = ant_tx_message_flowcontrol_wait(SINGLE_CHANNEL, SINGLE_CHANNEL, txMessageLength, txBuffer);
+ #else // Separate data/command paths
+-   if (bIsData)
+-   {
+-      status = ant_tx_message_flowcontrol_wait(eTxChannel, eFlowChannel, txMessageLength, txBuffer);
+-   }
+-   else
+-   {
+-      status = ant_tx_message_flowcontrol_none(eTxChannel, txMessageLength, txBuffer);
++   switch (txBuffer[ANT_HCI_DATA_OFFSET + ANT_MSG_ID_OFFSET]) {
++   case MESG_BROADCAST_DATA_ID:
++   case MESG_ACKNOWLEDGED_DATA_ID:
++   case MESG_BURST_DATA_ID:
++   case MESG_EXT_BROADCAST_DATA_ID:
++   case MESG_EXT_ACKNOWLEDGED_DATA_ID:
++   case MESG_EXT_BURST_DATA_ID:
++   case MESG_ADV_BURST_DATA_ID:
++      status = ant_tx_message_flowcontrol_wait(DATA_CHANNEL, COMMAND_CHANNEL, txMessageLength, txBuffer);
++      break;
++   default:
++      status = ant_tx_message_flowcontrol_none(COMMAND_CHANNEL, txMessageLength, txBuffer);
+    }
+ #endif // Separate data/command paths
+ 
+@@ -950,9 +897,6 @@ int ant_enable(void)
+    iRet = 0;
+ 
+ out:
+-   if (stRxThreadInfo.stRxThread == 0) {
+-      stRxThreadInfo.ucRunThread = 0;
+-   }
+    ANT_FUNC_END();
+    return iRet;
+ }
+diff --git a/src/vfs/ant_rx_chardev.c b/src/vfs/ant_rx_chardev.c
+index 3876119..f3917e2 100644
+--- a/src/vfs/ant_rx_chardev.c
++++ b/src/vfs/ant_rx_chardev.c
+@@ -163,8 +163,7 @@ void *fnRxThread(void *ant_rx_thread_info)
+             } else if (areAllFlagsSet(astPollFd[eChannel].revents, EVENT_CHIP_SHUTDOWN)) {
+                /* chip reported it was unexpectedly disabled */
+                ANT_DEBUG_D(
+-                     "poll hang-up from %s. Attempting recovery.",
+-                     stRxThreadInfo->astChannels[eChannel].pcDevicePath);
++                     "poll hang-up from %s. exiting rx thread", stRxThreadInfo->astChannels[eChannel].pcDevicePath);
+ 
+                doReset(stRxThreadInfo);
+                goto out;
+@@ -176,9 +175,8 @@ void *fnRxThread(void *ant_rx_thread_info)
+                stRxThreadInfo->bWaitingForKeepaliveResponse = ANT_FALSE;
+ 
+                if (readChannelMsg(eChannel, &stRxThreadInfo->astChannels[eChannel]) < 0) {
+-                  ANT_ERROR("Read of data failed. Attempting recovery.");
+-                  doReset(stRxThreadInfo);
+-                  goto out;
++                  // set flag to exit out of Rx Loop
++                  stRxThreadInfo->ucRunThread = 0;
+                }
+             } else if (areAllFlagsSet(astPollFd[eChannel].revents, POLLNVAL)) {
+                ANT_ERROR("poll was called on invalid file descriptor %s. Attempting recovery.",
+@@ -363,7 +361,7 @@ int readChannelMsg(ant_channel_type eChannel, ant_channel_info_t *pstChnlInfo)
+ 
+    if (iRxLenRead < 0) {
+       if (errno == ENODEV) {
+-         ANT_ERROR("%s not enabled",
++         ANT_ERROR("%s not enabled, exiting rx thread",
+                pstChnlInfo->pcDevicePath);
+ 
+          goto out;
+@@ -373,7 +371,7 @@ int readChannelMsg(ant_channel_type eChannel, ant_channel_info_t *pstChnlInfo)
+ 
+          goto out;
+       } else {
+-         ANT_ERROR("%s: unhandled error: %s",
++         ANT_ERROR("%s read thread exiting, unhandled error: %s",
+                pstChnlInfo->pcDevicePath, strerror(errno));
+ 
+          goto out;
+diff --git a/src/vfs/inc/ant_hci_defines.h b/src/vfs/inc/ant_hci_defines.h
+index b51eb8a..3ffe672 100644
+--- a/src/vfs/inc/ant_hci_defines.h
++++ b/src/vfs/inc/ant_hci_defines.h
+@@ -40,12 +40,11 @@
+ 
+ #include "ant_driver_defines.h"
+ 
+-#define ANT_HCI_HEADER_SIZE                  ((ANT_HCI_OPCODE_SIZE) + (ANT_HCI_CHANNEL_SIZE) + (ANT_HCI_SIZE_SIZE) + (ANT_HCI_SYNC_SIZE))
++#define ANT_HCI_HEADER_SIZE                  ((ANT_HCI_OPCODE_SIZE) + (ANT_HCI_SIZE_SIZE) + (ANT_HCI_SYNC_SIZE))
+ #define ANT_HCI_FOOTER_SIZE                  (ANT_HCI_CHECKSUM_SIZE)
+ 
+ #define ANT_HCI_OPCODE_OFFSET                0
+-#define ANT_HCI_CHANNEL_OFFSET               ((ANT_HCI_OPCODE_OFFSET) + (ANT_HCI_OPCODE_SIZE))
+-#define ANT_HCI_SIZE_OFFSET                  ((ANT_HCI_CHANNEL_OFFSET) + (ANT_HCI_CHANNEL_SIZE))
++#define ANT_HCI_SIZE_OFFSET                  ((ANT_HCI_OPCODE_OFFSET) + (ANT_HCI_OPCODE_SIZE))
+ #define ANT_HCI_SYNC_OFFSET                  ((ANT_HCI_SIZE_OFFSET) + (ANT_HCI_SIZE_SIZE))
+ #define ANT_HCI_DATA_OFFSET                  (ANT_HCI_HEADER_SIZE)
+ 
+diff --git a/src/vfs/prerelease/ant_driver_defines.h b/src/vfs/prerelease/ant_driver_defines.h
+index 3eb5c31..d00599b 100644
+--- a/src/vfs/prerelease/ant_driver_defines.h
++++ b/src/vfs/prerelease/ant_driver_defines.h
+@@ -46,18 +46,15 @@
+ 
+ // Set the file name the driver creates for the ANT device:
+ //   If chip uses separate command and data paths:
+-// #define ANT_COMMANDS_DEVICE_NAME             "/dev/smd5"
+-// #define ANT_DATA_DEVICE_NAME                 "/dev/smd6"
++#define ANT_COMMANDS_DEVICE_NAME             "/dev/smd5"
++#define ANT_DATA_DEVICE_NAME                 "/dev/smd6"
+ // OR
+ //   If chip uses one path:
+-#define ANT_DEVICE_NAME                      "/dev/ant"
++// #define ANT_DEVICE_NAME                      "/dev/Z"
+ 
+ // Set to the number of bytes of header is for Opcode:
+ #define ANT_HCI_OPCODE_SIZE                  0
+ 
+-// Set to the number of bytes of header for channel ID
+-#define ANT_HCI_CHANNEL_SIZE                 1
+-
+ // Set to the number of bytes of header is for Data Size:
+ #define ANT_HCI_SIZE_SIZE                    1
+ 
+@@ -84,8 +81,4 @@
+ //     That signals Flow Stop:
+ #define ANT_FLOW_STOP                        ((ANT_U8)0x80)
+ 
+-// If using a channel ID byte, define the ids.
+-#define ANT_HCI_COMMAND_CHANNEL              ((ANT_U8)0x0C)
+-#define ANT_HCI_DATA_CHANNEL                 ((ANT_U8)0x0E)
+-
+ #endif /* ifndef __VFS_PRERELEASE_H */
+diff --git a/src/vfs/qualcomm/smd/ant_driver_defines.h b/src/vfs/qualcomm/smd/ant_driver_defines.h
+index 948c524..3f58fc8 100644
+--- a/src/vfs/qualcomm/smd/ant_driver_defines.h
++++ b/src/vfs/qualcomm/smd/ant_driver_defines.h
+@@ -55,9 +55,6 @@
+ // Set to the number of bytes of header is for Opcode:
+ #define ANT_HCI_OPCODE_SIZE                  0
+ 
+-// Set to the number of bytes of header for channel ID
+-#define ANT_HCI_CHANNEL_SIZE                 0
+-
+ // Set to the number of bytes of header is for Data Size:
+ #define ANT_HCI_SIZE_SIZE                    1
+ 
+diff --git a/src/vfs/ste/cg29xx/ant_driver_defines.h b/src/vfs/ste/cg29xx/ant_driver_defines.h
+index b72439f..c47415d 100644
+--- a/src/vfs/ste/cg29xx/ant_driver_defines.h
++++ b/src/vfs/ste/cg29xx/ant_driver_defines.h
+@@ -54,8 +54,6 @@
+ 
+ // Set to the number of bytes of header is for Opcode:
+ #define ANT_HCI_OPCODE_SIZE                  0
+-// Set to the number of bytes of header for channel ID
+-#define ANT_HCI_CHANNEL_SIZE                 0
+ // Set to the number of bytes of header is for Data Size:
+ #define ANT_HCI_SIZE_SIZE                    1
+ 
+-- 
+2.17.1
+
