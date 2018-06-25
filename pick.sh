@@ -648,8 +648,6 @@ kpick 212643 # qcom/sepol: Allow mm-qcamerad to use binder even in vendor
 
 # device/samsung/klte-common
 #kpick 212648 # klte-common: Enable AOD
-kpick 218432 # klte-common: Define Vendor security patch level
-kpick 218434 # klte-common: Reorder tetherable connection types
 
 # device/samsung/kltechnduo
 
@@ -839,9 +837,6 @@ kpick 211382 # correct the targeted SDK version to avoid permission fails otherw
 # packages/apps/Flipflap
 
 # packages/apps/Gallery2
-kpick 217843 # Revert "Gallery2: Get rid of packages monitor"
-kpick 217844 # SDGallery:Fix focus close when receive package changed intent
-kpick 217845 # Fix focus close when select video in picker
 
 # packages/apps/Jelly
 
@@ -879,8 +874,6 @@ kpick 218438 # Settings: Add lockscreen shortcuts customization to lockscreen se
 
 # packages/apps/Snap
 kpick 206595 # Use transparent navigation bar
-kpick 217087 # Snap: turn developer category title into a translatable string
-kpick 217842 # SnapdragonCamera: Fix compilation issues for AOSP upgrade
 
 # packages/apps/Trebuchet
 kpick 214336 # [WIP] Trebuchet: initial protected apps implementation
@@ -919,7 +912,6 @@ kpick 217046 # Add support for black berry style
 
 # packages/service/Telephony
 kpick 209045 # Telephony: Fallback gracefully for emergency calls if suitable app isn't found
-kpick 216722 # phone: Add option for setting device phone number (squashed)
 
 # system/core
 kpick 206029 # init: Add command to disable verity
@@ -932,6 +924,9 @@ kpick 217314 # Allow firmware loading from ODM partition
 # system/extras
 kpick 211210 # ext4: Add /data/stache/ to encryption exclusion list
 kpick 217086 # ext4_utils: Fix FS creation for filesystems with exactly 32768 blocks.
+
+# system/extras/su
+kpick 218510 # su.c: fix property check due to lineage rebranding
 
 # system/netd
 
@@ -962,7 +957,6 @@ kpick 216977 # lineage: build torch accent
 kpick 217045 # vendor: build black berry theme
 kpick 217088 # Revert "extract_utils: Fix makefile generation issues"
 kpick 217089 # Revert "extract_files: Add support for paths without system/"
-kpick 217090 # extract_utils: cleanup in extract() function
 kpick 217358 # extract_utils: do not strip target_args from the output of prefix_match
 kpick 217628 # lineage: add generic x86_64 target
 kpick 217629 # kernel: Add TARGET_KERNEL_ADDITIONAL_FLAGS to allow setting extra cflags
@@ -970,6 +964,14 @@ kpick 217630 # kernel: Add kernelversion recipe to generate MAJOR.MINOR kernel v
 kpick 217837 # envsetup: Fix adb recovery state detections
 kpick 217846 # Fix focus close when select video in picker
 kpick 218496 # vendor: Fix install[boot|recovery]
+kpick 218561 # extract_utils: target_file() and target_args() cleanup
+kpick 218562 # extract_utils: create src_file() function to mirror behavior of target_file()
+kpick 218563 # extract_utils: extract(): rename FROM variable to SPEC_DST_FILE
+kpick 218564 # extract_utils: extract(): rename FILE variable to SPEC_SRC_FILE
+kpick 218565 # extract_utils: extract(): rename ARGS variable to SPEC_ARGS
+kpick 218566 # extract_utils: extract(): rename DEST variable to VENDOR_REPO_FILE
+kpick 217090 # extract_utils: cleanup in extract() function
+kpick 218568 # extract_utils: make get_file() able to search paths with and w/o /system prefix
 
 # vendor/qcom/opensource/cryptfs_hw
 

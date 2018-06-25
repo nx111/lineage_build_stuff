@@ -1,0 +1,70 @@
+From 1179598b93dc364f64be8ec119019a2032ad8868 Mon Sep 17 00:00:00 2001
+From: MSe1969 <mse1969@posteo.de>
+Date: Sun, 24 Jun 2018 17:00:53 +0200
+Subject: [PATCH] su.c: fix property check due to lineage rebranding
+
+Due to lineage rebranding, the property 'ro.cm.version' needs to be
+replaced with 'ro.lineage.version' in su.c, otherwise, the check for
+'access_disabled' always returns false and may lead to undefined
+behavior. To avoid such undefined behavior, su should refuse to work
+on builds without the 'ro.lineage.version' property.
+
+Change-Id: I59632ad4bfdc055e53cfac7c8e9c02a65ed58373
+---
+ su.c    | 10 ++++++++--
+ utils.c |  4 ++--
+ 2 files changed, 10 insertions(+), 4 deletions(-)
+
+diff --git a/su.c b/su.c
+index 99d0232..28c8e6e 100644
+--- a/su.c
++++ b/su.c
+@@ -295,13 +295,14 @@ int access_disabled(const struct su_initiator *from) {
+     size_t len;
+ 
+     data = read_file("/system/build.prop");
+-    if (check_property(data, "ro.cm.version")) {
++    if (check_property(data, "ro.lineage.version")) {
+         get_property(data, build_type, "ro.build.type", "");
+         free(data);
+ 
+         data = read_file("/default.prop");
+         get_property(data, debuggable, "ro.debuggable", "0");
+         free(data);
++
+         /* only allow su on debuggable builds */
+         if (strcmp("1", debuggable) != 0) {
+             ALOGE("Root access is disabled on non-debug builds");
+@@ -336,8 +337,13 @@ int access_disabled(const struct su_initiator *from) {
+             return 1;
+         }
+ 
++        return 0;
++
++    } else {
++        /* If used on Non-LineageOS builds or older than 15.1 */
++        ALOGE("Only use the LineageOS 15.1 su AddOn on LineageOS 15.1 builds!");
++        return 1;
+     }
+-    return 0;
+ }
+ 
+ static void fork_for_samsung(void)
+diff --git a/utils.c b/utils.c
+index a65f547..8bce3e0 100644
+--- a/utils.c
++++ b/utils.c
+@@ -104,8 +104,8 @@ defval:
+  * Fast version of get_property which purpose is to check
+  * whether the property with given prefix exists.
+  *
+- * Assume nobody is stupid enough to put a propery with prefix ro.cm.version
+- * in his build.prop on a non-CM ROM and comment it out.
++ * Assume nobody is stupid enough to put a propery with prefix ro.lineage.version
++ * in his build.prop on a non-LineageOS ROM and comment it out.
+  */
+ int check_property(const char *data, const char *prefix)
+ {
+-- 
+2.17.1
+
