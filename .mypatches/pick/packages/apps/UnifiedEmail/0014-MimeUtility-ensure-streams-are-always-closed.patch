@@ -1,0 +1,72 @@
+From 783e6eb81ddc8d07bcd71e48a5b740996f94d572 Mon Sep 17 00:00:00 2001
+From: Alexander Martinz <eviscerationls@gmail.com>
+Date: Wed, 27 Jul 2016 17:49:13 +0200
+Subject: [PATCH 14/18] MimeUtility: ensure streams are always closed
+
+Currently a StrictMode violation gets triggered everytime
+MimeUtility#getTextFromPart gets called.
+
+Ensure we are always closing streams in the finally block.
+
+Change-Id: If332487fae43f59d3785841ac7122b8f2b200255
+Signed-off-by: Alexander Martinz <eviscerationls@gmail.com>
+---
+ .../emailcommon/internet/MimeUtility.java     | 19 ++++++++++---------
+ 1 file changed, 10 insertions(+), 9 deletions(-)
+
+diff --git a/src/com/android/emailcommon/internet/MimeUtility.java b/src/com/android/emailcommon/internet/MimeUtility.java
+index 84350dd34..8ea29dd70 100644
+--- a/src/com/android/emailcommon/internet/MimeUtility.java
++++ b/src/com/android/emailcommon/internet/MimeUtility.java
+@@ -223,21 +223,19 @@ public class MimeUtility {
+      * or an error during conversion.
+      */
+     public static String getTextFromPart(Part part, boolean closeInput) {
++        InputStream in = null;
++        ByteArrayOutputStream out = null;
+         try {
+             if (part != null && part.getBody() != null) {
+-                InputStream in = part.getBody().getInputStream();
++                in = part.getBody().getInputStream();
+                 String mimeType = part.getMimeType();
+                 if (mimeType != null && MimeUtility.mimeTypeMatches(mimeType, "text/*")) {
+                     /*
+                      * Now we read the part into a buffer for further processing. Because
+                      * the stream is now wrapped we'll remove any transfer encoding at this point.
+                      */
+-                    ByteArrayOutputStream out = new ByteArrayOutputStream();
++                    out = new ByteArrayOutputStream();
+                     IOUtils.copy(in, out);
+-                    if (closeInput) {
+-                        in.close();
+-                    }
+-                    in = null;      // we want all of our memory back, and close might not release
+ 
+                     /*
+                      * We've got a text part, so let's see if it needs to be processed further.
+@@ -258,9 +256,7 @@ public class MimeUtility {
+                     /*
+                      * Convert and return as new String
+                      */
+-                    String result = out.toString(charset);
+-                    out.close();
+-                    return result;
++                    return out.toString(charset);
+                 }
+             }
+ 
+@@ -278,6 +274,11 @@ public class MimeUtility {
+              * null and let the upper layers handle the missing content.
+              */
+             Log.e(LOG_TAG, "Unable to getTextFromPart " + e.toString());
++        } finally {
++            IOUtils.closeQuietly(out);
++            if (closeInput) {
++                IOUtils.closeQuietly(in);
++            }
+         }
+         return null;
+     }
+-- 
+2.17.1
+

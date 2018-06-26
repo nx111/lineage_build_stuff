@@ -1,0 +1,159 @@
+From cafe63d108e5b21f0c16006bde9d87c8f927af67 Mon Sep 17 00:00:00 2001
+From: Danny Baumann <dannybaumann@web.de>
+Date: Mon, 25 Jun 2018 10:19:42 +0200
+Subject: [PATCH] Allow calling contacts via specific phone accounts.
+
+Change-Id: I237ab8d825e3234290fa3d371e087a68756c37b9
+---
+ res/values/cm_strings.xml                     | 19 +++++++++++
+ src/com/android/contacts/CallUtil.java        | 21 ++++++++++++
+ .../quickcontact/QuickContactActivity.java    | 32 +++++++++++++++++--
+ 3 files changed, 70 insertions(+), 2 deletions(-)
+ create mode 100644 res/values/cm_strings.xml
+
+diff --git a/res/values/cm_strings.xml b/res/values/cm_strings.xml
+new file mode 100644
+index 000000000..3bbd37cd0
+--- /dev/null
++++ b/res/values/cm_strings.xml
+@@ -0,0 +1,19 @@
++<?xml version="1.0" encoding="utf-8"?>
++<!--
++     Copyright (C) 2018 The LineageOS Project
++
++     Licensed under the Apache License, Version 2.0 (the "License");
++     you may not use this file except in compliance with the License.
++     You may obtain a copy of the License at
++
++          http://www.apache.org/licenses/LICENSE-2.0
++
++     Unless required by applicable law or agreed to in writing, software
++     distributed under the License is distributed on an "AS IS" BASIS,
++     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++     See the License for the specific language governing permissions and
++     limitations under the License.
++-->
++<resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
++    <string name="call_via_template">Call via <xliff:g id="account">%1$s</xliff:g></string>
++</resources>
+diff --git a/src/com/android/contacts/CallUtil.java b/src/com/android/contacts/CallUtil.java
+index bba1faa94..e47e48a62 100644
+--- a/src/com/android/contacts/CallUtil.java
++++ b/src/com/android/contacts/CallUtil.java
+@@ -38,6 +38,7 @@ import com.android.contactsbind.FeedbackHelper;
+ import com.android.contactsbind.experiments.Flags;
+ import com.android.phone.common.PhoneConstants;
+ 
++import java.util.ArrayList;
+ import java.util.List;
+ 
+ /**
+@@ -188,6 +189,26 @@ public class CallUtil {
+         }
+     }
+ 
++    /**
++     * Returns a list of phone accounts that are able to call to numbers with the supplied scheme
++     */
++    public static List<PhoneAccount> getCallCapablePhoneAccounts(Context context, String scheme) {
++        if (!PermissionsUtil.hasPermission(context,
++                android.Manifest.permission.READ_PHONE_STATE)) {
++            return null;
++        }
++        TelecomManager tm = (TelecomManager) context.getSystemService(Context.TELECOM_SERVICE);
++        final ArrayList<PhoneAccount> accounts = new ArrayList<>();
++
++        for (PhoneAccountHandle handle : tm.getCallCapablePhoneAccounts()) {
++            final PhoneAccount account = tm.getPhoneAccount(handle);
++            if (account != null && account.supportsUriScheme(scheme)) {
++                accounts.add(account);
++            }
++        }
++        return accounts;
++    }
++
+     /**
+      * Determines if one of the call capable phone accounts defined supports calling with a subject
+      * specified.
+diff --git a/src/com/android/contacts/quickcontact/QuickContactActivity.java b/src/com/android/contacts/quickcontact/QuickContactActivity.java
+index 5da750242..5996fdf3d 100644
+--- a/src/com/android/contacts/quickcontact/QuickContactActivity.java
++++ b/src/com/android/contacts/quickcontact/QuickContactActivity.java
+@@ -117,6 +117,7 @@ import com.android.contacts.activities.RequestPermissionsActivity;
+ import com.android.contacts.compat.CompatUtils;
+ import com.android.contacts.compat.EventCompat;
+ import com.android.contacts.compat.MultiWindowCompat;
++import com.android.contacts.compat.PhoneNumberUtilsCompat;
+ import com.android.contacts.detail.ContactDisplayUtils;
+ import com.android.contacts.dialog.CallSubjectDialog;
+ import com.android.contacts.editor.ContactEditorFragment;
+@@ -515,6 +516,7 @@ public class QuickContactActivity extends ContactsActivity {
+         static final int COPY_TEXT = 0;
+         static final int CLEAR_DEFAULT = 1;
+         static final int SET_DEFAULT = 2;
++        static final int CALL_VIA = 3;
+     }
+ 
+     private final OnCreateContextMenuListener mEntryContextMenuListener =
+@@ -525,7 +527,13 @@ public class QuickContactActivity extends ContactsActivity {
+                 return;
+             }
+             final EntryContextMenuInfo info = (EntryContextMenuInfo) menuInfo;
++            final String selectedMimeType = info.getMimeType();
+             menu.setHeaderTitle(info.getCopyText());
++
++            if (Phone.CONTENT_ITEM_TYPE.equals(selectedMimeType)) {
++                addPhoneAccountsToMenu(QuickContactActivity.this, menu, info);
++            }
++
+             menu.add(ContextMenu.NONE, ContextMenuIds.COPY_TEXT,
+                     ContextMenu.NONE, getString(R.string.copy_text));
+ 
+@@ -534,8 +542,6 @@ public class QuickContactActivity extends ContactsActivity {
+                 return;
+             }
+ 
+-            final String selectedMimeType = info.getMimeType();
+-
+             // Defaults to true will only enable the detail to be copied to the clipboard.
+             boolean onlyOneOfMimeType = true;
+ 
+@@ -555,6 +561,25 @@ public class QuickContactActivity extends ContactsActivity {
+                         ContextMenu.NONE, getString(R.string.set_default));
+             }
+         }
++
++        private void addPhoneAccountsToMenu(Context context,
++                Menu menu, EntryContextMenuInfo info) {
++            final String number = PhoneNumberUtilsCompat.normalizeNumber(info.getCopyText());
++            final List<PhoneAccount> accounts = CallUtil.getCallCapablePhoneAccounts(context,
++                    PhoneAccount.SCHEME_TEL);
++            if (accounts == null || accounts.size() <= 1) {
++                return;
++            }
++
++            for (PhoneAccount account : accounts) {
++                final String text = context.getString(R.string.call_via_template,
++                        account.getLabel());
++                final Intent intent = CallUtil.getCallWithSubjectIntent(number,
++                        account.getAccountHandle(), null);
++                menu.add(ContextMenu.NONE, ContextMenuIds.CALL_VIA, ContextMenu.NONE, text)
++                        .setIntent(intent);
++            }
++        }
+     };
+ 
+     @Override
+@@ -582,6 +607,9 @@ public class QuickContactActivity extends ContactsActivity {
+                         menuInfo.getId());
+                 this.startService(clearIntent);
+                 return true;
++            case ContextMenuIds.CALL_VIA:
++                startActivity(item.getIntent());
++                return true;
+             default:
+                 throw new IllegalArgumentException("Unknown menu option " + item.getItemId());
+         }
+-- 
+2.17.1
+

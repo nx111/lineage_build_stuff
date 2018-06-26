@@ -721,7 +721,6 @@ kpick 213549 # SurfaceFlinger: Support get/set ActiveConfigs
 # frameworks/opt/telephony
 kpick 214316 # RIL: Allow overriding RadioResponse and RadioIndication
 kpick 215450 # Add changes for sending ATEL UI Ready to RIL.
-kpick 216412 # Revert "Don't assume 3GPP as active app on CDMA with LTE device"
 
 # hardware/broadcom/libbt
 
@@ -799,9 +798,11 @@ kpick 218319 # Bluetooth: Remove duplicate permission
 # packages/apps/Camera2
 
 # packages/apps/Contacts
+kpick 218623 # Allow calling contacts via specific phone accounts.
 
 # packages/apps/Dialer
 kpick 211135 # Show proper call duration
+kpick 218624 # Allow per-call account selection.
 
 # packages/apps/DeskClock
 kpick 213051 # Deskclock: set targetSdk to 27
@@ -810,7 +811,6 @@ kpick 213051 # Deskclock: set targetSdk to 27
 
 # packages/apps/Email
 kpick 218318 # Email: Remove duplicate permission
-:<<EOF
 kpick 218368 # email: add an option for delete the account
 kpick 218369 # email: support for auto-sync multiple IMAP folders
 kpick 218370 # email: support per-folder notifications
@@ -828,7 +828,7 @@ kpick 218381 # Email: Clean duplicated WRITE_CONTACTS permission
 kpick 218382 # email: return default folder name for subfolders
 kpick 218383 # email: junk icon
 kpick 218384 # Search in folder specified via URI parameter, if possible.
-EOF
+
 
 # packages/apps/Exchange
 kpick 209820 # Revert changes to make Exchange buildable.
@@ -879,7 +879,6 @@ kpick 206595 # Use transparent navigation bar
 kpick 214336 # [WIP] Trebuchet: initial protected apps implementation
 
 # packages/apps/UnifiedEmail
-:<<EOF
 kpick 218385 # unified email: prefer account display name to sender name
 kpick 218386 # email: fix back button
 kpick 218387 # unified-email: check notification support prior to create notification objects
@@ -897,7 +896,6 @@ kpick 218398 # MimeUtility: ensure streams are always closed
 kpick 218399 # Fix cut off notification sounds.
 kpick 218400 # Pass selected folder to message search.
 kpick 218401 # Properly close body InputStreams.
-EOF
 
 # packages/overlays/Lineage
 kpick 215846 # dark: Add Theme.DeviceDefault.Settings.Dialog.NoActionBar style
@@ -949,6 +947,7 @@ kpick 218416 # vold: utils: Introduce ForkCallp
 
 # vendor/lineage
 kpick 206154 # Include build manifest on target
+kpick 208630 # vendor: fix ro.adb.secure for vendor-building devices
 #kpick 210664 # extract_utils: Support multidex
 kpick 213815 # Place ADB auth property override to system
 kpick 215341 # backuptool: Revert "Temporarily render version check permissive"

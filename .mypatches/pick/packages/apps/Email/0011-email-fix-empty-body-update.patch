@@ -1,0 +1,49 @@
+From 2a1a7f91e36b485e0e51a58fbca79862676eeba3 Mon Sep 17 00:00:00 2001
+From: Jorge Ruesga <jorge@ruesga.com>
+Date: Wed, 7 Oct 2015 00:07:38 +0200
+Subject: [PATCH 11/18] email: fix empty body update
+
+Currently, body text and html are removed from the content values to be stored as files
+in the filesystem. This could lead to a IllegalArgumentException because we passed
+an empty content value to the update operation. We must ensure that we update
+at least one item.
+
+Related BUGDUMP-4037330 and http://forum.cyanogenmod.org/topic/112563-massive-data-use
+
+Change-Id: Ib9ba10eb2cb86598bef6e5f8bc11553d09fc4ef8
+Signed-off-by: Jorge Ruesga <jorge@ruesga.com>
+---
+ .../android/email/provider/EmailProvider.java   | 17 ++++++++++++++++-
+ 1 file changed, 16 insertions(+), 1 deletion(-)
+
+diff --git a/provider_src/com/android/email/provider/EmailProvider.java b/provider_src/com/android/email/provider/EmailProvider.java
+index 8a8d2d027..b930f7188 100644
+--- a/provider_src/com/android/email/provider/EmailProvider.java
++++ b/provider_src/com/android/email/provider/EmailProvider.java
+@@ -2163,7 +2163,22 @@ public class EmailProvider extends ContentProvider
+                     updateValues.remove(BodyColumns.HTML_CONTENT);
+                     updateValues.remove(BodyColumns.TEXT_CONTENT);
+ 
+-                    result = db.update(tableName, updateValues, selection, selectionArgs);
++                    // Since we removed the html and text values from the update operation,
++                    // db.update() can fail because updateValues is empty. Just to a safe check
++                    // before continue, and in case check if we found at least the selection
++                    // record in db and fill the result variable for later hack check.
++                    if (updateValues.size() == 0) {
++                        final String proj[] = {BaseColumns._ID};
++                        final Cursor c = db.query(Body.TABLE_NAME, proj, selection, selectionArgs,
++                                null, null, null);
++                        try {
++                            result = c.getCount();
++                        } finally {
++                            c.close();
++                        }
++                    } else {
++                        result = db.update(tableName, updateValues, selection, selectionArgs);
++                    }
+ 
+                     if (result == 0 && selection.equals(Body.SELECTION_BY_MESSAGE_KEY)) {
+                         // TODO: This is a hack. Notably, the selection equality test above
+-- 
+2.17.1
+
