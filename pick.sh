@@ -710,6 +710,7 @@ kpick 218430 # SystemUI: Require unlock to toggle airplane mode
 kpick 218431 # SystemUI: Require unlock to toggle location
 kpick 218437 # SystemUI: Add activity alias for LockscreenFragment
 kpick 218473 # SystemUI: Make notification panel opaque
+kpick 218668 # SystemUI: require auth for adb wireless
 
 # frameworks/native
 kpick 213549 # SurfaceFlinger: Support get/set ActiveConfigs
@@ -791,6 +792,9 @@ kpick 217041 # sdk: add black berry style support
 kpick 217419 # Add vendor security patch level to device info
 kpick 217521 # Trust: warn if build is signed with insecure keys	
 kpick 217951 # NetworkTraffic: Resolve status bar indicators tints
+kpick 217952 # SystemUI: Resolve status bar VPN icon tints
+kpick 217953 # SystemUI: Resolve status bar battery percentage tints
+kpick 218679 # lineage-sdk: Use ILight.getSupportedTypes for lights capabilities
 
 # packages/apps/Bluetooth
 kpick 218319 # Bluetooth: Remove duplicate permission
@@ -871,6 +875,7 @@ kpick 217420 # Add vendor security patch level to device info
 kpick 218131 # settings: Add platform to "Model & Hardware" dialog
 kpick 218165 # Add an option to change the device hostname (1/2).
 kpick 218438 # Settings: Add lockscreen shortcuts customization to lockscreen settings
+kpick 218639 # SimSettings: Fix preferred calls sim not being disabled
 
 # packages/apps/Snap
 kpick 206595 # Use transparent navigation bar
