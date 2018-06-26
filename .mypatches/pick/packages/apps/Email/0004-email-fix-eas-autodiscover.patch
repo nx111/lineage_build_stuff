@@ -1,0 +1,202 @@
+From 9a7d2f85101f7e0790fc4871be1fa6fa5696a243 Mon Sep 17 00:00:00 2001
+From: Jorge Ruesga <jorge@ruesga.com>
+Date: Sun, 19 Apr 2015 22:41:31 +0200
+Subject: [PATCH 04/16] email: fix eas autodiscover
+
+Change-Id: Ifaf5f757f7f844e49f0ac635b477fcbef4926293
+Signed-off-by: Jorge Ruesga <jorge@ruesga.com>
+---
+ .../emailcommon/service/EmailServiceProxy.java   |  6 ++++++
+ .../setup/AccountCheckSettingsFragment.java      | 15 +++++++++------
+ .../setup/AccountServerBaseFragment.java         | 10 ++++++++++
+ .../setup/AccountSetupIncomingFragment.java      | 11 +++++++++++
+ .../email/activity/setup/SetupDataFragment.java  | 16 ++++++++++++++++
+ 5 files changed, 52 insertions(+), 6 deletions(-)
+
+diff --git a/emailcommon/src/com/android/emailcommon/service/EmailServiceProxy.java b/emailcommon/src/com/android/emailcommon/service/EmailServiceProxy.java
+index 36a0d336e..3eca6f112 100644
+--- a/emailcommon/src/com/android/emailcommon/service/EmailServiceProxy.java
++++ b/emailcommon/src/com/android/emailcommon/service/EmailServiceProxy.java
+@@ -50,6 +50,12 @@ public class EmailServiceProxy extends ServiceProxy implements IEmailService {
+     private static final String TAG = "EmailServiceProxy";
+ 
+     public static final String AUTO_DISCOVER_BUNDLE_ERROR_CODE = "autodiscover_error_code";
++    // This extra contains the autodiscovery error translated to a messaging exception
++    // error code. Our autodiscover service fills this code plus the above one, just because
++    // Gmail and others different clients still check the above one. This is only for our
++    // Email internal implementation
++    public static final String AUTO_DISCOVER_BUNDLE_MESSAGING_ERROR_CODE =
++            "autodiscover_messaging_error_code";
+     public static final String AUTO_DISCOVER_BUNDLE_HOST_AUTH = "autodiscover_host_auth";
+ 
+     public static final String VALIDATE_BUNDLE_RESULT_CODE = "validate_result_code";
+diff --git a/src/com/android/email/activity/setup/AccountCheckSettingsFragment.java b/src/com/android/email/activity/setup/AccountCheckSettingsFragment.java
+index 1806b50cf..a9c1a9691 100644
+--- a/src/com/android/email/activity/setup/AccountCheckSettingsFragment.java
++++ b/src/com/android/email/activity/setup/AccountCheckSettingsFragment.java
+@@ -347,6 +347,8 @@ public class AccountCheckSettingsFragment extends Fragment {
+                     if (isCancelled()) return null;
+                     LogUtils.d(Logging.LOG_TAG, "Begin auto-discover for %s", mCheckEmail);
+                     publishProgress(STATE_CHECK_AUTODISCOVER);
++
++                    mSetupData.setAutodiscover(false);
+                     final Store store = Store.getInstance(mAccount, mContext);
+                     final Bundle result = store.autoDiscover(mContext, mCheckEmail, mCheckPassword);
+                     // Result will be one of:
+@@ -357,20 +359,21 @@ public class AccountCheckSettingsFragment extends Fragment {
+                     if (result == null) {
+                         return new AutoDiscoverResults(false, null);
+                     }
+-                    int errorCode =
+-                            result.getInt(EmailServiceProxy.AUTO_DISCOVER_BUNDLE_ERROR_CODE);
++                    int errorCode = result.getInt(
++                            EmailServiceProxy.AUTO_DISCOVER_BUNDLE_MESSAGING_ERROR_CODE);
+                     if (errorCode == MessagingException.AUTODISCOVER_AUTHENTICATION_FAILED) {
+                         return new AutoDiscoverResults(true, null);
+-                    } else if (errorCode != MessagingException.NO_ERROR) {
++                    } else if (errorCode != MessagingException.AUTODISCOVER_AUTHENTICATION_RESULT) {
+                         return new AutoDiscoverResults(false, null);
+                     } else {
+                         final HostAuthCompat hostAuthCompat =
+                             result.getParcelable(EmailServiceProxy.AUTO_DISCOVER_BUNDLE_HOST_AUTH);
+-                        HostAuth serverInfo = null;
++                        Account account = mSetupData.getAccount();
+                         if (hostAuthCompat != null) {
+-                            serverInfo = hostAuthCompat.toHostAuth();
++                            account.mHostAuthRecv = hostAuthCompat.toHostAuth();
+                         }
+-                        return new AutoDiscoverResults(false, serverInfo);
++                        mSetupData.setAutodiscover(true);
++                        return new AutoDiscoverResults(false, account.mHostAuthRecv);
+                     }
+                 }
+ 
+diff --git a/src/com/android/email/activity/setup/AccountServerBaseFragment.java b/src/com/android/email/activity/setup/AccountServerBaseFragment.java
+index 71fe9af71..179d5c4cb 100644
+--- a/src/com/android/email/activity/setup/AccountServerBaseFragment.java
++++ b/src/com/android/email/activity/setup/AccountServerBaseFragment.java
+@@ -242,6 +242,16 @@ public abstract class AccountServerBaseFragment extends AccountSetupFragment
+         }
+     }
+ 
++    void performNextSetupAction() {
++        mHandler.post(new Runnable() {
++            @Override
++            public void run() {
++                Callback callback = (Callback) getActivity();
++                callback.onNextButton();
++            }
++        });
++    }
++
+     /**
+      * Returns whether or not any settings have changed.
+      */
+diff --git a/src/com/android/email/activity/setup/AccountSetupIncomingFragment.java b/src/com/android/email/activity/setup/AccountSetupIncomingFragment.java
+index b403fbf26..78827b24d 100644
+--- a/src/com/android/email/activity/setup/AccountSetupIncomingFragment.java
++++ b/src/com/android/email/activity/setup/AccountSetupIncomingFragment.java
+@@ -199,6 +199,9 @@ public class AccountSetupIncomingFragment extends AccountServerBaseFragment
+         final Account account = mSetupData.getAccount();
+         final HostAuth recvAuth = account.getOrCreateHostAuthRecv(mAppContext);
+ 
++        // The data came from autodiscover?
++        final boolean autodiscover = mSetupData.isAutodiscover();
++
+         // Pre-fill info as appropriate
+         if (!mSetupData.isIncomingCredLoaded()) {
+             recvAuth.mLogin = mSetupData.getEmail();
+@@ -267,6 +270,14 @@ public class AccountSetupIncomingFragment extends AccountServerBaseFragment
+                 mAuthenticationLabel.setText(R.string.account_setup_basics_password_label);
+             }
+         }
++
++        // If the data came from autodiscover then just try to validate the settings
++        if (autodiscover) {
++            performNextSetupAction();
++
++            // We don't want to validate this data anymore
++            mSetupData.setAutodiscover(false);
++        }
+     }
+ 
+     /**
+diff --git a/src/com/android/email/activity/setup/SetupDataFragment.java b/src/com/android/email/activity/setup/SetupDataFragment.java
+index 9824e1b34..165d7b4b8 100644
+--- a/src/com/android/email/activity/setup/SetupDataFragment.java
++++ b/src/com/android/email/activity/setup/SetupDataFragment.java
+@@ -37,6 +37,7 @@ public class SetupDataFragment extends Fragment implements Parcelable {
+     private static final String SAVESTATE_CREDENTIAL = "SetupDataFragment.credential";
+     private static final String SAVESTATE_INCOMING_LOADED = "SetupDataFragment.incomingLoaded";
+     private static final String SAVESTATE_OUTGOING_LOADED = "SetupDataFragment.outgoingLoaded";
++    private static final String SAVESTATE_AUTODISCOVER = "SetupDataFragment.autodiscover";
+     private static final String SAVESTATE_POLICY = "SetupDataFragment.policy";
+     private static final String SAVESTATE_INCOMING_PROTOCOL = "SetupDataFragment.incomingProtocol";
+     private static final String SAVESTATE_AM_PROTOCOL = "SetupDataFragment.amProtocol";
+@@ -50,6 +51,8 @@ public class SetupDataFragment extends Fragment implements Parcelable {
+     // settings. Set them to 'true' by default, and false when we change the credentials or email
+     private boolean mIncomingCredLoaded = true;
+     private boolean mOutgoingCredLoaded = true;
++    // Autodiscover was run successfully
++    private boolean mAutodiscover = false;
+     // This is accessed off-thread in AccountCheckSettingsFragment
+     private volatile Policy mPolicy;
+     // Cache incoming protocol and service info here
+@@ -78,6 +81,7 @@ public class SetupDataFragment extends Fragment implements Parcelable {
+         outState.putParcelable(SAVESTATE_CREDENTIAL, mCredentialResults);
+         outState.putBoolean(SAVESTATE_INCOMING_LOADED, mIncomingCredLoaded);
+         outState.putBoolean(SAVESTATE_OUTGOING_LOADED, mOutgoingCredLoaded);
++        outState.putBoolean(SAVESTATE_AUTODISCOVER, mAutodiscover);
+         outState.putParcelable(SAVESTATE_POLICY, mPolicy);
+         outState.putString(SAVESTATE_INCOMING_PROTOCOL, mIncomingProtocol);
+         outState.putString(SAVESTATE_AM_PROTOCOL, mAmProtocol);
+@@ -93,6 +97,7 @@ public class SetupDataFragment extends Fragment implements Parcelable {
+             mCredentialResults = savedInstanceState.getParcelable(SAVESTATE_CREDENTIAL);
+             mIncomingCredLoaded = savedInstanceState.getBoolean(SAVESTATE_INCOMING_LOADED);
+             mOutgoingCredLoaded = savedInstanceState.getBoolean(SAVESTATE_OUTGOING_LOADED);
++            mAutodiscover = savedInstanceState.getBoolean(SAVESTATE_AUTODISCOVER);
+             mPolicy = savedInstanceState.getParcelable(SAVESTATE_POLICY);
+             mIncomingProtocol = savedInstanceState.getString(SAVESTATE_INCOMING_PROTOCOL);
+             mAmProtocol = savedInstanceState.getString(SAVESTATE_AM_PROTOCOL);
+@@ -127,6 +132,7 @@ public class SetupDataFragment extends Fragment implements Parcelable {
+         mAccount.mEmailAddress = email;
+         mIncomingCredLoaded = false;
+         mOutgoingCredLoaded = false;
++        mAutodiscover = false;
+     }
+ 
+     public Bundle getCredentialResults() {
+@@ -137,6 +143,7 @@ public class SetupDataFragment extends Fragment implements Parcelable {
+         mCredentialResults = credentialResults;
+         mIncomingCredLoaded = false;
+         mOutgoingCredLoaded = false;
++        mAutodiscover = false;
+     }
+ 
+     public boolean isIncomingCredLoaded() {
+@@ -155,6 +162,14 @@ public class SetupDataFragment extends Fragment implements Parcelable {
+         mOutgoingCredLoaded = outgoingCredLoaded;
+     }
+ 
++    public boolean isAutodiscover() {
++        return mAutodiscover;
++    }
++
++    public void setAutodiscover(boolean autodiscover) {
++        mAutodiscover = autodiscover;
++    }
++
+     public synchronized Policy getPolicy() {
+         return mPolicy;
+     }
+@@ -275,6 +290,7 @@ public class SetupDataFragment extends Fragment implements Parcelable {
+             sb.append(":cred=");
+             sb.append(mCredentialResults.toString());
+         }
++        sb.append(":autodiscover=" + mAutodiscover);
+         sb.append(":policy=");
+         sb.append(mPolicy == null ? "none" : "exists");
+         return sb.toString();
+-- 
+2.17.1
+

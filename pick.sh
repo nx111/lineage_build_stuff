@@ -60,7 +60,7 @@ function patch_local()
                   echo "==== try apply to $project: "
                   #rm -rf .git/rebase-apply
              fi
-             if echo $f | grep -qE "[WIP]|[SKIP]"; then
+             if echo $f | grep -qE "\[WIP\]|\[SKIP\]"; then
                  echo "    skipping: $f"
                  continue
              fi
@@ -177,21 +177,21 @@ function projects_snapshot()
                        if grep -q "Change-Id: $changeid" -r $topdir/.mypatches/pick/$project; then
                            pick_patch=$(grep -H "Change-Id: $changeid" -r $topdir/.mypatches/pick/$project | sed -n 1p | cut -d: -f1)
                            pick_patch_name=$(basename $pick_patch)
-                           if echo $patch_file_name | grep -qE "[WIP]|[SKIP]|[ALWAYS]" ; then
+                           if echo $patch_file_name | grep -qE "\[WIP\]|\[SKIP\]|\[ALWAYS\]" ; then
                                [ "${patch_file_name:5:5}" = "[WIP]" ] && rm -f $patchfile && \
                                       mv $pick_patch $(dirname $patchfile)/${pick_patch_name:0:4}-${patch_file_name:5:5}-${pick_patch_name:5}
                                [ "${patch_file_name:5:6}" = "[SKIP]" ] && rm -f $patchfile && \
                                       mv $pick_patch $(dirname $patchfile)/${pick_patch_name:0:4}-${patch_file_name:5:6}-${pick_patch_name:5}
                                [ "${patch_file_name:5:8}" = "[ALWAYS]" ] && rm -f $patchfile && \
                                       mv $pick_patch $(dirname $patchfile)/${pick_patch_name:0:4}-${patch_file_name:5:8}-${pick_patch_name:5}
-                           elif echo $(dirname $patchfile) | grep -qE "[WIP]|[SKIP]|[ALWAYS]" ; then
+                           elif echo $(dirname $patchfile) | grep -qE "\[WIP\]|\[SKIP\]|\[ALWAYS\]" ; then
                                rm -f $patchfile
                                mv $pick_patch $(dirname $patchfile)/
                            else
                                rm -f $patchfile
                                mv $pick_patch $topdir/.mypatches/local/$project/
                            fi
-                       elif ! echo $patchfile | grep -qE "[WIP]|[SKIP]|[ALWAYS]"; then
+                       elif ! echo $patchfile | grep -qE "\[WIP\]|\[SKIP\]|\[ALWAYS\]"; then
                            rm -f $patchfile
                        fi
                    fi
@@ -645,6 +645,7 @@ kpick 214892 # Add detection for WSL
 # device/qcom/sepolicy
 kpick 211273 # qcom/sepol: Fix timeservice app context
 kpick 212643 # qcom/sepol: Allow mm-qcamerad to use binder even in vendor
+kpick 218694 # Revert "sepolicy: qcom: Allow nfc to read and execute files in /vendor on full treble"
 
 # device/samsung/klte-common
 #kpick 212648 # klte-common: Enable AOD
@@ -709,8 +710,7 @@ kpick 218359 # Add tip to compile Heimdall from source.
 kpick 218430 # SystemUI: Require unlock to toggle airplane mode
 kpick 218431 # SystemUI: Require unlock to toggle location
 kpick 218437 # SystemUI: Add activity alias for LockscreenFragment
-kpick 218473 # SystemUI: Make notification panel opaque
-kpick 218668 # SystemUI: require auth for adb wireless
+#kpick 218668 # SystemUI: require auth for adb wireless
 
 # frameworks/native
 kpick 213549 # SurfaceFlinger: Support get/set ActiveConfigs
@@ -790,11 +790,9 @@ kpick 216915 # lineage-sdk: Introduce TelephonyExtUtils
 kpick 216978 # sdk: add torch accent
 kpick 217041 # sdk: add black berry style support
 kpick 217419 # Add vendor security patch level to device info
-kpick 217521 # Trust: warn if build is signed with insecure keys	
-kpick 217951 # NetworkTraffic: Resolve status bar indicators tints
 kpick 217952 # SystemUI: Resolve status bar VPN icon tints
 kpick 217953 # SystemUI: Resolve status bar battery percentage tints
-kpick 218679 # lineage-sdk: Use ILight.getSupportedTypes for lights capabilities
+#kpick 218679 # lineage-sdk: Use ILight.getSupportedTypes for lights capabilities
 
 # packages/apps/Bluetooth
 kpick 218319 # Bluetooth: Remove duplicate permission
@@ -815,11 +813,8 @@ kpick 213051 # Deskclock: set targetSdk to 27
 
 # packages/apps/Email
 kpick 218318 # Email: Remove duplicate permission
-kpick 218368 # email: add an option for delete the account
 kpick 218369 # email: support for auto-sync multiple IMAP folders
 kpick 218370 # email: support per-folder notifications
-kpick 218371 # email: finish the settings activity after delete its account
-kpick 218372 # Fix NPE in getHierarchicalFolder
 kpick 218373 # email: fix eas autodiscover
 kpick 218374 # Implement IMAP push using IMAP IDLE.
 kpick 218375 # Fix crash when attempting to view EML files.
@@ -828,11 +823,10 @@ kpick 218377 # email: fix empty body update
 kpick 218378 # Improve notification coalescence algorithm.
 kpick 218379 # email: Add an ActionBar to the mail app's PreferenceActivity
 kpick 218380 # Email: Fix the ActivityNotFoundException when click "Update now"
-kpick 218381 # Email: Clean duplicated WRITE_CONTACTS permission
 kpick 218382 # email: return default folder name for subfolders
 kpick 218383 # email: junk icon
 kpick 218384 # Search in folder specified via URI parameter, if possible.
-
+kpick 218687 # Allow account deletion.
 
 # packages/apps/Exchange
 kpick 209820 # Revert changes to make Exchange buildable.
@@ -851,7 +845,6 @@ kpick 217171 # Trust: enforce vendor security patch level check
 #kpick 217197 # LineageParts: remove unused network mode picker intent
 kpick 217642 # Align learn more and got it horizontally
 kpick 217644 # LineageParts: Set proper PreferenceTheme parent	
-kpick 217839 # LineageParts: Add Trust entry summary
 kpick 218315 # LineageParts: Fix brightness section
 
 # packages/apps/lockClock
@@ -952,7 +945,6 @@ kpick 218416 # vold: utils: Introduce ForkCallp
 
 # vendor/lineage
 kpick 206154 # Include build manifest on target
-kpick 208630 # vendor: fix ro.adb.secure for vendor-building devices
 #kpick 210664 # extract_utils: Support multidex
 kpick 213815 # Place ADB auth property override to system
 kpick 215341 # backuptool: Revert "Temporarily render version check permissive"
@@ -976,6 +968,13 @@ kpick 218565 # extract_utils: extract(): rename ARGS variable to SPEC_ARGS
 kpick 218566 # extract_utils: extract(): rename DEST variable to VENDOR_REPO_FILE
 kpick 217090 # extract_utils: cleanup in extract() function
 kpick 218568 # extract_utils: make get_file() able to search paths with and w/o /system prefix
+
+# vendor/nxp/opensource/packages/apps/Nfc
+kpick 218695 # Revert "Look for libnqp61-jcop-kit.so in the vendor"
+
+# vendor/nxp/opensource/external/libnfc-nci
+kpick 218693 # Revert "Fix description path for libnqp61-jcop-kit and move to vendor"
+kpick 218704 # Build nfc_nci.nqx.default with BOARD_VNDK_VERSION
 
 # vendor/qcom/opensource/cryptfs_hw
 

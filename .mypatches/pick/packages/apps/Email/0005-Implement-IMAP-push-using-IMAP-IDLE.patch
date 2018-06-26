@@ -1,0 +1,3639 @@
+From 1558ce3c3523ffd07addd8af8629c287c33cba85 Mon Sep 17 00:00:00 2001
+From: Jorge Ruesga <jorge@ruesga.com>
+Date: Fri, 1 May 2015 21:35:23 +0200
+Subject: [PATCH 05/16] Implement IMAP push using IMAP IDLE.
+
+This is a squash of the following commits:
+
+I8a184a5644e4322ee65d969e14cd47fe119f5df2 email: imap push
+I70b7ab9464a99eebf7f82726faa0fb2418e09a99 email: fix Exchange sync frequency account setup
+I237337c0c86ad66023db684c8a01c89ee1ef7aef email: fix tests
+I170478bb91d847ba9d42515c5d5c29a92f3765dc EmailTests: fix api change
+Id924e06e691d0ed99179fcd37fd213ac379340fd email: fix NPE
+I8a8c7cf3f2949630ee9db3646e5832246d69132d Fix ArrayIndexOutOfBoundsException.
+Ia8f25dd0a212ce52e3dd202c523c5db4a009604f email: catch the correct exception while closing the buffers
+I6c783afb9c436a35176134bfe7ae5264f2255b2f Simplify code.
+I087937c1323cfa1fd3d5400ef0a69d7476e36d20 Fix argument order.
+I900c9f9ecda06d3191c4cf82af7e774ae70b7dac Assign debug tags to IMAP communication output.
+I9295bedb5b7908c8ee873285c255816373d2c602 Add some debug statements.
+Idde5f3a3fa04a1aa80ef4cdb9e3ba1ab01d3fcb5 Reset idling flag when cancelling early due to being cancelled.
+Idfcc775417dc02417142e51ca546c9564c660aab Don't re-sync when refreshing the IDLE connection.
+Ia49714e6cd42dd71dfda8b7bbdf1fd622972edda Don't solely rely on the presence of RECENT for checking for new mail.
+Idd3018a03023efe02c3bcf40b44c8f5a5e304436 Fix some typos.
+I73ec2482a5a86c54309634f434b7d8fd77d7c079 Simplify logic.
+I1ea17a0fba4ff3af03ee8c0acbe9967bed92aae1 Fix some more argument order issues.
+Ie4ca1fdd55031efa56448bf0237d0edab51ea349 Don't throw a NPE when operating on a destroyed list.
+If64c164fd151c63404d0d63d9c463556cc3d0658 Use an inexact timer for the IDLE refresh.
+I13a99d5caadcc7bd2682791527f71a697d07f8d0 Improve debug logging.
+Ifa1677d7845722ccee2b1b9380c7b7e4014bcd97 Do less work on IDLE refresh.
+I9b99023fbe1aaab72638f6ef9d29223d9a325b7b Don't auto-register IDLE when gaining connection.
+Ib2c26e06fb923487b10d94edc1bbd743ebb39fb1 Use AlarmManager to schedule an IDLE connection restart.
+I2d474bc1cee168a5b76b8710b382498cd6c2fd59 Properly unregister alarm manager callbacks.
+I2a339e5982c103b69f1212627f1cc98e98a8a068 Refine thread handling.
+If62ffa0981a7a0a71ed7764a9724c07466c6d8a3 Optimize connection loss and re-gain behaviour.
+I9030c24a9c6b1c722b246601fde741f7027d3de7 Don't cancel PendingIntents used for AlarmManager.
+I954ea65cfe17b11a7f9ba19020399ac8cc6c3745 Fix message duplication on flag update.
+I68110810edecccdcd79a0503e210f5e7f17860d8 Close body InputStreams correctly.
+Ib83703dde85ce65d2f292fb37241e3be23eeb5d8 Fix check for deleted messages.
+I6e8196c73e275ff17c06e79b7ed2f64d73f8e9cf Adjust Email UnitTests to e353ae2ea19c9ea800d10b37e05de7b0ea1aeeb4
+
+Change-Id: I778f4c096d18f14771b068cf9e74475892c50b37
+---
+ .../android/emailcommon/provider/Account.java |   52 +-
+ .../emailcommon/provider/EmailContent.java    |    6 +
+ .../android/emailcommon/provider/Mailbox.java |    3 +
+ .../service/EmailServiceProxy.java            |    6 +
+ .../email/EmailConnectivityManager.java       |    7 +
+ .../activity/setup/AccountSettingsUtils.java  |    2 +-
+ .../email/mail/store/ImapConnection.java      |  101 +-
+ .../android/email/mail/store/ImapFolder.java  |  466 ++++++-
+ .../android/email/mail/store/ImapStore.java   |   10 +
+ .../android/email/mail/store/Pop3Store.java   |    4 +
+ .../email/mail/store/imap/ImapConstants.java  |    4 +
+ .../email/mail/store/imap/ImapList.java       |    2 +-
+ .../email/mail/store/imap/ImapResponse.java   |    7 +
+ .../mail/store/imap/ImapResponseParser.java   |   51 +-
+ .../email/mail/transport/MailTransport.java   |   30 +-
+ .../com/android/email/provider/DBHelper.java  |    3 +-
+ .../android/email/provider/EmailProvider.java |   75 +-
+ .../com/android/email/provider/Utilities.java |   12 +-
+ .../EmailBroadcastProcessorService.java       |    4 +
+ .../email/service/EmailServiceStub.java       |    8 +-
+ .../android/email/service/ImapService.java    | 1200 ++++++++++++++++-
+ .../service/LegacyImapSyncAdapterService.java |  122 +-
+ .../service/PopImapSyncAdapterService.java    |   46 +-
+ res/xml/services.xml                          |    4 +-
+ res/xml/syncadapter_legacy_imap.xml           |    1 +
+ .../setup/AccountCheckSettingsFragment.java   |    4 +
+ .../setup/AccountSettingsFragment.java        |   40 +-
+ .../activity/setup/AccountSetupFinal.java     |    2 +-
+ .../setup/AccountSetupOptionsFragment.java    |   24 +-
+ .../android/email/LegacyConversionsTests.java |    2 +-
+ .../email/mail/store/ImapStoreUnitTests.java  |    2 +-
+ .../provider/AccountBackupRestoreTests.java   |    2 +-
+ .../email/provider/ProviderTestUtils.java     |    4 +-
+ .../emailcommon/internet/MimeUtilityTest.java |   22 +-
+ 34 files changed, 2242 insertions(+), 86 deletions(-)
+
+diff --git a/emailcommon/src/com/android/emailcommon/provider/Account.java b/emailcommon/src/com/android/emailcommon/provider/Account.java
+index 5a3ab7f3a..b9a21c805 100755
+--- a/emailcommon/src/com/android/emailcommon/provider/Account.java
++++ b/emailcommon/src/com/android/emailcommon/provider/Account.java
+@@ -31,6 +31,7 @@ import android.os.Parcel;
+ import android.os.Parcelable;
+ import android.os.RemoteException;
+ 
++import com.android.emailcommon.service.EmailServiceProxy;
+ import com.android.emailcommon.utility.Utility;
+ import com.android.mail.utils.LogUtils;
+ import com.google.common.annotations.VisibleForTesting;
+@@ -111,22 +112,26 @@ public final class Account extends EmailContent implements Parcelable {
+     // Sentinel values for the mSyncInterval field of both Account records
+     public static final int CHECK_INTERVAL_NEVER = -1;
+     public static final int CHECK_INTERVAL_PUSH = -2;
++    public static final int CHECK_INTERVAL_DEFAULT_PULL = 15;
+ 
+     public static Uri CONTENT_URI;
+     public static Uri RESET_NEW_MESSAGE_COUNT_URI;
+     public static Uri NOTIFIER_URI;
++    public static Uri SYNC_SETTING_CHANGED_URI;
+ 
+     public static void initAccount() {
+         CONTENT_URI = Uri.parse(EmailContent.CONTENT_URI + "/account");
+         RESET_NEW_MESSAGE_COUNT_URI = Uri.parse(EmailContent.CONTENT_URI + "/resetNewMessageCount");
+         NOTIFIER_URI = Uri.parse(EmailContent.CONTENT_NOTIFIER_URI + "/account");
++        SYNC_SETTING_CHANGED_URI = Uri.parse(
++                EmailContent.CONTENT_SYNC_SETTING_CHANGED_URI + "/account");
+     }
+ 
+     public String mDisplayName;
+     public String mEmailAddress;
+     public String mSyncKey;
+     public int mSyncLookback;
+-    public int mSyncInterval;
++    private int mSyncInterval;
+     public long mHostAuthKeyRecv;
+     public long mHostAuthKeySend;
+     public int mFlags;
+@@ -139,6 +144,7 @@ public final class Account extends EmailContent implements Parcelable {
+     public String mSignature;
+     public long mPolicyKey;
+     public long mPingDuration;
++    public int mCapabilities;
+ 
+     @VisibleForTesting
+     static final String JSON_TAG_HOST_AUTH_RECV = "hostAuthRecv";
+@@ -171,6 +177,7 @@ public final class Account extends EmailContent implements Parcelable {
+     public static final int CONTENT_POLICY_KEY_COLUMN = 14;
+     public static final int CONTENT_PING_DURATION_COLUMN = 15;
+     public static final int CONTENT_MAX_ATTACHMENT_SIZE_COLUMN = 16;
++    public static final int CONTENT_CAPABILITIES_COLUMN = 17;
+ 
+     public static final String[] CONTENT_PROJECTION = {
+         AttachmentColumns._ID, AccountColumns.DISPLAY_NAME,
+@@ -181,7 +188,7 @@ public final class Account extends EmailContent implements Parcelable {
+         AccountColumns.RINGTONE_URI, AccountColumns.PROTOCOL_VERSION,
+         AccountColumns.SECURITY_SYNC_KEY,
+         AccountColumns.SIGNATURE, AccountColumns.POLICY_KEY, AccountColumns.PING_DURATION,
+-        AccountColumns.MAX_ATTACHMENT_SIZE
++        AccountColumns.MAX_ATTACHMENT_SIZE, AccountColumns.CAPABILITIES
+     };
+ 
+     public static final int ACCOUNT_FLAGS_COLUMN_ID = 0;
+@@ -279,6 +286,7 @@ public final class Account extends EmailContent implements Parcelable {
+         mSignature = cursor.getString(CONTENT_SIGNATURE_COLUMN);
+         mPolicyKey = cursor.getLong(CONTENT_POLICY_KEY_COLUMN);
+         mPingDuration = cursor.getLong(CONTENT_PING_DURATION_COLUMN);
++        mCapabilities = cursor.getInt(CONTENT_CAPABILITIES_COLUMN);
+     }
+ 
+     public boolean isTemporary() {
+@@ -358,6 +366,11 @@ public final class Account extends EmailContent implements Parcelable {
+      * TODO define sentinel values for "never", "push", etc.  See Account.java
+      */
+     public int getSyncInterval() {
++        // Fixed unsynced value and account capability. Change to default pull value
++        if (!hasCapability(EmailServiceProxy.CAPABILITY_PUSH)
++                && mSyncInterval == CHECK_INTERVAL_PUSH) {
++            return CHECK_INTERVAL_DEFAULT_PULL;
++        }
+         return mSyncInterval;
+     }
+ 
+@@ -367,7 +380,13 @@ public final class Account extends EmailContent implements Parcelable {
+      * @param minutes the number of minutes between polling checks
+      */
+     public void setSyncInterval(int minutes) {
+-        mSyncInterval = minutes;
++        // Fixed unsynced value and account capability. Change to default pull value
++        if (!hasCapability(EmailServiceProxy.CAPABILITY_PUSH)
++                && mSyncInterval == CHECK_INTERVAL_PUSH) {
++            mSyncInterval = CHECK_INTERVAL_DEFAULT_PULL;
++        } else {
++            mSyncInterval = minutes;
++        }
+     }
+ 
+     /**
+@@ -402,6 +421,20 @@ public final class Account extends EmailContent implements Parcelable {
+         mPingDuration = value;
+     }
+ 
++    /**
++     * @return the current account capabilities.
++     */
++    public int getCapabilities() {
++        return mCapabilities;
++    }
++
++    /**
++     * Set the account capabilities.  Be sure to call save() to commit to database.
++     */
++    public void setCapabilities(int value) {
++        mCapabilities = value;
++    }
++
+     /**
+      * @return the flags for this account
+      */
+@@ -749,6 +782,7 @@ public final class Account extends EmailContent implements Parcelable {
+         values.put(AccountColumns.SIGNATURE, mSignature);
+         values.put(AccountColumns.POLICY_KEY, mPolicyKey);
+         values.put(AccountColumns.PING_DURATION, mPingDuration);
++        values.put(AccountColumns.CAPABILITIES, mCapabilities);
+         return values;
+     }
+ 
+@@ -779,6 +813,7 @@ public final class Account extends EmailContent implements Parcelable {
+             json.putOpt(AccountColumns.PROTOCOL_VERSION, mProtocolVersion);
+             json.putOpt(AccountColumns.SIGNATURE, mSignature);
+             json.put(AccountColumns.PING_DURATION, mPingDuration);
++            json.put(AccountColumns.CAPABILITIES, mCapabilities);
+             return json;
+         } catch (final JSONException e) {
+             LogUtils.d(LogUtils.TAG, e, "Exception while serializing Account");
+@@ -817,6 +852,7 @@ public final class Account extends EmailContent implements Parcelable {
+             a.mSignature = json.optString(AccountColumns.SIGNATURE);
+             // POLICY_KEY is not stored
+             a.mPingDuration = json.optInt(AccountColumns.PING_DURATION, 0);
++            a.mCapabilities = json.optInt(AccountColumns.CAPABILITIES, 0);
+             return a;
+         } catch (final JSONException e) {
+             LogUtils.d(LogUtils.TAG, e, "Exception while deserializing Account");
+@@ -842,6 +878,14 @@ public final class Account extends EmailContent implements Parcelable {
+         }
+     }
+ 
++    /**
++     * Returns whether or not the capability is supported by the account.
++     * @see EmailServiceProxy#CAPABILITY_*
++     */
++    public boolean hasCapability(int capability) {
++        return (mCapabilities & capability) != 0;
++    }
++
+     /**
+      * Supports Parcelable
+      */
+@@ -903,6 +947,7 @@ public final class Account extends EmailContent implements Parcelable {
+         } else {
+             dest.writeByte((byte)0);
+         }
++        dest.writeInt(mCapabilities);
+     }
+ 
+     /**
+@@ -937,6 +982,7 @@ public final class Account extends EmailContent implements Parcelable {
+         if (in.readByte() == 1) {
+             mHostAuthSend = new HostAuth(in);
+         }
++        mCapabilities = in.readInt();
+     }
+ 
+     /**
+diff --git a/emailcommon/src/com/android/emailcommon/provider/EmailContent.java b/emailcommon/src/com/android/emailcommon/provider/EmailContent.java
+index 19805884e..38cafe1ce 100755
+--- a/emailcommon/src/com/android/emailcommon/provider/EmailContent.java
++++ b/emailcommon/src/com/android/emailcommon/provider/EmailContent.java
+@@ -145,6 +145,8 @@ public abstract class EmailContent {
+     // delete, or update) and is intended as an optimization for use by clients of message list
+     // cursors (initially, the email AppWidget).
+     public static String NOTIFIER_AUTHORITY;
++    // The sync settings changed authority is used to notify when a sync setting changed (interval)
++    public static String SYNC_SETTING_CHANGED_AUTHORITY;
+     public static Uri CONTENT_URI;
+     public static final String PARAMETER_LIMIT = "limit";
+ 
+@@ -153,6 +155,7 @@ public abstract class EmailContent {
+      */
+     public static final String SUPPRESS_COMBINED_ACCOUNT_PARAM = "suppress_combined";
+     public static Uri CONTENT_NOTIFIER_URI;
++    public static Uri CONTENT_SYNC_SETTING_CHANGED_URI;
+     public static Uri PICK_TRASH_FOLDER_URI;
+     public static Uri PICK_SENT_FOLDER_URI;
+     public static Uri MAILBOX_NOTIFICATION_URI;
+@@ -175,8 +178,11 @@ public abstract class EmailContent {
+             AUTHORITY = EMAIL_PACKAGE_NAME + ".provider";
+             LogUtils.d("EmailContent", "init for " + AUTHORITY);
+             NOTIFIER_AUTHORITY = EMAIL_PACKAGE_NAME + ".notifier";
++            SYNC_SETTING_CHANGED_AUTHORITY = EMAIL_PACKAGE_NAME + ".sync_setting_changed";
+             CONTENT_URI = Uri.parse("content://" + AUTHORITY);
+             CONTENT_NOTIFIER_URI = Uri.parse("content://" + NOTIFIER_AUTHORITY);
++            CONTENT_SYNC_SETTING_CHANGED_URI = Uri.parse(
++                    "content://" + SYNC_SETTING_CHANGED_AUTHORITY);
+             PICK_TRASH_FOLDER_URI = Uri.parse("content://" + AUTHORITY + "/pickTrashFolder");
+             PICK_SENT_FOLDER_URI = Uri.parse("content://" + AUTHORITY + "/pickSentFolder");
+             MAILBOX_NOTIFICATION_URI = Uri.parse("content://" + AUTHORITY + "/mailboxNotification");
+diff --git a/emailcommon/src/com/android/emailcommon/provider/Mailbox.java b/emailcommon/src/com/android/emailcommon/provider/Mailbox.java
+index c726b94c3..75f840e64 100644
+--- a/emailcommon/src/com/android/emailcommon/provider/Mailbox.java
++++ b/emailcommon/src/com/android/emailcommon/provider/Mailbox.java
+@@ -78,10 +78,13 @@ public class Mailbox extends EmailContent implements EmailContent.MailboxColumns
+ 
+     public static Uri CONTENT_URI;
+     public static Uri MESSAGE_COUNT_URI;
++    public static Uri SYNC_SETTING_CHANGED_URI;
+ 
+     public static void initMailbox() {
+         CONTENT_URI = Uri.parse(EmailContent.CONTENT_URI + "/mailbox");
+         MESSAGE_COUNT_URI = Uri.parse(EmailContent.CONTENT_URI + "/mailboxCount");
++        SYNC_SETTING_CHANGED_URI = Uri.parse(
++                EmailContent.CONTENT_SYNC_SETTING_CHANGED_URI + "/mailbox");
+     }
+ 
+     private static String formatMailboxIdExtra(final int index) {
+diff --git a/emailcommon/src/com/android/emailcommon/service/EmailServiceProxy.java b/emailcommon/src/com/android/emailcommon/service/EmailServiceProxy.java
+index 3eca6f112..da61c285c 100644
+--- a/emailcommon/src/com/android/emailcommon/service/EmailServiceProxy.java
++++ b/emailcommon/src/com/android/emailcommon/service/EmailServiceProxy.java
+@@ -66,6 +66,12 @@ public class EmailServiceProxy extends ServiceProxy implements IEmailService {
+     public static final String VALIDATE_BUNDLE_PROTOCOL_VERSION = "validate_protocol_version";
+     public static final String VALIDATE_BUNDLE_REDIRECT_ADDRESS = "validate_redirect_address";
+ 
++    // Service capabilities
++    public static final String SETTINGS_BUNDLE_CAPABILITIES = "settings_capabilities";
++
++    // List of common interesting services capabilities
++    public static final int CAPABILITY_PUSH = 1 << 0;
++
+     private Object mReturn = null;
+     private IEmailService mService;
+     private final boolean isRemote;
+diff --git a/provider_src/com/android/email/EmailConnectivityManager.java b/provider_src/com/android/email/EmailConnectivityManager.java
+index 90a511f06..be930c910 100644
+--- a/provider_src/com/android/email/EmailConnectivityManager.java
++++ b/provider_src/com/android/email/EmailConnectivityManager.java
+@@ -165,6 +165,13 @@ public class EmailConnectivityManager extends BroadcastReceiver {
+         return info.getType();
+     }
+ 
++    static public boolean isConnected(Context context) {
++        ConnectivityManager cm =
++                (ConnectivityManager)context.getSystemService(Context.CONNECTIVITY_SERVICE);
++        NetworkInfo info = cm.getActiveNetworkInfo();
++        return info != null && info.isConnected();
++    }
++
+     public void waitForConnectivity() {
+         // If we're unregistered, throw an exception
+         if (!mRegistered) {
+diff --git a/provider_src/com/android/email/activity/setup/AccountSettingsUtils.java b/provider_src/com/android/email/activity/setup/AccountSettingsUtils.java
+index dbbd51ee7..cf677ddc0 100644
+--- a/provider_src/com/android/email/activity/setup/AccountSettingsUtils.java
++++ b/provider_src/com/android/email/activity/setup/AccountSettingsUtils.java
+@@ -107,7 +107,7 @@ public class AccountSettingsUtils {
+         cv.put(AccountColumns.DISPLAY_NAME, account.getDisplayName());
+         cv.put(AccountColumns.SENDER_NAME, account.getSenderName());
+         cv.put(AccountColumns.SIGNATURE, account.getSignature());
+-        cv.put(AccountColumns.SYNC_INTERVAL, account.mSyncInterval);
++        cv.put(AccountColumns.SYNC_INTERVAL, account.getSyncInterval());
+         cv.put(AccountColumns.FLAGS, account.mFlags);
+         cv.put(AccountColumns.SYNC_LOOKBACK, account.mSyncLookback);
+         cv.put(AccountColumns.SECURITY_SYNC_KEY, account.mSecuritySyncKey);
+diff --git a/provider_src/com/android/email/mail/store/ImapConnection.java b/provider_src/com/android/email/mail/store/ImapConnection.java
+index bf4bb2a4c..7bb604e02 100644
+--- a/provider_src/com/android/email/mail/store/ImapConnection.java
++++ b/provider_src/com/android/email/mail/store/ImapConnection.java
+@@ -36,6 +36,7 @@ import com.android.emailcommon.mail.MessagingException;
+ import com.android.mail.utils.LogUtils;
+ 
+ import java.io.IOException;
++import java.net.SocketTimeoutException;
+ import java.util.ArrayList;
+ import java.util.Collections;
+ import java.util.List;
+@@ -50,6 +51,15 @@ class ImapConnection {
+     // Always check in FALSE
+     private static final boolean DEBUG_FORCE_SEND_ID = false;
+ 
++    // RFC 2177 defines that IDLE connections must be refreshed at least every 29 minutes
++    public static final int PING_IDLE_TIMEOUT = 29 * 60 * 1000;
++
++    // Special timeout for DONE operations
++    public static final int DONE_TIMEOUT = 5 * 1000;
++
++    // Time to wait between the first idle message and triggering the changes
++    private static final int IDLE_OP_READ_TIMEOUT = 500;
++
+     /** ID capability per RFC 2971*/
+     public static final int CAPABILITY_ID        = 1 << 0;
+     /** NAMESPACE capability per RFC 2342 */
+@@ -58,6 +68,8 @@ class ImapConnection {
+     public static final int CAPABILITY_STARTTLS  = 1 << 2;
+     /** UIDPLUS capability per RFC 4315 */
+     public static final int CAPABILITY_UIDPLUS   = 1 << 3;
++    /** IDLE capability per RFC 2177 */
++    public static final int CAPABILITY_IDLE      = 1 << 4;
+ 
+     /** The capabilities supported; a set of CAPABILITY_* values. */
+     private int mCapabilities;
+@@ -69,6 +81,8 @@ class ImapConnection {
+     private String mAccessToken;
+     private String mIdPhrase = null;
+ 
++    private boolean mIdling = false;
++
+     /** # of command/response lines to log upon crash. */
+     private static final int DISCOURSE_LOGGER_SIZE = 64;
+     private final DiscourseLogger mDiscourse = new DiscourseLogger(DISCOURSE_LOGGER_SIZE);
+@@ -80,6 +94,8 @@ class ImapConnection {
+      */
+     private final AtomicInteger mNextCommandTag = new AtomicInteger(0);
+ 
++    private String mTransportTag;
++
+     // Keep others from instantiating directly
+     ImapConnection(ImapStore store) {
+         setStore(store);
+@@ -93,6 +109,16 @@ class ImapConnection {
+         mLoginPhrase = null;
+     }
+ 
++    void setTransportTag(String tag) {
++        mTransportTag = tag;
++        if (mTransport != null) {
++            mTransport.setTag(tag);
++        }
++        if (mParser != null) {
++            mParser.setTag(tag);
++        }
++    }
++
+     /**
+      * Generates and returns the phrase to be used for authentication. This will be a LOGIN with
+      * username and password, or an OAUTH authentication string, with username and access token.
+@@ -138,6 +164,7 @@ class ImapConnection {
+             // copy configuration into a clean transport, if necessary
+             if (mTransport == null) {
+                 mTransport = mImapStore.cloneTransport();
++                mTransport.setTag(mTransportTag);
+             }
+ 
+             mTransport.open();
+@@ -208,12 +235,26 @@ class ImapConnection {
+         destroyResponses();
+         mParser = null;
+         mImapStore = null;
++        mIdling = false;
++    }
++
++    int getReadTimeout() throws IOException {
++        if (mTransport == null) {
++            return MailTransport.SOCKET_READ_TIMEOUT;
++        }
++        return mTransport.getReadTimeout();
++    }
++
++    void setReadTimeout(int timeout) throws IOException {
++        if (mTransport != null) {
++            mTransport.setReadTimeout(timeout);
++        }
+     }
+ 
+     /**
+      * Returns whether or not the specified capability is supported by the server.
+      */
+-    private boolean isCapable(int capability) {
++    public boolean isCapable(int capability) {
+         return (mCapabilities & capability) != 0;
+     }
+ 
+@@ -235,6 +276,9 @@ class ImapConnection {
+         if (capabilities.contains(ImapConstants.STARTTLS)) {
+             mCapabilities |= CAPABILITY_STARTTLS;
+         }
++        if (capabilities.contains(ImapConstants.IDLE)) {
++            mCapabilities |= CAPABILITY_IDLE;
++        }
+     }
+ 
+     /**
+@@ -247,6 +291,7 @@ class ImapConnection {
+     private void createParser() {
+         destroyResponses();
+         mParser = new ImapResponseParser(mTransport.getInputStream(), mDiscourse);
++        mParser.setTag(mTransportTag);
+     }
+ 
+     void destroyResponses() {
+@@ -273,6 +318,12 @@ class ImapConnection {
+      */
+     String sendCommand(String command, boolean sensitive)
+             throws MessagingException, IOException {
++        // Don't allow any command other than DONE when idling
++        if (mIdling && !command.equals(ImapConstants.DONE)) {
++            return null;
++        }
++        mIdling = command.equals(ImapConstants.IDLE);
++
+         LogUtils.d(Logging.LOG_TAG, "sendCommand %s", (sensitive ? IMAP_REDACTED_LOG : command));
+         open();
+         return sendCommandInternal(command, sensitive);
+@@ -284,7 +335,13 @@ class ImapConnection {
+             throw new IOException("Null transport");
+         }
+         String tag = Integer.toString(mNextCommandTag.incrementAndGet());
+-        String commandToSend = tag + " " + command;
++        final String commandToSend;
++        if (command.equals(ImapConstants.DONE)) {
++            // Do not send a tag for DONE command
++            commandToSend = command;
++        } else {
++            commandToSend = tag + " " + command;
++        }
+         mTransport.writeLine(commandToSend, sensitive ? IMAP_REDACTED_LOG : null);
+         mDiscourse.addSentCommand(sensitive ? IMAP_REDACTED_LOG : commandToSend);
+         return tag;
+@@ -327,6 +384,11 @@ class ImapConnection {
+         return executeSimpleCommand(command, false);
+     }
+ 
++    List<ImapResponse> executeIdleCommand() throws IOException, MessagingException {
++        mParser.expectIdlingResponse();
++        return executeSimpleCommand(ImapConstants.IDLE, false);
++    }
++
+     /**
+      * Read and return all of the responses from the most recent command sent to the server
+      *
+@@ -336,13 +398,36 @@ class ImapConnection {
+      */
+     List<ImapResponse> getCommandResponses() throws IOException, MessagingException {
+         final List<ImapResponse> responses = new ArrayList<ImapResponse>();
+-        ImapResponse response;
+-        do {
+-            response = mParser.readResponse();
+-            responses.add(response);
+-        } while (!response.isTagged());
++        final ImapResponseParser parser = mParser; // might get reset during idling
++        ImapResponse response = null;
++        boolean idling = false;
++        boolean throwSocketTimeoutEx = true;
++        final int lastSocketTimeout = getReadTimeout();
++        try {
++            do {
++                response = parser.readResponse();
++                if (idling) {
++                    setReadTimeout(IDLE_OP_READ_TIMEOUT);
++                    throwSocketTimeoutEx = false;
++                }
++                responses.add(response);
++                if (response.isIdling()) {
++                    idling = true;
++                }
++            } while (idling || !response.isTagged());
++        } catch (SocketTimeoutException ex) {
++            if (throwSocketTimeoutEx) {
++                throw ex;
++            }
++        } finally {
++            parser.resetIdlingStatus();
++            if (lastSocketTimeout != getReadTimeout()) {
++                setReadTimeout(lastSocketTimeout);
++            }
++        }
+ 
+-        if (!response.isOk()) {
++        // When idling, any response is valid; otherwise it must be OK
++        if (!response.isOk() && !idling) {
+             final String toString = response.toString();
+             final String status = response.getStatusOrEmpty().getString();
+             final String alert = response.getAlertTextOrEmpty().getString();
+diff --git a/provider_src/com/android/email/mail/store/ImapFolder.java b/provider_src/com/android/email/mail/store/ImapFolder.java
+index 3a9081131..bf78ad68f 100644
+--- a/provider_src/com/android/email/mail/store/ImapFolder.java
++++ b/provider_src/com/android/email/mail/store/ImapFolder.java
+@@ -52,6 +52,8 @@ import com.android.emailcommon.utility.Utility;
+ import com.android.mail.utils.LogUtils;
+ import com.google.common.annotations.VisibleForTesting;
+ 
++import static com.android.emailcommon.Logging.LOG_TAG;
++
+ import org.apache.commons.io.IOUtils;
+ 
+ import java.io.File;
+@@ -60,6 +62,7 @@ import java.io.FileOutputStream;
+ import java.io.IOException;
+ import java.io.InputStream;
+ import java.io.OutputStream;
++import java.net.SocketTimeoutException;
+ import java.text.SimpleDateFormat;
+ import java.util.ArrayList;
+ import java.util.Arrays;
+@@ -68,13 +71,43 @@ import java.util.HashMap;
+ import java.util.LinkedHashSet;
+ import java.util.List;
+ import java.util.Locale;
++import java.util.Map;
+ import java.util.TimeZone;
+ 
+-class ImapFolder extends Folder {
++public class ImapFolder extends Folder {
+     private final static Flag[] PERMANENT_FLAGS =
+         { Flag.DELETED, Flag.SEEN, Flag.FLAGGED, Flag.ANSWERED };
+     private static final int COPY_BUFFER_SIZE = 16*1024;
+ 
++    public interface IdleCallback {
++        /**
++         * Invoked when the connection enters idle mode
++         */
++        public void onIdled();
++        /**
++         * Invoked when idle state is left
++         */
++        public void onIdlingDone();
++        /**
++         * Invoked when a new change is communicated by the server.
++         *
++         * @param needSync whether a sync is required
++         * @param fetchMessages list of message UIDs to update
++         */
++        public void onNewServerChange(boolean needSync, List<String> fetchMessages);
++        /**
++         * Connection to socket timed out. The idle connection needs
++         * to be considered broken when this is called.
++         */
++        public void onTimeout();
++        /**
++         * Something went wrong while waiting for push data.
++         *
++         * @param ex the exception detected
++         */
++        public void onException(MessagingException ex);
++    }
++
+     private final ImapStore mStore;
+     private final String mName;
+     private int mMessageCount = -1;
+@@ -86,6 +119,22 @@ class ImapFolder extends Folder {
+     /** A set of hashes that can be used to track dirtiness */
+     Object mHash[];
+ 
++    private final Object mIdleSync = new Object();
++    private boolean mIdling;
++    private boolean mIdlingCancelled;
++    private boolean mDiscardIdlingConnection;
++    private Thread mIdleReader;
++
++    private static final String[] IDLE_STATUSES = {
++        ImapConstants.UIDVALIDITY, ImapConstants.UIDNEXT
++    };
++    private Map<String, String> mIdleStatuses = new HashMap<>();
++
++    private static class ImapIdleChanges {
++        public boolean mRequiredSync = false;
++        public ArrayList<String> mMessageToFetch = new ArrayList<>();
++    }
++
+     /*package*/ ImapFolder(ImapStore store, String name) {
+         mStore = store;
+         mName = name;
+@@ -132,6 +181,7 @@ class ImapFolder extends Folder {
+             // * OK [UIDNEXT 57576] Predicted next UID
+             // 2 OK [READ-WRITE] Select completed.
+             try {
++                mConnection.setTransportTag(mName + "-" + hashCode());
+                 doSelect();
+             } catch (IOException ioe) {
+                 throw ioExceptionHandler(mConnection, ioe);
+@@ -176,6 +226,196 @@ class ImapFolder extends Folder {
+         return mName;
+     }
+ 
++    public void startIdling(final IdleCallback callback) throws MessagingException {
++        LogUtils.d(LOG_TAG, "startIdling on folder " + mName);
++        checkOpen();
++        synchronized (mIdleSync) {
++            if (mIdling) {
++                throw new MessagingException("Folder " + mName + " is in IDLE state already.");
++            }
++            mIdling = true;
++            mIdlingCancelled = false;
++            mDiscardIdlingConnection = false;
++        }
++
++        final ImapConnection connection;
++        synchronized (this) {
++            connection = mConnection;
++        }
++
++        // Run idle in background
++        mIdleReader = new Thread() {
++            @Override
++            public void run() {
++                try {
++                    // Get some info before start idling
++                    mIdleStatuses = getStatuses(IDLE_STATUSES);
++
++                    // We setup the max time specified in RFC 2177 to re-issue
++                    // an idle request to the server
++                    connection.setReadTimeout(ImapConnection.PING_IDLE_TIMEOUT);
++                    connection.destroyResponses();
++
++                    // Enter now in idle status (we hold a connection with
++                    // the server to listen for new changes)
++                    synchronized (mIdleSync) {
++                        if (mIdlingCancelled) {
++                            mIdling = false;
++                            return;
++                        }
++                    }
++
++                    if (callback != null) {
++                        callback.onIdled();
++                    }
++                    List<ImapResponse> responses = connection.executeIdleCommand();
++
++                    // Check whether IDLE was successful (first response is an idling response)
++                    if (responses.isEmpty() || (mIdling && !responses.get(0).isIdling())) {
++                        if (callback != null) {
++                            callback.onException(new MessagingException(
++                                            MessagingException.SERVER_ERROR, "Cannot idle"));
++                        }
++                        synchronized (mIdleSync) {
++                            mIdling = false;
++                        }
++                        return;
++                    }
++
++                    // Exit idle if we are still in that state
++                    boolean cancelled = false;
++                    boolean discardConnection = false;
++                    synchronized (mIdleSync) {
++                        if (!mIdlingCancelled) {
++                            try {
++                                connection.setReadTimeout(ImapConnection.DONE_TIMEOUT);
++                                connection.executeSimpleCommand(ImapConstants.DONE);
++                            } catch (MessagingException me) {
++                                // Ignore this exception caused by messages in the queue
++                            }
++                        }
++
++                        cancelled = mIdlingCancelled;
++                        discardConnection = mDiscardIdlingConnection;
++                    }
++
++                    if (!cancelled && callback != null) {
++                        // Notify that new changes exists in the server. Remove
++                        // the idling status response since is only relevant for the protocol
++                        // We have to enter in idle
++                        ImapIdleChanges changes = extractImapChanges(
++                                new ArrayList<Object>(responses.subList(1, responses.size())));
++                        callback.onNewServerChange(changes.mRequiredSync, changes.mMessageToFetch);
++                    }
++
++                    if (discardConnection) {
++                        // Return the connection to the pool
++                        cleanupConnection(connection, false);
++                    }
++
++                    synchronized (mIdleSync) {
++                        mIdling = false;
++                    }
++
++                    if (callback != null) {
++                        callback.onIdlingDone();
++                    }
++                } catch (MessagingException me) {
++                    cleanupConnection(connection, false);
++                    synchronized (mIdleSync) {
++                        mIdling = false;
++                    }
++                    if (callback != null) {
++                        callback.onException(me);
++                    }
++
++                } catch (SocketTimeoutException ste) {
++                    cleanupConnection(connection, false);
++                    synchronized (mIdleSync) {
++                        mIdling = false;
++                    }
++                    if (callback != null) {
++                        callback.onTimeout();
++                    }
++
++                } catch (IOException ioe) {
++                    synchronized (mIdleSync) {
++                        mIdling = false;
++                    }
++                    if (callback != null) {
++                        callback.onException(ioExceptionHandler(connection, ioe));
++                    } else {
++                        cleanupConnection(connection, false);
++                    }
++
++                }
++            }
++        };
++        mIdleReader.setName("IdleReader " + mStore.getAccount().mId + ":" + mName);
++        mIdleReader.start();
++    }
++
++    public void stopIdling(boolean discardConnection) throws MessagingException {
++        LogUtils.d(LOG_TAG, "stopIdling on folder " + mName);
++        if (!isOpen()) {
++            throw new MessagingException("Folder " + mName + " is not open.");
++        }
++
++        final ImapConnection connection;
++        synchronized (this) {
++            connection = mConnection;
++        }
++
++        synchronized (mIdleSync) {
++            if (!mIdling) {
++                throw new MessagingException("Folder " + mName + " isn't in IDLE state.");
++            }
++            try {
++                mIdlingCancelled = true;
++                mDiscardIdlingConnection = discardConnection;
++                // Send the DONE command to make the idle reader thread exit. Shorten
++                // the read timeout for doing that in order to not wait indefinitely,
++                // the server should respond to the DONE command quickly anyway
++                connection.sendCommand(ImapConstants.DONE, false);
++
++            } catch (MessagingException me) {
++                // Treat IOERROR messaging exception as IOException
++                if (me.getExceptionType() == MessagingException.IOERROR) {
++                    cleanupConnection(connection, false);
++                    throw me;
++                }
++
++            } catch (IOException ioe) {
++                throw ioExceptionHandler(mConnection, ioe);
++
++            }
++        }
++
++        // Try to join the thread, but make sure to not wait indefinitely. This should
++        // be the normal case (server sends the response to DONE quickly)
++        try {
++            mIdleReader.join(1000, 0);
++        } catch (InterruptedException e) {
++            // ignore
++        }
++        // In case the server didn't respond quickly, the connection is likely broken;
++        // close it (which definitely will cause the thread to return) and finally join the thread
++        if (mIdleReader.isAlive()) {
++            cleanupConnection(connection, true);
++            try {
++                mIdleReader.join();
++            } catch (InterruptedException e) {
++                // ignore
++            }
++        }
++    }
++
++    public boolean isIdling() {
++        synchronized (mIdleSync) {
++            return mIdling;
++        }
++    }
++
+     @Override
+     public boolean exists() throws MessagingException {
+         if (mExists) {
+@@ -346,7 +586,9 @@ class ImapFolder extends Folder {
+ 
+     @Override
+     public int getMessageCount() {
+-        return mMessageCount;
++        synchronized (this) {
++            return mMessageCount;
++        }
+     }
+ 
+     @Override
+@@ -373,6 +615,73 @@ class ImapFolder extends Folder {
+         }
+     }
+ 
++    public Map<String, String> getStatuses(String[] statuses) throws MessagingException {
++        checkOpen();
++        Map<String, String> allReturnStatuses = new HashMap<>();
++        try {
++            String flags = TextUtils.join(" ", statuses);
++            final List<ImapResponse> responses = mConnection.executeSimpleCommand(
++                    String.format(Locale.US,
++                            ImapConstants.STATUS + " \"%s\" (%s)",
++                            ImapStore.encodeFolderName(mName, mStore.mPathPrefix), flags));
++            // S: * STATUS mboxname (MESSAGES 231 UIDNEXT 44292)
++            for (ImapResponse response : responses) {
++                if (response.isDataResponse(0, ImapConstants.STATUS)) {
++                    ImapList list = response.getListOrEmpty(2);
++                    int count = list.size();
++                    for (int i = 0; i < count; i += 2) {
++                        String key = list.getStringOrEmpty(i).getString();
++                        String value = list.getStringOrEmpty(i + 1).getString();
++                        allReturnStatuses.put(key, value);
++                    }
++                }
++            }
++        } catch (IOException ioe) {
++            throw ioExceptionHandler(mConnection, ioe);
++        } finally {
++            destroyResponses();
++        }
++        return allReturnStatuses;
++    }
++
++    private void cleanupConnection(ImapConnection connection, boolean close) {
++        if (close) {
++            connection.close();
++        }
++        synchronized (this) {
++            if (connection == mConnection) {
++                if (close) {
++                    // To prevent close() from returning the connection to the pool
++                    mConnection = null;
++                }
++                close(false);
++            }
++        }
++    }
++
++    private List<String> getNewMessagesFromUid(String uid) throws MessagingException {
++        checkOpen();
++        List<String> nextMSNs = new ArrayList<>();
++        try {
++            final List<ImapResponse> responses = mConnection.executeSimpleCommand(
++                    ImapConstants.SEARCH + " " + ImapConstants.UID + " " + uid + ":*");
++            // S: * SEARCH 1 2 3
++            for (ImapResponse response : responses) {
++                if (response.isDataResponse(0, ImapConstants.SEARCH)) {
++                    int count = response.size();
++                    for (int i = 1; i < count; i++) {
++                        nextMSNs.add(response.getStringOrEmpty(i).getString());
++                    }
++                }
++            }
++        } catch (IOException ioe) {
++            throw ioExceptionHandler(mConnection, ioe);
++        } finally {
++            destroyResponses();
++        }
++        return nextMSNs;
++    }
++
+     @Override
+     public void delete(boolean recurse) {
+         throw new Error("ImapStore.delete() not yet implemented");
+@@ -847,7 +1156,9 @@ class ImapFolder extends Folder {
+      */
+     private void handleUntaggedResponse(ImapResponse response) {
+         if (response.isDataResponse(1, ImapConstants.EXISTS)) {
+-            mMessageCount = response.getStringOrEmpty(0).getNumberOrZero();
++            synchronized (this) {
++                mMessageCount = response.getStringOrEmpty(0).getNumberOrZero();
++            }
+         }
+     }
+ 
+@@ -1266,16 +1577,155 @@ class ImapFolder extends Folder {
+ 
+     private MessagingException ioExceptionHandler(ImapConnection connection, IOException ioe) {
+         if (DebugUtils.DEBUG) {
+-            LogUtils.d(Logging.LOG_TAG, "IO Exception detected: ", ioe);
++            LogUtils.d(Logging.LOG_TAG, ioe, "IO Exception detected: ");
+         }
+-        connection.close();
+-        if (connection == mConnection) {
+-            mConnection = null; // To prevent close() from returning the connection to the pool.
+-            close(false);
++        if (connection != null) {
++            cleanupConnection(connection, true);
+         }
+         return new MessagingException(MessagingException.IOERROR, "IO Error", ioe);
+     }
+ 
++    private ImapIdleChanges extractImapChanges(List<Object> changes) throws MessagingException {
++        // Process the changes and fill the idle changes structure.
++        // Basically we should look for the next commands in this method:
++        //
++        //    OK DONE
++        //        No more changes
++        //    n EXISTS
++        //        Indicates the number of messages in the mailbox => handle like
++        //        RECENT if the number increased
++        //    n EXPUNGE
++        //        Indicates a message was completely deleted => a full sync is required
++        //    n RECENT
++        //        New messages waiting in the server => use UIDNEXT to search for the new messages.
++        //        If isn't possible to retrieve the new UID messages, then a full sync is required
++        //    n FETCH (UID X FLAGS (...))
++        //        a message has changed and requires to fetch only X message
++        //        (something change on that item). If UID is not present, a conversion
++        //        from MSN to UID is required
++
++        final ImapIdleChanges imapIdleChanges = new ImapIdleChanges();
++
++        int count = changes.size();
++        if (Logging.LOGD) {
++            for (int i = 0; i < count; i++) {
++                ImapResponse change = (ImapResponse) changes.get(i);
++                if (Logging.LOGD) {
++                    LogUtils.d(Logging.LOG_TAG, "Received: " + change.toString());
++                }
++            }
++        }
++
++        // We can't ask to the server, because the responses will be destroyed. We need
++        // to compute and fetch any related after we have all the responses processed
++        boolean hasNewMessages = false;
++        List<String> msns = new ArrayList<>();
++        for (int i = 0; i < count; i++) {
++            ImapResponse change = (ImapResponse) changes.get(i);
++            if (change.isOk() || change.isNo() || change.isBad()) {
++                // No more processing. DONE included
++                break;
++            }
++            try {
++                ImapElement element = change.getElementOrNone(1);
++                if (element.equals(ImapElement.NONE)) {
++                    continue;
++                }
++                if (!element.isString()) {
++                    continue;
++                }
++
++                ImapString op = (ImapString) element;
++                if (op.is(ImapConstants.DONE)) {
++                    break;
++                } else if (op.is(ImapConstants.EXISTS)) {
++                    int newMessageCount = change.getStringOrEmpty(0).getNumberOrZero();
++                    int oldMessageCount;
++                    synchronized (this) {
++                        oldMessageCount = mMessageCount;
++                        mMessageCount = newMessageCount;
++                    }
++                    if (Logging.LOGD) {
++                        LogUtils.d(LOG_TAG, "Got EXISTS idle response, message count now "
++                                + newMessageCount + ", was " + oldMessageCount);
++                    }
++                    if (newMessageCount > oldMessageCount) {
++                        hasNewMessages = true;
++                    }
++                } else if (op.is(ImapConstants.EXPUNGE)) {
++                    imapIdleChanges.mRequiredSync = true;
++                    synchronized (this) {
++                        mMessageCount--;
++                    }
++                } else if (op.is(ImapConstants.RECENT)) {
++                    hasNewMessages = true;
++                } else if (op.is(ImapConstants.FETCH)
++                        && change.getElementOrNone(2).isList()) {
++                    ImapList messageFlags = (ImapList) change.getElementOrNone(2);
++                    String uid = ((ImapString) messageFlags.getKeyedStringOrEmpty(
++                            ImapConstants.UID, true)).getString();
++                    if (!TextUtils.isEmpty(uid) &&
++                            !imapIdleChanges.mMessageToFetch.contains(uid)) {
++                        imapIdleChanges.mMessageToFetch.add(uid);
++                    } else {
++                        msns.add(change.getStringOrEmpty(0).getString());
++                    }
++                } else {
++                    if (Logging.LOGD) {
++                        LogUtils.w(LOG_TAG, "Unrecognized imap change (" + change
++                                + ") for mailbox " + mName);
++                    }
++                }
++
++            } catch (Exception ex) {
++                if (Logging.LOGD) {
++                    LogUtils.e(LOG_TAG, ex, "Failure processing imap change (" + change
++                            + ") for mailbox " + mName);
++                }
++            }
++        }
++
++        // Check whether UIDVALIDITY changed - if yes, a full sync request is required
++        // NOTE: This needs to happen after parsing all responses; otherwise
++        //       getStatuses will destroy the response
++        Map<String, String> statuses = getStatuses(new String[] { ImapConstants.UIDVALIDITY });
++        String oldUidValidity = mIdleStatuses.get(ImapConstants.UIDVALIDITY);
++        String newUidValidity = statuses.get(ImapConstants.UIDVALIDITY);
++        if (!TextUtils.equals(oldUidValidity, newUidValidity)) {
++            imapIdleChanges.mMessageToFetch.clear();
++            imapIdleChanges.mRequiredSync = true;
++            return imapIdleChanges;
++        }
++
++        // Recover the UIDs of new messages in case we don't do a full sync anyway
++        if (!imapIdleChanges.mRequiredSync) {
++            try {
++                // Retrieve new message UIDs
++                String uidNext = mIdleStatuses.get(ImapConstants.UIDNEXT);
++                if (hasNewMessages && !TextUtils.isEmpty(uidNext)) {
++                    msns.addAll(getNewMessagesFromUid(uidNext));
++                }
++
++                // Transform MSNs to UIDs
++                for (String msn : msns) {
++                    String[] uids = searchForUids(String.format(Locale.US, "%s:%s", msn, msn));
++                    if (uids.length > 0) {
++                        imapIdleChanges.mMessageToFetch.add(uids[0]);
++                    } else {
++                        throw new MessagingException("Server could not resolve MSN " + msn);
++                    }
++                }
++            } catch (MessagingException ex) {
++                // Server doesn't support UID. We have to do a full sync (since
++                // we don't know what message changed)
++                imapIdleChanges.mMessageToFetch.clear();
++                imapIdleChanges.mRequiredSync = true;
++            }
++        }
++
++        return imapIdleChanges;
++    }
++
+     @Override
+     public boolean equals(Object o) {
+         if (o instanceof ImapFolder) {
+diff --git a/provider_src/com/android/email/mail/store/ImapStore.java b/provider_src/com/android/email/mail/store/ImapStore.java
+index 5fc83e001..35c402126 100644
+--- a/provider_src/com/android/email/mail/store/ImapStore.java
++++ b/provider_src/com/android/email/mail/store/ImapStore.java
+@@ -467,6 +467,7 @@ public class ImapStore extends Store {
+             return mailboxes.values().toArray(new Folder[mailboxes.size()]);
+         } catch (IOException ioe) {
+             connection.close();
++            connection = null;
+             throw new MessagingException("Unable to get folder list", ioe);
+         } catch (AuthenticationFailedException afe) {
+             // We do NOT want this connection pooled, or we will continue to send NOOP and SELECT
+@@ -501,6 +502,14 @@ public class ImapStore extends Store {
+             connection.destroyResponses();
+         }
+         bundle.putInt(EmailServiceProxy.VALIDATE_BUNDLE_RESULT_CODE, result);
++
++        // Shared capabilities (check EmailProxyServices for available shared capabilities)
++        int capabilities = 0;
++        if (connection.isCapable(ImapConnection.CAPABILITY_IDLE)) {
++            capabilities |= EmailServiceProxy.CAPABILITY_PUSH;
++        }
++        bundle.putInt(EmailServiceProxy.SETTINGS_BUNDLE_CAPABILITIES, capabilities);
++
+         return bundle;
+     }
+ 
+@@ -556,6 +565,7 @@ public class ImapStore extends Store {
+         while ((connection = mConnectionPool.poll()) != null) {
+             try {
+                 connection.setStore(this);
++                connection.setReadTimeout(MailTransport.SOCKET_READ_TIMEOUT);
+                 connection.executeSimpleCommand(ImapConstants.NOOP);
+                 break;
+             } catch (MessagingException e) {
+diff --git a/provider_src/com/android/email/mail/store/Pop3Store.java b/provider_src/com/android/email/mail/store/Pop3Store.java
+index 4ea75ccf3..b0aa9a2eb 100644
+--- a/provider_src/com/android/email/mail/store/Pop3Store.java
++++ b/provider_src/com/android/email/mail/store/Pop3Store.java
+@@ -186,6 +186,10 @@ public class Pop3Store extends Store {
+                         ioe.getMessage());
+             }
+             bundle.putInt(EmailServiceProxy.VALIDATE_BUNDLE_RESULT_CODE, result);
++
++            // No special capabilities
++            bundle.putInt(EmailServiceProxy.SETTINGS_BUNDLE_CAPABILITIES, 0);
++
+             return bundle;
+         }
+ 
+diff --git a/provider_src/com/android/email/mail/store/imap/ImapConstants.java b/provider_src/com/android/email/mail/store/imap/ImapConstants.java
+index 9f4d59290..9c94fcf31 100644
+--- a/provider_src/com/android/email/mail/store/imap/ImapConstants.java
++++ b/provider_src/com/android/email/mail/store/imap/ImapConstants.java
+@@ -46,6 +46,7 @@ public final class ImapConstants {
+     public static final String COPYUID = "COPYUID";
+     public static final String CREATE = "CREATE";
+     public static final String DELETE = "DELETE";
++    public static final String DONE = "DONE";
+     public static final String EXAMINE = "EXAMINE";
+     public static final String EXISTS = "EXISTS";
+     public static final String EXPUNGE = "EXPUNGE";
+@@ -58,6 +59,8 @@ public final class ImapConstants {
+     public static final String FLAGS = "FLAGS";
+     public static final String FLAGS_SILENT = "FLAGS.SILENT";
+     public static final String ID = "ID";
++    public static final String IDLE = "IDLE";
++    public static final String IDLING = "idling";
+     public static final String INBOX = "INBOX";
+     public static final String INTERNALDATE = "INTERNALDATE";
+     public static final String LIST = "LIST";
+@@ -73,6 +76,7 @@ public final class ImapConstants {
+     public static final String PREAUTH = "PREAUTH";
+     public static final String READ_ONLY = "READ-ONLY";
+     public static final String READ_WRITE = "READ-WRITE";
++    public static final String RECENT = "RECENT";
+     public static final String RENAME = "RENAME";
+     public static final String RFC822_SIZE = "RFC822.SIZE";
+     public static final String SEARCH = "SEARCH";
+diff --git a/provider_src/com/android/email/mail/store/imap/ImapList.java b/provider_src/com/android/email/mail/store/imap/ImapList.java
+index e28355989..43fd051ab 100644
+--- a/provider_src/com/android/email/mail/store/imap/ImapList.java
++++ b/provider_src/com/android/email/mail/store/imap/ImapList.java
+@@ -173,7 +173,7 @@ public class ImapList extends ImapElement {
+             for (ImapElement e : mList) {
+                 e.destroy();
+             }
+-            mList = null;
++            mList.clear();
+         }
+         super.destroy();
+     }
+diff --git a/provider_src/com/android/email/mail/store/imap/ImapResponse.java b/provider_src/com/android/email/mail/store/imap/ImapResponse.java
+index 9f975f7bf..292ff92b2 100644
+--- a/provider_src/com/android/email/mail/store/imap/ImapResponse.java
++++ b/provider_src/com/android/email/mail/store/imap/ImapResponse.java
+@@ -76,6 +76,13 @@ public class ImapResponse extends ImapList {
+         return is(0, ImapConstants.NO);
+     }
+ 
++    /**
++     * @return whether it's an IDLE response.
++     */
++    public boolean isIdling() {
++        return is(0, ImapConstants.IDLING);
++    }
++
+     /**
+      * @return whether it's an {@code responseType} data response.  (i.e. not tagged).
+      * @param index where {@code responseType} should appear.  e.g. 1 for "FETCH"
+diff --git a/provider_src/com/android/email/mail/store/imap/ImapResponseParser.java b/provider_src/com/android/email/mail/store/imap/ImapResponseParser.java
+index 8dd1cf610..fcedea1fc 100644
+--- a/provider_src/com/android/email/mail/store/imap/ImapResponseParser.java
++++ b/provider_src/com/android/email/mail/store/imap/ImapResponseParser.java
+@@ -66,6 +66,10 @@ public class ImapResponseParser {
+      */
+     private final ArrayList<ImapResponse> mResponsesToDestroy = new ArrayList<ImapResponse>();
+ 
++    private boolean mIdling;
++    private boolean mExpectIdlingResponse;
++    private String mTag;
++
+     /**
+      * Exception thrown when we receive BYE.  It derives from IOException, so it'll be treated
+      * in the same way EOF does.
+@@ -97,6 +101,10 @@ public class ImapResponseParser {
+         mLiteralKeepInMemoryThreshold = literalKeepInMemoryThreshold;
+     }
+ 
++    public void setTag(String tag) {
++        mTag = tag;
++    }
++
+     private static IOException newEOSException() {
+         final String message = "End of stream reached";
+         if (DebugUtils.DEBUG) {
+@@ -146,6 +154,13 @@ public class ImapResponseParser {
+         mResponsesToDestroy.clear();
+     }
+ 
++    private String getFormattedTag() {
++        if (mTag != null) {
++            return "(" + mTag + ") ";
++        }
++        return "";
++    }
++
+     /**
+      * Reads the next response available on the stream and returns an
+      * {@link ImapResponse} object that represents it.
+@@ -162,16 +177,23 @@ public class ImapResponseParser {
+         try {
+             response = parseResponse();
+             if (DebugUtils.DEBUG) {
+-                LogUtils.d(Logging.LOG_TAG, "<<< " + response.toString());
++                LogUtils.d(Logging.LOG_TAG, getFormattedTag() + "<<< " + response.toString());
+             }
+ 
+         } catch (RuntimeException e) {
+             // Parser crash -- log network activities.
+             onParseError(e);
++            mIdling = false;
+             throw e;
+         } catch (IOException e) {
+             // Network error, or received an unexpected char.
+-            onParseError(e);
++            // If we are idling don't parse the error, just let the upper layers
++            // handle the exception
++            if (!mIdling) {
++                onParseError(e);
++            } else {
++                mIdling = false;
++            }
+             throw e;
+         }
+ 
+@@ -242,6 +264,14 @@ public class ImapResponseParser {
+         return ret;
+     }
+ 
++    public void resetIdlingStatus() {
++        mIdling = false;
++    }
++
++    public void expectIdlingResponse() {
++        mExpectIdlingResponse = true;
++    }
++
+     /**
+      * Parse and return the response line.
+      */
+@@ -263,11 +293,26 @@ public class ImapResponseParser {
+                 responseToDestroy = new ImapResponse(null, true);
+ 
+                 // If it's continuation request, we don't really care what's in it.
+-                responseToDestroy.add(new ImapSimpleString(readUntilEol()));
++                // NOTE: specs say the server is supposed to respond to the IDLE command
++                // with a continuation request response. To simplify internal handling,
++                // we'll always construct same response (ignoring the server text response).
++                // Our implementation always returns "+ idling".
++                if (mExpectIdlingResponse) {
++                    // Discard the server message and put what we expected
++                    readUntilEol();
++                    responseToDestroy.add(new ImapSimpleString(ImapConstants.IDLING));
++                } else {
++                    responseToDestroy.add(new ImapSimpleString(readUntilEol()));
++                }
+ 
+                 // Response has successfully been built.  Let's return it.
+                 responseToReturn = responseToDestroy;
+                 responseToDestroy = null;
++
++                mIdling = responseToReturn.isIdling();
++                if (mIdling) {
++                    mExpectIdlingResponse = true;
++                }
+             } else {
+                 // Status response or response data
+                 final String tag;
+diff --git a/provider_src/com/android/email/mail/transport/MailTransport.java b/provider_src/com/android/email/mail/transport/MailTransport.java
+index 26801f93f..c9db45ba8 100644
+--- a/provider_src/com/android/email/mail/transport/MailTransport.java
++++ b/provider_src/com/android/email/mail/transport/MailTransport.java
+@@ -55,6 +55,7 @@ public class MailTransport {
+             HttpsURLConnection.getDefaultHostnameVerifier();
+ 
+     private final String mDebugLabel;
++    private String mDebugTag;
+     private final Context mContext;
+     protected final HostAuth mHostAuth;
+ 
+@@ -69,6 +70,10 @@ public class MailTransport {
+         mHostAuth = hostAuth;
+     }
+ 
++    public void setTag(String tag) {
++        mDebugTag = tag;
++    }
++
+    /**
+      * Returns a new transport, using the current transport as a model. The new transport is
+      * configured identically (as if {@link #setSecurity(int, boolean)}, {@link #setPort(int)}
+@@ -191,6 +196,14 @@ public class MailTransport {
+         }
+     }
+ 
++    public int getReadTimeout() throws IOException {
++        return mSocket.getSoTimeout();
++    }
++
++    public void setReadTimeout(int timeout) throws IOException {
++        mSocket.setSoTimeout(timeout);
++    }
++
+     /**
+      * Lightweight version of SSLCertificateSocketFactory.verifyHostname, which provides this
+      * service but is not in the public API.
+@@ -284,16 +297,21 @@ public class MailTransport {
+         return mOut;
+     }
+ 
++    private String getFormattedDebugTag() {
++        if (mDebugTag != null) {
++            return "(" + mDebugTag + ") ";
++        }
++        return "";
++    }
++
+     /**
+      * Writes a single line to the server using \r\n termination.
+      */
+     public void writeLine(String s, String sensitiveReplacement) throws IOException {
+         if (DebugUtils.DEBUG) {
+-            if (sensitiveReplacement != null && !Logging.DEBUG_SENSITIVE) {
+-                LogUtils.d(Logging.LOG_TAG, ">>> " + sensitiveReplacement);
+-            } else {
+-                LogUtils.d(Logging.LOG_TAG, ">>> " + s);
+-            }
++            String output = sensitiveReplacement != null && !Logging.DEBUG_SENSITIVE
++                    ? sensitiveReplacement : s;
++            LogUtils.d(Logging.LOG_TAG, getFormattedDebugTag() + ">>> " + output);
+         }
+ 
+         OutputStream out = getOutputStream();
+@@ -325,7 +343,7 @@ public class MailTransport {
+         }
+         String ret = sb.toString();
+         if (loggable && DebugUtils.DEBUG) {
+-            LogUtils.d(Logging.LOG_TAG, "<<< " + ret);
++            LogUtils.d(Logging.LOG_TAG, getFormattedDebugTag() + "<<< " + ret);
+         }
+         return ret;
+     }
+diff --git a/provider_src/com/android/email/provider/DBHelper.java b/provider_src/com/android/email/provider/DBHelper.java
+index 4976676c9..dca05acb2 100644
+--- a/provider_src/com/android/email/provider/DBHelper.java
++++ b/provider_src/com/android/email/provider/DBHelper.java
+@@ -56,6 +56,7 @@ import com.android.emailcommon.provider.MessageMove;
+ import com.android.emailcommon.provider.MessageStateChange;
+ import com.android.emailcommon.provider.Policy;
+ import com.android.emailcommon.provider.QuickResponse;
++import com.android.emailcommon.service.EmailServiceProxy;
+ import com.android.emailcommon.service.LegacyPolicySet;
+ import com.android.emailcommon.service.SyncWindow;
+ import com.android.mail.providers.UIProvider;
+@@ -1521,7 +1522,6 @@ public final class DBHelper {
+                             + " add column " + AccountColumns.CAPABILITIES
+                             + " integer" + " default 0;");
+ 
+-/* From old email app. We don't have EmailServiceProxy, so leave the default.
+                     // Update all accounts with the appropriate capabilities
+                     Cursor c = db.rawQuery("select " + Account.TABLE_NAME + "."
+                             + AccountColumns._ID + ", " + HostAuth.TABLE_NAME + "."
+@@ -1554,7 +1554,6 @@ public final class DBHelper {
+                             c.close();
+                         }
+                     }
+-*/
+                 } catch (final SQLException e) {
+                     // Shouldn't be needed unless we're debugging and interrupt the process
+                     LogUtils.w(TAG, "Exception upgrading EmailProvider.db from v129 to v130", e);
+diff --git a/provider_src/com/android/email/provider/EmailProvider.java b/provider_src/com/android/email/provider/EmailProvider.java
+index 4bd9d4d19..8a8d2d027 100644
+--- a/provider_src/com/android/email/provider/EmailProvider.java
++++ b/provider_src/com/android/email/provider/EmailProvider.java
+@@ -186,11 +186,11 @@ public class EmailProvider extends ContentProvider
+         "vnd.android.cursor.item/email-attachment";
+ 
+     /** Appended to the notification URI for delete operations */
+-    private static final String NOTIFICATION_OP_DELETE = "delete";
++    public static final String NOTIFICATION_OP_DELETE = "delete";
+     /** Appended to the notification URI for insert operations */
+-    private static final String NOTIFICATION_OP_INSERT = "insert";
++    public static final String NOTIFICATION_OP_INSERT = "insert";
+     /** Appended to the notification URI for update operations */
+-    private static final String NOTIFICATION_OP_UPDATE = "update";
++    public static final String NOTIFICATION_OP_UPDATE = "update";
+ 
+     /** The query string to trigger a folder refresh. */
+     protected static String QUERY_UIREFRESH = "uirefresh";
+@@ -801,6 +801,7 @@ public class EmailProvider extends ContentProvider
+ 
+         // Notify all notifier cursors
+         sendNotifierChange(getBaseNotificationUri(match), NOTIFICATION_OP_DELETE, id);
++        sendSyncSettingChanged(getBaseSyncSettingChangedUri(match), NOTIFICATION_OP_DELETE, id);
+ 
+         // Notify all email content cursors
+         notifyUI(EmailContent.CONTENT_URI, null);
+@@ -1025,6 +1026,7 @@ public class EmailProvider extends ContentProvider
+ 
+         // Notify all notifier cursors
+         sendNotifierChange(getBaseNotificationUri(match), NOTIFICATION_OP_INSERT, id);
++        sendSyncSettingChanged(getBaseSyncSettingChangedUri(match), NOTIFICATION_OP_INSERT, id);
+ 
+         // Notify all existing cursors.
+         notifyUI(EmailContent.CONTENT_URI, null);
+@@ -1738,6 +1740,8 @@ public class EmailProvider extends ContentProvider
+                 extras.putBoolean(ContentResolver.SYNC_EXTRAS_DO_NOT_RETRY, true);
+                 extras.putBoolean(ContentResolver.SYNC_EXTRAS_EXPEDITED, true);
+                 ContentResolver.requestSync(amAccount, EmailContent.AUTHORITY, extras);
++                LogUtils.i(TAG, "requestSync EmailProvider restoreAccounts %s, %s",
++                        account.toString(), extras.toString());
+                 restoredCount++;
+             }
+         }
+@@ -1844,7 +1848,7 @@ public class EmailProvider extends ContentProvider
+     private static final int INDEX_SYNC_KEY = 2;
+ 
+     /**
+-     * Restart push if we need it (currently only for Exchange accounts).
++     * Restart push if we need it.
+      * @param context A {@link Context}.
+      * @param db The {@link SQLiteDatabase}.
+      * @param id The id of the thing we're looking for.
+@@ -1857,9 +1861,13 @@ public class EmailProvider extends ContentProvider
+             try {
+                 if (c.moveToFirst()) {
+                     final String protocol = c.getString(INDEX_PROTOCOL);
+-                    // Only restart push for EAS accounts that have completed initial sync.
+-                    if (context.getString(R.string.protocol_eas).equals(protocol) &&
+-                            !EmailContent.isInitialSyncKey(c.getString(INDEX_SYNC_KEY))) {
++                    final String syncKey = c.getString(INDEX_SYNC_KEY);
++                    final boolean supportsPush =
++                            context.getString(R.string.protocol_eas).equals(protocol) ||
++                            context.getString(R.string.protocol_legacy_imap).equals(protocol);
++
++                    // Only restart push for EAS or IMAP accounts that have completed initial sync.
++                    if (supportsPush && !EmailContent.isInitialSyncKey(syncKey)) {
+                         final String emailAddress = c.getString(INDEX_EMAIL_ADDRESS);
+                         final android.accounts.Account account =
+                                 getAccountManagerAccount(context, emailAddress, protocol);
+@@ -1930,6 +1938,7 @@ public class EmailProvider extends ContentProvider
+         final SQLiteDatabase db = getDatabase(context);
+         final int table = match >> BASE_SHIFT;
+         int result;
++        boolean syncSettingChanged = false;
+ 
+         // We do NOT allow setting of unreadCount/messageCount via the provider
+         // These columns are maintained via triggers
+@@ -2079,6 +2088,14 @@ public class EmailProvider extends ContentProvider
+                         }
+                     } else if (match == MESSAGE_ID) {
+                         db.execSQL(UPDATED_MESSAGE_DELETE + id);
++                    } else if (match == MAILBOX_ID) {
++                        if (values.containsKey(MailboxColumns.SYNC_INTERVAL)) {
++                            syncSettingChanged = true;
++                        }
++                    } else if (match == ACCOUNT_ID) {
++                        if (values.containsKey(AccountColumns.SYNC_INTERVAL)) {
++                            syncSettingChanged = true;
++                        }
+                     }
+                     result = db.update(tableName, values, whereWithId(id, selection),
+                             selectionArgs);
+@@ -2213,6 +2230,10 @@ public class EmailProvider extends ContentProvider
+                                 TextUtils.isEmpty(values.getAsString(AttachmentColumns.LOCATION))) {
+                             LogUtils.w(TAG, new Throwable(), "attachment with blank location");
+                         }
++                    } else if (match == MAILBOX) {
++                        if (values.containsKey(MailboxColumns.SYNC_INTERVAL)) {
++                            syncSettingChanged = true;
++                        }
+                     }
+                     result = db.update(tableName, values, selection, selectionArgs);
+                     break;
+@@ -2234,6 +2255,10 @@ public class EmailProvider extends ContentProvider
+         // Notify all notifier cursors if some records where changed in the database
+         if (result > 0) {
+             sendNotifierChange(getBaseNotificationUri(match), NOTIFICATION_OP_UPDATE, id);
++            if (syncSettingChanged) {
++                sendSyncSettingChanged(getBaseSyncSettingChangedUri(match),
++                        NOTIFICATION_OP_UPDATE, id);
++            }
+             notifyUI(notificationUri, null);
+         }
+         return result;
+@@ -2464,6 +2489,21 @@ public class EmailProvider extends ContentProvider
+         return baseUri;
+     }
+ 
++    private static Uri getBaseSyncSettingChangedUri(int match) {
++        Uri baseUri = null;
++        switch (match) {
++            case ACCOUNT:
++            case ACCOUNT_ID:
++                baseUri = Account.SYNC_SETTING_CHANGED_URI;
++                break;
++            case MAILBOX:
++            case MAILBOX_ID:
++                baseUri = Mailbox.SYNC_SETTING_CHANGED_URI;
++                break;
++        }
++        return baseUri;
++    }
++
+     /**
+      * Sends a change notification to any cursors observers of the given base URI. The final
+      * notification URI is dynamically built to contain the specified information. It will be
+@@ -2502,6 +2542,25 @@ public class EmailProvider extends ContentProvider
+         }
+     }
+ 
++    private void sendSyncSettingChanged(Uri baseUri, String op, String id) {
++        if (baseUri == null) return;
++
++        // Append the operation, if specified
++        if (op != null) {
++            baseUri = baseUri.buildUpon().appendEncodedPath(op).build();
++        }
++
++        long longId = 0L;
++        try {
++            longId = Long.valueOf(id);
++        } catch (NumberFormatException ignore) {}
++        if (longId > 0) {
++            notifyUI(baseUri, id);
++        } else {
++            notifyUI(baseUri, null);
++        }
++    }
++
+     private void sendMessageListDataChangedNotification() {
+         final Context context = getContext();
+         final Intent intent = new Intent(ACTION_NOTIFY_MESSAGE_LIST_DATASET_CHANGED);
+@@ -5841,7 +5900,7 @@ public class EmailProvider extends ContentProvider
+         extras.putString(EmailServiceStatus.SYNC_EXTRAS_CALLBACK_METHOD,
+                 SYNC_STATUS_CALLBACK_METHOD);
+         ContentResolver.requestSync(account, EmailContent.AUTHORITY, extras);
+-        LogUtils.i(TAG, "requestSync EmailProvider startSync %s, %s", account.toString(),
++        LogUtils.i(TAG, "requestSync EmailProvider restartPush %s, %s", account.toString(),
+                 extras.toString());
+     }
+ 
+diff --git a/provider_src/com/android/email/provider/Utilities.java b/provider_src/com/android/email/provider/Utilities.java
+index c3b7ec93a..3b021b453 100644
+--- a/provider_src/com/android/email/provider/Utilities.java
++++ b/provider_src/com/android/email/provider/Utilities.java
+@@ -40,6 +40,9 @@ import com.android.emailcommon.utility.ConversionUtilities;
+ import com.android.mail.utils.LogUtils;
+ import com.android.mail.utils.Utils;
+ 
++import org.apache.commons.io.IOUtils;
++
++import java.io.InputStream;
+ import java.io.IOException;
+ import java.util.ArrayList;
+ 
+@@ -118,8 +121,10 @@ public class Utilities {
+                 ArrayList<Part> attachments = new ArrayList<Part>();
+                 MimeUtility.collectParts(message, viewables, attachments);
+ 
++                // Don't close the viewables attachment InputStream yet
++                final ArrayList<InputStream> bodyInputStreams = new ArrayList<InputStream>();
+                 final ConversionUtilities.BodyFieldData data =
+-                        ConversionUtilities.parseBodyFields(viewables);
++                        ConversionUtilities.parseBodyFields(viewables, bodyInputStreams);
+ 
+                 // set body and local message values
+                 localMessage.setFlags(data.isQuotedReply, data.isQuotedForward);
+@@ -166,6 +171,11 @@ public class Utilities {
+                     localMessage.mFlagAttachment = true;
+                 }
+ 
++                // Close any parts that may still be open
++                for (final InputStream is : bodyInputStreams) {
++                    IOUtils.closeQuietly(is);
++                }
++
+                 // One last update of message with two updated flags
+                 localMessage.mFlagLoaded = loadStatus;
+ 
+diff --git a/provider_src/com/android/email/service/EmailBroadcastProcessorService.java b/provider_src/com/android/email/service/EmailBroadcastProcessorService.java
+index 7aa54673e..e91a49ea1 100644
+--- a/provider_src/com/android/email/service/EmailBroadcastProcessorService.java
++++ b/provider_src/com/android/email/service/EmailBroadcastProcessorService.java
+@@ -293,6 +293,10 @@ public class EmailBroadcastProcessorService extends IntentService {
+     private void onBootCompleted() {
+         performOneTimeInitialization();
+         reconcileAndStartServices();
++
++        // This is an special case to start IMAP PUSH via its adapter
++        Intent imap = new Intent(this, LegacyImapSyncAdapterService.class);
++        startService(imap);
+     }
+ 
+     private void reconcileAndStartServices() {
+diff --git a/provider_src/com/android/email/service/EmailServiceStub.java b/provider_src/com/android/email/service/EmailServiceStub.java
+index 1bb2f5387..c7c40ffa4 100644
+--- a/provider_src/com/android/email/service/EmailServiceStub.java
++++ b/provider_src/com/android/email/service/EmailServiceStub.java
+@@ -177,6 +177,12 @@ public abstract class EmailServiceStub extends IEmailService.Stub implements IEm
+                 mailbox = Mailbox.restoreMailboxWithId(mContext, message.mMainMailboxKey);
+             }
+ 
++            if (message.mServerId == null) {
++                cb.loadAttachmentStatus(messageId, attachmentId,
++                        EmailServiceStatus.MESSAGE_NOT_FOUND, 0);
++                return;
++            }
++
+             if (account == null || mailbox == null) {
+                 // If the account/mailbox are gone, just report success; the UI handles this
+                 cb.loadAttachmentStatus(messageId, attachmentId,
+@@ -305,7 +311,6 @@ public abstract class EmailServiceStub extends IEmailService.Stub implements IEm
+                         // actually occurs.
+                         mailbox.mUiSyncStatus = Mailbox.SYNC_STATUS_INITIAL_SYNC_NEEDED;
+                     }
+-                    mailbox.save(mContext);
+                     if (type == Mailbox.TYPE_INBOX) {
+                         inboxId = mailbox.mId;
+ 
+@@ -314,6 +319,7 @@ public abstract class EmailServiceStub extends IEmailService.Stub implements IEm
+                         // should start marked
+                         mailbox.mSyncInterval = 1;
+                     }
++                    mailbox.save(mContext);
+                 }
+             }
+ 
+diff --git a/provider_src/com/android/email/service/ImapService.java b/provider_src/com/android/email/service/ImapService.java
+index 3a15bec7e..cfda45052 100644
+--- a/provider_src/com/android/email/service/ImapService.java
++++ b/provider_src/com/android/email/service/ImapService.java
+@@ -16,28 +16,46 @@
+ 
+ package com.android.email.service;
+ 
++import android.app.AlarmManager;
++import android.app.PendingIntent;
+ import android.app.Service;
+ import android.content.ContentResolver;
+ import android.content.ContentUris;
+ import android.content.ContentValues;
+ import android.content.Context;
+ import android.content.Intent;
++import android.database.ContentObserver;
+ import android.database.Cursor;
++import android.net.ConnectivityManager;
++import android.net.NetworkInfo;
+ import android.net.TrafficStats;
+ import android.net.Uri;
++import android.os.Bundle;
++import android.os.Handler;
+ import android.os.IBinder;
++import android.os.PowerManager;
++import android.os.RemoteException;
+ import android.os.SystemClock;
++import android.provider.BaseColumns;
+ import android.text.TextUtils;
+ import android.text.format.DateUtils;
++import android.util.SparseArray;
++import android.util.SparseLongArray;
+ 
+ import com.android.email.DebugUtils;
++import com.android.email.EmailConnectivityManager;
+ import com.android.email.LegacyConversions;
+ import com.android.email.NotificationController;
+ import com.android.email.NotificationControllerCreatorHolder;
+ import com.android.email.R;
+ import com.android.email.mail.Store;
++import com.android.email.mail.store.ImapFolder;
++import com.android.email.provider.EmailProvider;
+ import com.android.email.provider.Utilities;
+ import com.android.emailcommon.Logging;
++
++import static com.android.emailcommon.Logging.LOG_TAG;
++
+ import com.android.emailcommon.TrafficFlags;
+ import com.android.emailcommon.internet.MimeUtility;
+ import com.android.emailcommon.mail.AuthenticationFailedException;
+@@ -58,6 +76,7 @@ import com.android.emailcommon.provider.EmailContent.MessageColumns;
+ import com.android.emailcommon.provider.EmailContent.SyncColumns;
+ import com.android.emailcommon.provider.Mailbox;
+ import com.android.emailcommon.service.EmailServiceStatus;
++import com.android.emailcommon.service.IEmailService;
+ import com.android.emailcommon.service.SearchParams;
+ import com.android.emailcommon.service.SyncWindow;
+ import com.android.emailcommon.utility.AttachmentUtilities;
+@@ -70,6 +89,8 @@ import java.util.Comparator;
+ import java.util.Date;
+ import java.util.HashMap;
+ import java.util.List;
++import java.util.concurrent.ExecutorService;
++import java.util.concurrent.Executors;
+ 
+ public class ImapService extends Service {
+     // TODO get these from configurations or settings.
+@@ -87,6 +108,14 @@ public class ImapService extends Service {
+     private static final Flag[] FLAG_LIST_FLAGGED = new Flag[] { Flag.FLAGGED };
+     private static final Flag[] FLAG_LIST_ANSWERED = new Flag[] { Flag.ANSWERED };
+ 
++    // Kick idle connection every ~25 minutes (in a window between 25 and 28 minutes)
++    private static final int KICK_IDLE_CONNECTION_TIMEOUT = 25 * 60 * 1000;
++    private static final int KICK_IDLE_CONNECTION_MAX_DELAY = 3 * 60 * 1000;
++
++    // Restart idle connection between 30 seconds and 1 minute after re-gaining connectivity
++    private static final int RESTART_IDLE_DELAY_MIN = 30 * 1000;
++    private static final int RESTART_IDLE_DELAY_MAX = 60 * 1000;
++
+     /**
+      * Simple cache for last search result mailbox by account and serverId, since the most common
+      * case will be repeated use of the same mailbox
+@@ -103,34 +132,788 @@ public class ImapService extends Service {
+     private static final HashMap<Long, SortableMessage[]> sSearchResults =
+             new HashMap<Long, SortableMessage[]>();
+ 
++    private static final ExecutorService sExecutor = Executors.newCachedThreadPool();
++
+     /**
+      * We write this into the serverId field of messages that will never be upsynced.
+      */
+     private static final String LOCAL_SERVERID_PREFIX = "Local-";
++    private static final String ACTION_RESTART_IDLE_CONNECTION =
++            "com.android.email.intent.action.RESTART_IDLE_CONNECTION";
++    private static final String ACTION_RESTART_ALL_IDLE_CONNECTIONS =
++            "com.android.email.intent.action.RESTART_ALL_IDLE_CONNECTIONS";
++    private static final String ACTION_KICK_IDLE_CONNECTION =
++            "com.android.email.intent.action.KICK_IDLE_CONNECTION";
++    private static final String EXTRA_MAILBOX = "com.android.email.intent.extra.MAILBOX";
++
++    private static final long RESCHEDULE_PING_DELAY = 500L;
++    private static final long MAX_PING_DELAY = 30 * 60 * 1000L;
++
++    private static String sLegacyImapProtocol;
+ 
+     private static String sMessageDecodeErrorString;
+ 
++    private static boolean mSyncLock;
++
+     /**
+      * Used in ImapFolder for base64 errors. Cached here because ImapFolder does not have access
+      * to a Context object.
++     *
+      * @return Error string or empty string
+      */
+     public static String getMessageDecodeErrorString() {
+         return sMessageDecodeErrorString == null ? "" : sMessageDecodeErrorString;
+     }
+ 
++    private static class ImapIdleListener implements ImapFolder.IdleCallback {
++        private static final SparseLongArray sPingDelay = new SparseLongArray();
++        private final Context mContext;
++
++        private final Account mAccount;
++        private final Mailbox mMailbox;
++
++        public ImapIdleListener(Context context, Account account, Mailbox mailbox) {
++            super();
++            mContext = context;
++            mAccount = account;
++            mMailbox = mailbox;
++        }
++
++        @Override
++        public void onIdled() {
++            scheduleKickIdleConnection();
++        }
++
++        @Override
++        public void onIdlingDone() {
++            cancelKickIdleConnection();
++            cancelPing();
++            resetPingDelay();
++        }
++
++        @Override
++        public void onNewServerChange(final boolean needSync, final List<String> fetchMessages) {
++            // Instead of checking every received change, request a sync of the mailbox
++            if (Logging.LOGD) {
++                LogUtils.d(LOG_TAG, "Server notified new changes for mailbox " + mMailbox.mId);
++            }
++            cancelKickIdleConnection();
++            cancelPing();
++            resetPingDelay();
++
++            // Request a sync but wait a bit for new incoming messages from server
++            sExecutor.execute(new Runnable() {
++                @Override
++                public void run() {
++                    // Selectively process all the retrieved changes
++                    processImapIdleChangesLocked(mContext, mAccount, mMailbox,
++                            needSync, fetchMessages);
++                }
++            });
++        }
++
++        @Override
++        public void onTimeout() {
++            // Timeout reschedule a new ping
++            LogUtils.i(LOG_TAG, "Ping timeout for mailbox " + mMailbox.mId + ". Reschedule.");
++            cancelKickIdleConnection();
++            internalUnregisterFolderIdle();
++            reschedulePing(RESCHEDULE_PING_DELAY);
++            resetPingDelay();
++        }
++
++        @Override
++        public void onException(MessagingException ex) {
++            // Reschedule a new ping
++            LogUtils.e(LOG_TAG, ex, "Ping exception for mailbox " + mMailbox.mId);
++            cancelKickIdleConnection();
++            internalUnregisterFolderIdle();
++            reschedulePing(increasePingDelay());
++        }
++
++        private void internalUnregisterFolderIdle() {
++            ImapIdleFolderHolder holder = ImapIdleFolderHolder.getInstance();
++            synchronized (holder.mIdledFolders) {
++                holder.mIdledFolders.remove((int) mMailbox.mId);
++            }
++        }
++
++        private void reschedulePing(long delay) {
++            // Check for connectivity before reschedule
++            ConnectivityManager cm =
++                    (ConnectivityManager) mContext.getSystemService(Context.CONNECTIVITY_SERVICE);
++            NetworkInfo activeNetwork = cm.getActiveNetworkInfo();
++            if (activeNetwork == null || !activeNetwork.isConnected()) {
++                cancelPing();
++            } else {
++                PendingIntent pi = getIdleRefreshIntent();
++                AlarmManager am = (AlarmManager) mContext.getSystemService(Context.ALARM_SERVICE);
++                am.set(AlarmManager.RTC_WAKEUP, delay, pi);
++            }
++        }
++
++        private void cancelPing() {
++            AlarmManager am = (AlarmManager) mContext.getSystemService(Context.ALARM_SERVICE);
++            am.cancel(getIdleRefreshIntent());
++        }
++
++        private void resetPingDelay() {
++            synchronized (sPingDelay) {
++                int index = sPingDelay.indexOfKey((int) mMailbox.mId);
++                if (index >= 0) {
++                    sPingDelay.removeAt(index);
++                }
++            }
++        }
++
++        private long increasePingDelay() {
++            synchronized (sPingDelay) {
++                long delay = Math.max(RESCHEDULE_PING_DELAY, sPingDelay.get((int) mMailbox.mId));
++                delay = Math.min(MAX_PING_DELAY, delay * 2);
++                sPingDelay.put((int) mMailbox.mId, delay);
++                return delay;
++            }
++        }
++
++        private PendingIntent getIdleRefreshIntent() {
++            Intent i = new Intent(mContext, ImapService.class);
++            i.setAction(ACTION_RESTART_IDLE_CONNECTION);
++            i.putExtra(EXTRA_MAILBOX, mMailbox.mId);
++            return PendingIntent.getService(mContext, (int) mMailbox.mId, i,
++                    PendingIntent.FLAG_UPDATE_CURRENT);
++        }
++
++        private void scheduleKickIdleConnection() {
++            PendingIntent pi = getKickIdleConnectionPendingIntent();
++            long due = SystemClock.elapsedRealtime() + KICK_IDLE_CONNECTION_TIMEOUT;
++            long windowLength = KICK_IDLE_CONNECTION_MAX_DELAY;
++            AlarmManager am = (AlarmManager) mContext.getSystemService(Context.ALARM_SERVICE);
++            am.setWindow(AlarmManager.ELAPSED_REALTIME_WAKEUP, due, windowLength, pi);
++        }
++
++        private void cancelKickIdleConnection() {
++            AlarmManager am = (AlarmManager) mContext.getSystemService(Context.ALARM_SERVICE);
++            am.cancel(getKickIdleConnectionPendingIntent());
++        }
++
++        private PendingIntent getKickIdleConnectionPendingIntent() {
++            Intent i = new Intent(mContext, ImapService.class);
++            i.setAction(ACTION_KICK_IDLE_CONNECTION);
++            i.putExtra(EXTRA_MAILBOX, mMailbox.mId);
++            return PendingIntent.getService(mContext, (int) mMailbox.mId,
++                    i, PendingIntent.FLAG_UPDATE_CURRENT);
++        }
++    }
++
++    private static class ImapIdleFolderHolder {
++        private static ImapIdleFolderHolder sInstance;
++        private SparseArray<ImapFolder> mIdledFolders = new SparseArray<>();
++
++        private static ImapIdleFolderHolder getInstance() {
++            if (sInstance == null) {
++                sInstance = new ImapIdleFolderHolder();
++            }
++            return sInstance;
++        }
++
++        private ImapFolder getIdledMailbox(long mailboxId) {
++            synchronized (mIdledFolders) {
++                ImapFolder folder = mIdledFolders.get((int) mailboxId);
++                return folder != null && folder.isIdling() ? folder : null;
++            }
++        }
++
++        private boolean isMailboxIdled(long mailboxId) {
++            return getIdledMailbox(mailboxId) != null;
++        }
++
++        private boolean registerMailboxForIdle(Context context, Account account, Mailbox mailbox)
++                throws MessagingException {
++            synchronized (mIdledFolders) {
++                if (mailbox.mType == Mailbox.TYPE_DRAFTS || mailbox.mType == Mailbox.TYPE_OUTBOX) {
++                    LogUtils.i(LOG_TAG, "Mailbox is not a valid idle folder: " + mailbox.mId);
++                    return false;
++                }
++
++                // Check that the account is ready for push
++                if (account.getSyncInterval() != Account.CHECK_INTERVAL_PUSH) {
++                    LogUtils.d(LOG_TAG, "Account is not configured as push: " + account.mId);
++                    return false;
++                }
++
++                // Check that the folder isn't already registered
++                if (isMailboxIdled(mailbox.mId)) {
++                    LogUtils.i(LOG_TAG, "Mailbox is idled already: " + mailbox.mId);
++                    return true;
++                }
++
++                if (!EmailConnectivityManager.isConnected(context)) {
++                    LogUtils.i(LOG_TAG, "No available connection to register "
++                            + "mailbox for idle: " + mailbox.mId);
++                    return false;
++                }
++
++                // And now just idle the folder
++                try {
++                    Store remoteStore = Store.getInstance(account, context);
++                    ImapFolder folder = mIdledFolders.get((int) mailbox.mId);
++                    if (folder == null) {
++                        folder = (ImapFolder) remoteStore.getFolder(mailbox.mServerId);
++                        mIdledFolders.put((int) mailbox.mId, folder);
++                    }
++                    folder.open(OpenMode.READ_WRITE);
++                    folder.startIdling(new ImapIdleListener(context,
++                            remoteStore.getAccount(), mailbox));
++
++                    LogUtils.i(LOG_TAG, "Registered idle for mailbox " + mailbox.mId);
++                    return true;
++                } catch (Exception ex) {
++                    LogUtils.i(LOG_TAG, ex, "Failed to register idle for mailbox " + mailbox.mId);
++                }
++                return false;
++            }
++        }
++
++        private void unregisterIdledMailbox(long mailboxId, boolean remove)
++                throws MessagingException {
++            final ImapFolder folder;
++            synchronized (mIdledFolders) {
++                folder = unregisterIdledMailboxLocked(mailboxId, remove);
++            }
++            if (folder != null) {
++                folder.stopIdling(remove);
++            }
++        }
++
++        private ImapFolder unregisterIdledMailboxLocked(long mailboxId, boolean remove)
++                throws MessagingException {
++            // Check that the folder is already registered
++            ImapFolder folder = mIdledFolders.get((int) mailboxId);
++            if (folder == null || !folder.isIdling()) {
++                LogUtils.i(LOG_TAG, "Mailbox isn't idled yet: " + mailboxId);
++                return null;
++            }
++
++            if (remove) {
++                mIdledFolders.remove((int) mailboxId);
++            }
++
++            LogUtils.i(LOG_TAG, "Unregistered idle for mailbox " + mailboxId);
++            return folder;
++        }
++
++        private void registerAccountForIdle(Context context, Account account)
++                throws MessagingException {
++            // Check that the account is ready for push
++            if (account.getSyncInterval() != Account.CHECK_INTERVAL_PUSH) {
++                LogUtils.d(LOG_TAG, "Account is not configured as push: " + account.mId);
++                return;
++            }
++
++            LogUtils.i(LOG_TAG, "Register idle for account " + account.mId);
++            Cursor c = Mailbox.getLoopBackMailboxIdsForSync(
++                    context.getContentResolver(), account.mId);
++            if (c != null) {
++                try {
++                    boolean hasSyncMailboxes = false;
++                    while (c.moveToNext()) {
++                        long mailboxId = c.getLong(c.getColumnIndex(BaseColumns._ID));
++                        final Mailbox mailbox = Mailbox.restoreMailboxWithId(context, mailboxId);
++                        boolean registered = isMailboxIdled(mailboxId);
++                        if (!registered) {
++                            registered = registerMailboxForIdle(context, account, mailbox);
++                        }
++                        hasSyncMailboxes |= registered;
++                    }
++
++                    // Sync the inbox
++                    if (!hasSyncMailboxes) {
++                        final long inboxId = Mailbox.findMailboxOfType(
++                                context, account.mId, Mailbox.TYPE_INBOX);
++                        if (inboxId != Mailbox.NO_MAILBOX) {
++                            final Mailbox inbox = Mailbox.restoreMailboxWithId(context, inboxId);
++                            if (!isMailboxIdled(inbox.mId)) {;
++                                registerMailboxForIdle(context, account, inbox);
++                            }
++                        }
++                    }
++                } finally {
++                    c.close();
++                }
++            }
++        }
++
++        private void kickAccountIdledMailboxes(Context context, Account account)
++                throws MessagingException {
++            synchronized (mIdledFolders) {
++                unregisterAccountIdledMailboxes(context, account.mId, true);
++                registerAccountForIdle(context, account);
++            }
++        }
++
++        private void kickIdledMailbox(Context context, Mailbox mailbox, Account account)
++                throws MessagingException {
++            final ImapFolder folder = getIdledMailbox((int) mailbox.mId);
++            if (folder != null) {
++                folder.stopIdling(false);
++                folder.startIdling(new ImapIdleListener(context, account, mailbox));
++            }
++        }
++
++        private void unregisterAccountIdledMailboxes(Context context, long accountId,
++                boolean remove) {
++            LogUtils.i(LOG_TAG, "Unregister idle for account " + accountId);
++            final ArrayList<ImapFolder> foldersToStop = new ArrayList<>();
++
++            synchronized (mIdledFolders) {
++                int count = mIdledFolders.size() - 1;
++                for (int index = count; index >= 0; index--) {
++                    long mailboxId = mIdledFolders.keyAt(index);
++                    try {
++                        Mailbox mailbox = Mailbox.restoreMailboxWithId(context, mailboxId);
++                        if (mailbox == null || mailbox.mAccountKey == accountId) {
++                            ImapFolder folder = unregisterIdledMailboxLocked(mailboxId, remove);
++                            if (folder != null) {
++                                foldersToStop.add(folder);
++                                LogUtils.i(LOG_TAG, "Unregister idle for mailbox " + mailboxId);
++                            }
++                        }
++                    } catch (MessagingException ex) {
++                        LogUtils.w(LOG_TAG, "Failed to unregister mailbox "
++                                + mailboxId + " for account " + accountId);
++                    }
++                }
++            }
++            stopIdlingForFoldersInBackground(foldersToStop);
++        }
++
++        private void unregisterAllIdledMailboxes(final boolean disconnect) {
++            final ArrayList<ImapFolder> foldersToStop = new ArrayList<>();
++            synchronized (mIdledFolders) {
++                LogUtils.i(LOG_TAG, "Unregister all idle mailboxes");
++
++                if (disconnect) {
++                    int count = mIdledFolders.size();
++                    for (int i = 0; i < count; i++) {
++                        ImapFolder folder = mIdledFolders.get(mIdledFolders.keyAt(i));
++                        if (folder != null && folder.isIdling()) {
++                            foldersToStop.add(folder);
++                        }
++                    }
++                }
++                mIdledFolders.clear();
++            }
++            stopIdlingForFoldersInBackground(foldersToStop);
++        }
++
++        private void stopIdlingForFoldersInBackground(final List<ImapFolder> folders) {
++            if (folders.isEmpty()) {
++                return;
++            }
++            sExecutor.execute(new Runnable() {
++                @Override
++                public void run() {
++                    for (ImapFolder folder : folders) {
++                        try {
++                            folder.stopIdling(true);
++                        } catch (MessagingException me) {
++                            // ignored
++                        }
++                    }
++                }
++            });
++        }
++    }
++
++    private static class ImapEmailConnectivityManager extends EmailConnectivityManager {
++        private final Context mContext;
++
++        public ImapEmailConnectivityManager(Context context) {
++            super(context, LOG_TAG);
++            mContext = context;
++        }
++
++        public void destroy() {
++            cancelIdleConnectionRestart();
++        }
++
++        @Override
++        public void onConnectivityRestored(int networkType) {
++            if (Logging.LOGD) {
++                LogUtils.d(Logging.LOG_TAG, "onConnectivityRestored ("
++                        + "networkType=" + networkType + ")");
++            }
++
++            scheduleIdleConnectionRestart();
++        }
++
++        @Override
++        public void onConnectivityLost(int networkType) {
++            if (Logging.LOGD) {
++                LogUtils.d(Logging.LOG_TAG, "onConnectivityLost ("
++                        + "networkType=" + networkType + ")");
++            }
++            // Only remove references. We have no network to kill idled connections
++            ImapIdleFolderHolder.getInstance().unregisterAllIdledMailboxes(false);
++            cancelIdleConnectionRestart();
++        }
++
++        private void scheduleIdleConnectionRestart() {
++            PendingIntent pi = getIdleConnectionRestartIntent();
++            long due = SystemClock.elapsedRealtime() + RESTART_IDLE_DELAY_MIN;
++            long windowLength = RESTART_IDLE_DELAY_MAX - RESTART_IDLE_DELAY_MIN;
++            AlarmManager am = (AlarmManager) mContext.getSystemService(Context.ALARM_SERVICE);
++            am.setWindow(AlarmManager.ELAPSED_REALTIME_WAKEUP, due, windowLength, pi);
++        }
++
++        private void cancelIdleConnectionRestart() {
++            AlarmManager am = (AlarmManager) mContext.getSystemService(Context.ALARM_SERVICE);
++            am.cancel(getIdleConnectionRestartIntent());
++        }
++
++        private PendingIntent getIdleConnectionRestartIntent() {
++            Intent i = new Intent(mContext, ImapService.class);
++            i.setAction(ACTION_RESTART_ALL_IDLE_CONNECTIONS);
++            return PendingIntent.getService(mContext, 0, i, 0);
++        }
++    }
++
++    private static class LocalChangesContentObserver extends ContentObserver {
++        private Context mContext;
++
++        public LocalChangesContentObserver(Context context, Handler handler) {
++            super(handler);
++            mContext = context;
++        }
++
++        @Override
++        public void onChange(boolean selfChange, Uri uri) {
++            // what changed?
++            try {
++                List<String> segments = uri.getPathSegments();
++                final String type = segments.get(0);
++                final String op = segments.get(1);
++                final long id = Long.parseLong(uri.getLastPathSegment());
++
++                // Run the changes processor outside the ui thread
++                sExecutor.execute(new Runnable() {
++                    @Override
++                    public void run() {
++                        // Apply the change
++                        if (type.equals("account")) {
++                            processAccountChanged(op, id);
++                        } else if (type.equals("mailbox")) {
++                            processMailboxChanged(op, id);
++                        } else if (type.equals("message")) {
++                            processMessageChanged(op, id);
++                        }
++                    }
++                });
++            } catch (Exception ex) {
++                return;
++            }
++        }
++
++        private void processAccountChanged(String op, long id) {
++            // For delete operations we can't fetch the account, so process it first
++            if (op.equals(EmailProvider.NOTIFICATION_OP_DELETE)) {
++                ImapIdleFolderHolder.getInstance()
++                        .unregisterAccountIdledMailboxes(mContext, id, true);
++                stopImapPushServiceIfNecessary(mContext);
++                return;
++            }
++
++            Account account = Account.restoreAccountWithId(mContext, id);
++            if (account == null) {
++                return;
++            }
++            if (!isLegacyImapProtocol(mContext, account)) {
++                // The account isn't an imap account
++                return;
++            }
++
++            try {
++                final ImapIdleFolderHolder holder = ImapIdleFolderHolder.getInstance();
++                if (op.equals(EmailProvider.NOTIFICATION_OP_UPDATE)) {
++                    holder.kickAccountIdledMailboxes(mContext, account);
++                } else if (op.equals(EmailProvider.NOTIFICATION_OP_INSERT)) {
++                    if (account.getSyncInterval() == Account.CHECK_INTERVAL_PUSH) {
++                        holder.registerAccountForIdle(mContext, account);
++                    }
++                }
++            } catch (MessagingException me) {
++                LogUtils.e(LOG_TAG, me, "Failed to process imap account " + id + " changes.");
++            }
++
++            // Check if service should be started/stopped
++            stopImapPushServiceIfNecessary(mContext);
++        }
++
++        private void processMailboxChanged(String op, long id) {
++            // For delete operations we can't fetch the mailbox, so process it first
++            if (op.equals(EmailProvider.NOTIFICATION_OP_DELETE)) {
++                try {
++                    ImapIdleFolderHolder.getInstance().unregisterIdledMailbox(id, true);
++                } catch (MessagingException me) {
++                    LogUtils.e(LOG_TAG, me, "Failed to process imap mailbox " + id + " changes.");
++                }
++                return;
++            }
++
++            Mailbox mailbox = Mailbox.restoreMailboxWithId(mContext, id);
++            if (mailbox == null) {
++                return;
++            }
++            Account account = Account.restoreAccountWithId(mContext, mailbox.mAccountKey);
++            if (account == null) {
++                return;
++            }
++            if (!isLegacyImapProtocol(mContext, account)) {
++                // The account isn't an imap account
++                return;
++            }
++
++            try {
++                final ImapIdleFolderHolder holder = ImapIdleFolderHolder.getInstance();
++                if (op.equals(EmailProvider.NOTIFICATION_OP_UPDATE)) {
++                    // Only apply if syncInterval has changed
++                    boolean registered = holder.isMailboxIdled(id);
++                    boolean toRegister = mailbox.mSyncInterval == 1
++                            && account.getSyncInterval() == Account.CHECK_INTERVAL_PUSH;
++                    if (registered != toRegister) {
++                        if (registered) {
++                            holder.unregisterIdledMailbox(id, true);
++                        }
++                        if (toRegister) {
++                            holder.registerMailboxForIdle(mContext, account, mailbox);
++                        }
++                    }
++                } else if (op.equals(EmailProvider.NOTIFICATION_OP_INSERT)) {
++                    if (account.getSyncInterval() == Account.CHECK_INTERVAL_PUSH) {
++                        holder.registerMailboxForIdle(mContext, account, mailbox);
++                    }
++                }
++            } catch (MessagingException me) {
++                LogUtils.e(LOG_TAG, me, "Failed to process imap mailbox " + id + " changes.");
++            }
++        }
++
++        private void processMessageChanged(String op, long id) {
++            if (mSyncLock) {
++                return;
++            }
++            EmailContent.Message msg = EmailContent.Message.restoreMessageWithId(mContext, id);
++            if (msg == null) {
++                return;
++            }
++            Account account = Account.restoreAccountWithId(mContext, msg.mAccountKey);
++            if (account == null) {
++                return;
++            }
++            if (!isLegacyImapProtocol(mContext, account)) {
++                // The account isn't an imap account
++                return;
++            }
++            if (account.getSyncInterval() != Account.CHECK_INTERVAL_PUSH) {
++                return;
++            }
++
++            try {
++                Store remoteStore = Store.getInstance(account, mContext);
++                processPendingActionsSynchronous(mContext, account, remoteStore, false);
++            } catch (MessagingException me) {
++                LogUtils.e(LOG_TAG, me, "Failed to process imap message " + id + " changes.");
++            }
++        }
++    }
++
++    private ImapEmailConnectivityManager mConnectivityManager;
++    private LocalChangesContentObserver mLocalChangesObserver;
++    private Handler mServiceHandler;
++    private PowerManager.WakeLock mIdleRefreshWakeLock;
++
+     @Override
+     public void onCreate() {
+         super.onCreate();
+ 
+         sMessageDecodeErrorString = getString(R.string.message_decode_error);
++        mServiceHandler = new Handler();
++
++        // Initialize the email provider and the listeners/observers
++        EmailContent.init(this);
++        mConnectivityManager = new ImapEmailConnectivityManager(this);
++        mLocalChangesObserver = new LocalChangesContentObserver(this, mServiceHandler);
++
++        // Initialize wake locks
++        PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
++        mIdleRefreshWakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Imap IDLE Refresh");
++        mIdleRefreshWakeLock.setReferenceCounted(true);
++
++        // Register observers
++        getContentResolver().registerContentObserver(
++                Account.SYNC_SETTING_CHANGED_URI, true, mLocalChangesObserver);
++        getContentResolver().registerContentObserver(
++                Mailbox.SYNC_SETTING_CHANGED_URI, true, mLocalChangesObserver);
++        getContentResolver().registerContentObserver(
++                EmailContent.Message.NOTIFIER_URI, true, mLocalChangesObserver);
++    }
++
++    @Override
++    public void onDestroy() {
++        // Unregister services
++        ImapIdleFolderHolder.getInstance().unregisterAllIdledMailboxes(true);
++        mConnectivityManager.unregister();
++        getContentResolver().unregisterContentObserver(mLocalChangesObserver);
++        mConnectivityManager.destroy();
++
++        super.onDestroy();
+     }
+ 
+     @Override
+     public int onStartCommand(Intent intent, int flags, int startId) {
++        if (intent == null) {
++            return Service.START_STICKY;
++        }
++
++        final String action = intent.getAction();
++        if (Logging.LOGD) {
++            LogUtils.d(Logging.LOG_TAG, "Action: ", action);
++        }
++        final Context context = getApplicationContext();
++
++        if (ACTION_RESTART_ALL_IDLE_CONNECTIONS.equals(action)) {
++            // Initiate a sync for all IDLEd accounts, since there might have
++            // been changes while we lost connectivity. At the end of the sync
++            // the IDLE connection will be re-established.
++
++            mIdleRefreshWakeLock.acquire();
++
++            sExecutor.execute(new Runnable() {
++                @Override
++                public void run() {
++                    ContentResolver cr = context.getContentResolver();
++                    Cursor c = null;
++                    try {
++                        c = cr.query(Account.CONTENT_URI, Account.CONTENT_PROJECTION,
++                                null, null, null);
++                        if (c == null) {
++                            return;
++                        }
++                        while (c.moveToNext()) {
++                            final Account account = new Account();
++                            account.restore(c);
++
++                            // Only imap push accounts
++                            if (account.getSyncInterval() == Account.CHECK_INTERVAL_PUSH
++                                    && isLegacyImapProtocol(context, account)) {
++                                requestSyncForAccountMailboxesIfNotIdled(account);
++                            }
++                        }
++                    } finally {
++                        if (c != null) {
++                            c.close();
++                        }
++                        mIdleRefreshWakeLock.release();
++                    }
++                }
++            });
++        } else if (ACTION_RESTART_IDLE_CONNECTION.equals(action)) {
++            final long mailboxId = intent.getLongExtra(EXTRA_MAILBOX, -1);
++            if (mailboxId < 0) {
++                 return START_NOT_STICKY;
++            }
++
++            mIdleRefreshWakeLock.acquire();
++
++            sExecutor.execute(new Runnable() {
++                @Override
++                public void run() {
++                    try {
++                        // Check that the account is ready for push
++                        Mailbox mailbox = Mailbox.restoreMailboxWithId(context, mailboxId);
++                        if (mailbox == null) {
++                            return;
++                        }
++                        Account account = Account.restoreAccountWithId(context,
++                                mailbox.mAccountKey);
++                        if (account == null) {
++                            return;
++                        }
++
++                        if (account.getSyncInterval() != Account.CHECK_INTERVAL_PUSH) {
++                            LogUtils.i(LOG_TAG, "Account isn't declared for push: " + account.mId);
++                            return;
++                        }
++
++                        // Request a quick sync to make sure we didn't lose any new mails
++                        // during the failure time; IDLE will restart afterwards
++                        ImapService.requestSync(context, account, mailboxId, false);
++                        LogUtils.d(LOG_TAG, "requestSync after reschedulePing for account %s (%s)",
++                                account.toString(), mailbox.mDisplayName);
++                    } finally {
++                        mIdleRefreshWakeLock.release();
++                    }
++                }
++            });
++        } else if (ACTION_KICK_IDLE_CONNECTION.equals(action)) {
++            final long mailboxId = intent.getLongExtra(EXTRA_MAILBOX, -1);
++            if (mailboxId <= -1) {
++                 return START_NOT_STICKY;
++            }
++
++            mIdleRefreshWakeLock.acquire();
++
++            sExecutor.execute(new Runnable() {
++                @Override
++                public void run() {
++                    try {
++                        Mailbox mailbox = Mailbox.restoreMailboxWithId(context, mailboxId);
++                        if (mailbox == null) {
++                            return;
++                        }
++                        Account account = Account.restoreAccountWithId(context,
++                                mailbox.mAccountKey);
++                        if (account == null) {
++                            return;
++                        }
++
++                        ImapIdleFolderHolder holder = ImapIdleFolderHolder.getInstance();
++                        holder.kickIdledMailbox(context, mailbox, account);
++                    } catch (Exception e) {
++                       LogUtils.e(Logging.LOG_TAG, e, "Failed to kick idled connection "
++                               + "for mailbox " + mailboxId);
++                    } finally {
++                        mIdleRefreshWakeLock.release();
++                    }
++                }
++            });
++        }
++
+         return Service.START_STICKY;
+     }
+ 
++    private void requestSyncForAccountMailboxesIfNotIdled(Account account) {
++        Cursor c = Mailbox.getLoopBackMailboxIdsForSync(getContentResolver(), account.mId);
++        if (c == null) {
++            return;
++        }
++
++        ImapIdleFolderHolder holder = ImapIdleFolderHolder.getInstance();
++        try {
++            while (c.moveToNext()) {
++                long mailboxId = c.getLong(c.getColumnIndex(BaseColumns._ID));
++                if (!holder.isMailboxIdled(mailboxId)) {
++                    final Mailbox mailbox = Mailbox.restoreMailboxWithId(this, mailboxId);
++                    requestSync(this, account, mailboxId, false);
++                    LogUtils.d(LOG_TAG, "requestSync after restarting IDLE for account %s (%s)",
++                            account.toString(), mailbox.mDisplayName);
++                }
++            }
++        } finally {
++            c.close();
++        }
++    }
++
+     /**
+      * Create our EmailService implementation here.
+      */
+@@ -145,6 +928,26 @@ public class ImapService extends Service {
+             }
+             return 0;
+         }
++
++        @Override
++        public void pushModify(long accountId) throws RemoteException {
++            final Context context = ImapService.this;
++            final Account account = Account.restoreAccountWithId(context, accountId);
++            if (account.getSyncInterval() != Account.CHECK_INTERVAL_PUSH) {
++                LogUtils.i(LOG_TAG,"Idle (pushModify) isn't avaliable for account " + accountId);
++                ImapIdleFolderHolder holder = ImapIdleFolderHolder.getInstance();
++                holder.unregisterAccountIdledMailboxes(context, account.mId, true);
++                return;
++            }
++
++            LogUtils.i(LOG_TAG,"Register idle (pushModify) account " + accountId);
++            try {
++                ImapIdleFolderHolder holder = ImapIdleFolderHolder.getInstance();
++                holder.registerAccountForIdle(context, account);
++            } catch (MessagingException ex) {
++                LogUtils.d(LOG_TAG, "Failed to modify push for account " + accountId);
++            }
++        }
+     };
+ 
+     @Override
+@@ -153,6 +956,56 @@ public class ImapService extends Service {
+         return mBinder;
+     }
+ 
++    private static void requestSync(Context context, Account account, long mailbox, boolean full) {
++        final EmailServiceUtils.EmailServiceInfo info = EmailServiceUtils.getServiceInfoForAccount(
++                context, account.mId);
++        final android.accounts.Account acct = new android.accounts.Account(
++                account.mEmailAddress, info.accountType);
++        Bundle extras = null;
++        if (mailbox != Mailbox.NO_MAILBOX) {
++            extras = Mailbox.createSyncBundle(mailbox);
++        } else {
++            extras = new Bundle();
++        }
++        extras.putBoolean(ContentResolver.SYNC_EXTRAS_MANUAL, false);
++        extras.putBoolean(ContentResolver.SYNC_EXTRAS_DO_NOT_RETRY, true);
++        extras.putBoolean(ContentResolver.SYNC_EXTRAS_EXPEDITED, full);
++        ContentResolver.requestSync(acct, EmailContent.AUTHORITY, extras);
++    }
++
++    protected static final void stopImapPushServiceIfNecessary(Context context) {
++        ContentResolver cr = context.getContentResolver();
++        Cursor c = cr.query(Account.CONTENT_URI, Account.CONTENT_PROJECTION,null, null, null);
++        if (c != null) {
++            try {
++                while (c.moveToNext()) {
++                    final Account account = new Account();
++                    account.restore(c);
++
++                    // Only imap push accounts
++                    if (account.getSyncInterval() != Account.CHECK_INTERVAL_PUSH ||
++                            !ImapService.isLegacyImapProtocol(context, account)) {
++                        continue;
++                    }
++
++                    return;
++                }
++            } finally {
++                c.close();
++            }
++        }
++
++        // Stop the service
++        context.stopService(new Intent(context, LegacyImapSyncAdapterService.class));
++    }
++
++    public static boolean isLegacyImapProtocol(Context ctx, Account acct) {
++        if (sLegacyImapProtocol == null) {
++            sLegacyImapProtocol = ctx.getString(R.string.protocol_legacy_imap);
++        }
++        return acct.getProtocol(ctx).equals(sLegacyImapProtocol);
++    }
++
+     /**
+      * Start foreground synchronization of the specified folder. This is called by
+      * synchronizeMailbox or checkMail.
+@@ -164,13 +1017,23 @@ public class ImapService extends Service {
+             final Account account, final Mailbox folder, final boolean loadMore,
+             final boolean uiRefresh) throws MessagingException {
+         TrafficStats.setThreadStatsTag(TrafficFlags.getSyncFlags(context, account));
+-        final NotificationController nc =
+-                NotificationControllerCreatorHolder.getInstance(context);
++        final NotificationController nc = NotificationControllerCreatorHolder.getInstance(context);
+         Store remoteStore = null;
++        ImapIdleFolderHolder imapHolder = ImapIdleFolderHolder.getInstance();
+         try {
++            mSyncLock = true;
++
++            // Unregister the imap idle
++            if (account.getSyncInterval() == Account.CHECK_INTERVAL_PUSH) {
++                imapHolder.unregisterIdledMailbox(folder.mId, false);
++            } else {
++                imapHolder.unregisterAccountIdledMailboxes(context, account.mId, false);
++            }
++
+             remoteStore = Store.getInstance(account, context);
+             processPendingActionsSynchronous(context, account, remoteStore, uiRefresh);
+             synchronizeMailboxGeneric(context, account, remoteStore, folder, loadMore, uiRefresh);
++
+             // Clear authentication notification for this account
+             nc.cancelLoginFailedNotification(account.mId);
+         } catch (MessagingException e) {
+@@ -183,9 +1046,16 @@ public class ImapService extends Service {
+             }
+             throw e;
+         } finally {
++            mSyncLock = false;
++
+             if (remoteStore != null) {
+                 remoteStore.closeConnections();
+             }
++
++            // Register the imap idle again
++            if (account.getSyncInterval() == Account.CHECK_INTERVAL_PUSH) {
++                imapHolder.registerMailboxForIdle(context, account, folder);
++            }
+         }
+         // TODO: Rather than use exceptions as logic above, return the status and handle it
+         // correctly in caller.
+@@ -711,6 +1581,264 @@ public class ImapService extends Service {
+         remoteFolder.close(false);
+     }
+ 
++    private synchronized static void processImapFetchChanges(Context ctx, Account acct,
++            Mailbox mailbox, List<String> uids) throws MessagingException {
++
++        PowerManager pm = (PowerManager) ctx.getSystemService(Context.POWER_SERVICE);
++        PowerManager.WakeLock wl = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK,
++                "Imap IDLE Sync WakeLock");
++
++        NotificationController nc = null;
++        Store remoteStore = null;
++        final ImapIdleFolderHolder imapHolder = ImapIdleFolderHolder.getInstance();
++
++        try {
++            mSyncLock = true;
++            wl.acquire();
++
++            TrafficStats.setThreadStatsTag(TrafficFlags.getSyncFlags(ctx, acct));
++            nc = NotificationControllerCreatorHolder.getInstance(ctx);
++
++            remoteStore = Store.getInstance(acct, ctx);
++
++            final ContentResolver resolver = ctx.getContentResolver();
++
++            // Don't sync if account is not set to idled
++            if (acct.getSyncInterval() != Account.CHECK_INTERVAL_PUSH) {
++                return;
++            }
++
++            // 1. Open the remote store & folder
++            ImapFolder remoteFolder;
++            synchronized (imapHolder.mIdledFolders) {
++                remoteFolder = imapHolder.mIdledFolders.get((int) mailbox.mId);
++            }
++            if (remoteFolder == null || remoteFolder.isIdling()) {
++                remoteFolder = (ImapFolder) remoteStore.getFolder(mailbox.mServerId);
++            }
++            if (!remoteFolder.exists()) {
++                return;
++            }
++            remoteFolder.open(OpenMode.READ_WRITE);
++            if (remoteFolder.getMode() != OpenMode.READ_WRITE) {
++                return;
++            }
++
++            // 1.- Retrieve the messages
++            Message[] remoteMessages = remoteFolder.getMessages(
++                    uids.toArray(new String[uids.size()]), null);
++
++            // 2.- Refresh flags
++            FetchProfile fp = new FetchProfile();
++            fp.add(FetchProfile.Item.FLAGS);
++            remoteFolder.fetch(remoteMessages, fp, null);
++
++            boolean remoteSupportsSeen = false;
++            boolean remoteSupportsFlagged = false;
++            boolean remoteSupportsAnswered = false;
++            for (Flag flag : remoteFolder.getPermanentFlags()) {
++                if (flag == Flag.SEEN) {
++                    remoteSupportsSeen = true;
++                }
++                if (flag == Flag.FLAGGED) {
++                    remoteSupportsFlagged = true;
++                }
++                if (flag == Flag.ANSWERED) {
++                    remoteSupportsAnswered = true;
++                }
++            }
++
++            // 3.- Retrieve a reference of the local messages
++            HashMap<String, LocalMessageInfo> localMessageMap = new HashMap<>();
++            for (Message remoteMessage : remoteMessages) {
++                Cursor localUidCursor = null;
++                try {
++                    localUidCursor = resolver.query(
++                            EmailContent.Message.CONTENT_URI,
++                            LocalMessageInfo.PROJECTION,
++                            EmailContent.MessageColumns.ACCOUNT_KEY + "=?"
++                                    + " AND " + MessageColumns.MAILBOX_KEY + "=?"
++                                    + " AND " + MessageColumns.SERVER_ID + "=?",
++                            new String[] {
++                                    String.valueOf(acct.mId),
++                                    String.valueOf(mailbox.mId),
++                                    String.valueOf(remoteMessage.getUid()) },
++                            null);
++                    if (localUidCursor != null && localUidCursor.moveToNext()) {
++                        LocalMessageInfo info = new LocalMessageInfo(localUidCursor);
++                        localMessageMap.put(info.mServerId, info);
++                    }
++                } finally {
++                    if (localUidCursor != null) {
++                        localUidCursor.close();
++                    }
++                }
++            }
++
++            // 5.- Add to the list of new messages
++            final ArrayList<Long> unseenMessages = new ArrayList<Long>();
++            final ArrayList<Message> unsyncedMessages = new ArrayList<Message>();
++            for (Message remoteMessage : remoteMessages) {
++                LocalMessageInfo localMessage = localMessageMap.get(remoteMessage.getUid());
++
++                // localMessage == null -> message has never been created (not even headers)
++                // mFlagLoaded = UNLOADED -> message created, but none of body loaded
++                // mFlagLoaded = PARTIAL -> message created, a "sane" amt of body has been loaded
++                // mFlagLoaded = COMPLETE -> message body has been completely loaded
++                // mFlagLoaded = DELETED -> message has been deleted
++                // Only the first two of these are "unsynced", so let's retrieve them
++                if (localMessage == null ||
++                        (localMessage.mFlagLoaded == EmailContent.Message.FLAG_LOADED_UNLOADED) ||
++                        (localMessage.mFlagLoaded == EmailContent.Message.FLAG_LOADED_PARTIAL)) {
++                    unsyncedMessages.add(remoteMessage);
++                }
++            }
++
++            // 6. Download basic info about the new/unloaded messages (if any)
++            /*
++             * Fetch the flags and envelope only of the new messages. This is intended to get us
++             * critical data as fast as possible, and then we'll fill in the details.
++             */
++            if (unsyncedMessages.size() > 0) {
++                downloadFlagAndEnvelope(ctx, acct, mailbox, remoteFolder, unsyncedMessages,
++                        localMessageMap, unseenMessages);
++            }
++
++            // 7. Update SEEN/FLAGGED/ANSWERED (star) flags
++            if (remoteSupportsSeen || remoteSupportsFlagged || remoteSupportsAnswered) {
++                for (Message remoteMessage : remoteMessages) {
++                    LocalMessageInfo localMessageInfo = localMessageMap.get(remoteMessage.getUid());
++                    if (localMessageInfo == null) {
++                        continue;
++                    }
++                    boolean localSeen = localMessageInfo.mFlagRead;
++                    boolean remoteSeen = remoteMessage.isSet(Flag.SEEN);
++                    boolean newSeen = (remoteSupportsSeen && (remoteSeen != localSeen));
++                    boolean localFlagged = localMessageInfo.mFlagFavorite;
++                    boolean remoteFlagged = remoteMessage.isSet(Flag.FLAGGED);
++                    boolean newFlagged = (remoteSupportsFlagged && (localFlagged != remoteFlagged));
++                    int localFlags = localMessageInfo.mFlags;
++                    boolean localAnswered = (localFlags &
++                            EmailContent.Message.FLAG_REPLIED_TO) != 0;
++                    boolean remoteAnswered = remoteMessage.isSet(Flag.ANSWERED);
++                    boolean newAnswered = (remoteSupportsAnswered &&
++                            (localAnswered != remoteAnswered));
++                    if (newSeen || newFlagged || newAnswered) {
++                        Uri uri = ContentUris.withAppendedId(
++                                EmailContent.Message.CONTENT_URI, localMessageInfo.mId);
++                        ContentValues updateValues = new ContentValues();
++                        updateValues.put(MessageColumns.FLAG_READ, remoteSeen);
++                        updateValues.put(MessageColumns.FLAG_FAVORITE, remoteFlagged);
++                        if (remoteAnswered) {
++                            localFlags |= EmailContent.Message.FLAG_REPLIED_TO;
++                        } else {
++                            localFlags &= ~EmailContent.Message.FLAG_REPLIED_TO;
++                        }
++                        updateValues.put(MessageColumns.FLAGS, localFlags);
++                        resolver.update(uri, updateValues, null, null);
++                    }
++                }
++            }
++
++            // 8.- Remove remote deleted messages
++            for (final Message remoteMessage : remoteMessages) {
++                if (!remoteMessage.isSet(Flag.DELETED)) {
++                    continue;
++                }
++
++                // Make sure we don't sync messages (again) that we deleted locally
++                // before and now get a flag update (DELETED being set) for now.
++                unsyncedMessages.remove(remoteMessage);
++
++                LocalMessageInfo info = localMessageMap.get(remoteMessage.getUid());
++                if (info == null) {
++                    continue;
++                }
++
++                // Delete associated data (attachment files)
++                // Attachment & Body records are auto-deleted when we delete the Message record
++                AttachmentUtilities.deleteAllAttachmentFiles(ctx, acct.mId, info.mId);
++
++                // Delete the message itself
++                final Uri uriToDelete = ContentUris.withAppendedId(
++                        EmailContent.Message.CONTENT_URI, info.mId);
++                resolver.delete(uriToDelete, null, null);
++
++                // Delete extra rows (e.g. updated or deleted)
++                final Uri updateRowToDelete = ContentUris.withAppendedId(
++                        EmailContent.Message.UPDATED_CONTENT_URI, info.mId);
++                resolver.delete(updateRowToDelete, null, null);
++                final Uri deleteRowToDelete = ContentUris.withAppendedId(
++                        EmailContent.Message.DELETED_CONTENT_URI, info.mId);
++                resolver.delete(deleteRowToDelete, null, null);
++            }
++
++            // 9.- Load unsynced messages
++            loadUnsyncedMessages(ctx, acct, remoteFolder, unsyncedMessages, mailbox);
++
++            // 10. Remove messages that are in the local store but no in the current sync window
++            int syncLookBack = mailbox.mSyncLookback == SyncWindow.SYNC_WINDOW_ACCOUNT
++                    ? acct.mSyncLookback
++                    : mailbox.mSyncLookback;
++            long endDate = System.currentTimeMillis() -
++                    (SyncWindow.toDays(syncLookBack) * DateUtils.DAY_IN_MILLIS);
++            LogUtils.d(Logging.LOG_TAG, "full sync: original window: now - " + endDate);
++            for (final LocalMessageInfo info : localMessageMap.values()) {
++                // If this message is inside our sync window, and we cannot find it in our list
++                // of remote messages, then we know it's been deleted from the server.
++                if (info.mTimestamp < endDate) {
++                    // Delete associated data (attachment files)
++                    // Attachment & Body records are auto-deleted when we delete the Message record
++                    AttachmentUtilities.deleteAllAttachmentFiles(ctx, acct.mId, info.mId);
++
++                    // Delete the message itself
++                    final Uri uriToDelete = ContentUris.withAppendedId(
++                            EmailContent.Message.CONTENT_URI, info.mId);
++                    resolver.delete(uriToDelete, null, null);
++
++                    // Delete extra rows (e.g. updated or deleted)
++                    final Uri updateRowToDelete = ContentUris.withAppendedId(
++                            EmailContent.Message.UPDATED_CONTENT_URI, info.mId);
++                    resolver.delete(updateRowToDelete, null, null);
++                    final Uri deleteRowToDelete = ContentUris.withAppendedId(
++                            EmailContent.Message.DELETED_CONTENT_URI, info.mId);
++                    resolver.delete(deleteRowToDelete, null, null);
++                }
++            }
++
++            // Clear authentication notification for this account
++            nc.cancelLoginFailedNotification(acct.mId);
++
++        } catch (MessagingException ex) {
++            if (Logging.LOGD) {
++                LogUtils.d(Logging.LOG_TAG, ex, "processImapFetchChanges");
++            }
++            if (ex instanceof AuthenticationFailedException) {
++                // Generate authentication notification
++                if (nc != null) {
++                    nc.showLoginFailedNotificationSynchronous(acct.mId, true /* incoming */);
++                }
++            }
++            throw ex;
++        } finally {
++            mSyncLock = false;
++            wl.release();
++
++            if (remoteStore != null) {
++                remoteStore.closeConnections();
++
++                final boolean registered;
++                synchronized (imapHolder.mIdledFolders) {
++                    registered = imapHolder.mIdledFolders.indexOfKey((int) mailbox.mId) >= 0;
++                }
++                // Register the imap idle again
++                if (registered && acct.getSyncInterval() == Account.CHECK_INTERVAL_PUSH) {
++                    imapHolder.registerMailboxForIdle(ctx, acct, mailbox);
++                }
++            }
++        }
++    }
++
+     /**
+      * Find messages in the updated table that need to be written back to server.
+      *
+@@ -1587,4 +2715,72 @@ public class ImapService extends Service {
+ 
+         return numSearchResults;
+     }
++
++    private static synchronized void processImapIdleChangesLocked(Context context, Account account,
++            Mailbox mailbox, boolean needSync, List<String> fetchMessages) {
++
++        // Process local to server changes first
++        Store remoteStore = null;
++        try {
++            remoteStore = Store.getInstance(account, context);
++            processPendingActionsSynchronous(context, account, remoteStore, false);
++        } catch (MessagingException me) {
++            // Ignore
++        } finally {
++            if (remoteStore != null) {
++                remoteStore.closeConnections();
++            }
++        }
++
++        // If the request rebased the maximum time without a full sync, then instead of fetch
++        // the changes just perform a full sync
++        final long timeSinceLastFullSync = SystemClock.elapsedRealtime() -
++                mailbox.mLastFullSyncTime;
++        final boolean forceSync = timeSinceLastFullSync >= FULL_SYNC_INTERVAL_MILLIS
++                || timeSinceLastFullSync < 0;
++        if (forceSync) {
++            needSync = true;
++            fetchMessages.clear();
++
++            if (Logging.LOGD) {
++                LogUtils.d(LOG_TAG, "Full sync required for mailbox " + mailbox.mId
++                        + " because is exceded the maximum time without a full sync.");
++            }
++        }
++
++        final int msgToFetchSize = fetchMessages.size();
++        if (Logging.LOGD) {
++            LogUtils.d(LOG_TAG, "Processing IDLE changes for mailbox " + mailbox.mId
++                    + ": need sync " + needSync + ", " + msgToFetchSize + " fetch messages");
++        }
++
++        if (msgToFetchSize > 0) {
++            if (!needSync && msgToFetchSize <= MAX_MESSAGES_TO_FETCH) {
++                try {
++                    processImapFetchChanges(context, account, mailbox, fetchMessages);
++                } catch (MessagingException ex) {
++                    LogUtils.w(LOG_TAG,
++                            "Failed to process imap idle changes for mailbox " + mailbox.mId);
++                    needSync = true;
++                }
++            } else {
++                needSync = true;
++            }
++        }
++
++        if (needSync) {
++            requestSync(context, account, mailbox.mId, true);
++        } else {
++            // In case no sync happens, re-add idle status
++            try {
++                if (account.getSyncInterval() == Account.CHECK_INTERVAL_PUSH) {
++                    final ImapIdleFolderHolder holder = ImapIdleFolderHolder.getInstance();
++                    holder.registerMailboxForIdle(context, account, mailbox);
++                }
++            } catch (MessagingException ex) {
++                LogUtils.w(LOG_TAG, "Failed to readd imap idle after no sync " +
++                        "for mailbox " + mailbox.mId);
++            }
++        }
++    }
+ }
+diff --git a/provider_src/com/android/email/service/LegacyImapSyncAdapterService.java b/provider_src/com/android/email/service/LegacyImapSyncAdapterService.java
+index 1f6b6195e..2cb0e3743 100644
+--- a/provider_src/com/android/email/service/LegacyImapSyncAdapterService.java
++++ b/provider_src/com/android/email/service/LegacyImapSyncAdapterService.java
+@@ -16,5 +16,125 @@
+ 
+ package com.android.email.service;
+ 
++import static com.android.emailcommon.Logging.LOG_TAG;
++
++import android.content.AbstractThreadedSyncAdapter;
++import android.content.ComponentName;
++import android.content.ContentProviderClient;
++import android.content.Context;
++import android.content.Intent;
++import android.content.ServiceConnection;
++import android.content.SyncResult;
++import android.os.AsyncTask;
++import android.os.Bundle;
++import android.os.IBinder;
++import android.os.PowerManager;
++import android.text.format.DateUtils;
++
++import com.android.emailcommon.Logging;
++import com.android.emailcommon.provider.Mailbox;
++import com.android.emailcommon.service.IEmailService;
++import com.android.mail.utils.LogUtils;
++
+ public class LegacyImapSyncAdapterService extends PopImapSyncAdapterService {
+-}
+\ No newline at end of file
++
++    // The call to ServiceConnection.onServiceConnected is asynchronous to bindService. It's
++    // possible for that to be delayed if, in which case, a call to onPerformSync
++    // could occur before we have a connection to the service.
++    // In onPerformSync, if we don't yet have our ImapService, we will wait for up to 10
++    // seconds for it to appear. If it takes longer than that, we will fail the sync.
++    private static final long MAX_WAIT_FOR_SERVICE_MS = 10 * DateUtils.SECOND_IN_MILLIS;
++
++    private IEmailService mImapService;
++
++    private final ServiceConnection mConnection = new ServiceConnection() {
++        @Override
++        public void onServiceConnected(ComponentName name,  IBinder binder) {
++            if (Logging.LOGD) {
++                LogUtils.v(LOG_TAG, "onServiceConnected");
++            }
++            synchronized (mConnection) {
++                mImapService = IEmailService.Stub.asInterface(binder);
++                mConnection.notify();
++            }
++        }
++
++        @Override
++        public void onServiceDisconnected(ComponentName name) {
++            mImapService = null;
++        }
++    };
++
++    protected class ImapSyncAdapterImpl extends SyncAdapterImpl {
++        public ImapSyncAdapterImpl(Context context) {
++            super(context);
++        }
++
++        @Override
++        public void onPerformSync(android.accounts.Account account, Bundle extras,
++                String authority, ContentProviderClient provider, SyncResult syncResult) {
++
++            final Context context = LegacyImapSyncAdapterService.this;
++            PowerManager pm = (PowerManager) context.getSystemService(Context.POWER_SERVICE);
++            PowerManager.WakeLock wl = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK,
++                    "Imap Sync WakeLock");
++            try {
++                wl.acquire();
++
++                if (!waitForService()) {
++                    // The service didn't connect, nothing we can do.
++                    return;
++                }
++
++                if (!Mailbox.isPushOnlyExtras(extras)) {
++                    super.onPerformSync(account, extras, authority, provider, syncResult);
++                }
++
++                // Check if IMAP push service is necessary
++                ImapService.stopImapPushServiceIfNecessary(context);
++
++            } finally {
++                wl.release();
++            }
++        }
++    }
++
++    public AbstractThreadedSyncAdapter getSyncAdapter() {
++        return new ImapSyncAdapterImpl(getApplicationContext());
++    }
++
++    @Override
++    public void onCreate() {
++        super.onCreate();
++        bindService(new Intent(this, ImapService.class), mConnection, Context.BIND_AUTO_CREATE);
++        startService(new Intent(this, LegacyImapSyncAdapterService.class));
++    }
++
++    @Override
++    public void onDestroy() {
++        unbindService(mConnection);
++        super.onDestroy();
++    }
++
++    private final boolean waitForService() {
++        synchronized(mConnection) {
++            if (mImapService == null) {
++                if (Logging.LOGD) {
++                    LogUtils.v(LOG_TAG, "ImapService not yet connected");
++                }
++                try {
++                    mConnection.wait(MAX_WAIT_FOR_SERVICE_MS);
++                } catch (InterruptedException e) {
++                    LogUtils.wtf(LOG_TAG, "InterrupedException waiting for ImapService to connect");
++                    return false;
++                }
++                if (mImapService == null) {
++                    LogUtils.wtf(LOG_TAG, "timed out waiting for ImapService to connect");
++                    return false;
++                }
++            }
++        }
++        return true;
++    }
++
++}
+diff --git a/provider_src/com/android/email/service/PopImapSyncAdapterService.java b/provider_src/com/android/email/service/PopImapSyncAdapterService.java
+index 432cdd107..92f9f2679 100644
+--- a/provider_src/com/android/email/service/PopImapSyncAdapterService.java
++++ b/provider_src/com/android/email/service/PopImapSyncAdapterService.java
+@@ -49,7 +49,7 @@ import java.util.ArrayList;
+ 
+ public class PopImapSyncAdapterService extends Service {
+     private static final String TAG = "PopImapSyncService";
+-    private SyncAdapterImpl mSyncAdapter = null;
++    private AbstractThreadedSyncAdapter mSyncAdapter = null;
+ 
+     private static String sPop3Protocol;
+     private static String sLegacyImapProtocol;
+@@ -58,7 +58,7 @@ public class PopImapSyncAdapterService extends Service {
+         super();
+     }
+ 
+-    private static class SyncAdapterImpl extends AbstractThreadedSyncAdapter {
++    static class SyncAdapterImpl extends AbstractThreadedSyncAdapter {
+         public SyncAdapterImpl(Context context) {
+             super(context, true /* autoInitialize */);
+         }
+@@ -71,10 +71,14 @@ public class PopImapSyncAdapterService extends Service {
+         }
+     }
+ 
++    public AbstractThreadedSyncAdapter getSyncAdapter() {
++        return new SyncAdapterImpl(getApplicationContext());
++    }
++
+     @Override
+     public void onCreate() {
+         super.onCreate();
+-        mSyncAdapter = new SyncAdapterImpl(getApplicationContext());
++        mSyncAdapter = getSyncAdapter();
+     }
+ 
+     @Override
+@@ -101,14 +105,14 @@ public class PopImapSyncAdapterService extends Service {
+         return false;
+     }
+ 
+-    private static void sync(final Context context, final long mailboxId,
++    private static boolean sync(final Context context, final long mailboxId,
+             final Bundle extras, final SyncResult syncResult, final boolean uiRefresh,
+             final int deltaMessageCount) {
+         TempDirectory.setTempDirectory(context);
+         Mailbox mailbox = Mailbox.restoreMailboxWithId(context, mailboxId);
+-        if (mailbox == null) return;
++        if (mailbox == null) return false;
+         Account account = Account.restoreAccountWithId(context, mailbox.mAccountKey);
+-        if (account == null) return;
++        if (account == null) return false;
+         ContentResolver resolver = context.getContentResolver();
+         if ((mailbox.mType != Mailbox.TYPE_OUTBOX) &&
+                 !loadsFromServer(context, mailbox, account)) {
+@@ -116,7 +120,7 @@ public class PopImapSyncAdapterService extends Service {
+             // updates table and return
+             resolver.delete(Message.UPDATED_CONTENT_URI, MessageColumns.MAILBOX_KEY + "=?",
+                     new String[] {Long.toString(mailbox.mId)});
+-            return;
++            return true;
+         }
+         LogUtils.d(TAG, "About to sync mailbox: " + mailbox.mDisplayName);
+ 
+@@ -147,6 +151,7 @@ public class PopImapSyncAdapterService extends Service {
+                     }
+                     EmailServiceStatus.syncMailboxStatus(resolver, extras, mailboxId, status, 0,
+                             lastSyncResult);
++                    return true;
+                 }
+             } catch (MessagingException e) {
+                 final int type = e.getExceptionType();
+@@ -186,6 +191,7 @@ public class PopImapSyncAdapterService extends Service {
+             values.put(Mailbox.SYNC_TIME, System.currentTimeMillis());
+             resolver.update(mailboxUri, values, null, null);
+         }
++        return false;
+     }
+ 
+     /**
+@@ -247,7 +253,8 @@ public class PopImapSyncAdapterService extends Service {
+                         // from the account settings. Otherwise just sync the inbox.
+                         if (info.offerLookback) {
+                             mailboxIds = getLoopBackMailboxIdsForSync(context, acct);
+-                        } else {
++                        }
++                        if (mailboxIds == null || mailboxIds.length == 0) {
+                             final long inboxId = Mailbox.findMailboxOfType(context, acct.mId,
+                                     Mailbox.TYPE_INBOX);
+                             if (inboxId != Mailbox.NO_MAILBOX) {
+@@ -262,9 +269,20 @@ public class PopImapSyncAdapterService extends Service {
+                             extras.getBoolean(ContentResolver.SYNC_EXTRAS_EXPEDITED, false);
+                         int deltaMessageCount =
+                                 extras.getInt(Mailbox.SYNC_EXTRA_DELTA_MESSAGE_COUNT, 0);
++                        boolean success = mailboxIds.length > 0;
+                         for (long mailboxId : mailboxIds) {
+-                            sync(context, mailboxId, extras, syncResult, uiRefresh,
+-                                    deltaMessageCount);
++                            boolean result = sync(context, mailboxId, extras, syncResult,
++                                    uiRefresh, deltaMessageCount);
++                            if (!result) {
++                                success = false;
++                            }
++                        }
++
++                        // Initial sync performed?
++                        if (success) {
++                            // All mailboxes (that need a sync) are now synced. Assume we
++                            // have a valid sync key, in case this account has push support
++                            markAsInitialSyncKey(context, acct.mId);
+                         }
+                     }
+                 }
+@@ -278,6 +296,14 @@ public class PopImapSyncAdapterService extends Service {
+         }
+     }
+ 
++    private static void markAsInitialSyncKey(Context context, long accountId) {
++        ContentResolver resolver = context.getContentResolver();
++        Uri accountUri = ContentUris.withAppendedId(Account.CONTENT_URI, accountId);
++        ContentValues values = new ContentValues();
++        values.put(AccountColumns.SYNC_KEY, "1");
++        resolver.update(accountUri, values, null, null);
++    }
++
+     private static boolean isLegacyImapProtocol(Context ctx, Account acct) {
+         if (sLegacyImapProtocol == null) {
+             sLegacyImapProtocol = ctx.getString(R.string.protocol_legacy_imap);
+diff --git a/res/xml/services.xml b/res/xml/services.xml
+index b42d2737a..0098a19aa 100644
+--- a/res/xml/services.xml
++++ b/res/xml/services.xml
+@@ -74,8 +74,8 @@
+         email:serviceClass="com.android.email.service.ImapService"
+         email:port="143"
+         email:portSsl="993"
+-        email:syncIntervalStrings="@array/account_settings_check_frequency_entries"
+-        email:syncIntervals="@array/account_settings_check_frequency_values"
++        email:syncIntervalStrings="@array/account_settings_check_frequency_entries_push"
++        email:syncIntervals="@array/account_settings_check_frequency_values_push"
+         email:defaultSyncInterval="mins15"
+ 
+         email:offerTls="true"
+diff --git a/res/xml/syncadapter_legacy_imap.xml b/res/xml/syncadapter_legacy_imap.xml
+index 6ad6ee140..09be31a6d 100644
+--- a/res/xml/syncadapter_legacy_imap.xml
++++ b/res/xml/syncadapter_legacy_imap.xml
+@@ -23,5 +23,6 @@
+ <sync-adapter xmlns:android="http://schemas.android.com/apk/res/android"
+     android:contentAuthority="@string/authority_email_provider"
+     android:accountType="@string/account_manager_type_legacy_imap"
++    android:allowParallelSyncs="true"
+     android:supportsUploading="true"
+ />
+diff --git a/src/com/android/email/activity/setup/AccountCheckSettingsFragment.java b/src/com/android/email/activity/setup/AccountCheckSettingsFragment.java
+index a9c1a9691..65f8e3a17 100644
+--- a/src/com/android/email/activity/setup/AccountCheckSettingsFragment.java
++++ b/src/com/android/email/activity/setup/AccountCheckSettingsFragment.java
+@@ -387,6 +387,10 @@ public class AccountCheckSettingsFragment extends Fragment {
+                     if (bundle == null) {
+                         return new MessagingException(MessagingException.UNSPECIFIED_EXCEPTION);
+                     }
++
++                    // Save account protocol and capabilities
++                    mAccount.mCapabilities = bundle.getInt(
++                            EmailServiceProxy.SETTINGS_BUNDLE_CAPABILITIES, 0);
+                     mAccount.mProtocolVersion = bundle.getString(
+                             EmailServiceProxy.VALIDATE_BUNDLE_PROTOCOL_VERSION);
+                     int resultCode = bundle.getInt(EmailServiceProxy.VALIDATE_BUNDLE_RESULT_CODE);
+diff --git a/src/com/android/email/activity/setup/AccountSettingsFragment.java b/src/com/android/email/activity/setup/AccountSettingsFragment.java
+index 6032dd1e3..f33a7d57c 100644
+--- a/src/com/android/email/activity/setup/AccountSettingsFragment.java
++++ b/src/com/android/email/activity/setup/AccountSettingsFragment.java
+@@ -57,6 +57,7 @@ import com.android.emailcommon.provider.EmailContent;
+ import com.android.emailcommon.provider.EmailContent.AccountColumns;
+ import com.android.emailcommon.provider.Mailbox;
+ import com.android.emailcommon.provider.Policy;
++import com.android.emailcommon.service.EmailServiceProxy;
+ import com.android.mail.preferences.AccountPreferences;
+ import com.android.mail.preferences.FolderPreferences;
+ import com.android.mail.providers.Folder;
+@@ -69,7 +70,9 @@ import com.android.mail.utils.LogUtils;
+ import com.android.mail.utils.NotificationUtils;
+ 
+ import java.util.ArrayList;
++import java.util.Arrays;
+ import java.util.HashMap;
++import java.util.List;
+ import java.util.Map;
+ 
+ /**
+@@ -210,10 +213,7 @@ public class AccountSettingsFragment extends MailAccountPrefsFragment
+             final CharSequence [] syncIntervals =
+                     savedInstanceState.getCharSequenceArray(SAVESTATE_SYNC_INTERVALS);
+             mCheckFrequency = (ListPreference) findPreference(PREFERENCE_FREQUENCY);
+-            if (mCheckFrequency != null) {
+-                mCheckFrequency.setEntries(syncIntervalStrings);
+-                mCheckFrequency.setEntryValues(syncIntervals);
+-            }
++            fillCheckFrecuency(syncIntervalStrings, syncIntervals);
+         }
+     }
+ 
+@@ -349,16 +349,15 @@ public class AccountSettingsFragment extends MailAccountPrefsFragment
+                 final android.accounts.Account androidAcct = new android.accounts.Account(
+                         mAccount.mEmailAddress, mServiceInfo.accountType);
+                 if (Integer.parseInt(summary) == Account.CHECK_INTERVAL_NEVER) {
+-                    // Disable syncing from the account manager. Leave the current sync frequency
+-                    // in the database.
++                    // Disable syncing from the account manager.
+                     ContentResolver.setSyncAutomatically(androidAcct, EmailContent.AUTHORITY,
+                             false);
+                 } else {
+                     // Enable syncing from the account manager.
+                     ContentResolver.setSyncAutomatically(androidAcct, EmailContent.AUTHORITY,
+                             true);
+-                    cv.put(AccountColumns.SYNC_INTERVAL, Integer.parseInt(summary));
+                 }
++                cv.put(AccountColumns.SYNC_INTERVAL, Integer.parseInt(summary));
+             }
+         } else if (key.equals(PREFERENCE_SYNC_WINDOW)) {
+             final String summary = newValue.toString();
+@@ -680,8 +679,7 @@ public class AccountSettingsFragment extends MailAccountPrefsFragment
+                 R.string.preferences_signature_summary_not_set);
+ 
+         mCheckFrequency = (ListPreference) findPreference(PREFERENCE_FREQUENCY);
+-        mCheckFrequency.setEntries(mServiceInfo.syncIntervalStrings);
+-        mCheckFrequency.setEntryValues(mServiceInfo.syncIntervals);
++        fillCheckFrecuency(mServiceInfo.syncIntervalStrings, mServiceInfo.syncIntervals);
+         if (mServiceInfo.syncContacts || mServiceInfo.syncCalendar) {
+             // This account allows syncing of contacts and/or calendar, so we will always have
+             // separate preferences to enable or disable syncing of email, contacts, and calendar.
+@@ -1025,4 +1023,28 @@ public class AccountSettingsFragment extends MailAccountPrefsFragment
+                 AccountServerSettingsActivity.getIntentForOutgoing(getActivity(), account);
+         getActivity().startActivity(intent);
+     }
++
++    private void fillCheckFrecuency(CharSequence[] labels, CharSequence[] values) {
++        if (mCheckFrequency == null) {
++            return;
++        }
++
++        // Check push capability prior to include as an option
++        if (mAccount != null) {
++            boolean hasPushCapability = mAccount.hasCapability(EmailServiceProxy.CAPABILITY_PUSH);
++            List<CharSequence> valuesList = new ArrayList<>(Arrays.asList(values));
++            int checkIntervalPushPos = valuesList.indexOf(
++                    String.valueOf(Account.CHECK_INTERVAL_PUSH));
++            if (!hasPushCapability && checkIntervalPushPos != -1) {
++                List<CharSequence> labelsList = new ArrayList<>(Arrays.asList(labels));
++                labelsList.remove(checkIntervalPushPos);
++                valuesList.remove(checkIntervalPushPos);
++                labels = labelsList.toArray(new CharSequence[labelsList.size()]);
++                values = valuesList.toArray(new CharSequence[valuesList.size()]);
++            }
++        }
++        mCheckFrequency.setEntries(labels);
++        mCheckFrequency.setEntryValues(values);
++        mCheckFrequency.setDefaultValue(values);
++    }
+ }
+diff --git a/src/com/android/email/activity/setup/AccountSetupFinal.java b/src/com/android/email/activity/setup/AccountSetupFinal.java
+index adaa32aa1..5386a7e4a 100644
+--- a/src/com/android/email/activity/setup/AccountSetupFinal.java
++++ b/src/com/android/email/activity/setup/AccountSetupFinal.java
+@@ -917,7 +917,7 @@ public class AccountSetupFinal extends AccountSetupActivity
+     public void setDefaultsForProtocol(Account account) {
+         final EmailServiceUtils.EmailServiceInfo info = mSetupData.getIncomingServiceInfo(this);
+         if (info == null) return;
+-        account.mSyncInterval = info.defaultSyncInterval;
++        account.setSyncInterval(info.defaultSyncInterval);
+         account.mSyncLookback = info.defaultLookback;
+         if (info.offerLocalDeletes) {
+             account.setDeletePolicy(info.defaultLocalDeletes);
+diff --git a/src/com/android/email/activity/setup/AccountSetupOptionsFragment.java b/src/com/android/email/activity/setup/AccountSetupOptionsFragment.java
+index 9d048c119..287a0d323 100644
+--- a/src/com/android/email/activity/setup/AccountSetupOptionsFragment.java
++++ b/src/com/android/email/activity/setup/AccountSetupOptionsFragment.java
+@@ -29,8 +29,13 @@ import com.android.email.activity.UiUtilities;
+ import com.android.email.service.EmailServiceUtils;
+ import com.android.emailcommon.provider.Account;
+ import com.android.emailcommon.provider.Policy;
++import com.android.emailcommon.service.EmailServiceProxy;
+ import com.android.emailcommon.service.SyncWindow;
+ 
++import java.util.ArrayList;
++import java.util.Arrays;
++import java.util.List;
++
+ public class AccountSetupOptionsFragment extends AccountSetupFragment {
+     private Spinner mCheckFrequencyView;
+     private Spinner mSyncWindowView;
+@@ -90,11 +95,24 @@ public class AccountSetupOptionsFragment extends AccountSetupFragment {
+         final CharSequence[] frequencyEntries = serviceInfo.syncIntervalStrings;
+ 
+         // Now create the array used by the sync interval Spinner
+-        final SpinnerOption[] checkFrequencies = new SpinnerOption[frequencyEntries.length];
++        int checkIntervalPushPos = -1;
++        SpinnerOption[] checkFrequencies = new SpinnerOption[frequencyEntries.length];
+         for (int i = 0; i < frequencyEntries.length; i++) {
+-            checkFrequencies[i] = new SpinnerOption(
+-                    Integer.valueOf(frequencyValues[i].toString()), frequencyEntries[i].toString());
++            Integer value = Integer.valueOf(frequencyValues[i].toString());
++            if (value.intValue() == Account.CHECK_INTERVAL_PUSH) {
++                checkIntervalPushPos = i;
++            }
++            checkFrequencies[i] = new SpinnerOption(value, frequencyEntries[i].toString());
+         }
++
++        // Ensure that push capability is supported by the server
++        boolean hasPushCapability = account.hasCapability(EmailServiceProxy.CAPABILITY_PUSH);
++        if (!hasPushCapability && checkIntervalPushPos != -1) {
++            List<SpinnerOption> options = new ArrayList<>(Arrays.asList(checkFrequencies));
++            options.remove(checkIntervalPushPos);
++            checkFrequencies = options.toArray(new SpinnerOption[options.size()]);
++        }
++
+         final ArrayAdapter<SpinnerOption> checkFrequenciesAdapter =
+                 new ArrayAdapter<>(getActivity(), android.R.layout.simple_spinner_item,
+                         checkFrequencies);
+diff --git a/tests/src/com/android/email/LegacyConversionsTests.java b/tests/src/com/android/email/LegacyConversionsTests.java
+index 82f333ae7..27775ab69 100644
+--- a/tests/src/com/android/email/LegacyConversionsTests.java
++++ b/tests/src/com/android/email/LegacyConversionsTests.java
+@@ -388,7 +388,7 @@ public class LegacyConversionsTests extends ProviderTestCase2<EmailProvider> {
+         String get1Text = null;
+         String get1Html = null;
+         for (Part viewable : viewables) {
+-            String text = MimeUtility.getTextFromPart(viewable);
++            String text = MimeUtility.getTextFromPart(viewable, null);
+             if (viewable.getMimeType().equalsIgnoreCase("text/html")) {
+                 get1Html = text;
+             } else {
+diff --git a/tests/src/com/android/email/mail/store/ImapStoreUnitTests.java b/tests/src/com/android/email/mail/store/ImapStoreUnitTests.java
+index 5e9efe617..4450f1881 100644
+--- a/tests/src/com/android/email/mail/store/ImapStoreUnitTests.java
++++ b/tests/src/com/android/email/mail/store/ImapStoreUnitTests.java
+@@ -1105,7 +1105,7 @@ public class ImapStoreUnitTests extends InstrumentationTestCase {
+         MimeUtility.collectParts(message1, viewables, attachments);
+         assertTrue(viewables.size() == 1);
+         emptyBodyPart = viewables.get(0);
+-        String text = MimeUtility.getTextFromPart(emptyBodyPart);
++        String text = MimeUtility.getTextFromPart(emptyBodyPart, null);
+         assertNull(text);
+     }
+ 
+diff --git a/tests/src/com/android/email/provider/AccountBackupRestoreTests.java b/tests/src/com/android/email/provider/AccountBackupRestoreTests.java
+index c9b902d5d..797e9885f 100644
+--- a/tests/src/com/android/email/provider/AccountBackupRestoreTests.java
++++ b/tests/src/com/android/email/provider/AccountBackupRestoreTests.java
+@@ -62,7 +62,7 @@ public class AccountBackupRestoreTests extends ProviderTestCase2<EmailProvider>
+         assertEquals(" mEmailAddress", expect.mEmailAddress, actual.mEmailAddress);
+ 
+         assertEquals(" mSyncLookback", expect.mSyncLookback, actual.mSyncLookback);
+-        assertEquals(" mSyncInterval", expect.mSyncInterval, actual.mSyncInterval);
++        assertEquals(" mSyncInterval", expect.getSyncInterval(), actual.getSyncInterval());
+         assertEquals(" mFlags", expect.mFlags, actual.mFlags);
+         assertEquals(" mSenderName", expect.mSenderName, actual.mSenderName);
+         assertEquals(" mProtocolVersion", expect.mProtocolVersion,
+diff --git a/tests/src/com/android/email/provider/ProviderTestUtils.java b/tests/src/com/android/email/provider/ProviderTestUtils.java
+index 0b8a05fa3..9ba4b2758 100644
+--- a/tests/src/com/android/email/provider/ProviderTestUtils.java
++++ b/tests/src/com/android/email/provider/ProviderTestUtils.java
+@@ -54,7 +54,7 @@ public class ProviderTestUtils extends Assert {
+         account.mEmailAddress = name + "@android.com";
+         account.mSyncKey = "sync-key-" + name;
+         account.mSyncLookback = 1;
+-        account.mSyncInterval = Account.CHECK_INTERVAL_NEVER;
++        account.setSyncInterval(Account.CHECK_INTERVAL_NEVER);
+         account.mHostAuthKeyRecv = 0;
+         account.mHostAuthKeySend = 0;
+         account.mFlags = 4;
+@@ -293,7 +293,7 @@ public class ProviderTestUtils extends Assert {
+         assertEquals(caller + " mSyncKey", expect.mSyncKey, actual.mSyncKey);
+ 
+         assertEquals(caller + " mSyncLookback", expect.mSyncLookback, actual.mSyncLookback);
+-        assertEquals(caller + " mSyncInterval", expect.mSyncInterval, actual.mSyncInterval);
++        assertEquals(caller + " mSyncInterval", expect.getSyncInterval(), actual.getSyncInterval());
+         assertEquals(caller + " mHostAuthKeyRecv", expect.mHostAuthKeyRecv,
+                 actual.mHostAuthKeyRecv);
+         assertEquals(caller + " mHostAuthKeySend", expect.mHostAuthKeySend,
+diff --git a/tests/src/com/android/emailcommon/internet/MimeUtilityTest.java b/tests/src/com/android/emailcommon/internet/MimeUtilityTest.java
+index d05220ea0..24ea0633e 100644
+--- a/tests/src/com/android/emailcommon/internet/MimeUtilityTest.java
++++ b/tests/src/com/android/emailcommon/internet/MimeUtilityTest.java
+@@ -369,19 +369,19 @@ public class MimeUtilityTest extends TestCase {
+         // 1. test basic text/plain mode
+         p.setHeader(MimeHeader.HEADER_CONTENT_TYPE, "text/plain");
+         p.setBody(tb);
+-        String gotText = MimeUtility.getTextFromPart(p);
++        String gotText = MimeUtility.getTextFromPart(p, null);
+         assertEquals(theText, gotText);
+ 
+         // 2. mixed case is OK
+         p.setHeader(MimeHeader.HEADER_CONTENT_TYPE, "TEXT/PLAIN");
+         p.setBody(tb);
+-        gotText = MimeUtility.getTextFromPart(p);
++        gotText = MimeUtility.getTextFromPart(p, null);
+         assertEquals(theText, gotText);
+ 
+         // 3. wildcards OK
+         p.setHeader(MimeHeader.HEADER_CONTENT_TYPE, "text/other");
+         p.setBody(tb);
+-        gotText = MimeUtility.getTextFromPart(p);
++        gotText = MimeUtility.getTextFromPart(p, null);
+         assertEquals(theText, gotText);
+     }
+ 
+@@ -411,13 +411,13 @@ public class MimeUtilityTest extends TestCase {
+         p.setBody(tb);
+         // We call setHeader after setBody, since setBody overwrites Content-Type
+         p.setHeader(MimeHeader.HEADER_CONTENT_TYPE, "text/html; charset=utf-8");
+-        gotText = MimeUtility.getTextFromPart(p);
++        gotText = MimeUtility.getTextFromPart(p, null);
+         assertTrue(MimeUtility.mimeTypeMatches(p.getMimeType(), "text/html"));
+         assertEquals(UNICODE_EXPECT, gotText);
+ 
+         p.setBody(tb);
+         p.setHeader(MimeHeader.HEADER_CONTENT_TYPE, "text/html; charset=windows-1252");
+-        gotText = MimeUtility.getTextFromPart(p);
++        gotText = MimeUtility.getTextFromPart(p, null);
+         assertTrue(MimeUtility.mimeTypeMatches(p.getMimeType(), "text/html"));
+         assertEquals(WINDOWS1252_EXPECT, gotText);
+ 
+@@ -425,14 +425,14 @@ public class MimeUtilityTest extends TestCase {
+         p.setBody(tb);
+         p.setHeader(MimeHeader.HEADER_CONTENT_TYPE,
+                     "text/html; prop1 = \"test\"; charset = \"utf-8\"; prop2 = \"test\"");
+-        gotText = MimeUtility.getTextFromPart(p);
++        gotText = MimeUtility.getTextFromPart(p, null);
+         assertTrue(MimeUtility.mimeTypeMatches(p.getMimeType(), "text/html"));
+         assertEquals(UNICODE_EXPECT, gotText);
+ 
+         p.setBody(tb);
+         p.setHeader(MimeHeader.HEADER_CONTENT_TYPE,
+                     "text/html; prop1 = \"test\"; charset = \"windows-1252\"; prop2 = \"test\"");
+-        gotText = MimeUtility.getTextFromPart(p);
++        gotText = MimeUtility.getTextFromPart(p, null);
+         assertTrue(MimeUtility.mimeTypeMatches(p.getMimeType(), "text/html"));
+         assertEquals(WINDOWS1252_EXPECT, gotText);
+ 
+@@ -442,13 +442,13 @@ public class MimeUtilityTest extends TestCase {
+ 
+         p.setBody(tb);
+         p.setHeader(MimeHeader.HEADER_CONTENT_TYPE, "TEXT/HtmL ; CHARseT=utf-8");
+-        gotText = MimeUtility.getTextFromPart(p);
++        gotText = MimeUtility.getTextFromPart(p, null);
+         assertTrue(MimeUtility.mimeTypeMatches(p.getMimeType(), "text/html"));
+         assertEquals(UNICODE_EXPECT, gotText);
+ 
+         p.setBody(tb);
+         p.setHeader(MimeHeader.HEADER_CONTENT_TYPE, "TEXT/HtmL ; CHARseT=windows-1252");
+-        gotText = MimeUtility.getTextFromPart(p);
++        gotText = MimeUtility.getTextFromPart(p, null);
+         assertTrue(MimeUtility.mimeTypeMatches(p.getMimeType(), "text/html"));
+         assertEquals(WINDOWS1252_EXPECT, gotText);
+ 
+@@ -459,7 +459,7 @@ public class MimeUtilityTest extends TestCase {
+         p.setBody(tb);
+         p.setHeader(MimeHeader.HEADER_CONTENT_TYPE,
+                     "text/html; charset=utf-8 (Plain text)");
+-        gotText = MimeUtility.getTextFromPart(p);
++        gotText = MimeUtility.getTextFromPart(p, null);
+         assertTrue(MimeUtility.mimeTypeMatches(p.getMimeType(), "text/html"));
+         // Note: This test does not pass.
+         //assertEquals(UNICODE_EXPECT, gotText);
+@@ -467,7 +467,7 @@ public class MimeUtilityTest extends TestCase {
+         p.setBody(tb);
+         p.setHeader(MimeHeader.HEADER_CONTENT_TYPE,
+                     "text/html; charset=windows-1252 (Plain text)");
+-        gotText = MimeUtility.getTextFromPart(p);
++        gotText = MimeUtility.getTextFromPart(p, null);
+         assertTrue(MimeUtility.mimeTypeMatches(p.getMimeType(), "text/html"));
+         // Note: These tests does not pass.
+         //assertEquals(WINDOWS1252_EXPECT, gotText);
+-- 
+2.17.1
+
