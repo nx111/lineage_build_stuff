@@ -708,6 +708,7 @@ kpick 218430 # SystemUI: Require unlock to toggle airplane mode
 kpick 218431 # SystemUI: Require unlock to toggle location
 kpick 218437 # SystemUI: Add activity alias for LockscreenFragment
 #kpick 218668 # SystemUI: require auth for adb wireless
+kpick 218819 # SystemUI: Fix Data Usage tile to match Settings
 
 # frameworks/native
 kpick 213549 # SurfaceFlinger: Support get/set ActiveConfigs
@@ -967,6 +968,7 @@ kpick 217090 # extract_utils: cleanup in extract() function
 kpick 218568 # extract_utils: make get_file() able to search paths with and w/o /system prefix
 kpick 218717 # verity_tool: Implement status getter
 kpick 218801 # libbfqio: Open bfqio once
+kpick 218817 # kernel: Do not attempt to build modules if there aren't
 
 # vendor/nxp/opensource/packages/apps/Nfc
 
