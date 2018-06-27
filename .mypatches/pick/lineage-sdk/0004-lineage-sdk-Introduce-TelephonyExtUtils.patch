@@ -1,17 +1,17 @@
-From f0ef93105ac0af87e710527b3c34d07218ca2cb7 Mon Sep 17 00:00:00 2001
+From 23cf8c135627f6b3a7dd889da96b83d02f61e358 Mon Sep 17 00:00:00 2001
 From: Michael W <baddaemon87@gmail.com>
 Date: Tue, 5 Jun 2018 19:47:22 +0200
 Subject: [PATCH 4/8] lineage-sdk: Introduce TelephonyExtUtils
 
 Change-Id: Ifdd18dd6e89e23c5b804c3454ee8473a5920b562
 ---
- Android.mk                                    |   4 +-
- .../internal/util/TelephonyExtUtils.java      | 250 ++++++++++++++++++
- 2 files changed, 253 insertions(+), 1 deletion(-)
+ Android.mk                                    |   8 +-
+ .../internal/util/TelephonyExtUtils.java      | 247 ++++++++++++++++++
+ 2 files changed, 254 insertions(+), 1 deletion(-)
  create mode 100644 sdk/src/java/org/lineageos/internal/util/TelephonyExtUtils.java
 
 diff --git a/Android.mk b/Android.mk
-index 532b891..c292034 100644
+index 532b891..c546c9c 100644
 --- a/Android.mk
 +++ b/Android.mk
 @@ -1,5 +1,5 @@
@@ -21,28 +21,32 @@ index 532b891..c292034 100644
  #
  # Licensed under the Apache License, Version 2.0 (the "License");
  # you may not use this file except in compliance with the License.
-@@ -46,6 +46,7 @@ lineage_sdk_LOCAL_JAVA_LIBRARIES := \
+@@ -44,6 +44,9 @@ lineage_sdk_LOCAL_JAVA_LIBRARIES := \
+     android-support-v7-recyclerview \
+     android-support-v14-preference
  
++LOCAL_STATIC_JAVA_LIBRARIES := \
++    telephony-ext
++
  LOCAL_JAVA_LIBRARIES := \
      services \
-+    telephony-ext \
      org.lineageos.hardware \
-     $(lineage_sdk_LOCAL_JAVA_LIBRARIES)
- 
-@@ -194,6 +195,7 @@ LOCAL_INTERMEDIATE_SOURCES := \
+@@ -193,6 +196,9 @@ lineage_sdk_LOCAL_INTERMEDIATE_SOURCES := \
+ LOCAL_INTERMEDIATE_SOURCES := \
      $(lineage_sdk_LOCAL_INTERMEDIATE_SOURCES)
  
++LOCAL_STATIC_JAVA_LIBRARIES := \
++    telephony-ext
++
  LOCAL_JAVA_LIBRARIES := \
-+    telephony-ext \
      $(lineage_sdk_LOCAL_JAVA_LIBRARIES)
  
- $(full_target): $(lineage_framework_built) $(gen)
 diff --git a/sdk/src/java/org/lineageos/internal/util/TelephonyExtUtils.java b/sdk/src/java/org/lineageos/internal/util/TelephonyExtUtils.java
 new file mode 100644
-index 0000000..b3286d0
+index 0000000..8d896fa
 --- /dev/null
 +++ b/sdk/src/java/org/lineageos/internal/util/TelephonyExtUtils.java
-@@ -0,0 +1,250 @@
+@@ -0,0 +1,247 @@
 +/*
 + * Copyright (C) 2018 The LineageOS Project
 + *
@@ -96,35 +100,32 @@ index 0000000..b3286d0
 +    private boolean mNoServiceAvailable = false;
 +    private IExtTelephony mExtTelephony;
 +
-+    private BroadcastReceiver mReceiver;
-+
-+    private final List<ProvisioningChangedListener> mListeners =
-+            new ArrayList<ProvisioningChangedListener>();
++    private final List<ProvisioningChangedListener> mListeners = new ArrayList<>();
 +
 +    private static TelephonyExtUtils sInstance;
++
++    private final BroadcastReceiver mReceiver = new BroadcastReceiver() {
++        @Override
++        public void onReceive(Context context, Intent intent) {
++            final String action = intent.getAction();
++            if (Intent.ACTION_BOOT_COMPLETED.equals(action)) {
++                if (DEBUG) Log.d(TAG, "Boot completed, registering service");
++                mNoServiceAvailable = getService() == null;
++            } else if (ACTION_UICC_MANUAL_PROVISION_STATUS_CHANGED.equals(action)) {
++                int slotId = intent.getIntExtra(PhoneConstants.PHONE_KEY,
++                        SubscriptionManager.INVALID_SIM_SLOT_INDEX);
++                boolean provisioned = intent.getIntExtra(EXTRA_NEW_PROVISION_STATE,
++                        NOT_PROVISIONED) == PROVISIONED;
++                if (DEBUG) Log.d(TAG, "Received ACTION_UICC_MANUAL_PROVISION_STATUS_CHANGED"
++                        + " on slotId: " + slotId + ", sub provisioned: " + provisioned);
++                notifyListeners(slotId, provisioned);
++            }
++        }
++    };
 +
 +    // This class is not supposed to be instantiated externally
 +    private TelephonyExtUtils(Context context) {
 +        if (DEBUG) Log.d(TAG, "Registering listeners!");
-+
-+        mReceiver = new BroadcastReceiver() {
-+            @Override
-+            public void onReceive(Context context, Intent intent) {
-+                final String action = intent.getAction();
-+                if (Intent.ACTION_BOOT_COMPLETED.equals(action)) {
-+                    if (DEBUG) Log.d(TAG, "Boot completed, registering service");
-+                    mNoServiceAvailable = getService() == null;
-+                } else if (ACTION_UICC_MANUAL_PROVISION_STATUS_CHANGED.equals(action)) {
-+                    int slotId = intent.getIntExtra(PhoneConstants.PHONE_KEY,
-+                            SubscriptionManager.INVALID_SIM_SLOT_INDEX);
-+                    boolean provisioned = intent.getIntExtra(EXTRA_NEW_PROVISION_STATE,
-+                            NOT_PROVISIONED) == PROVISIONED;
-+                    if (DEBUG) Log.d(TAG, "Received ACTION_UICC_MANUAL_PROVISION_STATUS_CHANGED"
-+                            + " on slotId: " + slotId + ", sub provisioned: " + provisioned);
-+                    notifyListeners(slotId, provisioned);
-+                }
-+            }
-+        };
 +
 +        IntentFilter intentFilter = new IntentFilter();
 +        intentFilter.addAction(ACTION_UICC_MANUAL_PROVISION_STATUS_CHANGED);

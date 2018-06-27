@@ -645,7 +645,6 @@ kpick 214892 # Add detection for WSL
 # device/qcom/sepolicy
 kpick 211273 # qcom/sepol: Fix timeservice app context
 kpick 212643 # qcom/sepol: Allow mm-qcamerad to use binder even in vendor
-kpick 218694 # Revert "sepolicy: qcom: Allow nfc to read and execute files in /vendor on full treble"
 
 # device/samsung/klte-common
 #kpick 212648 # klte-common: Enable AOD
@@ -702,8 +701,6 @@ kpick 217039 # Make berry overlays selection more generic
 kpick 217042 # Add support for black berry style
 kpick 217594 # Fingerprint: Speed up wake-and-unlock scenario
 kpick 217595 # display: Don't animate screen brightness when turning the screen on
-kpick 217952 # SystemUI: Resolve status bar VPN icon tints
-kpick 217953 # SystemUI: Resolve status bar battery percentage tints
 kpick 218166 # Add an option to change the device hostname (1/2).
 kpick 218317 # SystemUI: Remove duplicate permission
 kpick 218359 # Add tip to compile Heimdall from source.
@@ -714,6 +711,7 @@ kpick 218437 # SystemUI: Add activity alias for LockscreenFragment
 
 # frameworks/native
 kpick 213549 # SurfaceFlinger: Support get/set ActiveConfigs
+kpick 218714 # native: drop hwui property on O-MR1
 
 # frameworks/opt/chips
 
@@ -771,6 +769,7 @@ kpick 213574 # charter: Add some new USB rules
 kpick 213836 # charter: add vendor patch level requirement 
 kpick 215665 # Add hardware codecs section and exempt some tegra chipsets
 #kpick 216518 # Treble exemptions
+kpick 218728 # charter: Add recovery requirement
 
 # lineage/jenkins
 
@@ -790,8 +789,6 @@ kpick 216915 # lineage-sdk: Introduce TelephonyExtUtils
 kpick 216978 # sdk: add torch accent
 kpick 217041 # sdk: add black berry style support
 kpick 217419 # Add vendor security patch level to device info
-kpick 217952 # SystemUI: Resolve status bar VPN icon tints
-kpick 217953 # SystemUI: Resolve status bar battery percentage tints
 #kpick 218679 # lineage-sdk: Use ILight.getSupportedTypes for lights capabilities
 
 # packages/apps/Bluetooth
@@ -869,6 +866,8 @@ kpick 218131 # settings: Add platform to "Model & Hardware" dialog
 kpick 218165 # Add an option to change the device hostname (1/2).
 kpick 218438 # Settings: Add lockscreen shortcuts customization to lockscreen settings
 kpick 218639 # SimSettings: Fix preferred calls sim not being disabled
+kpick 218775 # Settings: Cleanup SimSettings additions
+kpick 218776 # Settings: Disable manual sim provisioning by default
 
 # packages/apps/Snap
 kpick 206595 # Use transparent navigation bar
@@ -894,6 +893,7 @@ kpick 218398 # MimeUtility: ensure streams are always closed
 kpick 218399 # Fix cut off notification sounds.
 kpick 218400 # Pass selected folder to message search.
 kpick 218401 # Properly close body InputStreams.
+kpick 218797 # Make navigation drawer extend over status bar.
 
 # packages/overlays/Lineage
 kpick 215846 # dark: Add Theme.DeviceDefault.Settings.Dialog.NoActionBar style
@@ -912,14 +912,12 @@ kpick 209045 # Telephony: Fallback gracefully for emergency calls if suitable ap
 # system/core
 kpick 206029 # init: Add command to disable verity
 kpick 213876 # healthd: charger: Add tricolor led to indicate battery capacity
-kpick 214001 # camera: Add L-compatible camera feature enums
 kpick 215626 # Add vendor hook to handle_control_message
 kpick 217313 # add odm partition to ld.config.legacy
 kpick 217314 # Allow firmware loading from ODM partition
 
 # system/extras
 kpick 211210 # ext4: Add /data/stache/ to encryption exclusion list
-kpick 217086 # ext4_utils: Fix FS creation for filesystems with exactly 32768 blocks.
 
 # system/extras/su
 kpick 218510 # su.c: fix property check due to lineage rebranding
@@ -946,7 +944,6 @@ kpick 218416 # vold: utils: Introduce ForkCallp
 # vendor/lineage
 kpick 206154 # Include build manifest on target
 #kpick 210664 # extract_utils: Support multidex
-kpick 213815 # Place ADB auth property override to system
 kpick 215341 # backuptool: Revert "Temporarily render version check permissive"
 kpick 214400 # backuptool: Resolve incompatible version grep syntax
 kpick 216977 # lineage: build torch accent
@@ -968,13 +965,12 @@ kpick 218565 # extract_utils: extract(): rename ARGS variable to SPEC_ARGS
 kpick 218566 # extract_utils: extract(): rename DEST variable to VENDOR_REPO_FILE
 kpick 217090 # extract_utils: cleanup in extract() function
 kpick 218568 # extract_utils: make get_file() able to search paths with and w/o /system prefix
+kpick 218717 # verity_tool: Implement status getter
+kpick 218801 # libbfqio: Open bfqio once
 
 # vendor/nxp/opensource/packages/apps/Nfc
-kpick 218695 # Revert "Look for libnqp61-jcop-kit.so in the vendor"
 
 # vendor/nxp/opensource/external/libnfc-nci
-kpick 218693 # Revert "Fix description path for libnqp61-jcop-kit and move to vendor"
-kpick 218704 # Build nfc_nci.nqx.default with BOARD_VNDK_VERSION
 
 # vendor/qcom/opensource/cryptfs_hw
 
