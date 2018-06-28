@@ -764,6 +764,7 @@ kpick 218360 # thermal: use log/log.h header
 # hardware/qcom/wlan-caf
 
 # hardware/samsung
+kpick 218823 # audio: Add flag to opt in/out amplifier support
 
 # lineage/charter
 kpick 213574 # charter: Add some new USB rules
@@ -771,6 +772,7 @@ kpick 213836 # charter: add vendor patch level requirement
 kpick 215665 # Add hardware codecs section and exempt some tegra chipsets
 #kpick 216518 # Treble exemptions
 kpick 218728 # charter: Add recovery requirement
+kpick 218835 # verity: change wording, as this is required for a/b builds
 
 # lineage/jenkins
 
@@ -872,6 +874,7 @@ kpick 218776 # Settings: Disable manual sim provisioning by default
 
 # packages/apps/Snap
 kpick 206595 # Use transparent navigation bar
+kpick 218826 # CameraSettings:Do not crash if zoom ratios are not exposed.
 
 # packages/apps/Trebuchet
 kpick 214336 # [WIP] Trebuchet: initial protected apps implementation
@@ -969,6 +972,7 @@ kpick 218568 # extract_utils: make get_file() able to search paths with and w/o 
 kpick 218717 # verity_tool: Implement status getter
 kpick 218801 # libbfqio: Open bfqio once
 kpick 218817 # kernel: Do not attempt to build modules if there aren't
+kpick 218832 # lineage: Add prebuilt patchelf binaries and patch_blob function
 
 # vendor/nxp/opensource/packages/apps/Nfc
 
