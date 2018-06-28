@@ -1,31 +1,30 @@
-From 180af0b360f1874882a11b226c07815107e3f738 Mon Sep 17 00:00:00 2001
+From a334d0333213f71de26f2e2cca0ef5b2a2fc4699 Mon Sep 17 00:00:00 2001
 From: Jorge Ruesga <jorge@ruesga.com>
 Date: Sat, 4 Apr 2015 20:42:30 +0200
-Subject: [PATCH 03/16] email: support per-folder notifications
+Subject: [PATCH 05/17] email: support per-folder notifications
 
 This change enables support to configure per-folder notifications options.
 
 Change-Id: I6107340da3438ea223506bb22ff898cca179c1f6
 Signed-off-by: Jorge Ruesga <jorge@ruesga.com>
 ---
- res/layout/preference_mailbox_item.xml        |  58 ++
+ res/layout/preference_mailbox_item.xml        |  61 +++
  res/values/cm_dimens.xml                      |  20 +
- res/values/cm_strings.xml                     |  25 +
+ res/values/cm_strings.xml                     |   8 +
  res/xml/mailbox_notifications_preferences.xml |  36 ++
- .../setup/AccountSettingsFragment.java        | 114 ++--
- .../email/activity/setup/MailboxSettings.java | 519 +++++++++++++++++-
- 6 files changed, 717 insertions(+), 55 deletions(-)
+ .../setup/AccountSettingsFragment.java        | 113 ++--
+ .../email/activity/setup/MailboxSettings.java | 493 ++++++++++++++++--
+ 6 files changed, 661 insertions(+), 70 deletions(-)
  create mode 100644 res/layout/preference_mailbox_item.xml
  create mode 100644 res/values/cm_dimens.xml
- create mode 100644 res/values/cm_strings.xml
  create mode 100644 res/xml/mailbox_notifications_preferences.xml
 
 diff --git a/res/layout/preference_mailbox_item.xml b/res/layout/preference_mailbox_item.xml
 new file mode 100644
-index 000000000..07d3ba83f
+index 000000000..a624d491a
 --- /dev/null
 +++ b/res/layout/preference_mailbox_item.xml
-@@ -0,0 +1,58 @@
+@@ -0,0 +1,61 @@
 +<?xml version="1.0" encoding="utf-8"?>
 +<!-- Copyright (C) 2015 The CyanogenMod Project
 +
@@ -64,24 +63,27 @@ index 000000000..07d3ba83f
 +        android:layout_marginEnd="8dip"
 +        android:layout_gravity="center" />
 +
-+    <RelativeLayout
++    <TextView android:id="@+android:id/title"
 +        android:layout_width="wrap_content"
 +        android:layout_height="wrap_content"
++        android:layout_weight="1"
 +        android:layout_marginStart="0dip"
 +        android:layout_marginEnd="6dip"
 +        android:layout_marginTop="6dip"
 +        android:layout_marginBottom="6dip"
-+        android:layout_weight="1">
++        android:singleLine="true"
++        android:textAppearance="?android:attr/textAppearanceListItem"
++        android:ellipsize="marquee"
++        android:fadingEdge="horizontal" />
 +
-+        <TextView android:id="@+android:id/title"
-+            android:layout_width="wrap_content"
-+            android:layout_height="wrap_content"
-+            android:singleLine="true"
-+            android:textAppearance="?android:attr/textAppearanceListItem"
-+            android:ellipsize="marquee"
-+            android:fadingEdge="horizontal" />
-+
-+    </RelativeLayout>
++    <ImageView
++        android:id="@+id/checkmark"
++        android:layout_width="wrap_content"
++        android:layout_height="wrap_content"
++        android:layout_marginStart="0dip"
++        android:layout_marginEnd="8dip"
++        android:layout_gravity="center_vertical"
++        android:src="@drawable/ic_check_24dp" />
 +
 +</LinearLayout>
 diff --git a/res/values/cm_dimens.xml b/res/values/cm_dimens.xml
@@ -111,28 +113,14 @@ index 000000000..6748f80d3
 +    <dimen name="child_folder_indent">8dp</dimen>
 +</resources>
 diff --git a/res/values/cm_strings.xml b/res/values/cm_strings.xml
-new file mode 100644
-index 000000000..da8218bbc
---- /dev/null
+index 0e3594f64..c0534bfb1 100644
+--- a/res/values/cm_strings.xml
 +++ b/res/values/cm_strings.xml
-@@ -0,0 +1,25 @@
-+<?xml version="1.0" encoding="utf-8"?>
-+<!-- Copyright (C) 2015 The CaynogenMod Project
+@@ -21,4 +21,12 @@
+         account <xliff:g id="account">%s</xliff:g>. This operation cannot be undone.\n\nContinue?</string>
+     <string name="deleting_account_msg">Deleting account\u2026</string>
+     <string name="delete_account_failed">Couldn\'t delete the account</string>
 +
-+     Licensed under the Apache License, Version 2.0 (the "License");
-+     you may not use this file except in compliance with the License.
-+     You may obtain a copy of the License at
-+
-+          http://www.apache.org/licenses/LICENSE-2.0
-+
-+     Unless required by applicable law or agreed to in writing, software
-+     distributed under the License is distributed on an "AS IS" BASIS,
-+     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-+     See the License for the specific language governing permissions and
-+     limitations under the License.
-+-->
-+
-+<resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
 +    <!-- Mailbox notification settings activity title [CHAR LIMIT=none] -->
 +    <string name="mailbox_notify_settings_activity_title">Notification options</string>
 +    <!-- Mailbox settings activity title, with the target folder name [CHAR LIMIT=none] -->
@@ -140,7 +128,7 @@ index 000000000..da8218bbc
 +
 +    <!-- Name for preference entry which leads to the per-folder notification settings activity -->
 +    <string name="folder_notify_settings_pref_title">Folder notification settings</string>
-+</resources>
+ </resources>
 diff --git a/res/xml/mailbox_notifications_preferences.xml b/res/xml/mailbox_notifications_preferences.xml
 new file mode 100644
 index 000000000..76841420c
@@ -184,10 +172,10 @@ index 000000000..76841420c
 +
 +</PreferenceScreen>
 diff --git a/src/com/android/email/activity/setup/AccountSettingsFragment.java b/src/com/android/email/activity/setup/AccountSettingsFragment.java
-index 30c3d9cb3..6032dd1e3 100644
+index c22b8b5b3..7a3da5023 100644
 --- a/src/com/android/email/activity/setup/AccountSettingsFragment.java
 +++ b/src/com/android/email/activity/setup/AccountSettingsFragment.java
-@@ -90,12 +90,14 @@ public class AccountSettingsFragment extends MailAccountPrefsFragment
+@@ -103,12 +103,14 @@ public class AccountSettingsFragment extends MailAccountPrefsFragment
      private static final String PREFERENCE_QUICK_RESPONSES = "account_quick_responses";
      private static final String PREFERENCE_FREQUENCY = "account_check_frequency";
      private static final String PREFERENCE_SYNC_WINDOW = "account_sync_window";
@@ -203,28 +191,28 @@ index 30c3d9cb3..6032dd1e3 100644
      private static final String PREFERENCE_CATEGORY_DATA_USAGE = "data_usage";
      private static final String PREFERENCE_CATEGORY_NOTIFICATIONS = "account_notifications";
      private static final String PREFERENCE_CATEGORY_SERVER = "account_servers";
-@@ -126,6 +128,7 @@ public class AccountSettingsFragment extends MailAccountPrefsFragment
+@@ -142,6 +144,7 @@ public class AccountSettingsFragment extends MailAccountPrefsFragment
      private Preference mSyncSettings;
      private CheckBoxPreference mInboxVibrate;
      private Preference mInboxRingtone;
 +    private Preference mPerFolderNotification;
  
      private Context mContext;
- 
-@@ -277,9 +280,10 @@ public class AccountSettingsFragment extends MailAccountPrefsFragment
+     private Handler mHandler;
+@@ -307,9 +310,9 @@ public class AccountSettingsFragment extends MailAccountPrefsFragment
      public boolean onPreferenceTreeClick(PreferenceScreen preferenceScreen,
              @NonNull Preference preference) {
          final String key = preference.getKey();
 -        if (key.equals(PREFERENCE_SYNC_SETTINGS)) {
+-            startActivity(MailboxSettings.getIntent(getActivity(), mUiAccount.fullFolderListUri,
+-                    mInboxFolder));
 +        if (key.equals(PREFERENCE_SYNC_SETTINGS) ||
 +                key.equals(PREFERENCE_PER_FOLDER_NOTIFICATIONS)) {
-             startActivity(MailboxSettings.getIntent(getActivity(), mUiAccount.fullFolderListUri,
--                    mInboxFolder));
-+                    mInboxFolder, key));
++            startActivity(MailboxSettings.getIntent(getActivity(), mUiAccount, mInboxFolder, key));
              return true;
          } else {
              return super.onPreferenceTreeClick(preferenceScreen, preference);
-@@ -787,43 +791,77 @@ public class AccountSettingsFragment extends MailAccountPrefsFragment
+@@ -847,43 +850,77 @@ public class AccountSettingsFragment extends MailAccountPrefsFragment
                  (PreferenceCategory) findPreference(PREFERENCE_CATEGORY_NOTIFICATIONS);
  
          if (mInboxFolderPreferences != null) {
@@ -244,8 +232,6 @@ index 30c3d9cb3..6032dd1e3 100644
 -                @Override
 -                public boolean onPreferenceClick(final Preference preference) {
 -                    showRingtonePicker();
--
--                    return true;
 +            if (mServiceInfo.offerLookback) {
 +                // This account supports per-folder notifications
 +
@@ -254,6 +240,15 @@ index 30c3d9cb3..6032dd1e3 100644
 +                    mPerFolderNotification = new Preference(mContext);
 +                    mPerFolderNotification.setKey(PREFERENCE_PER_FOLDER_NOTIFICATIONS);
 +                    notificationsCategory.addPreference(mPerFolderNotification);
++                }
++                mPerFolderNotification.setTitle(R.string.folder_notify_settings_pref_title);
+ 
+-                    return true;
++                // Remove Inbox per-account preferences
++                final CheckBoxPreference inboxNotify = (CheckBoxPreference) findPreference(
++                        FolderPreferences.PreferenceKeys.NOTIFICATIONS_ENABLED);
++                if (inboxNotify != null) {
++                    notificationsCategory.removePreference(inboxNotify);
                  }
 -            });
 -
@@ -271,14 +266,6 @@ index 30c3d9cb3..6032dd1e3 100644
 -                    mInboxVibrate.setOnPreferenceChangeListener(this);
 -                } else {
 -                    // No vibrator present. Remove the preference altogether.
-+                mPerFolderNotification.setTitle(R.string.folder_notify_settings_pref_title);
-+
-+                // Remove Inbox per-account preferences
-+                final CheckBoxPreference inboxNotify = (CheckBoxPreference) findPreference(
-+                        FolderPreferences.PreferenceKeys.NOTIFICATIONS_ENABLED);
-+                if (inboxNotify != null) {
-+                    notificationsCategory.removePreference(inboxNotify);
-+                }
 +                mInboxRingtone = findPreference(
 +                        FolderPreferences.PreferenceKeys.NOTIFICATION_RINGTONE);
 +                if (mInboxRingtone != null) {
@@ -338,7 +325,7 @@ index 30c3d9cb3..6032dd1e3 100644
              }
          } else {
 diff --git a/src/com/android/email/activity/setup/MailboxSettings.java b/src/com/android/email/activity/setup/MailboxSettings.java
-index 42ae407dd..6ac77816b 100644
+index 4d7ea3c1d..5cea0e6fa 100644
 --- a/src/com/android/email/activity/setup/MailboxSettings.java
 +++ b/src/com/android/email/activity/setup/MailboxSettings.java
 @@ -17,6 +17,7 @@
@@ -379,7 +366,7 @@ index 42ae407dd..6ac77816b 100644
  
  import com.android.email.R;
  import com.android.emailcommon.Logging;
-@@ -47,14 +60,18 @@ import com.android.emailcommon.provider.Mailbox;
+@@ -47,6 +60,7 @@ import com.android.emailcommon.provider.Mailbox;
  import com.android.emailcommon.provider.Policy;
  import com.android.emailcommon.utility.EmailAsyncTask;
  import com.android.emailcommon.utility.Utility;
@@ -387,6 +374,7 @@ index 42ae407dd..6ac77816b 100644
  import com.android.mail.providers.Folder;
  import com.android.mail.providers.UIProvider;
  import com.android.mail.ui.MailAsyncTaskLoader;
+@@ -54,8 +68,11 @@ import com.android.mail.ui.settings.BasePreferenceActivity;
  import com.android.mail.utils.LogUtils;
  import com.google.common.base.Preconditions;
  
@@ -398,19 +386,21 @@ index 42ae407dd..6ac77816b 100644
  import java.util.HashMap;
  import java.util.List;
  import java.util.Map;
-@@ -70,21 +87,30 @@ import java.util.Map;
+@@ -71,21 +88,34 @@ import java.util.Map;
   * #onDestroy()}, unless it's called for configuration changes.
   */
- public class MailboxSettings extends PreferenceActivity {
+ public class MailboxSettings extends BasePreferenceActivity {
 +    public static final String PREFERENCE_SYNC_SETTINGS = "account_sync_settings";
 +    public static final String PREFERENCE_PER_FOLDER_NOTIFICATIONS =
 +            "account_per_folder_notifications";
 +
      private static final String EXTRA_FOLDERS_URI = "FOLDERS_URI";
++    private static final String EXTRA_ACCOUNT_EMAIL = "ACCOUNT_EMAIL";
      private static final String EXTRA_INBOX_ID = "INBOX_ID";
 +    private static final String EXTRA_TYPE = "TYPE";
 +
 +    private static final String EXTRA_HEADER_FOLDER_INDENT = "folder-indent";
++    private static final String EXTRA_HEADER_IS_CHECKED = "is-checked";
  
      private static final int FOLDERS_LOADER_ID = 0;
      private Uri mFoldersUri;
@@ -423,15 +413,18 @@ index 42ae407dd..6ac77816b 100644
       * Starts the activity
       */
 -    public static Intent getIntent(Context context, Uri foldersUri, Folder inbox) {
-+    public static Intent getIntent(Context context, Uri foldersUri, Folder inbox, String type) {
++    public static Intent getIntent(Context context, com.android.mail.providers.Account uiAccount,
++            Folder inbox, String type) {
          final Intent i = new Intent(context, MailboxSettings.class);
-         i.putExtra(EXTRA_FOLDERS_URI, foldersUri);
+-        i.putExtra(EXTRA_FOLDERS_URI, foldersUri);
++        i.putExtra(EXTRA_FOLDERS_URI, uiAccount.fullFolderListUri);
++        i.putExtra(EXTRA_ACCOUNT_EMAIL, uiAccount.getEmailAddress());
          i.putExtra(EXTRA_INBOX_ID, inbox.id);
 +        i.putExtra(EXTRA_TYPE, type);
          return i;
      }
  
-@@ -93,6 +119,7 @@ public class MailboxSettings extends PreferenceActivity {
+@@ -94,40 +124,68 @@ public class MailboxSettings extends BasePreferenceActivity {
          // This needs to happen before super.onCreate() since that calls onBuildHeaders()
          mInboxId = getIntent().getIntExtra(EXTRA_INBOX_ID, -1);
          mFoldersUri = getIntent().getParcelableExtra(EXTRA_FOLDERS_URI);
@@ -439,19 +432,30 @@ index 42ae407dd..6ac77816b 100644
  
          if (mFoldersUri != null) {
              getLoaderManager().initLoader(FOLDERS_LOADER_ID, null,
-@@ -108,6 +135,11 @@ public class MailboxSettings extends PreferenceActivity {
-             // Hide the app icon.
-             actionBar.setIcon(android.R.color.transparent);
-             actionBar.setDisplayUseLogoEnabled(false);
-+            if (mType != null && mType.equals(PREFERENCE_SYNC_SETTINGS)) {
-+                actionBar.setTitle(getString(R.string.mailbox_settings_activity_title));
-+            } else if (mType != null && mType.equals(PREFERENCE_PER_FOLDER_NOTIFICATIONS)) {
-+                actionBar.setTitle(getString(R.string.mailbox_notify_settings_activity_title));
-+            }
+                     new MailboxSettingsFolderLoaderCallbacks());
          }
+ 
++        if (mType != null && mType.equals(PREFERENCE_SYNC_SETTINGS)) {
++            setTitle(getString(R.string.mailbox_settings_activity_title));
++        } else if (mType != null && mType.equals(PREFERENCE_PER_FOLDER_NOTIFICATIONS)) {
++            setTitle(getString(R.string.mailbox_notify_settings_activity_title));
++        }
++
+         super.onCreate(savedInstanceState);
      }
  
-@@ -117,25 +149,28 @@ public class MailboxSettings extends PreferenceActivity {
++    @Override
++    public void showBreadCrumbs(CharSequence title, CharSequence shortTitle) {
++        ActionBar actionBar = getActionBar();
++        if (actionBar != null) {
++            actionBar.setTitle(title);
++            actionBar.setSubtitle(shortTitle);
++        }
++    }
++
+     @Override
+     public void onBuildHeaders(List<Header> target) {
+         if (mFolders.isEmpty()) {
              final Header dummy = new Header();
              dummy.titleRes = R.string.mailbox_name_display_inbox;
              dummy.fragment = MailboxSettingsFragment.class.getName();
@@ -460,6 +464,7 @@ index 42ae407dd..6ac77816b 100644
              target.add(dummy);
          } else {
 -            for (final Folder f : mFolders) {
++            final String accountEmail = getIntent().getStringExtra(EXTRA_ACCOUNT_EMAIL);
 +            for (final Pair<Folder, String> f : mFolders) {
                  final Header h = new Header();
 -                if (!TextUtils.isEmpty(f.hierarchicalDesc)) {
@@ -480,10 +485,18 @@ index 42ae407dd..6ac77816b 100644
 +                if (mType != null && mType.equals(PREFERENCE_SYNC_SETTINGS)) {
 +                    h.fragment = MailboxSettingsFragment.class.getName();
 +                    h.fragmentArguments = MailboxSettingsFragment.getArguments(f.first.id, mType);
++                    h.breadCrumbTitle = f.first.name;
++                    h.breadCrumbShortTitleRes = R.string.mailbox_settings_activity_title;
 +                } else if (mType != null && mType.equals(PREFERENCE_PER_FOLDER_NOTIFICATIONS)) {
 +                    h.fragment = MailboxNotificationsFragment.class.getName();
 +                    h.fragmentArguments = MailboxNotificationsFragment.getArguments(
 +                            f.first, mType);
++                    h.breadCrumbTitle = f.first.name;
++                    h.breadCrumbShortTitleRes = R.string.mailbox_notify_settings_activity_title;
++
++                    final FolderPreferences prefs = new FolderPreferences(this,
++                            accountEmail, f.first, f.first.isInbox());
++                    h.extras.putBoolean(EXTRA_HEADER_IS_CHECKED, prefs.areNotificationsEnabled());
                  }
 +                target.add(h);
              }
@@ -493,7 +506,7 @@ index 42ae407dd..6ac77816b 100644
      }
  
      @Override
-@@ -153,6 +188,17 @@ public class MailboxSettings extends PreferenceActivity {
+@@ -145,6 +203,17 @@ public class MailboxSettings extends BasePreferenceActivity {
          return super.onOptionsItemSelected(item);
      }
  
@@ -511,7 +524,7 @@ index 42ae407dd..6ac77816b 100644
      /**
       * Setup the entries and entry values for the sync lookback preference
       * @param context the caller's context
-@@ -190,6 +236,49 @@ public class MailboxSettings extends PreferenceActivity {
+@@ -182,6 +251,53 @@ public class MailboxSettings extends BasePreferenceActivity {
          pref.setSummary(pref.getEntry());
      }
  
@@ -520,6 +533,7 @@ index 42ae407dd..6ac77816b 100644
 +            View spacer;
 +            ImageView icon;
 +            TextView title;
++            View checkmark;
 +        }
 +
 +        private LayoutInflater mInflater;
@@ -542,6 +556,7 @@ index 42ae407dd..6ac77816b 100644
 +                holder.spacer = view.findViewById(R.id.spacer);
 +                holder.icon = (ImageView) view.findViewById(R.id.icon);
 +                holder.title = (TextView) view.findViewById(android.R.id.title);
++                holder.checkmark = view.findViewById(R.id.checkmark);
 +                view.setTag(holder);
 +            } else {
 +                view = convertView;
@@ -551,9 +566,11 @@ index 42ae407dd..6ac77816b 100644
 +            // All view fields must be updated every time, because the view may be recycled
 +            Header header = getItem(position);
 +            int headerIndent = header.extras.getInt(EXTRA_HEADER_FOLDER_INDENT, 0);
++            boolean isChecked = header.extras.getBoolean(EXTRA_HEADER_IS_CHECKED, false);
 +            holder.spacer.getLayoutParams().width = mFolderIndent * headerIndent;
 +            holder.icon.setImageResource(header.iconRes);
 +            holder.title.setText(header.getTitle(getContext().getResources()));
++            holder.checkmark.setVisibility(isChecked ? View.VISIBLE : View.INVISIBLE);
 +            return view;
 +        }
 +    }
@@ -561,7 +578,7 @@ index 42ae407dd..6ac77816b 100644
      private class MailboxSettingsFolderLoaderCallbacks
              implements LoaderManager.LoaderCallbacks<Cursor> {
  
-@@ -206,14 +295,69 @@ public class MailboxSettings extends PreferenceActivity {
+@@ -198,14 +314,69 @@ public class MailboxSettings extends BasePreferenceActivity {
              }
              mFolders.clear();
  
@@ -632,7 +649,7 @@ index 42ae407dd..6ac77816b 100644
              invalidateHeaders();
          }
  
-@@ -221,6 +365,346 @@ public class MailboxSettings extends PreferenceActivity {
+@@ -213,6 +384,277 @@ public class MailboxSettings extends BasePreferenceActivity {
          public void onLoaderReset(Loader<Cursor> cursorLoader) {
              mFolders.clear();
          }
@@ -668,9 +685,6 @@ index 42ae407dd..6ac77816b 100644
 +
 +        private static final String BUNDLE_ACCOUNT = "MailboxNotifySettings.account";
 +        private static final String BUNDLE_MAILBOX = "MailboxNotifySettings.mailbox";
-+        private static final String BUNDLE_NOTIF_ENABLED = "MailboxNotifySettings.enabled";
-+        private static final String BUNDLE_NOTIF_RINGTONE = "MailboxSettings.ringtone";
-+        private static final String BUNDLE_NOTIF_VIBRATE = "MailboxSettings.vibrate";
 +
 +        private static final String PREF_NOTIF_ENABLED_KEY = "notifications-enabled";
 +        private static final String PREF_NOTIF_RINGTONE_KEY = "notification-ringtone";
@@ -686,10 +700,6 @@ index 42ae407dd..6ac77816b 100644
 +        private CheckBoxPreference mPrefNotifEnabled;
 +        private Preference mPrefNotifRingtone;
 +        private CheckBoxPreference mPrefNotifVibrate;
-+
-+        private boolean mOldMailboxEnabled;
-+        private String mOldMailboxRingtone;
-+        private boolean mOldMailboxVibrate;
 +
 +        private Uri mRingtoneUri;
 +        private Ringtone mRingtone;
@@ -719,6 +729,15 @@ index 42ae407dd..6ac77816b 100644
 +            addPreferencesFromResource(R.xml.mailbox_notifications_preferences);
 +
 +            mPrefNotifEnabled = (CheckBoxPreference) findPreference(PREF_NOTIF_ENABLED_KEY);
++            mPrefNotifEnabled.setOnPreferenceChangeListener(new OnPreferenceChangeListener() {
++                @Override
++                public boolean onPreferenceChange(Preference preference, Object newValue) {
++                    mPreferences.setNotificationsEnabled((Boolean) newValue);
++                    // update checkmark in header list
++                    ((PreferenceActivity) getActivity()).invalidateHeaders();
++                    return true;
++                }
++            });
 +            mPrefNotifRingtone = findPreference(PREF_NOTIF_RINGTONE_KEY);
 +            mPrefNotifRingtone.setOnPreferenceClickListener(new OnPreferenceClickListener() {
 +                @Override
@@ -733,6 +752,14 @@ index 42ae407dd..6ac77816b 100644
 +                mPrefNotifVibrate.setChecked(false);
 +                getPreferenceScreen().removePreference(mPrefNotifVibrate);
 +                mPrefNotifVibrate = null;
++            } else {
++                mPrefNotifVibrate.setOnPreferenceChangeListener(new OnPreferenceChangeListener() {
++                    @Override
++                    public boolean onPreferenceChange(Preference preference, Object newValue) {
++                        mPreferences.setNotificationVibrateEnabled((Boolean) newValue);
++                        return true;
++                    }
++                });
 +            }
 +
 +            if (savedInstanceState != null) {
@@ -741,13 +768,11 @@ index 42ae407dd..6ac77816b 100644
 +                mPreferences = new FolderPreferences(getActivity(), mAccount.mEmailAddress,
 +                        mailboxPersistenId, mailboxIsInbox);
 +
-+                mPrefNotifEnabled.setChecked(savedInstanceState.getBoolean(BUNDLE_NOTIF_ENABLED));
-+                setRingtone(savedInstanceState.getString(BUNDLE_NOTIF_RINGTONE));
++                mPrefNotifEnabled.setChecked(mPreferences.areNotificationsEnabled());
++                setRingtone(mPreferences.getNotificationRingtoneUri());
 +                if (mPrefNotifVibrate != null) {
-+                    mPrefNotifVibrate.setChecked(
-+                            savedInstanceState.getBoolean(BUNDLE_NOTIF_VIBRATE));
++                    mPrefNotifVibrate.setChecked(mPreferences.isNotificationVibrateEnabled());
 +                }
-+                onDataLoaded();
 +            } else {
 +                // Make them disabled until we load data
 +                enablePreferences(false);
@@ -781,6 +806,7 @@ index 42ae407dd..6ac77816b 100644
 +                    if (uri != null) {
 +                        ringtone = uri.toString();
 +                    }
++                    mPreferences.setNotificationRingtoneUri(ringtone);
 +                    setRingtone(ringtone);
 +                }
 +            }
@@ -799,31 +825,6 @@ index 42ae407dd..6ac77816b 100644
 +            super.onSaveInstanceState(outState);
 +            outState.putParcelable(BUNDLE_ACCOUNT, mAccount);
 +            outState.putParcelable(BUNDLE_MAILBOX, mMailbox);
-+            outState.putBoolean(BUNDLE_NOTIF_ENABLED, mPrefNotifEnabled.isChecked());
-+            String ringtoneUri = "";
-+            if (mRingtoneUri != null) {
-+                ringtoneUri = mRingtoneUri.toString();
-+            }
-+            outState.putString(BUNDLE_NOTIF_RINGTONE, ringtoneUri);
-+            outState.putBoolean(PREF_NOTIF_VIBRATE_KEY, mPrefNotifVibrate != null
-+                    ? mPrefNotifVibrate.isChecked() : false);
-+        }
-+
-+        /**
-+         * We save all the settings in onDestroy, *unless it's for configuration changes*.
-+         */
-+        @Override
-+        public void onDestroy() {
-+            super.onDestroy();
-+            if (!getActivity().isChangingConfigurations()) {
-+                savePreferences();
-+            }
-+        }
-+
-+        private void loadOldPreferencesValues() {
-+            mOldMailboxEnabled = mPreferences.areNotificationsEnabled();
-+            mOldMailboxRingtone = mPreferences.getNotificationRingtoneUri();
-+            mOldMailboxVibrate = mPreferences.isNotificationVibrateEnabled();
 +        }
 +
 +        /**
@@ -843,57 +844,6 @@ index 42ae407dd..6ac77816b 100644
 +            intent.putExtra(RingtoneManager.EXTRA_RINGTONE_TYPE,
 +                    RingtoneManager.TYPE_NOTIFICATION);
 +            startActivityForResult(intent, RINGTONE_REQUEST_CODE);
-+        }
-+
-+        /**
-+         * Called when {@link #mMailbox} is loaded (either by the loader or from the saved state).
-+         */
-+        private void onDataLoaded() {
-+            Preconditions.checkNotNull(mAccount);
-+            Preconditions.checkNotNull(mMailbox);
-+
-+            // Update the title with the mailbox name.
-+            final ActionBar actionBar = getActivity().getActionBar();
-+            final String mailboxName = mMailbox.mDisplayName;
-+            if (actionBar != null) {
-+                actionBar.setTitle(mailboxName);
-+                actionBar.setSubtitle(getString(R.string.mailbox_notify_settings_activity_title));
-+            } else {
-+                getActivity().setTitle(
-+                        getString(R.string.mailbox_notify_settings_activity_title_with_mailbox,
-+                                mailboxName));
-+            }
-+        }
-+
-+        /**
-+         * Save changes to the preferences folder backend.
-+         *
-+         * Note it's called from {@link #onDestroy()}
-+         */
-+        private void savePreferences() {
-+            if (mPreferences == null) {
-+                return;
-+            }
-+
-+            boolean mailboxEnabled = mPrefNotifEnabled.isChecked();
-+            String mailboxRingtone = "";
-+            if (mRingtoneUri != null) {
-+                mailboxRingtone = mRingtoneUri.toString();
-+            }
-+            boolean mailboxVibrate = mPrefNotifVibrate != null
-+                    ? mPrefNotifVibrate.isChecked() : false;
-+            if (mailboxEnabled != mOldMailboxEnabled) {
-+                mPreferences.setNotificationsEnabled(mailboxEnabled);
-+                mOldMailboxEnabled = mailboxEnabled;
-+            }
-+            if (!mailboxRingtone.equals(mOldMailboxRingtone)) {
-+                mPreferences.setNotificationRingtoneUri(mailboxRingtone);
-+                mOldMailboxRingtone = mailboxRingtone;
-+            }
-+            if (mailboxVibrate != mOldMailboxVibrate) {
-+                mPreferences.setNotificationVibrateEnabled(mailboxVibrate);
-+                mOldMailboxVibrate = mailboxVibrate;
-+            }
 +        }
 +
 +        private static class MailboxLoader extends MailAsyncTaskLoader<Map<String, Object>> {
@@ -960,14 +910,12 @@ index 42ae407dd..6ac77816b 100644
 +                mMailbox = mailbox;
 +                mPreferences = new FolderPreferences(getActivity(), mAccount.mEmailAddress,
 +                        mMailboxPersistentId, mMailboxIsInbox);
-+                loadOldPreferencesValues();
 +
 +                mPrefNotifEnabled.setChecked(mPreferences.areNotificationsEnabled());
 +                setRingtone(mPreferences.getNotificationRingtoneUri());
 +                if (mPrefNotifVibrate != null) {
 +                    mPrefNotifVibrate.setChecked(mPreferences.isNotificationVibrateEnabled());
 +                }
-+                onDataLoaded();
 +                if (mMailbox.mType != Mailbox.TYPE_DRAFTS) {
 +                    enablePreferences(true);
 +                }
@@ -979,7 +927,7 @@ index 42ae407dd..6ac77816b 100644
      }
  
      public static class MailboxSettingsFragment extends PreferenceFragment {
-@@ -241,9 +725,10 @@ public class MailboxSettings extends PreferenceActivity {
+@@ -233,9 +675,10 @@ public class MailboxSettings extends BasePreferenceActivity {
          private CheckBoxPreference mSyncEnabledPref;
          private ListPreference mSyncLookbackPref;
  
@@ -991,6 +939,27 @@ index 42ae407dd..6ac77816b 100644
              return b;
          }
  
+@@ -387,20 +830,6 @@ public class MailboxSettings extends BasePreferenceActivity {
+          * Called when {@link #mMailbox} is loaded (either by the loader or from the saved state).
+          */
+         private void onDataLoaded() {
+-            Preconditions.checkNotNull(mMailbox);
+-
+-            // Update the title with the mailbox name.
+-            final ActionBar actionBar = getActivity().getActionBar();
+-            final String mailboxName = mMailbox.mDisplayName;
+-            if (actionBar != null) {
+-                actionBar.setTitle(mailboxName);
+-                actionBar.setSubtitle(getString(R.string.mailbox_settings_activity_title));
+-            } else {
+-                getActivity().setTitle(
+-                        getString(R.string.mailbox_settings_activity_title_with_mailbox,
+-                                mailboxName));
+-            }
+-
+             MailboxSettings.setupLookbackPreferenceOptions(getActivity(), mSyncLookbackPref,
+                     mMaxLookback, true);
+         }
 -- 
 2.17.1
 

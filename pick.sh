@@ -707,7 +707,7 @@ kpick 218359 # Add tip to compile Heimdall from source.
 kpick 218430 # SystemUI: Require unlock to toggle airplane mode
 kpick 218431 # SystemUI: Require unlock to toggle location
 kpick 218437 # SystemUI: Add activity alias for LockscreenFragment
-#kpick 218668 # SystemUI: require auth for adb wireless
+kpick 218668 # SystemUI: require auth for adb wireless
 kpick 218819 # SystemUI: Fix Data Usage tile to match Settings
 
 # frameworks/native
@@ -805,6 +805,7 @@ kpick 218623 # Allow calling contacts via specific phone accounts.
 # packages/apps/Dialer
 kpick 211135 # Show proper call duration
 kpick 218624 # Allow per-call account selection.
+kpick 218847 # Re-add call statistics.
 
 # packages/apps/DeskClock
 kpick 213051 # Deskclock: set targetSdk to 27
@@ -813,7 +814,9 @@ kpick 213051 # Deskclock: set targetSdk to 27
 
 # packages/apps/Email
 kpick 218318 # Email: Remove duplicate permission
+kpick 218687 # Allow account deletion.
 kpick 218369 # email: support for auto-sync multiple IMAP folders
+kpick 218379 # email: Add an ActionBar to the mail app's PreferenceActivity
 kpick 218370 # email: support per-folder notifications
 kpick 218373 # email: fix eas autodiscover
 kpick 218374 # Implement IMAP push using IMAP IDLE.
@@ -821,12 +824,12 @@ kpick 218375 # Fix crash when attempting to view EML files.
 kpick 218376 # Allow download of compressed attachments.
 kpick 218377 # email: fix empty body update
 kpick 218378 # Improve notification coalescence algorithm.
-kpick 218379 # email: Add an ActionBar to the mail app's PreferenceActivity
 kpick 218380 # Email: Fix the ActivityNotFoundException when click "Update now"
+kpick 218381 # Email: Clean duplicated WRITE_CONTACTS permission
 kpick 218382 # email: return default folder name for subfolders
 kpick 218383 # email: junk icon
 kpick 218384 # Search in folder specified via URI parameter, if possible.
-kpick 218687 # Allow account deletion.
+kpick 218846 # Rewrite MailboxSettings loading logic.
 
 # packages/apps/Exchange
 kpick 209820 # Revert changes to make Exchange buildable.
@@ -919,6 +922,7 @@ kpick 213876 # healthd: charger: Add tricolor led to indicate battery capacity
 kpick 215626 # Add vendor hook to handle_control_message
 kpick 217313 # add odm partition to ld.config.legacy
 kpick 217314 # Allow firmware loading from ODM partition
+kpick 218837 # libsuspend: Add property support for timeout of autosuspend
 
 # system/extras
 kpick 211210 # ext4: Add /data/stache/ to encryption exclusion list
