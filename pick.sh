@@ -8,7 +8,7 @@ op_restore_snapshot=0
 op_pick_remote_only=0
 op_snap_project=""
 op_patches_dir=""
-op_mini_pick=0
+op_base_pick=0
 default_remote="github"
 script_file=$0
 conflict_resolved=0
@@ -380,16 +380,15 @@ function kpick()
 {
     topdir=$(gettop)
     conflict_resolved=0
+    op_force_pick=0
     logfile=/tmp/__repopick_tmp.log
     errfile=$(echo $logfile | sed -e "s/\.log$/\.err/")
 
     rm -f $errfile
     echo ""
     for op in $*; do
-        if [[ $op =~ ^[0-9]+$ ]]; then
-            changeNumber=$op
-            break
-        fi
+        [ -z "$changeNumber"] && [[ $op =~ ^[0-9]+$ ]] && changeNumber=$op
+        [ "$op" = "-f" ] && op_force_pick=1
     done
     if  [ "$changeNumber" = "" ]; then
          echo ">>> Picking $* ..."
@@ -400,7 +399,7 @@ function kpick()
     LANG=en_US repopick -c 50 $* >$logfile 2>$errfile
     rc=$?
     fix_repopick_output $logfile
-    cat $logfile | sed -e "/ERROR: git command failed/d"
+    cat $logfile | sed -e "/ERROR: git command failed/d" | sed "/Force-picking a closed change/d"
     local tries=0
     local breakout=0
     while [ $rc -ne 0 -a -f $errfile ];  do
@@ -508,7 +507,7 @@ function kpick()
              git fetch $url $ref >/dev/null 2>/dev/null && git cherry-pick FETCH_HEAD >/dev/null 2>/dev/null
              cd $topdir
         fi
-        if grep -q -E "Change status is MERGED." $logfile; then
+        if grep -q -E "Change status is MERGED.|nothing to commit" $logfile; then
            [ -f $script_file.tmp ] || cp $script_file $script_file.tmp
            eval  sed -e \"/[[:space:]]*kpick $changeNumber[[:space:]]*.*/d\" -i $script_file.tmp
         elif grep -q -E "Change status is ABANDONED." $logfile; then
@@ -530,7 +529,7 @@ for op in $*; do
          op_patch_local=1
     elif [ "$op" = "--reset" -o "$op" = "-r" ]; then
          op_reset_projects=1
-    elif [ "$op" = "--snap" -o "$op" = "-s" ]; then
+    elif [ "$op" = "--snap" -o "$op" = "-s" ] && [ ! -f $topdir/.pick_base ]; then
          op_project_snapshot=1
     elif [ "$op" = "--restore" -o "$op" = "--restore-snap" ]; then
          op_restore_snapshot=1
@@ -550,8 +549,8 @@ for op in $*; do
          op_snap_project=$op
     elif [ "$op" = "-nop" ]; then
           return 0
-    elif [ "$op" = "-mini" ]; then
-         op_mini_pick=1
+    elif [ "$op" = "-base" ]; then
+         op_base_pick=1
     else
          echo "kpick $op"
          kpick $op
@@ -581,6 +580,7 @@ fi
 ###############################################################
 # patch repopick first
 topdir=$(gettop)
+rm -rf $topdir/.pick_base
 
 rrCache restore # restore rr-cache
 
@@ -593,8 +593,12 @@ find $topdir/.mypatches/local/vendor/lineage/ -type f -name "*-\[ALWAYS\]-*.patc
 done
 
 ###################################
-#---------mini pick --------------#
-if [ $op_mini_pick -eq 1 ]; then
+#---------base pick --------------#
+if [ $op_base_pick -eq 1 ]; then
+   cd $topdir/.repo/manifests; git reset --hard $(git log -20 --all --decorate | grep commit | grep "m/lineage-" | cut -d' ' -f 2);
+   cd $topdir
+   repo sync 
+
    kpick 212920 # libc: Mark libstdc++ as vendor available
    kpick 209019 # toybox: Use ISO C/clang compatible __typeof__ in minof/maxof macros
 
@@ -602,13 +606,7 @@ if [ $op_mini_pick -eq 1 ]; then
    echo "Apply I hate the safty net..."
    cd $topdir/system/core;find  $topdir/.mypatches/local/system/core/ -name "*I-hate-the-safty-net*.patch" | xargs cat \
          | git am -3; cd $topdir
-   kpick 217039 # Make berry overlays selection more generic	
-   kpick 217042 # Add support for black berry style
-   kpick 217041 # sdk: add black berry style support
-   kpick 217044 # LineageParts: add black theme support
-   kpick 217046 # Add support for black berry style
-   kpick 217045 # vendor: build black berry theme
-    
+   touch $topdir/.pick_base
    exit 0
 fi
 #---------------------------------#
@@ -653,6 +651,7 @@ kpick 212643 # qcom/sepol: Allow mm-qcamerad to use binder even in vendor
 
 # device/samsung/msm8974-common
 kpick 210313 # msm8974-common: Binderize them all
+kpick 218869 # msm8974-common: libril: Use libril way of freeing strings for nitz hack
 
 # kernel/samsung/msm8974
 kpick 210665 # wacom: Follow-up from gestures patch
@@ -681,9 +680,14 @@ kpick 209910 # Camera2Client: Add support for enabling QTI Video/Sensor HDR feat
 kpick 209911 # Camera2Client: Add support for QTI specific AutoHDR and Histogram feature
 kpick 209912 # Camera: Skip stream size check for whitelisted apps
 kpick 213115 # camera: Disable extra HDR frame on QCOM_HARDWARE
-#kpick 215693 # stagefright: Add support for loading a custom OMXPlugin
 
 # frameworks/base
+kpick -f 206054 # SystemUI: use vector drawables for navbar icons
+kpick -f 206055 # SystemUI: Add a reversed version of OPA layout
+kpick -f 206056 # opalayout: Actually implement setDarkIntensity
+kpick -f 206057 # opapayout: Update for r23 smaller navbar
+kpick -f 206058 # opalayout/home: Fix icons and darkintensity
+kpick -f 206059 # OpaLayout: misc code fixes
 kpick 206568 # base: audioservice: Set BT_SCO status
 kpick 207583 # BatteryService: Add support for oem fast charger detection
 kpick 209031 # TelephonyManager: Prevent NPE when registering phone state listener
@@ -694,8 +698,6 @@ kpick 214263 # Fix intercepting touch events for guts
 kpick 214265 # Better QS detail clip animation
 kpick 215031 # Keyguard: Fix ConcurrentModificationException in KeyguardUpdateMonitor
 kpick 215128 # Make the startup of SoundTrigger service conditional
-kpick 216417 # SignalClusterView: Hide signal icons for disabled SIMs
-kpick 216854 # Keyguard: Remove carrier text for disabled SIMs
 kpick 216872 # SystemUI: Fix systemui crash when showing data usage detail
 kpick 217039 # Make berry overlays selection more generic	
 kpick 217042 # Add support for black berry style
@@ -703,7 +705,7 @@ kpick 217594 # Fingerprint: Speed up wake-and-unlock scenario
 kpick 217595 # display: Don't animate screen brightness when turning the screen on
 kpick 218166 # Add an option to change the device hostname (1/2).
 kpick 218317 # SystemUI: Remove duplicate permission
-kpick 218359 # Add tip to compile Heimdall from source.
+kpick 218359 # Revert "SystemUI: disable wallpaper-based tint for scrim"
 kpick 218430 # SystemUI: Require unlock to toggle airplane mode
 kpick 218431 # SystemUI: Require unlock to toggle location
 kpick 218437 # SystemUI: Add activity alias for LockscreenFragment
@@ -765,16 +767,17 @@ kpick 218360 # thermal: use log/log.h header
 
 # hardware/samsung
 kpick 218823 # audio: Add flag to opt in/out amplifier support
+kpick 218862 # audio: improve log message to support for devices that dont have an amp
 
 # lineage/charter
 kpick 213574 # charter: Add some new USB rules
 kpick 213836 # charter: add vendor patch level requirement 
 kpick 215665 # Add hardware codecs section and exempt some tegra chipsets
-#kpick 216518 # Treble exemptions
 kpick 218728 # charter: Add recovery requirement
 kpick 218835 # verity: change wording, as this is required for a/b builds
 
 # lineage/jenkins
+kpick 218680 # hudson: klte* wants to dunk its Oreos into some milk too
 
 # lineage/scripts
 kpick 207545 # Add batch gerrit script
@@ -788,7 +791,6 @@ kpick 218356 # Add tip to compile Heimdall from source.
 kpick 213367 # NetworkTraffic: Include tethering traffic statistics
 kpick 214854 # [3/3] lineagesdk: single hand for hw keys
 kpick 216505 # Regen lineage_current
-kpick 216915 # lineage-sdk: Introduce TelephonyExtUtils
 kpick 216978 # sdk: add torch accent
 kpick 217041 # sdk: add black berry style support
 kpick 217419 # Add vendor security patch level to device info
@@ -825,7 +827,6 @@ kpick 218376 # Allow download of compressed attachments.
 kpick 218377 # email: fix empty body update
 kpick 218378 # Improve notification coalescence algorithm.
 kpick 218380 # Email: Fix the ActivityNotFoundException when click "Update now"
-kpick 218381 # Email: Clean duplicated WRITE_CONTACTS permission
 kpick 218382 # email: return default folder name for subfolders
 kpick 218383 # email: junk icon
 kpick 218384 # Search in folder specified via URI parameter, if possible.
@@ -842,10 +843,8 @@ kpick 211382 # correct the targeted SDK version to avoid permission fails otherw
 # packages/apps/Jelly
 
 # packages/apps/LineageParts
-#kpick 216887 # LineageParts: Add an option to force pre-O apps to use full screen aspect ratio
 kpick 217044 # LineageParts: add black theme support
 kpick 217171 # Trust: enforce vendor security patch level check
-#kpick 217197 # LineageParts: remove unused network mode picker intent
 kpick 217642 # Align learn more and got it horizontally
 kpick 217644 # LineageParts: Set proper PreferenceTheme parent	
 kpick 218315 # LineageParts: Fix brightness section
@@ -866,14 +865,12 @@ kpick 216687 # settings: wifi: Default to numeric keyboard for static IP items
 kpick 216822 # Settings: Allow setting device phone number
 kpick 216871 # Utils: Always show SIM Settings menu
 kpick 216909 # Settings: Apply accent color to on-body detection icon
-kpick 216918 # SimSettings: Use TelephonyExtUtils from Lineage SDK
 kpick 217420 # Add vendor security patch level to device info
 kpick 218131 # settings: Add platform to "Model & Hardware" dialog
 kpick 218165 # Add an option to change the device hostname (1/2).
 kpick 218438 # Settings: Add lockscreen shortcuts customization to lockscreen settings
-kpick 218639 # SimSettings: Fix preferred calls sim not being disabled
 kpick 218775 # Settings: Cleanup SimSettings additions
-kpick 218776 # Settings: Disable manual sim provisioning by default
+kpick 218919 # DisplaySettings: Allow devices to opt out from lift to wake detection
 
 # packages/apps/Snap
 kpick 206595 # Use transparent navigation bar
@@ -951,7 +948,6 @@ kpick 218416 # vold: utils: Introduce ForkCallp
 
 # vendor/lineage
 kpick 206154 # Include build manifest on target
-#kpick 210664 # extract_utils: Support multidex
 kpick 215341 # backuptool: Revert "Temporarily render version check permissive"
 kpick 214400 # backuptool: Resolve incompatible version grep syntax
 kpick 216977 # lineage: build torch accent
