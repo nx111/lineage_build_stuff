@@ -386,6 +386,7 @@ function kpick()
 
     rm -f $errfile
     echo ""
+    local changeNumber=""
     for op in $*; do
         [ -z "$changeNumber" ] && [[ $op =~ ^[0-9]+$ ]] && changeNumber=$op
         [ "$op" = "-f" ] && op_force_pick=1
@@ -650,6 +651,7 @@ kpick 218989 # releasetools: Fix the size check for AVB images.
 kpick 218990 # releasetools: Always create IMAGES/ directory.
 kpick 218991 # releasetools: Move the AVB salt setup into common.LoadInfoDict().
 kpick 219020 # build: Disable backuptool for A/B on -user
+kpick 219060 # Add support for ZSH arrays
 
 # build/soong
 
@@ -725,7 +727,6 @@ kpick 218359 # Revert "SystemUI: disable wallpaper-based tint for scrim"
 kpick 218430 # SystemUI: Require unlock to toggle airplane mode
 kpick 218431 # SystemUI: Require unlock to toggle location
 kpick 218437 # SystemUI: Add activity alias for LockscreenFragment
-kpick 218668 # SystemUI: require auth for adb wireless
 kpick 218819 # SystemUI: Fix Data Usage tile to match Settings
 
 # frameworks/native
@@ -811,6 +812,7 @@ kpick 216978 # sdk: add torch accent
 kpick 217041 # sdk: add black berry style support
 kpick 217419 # Add vendor security patch level to device info
 #kpick 218679 # lineage-sdk: Use ILight.getSupportedTypes for lights capabilities
+kpick 219054 # sdk: Trust: better warnings management
 
 # packages/apps/Bluetooth
 kpick 218319 # Bluetooth: Remove duplicate permission
@@ -864,6 +866,7 @@ kpick 217171 # Trust: enforce vendor security patch level check
 kpick 217642 # Align learn more and got it horizontally
 kpick 217644 # LineageParts: Set proper PreferenceTheme parent	
 kpick 218315 # LineageParts: Fix brightness section
+kpick 219055 # parts: Trust: better warnings management
 
 # packages/apps/lockClock
 kpick 208127 # Update LockClock to use Job APIs 
@@ -882,7 +885,6 @@ kpick 216822 # Settings: Allow setting device phone number
 kpick 216871 # Utils: Always show SIM Settings menu
 kpick 216909 # Settings: Apply accent color to on-body detection icon
 kpick 217420 # Add vendor security patch level to device info
-kpick 218131 # settings: Add platform to "Model & Hardware" dialog
 kpick 218165 # Add an option to change the device hostname (1/2).
 kpick 218438 # Settings: Add lockscreen shortcuts customization to lockscreen settings
 kpick 218775 # Settings: Cleanup SimSettings additions

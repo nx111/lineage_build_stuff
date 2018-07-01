@@ -1,0 +1,179 @@
+From f3cd054fc8178ee7122408e4202d8bbdad29acdb Mon Sep 17 00:00:00 2001
+From: Joey <joey@lineageos.org>
+Date: Sat, 30 Jun 2018 22:50:45 +0200
+Subject: [PATCH 6/7] parts: Trust: better warnings management
+
+Allow fine-tuned management of trust warnings,
+the user is now able to disable specific warnings
+instead of blocking everything.
+
+Also show warnings (if any) when onBoarding is completed
+
+Change-Id: I463279a8d99c1eeb2be6c0eeaf2e53e8f97ac160
+Signed-off-by: Joey <joey@lineageos.org>
+---
+ res/values/strings.xml                        |  4 +++-
+ res/xml/trust_preferences.xml                 | 23 +++++++++++++------
+ .../trust/TrustOnBoardingActivity.java        |  7 ++++++
+ .../lineageparts/trust/TrustPreferences.java  | 23 +++++++++++++++++++
+ 4 files changed, 49 insertions(+), 8 deletions(-)
+
+diff --git a/res/values/strings.xml b/res/values/strings.xml
+index 39d91b3..922a263 100644
+--- a/res/values/strings.xml
++++ b/res/values/strings.xml
+@@ -723,7 +723,9 @@
+     <string name="trust_feature_encryption_explain">Encrypting your device prevents access to your data when your phone is off or in recovery mode. This is particularly important if your phone is stolen, and prevents people from reading your messages, contacts, and other private information without the password.\nTo make the encryption more effective you need to set a secure lock screen.</string>
+     <string name="trust_category_tools">Privacy</string>
+     <string name="trust_notification_alerts_title">Security alerts</string>
+-    <string name="trust_notifications_alerts_summary">Display notifications when a security issue is found</string>
++    <string name="trust_warnings_alerts_intro">You can select what securty issues Trust should you want to be notified when they are detected. For your safety it\'s recommend to enable all the alerts</string>
++    <string name="trust_warnings_selinux">SELinux status</string>
++    <string name="trust_warnings_keys">Build signature</string>
+     <string name="trust_onboarding_title">Say hello to Trust</string>
+     <string name="trust_onboarding_description">Trust helps you keep your device secure and protects your privacy.\nThe Trust icon will show up to help you by checking the security of the contents</string>
+     <string name="trust_onboarding_learn_more">Learn more</string>
+diff --git a/res/xml/trust_preferences.xml b/res/xml/trust_preferences.xml
+index cf65f6e..b0723d8 100644
+--- a/res/xml/trust_preferences.xml
++++ b/res/xml/trust_preferences.xml
+@@ -56,15 +56,24 @@
+             android:entryValues="@array/sms_security_check_limit_values"
+             android:summary="@string/sms_security_check_limit_summary"
+             android:title="@string/sms_security_check_limit_title" />
+-        </PreferenceCategory>
++    </PreferenceCategory>
++
++    <PreferenceCategory
++        android:key="trust_category_warnings"
++        android:title="@string/trust_notification_alerts_title">
+ 
+-        <PreferenceCategory
+-            android:key="trust_category_alerts">
++        <org.lineageos.lineageparts.widget.WallOfTextPreference
++            android:icon="@drawable/ic_info"
++            android:summary="@string/trust_warnings_alerts_intro" />
++
++        <SwitchPreference
++            android:key="trust_warning_selinux"
++            android:summary="@string/trust_warnings_selinux"
++            android:defaultValue="true" />
+ 
+-        <lineageos.preference.LineageSecureSettingSwitchPreference
+-            android:key="trust_notifications"
+-            android:title="@string/trust_notification_alerts_title"
+-            android:summary="@string/trust_notifications_alerts_summary"
++        <SwitchPreference
++            android:key="trust_warning_keys"
++            android:summary="@string/trust_warnings_keys"
+             android:defaultValue="true" />
+     </PreferenceCategory>
+ </PreferenceScreen>
+diff --git a/src/org/lineageos/lineageparts/trust/TrustOnBoardingActivity.java b/src/org/lineageos/lineageparts/trust/TrustOnBoardingActivity.java
+index a68e987..6678279 100644
+--- a/src/org/lineageos/lineageparts/trust/TrustOnBoardingActivity.java
++++ b/src/org/lineageos/lineageparts/trust/TrustOnBoardingActivity.java
+@@ -24,12 +24,15 @@ import android.widget.ImageView;
+ import android.support.v7.app.AppCompatActivity;
+ 
+ import lineageos.providers.LineageSettings;
++import lineageos.trust.TrustInterface;
+ 
+ import org.lineageos.lineageparts.R;
+ 
+ public class TrustOnBoardingActivity extends AppCompatActivity {
+     private ImageView mImage;
+ 
++    private TrustInterface mInterface;
++
+     @Override
+     protected void onCreate(Bundle savedInstance) {
+         super.onCreate(savedInstance);
+@@ -42,6 +45,8 @@ public class TrustOnBoardingActivity extends AppCompatActivity {
+         learnMore.setOnClickListener(v -> openTrustSettings());
+         dismiss.setOnClickListener(v -> onDismissClick());
+ 
++        mInterface = TrustInterface.getInstance(this);
++
+         new Handler().postDelayed(this::showAnimation, 800);
+     }
+ 
+@@ -66,5 +71,7 @@ public class TrustOnBoardingActivity extends AppCompatActivity {
+     private void setOnboardingCompleted() {
+         LineageSettings.System.putInt(getContentResolver(),
+                 LineageSettings.System.TRUST_INTERFACE_HINTED, 1);
++        // Run security check test now that the user is aware of what Trust is
++        mInterface.runTest();
+     }
+ }
+\ No newline at end of file
+diff --git a/src/org/lineageos/lineageparts/trust/TrustPreferences.java b/src/org/lineageos/lineageparts/trust/TrustPreferences.java
+index bfa9add..25e73e9 100644
+--- a/src/org/lineageos/lineageparts/trust/TrustPreferences.java
++++ b/src/org/lineageos/lineageparts/trust/TrustPreferences.java
+@@ -23,11 +23,13 @@ import android.provider.Settings;
+ import android.support.v7.preference.ListPreference;
+ import android.support.v7.preference.Preference;
+ import android.support.v7.preference.PreferenceCategory;
++import android.support.v14.preference.SwitchPreference;
+ import android.util.Log;
+ 
+ import org.lineageos.lineageparts.R;
+ import org.lineageos.lineageparts.SettingsPreferenceFragment;
+ 
++import lineageos.providers.LineageSettings;
+ import lineageos.trust.TrustInterface;
+ 
+ public class TrustPreferences extends SettingsPreferenceFragment {
+@@ -40,6 +42,10 @@ public class TrustPreferences extends SettingsPreferenceFragment {
+     private PreferenceCategory mToolsCategory;
+     private ListPreference mSmsLimitPref;
+ 
++    private PreferenceCategory mWarnScreen;
++    private SwitchPreference mWarnSELinuxPref;
++    private SwitchPreference mWarnKeysPref;
++
+     private TrustInterface mInterface;
+ 
+     private int[] mSecurityLevel = new int[4];
+@@ -59,6 +65,10 @@ public class TrustPreferences extends SettingsPreferenceFragment {
+         mToolsCategory = (PreferenceCategory) findPreference("trust_category_tools");
+         mSmsLimitPref = (ListPreference) mToolsCategory.findPreference("sms_security_check_limit");
+ 
++        mWarnScreen = (PreferenceCategory) findPreference("trust_category_warnings");
++        mWarnSELinuxPref = (SwitchPreference) mWarnScreen.findPreference("trust_warning_selinux");
++        mWarnKeysPref = (SwitchPreference) mWarnScreen.findPreference("trust_warning_keys");
++
+         mSELinuxPref.setOnPreferenceClickListener(p ->
+                 showInfo(R.string.trust_feature_selinux_explain));
+         mRootPref.setOnPreferenceClickListener(p ->
+@@ -70,6 +80,10 @@ public class TrustPreferences extends SettingsPreferenceFragment {
+         mSmsLimitPref.setOnPreferenceChangeListener((p, v) ->
+                 onSmsLimitChanged(Integer.parseInt((String) v)));
+ 
++        mWarnSELinuxPref.setOnPreferenceChangeListener((p, v) ->
++                onWarningChanged((Boolean) v, TrustInterface.TRUST_WARN_SELINUX));
++        mWarnKeysPref.setOnPreferenceChangeListener((p, v) ->
++                onWarningChanged((Boolean) v, TrustInterface.TRUST_WARN_PUBLIC_KEY));
+         setup();
+     }
+ 
+@@ -204,6 +218,15 @@ public class TrustPreferences extends SettingsPreferenceFragment {
+         return true;
+     }
+ 
++    private boolean onWarningChanged(Boolean value, int feature) {
++        int original = LineageSettings.Secure.getInt(getContext().getContentResolver(),
++                LineageSettings.Secure.TRUST_WARNINGS, TrustInterface.TRUST_WARN_MAX_VALUE);
++        int newValue = value ? (original | feature) : (original & ~feature);
++        return LineageSettings.Secure.putInt(getContext().getContentResolver(),
++                LineageSettings.Secure.TRUST_WARNINGS, newValue);
++    }
++
++
+     private boolean isTelephony() {
+         PackageManager pm = getContext().getPackageManager();
+         return pm.hasSystemFeature(PackageManager.FEATURE_TELEPHONY);
+-- 
+2.17.1
+
