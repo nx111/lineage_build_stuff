@@ -387,7 +387,7 @@ function kpick()
     rm -f $errfile
     echo ""
     for op in $*; do
-        [ -z "$changeNumber"] && [[ $op =~ ^[0-9]+$ ]] && changeNumber=$op
+        [ -z "$changeNumber" ] && [[ $op =~ ^[0-9]+$ ]] && changeNumber=$op
         [ "$op" = "-f" ] && op_force_pick=1
     done
     if  [ "$changeNumber" = "" ]; then
@@ -628,17 +628,33 @@ kpick 218403 # linker: Don't involve shim in for_each_dt_needed
 #kpick 217627 # recovery: Do not show emulated when data is encrypted
 
 # build/make
+kpick 206396 # build: recovery: add vendor to exclusion list
 kpick 208102 # Adapt ijar for WSL
+kpick 208381 # build: Add ability for device to specify additional targets
 kpick 208567 # [DNM] updater: Don't check fingerprint for incrementals
+kpick 209023 # build: Add script to generate extra images
+kpick 209024 # Generate extra userdata partition if needed
+kpick 209025 # Strip out unused extra image generation
+kpick 210238 # releasetools: Store the build.prop file in the OTA zip
+kpick 212820 # build: Implement prebuilt caching
 kpick 213515 # build: Use minimial compression when zipping targetfiles
 kpick 213572 # Allow to exclude imgs from target-files zip
 kpick 214842 # dex2oat: disable multithreading
 kpick 214883 # core: config: Use host ijar if requested
 kpick 214892 # Add detection for WSL
+kpick 218985 # releasetools: Fix the rebuilding of vbmeta.img.
+kpick 218986 # releasetools: Allow building AVB-enabled recovery.img.
+kpick 218987 # Reorder assert-max-image-size and AVB signing
+kpick 218988 # AVB: If building recovery.img, add AVB hash footer.
+kpick 218989 # releasetools: Fix the size check for AVB images.
+kpick 218990 # releasetools: Always create IMAGES/ directory.
+kpick 218991 # releasetools: Move the AVB salt setup into common.LoadInfoDict().
+kpick 219020 # build: Disable backuptool for A/B on -user
 
 # build/soong
 
 # device/lineage/sepolicy
+kpick 219022 # sepolicy: Fix neverallow for user builds
 
 # device/qcom/sepolicy
 kpick 211273 # qcom/sepol: Fix timeservice app context

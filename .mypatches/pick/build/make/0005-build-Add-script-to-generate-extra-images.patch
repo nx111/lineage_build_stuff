@@ -1,0 +1,151 @@
+From f347f0b3926b82b2913f7c021d0c181f23d12a4d Mon Sep 17 00:00:00 2001
+From: Steve Kondik <shade@chemlab.org>
+Date: Tue, 22 Oct 2013 22:23:27 -0700
+Subject: [PATCH 05/23] build: Add script to generate extra images
+
+Change-Id: I53081c7a2b4f18bc8c8a27b04d311a6b078b2022
+
+Use CM standard qcom naming
+
+Change-Id: I360b3dcf1fe82140a7993189e881f9d77b571bef
+
+generate_extra_images: Remove deprecated image generation
+
+* Remove msm7x27a/msm7x30 nand images
+* Remove msm8930 1G userdata
+
+Change-Id: I81b93d34893d504a53f2aadb9c3ac2089c06860c
+
+generate_extra_images: Rename targets and add 'sec' prefix
+
+Change-Id: Ie7debfb33349d16d9a457ff817072af2f3a10c0f
+---
+ core/generate_extra_images.mk | 116 ++++++++++++++++++++++++++++++++++
+ 1 file changed, 116 insertions(+)
+ create mode 100644 core/generate_extra_images.mk
+
+diff --git a/core/generate_extra_images.mk b/core/generate_extra_images.mk
+new file mode 100644
+index 000000000..2e59339ef
+--- /dev/null
++++ b/core/generate_extra_images.mk
+@@ -0,0 +1,116 @@
++# This makefile is used to generate extra images for QCOM targets
++# persist, device tree & NAND images required for different QCOM targets.
++
++# These variables are required to make sure that the required
++# files/targets are available before generating NAND images.
++# This file is included from device/qcom/<TARGET>/AndroidBoard.mk
++# and gets parsed before build/core/Makefile, which has these
++# variables defined. build/core/Makefile will overwrite these
++# variables again.
++INSTALLED_BOOTIMAGE_TARGET := $(PRODUCT_OUT)/boot.img
++INSTALLED_RECOVERYIMAGE_TARGET := $(PRODUCT_OUT)/recovery.img
++
++#----------------------------------------------------------------------
++# Generate secure boot & recovery image
++#----------------------------------------------------------------------
++ifeq ($(TARGET_BOOTIMG_SIGNED),true)
++INSTALLED_SEC_BOOTIMAGE_TARGET := $(PRODUCT_OUT)/boot.img.secure
++INSTALLED_SEC_RECOVERYIMAGE_TARGET := $(PRODUCT_OUT)/recovery.img.secure
++
++ifneq ($(BUILD_TINY_ANDROID),true)
++intermediates := $(call intermediates-dir-for,PACKAGING,recovery_patch)
++RECOVERY_FROM_BOOT_PATCH := $(intermediates)/recovery_from_boot.p
++endif
++
++ifndef TARGET_SHA_TYPE
++  TARGET_SHA_TYPE := sha256
++endif
++
++define build-sec-image
++	$(hide) mv -f $(1) $(1).nonsecure
++	$(hide) openssl dgst -$(TARGET_SHA_TYPE) -binary $(1).nonsecure > $(1).$(TARGET_SHA_TYPE)
++	$(hide) openssl rsautl -sign -in $(1).$(TARGET_SHA_TYPE) -inkey $(PRODUCT_PRIVATE_KEY) -out $(1).sig
++	$(hide) dd if=/dev/zero of=$(1).sig.padded bs=$(BOARD_KERNEL_PAGESIZE) count=1
++	$(hide) dd if=$(1).sig of=$(1).sig.padded conv=notrunc
++	$(hide) cat $(1).nonsecure $(1).sig.padded > $(1).secure
++	$(hide) rm -rf $(1).$(TARGET_SHA_TYPE) $(1).sig $(1).sig.padded
++	$(hide) mv -f $(1).secure $(1)
++endef
++
++$(INSTALLED_SEC_BOOTIMAGE_TARGET): $(INSTALLED_BOOTIMAGE_TARGET) $(RECOVERY_FROM_BOOT_PATCH)
++	$(hide) $(call build-sec-image,$(INSTALLED_BOOTIMAGE_TARGET))
++
++ALL_DEFAULT_INSTALLED_MODULES += $(INSTALLED_SEC_BOOTIMAGE_TARGET)
++ALL_MODULES.$(LOCAL_MODULE).INSTALLED += $(INSTALLED_SEC_BOOTIMAGE_TARGET)
++
++$(INSTALLED_SEC_RECOVERYIMAGE_TARGET): $(INSTALLED_RECOVERYIMAGE_TARGET) $(RECOVERY_FROM_BOOT_PATCH)
++	$(hide) $(call build-sec-image,$(INSTALLED_RECOVERYIMAGE_TARGET))
++
++ifneq ($(BUILD_TINY_ANDROID),true)
++ALL_DEFAULT_INSTALLED_MODULES += $(INSTALLED_SEC_RECOVERYIMAGE_TARGET)
++ALL_MODULES.$(LOCAL_MODULE).INSTALLED += $(INSTALLED_SEC_RECOVERYIMAGE_TARGET)
++endif # !BUILD_TINY_ANDROID
++endif # TARGET_BOOTIMG_SIGNED
++
++#----------------------------------------------------------------------
++# Generate persist image (persist.img)
++#----------------------------------------------------------------------
++TARGET_OUT_PERSIST := $(PRODUCT_OUT)/persist
++
++INTERNAL_PERSISTIMAGE_FILES := \
++	$(filter $(TARGET_OUT_PERSIST)/%,$(ALL_DEFAULT_INSTALLED_MODULES))
++
++INSTALLED_PERSISTIMAGE_TARGET := $(PRODUCT_OUT)/persist.img
++
++define build-persistimage-target
++    $(call pretty,"Target persist fs image: $(INSTALLED_PERSISTIMAGE_TARGET)")
++    @mkdir -p $(TARGET_OUT_PERSIST)
++    $(hide) $(MKEXTUSERIMG) -s $(TARGET_OUT_PERSIST) $@ ext4 persist $(BOARD_PERSISTIMAGE_PARTITION_SIZE)
++    $(hide) chmod a+r $@
++    $(hide) $(call assert-max-image-size,$@,$(BOARD_PERSISTIMAGE_PARTITION_SIZE),yaffs)
++endef
++
++$(INSTALLED_PERSISTIMAGE_TARGET): $(MKEXTUSERIMG) $(MAKE_EXT4FS) $(INTERNAL_PERSISTIMAGE_FILES)
++	$(build-persistimage-target)
++
++ALL_DEFAULT_INSTALLED_MODULES += $(INSTALLED_PERSISTIMAGE_TARGET)
++ALL_MODULES.$(LOCAL_MODULE).INSTALLED += $(INSTALLED_PERSISTIMAGE_TARGET)
++
++
++#----------------------------------------------------------------------
++# Generate device tree image (dt.img)
++#----------------------------------------------------------------------
++ifeq ($(strip $(BOARD_KERNEL_SEPARATED_DT)),true)
++ifeq ($(strip $(BUILD_TINY_ANDROID)),true)
++include device/qcom/common/dtbtool/Android.mk
++endif
++
++DTBTOOL := $(HOST_OUT_EXECUTABLES)/dtbTool$(HOST_EXECUTABLE_SUFFIX)
++
++INSTALLED_DTIMAGE_TARGET := $(PRODUCT_OUT)/dt.img
++
++define build-dtimage-target
++    $(call pretty,"Target dt image: $(INSTALLED_DTIMAGE_TARGET)")
++    $(hide) $(DTBTOOL) -o $@ -s $(BOARD_KERNEL_PAGESIZE) -p $(KERNEL_OUT)/scripts/dtc/ $(KERNEL_OUT)/arch/arm/boot/
++    $(hide) chmod a+r $@
++endef
++
++$(INSTALLED_DTIMAGE_TARGET): $(DTBTOOL) $(INSTALLED_KERNEL_TARGET)
++	$(build-dtimage-target)
++
++ALL_DEFAULT_INSTALLED_MODULES += $(INSTALLED_DTIMAGE_TARGET)
++ALL_MODULES.$(LOCAL_MODULE).INSTALLED += $(INSTALLED_DTIMAGE_TARGET)
++endif
++
++
++.PHONY: aboot
++aboot: $(INSTALLED_BOOTLOADER_MODULE)
++
++.PHONY: sec_bootimage
++sec_bootimage: $(INSTALLED_BOOTIMAGE_TARGET) $(INSTALLED_SEC_BOOTIMAGE_TARGET)
++
++.PHONY: sec_recoveryimage
++sec_recoveryimage: $(INSTALLED_RECOVERYIMAGE_TARGET) $(INSTALLED_SEC_RECOVERYIMAGE_TARGET)
++
++.PHONY: persistimage
++persistimage: $(INSTALLED_PERSISTIMAGE_TARGET)
+-- 
+2.17.1
+

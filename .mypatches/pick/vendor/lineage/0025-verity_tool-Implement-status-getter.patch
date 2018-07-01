@@ -1,4 +1,4 @@
-From 41b2cf96f465091c13b0c9935c754b10bf17a840 Mon Sep 17 00:00:00 2001
+From 6923baf8d6052ee09d73b41a0f1fcd564dceb701 Mon Sep 17 00:00:00 2001
 From: "Christopher N. Hesse" <raymanfx@gmail.com>
 Date: Tue, 26 Jun 2018 19:56:24 +0200
 Subject: [PATCH 25/28] verity_tool: Implement status getter
@@ -8,9 +8,9 @@ VB1.0 and VB2.0 are handled.
 Change-Id: Id3753d3b7b87f3a8a2c03b96dd49be59b96e6d03
 ---
  verity_tool/include/verity_tool.h | 15 ++++++++
- verity_tool/main.cpp              | 27 ++++++++++++-
- verity_tool/verity_tool.cpp       | 64 +++++++++++++++++++++++++++++++
- 3 files changed, 104 insertions(+), 2 deletions(-)
+ verity_tool/main.cpp              | 27 ++++++++++++--
+ verity_tool/verity_tool.cpp       | 59 +++++++++++++++++++++++++++++++
+ 3 files changed, 99 insertions(+), 2 deletions(-)
 
 diff --git a/verity_tool/include/verity_tool.h b/verity_tool/include/verity_tool.h
 index 25a6a7c2..b81eda1a 100644
@@ -103,10 +103,10 @@ index f5f026aa..befdafac 100644
          printf("Error occurred in set_verity_enable\n");
          exit(EXIT_FAILURE);
 diff --git a/verity_tool/verity_tool.cpp b/verity_tool/verity_tool.cpp
-index 9575c4c1..8827efc5 100644
+index 9575c4c1..9a250a35 100644
 --- a/verity_tool/verity_tool.cpp
 +++ b/verity_tool/verity_tool.cpp
-@@ -108,6 +108,70 @@ static std::string get_ab_suffix() {
+@@ -108,6 +108,65 @@ static std::string get_ab_suffix() {
      return ab_suffix;
  }
  
@@ -124,11 +124,13 @@ index 9575c4c1..8827efc5 100644
 +        AvbOps* ops = avb_ops_user_new();
 +        if (ops == nullptr) {
 +            LOG(ERROR) << "Error getting AVB ops";
++            avb_ops_user_free(ops);
 +            return VERITY_STATE_UNKNOWN;
 +        }
 +        bool verity_enabled;
 +        if (!avb_user_verity_get(ops, ab_suffix.c_str(), &verity_enabled)) {
 +            LOG(ERROR) << "Error getting verity state";
++            avb_ops_user_free(ops);
 +            return VERITY_STATE_UNKNOWN;
 +        }
 +        rc = verity_enabled ? VERITY_STATE_ENABLED : VERITY_STATE_DISABLED;
@@ -147,14 +149,7 @@ index 9575c4c1..8827efc5 100644
 +        for (int i = 0; i < fstab->num_entries; i++) {
 +            if (fs_mgr_is_verified(&fstab->recs[i])) {
 +                std::string block_device = fstab->recs[i].blk_device;
-+                int rc = make_block_device_writable(block_device);
-+                if (rc) {
-+                    LOG(ERROR) << "Could not make block device "
-+                               << block_device << " writable:" << rc;
-+                    return VERITY_STATE_UNKNOWN;
-+                }
-+
-+                fec::io fh(block_device, O_RDWR);
++                fec::io fh(block_device, O_RDONLY);
 +                if (!fh) {
 +                    PLOG(ERROR) << "Could not open block device " << block_device;
 +                    return VERITY_STATE_UNKNOWN;

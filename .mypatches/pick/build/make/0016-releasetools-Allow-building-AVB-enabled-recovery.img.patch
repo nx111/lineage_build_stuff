@@ -1,0 +1,191 @@
+From 8e39bf56b384805040239055ce04a4523efe36ba Mon Sep 17 00:00:00 2001
+From: Tao Bao <tbao@google.com>
+Date: Tue, 11 Jul 2017 17:27:55 -0700
+Subject: [PATCH 16/23] releasetools: Allow building AVB-enabled recovery.img.
+
+Bug: 68224784
+Test: Enable AVB on aosp_bullhead-userdebug. `m dist`. Note that the
+      prebuilt vendor.img needs to be AVB-signed first.
+Test:`m dist` with aosp_walleye-userdebug.
+
+(cherry picked from commit bf70c318b7526f11b7fdcf555bd6db20e23571d6)
+
+Change-Id: I18235e4d0dde6af71a96e46ec434480cc9a22bef
+---
+ tools/releasetools/add_img_to_target_files.py | 48 ++++++++++++-------
+ tools/releasetools/common.py                  | 17 ++++---
+ 2 files changed, 40 insertions(+), 25 deletions(-)
+
+diff --git a/tools/releasetools/add_img_to_target_files.py b/tools/releasetools/add_img_to_target_files.py
+index ebdf4c69c..172d3131c 100755
+--- a/tools/releasetools/add_img_to_target_files.py
++++ b/tools/releasetools/add_img_to_target_files.py
+@@ -373,9 +373,15 @@ def AppendVBMetaArgsForPartition(cmd, partition, img_path, public_key_dir):
+     cmd.extend(["--include_descriptors_from_image", img_path])
+ 
+ 
+-def AddVBMeta(output_zip, boot_img_path, system_img_path, vendor_img_path,
+-              dtbo_img_path, prefix="IMAGES/"):
+-  """Create a VBMeta image and store it in output_zip."""
++def AddVBMeta(output_zip, partitions, prefix="IMAGES/"):
++  """Creates a VBMeta image and store it in output_zip.
++
++  Args:
++    output_zip: The output zip file, which needs to be already open.
++    partitions: A dict that's keyed by partition names with image paths as
++        values. Only valid partition names are accepted, which include 'boot',
++        'recovery', 'system', 'vendor', 'dtbo'.
++  """
+   img = OutputFile(output_zip, OPTIONS.input_tmp, prefix, "vbmeta.img")
+   if os.path.exists(img.input_name):
+     print("vbmeta.img already exists in %s; not rebuilding..." % (prefix,))
+@@ -388,10 +394,12 @@ def AddVBMeta(output_zip, boot_img_path, system_img_path, vendor_img_path,
+   public_key_dir = tempfile.mkdtemp(prefix="avbpubkey-")
+   OPTIONS.tempfiles.append(public_key_dir)
+ 
+-  AppendVBMetaArgsForPartition(cmd, "boot", boot_img_path, public_key_dir)
+-  AppendVBMetaArgsForPartition(cmd, "system", system_img_path, public_key_dir)
+-  AppendVBMetaArgsForPartition(cmd, "vendor", vendor_img_path, public_key_dir)
+-  AppendVBMetaArgsForPartition(cmd, "dtbo", dtbo_img_path, public_key_dir)
++  for partition, path in partitions.items():
++    assert partition in common.AVB_PARTITIONS, 'Unknown partition: %s' % (
++        partition,)
++    assert os.path.exists(path), 'Failed to find %s for partition %s' % (
++        path, partition)
++    AppendVBMetaArgsForPartition(cmd, partition, path, public_key_dir)
+ 
+   args = OPTIONS.info_dict.get("avb_vbmeta_args")
+   if args and args.strip():
+@@ -615,6 +623,10 @@ def AddImagesToTargetFiles(filename):
+     if fp:
+       OPTIONS.info_dict["avb_salt"] = hashlib.sha256(fp).hexdigest()
+ 
++  # A map between partition names and their paths, which could be used when
++  # generating AVB vbmeta image.
++  partitions = dict()
++
+   def banner(s):
+     print("\n\n++++ " + s + " ++++\n\n")
+ 
+@@ -624,8 +636,8 @@ def AddImagesToTargetFiles(filename):
+       "IMAGES/boot.img", "boot.img", OPTIONS.input_tmp, "BOOT")
+   # boot.img may be unavailable in some targets (e.g. aosp_arm64).
+   if boot_image:
+-    boot_img_path = os.path.join(OPTIONS.input_tmp, "IMAGES", "boot.img")
+-    if not os.path.exists(boot_img_path):
++    partitions['boot'] = os.path.join(OPTIONS.input_tmp, "IMAGES", "boot.img")
++    if not os.path.exists(partitions['boot']):
+       boot_image.WriteToDir(OPTIONS.input_tmp)
+       if output_zip:
+         boot_image.AddToZip(output_zip)
+@@ -636,9 +648,9 @@ def AddImagesToTargetFiles(filename):
+     recovery_image = common.GetBootableImage(
+         "IMAGES/recovery.img", "recovery.img", OPTIONS.input_tmp, "RECOVERY")
+     assert recovery_image, "Failed to create recovery.img."
+-    recovery_img_path = os.path.join(
++    partitions['recovery'] = os.path.join(
+         OPTIONS.input_tmp, "IMAGES", "recovery.img")
+-    if not os.path.exists(recovery_img_path):
++    if not os.path.exists(partitions['recovery']):
+       recovery_image.WriteToDir(OPTIONS.input_tmp)
+       if output_zip:
+         recovery_image.AddToZip(output_zip)
+@@ -657,15 +669,17 @@ def AddImagesToTargetFiles(filename):
+           recovery_two_step_image.AddToZip(output_zip)
+ 
+   banner("system")
+-  system_img_path = AddSystem(
++  partitions['system'] = system_img_path = AddSystem(
+       output_zip, recovery_img=recovery_image, boot_img=boot_image)
+-  vendor_img_path = None
++
+   if has_vendor:
+     banner("vendor")
+-    vendor_img_path = AddVendor(output_zip)
++    partitions['vendor'] = vendor_img_path = AddVendor(output_zip)
++
+   if has_system_other:
+     banner("system_other")
+     AddSystemOther(output_zip)
++
+   if not OPTIONS.is_signing:
+     banner("userdata")
+     AddUserdata(output_zip)
+@@ -678,15 +692,13 @@ def AddImagesToTargetFiles(filename):
+     banner("partition-table")
+     AddPartitionTable(output_zip)
+ 
+-  dtbo_img_path = None
+   if OPTIONS.info_dict.get("has_dtbo") == "true":
+     banner("dtbo")
+-    dtbo_img_path = AddDtbo(output_zip)
++    partitions['dtbo'] = AddDtbo(output_zip)
+ 
+   if OPTIONS.info_dict.get("avb_enable") == "true":
+     banner("vbmeta")
+-    AddVBMeta(output_zip, boot_img_path, system_img_path, vendor_img_path,
+-              dtbo_img_path)
++    AddVBMeta(output_zip, partitions)
+ 
+   if OPTIONS.info_dict.get("avb_disabled_vbmeta") == "true":
+     banner("vbmeta")
+diff --git a/tools/releasetools/common.py b/tools/releasetools/common.py
+index 9d577d318..62ee9497f 100644
+--- a/tools/releasetools/common.py
++++ b/tools/releasetools/common.py
+@@ -463,10 +463,12 @@ def _BuildBootableImage(sourcedir, fs_config_file, info_dict=None,
+   else:
+     cmd.extend(["--output", img.name])
+ 
++  # "boot" or "recovery", without extension.
++  partition_name = os.path.basename(sourcedir).lower()
++
+   p = Run(cmd, stdout=subprocess.PIPE)
+   p.communicate()
+-  assert p.returncode == 0, "mkbootimg of %s image failed" % (
+-      os.path.basename(sourcedir),)
++  assert p.returncode == 0, "mkbootimg of %s image failed" % (partition_name,)
+ 
+   if (info_dict.get("boot_signer", None) == "true" and
+       info_dict.get("verity_key", None)):
+@@ -475,7 +477,7 @@ def _BuildBootableImage(sourcedir, fs_config_file, info_dict=None,
+     if two_step_image:
+       path = "/boot"
+     else:
+-      path = "/" + os.path.basename(sourcedir).lower()
++      path = "/" + partition_name
+     cmd = [OPTIONS.boot_signer_path]
+     cmd.extend(OPTIONS.boot_signer_args)
+     cmd.extend([path, img.name,
+@@ -487,7 +489,7 @@ def _BuildBootableImage(sourcedir, fs_config_file, info_dict=None,
+ 
+   # Sign the image if vboot is non-empty.
+   elif info_dict.get("vboot", None):
+-    path = "/" + os.path.basename(sourcedir).lower()
++    path = "/" + partition_name
+     img_keyblock = tempfile.NamedTemporaryFile()
+     # We have switched from the prebuilt futility binary to using the tool
+     # (futility-host) built from the source. Override the setting in the old
+@@ -514,15 +516,16 @@ def _BuildBootableImage(sourcedir, fs_config_file, info_dict=None,
+     avbtool = os.getenv('AVBTOOL') or info_dict["avb_avbtool"]
+     part_size = info_dict["boot_size"]
+     cmd = [avbtool, "add_hash_footer", "--image", img.name,
+-           "--partition_size", str(part_size), "--partition_name", "boot"]
+-    AppendAVBSigningArgs(cmd, "boot")
++           "--partition_size", str(part_size), "--partition_name",
++           partition_name]
++    AppendAVBSigningArgs(cmd, partition_name)
+     args = info_dict.get("avb_boot_add_hash_footer_args")
+     if args and args.strip():
+       cmd.extend(shlex.split(args))
+     p = Run(cmd, stdout=subprocess.PIPE)
+     p.communicate()
+     assert p.returncode == 0, "avbtool add_hash_footer of %s failed" % (
+-        os.path.basename(OPTIONS.input_tmp))
++        partition_name,)
+ 
+   img.seek(os.SEEK_SET, 0)
+   data = img.read()
+-- 
+2.17.1
+

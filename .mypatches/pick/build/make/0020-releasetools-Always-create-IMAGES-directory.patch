@@ -1,0 +1,65 @@
+From 08016874fd9fedee99953adc2fcef719e6a74d37 Mon Sep 17 00:00:00 2001
+From: Tao Bao <tbao@google.com>
+Date: Mon, 20 Nov 2017 11:56:43 -0800
+Subject: [PATCH 20/23] releasetools: Always create IMAGES/ directory.
+
+AddImagesToTargetFiles() takes either a zip file, or a zip root as
+input. We used to create IMAGES/ directory only when working with zip
+root input. Commit 262bf3f0b53b2a8d89fd76f1f37775673b6f0370 has changed
+to also stage boot / recovery images there when working with a zip file.
+This CL makes sure the directory is always available under both modes.
+
+Bug:63456822
+Test: zip -d target_files.zip IMAGES/\*;
+      add_img_to_target_files.py target_files.zip
+Test: sign_target_files_apks.py target_files.zip signed-target_files.zip
+
+(cherry picked from commit ae396d9b0cbc5b49aea4c2d0d8146b77160354d4)
+Change-Id: Iea91d0403cdec1b16bb93bb71d3ed06856b8f7c3
+---
+ tools/releasetools/add_img_to_target_files.py | 22 +++++++++++++++----
+ 1 file changed, 18 insertions(+), 4 deletions(-)
+
+diff --git a/tools/releasetools/add_img_to_target_files.py b/tools/releasetools/add_img_to_target_files.py
+index 172d3131c..fe4c9e070 100755
+--- a/tools/releasetools/add_img_to_target_files.py
++++ b/tools/releasetools/add_img_to_target_files.py
+@@ -574,6 +574,17 @@ def ReplaceUpdatedFiles(zip_filename, files_list):
+ 
+ 
+ def AddImagesToTargetFiles(filename):
++  """Creates and adds images (boot/recovery/system/...) to a target_files.zip.
++
++  It works with either a zip file (zip mode), or a directory that contains the
++  files to be packed into a target_files.zip (dir mode). The latter is used when
++  being called from build/make/core/Makefile.
++
++  The images will be created under IMAGES/ in the input target_files.zip.
++
++  Args:
++      filename: the target_files.zip, or the zip root directory.
++  """
+   if os.path.isdir(filename):
+     OPTIONS.input_tmp = os.path.abspath(filename)
+     input_zip = None
+@@ -605,10 +616,13 @@ def AddImagesToTargetFiles(filename):
+   else:
+     OPTIONS.info_dict = common.LoadInfoDict(filename, filename)
+     output_zip = None
+-    images_dir = os.path.join(OPTIONS.input_tmp, "IMAGES")
+-    if not os.path.isdir(images_dir):
+-      os.makedirs(images_dir)
+-    images_dir = None
++
++  # Always make input_tmp/IMAGES available, since we may stage boot / recovery
++  # images there even under zip mode. The directory will be cleaned up as part
++  # of OPTIONS.input_tmp.
++  images_dir = os.path.join(OPTIONS.input_tmp, "IMAGES")
++  if not os.path.isdir(images_dir):
++    os.makedirs(images_dir)
+ 
+   has_recovery = (OPTIONS.info_dict.get("no_recovery") != "true")
+ 
+-- 
+2.17.1
+

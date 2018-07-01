@@ -31,36 +31,34 @@ if [ "$1" = "addonsu" ]; then
 	[ -f $workdir/.mypatches/superuser.rc -a ! -f $workdir/system/extras/su/superuser.rc ] \
 		&& cp $workdir/.mypatches/superuser.rc $workdir/system/extras/su/
 	make addonsu
-elif [ "$1" = "boot" -o "$1" = "-boot" ]; then
+else
+	if [ "$1" != "boot" -a "$1" != "-boot" ]; then
+		rm -rf $workdir/out/target/product/$product/system
+		rm -rf $workdir/out/target/product/$product/root
+		rm -rf $workdir/out/target/product/$product/lineage_$product-ota-*.zip
+		rm -rf $workdir/out/target/product/$product/obj/PACKAGING/*
+	fi
+
         obootime=0
         nbootime=0
         [ -f $workdir/out/target/product/$product/boot.img ] && obootime=$(stat -c %Y $workdir/out/target/product/$product/boot.img)
-	breakfast $product
-	make  bootimage
+
+        breakfast $product
+	if [ "$1" = "boot" -o "$1" = "-boot" ]; then
+	    make  bootimage
+            echo "bootimage: $nbootimg build complete."
+        elif [ $# -eq 1 -a "$1" = "-B" ]; then
+            LINEAGE_VERSION_APPEND_TIME_OF_DAY=true WITH_SU=true LC_ALL=C \
+   	    cmka bacon
+        else
+            LINEAGE_VERSION_APPEND_TIME_OF_DAY=true WITH_SU=true LC_ALL=C \
+   	    mka bacon
+        fi
         [ -f $workdir/out/target/product/$product/boot.img ] && nbootime=$(stat -c %Y $workdir/out/target/product/$product/boot.img)
         if [ $obootime -lt $nbootime ]; then
              nbootimg=boot_$(stat -c %y $workdir/out/target/product/$product/boot.img | cut -d. -f1 | sed -e "s/-//g" -e "s/://g" -e "s/ /_/").img
              cp $workdir/out/target/product/$product/boot.img $workdir/out/target/product/$product/$nbootimg
-             echo "bootimage: $nbootimg build complete."
         fi
-elif [ $# -eq 1 -a "$1" = "-B" ]; then
-	rm -rf $workdir/out/target/product/$product/system
-	rm -rf $workdir/out/target/product/$product/root
-	rm -rf $workdir/out/target/product/$product/lineage_$product-ota-*.zip
-	rm -rf $workdir/out/target/product/$product/obj/PACKAGING/*
-
-        breakfast $product
-        LINEAGE_VERSION_APPEND_TIME_OF_DAY=true WITH_SU=true \
-	cmka bacon
-
-else
-	rm -rf $workdir/out/target/product/$product/system
-	rm -rf $workdir/out/target/product/$product/root
-	rm -rf $workdir/out/target/product/$product/lineage_$product-ota-*.zip
-	rm -rf $workdir/out/target/product/$product/obj/PACKAGING/*
-
-        LINEAGE_VERSION_APPEND_TIME_OF_DAY=true WITH_SU=true LC_ALL=C \
-	brunch $product
 fi
 
 if [ -x $workdir/out/host/linux-x86/bin/jack-admin ]; then
