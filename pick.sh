@@ -651,7 +651,6 @@ kpick 218989 # releasetools: Fix the size check for AVB images.
 kpick 218990 # releasetools: Always create IMAGES/ directory.
 kpick 218991 # releasetools: Move the AVB salt setup into common.LoadInfoDict().
 kpick 219020 # build: Disable backuptool for A/B on -user
-kpick 219060 # Add support for ZSH arrays
 
 # build/soong
 
@@ -735,6 +734,10 @@ kpick 219108 # you don't see this change
 # frameworks/native
 kpick 213549 # SurfaceFlinger: Support get/set ActiveConfigs
 kpick 218714 # native: drop hwui property on O-MR1
+kpick 219130 # Revert "SF: Fix hwrotation screenshots at surfaceflinger layer"
+kpick 219131 # Revert "SF: Squashed hwrotation support"
+kpick 219132 # Fix landscape LCM issue
+kpick 219133 # Need GSI to support landscape LCM
 
 # frameworks/opt/chips
 
@@ -810,7 +813,6 @@ kpick 218356 # Add tip to compile Heimdall from source.
 # lineage-sdk
 kpick 213367 # NetworkTraffic: Include tethering traffic statistics
 kpick 214854 # [3/3] lineagesdk: single hand for hw keys
-kpick 216505 # Regen lineage_current
 kpick 216978 # sdk: add torch accent
 kpick 217041 # sdk: add black berry style support
 kpick 217419 # Add vendor security patch level to device info
@@ -891,7 +893,6 @@ kpick 217420 # Add vendor security patch level to device info
 kpick 218165 # Add an option to change the device hostname (1/2).
 kpick 218438 # Settings: Add lockscreen shortcuts customization to lockscreen settings
 kpick 218775 # Settings: Cleanup SimSettings additions
-kpick 218919 # DisplaySettings: Allow devices to opt out from lift to wake detection
 
 # packages/apps/Snap
 kpick 206595 # Use transparent navigation bar
