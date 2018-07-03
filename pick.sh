@@ -660,7 +660,6 @@ kpick 219022 # sepolicy: Fix neverallow for user builds
 # device/qcom/sepolicy
 kpick 211273 # qcom/sepol: Fix timeservice app context
 kpick 212643 # qcom/sepol: Allow mm-qcamerad to use binder even in vendor
-kpick 219075 # Update keystore firmware access sepolicy for new executable name.
 
 # device/samsung/klte-common
 #kpick 212648 # klte-common: Enable AOD
@@ -729,7 +728,6 @@ kpick 218431 # SystemUI: Require unlock to toggle location
 kpick 218437 # SystemUI: Add activity alias for LockscreenFragment
 kpick 218819 # SystemUI: Fix Data Usage tile to match Settings
 kpick 218951 # core: Protect QTI specific broadcasts
-kpick 219108 # you don't see this change
 
 # frameworks/native
 kpick 213549 # SurfaceFlinger: Support get/set ActiveConfigs
@@ -780,6 +778,8 @@ kpick 218115 # msm8974: Support moving conf files to /vendor/etc
 # hardware/qcom/keymaster
 
 # hardware/qcom/power
+kpick 219169 # power: Adding hints for SDM845
+kpick 219170 # Fix interaction boost higher cpu freq perflock
 
 # hardware/qcom/thermal
 kpick 218360 # thermal: use log/log.h header
@@ -809,6 +809,7 @@ kpick 207545 # Add batch gerrit script
 
 # lineage/wiki
 kpick 218356 # Add tip to compile Heimdall from source.
+kpick 219164 # Introduce a supported versions column in device tables
 
 # lineage-sdk
 kpick 213367 # NetworkTraffic: Include tethering traffic statistics
@@ -1001,6 +1002,7 @@ kpick 218832 # lineage: Add prebuilt patchelf binaries and patch_blob function
 # vendor/nxp/opensource/external/libnfc-nci
 
 # vendor/qcom/opensource/cryptfs_hw
+kpick 219163 # cryptfs: Allow vold to set encryption info
 
 #-----------------------
 # translations
