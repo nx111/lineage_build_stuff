@@ -71,7 +71,7 @@ function patch_local()
              if [ "$changeid" != "" ]; then
                   if ! git log  -100 | grep "Change-Id: $changeid" >/dev/null 2>/dev/null; then 
                        echo "    patching: $f ..."
-                       git am -3 -q < $topdir/.mypatches/$f
+                       git am -3 -q   --keep-cr --committer-date-is-author-date < $topdir/.mypatches/$f
                        rc=$?
                        if [ $rc -ne 0 ]; then
                              first=0
@@ -233,11 +233,12 @@ function restore_snapshot()
          basecommit=$(echo $line | cut -d, -f2 | sed -e "s/^ *//g" -e "s/ *$//g")
          remoteurl=$(echo $line | cut -d, -f3 | sed -e "s/^ *//g" -e "s/ *$//g")
 
+         tmp_skip_dirs=/tmp/skip_dirs_$(echo $project | sed -e "s:/:_:g")
          cd $topdir/$project || resync_project $project;cd $topdir/$project
 
          echo ">>>  restore project: $project ... "
          git stash -q || resync_project $project;cd $topdir/$project
-         git clean -xdf
+         LANG=en_US git clean -xdf | sed -e "s/Skipping repository //g" | sed -e "s:/$::"> ${tmp_skip_dirs}
          if git log -n0 $basecommit >/dev/null 2>/dev/null; then
              git checkout -q --detach $basecommit>/dev/null 2>/dev/null
          else
@@ -252,6 +253,8 @@ function restore_snapshot()
          find $searchdir -type f -name "*.patch" -o -name "*.diff" | sed -e "s:$topdir/.mypatches/::"  -e "s|\/|:|" |sort -t : -k 2 | while read line; do
              rm -rf $topdir/$project/.git/rebase-apply
              f=$(echo $line | sed -e "s/:/\//")
+             fdir=$(dirname $f | sed -e "s:$project/::" | sed -e "s:^[^/]*/::g" |sed -e "s:\[.*::g" | sed -e "s:/$::")
+             grep -q -E "^$fdir$" ${tmp_skip_dirs} && continue
              patchfile=$(basename $f)
              if [ "${patchfile:5:5}" = "[WIP]" -o "${patchfile:5:6}" = "[SKIP]" ]; then
                   echo "         skipping: $f"
@@ -261,7 +264,7 @@ function restore_snapshot()
              if [ "$changeid" != "" ]; then
                   if ! git log  -100 | grep "Change-Id: $changeid" >/dev/null 2>/dev/null; then 
                       echo "         apply patch: $f ..."
-                      git am -3 -q < $topdir/.mypatches/$f
+                      git am -3 -q  --keep-cr --committer-date-is-author-date < $topdir/.mypatches/$f
                       rc=$?
                       if [ $rc -ne 0 ]; then
                              first=0
@@ -291,7 +294,7 @@ function restore_snapshot()
                   fi
               fi
          done
-
+         rm -f ${tmp_skip_dirs}
     done
     cd $topdir
 }
@@ -588,7 +591,7 @@ rrCache restore # restore rr-cache
 find $topdir/.mypatches/local/vendor/lineage/ -type f -name "*-\[ALWAYS\]-*.patch" -o -name "*-\[ALWAYS\]-*.diff" \
   | while read f; do
      cd $topdir/vendor/lineage;
-     if ! git am -3 -q < $f; then
+     if ! git am -3 -q   --keep-cr --committer-date-is-author-date < $f; then
         exit -1
      fi
 done
@@ -606,7 +609,7 @@ if [ $op_base_pick -eq 1 ]; then
    echo 
    echo "Apply I hate the safty net..."
    cd $topdir/system/core;find  $topdir/.mypatches/local/system/core/ -name "*I-hate-the-safty-net*.patch" | xargs cat \
-         | git am -3; cd $topdir
+         | git am -3   --keep-cr --committer-date-is-author-date; cd $topdir
    touch $topdir/.pick_base
    exit 0
 fi
