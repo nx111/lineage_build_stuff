@@ -1,0 +1,56 @@
+From dad00954172b29391d9c903e2b37dfea0694de0b Mon Sep 17 00:00:00 2001
+From: Simon Shields <simon@lineageos.org>
+Date: Wed, 4 Jul 2018 01:57:16 +1000
+Subject: [PATCH 2/2] minui: drm: wait for page flip event before next flip
+
+If we flip too quickly, we'll get EBUSY. Add a simple listener to
+the DRM_MODE_PAGE_FLIP_EVENT event in order to avoid this happening.
+
+Change-Id: I087004ddaeecc76f8f97ba00ebc25ddeb191c7ab
+---
+ minui/graphics_drm.cpp | 24 ++++++++++++++++++++++--
+ 1 file changed, 22 insertions(+), 2 deletions(-)
+
+diff --git a/minui/graphics_drm.cpp b/minui/graphics_drm.cpp
+index a7b0fea5..50272adc 100644
+--- a/minui/graphics_drm.cpp
++++ b/minui/graphics_drm.cpp
+@@ -374,13 +374,33 @@ GRSurface* MinuiBackendDrm::Init() {
+   return GRSurfaceDrms[0];
+ }
+ 
++static bool flip_pending = false;
++
++static void drm_page_flip_event(int, unsigned int, unsigned int,
++    unsigned int, void *)
++{
++  flip_pending = false;
++}
++
+ GRSurface* MinuiBackendDrm::Flip() {
+-  int ret = drmModePageFlip(drm_fd, main_monitor_crtc->crtc_id,
+-                            GRSurfaceDrms[current_buffer]->fb_id, 0, nullptr);
++  drmEventContext ev;
++  int ret;
++
++  memset(&ev, 0, sizeof(ev));
++  ev.version = 2;
++  ev.page_flip_handler = drm_page_flip_event;
++
++  while (flip_pending) {
++    drmHandleEvent(drm_fd, &ev);
++  }
++
++  ret = drmModePageFlip(drm_fd, main_monitor_crtc->crtc_id,
++                            GRSurfaceDrms[current_buffer]->fb_id, DRM_MODE_PAGE_FLIP_EVENT, nullptr);
+   if (ret < 0) {
+     printf("drmModePageFlip failed ret=%d\n", ret);
+     return nullptr;
+   }
++  flip_pending = true;
+   current_buffer = 1 - current_buffer;
+   return GRSurfaceDrms[current_buffer];
+ }
+-- 
+2.17.1
+

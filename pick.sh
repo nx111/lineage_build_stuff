@@ -622,11 +622,10 @@ repo sync --force-sync packages/apps/Exchange
 kpick 212920 # libc: Mark libstdc++ as vendor available
 kpick 217311 # linker: add support for odm partition
 kpick 217312 # libc: add /odm/bin to the DEFPATH
-kpick 218402 # linker: Ensure active matching pairs
-kpick 218403 # linker: Don't involve shim in for_each_dt_needed
 
 # bootable/recovery
-#kpick 217627 # recovery: Do not show emulated when data is encrypted
+kpick 219194 # minui: drm: ARGB8888 support
+kpick 219195 # minui: drm: wait for page flip event before next flip	
 
 # build/make
 kpick 206396 # build: recovery: add vendor to exclusion list
@@ -668,7 +667,6 @@ kpick 212643 # qcom/sepol: Allow mm-qcamerad to use binder even in vendor
 
 # device/samsung/msm8974-common
 kpick 210313 # msm8974-common: Binderize them all
-kpick 218869 # msm8974-common: libril: Use libril way of freeing strings for nitz hack
 
 # kernel/samsung/msm8974
 kpick 210665 # wacom: Follow-up from gestures patch
@@ -697,6 +695,7 @@ kpick 209910 # Camera2Client: Add support for enabling QTI Video/Sensor HDR feat
 kpick 209911 # Camera2Client: Add support for QTI specific AutoHDR and Histogram feature
 kpick 209912 # Camera: Skip stream size check for whitelisted apps
 kpick 213115 # camera: Disable extra HDR frame on QCOM_HARDWARE
+kpick 219089 # audiopolicy: update APM to use custom audio policy configuration
 
 # frameworks/base
 kpick -f 206054 # SystemUI: use vector drawables for navbar icons
@@ -757,6 +756,7 @@ kpick 213865 # lineage/interfaces: move vibrator to the proper directory
 kpick 213866 # lineage/interfaces: extend android.hardware.vibrator@1.0
 kpick 213867 # lineage/interfaces: vibrator: read light/medium/strong voltage from sysfs
 kpick 213868 # lineage/interfaces: vibrator: implement vendor.lineage methods
+kpick 219211 # livedisplay: Restart HAL after successful data decryption
 
 # hardware/lineage/lineagehw
 
@@ -770,16 +770,14 @@ kpick 209093 # msm8974: hwc: Set ioprio for vsync thread
 # hardware/qcom/display-caf/msm8974
 
 # hardware/qcom/gps
-kpick 218114 # msm8974: Support moving conf files to /vendor/etc
-kpick 218115 # msm8974: Support moving conf files to /vendor/etc
 
 # hardware/qcom/media-caf/msm8974
 
 # hardware/qcom/keymaster
 
 # hardware/qcom/power
-kpick 219169 # power: Adding hints for SDM845
 kpick 219170 # Fix interaction boost higher cpu freq perflock
+kpick 219212 # power: Allow devices disabling power stats completely
 
 # hardware/qcom/thermal
 kpick 218360 # thermal: use log/log.h header
@@ -808,6 +806,7 @@ kpick 207545 # Add batch gerrit script
 # lineage/website(LineageOS/www)
 
 # lineage/wiki
+kpick 218316 # wiki: Adapt install template for A/B devices
 kpick 218356 # Add tip to compile Heimdall from source.
 kpick 219164 # Introduce a supported versions column in device tables
 
