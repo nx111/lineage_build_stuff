@@ -730,6 +730,7 @@ kpick 218431 # SystemUI: Require unlock to toggle location
 kpick 218437 # SystemUI: Add activity alias for LockscreenFragment
 kpick 218819 # SystemUI: Fix Data Usage tile to match Settings
 kpick 218951 # core: Protect QTI specific broadcasts
+kpick 219215 # base: limit direct share targets to reduce lag
 
 # frameworks/native
 kpick 213549 # SurfaceFlinger: Support get/set ActiveConfigs
@@ -822,6 +823,9 @@ kpick 217419 # Add vendor security patch level to device info
 #kpick 218679 # lineage-sdk: Use ILight.getSupportedTypes for lights capabilities
 kpick 219054 # sdk: Trust: better warnings management
 
+# lineage-sdk/samples/weatherproviderservice/YahooWeatherProvider
+kpick 207864 # Updated Gradle to 3.0.1; The Lineage-SDK jar is now contained in the project files
+
 # packages/apps/Bluetooth
 kpick 218319 # Bluetooth: Remove duplicate permission
 
@@ -881,9 +885,6 @@ kpick 208127 # Update LockClock to use Job APIs
 
 # packages/apps/Nfc
 
-# packages/apps/OpenWeatherMapProvider
-kpick 207864 # Updated Gradle to 3.0.1; The Lineage-SDK jar is now contained in the project files
-
 # packages/apps/Recoder
 
 # packages/apps/Settings
@@ -902,7 +903,13 @@ kpick 206595 # Use transparent navigation bar
 kpick 218826 # CameraSettings:Do not crash if zoom ratios are not exposed.
 
 # packages/apps/Trebuchet
-kpick 214336 # [WIP] Trebuchet: initial protected apps implementation
+kpick 214336 # Trebuchet: initial protected apps implementation
+kpick 219265 # IconPicker: clone drawables array to prevent IOOBE
+kpick 219266 # IconsHandler: prevent resource not found exception when getting xml
+kpick 219267 # IconsHandler: use ViewHolder, prevent AsyncTask leaks, cleanup
+kpick 219268 # logging: prevent NPE at logDeepShortcutsOpen
+kpick 219269 # Trebuchet: use system's accent
+kpick 219270 # Trebuchet: the superior siege weapon doesn't need paddings in allApps' icons
 
 # packages/apps/UnifiedEmail
 kpick 218385 # unified email: prefer account display name to sender name
