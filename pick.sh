@@ -698,7 +698,6 @@ kpick 209910 # Camera2Client: Add support for enabling QTI Video/Sensor HDR feat
 kpick 209911 # Camera2Client: Add support for QTI specific AutoHDR and Histogram feature
 kpick 209912 # Camera: Skip stream size check for whitelisted apps
 kpick 213115 # camera: Disable extra HDR frame on QCOM_HARDWARE
-kpick 219089 # audiopolicy: update APM to use custom audio policy configuration
 
 # frameworks/base
 kpick -f 206054 # SystemUI: use vector drawables for navbar icons
@@ -730,7 +729,7 @@ kpick 218431 # SystemUI: Require unlock to toggle location
 kpick 218437 # SystemUI: Add activity alias for LockscreenFragment
 kpick 218819 # SystemUI: Fix Data Usage tile to match Settings
 kpick 218951 # core: Protect QTI specific broadcasts
-kpick 219215 # base: limit direct share targets to reduce lag
+kpick 219392 # systemUi: styles: support more dark overlays
 
 # frameworks/native
 kpick 213549 # SurfaceFlinger: Support get/set ActiveConfigs
@@ -810,7 +809,6 @@ kpick 207545 # Add batch gerrit script
 # lineage/website(LineageOS/www)
 
 # lineage/wiki
-kpick 218316 # wiki: Adapt install template for A/B devices
 kpick 218356 # Add tip to compile Heimdall from source.
 kpick 219164 # Introduce a supported versions column in device tables
 
@@ -822,6 +820,8 @@ kpick 217041 # sdk: add black berry style support
 kpick 217419 # Add vendor security patch level to device info
 #kpick 218679 # lineage-sdk: Use ILight.getSupportedTypes for lights capabilities
 kpick 219054 # sdk: Trust: better warnings management
+kpick 219393 # styles: add support for more dark overlays
+kpick 219395 # styles: do not enforce permission when it's not needed
 
 # lineage-sdk/samples/weatherproviderservice/YahooWeatherProvider
 kpick 207864 # Updated Gradle to 3.0.1; The Lineage-SDK jar is now contained in the project files
@@ -852,6 +852,7 @@ kpick 218379 # email: Add an ActionBar to the mail app's PreferenceActivity
 kpick 218370 # email: support per-folder notifications
 kpick 218373 # email: fix eas autodiscover
 kpick 218374 # Implement IMAP push using IMAP IDLE.
+kpick 219312 # Request battery optimization exemption if IMAP IDLE is used.
 kpick 218375 # Fix crash when attempting to view EML files.
 kpick 218376 # Allow download of compressed attachments.
 kpick 218377 # email: fix empty body update
@@ -879,6 +880,7 @@ kpick 217642 # Align learn more and got it horizontally
 kpick 217644 # LineageParts: Set proper PreferenceTheme parent	
 kpick 218315 # LineageParts: Fix brightness section
 kpick 219055 # parts: Trust: better warnings management
+kpick 219394 # parts: styles: add support for more dark overlays
 
 # packages/apps/lockClock
 kpick 208127 # Update LockClock to use Job APIs 
@@ -930,6 +932,7 @@ kpick 218399 # Fix cut off notification sounds.
 kpick 218400 # Pass selected folder to message search.
 kpick 218401 # Properly close body InputStreams.
 kpick 218797 # Make navigation drawer extend over status bar.
+kpick 219311 # Disable animations for translucent activities.
 
 # packages/overlays/Lineage
 kpick 215846 # dark: Add Theme.DeviceDefault.Settings.Dialog.NoActionBar style
@@ -952,6 +955,7 @@ kpick 215626 # Add vendor hook to handle_control_message
 kpick 217313 # add odm partition to ld.config.legacy
 kpick 217314 # Allow firmware loading from ODM partition
 kpick 218837 # libsuspend: Add property support for timeout of autosuspend
+kpick 219304 # init: Allow devices to opt-out of fsck'ing on power off
 
 # system/extras
 kpick 211210 # ext4: Add /data/stache/ to encryption exclusion list
@@ -1005,6 +1009,10 @@ kpick 218717 # verity_tool: Implement status getter
 kpick 218801 # libbfqio: Open bfqio once
 kpick 218817 # kernel: Do not attempt to build modules if there aren't
 kpick 218832 # lineage: Add prebuilt patchelf binaries and patch_blob function
+kpick 219342 # addonsu: Fix installation on TWRP A/B
+kpick 219354 # lineage: Don't allow prebuilt kernels on official builds
+kpick 219388 # config: Add more GMS client base ID props
+kpick 219389 # lineage: Always disable google SystemUpdateService
 
 # vendor/nxp/opensource/packages/apps/Nfc
 

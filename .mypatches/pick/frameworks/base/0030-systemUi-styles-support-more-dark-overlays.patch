@@ -1,0 +1,102 @@
+From c5846cb0d946e48494b5db76f662af2417f8eb36 Mon Sep 17 00:00:00 2001
+From: Joey <joey@lineageos.org>
+Date: Thu, 5 Jul 2018 21:14:01 +0200
+Subject: [PATCH 30/32] systemUi: styles: support more dark overlays
+
+Change-Id: I4fafa2b1e342608e2690c3dda7cb06aaf88247ba
+Signed-off-by: Joey <joey@lineageos.org>
+---
+ .../systemui/statusbar/phone/StatusBar.java   | 38 ++++++++++++++++---
+ 1 file changed, 33 insertions(+), 5 deletions(-)
+
+diff --git a/packages/SystemUI/src/com/android/systemui/statusbar/phone/StatusBar.java b/packages/SystemUI/src/com/android/systemui/statusbar/phone/StatusBar.java
+index 44c0252e0dd..c3bb5546f38 100644
+--- a/packages/SystemUI/src/com/android/systemui/statusbar/phone/StatusBar.java
++++ b/packages/SystemUI/src/com/android/systemui/statusbar/phone/StatusBar.java
+@@ -274,6 +274,7 @@ import java.util.Stack;
+ 
+ import lineageos.hardware.LiveDisplayManager;
+ import lineageos.providers.LineageSettings;
++import lineageos.style.StyleInterface;
+ 
+ public class StatusBar extends SystemUI implements DemoMode,
+         DragDownHelper.DragDownCallback, ActivityStarter, OnUnlockMethodChangedListener,
+@@ -3041,8 +3042,8 @@ public class StatusBar extends SystemUI implements DemoMode,
+     private boolean isUsingTheme(String overlay) {
+         OverlayInfo systemuiThemeInfo = null;
+         try {
+-            systemuiThemeInfo = mOverlayManager.getOverlayInfo(overlay,
+-                    mCurrentUserId);
++            String darkTheme = getDarkOverlay();
++            systemuiThemeInfo = mOverlayManager.getOverlayInfo(darkTheme, mCurrentUserId);
+         } catch (RemoteException e) {
+             e.printStackTrace();
+         }
+@@ -3069,6 +3070,12 @@ public class StatusBar extends SystemUI implements DemoMode,
+         return false;
+     }
+ 
++    private String getDarkOverlay() {
++        return LineageSettings.System.getString(mContext.getContentResolver(),
++                LineageSettings.System.BERRY_DARK_OVERLAY,
++                StyleInterface.OVERLAY_DARK_DEFAULT);
++    }
++
+     @Nullable
+     public View getAmbientIndicationContainer() {
+         return mAmbientIndicationContainer;
+@@ -5034,20 +5041,27 @@ public class StatusBar extends SystemUI implements DemoMode,
+                 .getWallpaperColors(WallpaperManager.FLAG_SYSTEM);
+         int actualStyle = LIGHT_STYLE;
+ 
++        boolean useDarkTheme;
++
+         switch (globalStyleSetting) {
+             case DYNAMIC_STYLE:
+-                if (isLiveDisplayNightModeOn()) {
++                useDarkTheme = isLiveDisplayNightModeOn();
++                if (useDarkTheme) {
+                     actualStyle = DARK_STYLE;
+                 }
+                 break;
+             case LIGHT_STYLE:
++                useDarkTheme = false;
+             case DARK_STYLE:
++                useDarkTheme = true;
+             case BLACK_STYLE:
++                useDarkTheme = true;
+                 actualStyle = globalStyleSetting;
+                 break;
+             default:
+-                if (systemColors != null && (systemColors.getColorHints() &
+-                        WallpaperColors.HINT_SUPPORTS_DARK_THEME) != 0) {
++                useDarkTheme = systemColors != null && (systemColors.getColorHints() &
++                        WallpaperColors.HINT_SUPPORTS_DARK_THEME) != 0;
++                if (useDarkTheme) {
+                     actualStyle = DARK_STYLE;
+                 }
+                 break;
+@@ -5055,6 +5069,20 @@ public class StatusBar extends SystemUI implements DemoMode,
+ 
+         updateStyle(actualStyle);
+ 
++        if (isUsingDarkTheme() != useDarkTheme) {
++            try {
++                String darkOverlay = getDarkOverlay();
++                mOverlayManager.setEnabled(darkOverlay, useDarkTheme, mCurrentUserId);
++            } catch (RemoteException e) {
++                Log.w(TAG, "Can't change theme", e);
++            }
++
++            if (mUiModeManager != null) {
++                mUiModeManager.setNightMode(useDarkTheme ?
++                        UiModeManager.MODE_NIGHT_YES : UiModeManager.MODE_NIGHT_NO);
++            }
++        }
++
+         // Lock wallpaper defines the color of the majority of the views, hence we'll use it
+         // to set our default theme.
+         final boolean lockDarkText = mColorExtractor.getColors(WallpaperManager.FLAG_LOCK, true
+-- 
+2.17.1
+

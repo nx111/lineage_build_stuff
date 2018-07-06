@@ -1,4 +1,4 @@
-From 3ee12c36d62433450f77ab466b77edf7cae71eb8 Mon Sep 17 00:00:00 2001
+From be0ab6beadddd77d6e0983f2fd66ff492af54fa2 Mon Sep 17 00:00:00 2001
 From: Danny Baumann <dannybaumann@web.de>
 Date: Mon, 25 Jun 2018 10:47:13 +0200
 Subject: [PATCH 2/3] Allow per-call account selection.
@@ -12,14 +12,14 @@ Change-Id: Ieac27294f4069b2cff17bb39a0954f74320ad943
  .../dialer/app/calllog/CallLogAdapter.java    |   2 +-
  .../calllog/CallLogListItemViewHolder.java    |  17 +-
  .../dialer/app/calllog/IntentProvider.java    |  26 ++-
- .../dialer/app/dialpad/DialpadFragment.java   |  43 ++++-
+ .../dialer/app/dialpad/DialpadFragment.java   |  46 ++++-
  .../res/layout/select_account_list_item.xml   |  45 +++++
  .../dialer/app/res/menu/dialpad_options.xml   |   6 +-
  .../dialer/app/res/values/cm_strings.xml      |   1 +
  .../android/dialer/app/res/values/styles.xml  |  10 ++
  .../CallDetailsHeaderViewHolder.java          |  19 +-
  java/com/android/dialer/util/CallUtil.java    |  21 +++
- 14 files changed, 353 insertions(+), 20 deletions(-)
+ 14 files changed, 356 insertions(+), 20 deletions(-)
  create mode 100644 java/com/android/dialer/app/AccountSelectionActivity.java
  create mode 100644 java/com/android/dialer/app/res/layout/select_account_list_item.xml
 
@@ -410,7 +410,7 @@ index 55fdbbace..2c4510ab0 100644
 +  }
  }
 diff --git a/java/com/android/dialer/app/dialpad/DialpadFragment.java b/java/com/android/dialer/app/dialpad/DialpadFragment.java
-index 3cd3ac27c..ce8b6179c 100644
+index 3cd3ac27c..0a86148dc 100644
 --- a/java/com/android/dialer/app/dialpad/DialpadFragment.java
 +++ b/java/com/android/dialer/app/dialpad/DialpadFragment.java
 @@ -47,6 +47,7 @@ import android.support.design.widget.FloatingActionButton;
@@ -438,7 +438,7 @@ index 3cd3ac27c..ce8b6179c 100644
    /**
     * Determines whether an add call operation is requested.
     *
-@@ -883,6 +887,34 @@ public class DialpadFragment extends Fragment
+@@ -883,6 +887,37 @@ public class DialpadFragment extends Fragment
                  item.setVisible(CallUtil.isCallWithSubjectSupported(getContext()));
                }
              }
@@ -460,12 +460,15 @@ index 3cd3ac27c..ce8b6179c 100644
 +
 +              for (PhoneAccount account : accounts) {
 +                final PhoneAccountHandle handle = account.getAccountHandle();
++                final Intent intent = new Intent()
++                    .putExtra(TelecomManager.EXTRA_PHONE_ACCOUNT_HANDLE, handle);
++
 +                callWithMenu.add(Menu.FIRST, Menu.NONE, Menu.NONE, account.getLabel())
-+                    .setIntent(new Intent().putExtra("account", handle))
++                    .setIntent(intent)
 +                    .setChecked(handle.equals(selected));
 +              }
 +              callWithMenu.setGroupCheckable(Menu.FIRST, true, true);
-+               callWithItem.setVisible(callWithMenu.hasVisibleItems());
++              callWithItem.setVisible(callWithMenu.hasVisibleItems());
 +            } else {
 +              callWithItem.setVisible(false);
 +            }
@@ -473,7 +476,7 @@ index 3cd3ac27c..ce8b6179c 100644
              super.show();
            }
          };
-@@ -1042,8 +1074,9 @@ public class DialpadFragment extends Fragment
+@@ -1042,8 +1077,9 @@ public class DialpadFragment extends Fragment
          // Clear the digits just in case.
          clearDialpad();
        } else {
@@ -485,7 +488,7 @@ index 3cd3ac27c..ce8b6179c 100644
          DialerUtils.startActivityWithErrorToast(getActivity(), intent);
          hideAndClearDialpad(false);
        }
-@@ -1054,6 +1087,7 @@ public class DialpadFragment extends Fragment
+@@ -1054,6 +1090,7 @@ public class DialpadFragment extends Fragment
      if (mDigits != null) {
        mDigits.getText().clear();
      }
@@ -493,7 +496,7 @@ index 3cd3ac27c..ce8b6179c 100644
    }
  
    private void handleDialButtonClickWithEmptyDigits() {
-@@ -1282,6 +1316,11 @@ public class DialpadFragment extends Fragment
+@@ -1282,6 +1319,11 @@ public class DialpadFragment extends Fragment
  
    @Override
    public boolean onMenuItemClick(MenuItem item) {
