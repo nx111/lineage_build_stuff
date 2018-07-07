@@ -1,0 +1,493 @@
+From c026a3966d74dae5e9d8c38b5f87e5e7304beff7 Mon Sep 17 00:00:00 2001
+From: Luca Stefani <luca.stefani.ge1@gmail.com>
+Date: Fri, 6 Jul 2018 12:29:57 +0200
+Subject: [PATCH 12/12] Merge tag 'android-8.1.0_r36' into
+ staging/lineage-15.1-android-8.1.0_r36
+
+Android 8.1.0 Release 36 (OPM2.171026.006.H1)
+
+* tag 'android-8.1.0_r36':
+  Speed up id3v2 unsynchronization
+  Fix security vulnerability in CryptoHal
+  aaudio: use weak pointer to prevent UAF
+  Add minimum size check for ImageGrid atom
+  Sanitize effect descriptors for AudioPolicyService binder calls.
+  Add check preventing div0 issue
+  Init gain config to prevent uninit leak.
+
+Change-Id: I766d5168d25d2083bb1db03ac49eb5e56d8f3db4
+---
+ drm/libmediadrm/CryptoHal.cpp                 | 25 ++++++--
+ media/libmedia/include/media/CryptoHal.h      | 15 ++++-
+ media/libstagefright/ItemTable.cpp            |  3 +-
+ media/libstagefright/id3/ID3.cpp              | 21 +++++--
+ services/oboeservice/AAudioServiceEndpoint.h  |  4 +-
+ .../oboeservice/AAudioServiceStreamBase.cpp   | 57 +++++++++++--------
+ .../oboeservice/AAudioServiceStreamBase.h     |  5 ++
+ .../oboeservice/AAudioServiceStreamMMAP.cpp   | 55 ++++++++++++++----
+ .../oboeservice/AAudioServiceStreamShared.cpp | 29 +++++++---
+ 9 files changed, 159 insertions(+), 55 deletions(-)
+
+diff --git a/drm/libmediadrm/CryptoHal.cpp b/drm/libmediadrm/CryptoHal.cpp
+index 1fdc6e195..5dd25639c 100644
+--- a/drm/libmediadrm/CryptoHal.cpp
++++ b/drm/libmediadrm/CryptoHal.cpp
+@@ -240,11 +240,12 @@ int32_t CryptoHal::setHeapBase(const sp<IMemoryHeap>& heap) {
+     Mutex::Autolock autoLock(mLock);
+ 
+     int32_t seqNum = mHeapSeqNum++;
++
+     int fd = heap->getHeapID();
+     nativeHandle->data[0] = fd;
+     auto hidlHandle = hidl_handle(nativeHandle);
+     auto hidlMemory = hidl_memory("ashmem", hidlHandle, heap->getSize());
+-    mHeapBases.add(seqNum, mNextBufferId);
++    mHeapBases.add(seqNum, HeapBase(mNextBufferId, heap->getSize()));
+     Return<void> hResult = mPlugin->setSharedBufferBase(hidlMemory, mNextBufferId++);
+     ALOGE_IF(!hResult.isOk(), "setSharedBufferBase(): remote call failed");
+     return seqNum;
+@@ -269,10 +270,26 @@ status_t CryptoHal::toSharedBuffer(const sp<IMemory>& memory, int32_t seqNum, ::
+         return UNEXPECTED_NULL;
+     }
+ 
+-    // memory must be in the declared heap
+-    CHECK(mHeapBases.indexOfKey(seqNum) >= 0);
++    // memory must be in one of the heaps that have been set
++    if (mHeapBases.indexOfKey(seqNum) < 0) {
++        return UNKNOWN_ERROR;
++    }
++
++    // heap must be the same size as the one that was set in setHeapBase
++    if (mHeapBases.valueFor(seqNum).getSize() != heap->getSize()) {
++        android_errorWriteLog(0x534e4554, "76221123");
++        return UNKNOWN_ERROR;
++     }
++
++    // memory must be within the address space of the heap
++    if (memory->pointer() != static_cast<uint8_t *>(heap->getBase()) + memory->offset()  ||
++            heap->getSize() < memory->offset() + memory->size() ||
++            SIZE_MAX - memory->offset() < memory->size()) {
++        android_errorWriteLog(0x534e4554, "76221123");
++        return UNKNOWN_ERROR;
++    }
+ 
+-    buffer->bufferId = mHeapBases.valueFor(seqNum);
++    buffer->bufferId = mHeapBases.valueFor(seqNum).getBufferId();
+     buffer->offset = offset >= 0 ? offset : 0;
+     buffer->size = size;
+     return OK;
+diff --git a/media/libmedia/include/media/CryptoHal.h b/media/libmedia/include/media/CryptoHal.h
+index a5d8b43ae..80e181e57 100644
+--- a/media/libmedia/include/media/CryptoHal.h
++++ b/media/libmedia/include/media/CryptoHal.h
+@@ -79,7 +79,20 @@ private:
+      */
+     status_t mInitCheck;
+ 
+-    KeyedVector<int32_t, uint32_t> mHeapBases;
++    struct HeapBase {
++        HeapBase() : mBufferId(0), mSize(0) {}
++        HeapBase(uint32_t bufferId, size_t size) :
++            mBufferId(bufferId), mSize(size) {}
++
++        uint32_t getBufferId() const {return mBufferId;}
++        size_t getSize() const {return mSize;}
++
++    private:
++        uint32_t mBufferId;
++        size_t mSize;
++    };
++
++    KeyedVector<int32_t, HeapBase> mHeapBases;
+     uint32_t mNextBufferId;
+     int32_t mHeapSeqNum;
+ 
+diff --git a/media/libstagefright/ItemTable.cpp b/media/libstagefright/ItemTable.cpp
+index f9ee1c497..f589f4f26 100644
+--- a/media/libstagefright/ItemTable.cpp
++++ b/media/libstagefright/ItemTable.cpp
+@@ -1335,7 +1335,8 @@ status_t ItemTable::buildImageItemsIfPossible(uint32_t type) {
+         ALOGV("adding %s: itemId %d", image.isGrid() ? "grid" : "image", info.itemId);
+ 
+         if (image.isGrid()) {
+-            if (size > 12) {
++            // ImageGrid struct is at least 8-byte, at most 12-byte (if flags&1)
++            if (size < 8 || size > 12) {
+                 return ERROR_MALFORMED;
+             }
+             uint8_t buf[12];
+diff --git a/media/libstagefright/id3/ID3.cpp b/media/libstagefright/id3/ID3.cpp
+index 58d8b1379..e897b67aa 100644
+--- a/media/libstagefright/id3/ID3.cpp
++++ b/media/libstagefright/id3/ID3.cpp
+@@ -328,12 +328,25 @@ struct id3_header {
+ }
+ 
+ void ID3::removeUnsynchronization() {
+-    for (size_t i = 0; i + 1 < mSize; ++i) {
+-        if (mData[i] == 0xff && mData[i + 1] == 0x00) {
+-            memmove(&mData[i + 1], &mData[i + 2], mSize - i - 2);
+-            --mSize;
++
++    // This file has "unsynchronization", so we have to replace occurrences
++    // of 0xff 0x00 with just 0xff in order to get the real data.
++
++    size_t writeOffset = 1;
++    for (size_t readOffset = 1; readOffset < mSize; ++readOffset) {
++        if (mData[readOffset - 1] == 0xff && mData[readOffset] == 0x00) {
++            continue;
+         }
++        // Only move data if there's actually something to move.
++        // This handles the special case of the data being only [0xff, 0x00]
++        // which should be converted to just 0xff if unsynchronization is on.
++        mData[writeOffset++] = mData[readOffset];
+     }
++
++    if (writeOffset < mSize) {
++        mSize = writeOffset;
++    }
++
+ }
+ 
+ static void WriteSyncsafeInteger(uint8_t *dst, size_t x) {
+diff --git a/services/oboeservice/AAudioServiceEndpoint.h b/services/oboeservice/AAudioServiceEndpoint.h
+index 2ef623464..c19cc3547 100644
+--- a/services/oboeservice/AAudioServiceEndpoint.h
++++ b/services/oboeservice/AAudioServiceEndpoint.h
+@@ -49,9 +49,9 @@ public:
+ 
+     virtual aaudio_result_t close() = 0;
+ 
+-    virtual aaudio_result_t registerStream(android::sp<AAudioServiceStreamBase> stream);
++    aaudio_result_t registerStream(android::sp<AAudioServiceStreamBase> stream);
+ 
+-    virtual aaudio_result_t unregisterStream(android::sp<AAudioServiceStreamBase> stream);
++    aaudio_result_t unregisterStream(android::sp<AAudioServiceStreamBase> stream);
+ 
+     virtual aaudio_result_t startStream(android::sp<AAudioServiceStreamBase> stream,
+                                         audio_port_handle_t *clientHandle) = 0;
+diff --git a/services/oboeservice/AAudioServiceStreamBase.cpp b/services/oboeservice/AAudioServiceStreamBase.cpp
+index ff0b037e5..d9b87666d 100644
+--- a/services/oboeservice/AAudioServiceStreamBase.cpp
++++ b/services/oboeservice/AAudioServiceStreamBase.cpp
+@@ -104,6 +104,9 @@ aaudio_result_t AAudioServiceStreamBase::open(const aaudio::AAudioStreamRequest
+             goto error;
+         }
+ 
++        // This is not protected by a lock because the stream cannot be
++        // referenced until the service returns a handle to the client.
++        // So only one thread can open a stream.
+         mServiceEndpoint = mEndpointManager.openEndpoint(mAudioService,
+                                                          request,
+                                                          sharingMode);
+@@ -112,6 +115,9 @@ aaudio_result_t AAudioServiceStreamBase::open(const aaudio::AAudioStreamRequest
+             result = AAUDIO_ERROR_UNAVAILABLE;
+             goto error;
+         }
++        // Save a weak pointer that we will use to access the endpoint.
++        mServiceEndpointWeak = mServiceEndpoint;
++
+         mFramesPerBurst = mServiceEndpoint->getFramesPerBurst();
+         copyFrom(*mServiceEndpoint);
+     }
+@@ -130,15 +136,19 @@ aaudio_result_t AAudioServiceStreamBase::close() {
+ 
+     stop();
+ 
+-    if (mServiceEndpoint == nullptr) {
++    sp<AAudioServiceEndpoint> endpoint = mServiceEndpointWeak.promote();
++    if (endpoint == nullptr) {
+         result = AAUDIO_ERROR_INVALID_STATE;
+     } else {
+-        mServiceEndpoint->unregisterStream(this);
+-        AAudioEndpointManager &mEndpointManager = AAudioEndpointManager::getInstance();
+-        mEndpointManager.closeEndpoint(mServiceEndpoint);
+-        mServiceEndpoint.clear();
++        endpoint->unregisterStream(this);
++        AAudioEndpointManager &endpointManager = AAudioEndpointManager::getInstance();
++        endpointManager.closeEndpoint(endpoint);
++
++        // AAudioService::closeStream() prevents two threads from closing at the same time.
++        mServiceEndpoint.clear(); // endpoint will hold the pointer until this method returns.
+     }
+ 
++
+     {
+         std::lock_guard<std::mutex> lock(mUpMessageQueueLock);
+         stopTimestampThread();
+@@ -152,7 +162,12 @@ aaudio_result_t AAudioServiceStreamBase::close() {
+ 
+ aaudio_result_t AAudioServiceStreamBase::startDevice() {
+     mClientHandle = AUDIO_PORT_HANDLE_NONE;
+-    return mServiceEndpoint->startStream(this, &mClientHandle);
++    sp<AAudioServiceEndpoint> endpoint = mServiceEndpointWeak.promote();
++    if (endpoint == nullptr) {
++        ALOGE("%s() has no endpoint", __func__);
++        return AAUDIO_ERROR_INVALID_STATE;
++    }
++    return endpoint->startStream(this, &mClientHandle);
+ }
+ 
+ /**
+@@ -162,16 +177,11 @@ aaudio_result_t AAudioServiceStreamBase::startDevice() {
+  */
+ aaudio_result_t AAudioServiceStreamBase::start() {
+     aaudio_result_t result = AAUDIO_OK;
++
+     if (isRunning()) {
+         return AAUDIO_OK;
+     }
+ 
+-    if (mServiceEndpoint == nullptr) {
+-        ALOGE("AAudioServiceStreamBase::start() missing endpoint");
+-        result = AAUDIO_ERROR_INVALID_STATE;
+-        goto error;
+-    }
+-
+     // Start with fresh presentation timestamps.
+     mAtomicTimestamp.clear();
+ 
+@@ -198,10 +208,6 @@ aaudio_result_t AAudioServiceStreamBase::pause() {
+     if (!isRunning()) {
+         return result;
+     }
+-    if (mServiceEndpoint == nullptr) {
+-        ALOGE("AAudioServiceStreamShared::pause() missing endpoint");
+-        return AAUDIO_ERROR_INVALID_STATE;
+-    }
+ 
+     // Send it now because the timestamp gets rounded up when stopStream() is called below.
+     // Also we don't need the timestamps while we are shutting down.
+@@ -213,7 +219,12 @@ aaudio_result_t AAudioServiceStreamBase::pause() {
+         return result;
+     }
+ 
+-    result = mServiceEndpoint->stopStream(this, mClientHandle);
++    sp<AAudioServiceEndpoint> endpoint = mServiceEndpointWeak.promote();
++    if (endpoint == nullptr) {
++        ALOGE("%s() has no endpoint", __func__);
++        return AAUDIO_ERROR_INVALID_STATE;
++    }
++    result = endpoint->stopStream(this, mClientHandle);
+     if (result != AAUDIO_OK) {
+         ALOGE("AAudioServiceStreamShared::pause() mServiceEndpoint returned %d", result);
+         disconnect(); // TODO should we return or pause Base first?
+@@ -230,11 +241,6 @@ aaudio_result_t AAudioServiceStreamBase::stop() {
+         return result;
+     }
+ 
+-    if (mServiceEndpoint == nullptr) {
+-        ALOGE("AAudioServiceStreamShared::stop() missing endpoint");
+-        return AAUDIO_ERROR_INVALID_STATE;
+-    }
+-
+     // Send it now because the timestamp gets rounded up when stopStream() is called below.
+     // Also we don't need the timestamps while we are shutting down.
+     sendCurrentTimestamp(); // warning - this calls a virtual function
+@@ -244,8 +250,13 @@ aaudio_result_t AAudioServiceStreamBase::stop() {
+         return result;
+     }
+ 
++    sp<AAudioServiceEndpoint> endpoint = mServiceEndpointWeak.promote();
++    if (endpoint == nullptr) {
++        ALOGE("%s() has no endpoint", __func__);
++        return AAUDIO_ERROR_INVALID_STATE;
++    }
+     // TODO wait for data to be played out
+-    result = mServiceEndpoint->stopStream(this, mClientHandle);
++    result = endpoint->stopStream(this, mClientHandle);
+     if (result != AAUDIO_OK) {
+         ALOGE("AAudioServiceStreamShared::stop() mServiceEndpoint returned %d", result);
+         disconnect();
+diff --git a/services/oboeservice/AAudioServiceStreamBase.h b/services/oboeservice/AAudioServiceStreamBase.h
+index af435b4b8..815b1ccf7 100644
+--- a/services/oboeservice/AAudioServiceStreamBase.h
++++ b/services/oboeservice/AAudioServiceStreamBase.h
+@@ -233,7 +233,12 @@ protected:
+     SimpleDoubleBuffer<Timestamp>  mAtomicTimestamp;
+ 
+     android::AAudioService &mAudioService;
++
++    // The mServiceEndpoint variable can be accessed by multiple threads.
++    // So we access it by locally promoting a weak pointer to a smart pointer,
++    // which is thread-safe.
+     android::sp<AAudioServiceEndpoint> mServiceEndpoint;
++    android::wp<AAudioServiceEndpoint> mServiceEndpointWeak;
+ 
+ private:
+     aaudio_handle_t         mHandle = -1;
+diff --git a/services/oboeservice/AAudioServiceStreamMMAP.cpp b/services/oboeservice/AAudioServiceStreamMMAP.cpp
+index 44ba1ca8d..2e7ff8b26 100644
+--- a/services/oboeservice/AAudioServiceStreamMMAP.cpp
++++ b/services/oboeservice/AAudioServiceStreamMMAP.cpp
+@@ -70,14 +70,19 @@ aaudio_result_t AAudioServiceStreamMMAP::open(const aaudio::AAudioStreamRequest
+         return result;
+     }
+ 
+-    result = mServiceEndpoint->registerStream(keep);
++    sp<AAudioServiceEndpoint> endpoint = mServiceEndpointWeak.promote();
++    if (endpoint == nullptr) {
++        ALOGE("%s() has no endpoint", __func__);
++        return AAUDIO_ERROR_INVALID_STATE;
++    }
++
++    result = endpoint->registerStream(keep);
+     if (result != AAUDIO_OK) {
+-        goto error;
++        return result;
+     }
+ 
+     setState(AAUDIO_STREAM_STATE_OPEN);
+ 
+-error:
+     return AAUDIO_OK;
+ }
+ 
+@@ -122,21 +127,37 @@ aaudio_result_t AAudioServiceStreamMMAP::stop() {
+ 
+ aaudio_result_t AAudioServiceStreamMMAP::startClient(const android::AudioClient& client,
+                                                        audio_port_handle_t *clientHandle) {
++    sp<AAudioServiceEndpoint> endpoint = mServiceEndpointWeak.promote();
++    if (endpoint == nullptr) {
++        ALOGE("%s() has no endpoint", __func__);
++        return AAUDIO_ERROR_INVALID_STATE;
++    }
+     // Start the client on behalf of the application. Generate a new porthandle.
+-    aaudio_result_t result = mServiceEndpoint->startClient(client, clientHandle);
++    aaudio_result_t result = endpoint->startClient(client, clientHandle);
+     return result;
+ }
+ 
+ aaudio_result_t AAudioServiceStreamMMAP::stopClient(audio_port_handle_t clientHandle) {
+-    aaudio_result_t result = mServiceEndpoint->stopClient(clientHandle);
++    sp<AAudioServiceEndpoint> endpoint = mServiceEndpointWeak.promote();
++    if (endpoint == nullptr) {
++        ALOGE("%s() has no endpoint", __func__);
++        return AAUDIO_ERROR_INVALID_STATE;
++    }
++    aaudio_result_t result = endpoint->stopClient(clientHandle);
+     return result;
+ }
+ 
+ // Get free-running DSP or DMA hardware position from the HAL.
+ aaudio_result_t AAudioServiceStreamMMAP::getFreeRunningPosition(int64_t *positionFrames,
+                                                                   int64_t *timeNanos) {
+-    sp<AAudioServiceEndpointMMAP> serviceEndpointMMAP{
+-            static_cast<AAudioServiceEndpointMMAP *>(mServiceEndpoint.get())};
++    sp<AAudioServiceEndpoint> endpoint = mServiceEndpointWeak.promote();
++    if (endpoint == nullptr) {
++        ALOGE("%s() has no endpoint", __func__);
++        return AAUDIO_ERROR_INVALID_STATE;
++    }
++    sp<AAudioServiceEndpointMMAP> serviceEndpointMMAP =
++            static_cast<AAudioServiceEndpointMMAP *>(endpoint.get());
++
+     aaudio_result_t result = serviceEndpointMMAP->getFreeRunningPosition(positionFrames, timeNanos);
+     if (result == AAUDIO_OK) {
+         Timestamp timestamp(*positionFrames, *timeNanos);
+@@ -152,8 +173,15 @@ aaudio_result_t AAudioServiceStreamMMAP::getFreeRunningPosition(int64_t *positio
+ // Get timestamp that was written by getFreeRunningPosition()
+ aaudio_result_t AAudioServiceStreamMMAP::getHardwareTimestamp(int64_t *positionFrames,
+                                                                 int64_t *timeNanos) {
+-    sp<AAudioServiceEndpointMMAP> serviceEndpointMMAP{
+-            static_cast<AAudioServiceEndpointMMAP *>(mServiceEndpoint.get())};
++
++    sp<AAudioServiceEndpoint> endpoint = mServiceEndpointWeak.promote();
++    if (endpoint == nullptr) {
++        ALOGE("%s() has no endpoint", __func__);
++        return AAUDIO_ERROR_INVALID_STATE;
++    }
++    sp<AAudioServiceEndpointMMAP> serviceEndpointMMAP =
++            static_cast<AAudioServiceEndpointMMAP *>(endpoint.get());
++
+     // TODO Get presentation timestamp from the HAL
+     if (mAtomicTimestamp.isValid()) {
+         Timestamp timestamp = mAtomicTimestamp.read();
+@@ -171,7 +199,12 @@ aaudio_result_t AAudioServiceStreamMMAP::getHardwareTimestamp(int64_t *positionF
+ aaudio_result_t AAudioServiceStreamMMAP::getAudioDataDescription(
+         AudioEndpointParcelable &parcelable)
+ {
+-    sp<AAudioServiceEndpointMMAP> serviceEndpointMMAP{
+-            static_cast<AAudioServiceEndpointMMAP *>(mServiceEndpoint.get())};
++    sp<AAudioServiceEndpoint> endpoint = mServiceEndpointWeak.promote();
++    if (endpoint == nullptr) {
++        ALOGE("%s() has no endpoint", __func__);
++        return AAUDIO_ERROR_INVALID_STATE;
++    }
++    sp<AAudioServiceEndpointMMAP> serviceEndpointMMAP =
++            static_cast<AAudioServiceEndpointMMAP *>(endpoint.get());
+     return serviceEndpointMMAP->getDownDataDescription(parcelable);
+ }
+diff --git a/services/oboeservice/AAudioServiceStreamShared.cpp b/services/oboeservice/AAudioServiceStreamShared.cpp
+index 084f996cd..f55c40d0e 100644
+--- a/services/oboeservice/AAudioServiceStreamShared.cpp
++++ b/services/oboeservice/AAudioServiceStreamShared.cpp
+@@ -128,6 +128,11 @@ aaudio_result_t AAudioServiceStreamShared::open(const aaudio::AAudioStreamReques
+ 
+     const AAudioStreamConfiguration &configurationInput = request.getConstantConfiguration();
+ 
++    sp<AAudioServiceEndpoint> endpoint = mServiceEndpointWeak.promote();
++    if (endpoint == nullptr) {
++        result = AAUDIO_ERROR_INVALID_STATE;
++        goto error;
++    }
+ 
+     // Is the request compatible with the shared endpoint?
+     setFormat(configurationInput.getFormat());
+@@ -141,20 +146,20 @@ aaudio_result_t AAudioServiceStreamShared::open(const aaudio::AAudioStreamReques
+ 
+     setSampleRate(configurationInput.getSampleRate());
+     if (getSampleRate() == AAUDIO_UNSPECIFIED) {
+-        setSampleRate(mServiceEndpoint->getSampleRate());
+-    } else if (getSampleRate() != mServiceEndpoint->getSampleRate()) {
++        setSampleRate(endpoint->getSampleRate());
++    } else if (getSampleRate() != endpoint->getSampleRate()) {
+         ALOGE("AAudioServiceStreamShared::open() mSampleRate = %d, need %d",
+-              getSampleRate(), mServiceEndpoint->getSampleRate());
++              getSampleRate(), endpoint->getSampleRate());
+         result = AAUDIO_ERROR_INVALID_RATE;
+         goto error;
+     }
+ 
+     setSamplesPerFrame(configurationInput.getSamplesPerFrame());
+     if (getSamplesPerFrame() == AAUDIO_UNSPECIFIED) {
+-        setSamplesPerFrame(mServiceEndpoint->getSamplesPerFrame());
+-    } else if (getSamplesPerFrame() != mServiceEndpoint->getSamplesPerFrame()) {
++        setSamplesPerFrame(endpoint->getSamplesPerFrame());
++    } else if (getSamplesPerFrame() != endpoint->getSamplesPerFrame()) {
+         ALOGE("AAudioServiceStreamShared::open() mSamplesPerFrame = %d, need %d",
+-              getSamplesPerFrame(), mServiceEndpoint->getSamplesPerFrame());
++              getSamplesPerFrame(), endpoint->getSamplesPerFrame());
+         result = AAUDIO_ERROR_OUT_OF_RANGE;
+         goto error;
+     }
+@@ -181,9 +186,9 @@ aaudio_result_t AAudioServiceStreamShared::open(const aaudio::AAudioStreamReques
+     }
+ 
+     ALOGD("AAudioServiceStreamShared::open() actual rate = %d, channels = %d, deviceId = %d",
+-          getSampleRate(), getSamplesPerFrame(), mServiceEndpoint->getDeviceId());
++          getSampleRate(), getSamplesPerFrame(), endpoint->getDeviceId());
+ 
+-    result = mServiceEndpoint->registerStream(keep);
++    result = endpoint->registerStream(keep);
+     if (result != AAUDIO_OK) {
+         goto error;
+     }
+@@ -250,7 +255,13 @@ aaudio_result_t AAudioServiceStreamShared::getHardwareTimestamp(int64_t *positio
+                                                                 int64_t *timeNanos) {
+ 
+     int64_t position = 0;
+-    aaudio_result_t result = mServiceEndpoint->getTimestamp(&position, timeNanos);
++    sp<AAudioServiceEndpoint> endpoint = mServiceEndpointWeak.promote();
++    if (endpoint == nullptr) {
++        ALOGE("%s() has no endpoint", __func__);
++        return AAUDIO_ERROR_INVALID_STATE;
++    }
++
++    aaudio_result_t result = endpoint->getTimestamp(&position, timeNanos);
+     if (result == AAUDIO_OK) {
+         int64_t offset = mTimestampPositionOffset.load();
+         // TODO, do not go below starting value
+-- 
+2.17.1
+

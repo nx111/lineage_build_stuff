@@ -1,0 +1,1213 @@
+From 4141eac51355fd8269965c15dffb989376bfe163 Mon Sep 17 00:00:00 2001
+From: Luca Stefani <luca.stefani.ge1@gmail.com>
+Date: Fri, 6 Jul 2018 12:30:01 +0200
+Subject: [PATCH 29/31] Merge tag 'android-8.1.0_r36' into
+ staging/lineage-15.1-android-8.1.0_r36
+
+Android 8.1.0 Release 36 (OPM2.171026.006.H1)
+
+* tag 'android-8.1.0_r36':
+  clearCallingIdentity before calling into getPackageUidAsUser
+  Nullcheck to fix Autofill CTS
+  Osu: fixed Mismatch between createFromParcel and writeToParcel
+  DO NOT MERGE Truncate newline and tab characters in BluetoothDevice name
+  Fix broken check for TelephonyManager#getForbiddenPlmns
+  DO NOT MERGE (O) Revoke permision when group changed
+  ResStringPool: Fix security vulnerability
+  RESTRICT AUTOMERGE: Prevent reporting fake package name - framework (backport to oc-mr1-dev)
+  Use concrete CREATOR instance for parceling lists
+  Rework thumbnail cleanup
+  Proper autofill fix to let phone process autofill Settings activity.
+
+Change-Id: I6dc77f4bd29f92958b8d0c0bf37db8b00f3f720a
+---
+ .../IAccessibilityServiceConnection.aidl      |  10 +-
+ .../appwidget/AppWidgetManagerInternal.java   |  36 +++
+ .../android/bluetooth/BluetoothDevice.java    |   6 +-
+ core/java/android/view/ViewRootImpl.java      |   1 +
+ .../AccessibilityInteractionClient.java       | 118 ++++---
+ .../accessibility/AccessibilityManager.java   |   5 +-
+ .../accessibility/IAccessibilityManager.aidl  |   2 +-
+ .../com/android/hotspot2/flow/OSUInfo.java    |  12 +-
+ .../AccessibilityManagerService.java          | 291 +++++++++++++-----
+ .../appwidget/AppWidgetServiceImpl.java       |  25 ++
+ .../android/telephony/TelephonyManager.java   |   2 +-
+ .../internal/telephony/ITelephony.aidl        |   4 +-
+ 12 files changed, 383 insertions(+), 129 deletions(-)
+ create mode 100644 core/java/android/appwidget/AppWidgetManagerInternal.java
+
+diff --git a/core/java/android/accessibilityservice/IAccessibilityServiceConnection.aidl b/core/java/android/accessibilityservice/IAccessibilityServiceConnection.aidl
+index 7a193171888..037aeb058f1 100644
+--- a/core/java/android/accessibilityservice/IAccessibilityServiceConnection.aidl
++++ b/core/java/android/accessibilityservice/IAccessibilityServiceConnection.aidl
+@@ -35,23 +35,23 @@ interface IAccessibilityServiceConnection {
+ 
+     void setServiceInfo(in AccessibilityServiceInfo info);
+ 
+-    boolean findAccessibilityNodeInfoByAccessibilityId(int accessibilityWindowId,
++    String[] findAccessibilityNodeInfoByAccessibilityId(int accessibilityWindowId,
+         long accessibilityNodeId, int interactionId,
+         IAccessibilityInteractionConnectionCallback callback, int flags, long threadId,
+         in Bundle arguments);
+ 
+-    boolean findAccessibilityNodeInfosByText(int accessibilityWindowId, long accessibilityNodeId,
++    String[] findAccessibilityNodeInfosByText(int accessibilityWindowId, long accessibilityNodeId,
+         String text, int interactionId, IAccessibilityInteractionConnectionCallback callback,
+         long threadId);
+ 
+-    boolean findAccessibilityNodeInfosByViewId(int accessibilityWindowId,
++    String[] findAccessibilityNodeInfosByViewId(int accessibilityWindowId,
+         long accessibilityNodeId, String viewId, int interactionId,
+         IAccessibilityInteractionConnectionCallback callback, long threadId);
+ 
+-    boolean findFocus(int accessibilityWindowId, long accessibilityNodeId, int focusType,
++    String[] findFocus(int accessibilityWindowId, long accessibilityNodeId, int focusType,
+         int interactionId, IAccessibilityInteractionConnectionCallback callback, long threadId);
+ 
+-    boolean focusSearch(int accessibilityWindowId, long accessibilityNodeId, int direction,
++    String[] focusSearch(int accessibilityWindowId, long accessibilityNodeId, int direction,
+         int interactionId, IAccessibilityInteractionConnectionCallback callback, long threadId);
+ 
+     boolean performAccessibilityAction(int accessibilityWindowId, long accessibilityNodeId,
+diff --git a/core/java/android/appwidget/AppWidgetManagerInternal.java b/core/java/android/appwidget/AppWidgetManagerInternal.java
+new file mode 100644
+index 00000000000..5562c550fe1
+--- /dev/null
++++ b/core/java/android/appwidget/AppWidgetManagerInternal.java
+@@ -0,0 +1,36 @@
++/*
++ * Copyright (C) 2018 The Android Open Source Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++package android.appwidget;
++
++import android.annotation.Nullable;
++import android.util.ArraySet;
++
++/**
++ * App widget manager local system service interface.
++ *
++ * @hide Only for use within the system server.
++ */
++public abstract class AppWidgetManagerInternal {
++
++    /**
++     * Gets the packages from which the uid hosts widgets.
++     *
++     * @param uid The potential host UID.
++     * @return Whether the UID hosts widgets from the package.
++     */
++    public abstract @Nullable ArraySet<String> getHostedWidgetPackages(int uid);
++}
+diff --git a/core/java/android/bluetooth/BluetoothDevice.java b/core/java/android/bluetooth/BluetoothDevice.java
+index 98cd319a399..9498f125c2a 100644
+--- a/core/java/android/bluetooth/BluetoothDevice.java
++++ b/core/java/android/bluetooth/BluetoothDevice.java
+@@ -808,7 +808,11 @@ public final class BluetoothDevice implements Parcelable {
+             return null;
+         }
+         try {
+-            return service.getRemoteName(this);
++            String name = service.getRemoteName(this);
++            if (name != null) {
++                return name.replaceAll("[\\t\\n\\r]+", " ");
++            }
++            return null;
+         } catch (RemoteException e) {
+             Log.e(TAG, "", e);
+         }
+diff --git a/core/java/android/view/ViewRootImpl.java b/core/java/android/view/ViewRootImpl.java
+index 8f250a9e9f1..3f1ea34c37a 100644
+--- a/core/java/android/view/ViewRootImpl.java
++++ b/core/java/android/view/ViewRootImpl.java
+@@ -7733,6 +7733,7 @@ public final class ViewRootImpl implements ViewParent,
+             if (!registered) {
+                 mAttachInfo.mAccessibilityWindowId =
+                         mAccessibilityManager.addAccessibilityInteractionConnection(mWindow,
++                                mContext.getPackageName(),
+                                 new AccessibilityInteractionConnection(ViewRootImpl.this));
+             }
+         }
+diff --git a/core/java/android/view/accessibility/AccessibilityInteractionClient.java b/core/java/android/view/accessibility/AccessibilityInteractionClient.java
+index 19213ca06c5..980a2c926c1 100644
+--- a/core/java/android/view/accessibility/AccessibilityInteractionClient.java
++++ b/core/java/android/view/accessibility/AccessibilityInteractionClient.java
+@@ -28,6 +28,8 @@ import android.util.Log;
+ import android.util.LongSparseArray;
+ import android.util.SparseArray;
+ 
++import com.android.internal.util.ArrayUtils;
++
+ import java.util.ArrayList;
+ import java.util.Collections;
+ import java.util.HashSet;
+@@ -283,14 +285,19 @@ public final class AccessibilityInteractionClient
+                 }
+                 final int interactionId = mInteractionIdCounter.getAndIncrement();
+                 final long identityToken = Binder.clearCallingIdentity();
+-                final boolean success = connection.findAccessibilityNodeInfoByAccessibilityId(
+-                        accessibilityWindowId, accessibilityNodeId, interactionId, this,
+-                        prefetchFlags, Thread.currentThread().getId(), arguments);
+-                Binder.restoreCallingIdentity(identityToken);
+-                if (success) {
++                final String[] packageNames;
++                try {
++                    packageNames = connection.findAccessibilityNodeInfoByAccessibilityId(
++                            accessibilityWindowId, accessibilityNodeId, interactionId, this,
++                            prefetchFlags, Thread.currentThread().getId(), arguments);
++                } finally {
++                    Binder.restoreCallingIdentity(identityToken);
++                }
++                if (packageNames != null) {
+                     List<AccessibilityNodeInfo> infos = getFindAccessibilityNodeInfosResultAndClear(
+                             interactionId);
+-                    finalizeAndCacheAccessibilityNodeInfos(infos, connectionId);
++                    finalizeAndCacheAccessibilityNodeInfos(infos, connectionId,
++                            bypassCache, packageNames);
+                     if (infos != null && !infos.isEmpty()) {
+                         for (int i = 1; i < infos.size(); i++) {
+                             infos.get(i).recycle();
+@@ -333,15 +340,21 @@ public final class AccessibilityInteractionClient
+             if (connection != null) {
+                 final int interactionId = mInteractionIdCounter.getAndIncrement();
+                 final long identityToken = Binder.clearCallingIdentity();
+-                final boolean success = connection.findAccessibilityNodeInfosByViewId(
+-                        accessibilityWindowId, accessibilityNodeId, viewId, interactionId, this,
+-                        Thread.currentThread().getId());
+-                Binder.restoreCallingIdentity(identityToken);
+-                if (success) {
++                final String[] packageNames;
++                try {
++                    packageNames = connection.findAccessibilityNodeInfosByViewId(
++                            accessibilityWindowId, accessibilityNodeId, viewId, interactionId, this,
++                            Thread.currentThread().getId());
++                } finally {
++                    Binder.restoreCallingIdentity(identityToken);
++                }
++
++                if (packageNames != null) {
+                     List<AccessibilityNodeInfo> infos = getFindAccessibilityNodeInfosResultAndClear(
+                             interactionId);
+                     if (infos != null) {
+-                        finalizeAndCacheAccessibilityNodeInfos(infos, connectionId);
++                        finalizeAndCacheAccessibilityNodeInfos(infos, connectionId,
++                                false, packageNames);
+                         return infos;
+                     }
+                 }
+@@ -381,15 +394,21 @@ public final class AccessibilityInteractionClient
+             if (connection != null) {
+                 final int interactionId = mInteractionIdCounter.getAndIncrement();
+                 final long identityToken = Binder.clearCallingIdentity();
+-                final boolean success = connection.findAccessibilityNodeInfosByText(
+-                        accessibilityWindowId, accessibilityNodeId, text, interactionId, this,
+-                        Thread.currentThread().getId());
+-                Binder.restoreCallingIdentity(identityToken);
+-                if (success) {
++                final String[] packageNames;
++                try {
++                    packageNames = connection.findAccessibilityNodeInfosByText(
++                            accessibilityWindowId, accessibilityNodeId, text, interactionId, this,
++                            Thread.currentThread().getId());
++                } finally {
++                    Binder.restoreCallingIdentity(identityToken);
++                }
++
++                if (packageNames != null) {
+                     List<AccessibilityNodeInfo> infos = getFindAccessibilityNodeInfosResultAndClear(
+                             interactionId);
+                     if (infos != null) {
+-                        finalizeAndCacheAccessibilityNodeInfos(infos, connectionId);
++                        finalizeAndCacheAccessibilityNodeInfos(infos, connectionId,
++                                false, packageNames);
+                         return infos;
+                     }
+                 }
+@@ -428,14 +447,19 @@ public final class AccessibilityInteractionClient
+             if (connection != null) {
+                 final int interactionId = mInteractionIdCounter.getAndIncrement();
+                 final long identityToken = Binder.clearCallingIdentity();
+-                final boolean success = connection.findFocus(accessibilityWindowId,
+-                        accessibilityNodeId, focusType, interactionId, this,
+-                        Thread.currentThread().getId());
+-                Binder.restoreCallingIdentity(identityToken);
+-                if (success) {
++                final String[] packageNames;
++                try {
++                    packageNames = connection.findFocus(accessibilityWindowId,
++                            accessibilityNodeId, focusType, interactionId, this,
++                            Thread.currentThread().getId());
++                } finally {
++                    Binder.restoreCallingIdentity(identityToken);
++                }
++
++                if (packageNames != null) {
+                     AccessibilityNodeInfo info = getFindAccessibilityNodeInfoResultAndClear(
+                             interactionId);
+-                    finalizeAndCacheAccessibilityNodeInfo(info, connectionId);
++                    finalizeAndCacheAccessibilityNodeInfo(info, connectionId, false, packageNames);
+                     return info;
+                 }
+             } else {
+@@ -472,14 +496,19 @@ public final class AccessibilityInteractionClient
+             if (connection != null) {
+                 final int interactionId = mInteractionIdCounter.getAndIncrement();
+                 final long identityToken = Binder.clearCallingIdentity();
+-                final boolean success = connection.focusSearch(accessibilityWindowId,
+-                        accessibilityNodeId, direction, interactionId, this,
+-                        Thread.currentThread().getId());
+-                Binder.restoreCallingIdentity(identityToken);
+-                if (success) {
++                final String[] packageNames;
++                try {
++                    packageNames = connection.focusSearch(accessibilityWindowId,
++                            accessibilityNodeId, direction, interactionId, this,
++                            Thread.currentThread().getId());
++                } finally {
++                    Binder.restoreCallingIdentity(identityToken);
++                }
++
++                if (packageNames != null) {
+                     AccessibilityNodeInfo info = getFindAccessibilityNodeInfoResultAndClear(
+                             interactionId);
+-                    finalizeAndCacheAccessibilityNodeInfo(info, connectionId);
++                    finalizeAndCacheAccessibilityNodeInfo(info, connectionId, false, packageNames);
+                     return info;
+                 }
+             } else {
+@@ -580,7 +609,7 @@ public final class AccessibilityInteractionClient
+                 int interactionId) {
+         synchronized (mInstanceLock) {
+             final boolean success = waitForResultTimedLocked(interactionId);
+-            List<AccessibilityNodeInfo> result = null;
++            final List<AccessibilityNodeInfo> result;
+             if (success) {
+                 result = mFindAccessibilityNodeInfosResult;
+             } else {
+@@ -696,13 +725,28 @@ public final class AccessibilityInteractionClient
+      *
+      * @param info The info.
+      * @param connectionId The id of the connection to the system.
++     * @param bypassCache Whether or not to bypass the cache. The node is added to the cache if
++     *                    this value is {@code false}
++     * @param packageNames The valid package names a node can come from.
+      */
+     private void finalizeAndCacheAccessibilityNodeInfo(AccessibilityNodeInfo info,
+-            int connectionId) {
++            int connectionId, boolean bypassCache, String[] packageNames) {
+         if (info != null) {
+             info.setConnectionId(connectionId);
++            // Empty array means any package name is Okay
++            if (!ArrayUtils.isEmpty(packageNames)) {
++                CharSequence packageName = info.getPackageName();
++                if (packageName == null
++                        || !ArrayUtils.contains(packageNames, packageName.toString())) {
++                    // If the node package not one of the valid ones, pick the top one - this
++                    // is one of the packages running in the introspected UID.
++                    info.setPackageName(packageNames[0]);
++                }
++            }
+             info.setSealed(true);
+-            sAccessibilityCache.add(info);
++            if (!bypassCache) {
++                sAccessibilityCache.add(info);
++            }
+         }
+     }
+ 
+@@ -711,14 +755,18 @@ public final class AccessibilityInteractionClient
+      *
+      * @param infos The {@link AccessibilityNodeInfo}s.
+      * @param connectionId The id of the connection to the system.
++     * @param bypassCache Whether or not to bypass the cache. The nodes are added to the cache if
++     *                    this value is {@code false}
++     * @param packageNames The valid package names a node can come from.
+      */
+     private void finalizeAndCacheAccessibilityNodeInfos(List<AccessibilityNodeInfo> infos,
+-            int connectionId) {
++            int connectionId, boolean bypassCache, String[] packageNames) {
+         if (infos != null) {
+             final int infosCount = infos.size();
+             for (int i = 0; i < infosCount; i++) {
+                 AccessibilityNodeInfo info = infos.get(i);
+-                finalizeAndCacheAccessibilityNodeInfo(info, connectionId);
++                finalizeAndCacheAccessibilityNodeInfo(info, connectionId,
++                        bypassCache, packageNames);
+             }
+         }
+     }
+diff --git a/core/java/android/view/accessibility/AccessibilityManager.java b/core/java/android/view/accessibility/AccessibilityManager.java
+index 0b9bc5760fa..2478281efcd 100644
+--- a/core/java/android/view/accessibility/AccessibilityManager.java
++++ b/core/java/android/view/accessibility/AccessibilityManager.java
+@@ -885,7 +885,7 @@ public final class AccessibilityManager {
+      * @hide
+      */
+     public int addAccessibilityInteractionConnection(IWindow windowToken,
+-            IAccessibilityInteractionConnection connection) {
++            String packageName, IAccessibilityInteractionConnection connection) {
+         final IAccessibilityManager service;
+         final int userId;
+         synchronized (mLock) {
+@@ -896,7 +896,8 @@ public final class AccessibilityManager {
+             userId = mUserId;
+         }
+         try {
+-            return service.addAccessibilityInteractionConnection(windowToken, connection, userId);
++            return service.addAccessibilityInteractionConnection(windowToken, connection,
++                    packageName, userId);
+         } catch (RemoteException re) {
+             Log.e(LOG_TAG, "Error while adding an accessibility interaction connection. ", re);
+         }
+diff --git a/core/java/android/view/accessibility/IAccessibilityManager.aidl b/core/java/android/view/accessibility/IAccessibilityManager.aidl
+index 3f499abd2e4..6329c1141bd 100644
+--- a/core/java/android/view/accessibility/IAccessibilityManager.aidl
++++ b/core/java/android/view/accessibility/IAccessibilityManager.aidl
+@@ -45,7 +45,7 @@ interface IAccessibilityManager {
+     List<AccessibilityServiceInfo> getEnabledAccessibilityServiceList(int feedbackType, int userId);
+ 
+     int addAccessibilityInteractionConnection(IWindow windowToken,
+-            in IAccessibilityInteractionConnection connection, int userId);
++            in IAccessibilityInteractionConnection connection, String packageName, int userId);
+ 
+     void removeAccessibilityInteractionConnection(IWindow windowToken);
+ 
+diff --git a/packages/Osu/src/com/android/hotspot2/flow/OSUInfo.java b/packages/Osu/src/com/android/hotspot2/flow/OSUInfo.java
+index 401eccb96d0..ae47ddd22fc 100644
+--- a/packages/Osu/src/com/android/hotspot2/flow/OSUInfo.java
++++ b/packages/Osu/src/com/android/hotspot2/flow/OSUInfo.java
+@@ -42,6 +42,7 @@ public class OSUInfo implements Parcelable {
+     private HSIconFileElement mIconFileElement;
+     private String mIconFileName;
+     private IconInfo mIconInfo;
++    private int mIconIndex;
+ 
+     public OSUInfo(ScanResult scanResult, OSUProvider osuProvider, int osuID) {
+         mOsuID = osuID;
+@@ -50,6 +51,7 @@ public class OSUInfo implements Parcelable {
+         mAnqpDomID = scanResult.anqpDomainId;
+         mAdvertisingSSID = scanResult.SSID;
+         mOSUProvider = osuProvider;
++        mIconIndex = -1;
+     }
+ 
+     public long getOSUBssid() {
+@@ -157,12 +159,15 @@ public class OSUInfo implements Parcelable {
+     public void setIconFileElement(HSIconFileElement iconFileElement, String fileName) {
+         synchronized (mOSUProvider) {
+             mIconFileElement = iconFileElement;
++            int index = 0;
+             for (IconInfo iconInfo : mOSUProvider.getIcons()) {
+                 if (iconInfo.getFileName().equals(fileName)) {
+                     mIconInfo = iconInfo;
+                     mIconFileName = fileName;
++                    mIconIndex = index;
+                     break;
+                 }
++                index++;
+             }
+             mIconStatus = IconStatus.Available;
+         }
+@@ -285,9 +290,9 @@ public class OSUInfo implements Parcelable {
+             return;
+         }
+         mIconFileElement = new HSIconFileElement(in);
+-        int iconIndex = in.readInt();
+-        mIconInfo = iconIndex >= 0 && iconIndex < mOSUProvider.getIcons().size()
+-                ? mOSUProvider.getIcons().get(iconIndex) : null;
++        mIconIndex = in.readInt();
++        mIconInfo = mIconIndex >= 0 && mIconIndex < mOSUProvider.getIcons().size()
++                ? mOSUProvider.getIcons().get(mIconIndex) : null;
+     }
+ 
+     public static final Parcelable.Creator<OSUInfo> CREATOR = new Parcelable.Creator<OSUInfo>() {
+@@ -317,5 +322,6 @@ public class OSUInfo implements Parcelable {
+         dest.writeInt(mIconStatus.ordinal());
+         mOSUProvider.writeParcel(dest);
+         mIconFileElement.writeParcel(dest);
++        dest.writeInt(mIconIndex);
+     }
+ }
+diff --git a/services/accessibility/java/com/android/server/accessibility/AccessibilityManagerService.java b/services/accessibility/java/com/android/server/accessibility/AccessibilityManagerService.java
+index 83dfccb57eb..8b4076af775 100644
+--- a/services/accessibility/java/com/android/server/accessibility/AccessibilityManagerService.java
++++ b/services/accessibility/java/com/android/server/accessibility/AccessibilityManagerService.java
+@@ -34,6 +34,7 @@ import android.app.AlertDialog;
+ import android.app.PendingIntent;
+ import android.app.StatusBarManager;
+ import android.app.UiAutomation;
++import android.appwidget.AppWidgetManagerInternal;
+ import android.content.BroadcastReceiver;
+ import android.content.ComponentName;
+ import android.content.ContentResolver;
+@@ -82,6 +83,7 @@ import android.text.TextUtils.SimpleStringSplitter;
+ import android.util.IntArray;
+ import android.util.Slog;
+ import android.util.SparseArray;
++import android.util.ArraySet;
+ import android.view.Display;
+ import android.view.IWindow;
+ import android.view.InputDevice;
+@@ -110,10 +112,11 @@ import com.android.internal.content.PackageMonitor;
+ import com.android.internal.os.SomeArgs;
+ import com.android.internal.util.DumpUtils;
+ import com.android.internal.util.IntPair;
++import com.android.internal.util.ArrayUtils;
+ import com.android.server.LocalServices;
+ import com.android.server.policy.AccessibilityShortcutController;
+ import com.android.server.statusbar.StatusBarManagerInternal;
+-
++import libcore.util.EmptyArray;
+ import org.xmlpull.v1.XmlPullParserException;
+ 
+ import java.io.FileDescriptor;
+@@ -199,6 +202,8 @@ public class AccessibilityManagerService extends IAccessibilityManager.Stub {
+ 
+     private final WindowManagerInternal mWindowManagerService;
+ 
++    private AppWidgetManagerInternal mAppWidgetService;
++
+     private final SecurityPolicy mSecurityPolicy;
+ 
+     private final MainHandler mMainHandler;
+@@ -229,10 +234,10 @@ public class AccessibilityManagerService extends IAccessibilityManager.Stub {
+     private final RemoteCallbackList<IAccessibilityManagerClient> mGlobalClients =
+             new RemoteCallbackList<>();
+ 
+-    private final SparseArray<AccessibilityConnectionWrapper> mGlobalInteractionConnections =
++    private final SparseArray<RemoteAccessibilityConnection> mGlobalInteractionConnections =
+             new SparseArray<>();
+ 
+-    private AccessibilityConnectionWrapper mPictureInPictureActionReplacingConnection;
++    private RemoteAccessibilityConnection mPictureInPictureActionReplacingConnection;
+ 
+     private final SparseArray<IBinder> mGlobalWindowTokens = new SparseArray<>();
+ 
+@@ -501,6 +506,11 @@ public class AccessibilityManagerService extends IAccessibilityManager.Stub {
+             // performs the current profile parent resolution..
+             final int resolvedUserId = mSecurityPolicy
+                     .resolveCallingUserIdEnforcingPermissionsLocked(userId);
++
++            // Make sure the reported package is one the caller has access to.
++            event.setPackageName(mSecurityPolicy.resolveValidReportedPackageLocked(
++                    event.getPackageName(), UserHandle.getCallingAppId(), resolvedUserId));
++
+             // This method does nothing for a background user.
+             if (resolvedUserId == mCurrentUserId) {
+                 if (mSecurityPolicy.canDispatchAccessibilityEventLocked(event)) {
+@@ -627,30 +637,38 @@ public class AccessibilityManagerService extends IAccessibilityManager.Stub {
+ 
+     @Override
+     public int addAccessibilityInteractionConnection(IWindow windowToken,
+-            IAccessibilityInteractionConnection connection, int userId) throws RemoteException {
++            IAccessibilityInteractionConnection connection, String packageName,
++            int userId) throws RemoteException {
+         synchronized (mLock) {
+             // We treat calls from a profile as if made by its parent as profiles
+             // share the accessibility state of the parent. The call below
+             // performs the current profile parent resolution.
+             final int resolvedUserId = mSecurityPolicy
+                     .resolveCallingUserIdEnforcingPermissionsLocked(userId);
++            final int resolvedUid = UserHandle.getUid(resolvedUserId, UserHandle.getCallingAppId());
++
++            // Make sure the reported package is one the caller has access to.
++            packageName = mSecurityPolicy.resolveValidReportedPackageLocked(
++                    packageName, UserHandle.getCallingAppId(), resolvedUserId);
++
+             final int windowId = sNextWindowId++;
+             // If the window is from a process that runs across users such as
+             // the system UI or the system we add it to the global state that
+             // is shared across users.
+             if (mSecurityPolicy.isCallerInteractingAcrossUsers(userId)) {
+-                AccessibilityConnectionWrapper wrapper = new AccessibilityConnectionWrapper(
+-                        windowId, connection, UserHandle.USER_ALL);
++                RemoteAccessibilityConnection wrapper = new RemoteAccessibilityConnection(
++                        windowId, connection, packageName, resolvedUid, UserHandle.USER_ALL);
+                 wrapper.linkToDeath();
+                 mGlobalInteractionConnections.put(windowId, wrapper);
+                 mGlobalWindowTokens.put(windowId, windowToken.asBinder());
+                 if (DEBUG) {
+                     Slog.i(LOG_TAG, "Added global connection for pid:" + Binder.getCallingPid()
+-                            + " with windowId: " + windowId + " and  token: " + windowToken.asBinder());
++                            + " with windowId: " + windowId + " and  token: "
++                            + windowToken.asBinder());
+                 }
+             } else {
+-                AccessibilityConnectionWrapper wrapper = new AccessibilityConnectionWrapper(
+-                        windowId, connection, resolvedUserId);
++                RemoteAccessibilityConnection wrapper = new RemoteAccessibilityConnection(
++                        windowId, connection, packageName, resolvedUid, resolvedUserId);
+                 wrapper.linkToDeath();
+                 UserState userState = getUserStateLocked(resolvedUserId);
+                 userState.mInteractionConnections.put(windowId, wrapper);
+@@ -679,7 +697,8 @@ public class AccessibilityManagerService extends IAccessibilityManager.Stub {
+             if (removedWindowId >= 0) {
+                 if (DEBUG) {
+                     Slog.i(LOG_TAG, "Removed global connection for pid:" + Binder.getCallingPid()
+-                            + " with windowId: " + removedWindowId + " and token: " + window.asBinder());
++                            + " with windowId: " + removedWindowId + " and token: "
++                            + window.asBinder());
+                 }
+                 return;
+             }
+@@ -703,13 +722,13 @@ public class AccessibilityManagerService extends IAccessibilityManager.Stub {
+ 
+     private int removeAccessibilityInteractionConnectionInternalLocked(IBinder windowToken,
+             SparseArray<IBinder> windowTokens,
+-            SparseArray<AccessibilityConnectionWrapper> interactionConnections) {
++            SparseArray<RemoteAccessibilityConnection> interactionConnections) {
+         final int count = windowTokens.size();
+         for (int i = 0; i < count; i++) {
+             if (windowTokens.valueAt(i) == windowToken) {
+                 final int windowId = windowTokens.keyAt(i);
+                 windowTokens.removeAt(i);
+-                AccessibilityConnectionWrapper wrapper = interactionConnections.get(windowId);
++                RemoteAccessibilityConnection wrapper = interactionConnections.get(windowId);
+                 wrapper.unlinkToDeath();
+                 interactionConnections.remove(windowId);
+                 return windowId;
+@@ -729,9 +748,9 @@ public class AccessibilityManagerService extends IAccessibilityManager.Stub {
+                 mPictureInPictureActionReplacingConnection = null;
+             }
+             if (connection != null) {
+-                AccessibilityConnectionWrapper wrapper = new AccessibilityConnectionWrapper(
++                RemoteAccessibilityConnection wrapper = new RemoteAccessibilityConnection(
+                         AccessibilityWindowInfo.PICTURE_IN_PICTURE_ACTION_REPLACER_WINDOW_ID,
+-                        connection, UserHandle.USER_ALL);
++                        connection, "foo.bar.baz", Process.SYSTEM_UID, UserHandle.USER_ALL);
+                 mPictureInPictureActionReplacingConnection = wrapper;
+                 wrapper.linkToDeath();
+             }
+@@ -2023,7 +2042,8 @@ public class AccessibilityManagerService extends IAccessibilityManager.Stub {
+             final long identity = Binder.clearCallingIdentity();
+             try {
+                 Settings.Secure.putStringForUser(mContext.getContentResolver(),
+-                        Settings.Secure.ACCESSIBILITY_SHORTCUT_TARGET_SERVICE, null, userState.mUserId);
++                        Settings.Secure.ACCESSIBILITY_SHORTCUT_TARGET_SERVICE, null,
++                        userState.mUserId);
+ 
+                 Settings.Secure.putIntForUser(mContext.getContentResolver(),
+                         Settings.Secure.ACCESSIBILITY_SHORTCUT_ENABLED, 0, userState.mUserId);
+@@ -2354,18 +2374,35 @@ public class AccessibilityManagerService extends IAccessibilityManager.Stub {
+         }
+     }
+ 
+-    private class AccessibilityConnectionWrapper implements DeathRecipient {
++    class RemoteAccessibilityConnection implements DeathRecipient {
++        private final int mUid;
++        private final String mPackageName;
+         private final int mWindowId;
+         private final int mUserId;
+         private final IAccessibilityInteractionConnection mConnection;
+ 
+-        public AccessibilityConnectionWrapper(int windowId,
+-                IAccessibilityInteractionConnection connection, int userId) {
++        RemoteAccessibilityConnection(int windowId,
++                IAccessibilityInteractionConnection connection,
++                String packageName, int uid, int userId) {
+             mWindowId = windowId;
++            mPackageName = packageName;
++            mUid = uid;
+             mUserId = userId;
+             mConnection = connection;
+         }
+ 
++        public int getUid() {
++            return  mUid;
++        }
++
++        public String getPackageName() {
++            return mPackageName;
++        }
++
++        public IAccessibilityInteractionConnection getRemote() {
++            return mConnection;
++        }
++
+         public void linkToDeath() throws RemoteException {
+             mConnection.asBinder().linkToDeath(this, 0);
+         }
+@@ -3041,28 +3078,28 @@ public class AccessibilityManagerService extends IAccessibilityManager.Stub {
+         }
+ 
+         @Override
+-        public boolean findAccessibilityNodeInfosByViewId(int accessibilityWindowId,
++        public String[] findAccessibilityNodeInfosByViewId(int accessibilityWindowId,
+                 long accessibilityNodeId, String viewIdResName, int interactionId,
+                 IAccessibilityInteractionConnectionCallback callback, long interrogatingTid)
+                 throws RemoteException {
+             final int resolvedWindowId;
+-            IAccessibilityInteractionConnection connection = null;
++            RemoteAccessibilityConnection connection = null;
+             Region partialInteractiveRegion = Region.obtain();
+             MagnificationSpec spec;
+             synchronized (mLock) {
+                 mUsesAccessibilityCache = true;
+                 if (!isCalledForCurrentUserLocked()) {
+-                    return false;
++                    return null;
+                 }
+                 resolvedWindowId = resolveAccessibilityWindowIdLocked(accessibilityWindowId);
+                 final boolean permissionGranted =
+                         mSecurityPolicy.canGetAccessibilityNodeInfoLocked(this, resolvedWindowId);
+                 if (!permissionGranted) {
+-                    return false;
++                    return null;
+                 } else {
+                     connection = getConnectionLocked(resolvedWindowId);
+                     if (connection == null) {
+-                        return false;
++                        return null;
+                     }
+                 }
+                 if (!mSecurityPolicy.computePartialInteractiveRegionForWindowLocked(
+@@ -3075,12 +3112,14 @@ public class AccessibilityManagerService extends IAccessibilityManager.Stub {
+             final int interrogatingPid = Binder.getCallingPid();
+             callback = replaceCallbackIfNeeded(callback, resolvedWindowId, interactionId,
+                     interrogatingPid, interrogatingTid);
++            final int callingUid = Binder.getCallingUid();
+             final long identityToken = Binder.clearCallingIdentity();
+             try {
+-                connection.findAccessibilityNodeInfosByViewId(accessibilityNodeId, viewIdResName,
+-                        partialInteractiveRegion, interactionId, callback, mFetchFlags,
+-                        interrogatingPid, interrogatingTid, spec);
+-                return true;
++                connection.getRemote().findAccessibilityNodeInfosByViewId(accessibilityNodeId,
++                        viewIdResName, partialInteractiveRegion, interactionId, callback,
++                        mFetchFlags, interrogatingPid, interrogatingTid, spec);
++                return mSecurityPolicy.computeValidReportedPackages(callingUid,
++                        connection.getPackageName(), connection.getUid());
+             } catch (RemoteException re) {
+                 if (DEBUG) {
+                     Slog.e(LOG_TAG, "Error findAccessibilityNodeInfoByViewId().");
+@@ -3088,36 +3127,36 @@ public class AccessibilityManagerService extends IAccessibilityManager.Stub {
+             } finally {
+                 Binder.restoreCallingIdentity(identityToken);
+                 // Recycle if passed to another process.
+-                if (partialInteractiveRegion != null && Binder.isProxy(connection)) {
++                if (partialInteractiveRegion != null && Binder.isProxy(connection.getRemote())) {
+                     partialInteractiveRegion.recycle();
+                 }
+             }
+-            return false;
++            return null;
+         }
+ 
+         @Override
+-        public boolean findAccessibilityNodeInfosByText(int accessibilityWindowId,
++        public String[] findAccessibilityNodeInfosByText(int accessibilityWindowId,
+                 long accessibilityNodeId, String text, int interactionId,
+                 IAccessibilityInteractionConnectionCallback callback, long interrogatingTid)
+                 throws RemoteException {
+             final int resolvedWindowId;
+-            IAccessibilityInteractionConnection connection = null;
++            RemoteAccessibilityConnection connection = null;
+             Region partialInteractiveRegion = Region.obtain();
+             MagnificationSpec spec;
+             synchronized (mLock) {
+                 mUsesAccessibilityCache = true;
+                 if (!isCalledForCurrentUserLocked()) {
+-                    return false;
++                    return null;
+                 }
+                 resolvedWindowId = resolveAccessibilityWindowIdLocked(accessibilityWindowId);
+                 final boolean permissionGranted =
+                     mSecurityPolicy.canGetAccessibilityNodeInfoLocked(this, resolvedWindowId);
+                 if (!permissionGranted) {
+-                    return false;
++                    return null;
+                 } else {
+                     connection = getConnectionLocked(resolvedWindowId);
+                     if (connection == null) {
+-                        return false;
++                        return null;
+                     }
+                 }
+                 if (!mSecurityPolicy.computePartialInteractiveRegionForWindowLocked(
+@@ -3130,12 +3169,14 @@ public class AccessibilityManagerService extends IAccessibilityManager.Stub {
+             final int interrogatingPid = Binder.getCallingPid();
+             callback = replaceCallbackIfNeeded(callback, resolvedWindowId, interactionId,
+                     interrogatingPid, interrogatingTid);
++            final int callingUid = Binder.getCallingUid();
+             final long identityToken = Binder.clearCallingIdentity();
+             try {
+-                connection.findAccessibilityNodeInfosByText(accessibilityNodeId, text,
++                connection.getRemote().findAccessibilityNodeInfosByText(accessibilityNodeId, text,
+                         partialInteractiveRegion, interactionId, callback, mFetchFlags,
+                         interrogatingPid, interrogatingTid, spec);
+-                return true;
++                return mSecurityPolicy.computeValidReportedPackages(callingUid,
++                        connection.getPackageName(), connection.getUid());
+             } catch (RemoteException re) {
+                 if (DEBUG) {
+                     Slog.e(LOG_TAG, "Error calling findAccessibilityNodeInfosByText()");
+@@ -3143,36 +3184,36 @@ public class AccessibilityManagerService extends IAccessibilityManager.Stub {
+             } finally {
+                 Binder.restoreCallingIdentity(identityToken);
+                 // Recycle if passed to another process.
+-                if (partialInteractiveRegion != null && Binder.isProxy(connection)) {
++                if (partialInteractiveRegion != null && Binder.isProxy(connection.getRemote())) {
+                     partialInteractiveRegion.recycle();
+                 }
+             }
+-            return false;
++            return null;
+         }
+ 
+         @Override
+-        public boolean findAccessibilityNodeInfoByAccessibilityId(
++        public String[] findAccessibilityNodeInfoByAccessibilityId(
+                 int accessibilityWindowId, long accessibilityNodeId, int interactionId,
+                 IAccessibilityInteractionConnectionCallback callback, int flags,
+                 long interrogatingTid, Bundle arguments) throws RemoteException {
+             final int resolvedWindowId;
+-            IAccessibilityInteractionConnection connection = null;
++            RemoteAccessibilityConnection connection = null;
+             Region partialInteractiveRegion = Region.obtain();
+             MagnificationSpec spec;
+             synchronized (mLock) {
+                 mUsesAccessibilityCache = true;
+                 if (!isCalledForCurrentUserLocked()) {
+-                    return false;
++                    return null;
+                 }
+                 resolvedWindowId = resolveAccessibilityWindowIdLocked(accessibilityWindowId);
+                 final boolean permissionGranted =
+                     mSecurityPolicy.canGetAccessibilityNodeInfoLocked(this, resolvedWindowId);
+                 if (!permissionGranted) {
+-                    return false;
++                    return null;
+                 } else {
+                     connection = getConnectionLocked(resolvedWindowId);
+                     if (connection == null) {
+-                        return false;
++                        return null;
+                     }
+                 }
+                 if (!mSecurityPolicy.computePartialInteractiveRegionForWindowLocked(
+@@ -3185,12 +3226,14 @@ public class AccessibilityManagerService extends IAccessibilityManager.Stub {
+             final int interrogatingPid = Binder.getCallingPid();
+             callback = replaceCallbackIfNeeded(callback, resolvedWindowId, interactionId,
+                     interrogatingPid, interrogatingTid);
++            final int callingUid = Binder.getCallingUid();
+             final long identityToken = Binder.clearCallingIdentity();
+             try {
+-                connection.findAccessibilityNodeInfoByAccessibilityId(accessibilityNodeId,
+-                        partialInteractiveRegion, interactionId, callback, mFetchFlags | flags,
+-                        interrogatingPid, interrogatingTid, spec, arguments);
+-                return true;
++                connection.getRemote().findAccessibilityNodeInfoByAccessibilityId(
++                        accessibilityNodeId, partialInteractiveRegion, interactionId, callback,
++                        mFetchFlags | flags, interrogatingPid, interrogatingTid, spec, arguments);
++                return mSecurityPolicy.computeValidReportedPackages(callingUid,
++                        connection.getPackageName(), connection.getUid());
+             } catch (RemoteException re) {
+                 if (DEBUG) {
+                     Slog.e(LOG_TAG, "Error calling findAccessibilityNodeInfoByAccessibilityId()");
+@@ -3198,36 +3241,36 @@ public class AccessibilityManagerService extends IAccessibilityManager.Stub {
+             } finally {
+                 Binder.restoreCallingIdentity(identityToken);
+                 // Recycle if passed to another process.
+-                if (partialInteractiveRegion != null && Binder.isProxy(connection)) {
++                if (partialInteractiveRegion != null && Binder.isProxy(connection.getRemote())) {
+                     partialInteractiveRegion.recycle();
+                 }
+             }
+-            return false;
++            return null;
+         }
+ 
+         @Override
+-        public boolean findFocus(int accessibilityWindowId, long accessibilityNodeId,
++        public String[] findFocus(int accessibilityWindowId, long accessibilityNodeId,
+                 int focusType, int interactionId,
+                 IAccessibilityInteractionConnectionCallback callback, long interrogatingTid)
+                 throws RemoteException {
+             final int resolvedWindowId;
+-            IAccessibilityInteractionConnection connection = null;
++            RemoteAccessibilityConnection connection = null;
+             Region partialInteractiveRegion = Region.obtain();
+             MagnificationSpec spec;
+             synchronized (mLock) {
+                 if (!isCalledForCurrentUserLocked()) {
+-                    return false;
++                    return null;
+                 }
+                 resolvedWindowId = resolveAccessibilityWindowIdForFindFocusLocked(
+                         accessibilityWindowId, focusType);
+                 final boolean permissionGranted =
+                     mSecurityPolicy.canGetAccessibilityNodeInfoLocked(this, resolvedWindowId);
+                 if (!permissionGranted) {
+-                    return false;
++                    return null;
+                 } else {
+                     connection = getConnectionLocked(resolvedWindowId);
+                     if (connection == null) {
+-                        return false;
++                        return null;
+                     }
+                 }
+                 if (!mSecurityPolicy.computePartialInteractiveRegionForWindowLocked(
+@@ -3240,12 +3283,14 @@ public class AccessibilityManagerService extends IAccessibilityManager.Stub {
+             final int interrogatingPid = Binder.getCallingPid();
+             callback = replaceCallbackIfNeeded(callback, resolvedWindowId, interactionId,
+                     interrogatingPid, interrogatingTid);
++            final int callingUid = Binder.getCallingUid();
+             final long identityToken = Binder.clearCallingIdentity();
+             try {
+-                connection.findFocus(accessibilityNodeId, focusType, partialInteractiveRegion,
+-                        interactionId, callback, mFetchFlags, interrogatingPid, interrogatingTid,
+-                        spec);
+-                return true;
++                connection.getRemote().findFocus(accessibilityNodeId, focusType,
++                        partialInteractiveRegion, interactionId, callback, mFetchFlags,
++                        interrogatingPid, interrogatingTid, spec);
++                return mSecurityPolicy.computeValidReportedPackages(callingUid,
++                        connection.getPackageName(), connection.getUid());
+             } catch (RemoteException re) {
+                 if (DEBUG) {
+                     Slog.e(LOG_TAG, "Error calling findFocus()");
+@@ -3253,35 +3298,35 @@ public class AccessibilityManagerService extends IAccessibilityManager.Stub {
+             } finally {
+                 Binder.restoreCallingIdentity(identityToken);
+                 // Recycle if passed to another process.
+-                if (partialInteractiveRegion != null && Binder.isProxy(connection)) {
++                if (partialInteractiveRegion != null && Binder.isProxy(connection.getRemote())) {
+                     partialInteractiveRegion.recycle();
+                 }
+             }
+-            return false;
++            return null;
+         }
+ 
+         @Override
+-        public boolean focusSearch(int accessibilityWindowId, long accessibilityNodeId,
++        public String[] focusSearch(int accessibilityWindowId, long accessibilityNodeId,
+                 int direction, int interactionId,
+                 IAccessibilityInteractionConnectionCallback callback, long interrogatingTid)
+                 throws RemoteException {
+             final int resolvedWindowId;
+-            IAccessibilityInteractionConnection connection = null;
++            RemoteAccessibilityConnection connection = null;
+             Region partialInteractiveRegion = Region.obtain();
+             MagnificationSpec spec;
+             synchronized (mLock) {
+                 if (!isCalledForCurrentUserLocked()) {
+-                    return false;
++                    return null;
+                 }
+                 resolvedWindowId = resolveAccessibilityWindowIdLocked(accessibilityWindowId);
+                 final boolean permissionGranted =
+                     mSecurityPolicy.canGetAccessibilityNodeInfoLocked(this, resolvedWindowId);
+                 if (!permissionGranted) {
+-                    return false;
++                    return null;
+                 } else {
+                     connection = getConnectionLocked(resolvedWindowId);
+                     if (connection == null) {
+-                        return false;
++                        return null;
+                     }
+                 }
+                 if (!mSecurityPolicy.computePartialInteractiveRegionForWindowLocked(
+@@ -3294,12 +3339,14 @@ public class AccessibilityManagerService extends IAccessibilityManager.Stub {
+             final int interrogatingPid = Binder.getCallingPid();
+             callback = replaceCallbackIfNeeded(callback, resolvedWindowId, interactionId,
+                     interrogatingPid, interrogatingTid);
++            final int callingUid = Binder.getCallingUid();
+             final long identityToken = Binder.clearCallingIdentity();
+             try {
+-                connection.focusSearch(accessibilityNodeId, direction, partialInteractiveRegion,
+-                        interactionId, callback, mFetchFlags, interrogatingPid, interrogatingTid,
+-                        spec);
+-                return true;
++                connection.getRemote().focusSearch(accessibilityNodeId, direction,
++                        partialInteractiveRegion, interactionId, callback, mFetchFlags,
++                        interrogatingPid, interrogatingTid, spec);
++                return mSecurityPolicy.computeValidReportedPackages(callingUid,
++                        connection.getPackageName(), connection.getUid());
+             } catch (RemoteException re) {
+                 if (DEBUG) {
+                     Slog.e(LOG_TAG, "Error calling accessibilityFocusSearch()");
+@@ -3307,11 +3354,11 @@ public class AccessibilityManagerService extends IAccessibilityManager.Stub {
+             } finally {
+                 Binder.restoreCallingIdentity(identityToken);
+                 // Recycle if passed to another process.
+-                if (partialInteractiveRegion != null && Binder.isProxy(connection)) {
++                if (partialInteractiveRegion != null && Binder.isProxy(connection.getRemote())) {
+                     partialInteractiveRegion.recycle();
+                 }
+             }
+-            return false;
++            return null;
+         }
+ 
+         @Override
+@@ -3351,8 +3398,8 @@ public class AccessibilityManagerService extends IAccessibilityManager.Stub {
+                 IAccessibilityInteractionConnectionCallback callback, long interrogatingTid)
+                 throws RemoteException {
+             final int resolvedWindowId;
+-            IAccessibilityInteractionConnection connection = null;
+             IBinder activityToken = null;
++            RemoteAccessibilityConnection connection;
+             synchronized (mLock) {
+                 if (!isCalledForCurrentUserLocked()) {
+                     return false;
+@@ -3375,7 +3422,7 @@ public class AccessibilityManagerService extends IAccessibilityManager.Stub {
+                 if ((a11yWindowInfo != null) && a11yWindowInfo.inPictureInPicture()) {
+                     if ((mPictureInPictureActionReplacingConnection != null)
+                             && !isA11yFocusAction) {
+-                        connection = mPictureInPictureActionReplacingConnection.mConnection;
++                        connection = mPictureInPictureActionReplacingConnection;
+                     }
+                 }
+             }
+@@ -3391,8 +3438,9 @@ public class AccessibilityManagerService extends IAccessibilityManager.Stub {
+                     LocalServices.getService(ActivityManagerInternal.class)
+                             .setFocusedActivity(activityToken);
+                 }
+-                connection.performAccessibilityAction(accessibilityNodeId, action, arguments,
+-                        interactionId, callback, mFetchFlags, interrogatingPid, interrogatingTid);
++                connection.mConnection.performAccessibilityAction(accessibilityNodeId, action,
++                        arguments, interactionId, callback, mFetchFlags, interrogatingPid,
++                        interrogatingTid);
+             } catch (RemoteException re) {
+                 if (DEBUG) {
+                     Slog.e(LOG_TAG, "Error calling performAccessibilityAction()");
+@@ -4072,16 +4120,16 @@ public class AccessibilityManagerService extends IAccessibilityManager.Stub {
+             LocalServices.getService(StatusBarManagerInternal.class).toggleSplitScreen();
+         }
+ 
+-        private IAccessibilityInteractionConnection getConnectionLocked(int windowId) {
++        private RemoteAccessibilityConnection getConnectionLocked(int windowId) {
+             if (DEBUG) {
+                 Slog.i(LOG_TAG, "Trying to get interaction connection to windowId: " + windowId);
+             }
+-            AccessibilityConnectionWrapper wrapper = mGlobalInteractionConnections.get(windowId);
++            RemoteAccessibilityConnection wrapper = mGlobalInteractionConnections.get(windowId);
+             if (wrapper == null) {
+                 wrapper = getCurrentUserStateLocked().mInteractionConnections.get(windowId);
+             }
+             if (wrapper != null && wrapper.mConnection != null) {
+-                return wrapper.mConnection;
++                return wrapper;
+             }
+             if (DEBUG) {
+                 Slog.e(LOG_TAG, "No interaction connection to window: " + windowId);
+@@ -4230,6 +4278,16 @@ public class AccessibilityManagerService extends IAccessibilityManager.Stub {
+         }
+     }
+ 
++    private AppWidgetManagerInternal getAppWidgetManager() {
++        synchronized (mLock) {
++            if (mAppWidgetService == null
++                    && mPackageManager.hasSystemFeature(PackageManager.FEATURE_APP_WIDGETS)) {
++                mAppWidgetService = LocalServices.getService(AppWidgetManagerInternal.class);
++            }
++            return mAppWidgetService;
++        }
++    }
++
+     final class WindowsForAccessibilityCallback implements
+             WindowManagerInternal.WindowsForAccessibilityCallback {
+ 
+@@ -4507,6 +4565,81 @@ public class AccessibilityManagerService extends IAccessibilityManager.Stub {
+             }
+         }
+ 
++        private boolean isValidPackageForUid(String packageName, int uid) {
++            final long token = Binder.clearCallingIdentity();
++            try {
++                return uid == mPackageManager.getPackageUid(
++                        packageName, UserHandle.getUserId(uid));
++            } catch (PackageManager.NameNotFoundException e) {
++                return false;
++            } finally {
++                Binder.restoreCallingIdentity(token);
++            }
++        }
++
++        String resolveValidReportedPackageLocked(CharSequence packageName, int appId, int userId) {
++            // Okay to pass no package
++            if (packageName == null) {
++                return null;
++            }
++            // The system gets to pass any package
++            if (appId == Process.SYSTEM_UID) {
++                return packageName.toString();
++            }
++            // Passing a package in your UID is fine
++            final String packageNameStr = packageName.toString();
++            final int resolvedUid = UserHandle.getUid(userId, appId);
++            if (isValidPackageForUid(packageNameStr, resolvedUid)) {
++                return packageName.toString();
++            }
++            // Appwidget hosts get to pass packages for widgets they host
++            final AppWidgetManagerInternal appWidgetManager = getAppWidgetManager();
++            if (appWidgetManager != null && ArrayUtils.contains(appWidgetManager
++                            .getHostedWidgetPackages(resolvedUid), packageNameStr)) {
++                return packageName.toString();
++            }
++            // Otherwise, set the package to the first one in the UID
++            final String[] packageNames = mPackageManager.getPackagesForUid(resolvedUid);
++            if (ArrayUtils.isEmpty(packageNames)) {
++                return null;
++            }
++            // Okay, the caller reported a package it does not have access to.
++            // Instead of crashing the caller for better backwards compatibility
++            // we report the first package in the UID. Since most of the time apps
++            // don't use shared user id, this will yield correct results and for
++            // the edge case of using a shared user id we may report the wrong
++            // package but this is fine since first, this is a cheating app and
++            // second there is no way to get the correct package anyway.
++            return packageNames[0];
++        }
++
++        String[] computeValidReportedPackages(int callingUid,
++                String targetPackage, int targetUid) {
++            if (UserHandle.getAppId(callingUid) == Process.SYSTEM_UID) {
++                // Empty array means any package is Okay
++                return EmptyArray.STRING;
++            }
++            // IMPORTANT: The target package is already vetted to be in the target UID
++            String[] uidPackages = new String[]{targetPackage};
++            // Appwidget hosts get to pass packages for widgets they host
++            final AppWidgetManagerInternal appWidgetManager = getAppWidgetManager();
++            if (appWidgetManager != null) {
++                final ArraySet<String> widgetPackages = appWidgetManager
++                        .getHostedWidgetPackages(targetUid);
++                if (widgetPackages != null && !widgetPackages.isEmpty()) {
++                    final String[] validPackages = new String[uidPackages.length
++                            + widgetPackages.size()];
++                    System.arraycopy(uidPackages, 0, validPackages, 0, uidPackages.length);
++                    final int widgetPackageCount = widgetPackages.size();
++                    for (int i = 0; i < widgetPackageCount; i++) {
++                        validPackages[uidPackages.length + i] = widgetPackages.valueAt(i);
++                    }
++                    return validPackages;
++                }
++            }
++            return uidPackages;
++        }
++
+         public void clearWindowsLocked() {
+             List<WindowInfo> windows = Collections.emptyList();
+             final int activeWindowId = mActiveWindowId;
+@@ -4932,7 +5065,7 @@ public class AccessibilityManagerService extends IAccessibilityManager.Stub {
+         public final RemoteCallbackList<IAccessibilityManagerClient> mUserClients =
+             new RemoteCallbackList<>();
+ 
+-        public final SparseArray<AccessibilityConnectionWrapper> mInteractionConnections =
++        public final SparseArray<RemoteAccessibilityConnection> mInteractionConnections =
+                 new SparseArray<>();
+ 
+         public final SparseArray<IBinder> mWindowTokens = new SparseArray<>();
+diff --git a/services/appwidget/java/com/android/server/appwidget/AppWidgetServiceImpl.java b/services/appwidget/java/com/android/server/appwidget/AppWidgetServiceImpl.java
+index 80b54770e4b..a57010b2703 100644
+--- a/services/appwidget/java/com/android/server/appwidget/AppWidgetServiceImpl.java
++++ b/services/appwidget/java/com/android/server/appwidget/AppWidgetServiceImpl.java
+@@ -29,6 +29,7 @@ import android.app.PendingIntent;
+ import android.app.admin.DevicePolicyManagerInternal;
+ import android.app.admin.DevicePolicyManagerInternal.OnCrossProfileWidgetProvidersChangeListener;
+ import android.appwidget.AppWidgetManager;
++import android.appwidget.AppWidgetManagerInternal;
+ import android.appwidget.AppWidgetProviderInfo;
+ import android.appwidget.PendingHostUpdate;
+ import android.content.BroadcastReceiver;
+@@ -99,6 +100,7 @@ import com.android.internal.appwidget.IAppWidgetService;
+ import com.android.internal.os.BackgroundThread;
+ import com.android.internal.os.SomeArgs;
+ import com.android.internal.util.DumpUtils;
++import com.android.internal.util.ArrayUtils;
+ import com.android.internal.util.FastXmlSerializer;
+ import com.android.internal.widget.IRemoteViewsAdapterConnection;
+ import com.android.internal.widget.IRemoteViewsFactory;
+@@ -107,6 +109,7 @@ import com.android.server.WidgetBackupProvider;
+ import com.android.server.policy.IconUtilities;
+ 
+ import libcore.io.IoUtils;
++import libcore.util.EmptyArray;
+ 
+ import org.xmlpull.v1.XmlPullParser;
+ import org.xmlpull.v1.XmlPullParserException;
+@@ -256,6 +259,8 @@ class AppWidgetServiceImpl extends IAppWidgetService.Stub implements WidgetBacku
+         computeMaximumWidgetBitmapMemory();
+         registerBroadcastReceiver();
+         registerOnCrossProfileProvidersChangedListener();
++
++        LocalServices.addService(AppWidgetManagerInternal.class, new AppWidgetManagerLocal());
+     }
+ 
+     private void computeMaximumWidgetBitmapMemory() {
+@@ -4709,4 +4714,24 @@ class AppWidgetServiceImpl extends IAppWidgetService.Stub implements WidgetBacku
+             }
+         }
+     }
++
++    private class AppWidgetManagerLocal extends AppWidgetManagerInternal {
++        @Override
++        public ArraySet<String> getHostedWidgetPackages(int uid) {
++            synchronized (mLock) {
++                ArraySet<String> widgetPackages = null;
++                final int widgetCount = mWidgets.size();
++                for (int i = 0; i < widgetCount; i++) {
++                    final Widget widget = mWidgets.get(i);
++                    if  (widget.host.id.uid == uid) {
++                        if (widgetPackages == null) {
++                            widgetPackages = new ArraySet<>();
++                        }
++                        widgetPackages.add(widget.provider.id.componentName.getPackageName());
++                    }
++                }
++                return widgetPackages;
++            }
++        }
++    }
+ }
+diff --git a/telephony/java/android/telephony/TelephonyManager.java b/telephony/java/android/telephony/TelephonyManager.java
+index 6a829f78ba7..e922efeb098 100644
+--- a/telephony/java/android/telephony/TelephonyManager.java
++++ b/telephony/java/android/telephony/TelephonyManager.java
+@@ -4613,7 +4613,7 @@ public class TelephonyManager {
+             ITelephony telephony = getITelephony();
+             if (telephony == null)
+                 return null;
+-            return telephony.getForbiddenPlmns(subId, appType);
++            return telephony.getForbiddenPlmns(subId, appType, mContext.getOpPackageName());
+         } catch (RemoteException ex) {
+             return null;
+         } catch (NullPointerException ex) {
+diff --git a/telephony/java/com/android/internal/telephony/ITelephony.aidl b/telephony/java/com/android/internal/telephony/ITelephony.aidl
+index d9d4fec84f5..50a6eb44417 100644
+--- a/telephony/java/com/android/internal/telephony/ITelephony.aidl
++++ b/telephony/java/com/android/internal/telephony/ITelephony.aidl
+@@ -1352,12 +1352,12 @@ interface ITelephony {
+      * Returns null if the query fails.
+      *
+      *
+-     * <p>Requires that the calling app has READ_PRIVILEGED_PHONE_STATE
++     * <p>Requires that the calling app has READ_PRIVILEGED_PHONE_STATE or READ_PHONE_STATE
+      *
+      * @param subId subscription ID used for authentication
+      * @param appType the icc application type, like {@link #APPTYPE_USIM}
+      */
+-    String[] getForbiddenPlmns(int subId, int appType);
++    String[] getForbiddenPlmns(int subId, int appType, String callingPackage);
+ 
+     /**
+      * Check if phone is in emergency callback mode
+-- 
+2.17.1
+

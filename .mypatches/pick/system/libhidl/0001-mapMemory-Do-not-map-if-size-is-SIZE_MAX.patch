@@ -1,0 +1,91 @@
+From 3e7f440cd4ef307f6e37c606c37673f21cf348d7 Mon Sep 17 00:00:00 2001
+From: Yifan Hong <elsk@google.com>
+Date: Fri, 11 May 2018 14:19:42 -0700
+Subject: [PATCH] mapMemory: Do not map if size is > SIZE_MAX
+
+Bug: 79376389
+Test: hidl_test
+Test: POC in bug
+Change-Id: Ibaced858aa07bfd7ab6e938cc1339b974b0de14f
+Merged-In: Ibaced858aa07bfd7ab6e938cc1339b974b0de14f
+(cherry picked from commit 694bd8d1b43b9e60623cb3d5bd3f21662680dd7c)
+---
+ libhidlmemory/mapping.cpp                     | 10 ++++++++++
+ transport/memory/1.0/default/Android.bp       |  1 +
+ transport/memory/1.0/default/AshmemMapper.cpp | 13 +++++++++++++
+ 3 files changed, 24 insertions(+)
+
+diff --git a/libhidlmemory/mapping.cpp b/libhidlmemory/mapping.cpp
+index 3cb6485..8f0bcf4 100644
+--- a/libhidlmemory/mapping.cpp
++++ b/libhidlmemory/mapping.cpp
+@@ -24,6 +24,7 @@
+ #include <android-base/logging.h>
+ #include <android/hidl/memory/1.0/IMapper.h>
+ #include <hidl/HidlSupport.h>
++#include <log/log.h>
+ 
+ using android::sp;
+ using android::hidl::memory::V1_0::IMemory;
+@@ -63,6 +64,15 @@ sp<IMemory> mapMemory(const hidl_memory& memory) {
+         return nullptr;
+     }
+ 
++    // hidl_memory's size is stored in uint64_t, but mapMemory's mmap will map
++    // size in size_t. If size is over SIZE_MAX, mapMemory could succeed
++    // but the mapped memory's actual size will be smaller than the reported size.
++    if (memory.size() > SIZE_MAX) {
++        LOG(ERROR) << "Cannot map " << memory.size() << " bytes of memory because it is too large.";
++        android_errorWriteLog(0x534e4554, "79376389");
++        return nullptr;
++    }
++
+     Return<sp<IMemory>> ret = mapper->mapMemory(memory);
+ 
+     if (!ret.isOk()) {
+diff --git a/transport/memory/1.0/default/Android.bp b/transport/memory/1.0/default/Android.bp
+index a4f45cf..470d3b8 100644
+--- a/transport/memory/1.0/default/Android.bp
++++ b/transport/memory/1.0/default/Android.bp
+@@ -32,6 +32,7 @@ cc_library_shared {
+         "libhardware",
+         "libhwbinder",
+         "libbase",
++        "liblog",
+         "libutils",
+         "libhidlbase",
+         "libhidltransport",
+diff --git a/transport/memory/1.0/default/AshmemMapper.cpp b/transport/memory/1.0/default/AshmemMapper.cpp
+index bef4767..cefaaa4 100644
+--- a/transport/memory/1.0/default/AshmemMapper.cpp
++++ b/transport/memory/1.0/default/AshmemMapper.cpp
+@@ -16,6 +16,9 @@
+ 
+ #include "AshmemMapper.h"
+ 
++#include <inttypes.h>
++
++#include <log/log.h>
+ #include <sys/mman.h>
+ 
+ #include "AshmemMemory.h"
+@@ -32,6 +35,16 @@ Return<sp<IMemory>> AshmemMapper::mapMemory(const hidl_memory& mem) {
+         return nullptr;
+     }
+ 
++    // If ashmem service runs in 32-bit (size_t is uint32_t) and a 64-bit
++    // client process requests a memory > 2^32 bytes, the size would be
++    // converted to a 32-bit number in mmap. mmap could succeed but the
++    // mapped memory's actual size would be smaller than the reported size.
++    if (mem.size() > SIZE_MAX) {
++        ALOGE("Cannot map %" PRIu64 " bytes of memory because it is too large.", mem.size());
++        android_errorWriteLog(0x534e4554, "79376389");
++        return nullptr;
++    }
++
+     int fd = mem.handle()->data[0];
+     void* data = mmap(0, mem.size(), PROT_READ|PROT_WRITE, MAP_SHARED, fd, 0);
+     if (data == MAP_FAILED) {
+-- 
+2.17.1
+

@@ -390,24 +390,34 @@ function kpick()
     rm -f $errfile
     echo ""
     local changeNumber=""
+    local op_is_m_parent=0
+    local m_parent=1
+    local nops=""
     for op in $*; do
-        [ -z "$changeNumber" ] && [[ $op =~ ^[0-9]+$ ]] && changeNumber=$op
+        if [ $op_is_m_parent -eq 1 ]; then
+             [[ $op =~ ^[0-9]+$ ]] && [ $op -lt 10 ] && m_parent=$op
+             op_is_m_parent=0
+             continue
+        fi
+        [ "$op" = "-m" ] && op_is_m_parent=1 && continue
+        [ -z "$changeNumber" ] && [[ $op =~ ^[0-9]+$ ]] && [ $op -gt 1000 ] && changeNumber=$op
         [ "$op" = "-f" ] && op_force_pick=1
+        nops="$nops $op"
     done
     if  [ "$changeNumber" = "" ]; then
-         echo ">>> Picking $* ..."
-         repopick $* || exit -1
+         echo ">>> Picking $nops ..."
+         repopick $nops || exit -1
     fi
 
     echo ">>> Picking change $changeNumber ..."
-    LANG=en_US repopick -c 50 $* >$logfile 2>$errfile
+    LANG=en_US repopick -c 50 $nops >$logfile 2>$errfile
     rc=$?
     fix_repopick_output $logfile
     cat $logfile | sed -e "/ERROR: git command failed/d" | sed "/Force-picking a closed change/d"
     local tries=0
     local breakout=0
     while [ $rc -ne 0 -a -f $errfile ];  do
-          echo ".... try "$(expr $tries + 1)"..."
+          [ $tries -ge 1 ] && echo ".... try "$(expr $tries + 1)"..."
           #cat  $errfile
           if [ $tries -ge 30 ]; then
                 echo "    >> pick faild !!!!!"
@@ -417,14 +427,32 @@ function kpick()
 
           grep -q -E "nothing to commit|allow-empty" $errfile && breakout=1 && break
 
-          if grep -q -E "error EOF occurred|httplib\.BadStatusLine|Connection refused" $errfile; then
-              echo "  >> pick was interrupted, retry ("$(expr $tries + 1)")..."
+          if grep -q "is a merge but no -m option was given" $errfile; then
+              project=$(cat $logfile | grep "Project path" | cut -d: -f2 | sed "s/ //g")
+              ref=$(cat $logfile | grep "\['git"  | cut -d, -f2 | sed -e "s: u'\(.*\)']:\1:")
+              url=$(cat $errfile | grep "^From " | sed -e "s/From //" | sed -e "s/git:/https:/")
+              cd $project
+              #echo "git fetch $url $ref && git cherry-pick -m $m_parent FETCH_HEAD"
+              git fetch $url $ref && git cherry-pick -m $m_parent FETCH_HEAD
+              cd $topdir
+              if [ $? -ne 0 ]; then
+                   breakout=-1
+                   break
+              else
+                   breakout=0
+                   rm -f $errfile
+                   break
+              fi
+          fi
+
+          if grep -q -E "error EOF occurred|httplib\.BadStatusLine|urllib2\.URLError|Connection refused" $errfile; then
+              #echo "  >> pick was interrupted, retry ("$(expr $tries + 1)")..."
               #cat $logfile | sed -e "/ERROR: git command failed/d"
               #cat $errfile
               echo ""
               sleep 2
               [ $tries -ge 2 ] && https_proxy=""
-              LANG=en_US https_proxy="$https_proxy" repopick -c 50 $* >$logfile 2>$errfile
+              LANG=en_US https_proxy="$https_proxy" repopick -c 50 $nops >$logfile 2>$errfile
               rc=$?
               if [ $rc -ne 0 ]; then
                   #cat $logfile | sed -e "/ERROR: git command failed/d"
@@ -434,6 +462,7 @@ function kpick()
                   fix_repopick_output $logfile
                   cat $logfile
                   breakout=0
+                  rm -f $errfile
                   break
               fi
           fi
@@ -456,6 +485,7 @@ function kpick()
                           breakout=0
                           conflict_resolved=1
                           get_active_rrcache $project $md5file
+                          rm -f $errfile
                           cd $topdir
                           break
                        fi
@@ -475,17 +505,19 @@ function kpick()
                     echo "skip it ..."
                     cd $topdir/$project
                     git cherry-pick --abort
+                    rm -f $errfile
                     cd $curdir
                     break
               fi
               echo ""
-              LANG=en_US repopick -c 50 $* >$logfile 2>$errfile
+              LANG=en_US repopick -c 50 $nops >$logfile 2>$errfile
               rc=$?
               if [ $rc -eq 0 ]; then
                   echo "  conflicts resolved,continue ..."
                   breakout=0
                   conflict_resolved=1
                   get_active_rrcache $project $md5file
+                  rm -f $errfile
                   break
               else
                   cat $logfile | sed -e "/ERROR: git command failed/d"
@@ -501,7 +533,11 @@ function kpick()
     if [ $breakout -lt 0 ]; then
         [ -f $errfile ] && cat $errfile
         rm -f $errfile
-        exit $breakouit
+        if [ $0 = "bash" ]; then
+           return $breakout
+        else
+           exit $breakout
+        fi
     else
         project=$(cat $logfile | grep "Project path" | cut -d: -f2 | sed "s/ //g")
         ref=$(grep "\['git fetch" $logfile | cut -d, -f2 | cut -d\' -f2)
@@ -524,6 +560,16 @@ function kpick()
     fi
 }
 
+function apply_force_changes(){
+    [ -z $topdir ] && topdir=$(gettop)
+    find $topdir/.mypatches/local/vendor/lineage/ -type f -name "*-\[ALWAYS\]-*.patch" -o -name "*-\[ALWAYS\]-*.diff" \
+      | while read f; do
+         cd $topdir/vendor/lineage;
+         if ! git am -3 -q   --keep-cr --committer-date-is-author-date < $f; then
+            exit -1
+         fi
+    done
+}
 ########## main ###################
 
 get_defaul_remote
@@ -588,13 +634,6 @@ rm -rf $topdir/.pick_base
 
 rrCache restore # restore rr-cache
 
-find $topdir/.mypatches/local/vendor/lineage/ -type f -name "*-\[ALWAYS\]-*.patch" -o -name "*-\[ALWAYS\]-*.diff" \
-  | while read f; do
-     cd $topdir/vendor/lineage;
-     if ! git am -3 -q   --keep-cr --committer-date-is-author-date < $f; then
-        exit -1
-     fi
-done
 
 ###################################
 #---------base pick --------------#
@@ -602,6 +641,7 @@ if [ $op_base_pick -eq 1 ]; then
    cd $topdir/.repo/manifests; git reset --hard $(git log -20 --all --decorate | grep commit | grep "m/lineage-" | cut -d' ' -f 2);
    cd $topdir
    repo sync 
+   apply_force_changes
 
    kpick 212920 # libc: Mark libstdc++ as vendor available
    kpick 209019 # toybox: Use ISO C/clang compatible __typeof__ in minof/maxof macros
@@ -619,7 +659,9 @@ fi
 
 # android
 kpick 213705 # 	Build Exchange
-repo sync --force-sync packages/apps/Exchange
+kpick 219513 # manifest: android-8.1.0_r30 -> android-8.1.0_r36
+repo sync
+apply_force_changes
 
 # bionic
 kpick 212920 # libc: Mark libstdc++ as vendor available
@@ -653,6 +695,7 @@ kpick 218989 # releasetools: Fix the size check for AVB images.
 kpick 218990 # releasetools: Always create IMAGES/ directory.
 kpick 218991 # releasetools: Move the AVB salt setup into common.LoadInfoDict().
 kpick 219020 # build: Disable backuptool for A/B on -user
+kpick 219450 # 	Merge tag 'android-8.1.0_r36' into staging/lineage-15.1-android-8.1.0_r36
 
 # build/soong
 
@@ -698,6 +741,7 @@ kpick 209910 # Camera2Client: Add support for enabling QTI Video/Sensor HDR feat
 kpick 209911 # Camera2Client: Add support for QTI specific AutoHDR and Histogram feature
 kpick 209912 # Camera: Skip stream size check for whitelisted apps
 kpick 213115 # camera: Disable extra HDR frame on QCOM_HARDWARE
+kpick 219459 # Merge tag 'android-8.1.0_r36' into staging/lineage-15.1-android-8.1.0_r36
 
 # frameworks/base
 kpick -f 206054 # SystemUI: use vector drawables for navbar icons
@@ -717,8 +761,6 @@ kpick 214265 # Better QS detail clip animation
 kpick 215031 # Keyguard: Fix ConcurrentModificationException in KeyguardUpdateMonitor
 kpick 215128 # Make the startup of SoundTrigger service conditional
 kpick 216872 # SystemUI: Fix systemui crash when showing data usage detail
-kpick 217039 # Make berry overlays selection more generic	
-kpick 217042 # Add support for black berry style
 kpick 217594 # Fingerprint: Speed up wake-and-unlock scenario
 kpick 217595 # display: Don't animate screen brightness when turning the screen on
 kpick 218166 # Add an option to change the device hostname (1/2).
@@ -730,6 +772,7 @@ kpick 218437 # SystemUI: Add activity alias for LockscreenFragment
 kpick 218819 # SystemUI: Fix Data Usage tile to match Settings
 kpick 218951 # core: Protect QTI specific broadcasts
 kpick 219392 # systemUi: styles: support more dark overlays
+kpick 219472 # Merge tag 'android-8.1.0_r36' into staging/lineage-15.1-android-8.1.0_r36
 
 # frameworks/native
 kpick 213549 # SurfaceFlinger: Support get/set ActiveConfigs
@@ -746,6 +789,7 @@ kpick 219133 # Need GSI to support landscape LCM
 # frameworks/opt/telephony
 kpick 214316 # RIL: Allow overriding RadioResponse and RadioIndication
 kpick 215450 # Add changes for sending ATEL UI Ready to RIL.
+kpick 219490 # Merge tag 'android-8.1.0_r36' into staging/lineage-15.1-android-8.1.0_r36
 
 # hardware/broadcom/libbt
 
@@ -753,6 +797,7 @@ kpick 215450 # Add changes for sending ATEL UI Ready to RIL.
 
 # hardware/interfaces
 kpick 206140 # gps.default.so: fix crash on access to unset AGpsRilCallbacks::request_refloc
+kpick 219476 # Merge tag 'android-8.1.0_r36' into staging/lineage-15.1-android-8.1.0_r36
 
 # hardware/lineage/interfaces
 kpick 213865 # lineage/interfaces: move vibrator to the proper directory
@@ -816,10 +861,8 @@ kpick 219164 # Introduce a supported versions column in device tables
 kpick 213367 # NetworkTraffic: Include tethering traffic statistics
 kpick 214854 # [3/3] lineagesdk: single hand for hw keys
 kpick 216978 # sdk: add torch accent
-kpick 217041 # sdk: add black berry style support
 kpick 217419 # Add vendor security patch level to device info
 #kpick 218679 # lineage-sdk: Use ILight.getSupportedTypes for lights capabilities
-kpick 219054 # sdk: Trust: better warnings management
 kpick 219393 # styles: add support for more dark overlays
 kpick 219395 # styles: do not enforce permission when it's not needed
 
@@ -828,6 +871,7 @@ kpick 207864 # Updated Gradle to 3.0.1; The Lineage-SDK jar is now contained in 
 
 # packages/apps/Bluetooth
 kpick 218319 # Bluetooth: Remove duplicate permission
+kpick 219484 # Merge tag 'android-8.1.0_r36' into staging/lineage-15.1-android-8.1.0_r36
 
 # packages/apps/Camera2
 
@@ -874,13 +918,12 @@ kpick 211382 # correct the targeted SDK version to avoid permission fails otherw
 # packages/apps/Jelly
 
 # packages/apps/LineageParts
-kpick 217044 # LineageParts: add black theme support
 kpick 217171 # Trust: enforce vendor security patch level check
 kpick 217642 # Align learn more and got it horizontally
 kpick 217644 # LineageParts: Set proper PreferenceTheme parent	
 kpick 218315 # LineageParts: Fix brightness section
-kpick 219055 # parts: Trust: better warnings management
 kpick 219394 # parts: styles: add support for more dark overlays
+kpick 219527 # LiveDisplay: Remove advanced settings category if empty
 
 # packages/apps/lockClock
 kpick 208127 # Update LockClock to use Job APIs 
@@ -906,12 +949,13 @@ kpick 218826 # CameraSettings:Do not crash if zoom ratios are not exposed.
 
 # packages/apps/Trebuchet
 kpick 214336 # Trebuchet: initial protected apps implementation
-kpick 219265 # IconPicker: clone drawables array to prevent IOOBE
 kpick 219266 # IconsHandler: prevent resource not found exception when getting xml
 kpick 219267 # IconsHandler: use ViewHolder, prevent AsyncTask leaks, cleanup
 kpick 219268 # logging: prevent NPE at logDeepShortcutsOpen
-kpick 219269 # Trebuchet: use system's accent
-kpick 219270 # Trebuchet: the superior siege weapon doesn't need paddings in allApps' icons
+kpick 219515 # Edit dialog: change brush color from black to white
+kpick 219516 # Edit dialog: dynamically apply foreground to icon
+kpick 219528 # WallpaperManager: do not crash because of insufficient permissions
+kpick 219530 # Add click handler for qsb on boot to keep it responsive
 
 # packages/apps/UnifiedEmail
 kpick 218385 # unified email: prefer account display name to sender name
@@ -948,6 +992,9 @@ kpick 217046 # Add support for black berry style
 # packages/service/Telephony
 kpick 209045 # Telephony: Fallback gracefully for emergency calls if suitable app isn't found
 
+# system/bt
+kpick 219506 # Merge tag 'android-8.1.0_r36' into staging/lineage-15.1-android-8.1.0_r36
+
 # system/core
 kpick 206029 # init: Add command to disable verity
 kpick 213876 # healthd: charger: Add tricolor led to indicate battery capacity
@@ -962,6 +1009,14 @@ kpick 211210 # ext4: Add /data/stache/ to encryption exclusion list
 
 # system/extras/su
 kpick 218510 # su.c: fix property check due to lineage rebranding
+
+# system/libhidl
+kpick 219507 # release-request-99856c15-b008-4977-9971-f86523a23c0a-for-git_oc-m2-release-4367109 snap-temp-L18300000107415568
+kpick 219508 # Snap for 4402310 from f3ff79119179e1787d1652e8f4611b3
+kpick 219509 # Snap for 4485699 from 09e02dcdf79de1e4a9dd62db7c3152ba37a98f6c to oc-m2-release
+kpick 219510 # mapMemory: Do not map if size is > SIZE_MAX
+kpick 219511 # Merge cherrypicks of [4314166, 4314167, 4314168, ..., 4315429] into sparse-4732990-L02900000181396755
+kpick 219512 # Merge tag 'android-8.1.0_r36' into staging/lineage-15.1-android-8.1.0_r36
 
 # system/netd
 

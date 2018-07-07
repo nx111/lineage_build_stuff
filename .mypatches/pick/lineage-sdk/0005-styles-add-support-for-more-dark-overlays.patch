@@ -1,0 +1,396 @@
+From dcb8a0d4e71d0f1c9eeea6222a6681c1a2b00a8b Mon Sep 17 00:00:00 2001
+From: Joey <joey@lineageos.org>
+Date: Thu, 5 Jul 2018 21:18:18 +0200
+Subject: [PATCH 5/7] styles: add support for more dark overlays
+
+Change-Id: If9e08ba8ff28cff7a4061a6b6cea10d5fe38a541
+Signed-off-by: Joey <joey@lineageos.org>
+---
+ api/lineage_current.txt                       |  5 +
+ .../internal/StyleInterfaceService.java       | 93 +++++++++++++++++++
+ .../lineageos/providers/LineageSettings.java  | 46 +++++++++
+ .../java/lineageos/style/IStyleInterface.aidl |  3 +
+ .../java/lineageos/style/StyleInterface.java  | 83 ++++++++++++++++-
+ 5 files changed, 229 insertions(+), 1 deletion(-)
+
+diff --git a/api/lineage_current.txt b/api/lineage_current.txt
+index 340a77f..5653171 100644
+--- a/api/lineage_current.txt
++++ b/api/lineage_current.txt
+@@ -755,6 +755,7 @@ package lineageos.providers {
+     method public static long getLong(android.content.ContentResolver, java.lang.String, long);
+     method public static long getLong(android.content.ContentResolver, java.lang.String) throws lineageos.providers.LineageSettings.LineageSettingNotFoundException;
+     method public static java.lang.String getString(android.content.ContentResolver, java.lang.String);
++    method public static java.lang.String getString(android.content.ContentResolver, java.lang.String, java.lang.String);
+     method public static android.net.Uri getUriFor(java.lang.String);
+     method public static boolean putFloat(android.content.ContentResolver, java.lang.String, float);
+     method public static boolean putInt(android.content.ContentResolver, java.lang.String, int);
+@@ -778,6 +779,7 @@ package lineageos.providers {
+     method public static long getLong(android.content.ContentResolver, java.lang.String, long);
+     method public static long getLong(android.content.ContentResolver, java.lang.String) throws lineageos.providers.LineageSettings.LineageSettingNotFoundException;
+     method public static java.lang.String getString(android.content.ContentResolver, java.lang.String);
++    method public static java.lang.String getString(android.content.ContentResolver, java.lang.String, java.lang.String);
+     method public static android.net.Uri getUriFor(java.lang.String);
+     method public static boolean putFloat(android.content.ContentResolver, java.lang.String, float);
+     method public static boolean putInt(android.content.ContentResolver, java.lang.String, int);
+@@ -798,6 +800,7 @@ package lineageos.providers {
+     method public static long getLong(android.content.ContentResolver, java.lang.String, long);
+     method public static long getLong(android.content.ContentResolver, java.lang.String) throws lineageos.providers.LineageSettings.LineageSettingNotFoundException;
+     method public static java.lang.String getString(android.content.ContentResolver, java.lang.String);
++    method public static java.lang.String getString(android.content.ContentResolver, java.lang.String, java.lang.String);
+     method public static android.net.Uri getUriFor(java.lang.String);
+     method public static boolean putFloat(android.content.ContentResolver, java.lang.String, float);
+     method public static boolean putInt(android.content.ContentResolver, java.lang.String, int);
+@@ -814,6 +817,7 @@ package lineageos.providers {
+     field public static final java.lang.String BATTERY_LIGHT_MEDIUM_COLOR = "battery_light_medium_color";
+     field public static final java.lang.String BATTERY_LIGHT_PULSE = "battery_light_pulse";
+     field public static final java.lang.String BERRY_CURRENT_ACCENT = "berry_current_accent";
++    field public static final java.lang.String BERRY_DARK_OVERLAY = "berry_dark_overlay";
+     field public static final java.lang.String BERRY_GLOBAL_STYLE = "berry_global_style";
+     field public static final java.lang.String BERRY_MANAGED_BY_APP = "berry_managed_by_app";
+     field public static final java.lang.String BLUETOOTH_ACCEPT_ALL_FILES = "bluetooth_accept_all_files";
+@@ -1010,6 +1014,7 @@ package lineageos.style {
+     method public static lineageos.style.StyleInterface getInstance(android.content.Context);
+     method public lineageos.style.Suggestion getSuggestion(android.graphics.Bitmap, int[]);
+     method public java.util.List<java.lang.String> getTrustedAccents();
++    method public boolean isDarkNow();
+     method public boolean setAccent(java.lang.String);
+     method public boolean setGlobalStyle(int, java.lang.String);
+     field public static final java.lang.String ACCENT_DEFAULT = "lineageos";
+diff --git a/lineage/lib/main/java/org/lineageos/platform/internal/StyleInterfaceService.java b/lineage/lib/main/java/org/lineageos/platform/internal/StyleInterfaceService.java
+index 2700a0c..7d84121 100644
+--- a/lineage/lib/main/java/org/lineageos/platform/internal/StyleInterfaceService.java
++++ b/lineage/lib/main/java/org/lineageos/platform/internal/StyleInterfaceService.java
+@@ -79,6 +79,8 @@ public class StyleInterfaceService extends LineageSystemService {
+                 "You do not have permissions to change system style");
+     }
+ 
++    /* Public methods implementation */
++
+     private boolean setGlobalStyleInternal(int mode, String packageName) {
+         // Check whether the packageName is valid
+         if (isAValidPackage(packageName)) {
+@@ -168,6 +170,44 @@ public class StyleInterfaceService extends LineageSystemService {
+         return results;
+     }
+ 
++    private boolean isDarkNowInternal() {
++        String target = getDarkOverlayInternal();
++        return isEnabled(target);
++    }
++
++    private boolean setDarkOverlayInternal(String overlayName) {
++        boolean isDefault = StyleInterface.OVERLAY_DARK_DEFAULT.equals(overlayName);
++        boolean isBlack = StyleInterface.OVERLAY_DARK_BLACK.equals(overlayName);
++        int userId = UserHandle.myUserId();
++
++        if (!isDefault && !isBlack) {
++            Log.e(TAG, overlayName + " is not a valid dark overlay!");
++            return false;
++        }
++
++        try {
++            String currentDarkOverlay = LineageSettings.System.getString(
++                    mContext.getContentResolver(), LineageSettings.System.BERRY_DARK_OVERLAY,
++                    StyleInterface.OVERLAY_DARK_DEFAULT);
++            if (isEnabled(currentDarkOverlay)) {
++                // Swich dark overlays
++                mOverlayService.setEnabled(currentDarkOverlay, false, userId);
++                mOverlayService.setEnabled(overlayName, true, userId);
++            }
++            return true;
++        } catch (RemoteException e) {
++            Log.e(TAG, "Failed to change dark overlay");
++        }
++        return false;
++    }
++
++    private String getDarkOverlayInternal() {
++        return LineageSettings.System.getString(mContext.getContentResolver(),
++                LineageSettings.System.BERRY_DARK_OVERLAY, StyleInterface.OVERLAY_DARK_DEFAULT);
++    }
++
++    /* Utils */
++
+     private int getBestColor(int sourceColor, int[] colors) {
+         int best = 0;
+         double minDiff = Double.MAX_VALUE;
+@@ -205,6 +245,17 @@ public class StyleInterfaceService extends LineageSystemService {
+         }
+     }
+ 
++    private boolean isEnabled(String pkgName) {
++        int userId = UserHandle.myUserId();
++        try {
++            OverlayInfo info = mOverlayService.getOverlayInfo(pkgName, userId);
++            return info.isEnabled();
++        } catch (RemoteException e) {
++            Log.e(TAG, e.getLocalizedMessage());
++        }
++        return false;
++    }
++
+     private boolean isValidAccent(String pkgName) {
+         try {
+             ApplicationInfo ai = mPackageManager.getApplicationInfo(pkgName,
+@@ -225,6 +276,8 @@ public class StyleInterfaceService extends LineageSystemService {
+         }
+     }
+ 
++    /* Binder */
++
+     private final IBinder mService = new IStyleInterface.Stub() {
+         @Override
+         public boolean setGlobalStyle(int style, String packageName) {
+@@ -309,5 +362,45 @@ public class StyleInterfaceService extends LineageSystemService {
+             restoreCallingIdentity(token);
+             return result;
+         }
++
++        @Override
++        public boolean isDarkNow() {
++            /*
++             * We need to clear the caller's identity in order to
++             *   allow this method call to modify settings
++             *   not allowed by the caller's permissions.
++             */
++            long token = clearCallingIdentity();
++            boolean result = isDarkNowInternal();
++            restoreCallingIdentity(token);
++            return result;
++        }
++
++        @Override
++        public boolean setDarkOverlay(String overlayName) {
++            enforceChangeStylePermission();
++            /*
++             * We need to clear the caller's identity in order to
++             *   allow this method call to modify settings
++             *   not allowed by the caller's permissions.
++             */
++            long token = clearCallingIdentity();
++            boolean success = setDarkOverlayInternal(overlayName);
++            restoreCallingIdentity(token);
++            return success;
++        }
++
++        @Override
++        public String getDarkOverlay() {
++            /*
++             * We need to clear the caller's identity in order to
++             *   allow this method call to modify settings
++             *   not allowed by the caller's permissions.
++             */
++            long token = clearCallingIdentity();
++            String result = getDarkOverlayInternal();
++            restoreCallingIdentity(token);
++            return result;
++        }
+     };
+ }
+\ No newline at end of file
+diff --git a/sdk/src/java/lineageos/providers/LineageSettings.java b/sdk/src/java/lineageos/providers/LineageSettings.java
+index 3ed763a..9dba3f3 100644
+--- a/sdk/src/java/lineageos/providers/LineageSettings.java
++++ b/sdk/src/java/lineageos/providers/LineageSettings.java
+@@ -526,6 +526,18 @@ public final class LineageSettings {
+             return getStringForUser(resolver, name, UserHandle.myUserId());
+         }
+ 
++        /**
++         * Look up a name in the database.
++         * @param resolver to access the database with
++         * @param name to look up in the table
++         * @param def Value to return if the setting is not defined.
++         * @return the corresponding value, or null if not present
++         */
++        public static String getString(ContentResolver resolver, String name, String def) {
++            String str = getStringForUser(resolver, name, UserHandle.myUserId());
++            return str == null ? def : str;
++        }
++
+         /** @hide */
+         public static String getStringForUser(ContentResolver resolver, String name,
+                 int userId) {
+@@ -1343,6 +1355,15 @@ public final class LineageSettings {
+         public static final Validator BERRY_CURRENT_ACCENT_VALIDATOR =
+                 sNonNullStringValidator;
+ 
++        /**
++         * Current dark overlay package name
++         */
++        public static final String BERRY_DARK_OVERLAY = "berry_dark_overlay";
++
++        /** @hide */
++        public static final Validator BERRY_DARK_OVERLAY_VALIDATOR =
++                sNonNullStringValidator;
++
+         /**
+          * Current application managing the style
+          */
+@@ -2242,6 +2263,7 @@ public final class LineageSettings {
+             VALIDATORS.put(PROXIMITY_ON_WAKE, PROXIMITY_ON_WAKE_VALIDATOR);
+             VALIDATORS.put(BERRY_GLOBAL_STYLE, BERRY_GLOBAL_STYLE_VALIDATOR);
+             VALIDATORS.put(BERRY_CURRENT_ACCENT, BERRY_CURRENT_ACCENT_VALIDATOR);
++            VALIDATORS.put(BERRY_DARK_OVERLAY, BERRY_DARK_OVERLAY_VALIDATOR);
+             VALIDATORS.put(BERRY_MANAGED_BY_APP, BERRY_MANAGED_BY_APP_VALIDATOR);
+             VALIDATORS.put(ENABLE_FORWARD_LOOKUP, ENABLE_FORWARD_LOOKUP_VALIDATOR);
+             VALIDATORS.put(ENABLE_PEOPLE_LOOKUP, ENABLE_PEOPLE_LOOKUP_VALIDATOR);
+@@ -2420,6 +2442,18 @@ public final class LineageSettings {
+             return getStringForUser(resolver, name, UserHandle.myUserId());
+         }
+ 
++        /**
++         * Look up a name in the database.
++         * @param resolver to access the database with
++         * @param name to look up in the table
++         * @param def Value to return if the setting is not defined.
++         * @return the corresponding value, or null if not present
++         */
++        public static String getString(ContentResolver resolver, String name, String def) {
++            String str = getStringForUser(resolver, name, UserHandle.myUserId());
++            return str == null ? def : str;
++        }
++
+         /** @hide */
+         public static String getStringForUser(ContentResolver resolver, String name,
+                 int userId) {
+@@ -3284,6 +3318,18 @@ public final class LineageSettings {
+             return getStringForUser(resolver, name, UserHandle.myUserId());
+         }
+ 
++        /**
++         * Look up a name in the database.
++         * @param resolver to access the database with
++         * @param name to look up in the table
++         * @param def Value to return if the setting is not defined.
++         * @return the corresponding value, or null if not present
++         */
++        public static String getString(ContentResolver resolver, String name, String def) {
++            String str = getStringForUser(resolver, name, UserHandle.myUserId());
++            return str == null ? def : str;
++        }
++
+         /** @hide */
+         public static String getStringForUser(ContentResolver resolver, String name,
+                 int userId) {
+diff --git a/sdk/src/java/lineageos/style/IStyleInterface.aidl b/sdk/src/java/lineageos/style/IStyleInterface.aidl
+index d7147de..514766e 100644
+--- a/sdk/src/java/lineageos/style/IStyleInterface.aidl
++++ b/sdk/src/java/lineageos/style/IStyleInterface.aidl
+@@ -30,4 +30,7 @@ interface IStyleInterface {
+     String getAccent();
+     Suggestion getSuggestion(in Bitmap source, in int[] colors);
+     List<String> getTrustedAccents();
++    boolean isDarkNow();
++    boolean setDarkOverlay(String overlayName);
++    String getDarkOverlay();
+ }
+\ No newline at end of file
+diff --git a/sdk/src/java/lineageos/style/StyleInterface.java b/sdk/src/java/lineageos/style/StyleInterface.java
+index b1e7011..9ff9255 100644
+--- a/sdk/src/java/lineageos/style/StyleInterface.java
++++ b/sdk/src/java/lineageos/style/StyleInterface.java
+@@ -1,5 +1,5 @@
+ /**
+- * Copyright (c) 2015, The CyanogenMod Project
++ * Copyright (c) 2018, The LineageOS Project
+  *
+  * Licensed under the Apache License, Version 2.0 (the "License");
+  * you may not use this file except in compliance with the License.
+@@ -71,6 +71,22 @@ public class StyleInterface {
+      */
+     public static final String ACCENT_DEFAULT = "lineageos";
+ 
++    /**
++     * Dark style: default
++     *
++     * @see #setDarkOverlay
++     * @hide
++     */
++    public static final String OVERLAY_DARK_DEFAULT = "org.lineageos.overlay.dark";
++
++    /**
++     * Dark style: black
++     *
++     * @see #setDarkOverlay
++     * @hide
++     */
++    public static final String OVERLAY_DARK_BLACK = "org.lineageos.overlay.black";
++
+     /**
+      * Allows an application to change system style.
+      * This is a dangerous permission, your app must request
+@@ -268,4 +284,69 @@ public class StyleInterface {
+         }
+         return fallback;
+     }
++
++    /**
++     * Determine whether the dark style is being used right now,
++     * regardless of the current global style mode.
++     *
++     * @return Returns true if dark style is enabled
++     */
++    public boolean isDarkNow() {
++        if (sService == null) {
++            return false;
++        }
++        try {
++            return sService.isDarkNow();
++        } catch (RemoteException e) {
++            Log.e(TAG, e.getLocalizedMessage(), e);
++        }
++        return false;
++    }
++
++    /**
++     * Set dark overlay package.
++     *
++     * You will need {@link #CHANGE_STYLE_SETTINGS_PERMISSION}
++     * to utilize this functionality.
++     *
++     * @see #OVERLAY_DARK_DEFAULT
++     * @see #OVERLAY_DARK_BLACK
++     * @param overlayName The package name of the overlay.
++     *             One of {@link #OVERLAY_DARK_DEFAULT} or
++     *             {@link #OVERLAY_DARK_BLACK},
++     *
++     * @return Whether the process failed
++     * @hide
++     */
++    public boolean setDarkOverlay(String overlayName) {
++        if (sService == null) {
++            return false;
++        }
++        try {
++            return sService.setDarkOverlay(overlayName);
++        } catch (RemoteException e) {
++            Log.e(TAG, e.getLocalizedMessage(), e);
++        }
++        return false;
++    }
++
++    /**
++     * Get current dark overlay package name.
++     *
++     * @see #OVERLAY_DARK_DEFAULT
++     * @see #OVERLAY_DARK_BLACK
++     * @@return {@link #OVERLAY_DARK_DEFAULT} or {@link #OVERLAY_DARK_BLACK}
++     * @hide
++     */
++    public String getDarkOverlay() {
++        if (sService == null) {
++            return OVERLAY_DARK_DEFAULT;
++        }
++        try {
++            return sService.getDarkOverlay();
++        } catch (RemoteException e) {
++            Log.e(TAG, e.getLocalizedMessage(), e);
++        }
++        return OVERLAY_DARK_DEFAULT;
++    }
+ }
+-- 
+2.17.1
+
