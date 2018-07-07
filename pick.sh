@@ -416,6 +416,7 @@ function kpick()
     cat $logfile | sed -e "/ERROR: git command failed/d" | sed "/Force-picking a closed change/d"
     local tries=0
     local breakout=0
+    local pick_mode="reopick"
     while [ $rc -ne 0 -a -f $errfile ];  do
           [ $tries -ge 1 ] && echo ".... try "$(expr $tries + 1)"..."
           #cat  $errfile
@@ -425,25 +426,35 @@ function kpick()
                 break
           fi
 
-          grep -q -E "nothing to commit|allow-empty" $errfile && breakout=1 && break
-
           if grep -q "is a merge but no -m option was given" $errfile; then
+              pick_mode="fetch"
               project=$(cat $logfile | grep "Project path" | cut -d: -f2 | sed "s/ //g")
               ref=$(cat $logfile | grep "\['git"  | cut -d, -f2 | sed -e "s: u'\(.*\)']:\1:")
               url=$(cat $errfile | grep "^From " | sed -e "s/From //" | sed -e "s/git:/https:/")
               cd $project
               #echo "git fetch $url $ref && git cherry-pick -m $m_parent FETCH_HEAD"
-              git fetch $url $ref && git cherry-pick -m $m_parent FETCH_HEAD
+              if git fetch $url $ref; then
+                     rchid=$(git log FETCH_HEAD -n 1 | grep Change-Id | cut -d: -f2 | sed -e "s/ //g")
+                     recent_changeid_tmp=/tmp/$(echo $project | sed -e "s:/:_:g")_recent_ids.txt
+                     git log -n 50 | grep Change-Id | cut -d: -f2 | sed -e "s/ //g" > $recent_changeid_tmp
+                     if grep -q $rchid $recent_changeid_tmp; then
+                         echo "Change is  cherry-picked always! skipping it..."
+                     else
+                         LANG=en_US git cherry-pick -m $m_parent FETCH_HEAD >$logfile 2>$errfile
+                     fi
+              fi
+              rc=$?
               cd $topdir
-              if [ $? -ne 0 ]; then
-                   breakout=-1
-                   break
-              else
-                   breakout=0
+              if [ $rc -eq 0 ]; then
                    rm -f $errfile
+                   [ -z $recent_changeid_tmp ] ||  rm -f $recent_changeid_tmp
+                   breakout=0
                    break
               fi
           fi
+
+          grep -q -E "nothing to commit|allow-empty" $errfile && breakout=1 && break
+
 
           if grep -q -E "error EOF occurred|httplib\.BadStatusLine|urllib2\.URLError|Connection refused" $errfile; then
               #echo "  >> pick was interrupted, retry ("$(expr $tries + 1)")..."
@@ -466,17 +477,18 @@ function kpick()
                   break
               fi
           fi
+
           if grep -q "conflicts" $errfile; then
               echo "!!!!!!!!!!!!!"
               cat $errfile
-              project=$(cat $logfile | grep "Project path" | cut -d: -f2 | sed "s/ //g")
+              [ -z $project ] && project=$(cat $logfile | grep "Project path" | cut -d: -f2 | sed "s/ //g")
               md5file=/tmp/$(echo $project | sed -e "s:/:_:g")_rrmd5.txt
               rm -rf $md5file
               if [ "$project" != "" -a -d $topdir/$project ]; then
                     touch $md5file
                     if grep -q "using previous resolution" $errfile; then
                        echo "------------"
-                       cd $project
+                       cd $topdir/$project
                        grep "using previous resolution" $errfile | sed -e "s/Resolved '\(.*\)' using previous resolution.*/\1/" \
                            | xargs md5sum | sed -e "s/\(.*\)/\1 postimage/" >>$md5file
                        grep "using previous resolution" $errfile | sed -e "s/Resolved '\(.*\)' using previous resolution.*/\1/" \
@@ -501,17 +513,27 @@ function kpick()
               echo  "  >> pick changes conflict, please resolv it, then press ENTER to continue, or press 's' skip it ..."
               ch=$(sed q </dev/tty)
               if [ "$ch" = "s" ]; then
-                    curdir=$(pwd)
                     echo "skip it ..."
                     cd $topdir/$project
                     git cherry-pick --abort
                     rm -f $errfile
-                    cd $curdir
+                    cd $topdir
                     break
               fi
-              echo ""
-              LANG=en_US repopick -c 50 $nops >$logfile 2>$errfile
-              rc=$?
+              if [ "$pick_mode" = "fetch" ]; then
+                    cd $topdir/$project
+                    rchid=$(git log FETCH_HEAD -n 1 | grep Change-Id | cut -d: -f2 | sed -e "s/ //g")
+                    recent_changeid_tmp=/tmp/$(echo $project | sed -e "s:/:_:g")_recent_ids.txt
+                    git log -n 50 | grep Change-Id | cut -d: -f2 | sed -e "s/ //g" > $recent_changeid_tmp
+                    grep -q $rchid $recent_changeid_tmp || \
+                       LANG=en_US git cherry-pick -m $m_parent FETCH_HEAD >$logfile 2>$errfile
+                    rc=$?
+                    cd $topdir
+              else
+                    cd $topdir
+                    LANG=en_US repopick -c 50 $nops >$logfile 2>$errfile
+                    rc=$?
+              fi
               if [ $rc -eq 0 ]; then
                   echo "  conflicts resolved,continue ..."
                   breakout=0
@@ -530,6 +552,9 @@ function kpick()
           breakout=-1
           break
     done
+
+    [ -z $recent_changeid_tmp ] ||  rm -f $recent_changeid_tmp
+
     if [ $breakout -lt 0 ]; then
         [ -f $errfile ] && cat $errfile
         rm -f $errfile
@@ -559,6 +584,7 @@ function kpick()
         fi
     fi
 }
+
 
 function apply_force_changes(){
     [ -z $topdir ] && topdir=$(gettop)
@@ -656,12 +682,11 @@ fi
 #---------------------------------#
 ###################################
 
+apply_force_changes
 
 # android
 kpick 213705 # 	Build Exchange
-kpick 219513 # manifest: android-8.1.0_r30 -> android-8.1.0_r36
-repo sync
-apply_force_changes
+repo sync packages/apps/Exchange
 
 # bionic
 kpick 212920 # libc: Mark libstdc++ as vendor available
@@ -695,7 +720,6 @@ kpick 218989 # releasetools: Fix the size check for AVB images.
 kpick 218990 # releasetools: Always create IMAGES/ directory.
 kpick 218991 # releasetools: Move the AVB salt setup into common.LoadInfoDict().
 kpick 219020 # build: Disable backuptool for A/B on -user
-kpick 219450 # 	Merge tag 'android-8.1.0_r36' into staging/lineage-15.1-android-8.1.0_r36
 
 # build/soong
 
@@ -741,7 +765,6 @@ kpick 209910 # Camera2Client: Add support for enabling QTI Video/Sensor HDR feat
 kpick 209911 # Camera2Client: Add support for QTI specific AutoHDR and Histogram feature
 kpick 209912 # Camera: Skip stream size check for whitelisted apps
 kpick 213115 # camera: Disable extra HDR frame on QCOM_HARDWARE
-kpick 219459 # Merge tag 'android-8.1.0_r36' into staging/lineage-15.1-android-8.1.0_r36
 
 # frameworks/base
 kpick -f 206054 # SystemUI: use vector drawables for navbar icons
@@ -770,9 +793,7 @@ kpick 218430 # SystemUI: Require unlock to toggle airplane mode
 kpick 218431 # SystemUI: Require unlock to toggle location
 kpick 218437 # SystemUI: Add activity alias for LockscreenFragment
 kpick 218819 # SystemUI: Fix Data Usage tile to match Settings
-kpick 218951 # core: Protect QTI specific broadcasts
 kpick 219392 # systemUi: styles: support more dark overlays
-kpick 219472 # Merge tag 'android-8.1.0_r36' into staging/lineage-15.1-android-8.1.0_r36
 
 # frameworks/native
 kpick 213549 # SurfaceFlinger: Support get/set ActiveConfigs
@@ -789,7 +810,6 @@ kpick 219133 # Need GSI to support landscape LCM
 # frameworks/opt/telephony
 kpick 214316 # RIL: Allow overriding RadioResponse and RadioIndication
 kpick 215450 # Add changes for sending ATEL UI Ready to RIL.
-kpick 219490 # Merge tag 'android-8.1.0_r36' into staging/lineage-15.1-android-8.1.0_r36
 
 # hardware/broadcom/libbt
 
@@ -797,13 +817,8 @@ kpick 219490 # Merge tag 'android-8.1.0_r36' into staging/lineage-15.1-android-8
 
 # hardware/interfaces
 kpick 206140 # gps.default.so: fix crash on access to unset AGpsRilCallbacks::request_refloc
-kpick 219476 # Merge tag 'android-8.1.0_r36' into staging/lineage-15.1-android-8.1.0_r36
 
 # hardware/lineage/interfaces
-kpick 213865 # lineage/interfaces: move vibrator to the proper directory
-kpick 213866 # lineage/interfaces: extend android.hardware.vibrator@1.0
-kpick 213867 # lineage/interfaces: vibrator: read light/medium/strong voltage from sysfs
-kpick 213868 # lineage/interfaces: vibrator: implement vendor.lineage methods
 kpick 219211 # livedisplay: Restart HAL after successful data decryption
 
 # hardware/lineage/lineagehw
@@ -856,6 +871,7 @@ kpick 207545 # Add batch gerrit script
 # lineage/wiki
 kpick 218356 # Add tip to compile Heimdall from source.
 kpick 219164 # Introduce a supported versions column in device tables
+kpick 219543 # wiki: add workaround for booting into TWRP recovery
 
 # lineage-sdk
 kpick 213367 # NetworkTraffic: Include tethering traffic statistics
@@ -871,7 +887,6 @@ kpick 207864 # Updated Gradle to 3.0.1; The Lineage-SDK jar is now contained in 
 
 # packages/apps/Bluetooth
 kpick 218319 # Bluetooth: Remove duplicate permission
-kpick 219484 # Merge tag 'android-8.1.0_r36' into staging/lineage-15.1-android-8.1.0_r36
 
 # packages/apps/Camera2
 
@@ -993,7 +1008,6 @@ kpick 217046 # Add support for black berry style
 kpick 209045 # Telephony: Fallback gracefully for emergency calls if suitable app isn't found
 
 # system/bt
-kpick 219506 # Merge tag 'android-8.1.0_r36' into staging/lineage-15.1-android-8.1.0_r36
 
 # system/core
 kpick 206029 # init: Add command to disable verity
@@ -1011,12 +1025,6 @@ kpick 211210 # ext4: Add /data/stache/ to encryption exclusion list
 kpick 218510 # su.c: fix property check due to lineage rebranding
 
 # system/libhidl
-kpick 219507 # release-request-99856c15-b008-4977-9971-f86523a23c0a-for-git_oc-m2-release-4367109 snap-temp-L18300000107415568
-kpick 219508 # Snap for 4402310 from f3ff79119179e1787d1652e8f4611b3
-kpick 219509 # Snap for 4485699 from 09e02dcdf79de1e4a9dd62db7c3152ba37a98f6c to oc-m2-release
-kpick 219510 # mapMemory: Do not map if size is > SIZE_MAX
-kpick 219511 # Merge cherrypicks of [4314166, 4314167, 4314168, ..., 4315429] into sparse-4732990-L02900000181396755
-kpick 219512 # Merge tag 'android-8.1.0_r36' into staging/lineage-15.1-android-8.1.0_r36
 
 # system/netd
 
