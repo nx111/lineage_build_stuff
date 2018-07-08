@@ -547,6 +547,11 @@ function kpick()
                   continue
               fi
           fi
+          if grep -q "could not determine the project path for" $errfile; then
+              echo "Not determine the project, skipping it ..."
+              breakout=0
+              break
+          fi
           [ -f $errfile ] && cat $errfile
           echo "  >>**** repopick failed !"
           breakout=-1
@@ -579,6 +584,9 @@ function kpick()
            [ -f $script_file.tmp ] || cp $script_file $script_file.tmp
            eval  sed -e \"/[[:space:]]*kpick $changeNumber[[:space:]]*.*/d\" -i $script_file.tmp
         elif grep -q -E "Change $changeNumber not found, skipping" $logfile; then
+           [ -f $script_file.tmp ] || cp $script_file $script_file.tmp
+           eval  sed -e \"/[[:space:]]*kpick $changeNumber[[:space:]]*.*/d\" -i $script_file.tmp
+        elif grep -q "could not determine the project path for" $errfile; then
            [ -f $script_file.tmp ] || cp $script_file $script_file.tmp
            eval  sed -e \"/[[:space:]]*kpick $changeNumber[[:space:]]*.*/d\" -i $script_file.tmp
         fi
@@ -746,6 +754,7 @@ kpick 210666 # wacom: Report touch when pen button is pressed if gestures are of
 kpick 218447 # vfs: selectivly revert caf updates
 
 # external/chromium-webview
+kpick 219572 # Add information on the arch-dependent version number
 
 # external/tinecompress
 kpick 215115 # tinycompress: Replace deprecated kernel header path
@@ -1022,7 +1031,6 @@ kpick 219304 # init: Allow devices to opt-out of fsck'ing on power off
 kpick 211210 # ext4: Add /data/stache/ to encryption exclusion list
 
 # system/extras/su
-kpick 218510 # su.c: fix property check due to lineage rebranding
 
 # system/libhidl
 
