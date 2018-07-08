@@ -505,7 +505,7 @@ function kpick()
                        echo "------------"
                     fi
                     if grep -q "Recorded preimage for" $errfile; then
-                       cd $project
+                       cd $topdir/$project
                        grep "Recorded preimage for" $errfile | cut -d\' -f2 | xargs md5sum | sed -e "s/\(.*\)/\1 preimage/" >>$md5file
                        cd $topdir
                     fi
@@ -516,7 +516,6 @@ function kpick()
                     echo "skip it ..."
                     cd $topdir/$project
                     git cherry-pick --abort
-                    rm -f $errfile
                     cd $topdir
                     break
               fi
@@ -539,7 +538,6 @@ function kpick()
                   breakout=0
                   conflict_resolved=1
                   get_active_rrcache $project $md5file
-                  rm -f $errfile
                   break
               else
                   cat $logfile | sed -e "/ERROR: git command failed/d"
@@ -586,11 +584,12 @@ function kpick()
         elif grep -q -E "Change $changeNumber not found, skipping" $logfile; then
            [ -f $script_file.tmp ] || cp $script_file $script_file.tmp
            eval  sed -e \"/[[:space:]]*kpick $changeNumber[[:space:]]*.*/d\" -i $script_file.tmp
-        elif grep -q "could not determine the project path for" $errfile; then
+        elif [ -f $errfile ] && grep -q "could not determine the project path for" $errfile; then
            [ -f $script_file.tmp ] || cp $script_file $script_file.tmp
            eval  sed -e \"/[[:space:]]*kpick $changeNumber[[:space:]]*.*/d\" -i $script_file.tmp
         fi
     fi
+    rm -f $errfile $logfile
 }
 
 
@@ -774,6 +773,7 @@ kpick 209910 # Camera2Client: Add support for enabling QTI Video/Sensor HDR feat
 kpick 209911 # Camera2Client: Add support for QTI specific AutoHDR and Histogram feature
 kpick 209912 # Camera: Skip stream size check for whitelisted apps
 kpick 213115 # camera: Disable extra HDR frame on QCOM_HARDWARE
+kpick 219724 # NdkMediaCodec: add AMediaCodec_getBufferFormat
 
 # frameworks/base
 kpick -f 206054 # SystemUI: use vector drawables for navbar icons
@@ -828,7 +828,12 @@ kpick 215450 # Add changes for sending ATEL UI Ready to RIL.
 kpick 206140 # gps.default.so: fix crash on access to unset AGpsRilCallbacks::request_refloc
 
 # hardware/lineage/interfaces
+kpick 213865 # lineage/interfaces: move vibrator to the proper directory
+kpick 213866 # lineage/interfaces: extend android.hardware.vibrator@1.0
+kpick 213867 # lineage/interfaces: vibrator: read click effect amplitude from prop
+kpick 213868 # lineage/interfaces: vibrator: implement vendor.lineage methods
 kpick 219211 # livedisplay: Restart HAL after successful data decryption
+kpick 219624 # lineage/interfaces: vibrator: make define usage uniform
 
 # hardware/lineage/lineagehw
 
@@ -870,7 +875,6 @@ kpick 218728 # charter: Add recovery requirement
 kpick 218835 # verity: change wording, as this is required for a/b builds
 
 # lineage/jenkins
-kpick 218680 # hudson: klte* wants to dunk its Oreos into some milk too
 
 # lineage/scripts
 kpick 207545 # Add batch gerrit script
