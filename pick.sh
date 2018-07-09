@@ -705,7 +705,6 @@ kpick 219194 # minui: drm: ARGB8888 support
 kpick 219195 # minui: drm: wait for page flip event before next flip	
 
 # build/make
-kpick 206396 # build: recovery: add vendor to exclusion list
 kpick 208102 # Adapt ijar for WSL
 kpick 208381 # build: Add ability for device to specify additional targets
 kpick 208567 # [DNM] updater: Don't check fingerprint for incrementals
@@ -750,7 +749,6 @@ kpick 210665 # wacom: Follow-up from gestures patch
 kpick 210666 # wacom: Report touch when pen button is pressed if gestures are off
 
 # external/ant-wireless/ant_native
-kpick 218447 # vfs: selectivly revert caf updates
 
 # external/chromium-webview
 kpick 219572 # Add information on the arch-dependent version number
@@ -802,7 +800,7 @@ kpick 218430 # SystemUI: Require unlock to toggle airplane mode
 kpick 218431 # SystemUI: Require unlock to toggle location
 kpick 218437 # SystemUI: Add activity alias for LockscreenFragment
 kpick 218819 # SystemUI: Fix Data Usage tile to match Settings
-kpick 219392 # systemUi: styles: support more dark overlays
+#kpick 219300 # SystemUI: tuner: Remove battery preference
 
 # frameworks/native
 kpick 213549 # SurfaceFlinger: Support get/set ActiveConfigs
@@ -848,12 +846,13 @@ kpick 209093 # msm8974: hwc: Set ioprio for vsync thread
 
 # hardware/qcom/gps
 
+# hardware/qcom/media
+
 # hardware/qcom/media-caf/msm8974
 
 # hardware/qcom/keymaster
 
 # hardware/qcom/power
-kpick 219170 # Fix interaction boost higher cpu freq perflock
 kpick 219212 # power: Allow devices disabling power stats completely
 
 # hardware/qcom/thermal
@@ -892,7 +891,6 @@ kpick 214854 # [3/3] lineagesdk: single hand for hw keys
 kpick 216978 # sdk: add torch accent
 kpick 217419 # Add vendor security patch level to device info
 #kpick 218679 # lineage-sdk: Use ILight.getSupportedTypes for lights capabilities
-kpick 219393 # styles: add support for more dark overlays
 kpick 219395 # styles: do not enforce permission when it's not needed
 
 # lineage-sdk/samples/weatherproviderservice/YahooWeatherProvider
@@ -950,8 +948,8 @@ kpick 217171 # Trust: enforce vendor security patch level check
 kpick 217642 # Align learn more and got it horizontally
 kpick 217644 # LineageParts: Set proper PreferenceTheme parent	
 kpick 218315 # LineageParts: Fix brightness section
-kpick 219394 # parts: styles: add support for more dark overlays
 kpick 219527 # LiveDisplay: Remove advanced settings category if empty
+kpick 219733 # LineageParts: Blue is the new black
 
 # packages/apps/lockClock
 kpick 208127 # Update LockClock to use Job APIs 
@@ -970,6 +968,7 @@ kpick 217420 # Add vendor security patch level to device info
 kpick 218165 # Add an option to change the device hostname (1/2).
 kpick 218438 # Settings: Add lockscreen shortcuts customization to lockscreen settings
 kpick 218775 # Settings: Cleanup SimSettings additions
+#kpick 219299 # Settings: Remove battery percentage switch
 
 # packages/apps/Snap
 kpick 206595 # Use transparent navigation bar
@@ -1009,7 +1008,6 @@ kpick 219311 # Disable animations for translucent activities.
 # packages/overlays/Lineage
 kpick 215846 # dark: Add Theme.DeviceDefault.Settings.Dialog.NoActionBar style
 kpick 216979 # overlays: add torch accent
-kpick 217046 # Add support for black berry style
 
 # packages/providers/ContactsProvider
 
@@ -1041,12 +1039,12 @@ kpick 211210 # ext4: Add /data/stache/ to encryption exclusion list
 # system/netd
 
 # system/nfc
+kpick 219760 # Fix SDCLANG-6.0 warnings
 
 # system/qcom
 kpick 215122 # libQWiFiSoftApCfg: Replace deprecated kernel header path
 
 # system/security
-kpick 217069 # key_store:Using euid instead of uid when upgrade wifi blobs
 
 # system/sepolicy
 kpick 206037 # sepolicy: Allow init to modify system_blk_device
@@ -1059,27 +1057,14 @@ kpick 218416 # vold: utils: Introduce ForkCallp
 
 # vendor/lineage
 kpick 206154 # Include build manifest on target
+kpick 210664 # extract_utils: Support multidex
 kpick 215341 # backuptool: Revert "Temporarily render version check permissive"
 kpick 214400 # backuptool: Resolve incompatible version grep syntax
 kpick 216977 # lineage: build torch accent
-kpick 217045 # vendor: build black berry theme
-kpick 217088 # Revert "extract_utils: Fix makefile generation issues"
-kpick 217089 # Revert "extract_files: Add support for paths without system/"
-kpick 217358 # extract_utils: do not strip target_args from the output of prefix_match
 kpick 217628 # lineage: add generic x86_64 target
 kpick 217629 # kernel: Add TARGET_KERNEL_ADDITIONAL_FLAGS to allow setting extra cflags
 kpick 217630 # kernel: Add kernelversion recipe to generate MAJOR.MINOR kernel version
-kpick 217837 # envsetup: Fix adb recovery state detections
-kpick 217846 # Fix focus close when select video in picker
 kpick 218496 # vendor: Fix install[boot|recovery]
-kpick 218561 # extract_utils: target_file() and target_args() cleanup
-kpick 218562 # extract_utils: create src_file() function to mirror behavior of target_file()
-kpick 218563 # extract_utils: extract(): rename FROM variable to SPEC_DST_FILE
-kpick 218564 # extract_utils: extract(): rename FILE variable to SPEC_SRC_FILE
-kpick 218565 # extract_utils: extract(): rename ARGS variable to SPEC_ARGS
-kpick 218566 # extract_utils: extract(): rename DEST variable to VENDOR_REPO_FILE
-kpick 217090 # extract_utils: cleanup in extract() function
-kpick 218568 # extract_utils: make get_file() able to search paths with and w/o /system prefix
 kpick 218717 # verity_tool: Implement status getter
 kpick 218801 # libbfqio: Open bfqio once
 kpick 218817 # kernel: Do not attempt to build modules if there aren't
@@ -1094,7 +1079,6 @@ kpick 219389 # lineage: Always disable google SystemUpdateService
 # vendor/nxp/opensource/external/libnfc-nci
 
 # vendor/qcom/opensource/cryptfs_hw
-kpick 219163 # cryptfs: Allow vold to set encryption info
 
 #-----------------------
 # translations
