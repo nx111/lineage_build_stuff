@@ -1,0 +1,485 @@
+From e70703d4521a936d7758beb60bf0129eacf832f5 Mon Sep 17 00:00:00 2001
+From: Danny Baumann <dannybaumann@web.de>
+Date: Thu, 13 Nov 2014 14:33:24 +0100
+Subject: [PATCH 2/3] Proper supplementary service notification handling (4/5).
+
+Move toast generation to correct place, and abstraction for pieces of
+data we want to map into InCallUI.
+
+Change-Id: Ia249c926d3228d850064a705454c42ec9a53c524
+---
+ res/values/cm_strings.xml                     | 35 +++++++
+ res/xml/phone_account_settings.xml            | 12 +++
+ src/com/android/phone/CallNotifier.java       | 93 ++++++++++++++++++
+ .../PhoneAccountSettingsFragment.java         | 24 +++++
+ .../services/telephony/GsmConnection.java     | 94 +++++++++++++++++++
+ .../telephony/TelephonyConnection.java        | 21 -----
+ 6 files changed, 258 insertions(+), 21 deletions(-)
+
+diff --git a/res/values/cm_strings.xml b/res/values/cm_strings.xml
+index f75c966a9..6b6681a88 100644
+--- a/res/values/cm_strings.xml
++++ b/res/values/cm_strings.xml
+@@ -39,4 +39,39 @@
+ 
+     <!-- Emergency Calling -->
+     <string name="emergency_unsupported_dialer_message">Unable to complete emergency call, no suitable app found</string>
++
++    <!-- Advanced Settings -->
++    <string name="incall_screen_settings">In-call screen settings</string>
++    <string name="show_ssn_label">Event notification</string>
++    <string name="show_ssn_summary">Show a notification for various network events related to call handling</string>
++
++    <!-- Toasts for various transient network events -->
++    <!-- Toast text for Unconditional Call Forwarding enabled  -->
++    <string name="call_notif_unconditionalCF">Unconditional call forwarding active</string>
++    <!-- Toast text for Conditional Call Forwarding enabled  -->
++    <string name="call_notif_conditionalCF">Conditional call forwarding active</string>
++    <!-- Toast text for a forwarded MO call  -->
++    <string name="call_notif_MOcall_forwarding">Outgoing call is forwarded</string>
++    <!-- Toast text for MO call, when the caller & callee both belng to a CUG group -->
++    <string name="call_notif_cugcall">Call in closed user group</string>
++    <!-- In-call screen: status label when MO calls are barred -->
++    <string name="call_notif_outgoing_barred">Outgoing calls barred</string>
++    <!-- Toast text for MO calls, when incoming calls are barred at remote party -->
++    <string name="call_notif_incoming_barred">Incoming calls barred at remote party</string>
++    <!-- Toast text for MO calls when CLIR Suppression is rejected -->
++    <string name="call_notif_clir_suppression_rejected">Own number suppression rejected by network</string>
++    <!-- In-call screen: status label when MO call gets deflected to another party -->
++    <string name="call_notif_call_deflected">Call forwarded by remote party</string>
++    <!-- Toast text for incoming call being forwarded to other remote party  -->
++    <string name="call_notif_MTcall_forwarding">Incoming call is forwarded</string>
++    <!-- Toast text for incoming call which is part of MultiParty Call -->
++    <string name="call_notif_multipartycall">Multi-party call</string>
++    <!-- Toast text for incoming call which is answered,put on hold & then released -->
++    <string name="call_notif_callonhold_released">Call released remotely</string>
++    <!-- Toast text for incoming call forward check received -->
++    <string name="call_notif_forwardcheckreceived">Call was forwarded</string>
++    <!-- Toast text for incoming call connecting through ECT -->
++    <string name="call_notif_callconnectingect">Call connecting through explicit call transfer</string>
++    <!-- Toast text for incoming call connected through ECT -->
++    <string name="call_notif_callconnectedect">Call connected through explicit call transfer</string>
+ </resources>
+diff --git a/res/xml/phone_account_settings.xml b/res/xml/phone_account_settings.xml
+index 8e0d17a16..77d12c0d2 100644
+--- a/res/xml/phone_account_settings.xml
++++ b/res/xml/phone_account_settings.xml
+@@ -72,4 +72,16 @@
+ 
+     </PreferenceCategory>
+ 
++    <PreferenceCategory
++        android:key="incall_screen_category_key"
++        android:title="@string/incall_screen_settings">
++
++        <SwitchPreference
++            android:key="button_show_ssn_key"
++            android:title="@string/show_ssn_label"
++            android:defaultValue="false"
++            android:summary="@string/show_ssn_summary" />
++
++    </PreferenceCategory>
++
+ </PreferenceScreen>
+diff --git a/src/com/android/phone/CallNotifier.java b/src/com/android/phone/CallNotifier.java
+index 3f4413047..799beeb1c 100644
+--- a/src/com/android/phone/CallNotifier.java
++++ b/src/com/android/phone/CallNotifier.java
+@@ -23,17 +23,20 @@ import com.android.internal.telephony.PhoneConstants;
+ import com.android.internal.telephony.cdma.CdmaInformationRecords.CdmaDisplayInfoRec;
+ import com.android.internal.telephony.cdma.CdmaInformationRecords.CdmaSignalInfoRec;
+ import com.android.internal.telephony.cdma.SignalToneUtil;
++import com.android.internal.telephony.gsm.SuppServiceNotification;
+ 
+ import android.bluetooth.BluetoothAdapter;
+ import android.bluetooth.BluetoothHeadset;
+ import android.bluetooth.BluetoothProfile;
+ import android.content.Context;
++import android.content.SharedPreferences;
+ import android.media.AudioManager;
+ import android.media.ToneGenerator;
+ import android.os.AsyncResult;
+ import android.os.Handler;
+ import android.os.Message;
+ import android.os.SystemProperties;
++import android.preference.PreferenceManager;
+ import android.telecom.TelecomManager;
+ 
+ import android.telephony.PhoneStateListener;
+@@ -43,6 +46,7 @@ import android.telephony.SubscriptionManager.OnSubscriptionsChangedListener;
+ import android.telephony.TelephonyManager;
+ import android.util.ArrayMap;
+ import android.util.Log;
++import android.widget.Toast;
+ 
+ import java.util.Iterator;
+ import java.util.List;
+@@ -94,6 +98,8 @@ public class CallNotifier extends Handler {
+     public static final int PHONE_ENHANCED_VP_OFF = 10;
+     public static final int PHONE_SUPP_SERVICE_FAILED = 14;
+     public static final int PHONE_TTY_MODE_RECEIVED = 15;
++    public static final int PHONE_SUPP_SERVICE_NOTIFY = 16;
++
+     // Events generated internally.
+     // We should store all the possible event type values in one place to make sure that
+     // they don't step on each others' toes.
+@@ -176,6 +182,7 @@ public class CallNotifier extends Handler {
+         mCM.registerForInCallVoicePrivacyOff(this, PHONE_ENHANCED_VP_OFF, null);
+         mCM.registerForSuppServiceFailed(this, PHONE_SUPP_SERVICE_FAILED, null);
+         mCM.registerForTtyModeReceived(this, PHONE_TTY_MODE_RECEIVED, null);
++        mCM.registerForSuppServiceNotification(this, PHONE_SUPP_SERVICE_NOTIFY, null);
+     }
+ 
+     @Override
+@@ -234,6 +241,11 @@ public class CallNotifier extends Handler {
+                 onTtyModeReceived((AsyncResult) msg.obj);
+                 break;
+ 
++            case PHONE_SUPP_SERVICE_NOTIFY:
++                if (DBG) log("Received Supplementary Notification");
++                onSuppServiceNotification((AsyncResult) msg.obj);
++                break;
++
+             default:
+                 // super.handleMessage(msg);
+         }
+@@ -246,6 +258,87 @@ public class CallNotifier extends Handler {
+         createSignalInfoToneGenerator();
+     }
+ 
++    private void onSuppServiceNotification(AsyncResult r) {
++        SuppServiceNotification notification = (SuppServiceNotification) r.result;
++
++        /* show a toast for transient notifications */
++        int toastResId = getSuppServiceToastTextResIdIfEnabled(notification);
++        if (toastResId >= 0) {
++            Toast.makeText(mApplication, mApplication.getString(toastResId),
++                    Toast.LENGTH_LONG).show();
++        }
++    }
++
++    protected int getSuppServiceToastTextResIdIfEnabled(SuppServiceNotification notification) {
++        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(mApplication);
++        if (!prefs.getBoolean("button_show_ssn_key", false)) {
++            /* don't show anything if the user doesn't want it */
++            return -1;
++        }
++        return getSuppServiceToastTextResId(notification);
++    }
++
++    protected int getSuppServiceToastTextResId(SuppServiceNotification notification) {
++        if (notification.notificationType == SuppServiceNotification.NOTIFICATION_TYPE_MO) {
++            switch (notification.code) {
++                case SuppServiceNotification.MO_CODE_UNCONDITIONAL_CF_ACTIVE :
++                    // This message is displayed when an outgoing call is made
++                    // and unconditional forwarding is enabled.
++                    return R.string.call_notif_unconditionalCF;
++                case SuppServiceNotification.MO_CODE_SOME_CF_ACTIVE:
++                    // This message is displayed when an outgoing call is made
++                    // and conditional forwarding is enabled.
++                    return R.string.call_notif_conditionalCF;
++                case SuppServiceNotification.MO_CODE_CALL_FORWARDED:
++                    //This message is displayed on A when the outgoing call actually gets forwarded to C
++                    return R.string.call_notif_MOcall_forwarding;
++                case SuppServiceNotification.MO_CODE_CUG_CALL:
++                    //This message is displayed on A, when A makes call to B, both A & B
++                    //belong to a CUG group
++                    return R.string.call_notif_cugcall;
++                case SuppServiceNotification.MO_CODE_OUTGOING_CALLS_BARRED:
++                    //This message is displayed on A when outging is barred on A
++                    return R.string.call_notif_outgoing_barred;
++                case SuppServiceNotification.MO_CODE_INCOMING_CALLS_BARRED:
++                    //This message is displayed on A, when A is calling B & incoming is barred on B
++                    return R.string.call_notif_incoming_barred;
++                case SuppServiceNotification.MO_CODE_CLIR_SUPPRESSION_REJECTED:
++                    //This message is displayed on A, when CLIR suppression is rejected
++                    return R.string.call_notif_clir_suppression_rejected;
++                case SuppServiceNotification.MO_CODE_CALL_DEFLECTED:
++                    //This message is displayed on A, when the outgoing call gets deflected to C from B
++                    return R.string.call_notif_call_deflected;
++            }
++        } else if (notification.notificationType == SuppServiceNotification.NOTIFICATION_TYPE_MT) {
++            switch (notification.code) {
++                case SuppServiceNotification.MT_CODE_CUG_CALL:
++                    //This message is displayed on B, when A makes call to B, both A & B
++                    //belong to a CUG group
++                    return R.string.call_notif_cugcall;
++               case SuppServiceNotification.MT_CODE_MULTI_PARTY_CALL:
++                   //This message is displayed on B when the the call is changed as multiparty
++                   return R.string.call_notif_multipartycall;
++               case SuppServiceNotification.MT_CODE_ON_HOLD_CALL_RELEASED:
++                   //This message is displayed on B, when A makes call to B, puts it on hold & then releases it.
++                   return R.string.call_notif_callonhold_released;
++               case SuppServiceNotification.MT_CODE_FORWARD_CHECK_RECEIVED:
++                   //This message is displayed on C when the incoming call is forwarded from B
++                   return R.string.call_notif_forwardcheckreceived;
++               case SuppServiceNotification.MT_CODE_CALL_CONNECTING_ECT:
++                   //This message is displayed on B,when Call is connecting through Explicit Call Transfer
++                   return R.string.call_notif_callconnectingect;
++               case SuppServiceNotification.MT_CODE_CALL_CONNECTED_ECT:
++                   //This message is displayed on B,when Call is connected through Explicit Call Transfer
++                   return R.string.call_notif_callconnectedect;
++               case SuppServiceNotification.MT_CODE_ADDITIONAL_CALL_FORWARDED:
++                   // This message is displayed on B when it is busy and the incoming call gets forwarded to C
++                   return R.string.call_notif_MTcall_forwarding;
++            }
++        }
++
++        return -1;
++    }
++
+     /**
+      * Resets the audio mode and speaker state when a call ends.
+      */
+diff --git a/src/com/android/phone/settings/PhoneAccountSettingsFragment.java b/src/com/android/phone/settings/PhoneAccountSettingsFragment.java
+index 670f98d1e..a636e96d0 100644
+--- a/src/com/android/phone/settings/PhoneAccountSettingsFragment.java
++++ b/src/com/android/phone/settings/PhoneAccountSettingsFragment.java
+@@ -22,7 +22,9 @@ import android.telephony.TelephonyManager;
+ import android.text.TextUtils;
+ import android.util.Log;
+ 
++import com.android.internal.telephony.CallManager;
+ import com.android.internal.telephony.Phone;
++import com.android.internal.telephony.PhoneConstants;
+ import com.android.phone.PhoneUtils;
+ import com.android.phone.R;
+ import com.android.phone.SubscriptionInfoHelper;
+@@ -46,6 +48,9 @@ public class PhoneAccountSettingsFragment extends PreferenceFragment
+     private static final String DEFAULT_OUTGOING_ACCOUNT_KEY = "default_outgoing_account";
+     private static final String ALL_CALLING_ACCOUNTS_KEY = "phone_account_all_calling_accounts";
+ 
++    private static final String INCALL_CATEGORY_KEY = "incall_screen_category_key";
++    private static final String SHOW_SSN_PREF_KEY = "button_show_ssn_key";
++
+     private static final String SIP_SETTINGS_CATEGORY_PREF_KEY =
+             "phone_accounts_sip_settings_category_key";
+     private static final String USE_SIP_PREF_KEY = "use_sip_calling_options_key";
+@@ -67,6 +72,7 @@ public class PhoneAccountSettingsFragment extends PreferenceFragment
+     private TelecomManager mTelecomManager;
+     private TelephonyManager mTelephonyManager;
+     private SubscriptionManager mSubscriptionManager;
++    private boolean mHasGsmPhone;
+ 
+     private PreferenceCategory mAccountList;
+ 
+@@ -83,6 +89,14 @@ public class PhoneAccountSettingsFragment extends PreferenceFragment
+         mTelecomManager = TelecomManager.from(getActivity());
+         mTelephonyManager = TelephonyManager.from(getActivity());
+         mSubscriptionManager = SubscriptionManager.from(getActivity());
++
++        mHasGsmPhone = false;
++        for (Phone phone : CallManager.getInstance().getAllPhones()) {
++            if (phone.getPhoneType() == PhoneConstants.PHONE_TYPE_GSM) {
++                mHasGsmPhone = true;
++                break;
++            }
++        }
+     }
+ 
+     @Override
+@@ -183,6 +197,16 @@ public class PhoneAccountSettingsFragment extends PreferenceFragment
+             getPreferenceScreen().removePreference(
+                     getPreferenceScreen().findPreference(SIP_SETTINGS_CATEGORY_PREF_KEY));
+         }
++
++        if (!mHasGsmPhone) {
++            PreferenceCategory incallSettings = (PreferenceCategory)
++                    getPreferenceScreen().findPreference(INCALL_CATEGORY_KEY);
++
++            incallSettings.removePreference(incallSettings.findPreference(SHOW_SSN_PREF_KEY));
++            if (incallSettings.getPreferenceCount() == 0) {
++                getPreferenceScreen().removePreference(incallSettings);
++            }
++        }
+     }
+ 
+     /**
+diff --git a/src/com/android/services/telephony/GsmConnection.java b/src/com/android/services/telephony/GsmConnection.java
+index ca547fa93..b122b2d86 100644
+--- a/src/com/android/services/telephony/GsmConnection.java
++++ b/src/com/android/services/telephony/GsmConnection.java
+@@ -16,14 +16,64 @@
+ 
+ package com.android.services.telephony;
+ 
++import android.os.AsyncResult;
++import android.os.Bundle;
++import android.os.Handler;
++import android.os.Message;
++import android.telephony.TelephonyManager;
++
+ import com.android.internal.telephony.Connection;
++import com.android.internal.telephony.GsmCdmaConnection;
++import com.android.internal.telephony.Phone;
++import com.android.internal.telephony.gsm.SuppServiceNotification;
++
++import java.util.ArrayList;
++import java.util.Arrays;
+ 
+ /**
+  * Manages a single phone call handled by GSM.
+  */
+ final class GsmConnection extends TelephonyConnection {
++    private static final int MSG_SUPP_SERVICE_NOTIFY = 1;
++
++    private final Handler mHandler = new Handler() {
++        @Override
++        public void handleMessage(Message msg) {
++            switch (msg.what) {
++                case MSG_SUPP_SERVICE_NOTIFY:
++                    Log.v(GsmConnection.this, "MSG_SUPP_SERVICE_NOTIFY");
++                    AsyncResult ar = (AsyncResult) msg.obj;
++                    SuppServiceNotification ssn = (SuppServiceNotification) ar.result;
++
++                    if (ssn != null) {
++                        onSuppServiceNotification(ssn);
++                    }
++                    break;
++            }
++        }
++    };
++
++    private boolean mIsForwarded;
++    private boolean mRemoteIncomingCallsBarred;
++
+     GsmConnection(Connection connection, String telecomCallId, boolean isOutgoing) {
+         super(connection, telecomCallId, isOutgoing);
++        updateConnectionProperties();
++    }
++
++    @Override
++    void setOriginalConnection(Connection originalConnection) {
++        super.setOriginalConnection(originalConnection);
++        getPhone().registerForSuppServiceNotification(mHandler, MSG_SUPP_SERVICE_NOTIFY, null);
++    }
++
++    @Override
++    void clearOriginalConnection() {
++        Phone phone = getPhone();
++        if (phone != null) {
++            phone.unregisterForSuppServiceNotification(mHandler);
++        }
++        super.clearOriginalConnection();
+     }
+ 
+     /**
+@@ -64,6 +114,17 @@ final class GsmConnection extends TelephonyConnection {
+         if ((getConnectionProperties() & PROPERTY_IS_DOWNGRADED_CONFERENCE) != 0) {
+             properties |= PROPERTY_IS_DOWNGRADED_CONFERENCE;
+         }
++
++        if (getOriginalConnection() instanceof GsmCdmaConnection) {
++            GsmCdmaConnection gc = (GsmCdmaConnection) getOriginalConnection();
++            if (gc.isForwarded()) {
++                properties |= PROPERTY_WAS_FORWARDED;
++            }
++        }
++        if (mRemoteIncomingCallsBarred) {
++            properties |= PROPERTY_REMOTE_INCOMING_CALLS_BARRED;
++        }
++
+         return properties;
+     }
+ 
+@@ -94,4 +155,37 @@ final class GsmConnection extends TelephonyConnection {
+     void onRemovedFromCallService() {
+         super.onRemovedFromCallService();
+     }
++
++    private void onSuppServiceNotification(SuppServiceNotification notification) {
++        Phone phone = getPhone();
++        int state = getState();
++
++        Log.d(this, "SS Notification: " + notification);
++
++        if (notification.notificationType == SuppServiceNotification.NOTIFICATION_TYPE_MT) {
++            if (notification.code == SuppServiceNotification.MT_CODE_CALL_ON_HOLD) {
++                sendConnectionEvent(EVENT_CALL_REMOTELY_HELD, null);
++            } else if (notification.code == SuppServiceNotification.MT_CODE_CALL_RETRIEVED) {
++                sendConnectionEvent(EVENT_CALL_REMOTELY_UNHELD, null);
++            } else if (notification.code ==
++                    SuppServiceNotification.MT_CODE_ADDITIONAL_CALL_FORWARDED) {
++                sendConnectionEvent(EVENT_ADDITIONAL_CALL_FORWARDED, null);
++            }
++        } else if (notification.notificationType == SuppServiceNotification.NOTIFICATION_TYPE_MO) {
++            if (mOriginalConnection != null
++                    && notification.code == SuppServiceNotification.MO_CODE_CALL_FORWARDED) {
++                sendConnectionEvent(TelephonyManager.EVENT_CALL_FORWARDED, null);
++            }
++            if (notification.code == SuppServiceNotification.MO_CODE_CALL_IS_WAITING) {
++                if (state == STATE_DIALING) {
++                    sendConnectionEvent(EVENT_DIALING_IS_WAITING, null);
++                }
++            } else if (notification.code ==
++                    SuppServiceNotification.MO_CODE_INCOMING_CALLS_BARRED) {
++                mRemoteIncomingCallsBarred = true;
++            }
++        }
++
++        updateConnectionProperties();
++    }
+ }
+diff --git a/src/com/android/services/telephony/TelephonyConnection.java b/src/com/android/services/telephony/TelephonyConnection.java
+index f63ac4c0e..293d8e536 100644
+--- a/src/com/android/services/telephony/TelephonyConnection.java
++++ b/src/com/android/services/telephony/TelephonyConnection.java
+@@ -46,7 +46,6 @@ import com.android.internal.telephony.Connection.Capability;
+ import com.android.internal.telephony.Connection.PostDialListener;
+ import com.android.internal.telephony.Phone;
+ import com.android.internal.telephony.PhoneConstants;
+-import com.android.internal.telephony.gsm.SuppServiceNotification;
+ import com.android.internal.telephony.imsphone.ImsPhone;
+ import com.android.internal.telephony.imsphone.ImsPhoneCallTracker;
+ import com.android.internal.telephony.imsphone.ImsPhoneConnection;
+@@ -75,7 +74,6 @@ abstract class TelephonyConnection extends Connection {
+     private static final int MSG_DISCONNECT = 4;
+     private static final int MSG_MULTIPARTY_STATE_CHANGED = 5;
+     private static final int MSG_CONFERENCE_MERGE_FAILED = 6;
+-    private static final int MSG_SUPP_SERVICE_NOTIFY = 7;
+ 
+     /**
+      * Mappings from {@link com.android.internal.telephony.Connection} extras keys to their
+@@ -148,23 +146,6 @@ abstract class TelephonyConnection extends Connection {
+                 case MSG_CONFERENCE_MERGE_FAILED:
+                     notifyConferenceMergeFailed();
+                     break;
+-                case MSG_SUPP_SERVICE_NOTIFY:
+-                    Phone phone = getPhone();
+-                    Log.v(TelephonyConnection.this, "MSG_SUPP_SERVICE_NOTIFY on phoneId : "
+-                            + (phone != null ? Integer.toString(phone.getPhoneId())
+-                            : "null"));
+-                    SuppServiceNotification mSsNotification = null;
+-                    if (msg.obj != null && ((AsyncResult) msg.obj).result != null) {
+-                        mSsNotification =
+-                                (SuppServiceNotification)((AsyncResult) msg.obj).result;
+-                        if (mOriginalConnection != null) {
+-                            if (mSsNotification.code
+-                                    == SuppServiceNotification.MO_CODE_CALL_FORWARDED) {
+-                                sendConnectionEvent(TelephonyManager.EVENT_CALL_FORWARDED, null);
+-                            }
+-                        }
+-                    }
+-                    break;
+ 
+                 case MSG_SET_VIDEO_STATE:
+                     int videoState = (int) msg.obj;
+@@ -864,7 +845,6 @@ abstract class TelephonyConnection extends Connection {
+                 mHandler, MSG_HANDOVER_STATE_CHANGED, null);
+         getPhone().registerForRingbackTone(mHandler, MSG_RINGBACK_TONE, null);
+         getPhone().registerForDisconnect(mHandler, MSG_DISCONNECT, null);
+-        getPhone().registerForSuppServiceNotification(mHandler, MSG_SUPP_SERVICE_NOTIFY, null);
+         getPhone().registerForOnHoldTone(mHandler, MSG_ON_HOLD_TONE, null);
+         getPhone().registerForInCallVoicePrivacyOn(mHandler, MSG_CDMA_VOICE_PRIVACY_ON, null);
+         getPhone().registerForInCallVoicePrivacyOff(mHandler, MSG_CDMA_VOICE_PRIVACY_OFF, null);
+@@ -1080,7 +1060,6 @@ abstract class TelephonyConnection extends Connection {
+                 getPhone().unregisterForRingbackTone(mHandler);
+                 getPhone().unregisterForHandoverStateChanged(mHandler);
+                 getPhone().unregisterForDisconnect(mHandler);
+-                getPhone().unregisterForSuppServiceNotification(mHandler);
+                 getPhone().unregisterForOnHoldTone(mHandler);
+                 getPhone().unregisterForInCallVoicePrivacyOn(mHandler);
+                 getPhone().unregisterForInCallVoicePrivacyOff(mHandler);
+-- 
+2.17.1
+

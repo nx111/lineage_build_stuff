@@ -726,6 +726,7 @@ kpick 218989 # releasetools: Fix the size check for AVB images.
 kpick 218990 # releasetools: Always create IMAGES/ directory.
 kpick 218991 # releasetools: Move the AVB salt setup into common.LoadInfoDict().
 kpick 219020 # build: Disable backuptool for A/B on -user
+kpick 219876 # build: Allow devices to provide prebuilt vbmeta image
 
 # build/soong
 
@@ -801,6 +802,9 @@ kpick 218431 # SystemUI: Require unlock to toggle location
 kpick 218437 # SystemUI: Add activity alias for LockscreenFragment
 kpick 218819 # SystemUI: Fix Data Usage tile to match Settings
 #kpick 219300 # SystemUI: tuner: Remove battery preference
+kpick 219887 # Expose call creation time to link call recordings with recent call log (1/2)
+kpick 219888 # Proper supplementary service notification handling (1/5).
+kpick 219901 # UpdateEngine: Add perf mode binder interface
 
 # frameworks/native
 kpick 213549 # SurfaceFlinger: Support get/set ActiveConfigs
@@ -817,6 +821,7 @@ kpick 219133 # Need GSI to support landscape LCM
 # frameworks/opt/telephony
 kpick 214316 # RIL: Allow overriding RadioResponse and RadioIndication
 kpick 215450 # Add changes for sending ATEL UI Ready to RIL.
+kpick 219889 # Proper supplementary service notification handling (2/5).
 
 # hardware/broadcom/libbt
 
@@ -832,6 +837,7 @@ kpick 213867 # lineage/interfaces: vibrator: read click effect amplitude from pr
 kpick 213868 # lineage/interfaces: vibrator: implement vendor.lineage methods
 kpick 219211 # livedisplay: Restart HAL after successful data decryption
 kpick 219624 # lineage/interfaces: vibrator: make define usage uniform
+kpick 219885 # livedisplay: Add a system variant
 
 # hardware/lineage/lineagehw
 
@@ -908,6 +914,8 @@ kpick 218623 # Allow calling contacts via specific phone accounts.
 kpick 211135 # Show proper call duration
 kpick 218624 # Allow per-call account selection.
 kpick 218847 # Re-add call statistics.
+kpick 219890 # Re-add call recording.
+kpick 219891 # Proper supplementary service notification handling (5/5).
 
 # packages/apps/DeskClock
 kpick 213051 # Deskclock: set targetSdk to 27
@@ -932,6 +940,7 @@ kpick 218382 # email: return default folder name for subfolders
 kpick 218383 # email: junk icon
 kpick 218384 # Search in folder specified via URI parameter, if possible.
 kpick 218846 # Rewrite MailboxSettings loading logic.
+kpick 219906 # Increase max aspect ratio.
 
 # packages/apps/Exchange
 kpick 209820 # Revert changes to make Exchange buildable.
@@ -1005,6 +1014,9 @@ kpick 218401 # Properly close body InputStreams.
 kpick 218797 # Make navigation drawer extend over status bar.
 kpick 219311 # Disable animations for translucent activities.
 
+# packages/apps/Updater
+kpick 217377 # Updater: Allow toggling A/B perf mode
+
 # packages/overlays/Lineage
 kpick 215846 # dark: Add Theme.DeviceDefault.Settings.Dialog.NoActionBar style
 kpick 216979 # overlays: add torch accent
@@ -1014,9 +1026,12 @@ kpick 216979 # overlays: add torch accent
 # packages/resources/devicesettings
 
 # pakcages/service/Telecomm
+kpick 219894 # Proper supplementary service notification handling (3/5)
 
 # packages/service/Telephony
 kpick 209045 # Telephony: Fallback gracefully for emergency calls if suitable app isn't found
+kpick 219892 # Proper supplementary service notification handling (4/5).
+kpick 219893 # Expose call creation time to link call recordings with recent call log (2/2)
 
 # system/bt
 
@@ -1048,6 +1063,9 @@ kpick 215122 # libQWiFiSoftApCfg: Replace deprecated kernel header path
 
 # system/sepolicy
 kpick 206037 # sepolicy: Allow init to modify system_blk_device
+
+# system/update/engine
+kpick 217447 # update_engine: Add performance mode
 
 # system/vold
 kpick 209189 # vold: Conditionally remove secdiscard command
