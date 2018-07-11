@@ -694,6 +694,8 @@ apply_force_changes
 # android
 kpick 213705 # 	Build Exchange
 repo sync packages/apps/Exchange
+kpick 219883 # 	Add hardware/lineage/telephony to the manifest
+repo sync hardware/lineage/telephony
 
 # bionic
 kpick 212920 # libc: Mark libstdc++ as vendor available
@@ -802,9 +804,9 @@ kpick 218431 # SystemUI: Require unlock to toggle location
 kpick 218437 # SystemUI: Add activity alias for LockscreenFragment
 kpick 218819 # SystemUI: Fix Data Usage tile to match Settings
 #kpick 219300 # SystemUI: tuner: Remove battery preference
-kpick 219887 # Expose call creation time to link call recordings with recent call log (1/2)
 kpick 219888 # Proper supplementary service notification handling (1/5).
 kpick 219901 # UpdateEngine: Add perf mode binder interface
+kpick 219930 # Telephony: Stop using rssnr, it falsly shows wrong signal bars Pixel and other devices drop this
 
 # frameworks/native
 kpick 213549 # SurfaceFlinger: Support get/set ActiveConfigs
@@ -821,6 +823,8 @@ kpick 219133 # Need GSI to support landscape LCM
 # frameworks/opt/telephony
 kpick 214316 # RIL: Allow overriding RadioResponse and RadioIndication
 kpick 215450 # Add changes for sending ATEL UI Ready to RIL.
+kpick 219860 # Clean up Icc Refresh handling
+kpick 219861 # Fix SIM refresh issue
 kpick 219889 # Proper supplementary service notification handling (2/5).
 
 # hardware/broadcom/libbt
@@ -1016,6 +1020,8 @@ kpick 219311 # Disable animations for translucent activities.
 
 # packages/apps/Updater
 kpick 217377 # Updater: Allow toggling A/B perf mode
+kpick 219924 # Updater: Allow to suspend A/B updates
+kpick 219931 # Updater: Improve battery check
 
 # packages/overlays/Lineage
 kpick 215846 # dark: Add Theme.DeviceDefault.Settings.Dialog.NoActionBar style
@@ -1031,7 +1037,6 @@ kpick 219894 # Proper supplementary service notification handling (3/5)
 # packages/service/Telephony
 kpick 209045 # Telephony: Fallback gracefully for emergency calls if suitable app isn't found
 kpick 219892 # Proper supplementary service notification handling (4/5).
-kpick 219893 # Expose call creation time to link call recordings with recent call log (2/2)
 
 # system/bt
 
@@ -1088,9 +1093,9 @@ kpick 218801 # libbfqio: Open bfqio once
 kpick 218817 # kernel: Do not attempt to build modules if there aren't
 kpick 218832 # lineage: Add prebuilt patchelf binaries and patch_blob function
 kpick 219342 # addonsu: Fix installation on TWRP A/B
-kpick 219354 # lineage: Don't allow prebuilt kernels on official builds
 kpick 219388 # config: Add more GMS client base ID props
 kpick 219389 # lineage: Always disable google SystemUpdateService
+kpick 219936 # kernel: Allow installing modules on system
 
 # vendor/nxp/opensource/packages/apps/Nfc
 
