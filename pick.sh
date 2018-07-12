@@ -414,6 +414,8 @@ function kpick()
     rc=$?
     fix_repopick_output $logfile
     cat $logfile | sed -e "/ERROR: git command failed/d" | sed "/Force-picking a closed change/d"
+    project=$(cat $logfile | grep "Project path" | cut -d: -f2 | sed "s/ //g")
+    [ -d $topdir/$project ] || project=""
     local tries=0
     local breakout=0
     local pick_mode="reopick"
@@ -489,9 +491,9 @@ function kpick()
                     if grep -q "using previous resolution" $errfile; then
                        echo "------------"
                        cd $topdir/$project
-                       grep "using previous resolution" $errfile | sed -e "s/Resolved '\(.*\)' using previous resolution.*/\1/" \
+                       grep "using previous resolution" $errfile | sed -e "s|Resolved '\(.*\)' using previous resolution.*|\1|" \
                            | xargs md5sum | sed -e "s/\(.*\)/\1 postimage/" >>$md5file
-                       grep "using previous resolution" $errfile | sed -e "s/Resolved '\(.*\)' using previous resolution.*/\1/" \
+                       grep "using previous resolution" $errfile | sed -e "s|Resolved '\(.*\)' using previous resolution.*|\1|" \
                            | xargs git add -f
                        if git cherry-pick --continue; then
                           breakout=0
@@ -515,7 +517,7 @@ function kpick()
               if [ "$ch" = "s" ]; then
                     echo "skip it ..."
                     cd $topdir/$project
-                    git cherry-pick --abort
+                    git cherry-pick --abort >/dev/null 2>/dev/null
                     cd $topdir
                     break
               fi
@@ -566,8 +568,8 @@ function kpick()
         else
            exit $breakout
         fi
-    else
-        project=$(cat $logfile | grep "Project path" | cut -d: -f2 | sed "s/ //g")
+    elif [ -f $logfile ]; then
+        [ "$project" = "" ] && project=$(cat $logfile | grep "Project path" | cut -d: -f2 | sed "s/ //g")
         ref=$(grep "\['git fetch" $logfile | cut -d, -f2 | cut -d\' -f2)
         if [ "$project" = "android" ]; then
              url=$(cat $topdir/$project/.git/config | grep "url" | cut -d= -f2 | sed -e "s/ //g")
@@ -575,13 +577,13 @@ function kpick()
              git fetch $url $ref >/dev/null 2>/dev/null && git cherry-pick FETCH_HEAD >/dev/null 2>/dev/null
              cd $topdir
         fi
-        if grep -q -E "Change status is MERGED.|nothing to commit" $logfile; then
+        if [ -f $logfile ] && grep -q -E "Change status is MERGED.|nothing to commit" $logfile; then
            [ -f $script_file.tmp ] || cp $script_file $script_file.tmp
            eval  sed -e \"/[[:space:]]*kpick $changeNumber[[:space:]]*.*/d\" -i $script_file.tmp
-        elif grep -q -E "Change status is ABANDONED." $logfile; then
+        elif [ -f $logfile ] && grep -q -E "Change status is ABANDONED." $logfile; then
            [ -f $script_file.tmp ] || cp $script_file $script_file.tmp
            eval  sed -e \"/[[:space:]]*kpick $changeNumber[[:space:]]*.*/d\" -i $script_file.tmp
-        elif grep -q -E "Change $changeNumber not found, skipping" $logfile; then
+        elif [ -f $logfile ] && grep -q -E "Change $changeNumber not found, skipping" $logfile; then
            [ -f $script_file.tmp ] || cp $script_file $script_file.tmp
            eval  sed -e \"/[[:space:]]*kpick $changeNumber[[:space:]]*.*/d\" -i $script_file.tmp
         elif [ -f $errfile ] && grep -q "could not determine the project path for" $errfile; then
