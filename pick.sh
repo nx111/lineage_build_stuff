@@ -775,6 +775,14 @@ kpick 209911 # Camera2Client: Add support for QTI specific AutoHDR and Histogram
 kpick 209912 # Camera: Skip stream size check for whitelisted apps
 kpick 213115 # camera: Disable extra HDR frame on QCOM_HARDWARE
 kpick 219724 # NdkMediaCodec: add AMediaCodec_getBufferFormat
+kpick 220018 # Camera2Client: Add support for Raw snapshot in Camera2Client
+kpick 220019 # Camera2Client: Integrate O-MR1 changes for QTI camera2client
+kpick 220020 # Camera2Client: Disable ZSL by default in QTI camera2client
+kpick 220021 # Camera: Skip stream size check for whitelisted apps.
+kpick 220022 # Camera2Client: Use Max YUV Resolution instead of active array size.
+kpick 220023 # Camera2Client: Fix issue with supported scene modes.
+kpick 220024 # Camera2Client: Update vendor tag only if it is present
+kpick 220025 # Camera2Client: Fix issue with AE Bracketing mode.
 
 # frameworks/base
 kpick -f 206054 # SystemUI: use vector drawables for navbar icons
@@ -805,7 +813,6 @@ kpick 218437 # SystemUI: Add activity alias for LockscreenFragment
 kpick 218819 # SystemUI: Fix Data Usage tile to match Settings
 #kpick 219300 # SystemUI: tuner: Remove battery preference
 kpick 219888 # Proper supplementary service notification handling (1/5).
-kpick 219901 # UpdateEngine: Add perf mode binder interface
 kpick 219930 # Telephony: Stop using rssnr, it falsly shows wrong signal bars Pixel and other devices drop this
 
 # frameworks/native
@@ -1019,7 +1026,6 @@ kpick 218797 # Make navigation drawer extend over status bar.
 kpick 219311 # Disable animations for translucent activities.
 
 # packages/apps/Updater
-kpick 217377 # Updater: Allow toggling A/B perf mode
 kpick 219924 # Updater: Allow to suspend A/B updates
 kpick 219931 # Updater: Improve battery check
 
@@ -1070,7 +1076,6 @@ kpick 215122 # libQWiFiSoftApCfg: Replace deprecated kernel header path
 kpick 206037 # sepolicy: Allow init to modify system_blk_device
 
 # system/update/engine
-kpick 217447 # update_engine: Add performance mode
 
 # system/vold
 kpick 209189 # vold: Conditionally remove secdiscard command
