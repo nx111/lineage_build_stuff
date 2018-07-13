@@ -854,6 +854,11 @@ kpick 219885 # livedisplay: Add a system variant
 
 # hardware/lineage/lineagehw
 
+# hardware/lineage/telephony
+kpick 220131 # Return proper value for isDsdaEnabled
+kpick 220132 # Improve compatibility with older devices
+kpick 220133 # Power up/down SIM on activation/deactivation
+
 # hardware/qcom/audio-caf/msm8974
 
 # hardware/qcom/bt-caf

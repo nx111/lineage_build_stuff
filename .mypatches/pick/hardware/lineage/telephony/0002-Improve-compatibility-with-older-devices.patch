@@ -1,0 +1,70 @@
+From a271a2affee3e37c994b016610446b3e6866846c Mon Sep 17 00:00:00 2001
+From: Paul Keith <javelinanddart@gmail.com>
+Date: Fri, 13 Jul 2018 01:51:46 +0200
+Subject: [PATCH 2/3] Improve compatibility with older devices
+
+* Only activate and deactivate the first 3GPP and 3GPP2 apps
+* This is largely based off of the simActivation hack code
+
+Change-Id: I00458e5095ac155168740f2943715b60bda5714b
+---
+ .../telephony/LineageExtTelephony.java        | 22 ++++++++++++++++++-
+ 1 file changed, 21 insertions(+), 1 deletion(-)
+
+diff --git a/src/com/qualcomm/qti/internal/telephony/LineageExtTelephony.java b/src/com/qualcomm/qti/internal/telephony/LineageExtTelephony.java
+index 31223e2..f3956d2 100644
+--- a/src/com/qualcomm/qti/internal/telephony/LineageExtTelephony.java
++++ b/src/com/qualcomm/qti/internal/telephony/LineageExtTelephony.java
+@@ -32,6 +32,7 @@ import android.telephony.TelephonyManager;
+ import com.android.internal.telephony.CommandsInterface;
+ import com.android.internal.telephony.Phone;
+ import com.android.internal.telephony.PhoneConstants;
++import com.android.internal.telephony.uicc.IccCardApplicationStatus.AppType;
+ import com.android.internal.telephony.uicc.IccCardStatus.CardState;
+ import com.android.internal.telephony.uicc.UiccCard;
+ import com.android.internal.telephony.uicc.UiccController;
+@@ -49,6 +50,11 @@ import static android.telephony.TelephonyManager.SIM_ACTIVATION_STATE_DEACTIVATE
+ 
+ import static android.telephony.TelephonyManager.MultiSimVariants.DSDA;
+ 
++import static com.android.internal.telephony.uicc.IccCardApplicationStatus.AppType.APPTYPE_CSIM;
++import static com.android.internal.telephony.uicc.IccCardApplicationStatus.AppType.APPTYPE_RUIM;
++import static com.android.internal.telephony.uicc.IccCardApplicationStatus.AppType.APPTYPE_SIM;
++import static com.android.internal.telephony.uicc.IccCardApplicationStatus.AppType.APPTYPE_USIM;
++
+ import static com.android.internal.telephony.uicc.IccCardStatus.CardState.CARDSTATE_PRESENT;
+ 
+ public class LineageExtTelephony extends IExtTelephony.Stub {
+@@ -186,6 +192,8 @@ public class LineageExtTelephony extends IExtTelephony.Stub {
+         UiccCard card = sPhones[slotId].getUiccCard();
+ 
+         int numApps = card.getNumApplications();
++        int gsmIndex = -1;
++        int cdmaIndex = -1;
+ 
+         sUiccStatus[slotId].mProvisioned = activate;
+ 
+@@ -194,7 +202,19 @@ public class LineageExtTelephony extends IExtTelephony.Stub {
+                 continue;
+             }
+ 
+-            sCommandsInterfaces[slotId].setUiccSubscription(i, activate, null);
++            AppType appType = card.getApplicationIndex(i).getType();
++            if (gsmIndex < 0 && (appType == APPTYPE_USIM || appType == APPTYPE_SIM)) {
++                gsmIndex = i;
++            } else if (cdmaIndex < 0 && (appType == APPTYPE_CSIM || appType == APPTYPE_RUIM)) {
++                cdmaIndex = i;
++            }
++        }
++
++        if (gsmIndex >= 0) {
++            sCommandsInterfaces[slotId].setUiccSubscription(gsmIndex, activate, null);
++        }
++        if (cdmaIndex >= 0) {
++            sCommandsInterfaces[slotId].setUiccSubscription(cdmaIndex, activate, null);
+         }
+     }
+ 
+-- 
+2.17.1
+
