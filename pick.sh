@@ -696,7 +696,6 @@ apply_force_changes
 # android
 kpick 213705 # 	Build Exchange
 repo sync packages/apps/Exchange
-kpick 219883 # 	Add hardware/lineage/telephony to the manifest
 repo sync hardware/lineage/telephony
 
 # bionic
@@ -730,7 +729,6 @@ kpick 218989 # releasetools: Fix the size check for AVB images.
 kpick 218990 # releasetools: Always create IMAGES/ directory.
 kpick 218991 # releasetools: Move the AVB salt setup into common.LoadInfoDict().
 kpick 219020 # build: Disable backuptool for A/B on -user
-kpick 219876 # build: Allow devices to provide prebuilt vbmeta image
 
 # build/soong
 
@@ -752,6 +750,27 @@ kpick 210313 # msm8974-common: Binderize them all
 # kernel/samsung/msm8974
 kpick 210665 # wacom: Follow-up from gestures patch
 kpick 210666 # wacom: Report touch when pen button is pressed if gestures are off
+kpick 220264 # ALSA: usb-audio: Kill stray URB at exiting
+kpick 220265 # BACKPORT: packet: in packet_do_bind, test fanout with bind_lock held
+kpick 220266 # diag: Add protection while de-initializing clients
+kpick 220267 # ASoC: msm: qdsp6v2: Set freed pointers to NULL
+kpick 220268 # msm: ipa: Add declaration of ipa_del_hdr_by_user
+kpick 220269 # msm: ipa: Remove duplicate definition of list_next_entry()
+kpick 220270 # msm:ipa: Fix to incorrect structure access
+kpick 220271 # USB: serial: console: fix use-after-free after failed setup
+kpick 220272 # USB: core: fix out-of-bounds access bug in usb_get_bos_descriptor()
+kpick 220273 # HID: usbhid: fix out-of-bounds bug
+kpick 220274 # USB: fix out-of-bounds in usb_set_configuration
+kpick 220275 # ALSA: usb-audio: Check out-of-bounds access by corrupted buffer descriptor
+kpick 220276 # BACKPORT: USB: core: harden cdc_parse_cdc_header
+kpick 220277 # ASoC: apr: Add validity check to APR port
+kpick 220278 # UPSTREAM: KEYS: encrypted: fix buffer overread in valid_master_desc()
+kpick 220279 # ipv4: Use standard iovec primitive in raw_probe_proto_opt
+kpick 220280 # ipv4: Avoid reading user iov twice after raw_probe_proto_opt
+kpick 220281 # net: ipv4: fix for a race condition in raw_sendmsg
+kpick 220282 # net: ipv4: emulate READ_ONCE() on ->hdrincl bit-field in raw_sendmsg()
+kpick 220283 # sctp: do not peel off an assoc from one netns to another one
+kpick 220284 # net: usb: rmnet_usb_ctrl: Fix use after free issue
 
 # external/ant-wireless/ant_native
 
@@ -819,7 +838,6 @@ kpick 219930 # Telephony: Stop using rssnr, it falsly shows wrong signal bars Pi
 
 # frameworks/native
 kpick 213549 # SurfaceFlinger: Support get/set ActiveConfigs
-kpick 218714 # native: drop hwui property on O-MR1
 kpick 219130 # Revert "SF: Fix hwrotation screenshots at surfaceflinger layer"
 kpick 219131 # Revert "SF: Squashed hwrotation support"
 kpick 219132 # Fix landscape LCM issue
