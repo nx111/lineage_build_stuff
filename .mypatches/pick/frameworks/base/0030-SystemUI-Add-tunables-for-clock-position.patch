@@ -1,0 +1,273 @@
+From 464ad5b141a124eadff1ab6b69e8bb394bd8917d Mon Sep 17 00:00:00 2001
+From: Luca Stefani <luca.stefani.ge1@gmail.com>
+Date: Sun, 15 Jul 2018 17:09:54 +0200
+Subject: [PATCH 30/32] SystemUI: Add tunables for clock position
+
+Change-Id: Icdc039d13fd2676c1eb979a81fb77f9a6ec59b4a
+---
+ packages/SystemUI/res/layout/status_bar.xml   | 29 +++++++
+ .../statusbar/phone/ClockController.java      | 82 +++++++++++++++++++
+ .../phone/CollapsedStatusBarFragment.java     |  6 ++
+ .../phone/PhoneStatusBarTransitions.java      | 11 ++-
+ .../systemui/statusbar/policy/Clock.java      |  8 +-
+ 5 files changed, 127 insertions(+), 9 deletions(-)
+ create mode 100644 packages/SystemUI/src/com/android/systemui/statusbar/phone/ClockController.java
+
+diff --git a/packages/SystemUI/res/layout/status_bar.xml b/packages/SystemUI/res/layout/status_bar.xml
+index b99f517c6cf..9e73342698a 100644
+--- a/packages/SystemUI/res/layout/status_bar.xml
++++ b/packages/SystemUI/res/layout/status_bar.xml
+@@ -49,6 +49,16 @@
+         android:orientation="horizontal"
+         >
+ 
++        <com.android.systemui.statusbar.policy.Clock
++            android:id="@+id/clock_left"
++            android:textAppearance="@style/TextAppearance.StatusBar.Clock"
++            android:layout_width="wrap_content"
++            android:layout_height="fill_parent"
++            android:singleLine="true"
++            android:paddingEnd="6dip"
++            android:gravity="center"
++            android:visibility="gone" />
++
+         <!-- The alpha of this area is controlled from both PhoneStatusBarTransitions and
+              PhoneStatusBar (DISABLE_NOTIFICATION_ICONS). -->
+         <com.android.systemui.statusbar.AlphaOptimizedFrameLayout
+@@ -94,6 +104,25 @@
+         </com.android.keyguard.AlphaOptimizedLinearLayout>
+     </LinearLayout>
+ 
++    <com.android.keyguard.AlphaOptimizedLinearLayout
++        android:id="@+id/center_clock_layout"
++        android:gravity="center"
++        android:orientation="horizontal"
++        android:layout_width="match_parent"
++        android:layout_height="match_parent"
++        >
++
++        <com.android.systemui.statusbar.policy.Clock
++            android:id="@+id/clock_center"
++            android:textAppearance="@style/TextAppearance.StatusBar.Clock"
++            android:layout_width="wrap_content"
++            android:layout_height="match_parent"
++            android:singleLine="true"
++            android:gravity="center"
++            android:visibility="gone"
++            />
++    </com.android.keyguard.AlphaOptimizedLinearLayout>
++
+     <ViewStub
+         android:id="@+id/emergency_cryptkeeper_text"
+         android:layout_width="wrap_content"
+diff --git a/packages/SystemUI/src/com/android/systemui/statusbar/phone/ClockController.java b/packages/SystemUI/src/com/android/systemui/statusbar/phone/ClockController.java
+new file mode 100644
+index 00000000000..e36a3d4596c
+--- /dev/null
++++ b/packages/SystemUI/src/com/android/systemui/statusbar/phone/ClockController.java
+@@ -0,0 +1,82 @@
++package com.android.systemui.statusbar.phone;
++
++import android.util.Log;
++import android.view.View;
++
++import com.android.systemui.Dependency;
++import com.android.systemui.R;
++import com.android.systemui.statusbar.phone.StatusBarIconController;
++import com.android.systemui.statusbar.policy.Clock;
++import com.android.systemui.tuner.TunerService;
++
++/**
++ * To control your...clock
++ */
++public class ClockController implements TunerService.Tunable {
++
++    private static final String TAG = "ClockController";
++
++    public static final int CLOCK_POSITION_RIGHT = 0;
++    public static final int CLOCK_POSITION_CENTER = 1;
++    public static final int CLOCK_POSITION_LEFT = 2;
++
++    public static final String CLOCK_POSITION = "lineagesystem:status_bar_clock";
++
++    private Clock mRightClock, mCenterClock, mLeftClock, mActiveClock;
++
++    private int mClockPosition = CLOCK_POSITION_RIGHT;
++    private boolean mBlackListed = false;
++
++    public ClockController(View statusBar) {
++        mRightClock = statusBar.findViewById(R.id.clock);
++        mCenterClock = statusBar.findViewById(R.id.clock_center);
++        mLeftClock = statusBar.findViewById(R.id.clock_left);
++
++        mActiveClock = mRightClock;
++
++        Dependency.get(TunerService.class).addTunable(this,
++                StatusBarIconController.ICON_BLACKLIST, CLOCK_POSITION);
++    }
++
++    private Clock getClockForCurrentLocation() {
++        Clock clockForAlignment;
++        switch (mClockPosition) {
++            case CLOCK_POSITION_CENTER:
++                clockForAlignment = mCenterClock;
++                break;
++            case CLOCK_POSITION_LEFT:
++                clockForAlignment = mLeftClock;
++                break;
++            case CLOCK_POSITION_RIGHT:
++            default:
++                clockForAlignment = mRightClock;
++                break;
++        }
++        return clockForAlignment;
++    }
++
++    private void updateActiveClock() {
++        mActiveClock.setClockVisibleByUser(false);
++        mActiveClock = getClockForCurrentLocation();
++        mActiveClock.setClockVisibleByUser(true);
++
++        // Override any previous setting
++        mActiveClock.setClockVisibleByUser(mBlackListed);
++    }
++
++    @Override
++    public void onTuningChanged(String key, String newValue) {
++        Log.d(TAG, "onTuningChanged key=" + key + " value=" + newValue);
++
++        if (CLOCK_POSITION.equals(key)) {
++            mClockPosition = newValue == null ? CLOCK_POSITION_RIGHT : Integer.valueOf(newValue);
++        } else {
++            mBlackListed = !StatusBarIconController.getIconBlacklist(newValue).contains("clock");
++        }
++        updateActiveClock();
++    }
++
++    public View getClock() {
++        return mActiveClock;
++    }
++}
+diff --git a/packages/SystemUI/src/com/android/systemui/statusbar/phone/CollapsedStatusBarFragment.java b/packages/SystemUI/src/com/android/systemui/statusbar/phone/CollapsedStatusBarFragment.java
+index 2c3f452e827..a9671ac2145 100644
+--- a/packages/SystemUI/src/com/android/systemui/statusbar/phone/CollapsedStatusBarFragment.java
++++ b/packages/SystemUI/src/com/android/systemui/statusbar/phone/CollapsedStatusBarFragment.java
+@@ -60,6 +60,7 @@ public class CollapsedStatusBarFragment extends Fragment implements CommandQueue
+     private StatusBar mStatusBarComponent;
+     private DarkIconManager mDarkIconManager;
+     private SignalClusterView mSignalClusterView;
++    private ClockController mClockController;
+ 
+     private SignalCallback mSignalCallback = new SignalCallback() {
+         @Override
+@@ -93,6 +94,7 @@ public class CollapsedStatusBarFragment extends Fragment implements CommandQueue
+         Dependency.get(StatusBarIconController.class).addIconGroup(mDarkIconManager);
+         mSystemIconArea = mStatusBar.findViewById(R.id.system_icon_area);
+         mSignalClusterView = mStatusBar.findViewById(R.id.signal_cluster);
++        mClockController = new ClockController(mStatusBar);
+         Dependency.get(DarkIconDispatcher.class).addDarkReceiver(mSignalClusterView);
+         // Default to showing until we know otherwise.
+         showSystemIconArea(false);
+@@ -193,18 +195,22 @@ public class CollapsedStatusBarFragment extends Fragment implements CommandQueue
+ 
+     public void hideSystemIconArea(boolean animate) {
+         animateHide(mSystemIconArea, animate);
++        animateHide(mClockController.getClock(), animate);
+     }
+ 
+     public void showSystemIconArea(boolean animate) {
+         animateShow(mSystemIconArea, animate);
++        animateShow(mClockController.getClock(), animate);
+     }
+ 
+     public void hideNotificationIconArea(boolean animate) {
+         animateHide(mNotificationIconAreaInner, animate);
++        animateHide(mClockController.getClock(), animate);
+     }
+ 
+     public void showNotificationIconArea(boolean animate) {
+         animateShow(mNotificationIconAreaInner, animate);
++        animateShow(mClockController.getClock(), animate);
+     }
+ 
+     /**
+diff --git a/packages/SystemUI/src/com/android/systemui/statusbar/phone/PhoneStatusBarTransitions.java b/packages/SystemUI/src/com/android/systemui/statusbar/phone/PhoneStatusBarTransitions.java
+index b236294c437..798726f61f5 100644
+--- a/packages/SystemUI/src/com/android/systemui/statusbar/phone/PhoneStatusBarTransitions.java
++++ b/packages/SystemUI/src/com/android/systemui/statusbar/phone/PhoneStatusBarTransitions.java
+@@ -32,7 +32,8 @@ public final class PhoneStatusBarTransitions extends BarTransitions {
+     private final PhoneStatusBarView mView;
+     private final float mIconAlphaWhenOpaque;
+ 
+-    private View mLeftSide, mStatusIcons, mSignalCluster, mBattery, mClock, mNetworkTraffic;
++    private View mLeftSide, mStatusIcons, mSignalCluster, mBattery, mNetworkTraffic;
++    private View mClock, mClockCenter, mClockLeft;
+     private Animator mCurrentAnimation;
+ 
+     public PhoneStatusBarTransitions(PhoneStatusBarView view) {
+@@ -48,6 +49,8 @@ public final class PhoneStatusBarTransitions extends BarTransitions {
+         mSignalCluster = mView.findViewById(R.id.signal_cluster);
+         mBattery = mView.findViewById(R.id.battery);
+         mClock = mView.findViewById(R.id.clock);
++        mClockCenter = mView.findViewById(R.id.clock_center);
++        mClockLeft = mView.findViewById(R.id.clock_left);
+         mNetworkTraffic = mView.findViewById(R.id.network_traffic);
+         applyModeBackground(-1, getMode(), false /*animate*/);
+         applyMode(getMode(), false /*animate*/);
+@@ -94,7 +97,9 @@ public final class PhoneStatusBarTransitions extends BarTransitions {
+                     animateTransitionTo(mSignalCluster, newAlpha),
+                     animateTransitionTo(mNetworkTraffic, newAlpha),
+                     animateTransitionTo(mBattery, newAlphaBC),
+-                    animateTransitionTo(mClock, newAlphaBC)
++                    animateTransitionTo(mClock, newAlphaBC),
++                    animateTransitionTo(mClockCenter, newAlphaBC),
++                    animateTransitionTo(mClockLeft, newAlphaBC)
+                     );
+             if (isLightsOut(mode)) {
+                 anims.setDuration(LIGHTS_OUT_DURATION);
+@@ -108,6 +113,8 @@ public final class PhoneStatusBarTransitions extends BarTransitions {
+             mNetworkTraffic.setAlpha(newAlpha);
+             mBattery.setAlpha(newAlphaBC);
+             mClock.setAlpha(newAlphaBC);
++            mClockCenter.setAlpha(newAlphaBC);
++            mClockLeft.setAlpha(newAlphaBC);
+         }
+     }
+ }
+\ No newline at end of file
+diff --git a/packages/SystemUI/src/com/android/systemui/statusbar/policy/Clock.java b/packages/SystemUI/src/com/android/systemui/statusbar/policy/Clock.java
+index 4c92d01eae4..b6ccabe7b54 100644
+--- a/packages/SystemUI/src/com/android/systemui/statusbar/policy/Clock.java
++++ b/packages/SystemUI/src/com/android/systemui/statusbar/policy/Clock.java
+@@ -46,7 +46,6 @@ import com.android.systemui.FontSizeUtils;
+ import com.android.systemui.R;
+ import com.android.systemui.SysUiServiceProvider;
+ import com.android.systemui.statusbar.CommandQueue;
+-import com.android.systemui.statusbar.phone.StatusBarIconController;
+ import com.android.systemui.statusbar.policy.ConfigurationController.ConfigurationListener;
+ import com.android.systemui.statusbar.policy.DarkIconDispatcher.DarkReceiver;
+ import com.android.systemui.tuner.TunerService;
+@@ -122,8 +121,7 @@ public class Clock extends TextView implements DemoMode, Tunable, CommandQueue.C
+ 
+             getContext().registerReceiverAsUser(mIntentReceiver, UserHandle.ALL, filter,
+                     null, Dependency.get(Dependency.TIME_TICK_HANDLER));
+-            Dependency.get(TunerService.class).addTunable(this, CLOCK_SECONDS,
+-                    StatusBarIconController.ICON_BLACKLIST);
++            Dependency.get(TunerService.class).addTunable(this, CLOCK_SECONDS);
+             SysUiServiceProvider.getComponent(getContext(), CommandQueue.class).addCallbacks(this);
+             if (mShowDark) {
+                 Dependency.get(DarkIconDispatcher.class).addDarkReceiver(this);
+@@ -210,10 +208,6 @@ public class Clock extends TextView implements DemoMode, Tunable, CommandQueue.C
+         if (CLOCK_SECONDS.equals(key)) {
+             mShowSeconds = newValue != null && Integer.parseInt(newValue) != 0;
+             updateShowSeconds();
+-        } else {
+-            setClockVisibleByUser(!StatusBarIconController.getIconBlacklist(newValue)
+-                    .contains("clock"));
+-            updateClockVisibility();
+         }
+     }
+ 
+-- 
+2.17.1
+

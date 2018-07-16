@@ -1,0 +1,421 @@
+From daaacf7dcbe6be8bcbb05292942ed3ff2f2cb89c Mon Sep 17 00:00:00 2001
+From: T H <socialentry@gmail.com>
+Date: Mon, 16 Jul 2018 00:25:42 -0400
+Subject: [PATCH 2/2] Add HFR/HSR support
+
+Change-Id: Ia44d6c6a970b95db7b9687e9b2391c828e5af230
+---
+ camera/CameraWrapper.cpp                      | 198 ++++++++++++++++--
+ configs/media_profiles.xml                    |  32 ++-
+ .../packages/apps/Snap/res/values/arrays.xml  |  27 +++
+ .../packages/apps/Snap/res/values/config.xml  |   3 +
+ 4 files changed, 244 insertions(+), 16 deletions(-)
+ create mode 100644 overlay/packages/apps/Snap/res/values/arrays.xml
+
+diff --git a/camera/CameraWrapper.cpp b/camera/CameraWrapper.cpp
+index ee67107..d2a505a 100644
+--- a/camera/CameraWrapper.cpp
++++ b/camera/CameraWrapper.cpp
+@@ -49,6 +49,10 @@ using namespace android;
+ static Mutex gCameraWrapperLock;
+ static camera_module_t *gVendorModule = 0;
+ 
++static int hfr = 0;
++static int hsr = 0;
++static bool setTorch = false;
++
+ static camera_notify_callback gUserNotifyCb = NULL;
+ static camera_data_callback gUserDataCb = NULL;
+ static camera_data_timestamp_callback gUserDataCbTimestamp = NULL;
+@@ -61,6 +65,9 @@ static int camera_device_open(const hw_module_t *module, const char *name,
+         hw_device_t **device);
+ static int camera_get_number_of_cameras(void);
+ static int camera_get_camera_info(int camera_id, struct camera_info *info);
++static int camera_send_command(struct camera_device *device, int32_t cmd, int32_t arg1, int32_t arg2);
++static int camera_start_preview(struct camera_device *device);
++static void camera_stop_preview(struct camera_device *device);
+ 
+ static struct hw_module_methods_t camera_module_methods = {
+     .open = camera_device_open,
+@@ -117,7 +124,10 @@ static int check_vendor_module()
+     return rv;
+ }
+ 
++#define KEY_VIDEO_HFR "video-hfr"
+ #define KEY_VIDEO_HFR_VALUES "video-hfr-values"
++#define KEY_VIDEO_HSR "video-hsr"
++#define KEY_VIDEO_FAST_FPS_MODE "fast-fps-mode"
+ 
+ // nv12-venus is needed for blobs, but
+ // framework has no idea what it is
+@@ -130,6 +140,74 @@ static bool is_4k_video(CameraParameters &params) {
+     return video_width * video_height == 3840 * 2160;
+ }
+ 
++void setHfrParameters(struct camera_device * device, bool reset) {
++    int id = CAMERA_ID(device);
++    if ((!hfr && !hsr) || (id == FRONT_CAMERA_ID)) return;
++
++    CameraParameters params;
++    params.unflatten(String8(fixed_set_params[id]));
++
++    const char *flashMode = params.get(CameraParameters::KEY_FLASH_MODE);
++    bool isTorch = flashMode && !strcmp(flashMode, CameraParameters::FLASH_MODE_TORCH);
++
++    VENDOR_CALL(device, cancel_auto_focus);
++    camera_stop_preview(device);
++
++    params.set(CameraParameters::KEY_RECORDING_HINT, "false");
++    free(fixed_set_params[id]);
++    fixed_set_params[id] = strdup(params.flatten().string());
++    VENDOR_CALL(device, set_parameters, fixed_set_params[id]);
++
++    if (reset) {
++        // reset values
++        params.set(KEY_PHASE_AF, ON);
++        params.set(KEY_VIDEO_FAST_FPS_MODE, "0");
++        params.set(CameraParameters::KEY_PREVIEW_FPS_RANGE, "30000,30000");
++    } else {
++        // must set phase-af to off to fix hfr/hsr focusing
++        params.set(KEY_PHASE_AF, OFF);
++        if (hfr) {
++            switch (hfr) {
++                case 1:
++                    params.set(KEY_VIDEO_HFR, "60");
++                    params.set(KEY_VIDEO_FAST_FPS_MODE, "1");
++                    params.set(CameraParameters::KEY_PREVIEW_FPS_RANGE, "60000,60000");
++                    params.set(CameraParameters::KEY_PICTURE_SIZE, "1920x1080");
++                    break;
++                case 2:
++                    params.set(KEY_VIDEO_HFR, "120");
++                    params.set(KEY_VIDEO_FAST_FPS_MODE, "2");
++                    params.set(CameraParameters::KEY_PREVIEW_FPS_RANGE, "120000,120000");
++                    params.set(CameraParameters::KEY_PICTURE_SIZE, "1280x720");
++                    break;
++            }
++        }
++        if (hsr) {
++            switch (hsr) {
++                case 1:
++                    params.set(KEY_VIDEO_HSR, "60");
++                    params.set(KEY_VIDEO_FAST_FPS_MODE, "0");
++                    params.set(CameraParameters::KEY_PREVIEW_FPS_RANGE, "60000,60000");
++                    params.set(CameraParameters::KEY_PICTURE_SIZE, "1920x1080");
++                    break;
++                case 2:
++                    params.set(KEY_VIDEO_HSR, "120");
++                    params.set(KEY_VIDEO_FAST_FPS_MODE, "1");
++                    params.set(CameraParameters::KEY_PREVIEW_FPS_RANGE, "120000,120000");
++                    params.set(CameraParameters::KEY_PICTURE_SIZE, "1280x720");
++                    break;
++            }
++        }
++    }
++
++    params.set(CameraParameters::KEY_RECORDING_HINT, "true");
++    free(fixed_set_params[id]);
++    fixed_set_params[id] = strdup(params.flatten().string());
++    VENDOR_CALL(device, set_parameters, fixed_set_params[id]);
++
++    camera_start_preview(device);
++}
++
+ static char *camera_fixup_getparams(int __attribute__((unused)) id,
+     const char *settings)
+ {
+@@ -155,19 +233,39 @@ static char *camera_fixup_getparams(int __attribute__((unused)) id,
+                 videoSizes);
+     }
+ 
+-    /* If the vendor has HFR values but doesn't also expose that
+-     * this can be turned off, fixup the params to tell the Camera
+-     * that it really is okay to turn it off.
+-     */
+-    const char *hfrModeValues = params.get(KEY_VIDEO_HFR_VALUES);
+-    if (hfrModeValues && !strstr(hfrModeValues, "off")) {
+-        char hfrModes[strlen(hfrModeValues) + 4 + 1];
+-        sprintf(hfrModes, "%s,off", hfrModeValues);
+-        params.set(KEY_VIDEO_HFR_VALUES, hfrModes);
++    // only use supported values
++    params.set(CameraParameters::KEY_SUPPORTED_FLASH_MODES, "off,auto,torch");
++    params.set(CameraParameters::KEY_SUPPORTED_FOCUS_MODES, "auto,infinity,macro,continuous-video");
++
++    if (id == BACK_CAMERA_ID) {
++        params.set(KEY_VIDEO_HFR_VALUES, "60,120,off");
++        params.set(KEY_VIDEO_HFR, OFF);
++        params.set(KEY_VIDEO_HSR, OFF);
++        params.set(CameraParameters::KEY_SUPPORTED_PREVIEW_FRAME_RATES, "15,24,30,60,120");
++
++        switch (hfr) {
++            case 1:
++                params.set(KEY_VIDEO_HFR, "60");
++                break;
++            case 2:
++                params.set(KEY_VIDEO_HFR, "120");
++                break;
++        }
++
++        switch (hsr) {
++            case 1:
++                params.set(KEY_VIDEO_HSR, "60");
++                break;
++            case 2:
++                params.set(KEY_VIDEO_HSR, "120");
++                break;
++        }
+     }
+ 
+-    /* Enforce video-snapshot-supported to true */
+-    if (videoMode) {
++    /* Enforce video-snapshot-supported to true
++       Ignore for HFR modes, taking a snapshot during HFR currently stops the video from saving
++        */
++    if (videoMode && (!hfr && !hsr)) {
+         params.set(CameraParameters::KEY_VIDEO_SNAPSHOT_SUPPORTED, "true");
+     }
+ 
+@@ -184,7 +282,7 @@ static char *camera_fixup_getparams(int __attribute__((unused)) id,
+     return ret;
+ }
+ 
+-static char *camera_fixup_setparams(int id, const char *settings)
++static char *camera_fixup_setparams(int id, const char *settings, struct camera_device * device)
+ {
+     CameraParameters params;
+     params.unflatten(String8(settings));
+@@ -225,7 +323,37 @@ static char *camera_fixup_setparams(int id, const char *settings)
+             /* need to translate video-hdr to rt-hdr */
+             const char *vhdr = params.get(KEY_QC_VIDEO_HDR);
+             params.set(KEY_QC_RT_HDR, vhdr && !strcmp(vhdr, "on") ? ON : OFF);
++
++            // handle HFR setting
++            const char* videoHfr = params.get(KEY_VIDEO_HFR);
++            if (videoHfr && strcmp(videoHfr, OFF) != 0) {
++                if (strcmp(videoHfr,"120") == 0) {
++                    hfr = 2;
++                } else if (strcmp(videoHfr,"60") == 0) {
++                    hfr = 1;
++                }
++                hsr = 0;
++            } else {
++                hfr = 0;
++            }
++
++            // handle HSR setting
++            const char* videoHsr = params.get(KEY_VIDEO_HSR);
++            if (videoHsr && strcmp(videoHsr, OFF) != 0) {
++                if (strcmp(videoHsr,"120") == 0) {
++                    hsr = 2;
++                } else if (strcmp(videoHsr,"60") == 0) {
++                    hsr = 1;
++                }
++                hfr = 0;
++            } else {
++                hsr = 0;
++            }
+         }
++    } else {
++        // not supported in front camera
++        params.set(KEY_PHASE_AF, OFF);
++        params.set(KEY_DYNAMIC_RANGE_CONTROL, OFF);
+     }
+ 
+     ALOGV("%s: Fixed parameters:", __FUNCTION__);
+@@ -252,6 +380,8 @@ static int camera_set_preview_window(struct camera_device *device,
+     if (!device)
+         return -EINVAL;
+ 
++    setTorch = true;
++
+     ALOGV("%s->%08X->%08X", __FUNCTION__, (uintptr_t)device,
+             (uintptr_t)(((wrapper_camera_device_t*)device)->vendor));
+ 
+@@ -344,6 +474,21 @@ static int camera_start_preview(struct camera_device *device)
+     ALOGV("%s->%08X->%08X", __FUNCTION__, (uintptr_t)device,
+             (uintptr_t)(((wrapper_camera_device_t*)device)->vendor));
+ 
++    // set torch on
++    if (setTorch) {
++        int id = CAMERA_ID(device);
++        CameraParameters params;
++        params.unflatten(String8(fixed_set_params[id]));
++        const char *flashMode = params.get(CameraParameters::KEY_FLASH_MODE);
++        bool isTorch = flashMode && !strcmp(flashMode, CameraParameters::FLASH_MODE_TORCH);
++        if (isTorch) {
++            params.set(CameraParameters::KEY_FLASH_MODE, CameraParameters::FLASH_MODE_TORCH);
++            free(fixed_set_params[id]);
++            fixed_set_params[id] = strdup(params.flatten().string());
++        }
++        VENDOR_CALL(device, set_parameters, fixed_set_params[id]);
++    }
++
+     return VENDOR_CALL(device, start_preview);
+ }
+ 
+@@ -355,7 +500,23 @@ static void camera_stop_preview(struct camera_device *device)
+     ALOGV("%s->%08X->%08X", __FUNCTION__, (uintptr_t)device,
+             (uintptr_t)(((wrapper_camera_device_t*)device)->vendor));
+ 
+-    VENDOR_CALL(device, stop_preview);
++    // set torch off
++    if (setTorch) {
++        int id = CAMERA_ID(device);
++        CameraParameters params;
++        params.unflatten(String8(fixed_set_params[id]));
++        const char *flashMode = params.get(CameraParameters::KEY_FLASH_MODE);
++        bool isTorch = flashMode && !strcmp(flashMode, CameraParameters::FLASH_MODE_TORCH);
++        if (isTorch) {
++            params.set(CameraParameters::KEY_FLASH_MODE, CameraParameters::FLASH_MODE_OFF);
++            free(fixed_set_params[id]);
++            fixed_set_params[id] = strdup(params.flatten().string());
++        }
++        VENDOR_CALL(device, stop_preview);
++        VENDOR_CALL(device, set_parameters, fixed_set_params[id]);
++    } else {
++        VENDOR_CALL(device, stop_preview);
++    }
+ }
+ 
+ static int camera_preview_enabled(struct camera_device *device)
+@@ -398,6 +559,8 @@ static int camera_start_recording(struct camera_device *device)
+         camera_set_parameters(device, strdup(parameters.flatten().string()));
+     }
+ 
++    setHfrParameters(device, false);
++
+     return VENDOR_CALL(device, start_recording);
+ }
+ 
+@@ -409,6 +572,8 @@ static void camera_stop_recording(struct camera_device *device)
+     ALOGV("%s->%08X->%08X", __FUNCTION__, (uintptr_t)device,
+             (uintptr_t)(((wrapper_camera_device_t*)device)->vendor));
+ 
++    setHfrParameters(device, true);
++
+     VENDOR_CALL(device, stop_recording);
+ }
+ 
+@@ -488,7 +653,7 @@ static int camera_set_parameters(struct camera_device *device,
+     ALOGV("%s->%08X->%08X", __FUNCTION__, (uintptr_t)device,
+             (uintptr_t)(((wrapper_camera_device_t*)device)->vendor));
+ 
+-    char *tmp = camera_fixup_setparams(CAMERA_ID(device), params);
++    char *tmp = camera_fixup_setparams(CAMERA_ID(device), params, device);
+ 
+     return VENDOR_CALL(device, set_parameters, tmp);
+ }
+@@ -568,6 +733,11 @@ static int camera_device_close(hw_device_t *device)
+         goto done;
+     }
+ 
++    // set back to default so other apps run normally
++    hsr = 0;
++    hfr = 0;
++    setTorch = false;
++
+     for (int i = 0; i < camera_get_number_of_cameras(); i++) {
+         if (fixed_set_params[i])
+             free(fixed_set_params[i]);
+diff --git a/configs/media_profiles.xml b/configs/media_profiles.xml
+index 6487b08..7ebc030 100644
+--- a/configs/media_profiles.xml
++++ b/configs/media_profiles.xml
+@@ -233,6 +233,34 @@
+              channels="2" />
+     </EncoderProfile>
+ 
++                <!--
++                    Highspeed Profiles
++                  -->
++                <EncoderProfile quality="highspeedlow" fileFormat="mp4" duration="30">
++                        <Video codec="h264" bitRate="384000" width="176" height="144" frameRate="60" />
++                        <Audio codec="aac" bitRate="128000" sampleRate="48000" channels="1" />
++                </EncoderProfile>
++
++                <EncoderProfile quality="highspeedhigh" fileFormat="mp4" duration="30">
++                        <Video codec="h264" bitRate="17000000" width="1920" height="1080" frameRate="60" />
++                        <Audio codec="aac" bitRate="96000" sampleRate="48000" channels="1" />
++                </EncoderProfile>
++
++                <EncoderProfile quality="highspeed480p" fileFormat="mp4" duration="30">
++                        <Video codec="h264" bitRate="3449000" width="720" height="480" frameRate="60" />
++                        <Audio codec="aac" bitRate="96000" sampleRate="48000" channels="1" />
++                </EncoderProfile>
++
++                <EncoderProfile quality="highspeed720p" fileFormat="mp4" duration="30">
++                        <Video codec="h264" bitRate="12000000" width="1280" height="720" frameRate="60" />
++                        <Audio codec="aac" bitRate="96000" sampleRate="48000" channels="1" />
++                </EncoderProfile>
++
++                <EncoderProfile quality="highspeed1080p" fileFormat="mp4" duration="30">
++                        <Video codec="h264" bitRate="17000000" width="1920" height="1080" frameRate="60" />
++                        <Audio codec="aac" bitRate="96000" sampleRate="48000" channels="1" />
++                </EncoderProfile>
++
+         <ImageEncoding quality="95" />
+         <ImageEncoding quality="80" />
+         <ImageEncoding quality="70" />
+@@ -386,13 +414,13 @@
+         minBitRate="64000" maxBitRate="50000000"
+         minFrameWidth="176" maxFrameWidth="3840"
+         minFrameHeight="144" maxFrameHeight="2160"
+-        minFrameRate="15" maxFrameRate="30" />
++        minFrameRate="15" maxFrameRate="120" />
+ 
+     <VideoEncoderCap name="h263" enabled="true"
+         minBitRate="64000" maxBitRate="2000000"
+         minFrameWidth="176" maxFrameWidth="800"
+         minFrameHeight="144" maxFrameHeight="480"
+-        minFrameRate="15" maxFrameRate="30" />
++        minFrameRate="15" maxFrameRate="120" />
+ 
+     <VideoEncoderCap name="m4v" enabled="true"
+         minBitRate="64000" maxBitRate="40000000"
+diff --git a/overlay/packages/apps/Snap/res/values/arrays.xml b/overlay/packages/apps/Snap/res/values/arrays.xml
+new file mode 100644
+index 0000000..b54579a
+--- /dev/null
++++ b/overlay/packages/apps/Snap/res/values/arrays.xml
+@@ -0,0 +1,27 @@
++<?xml version="1.0" encoding="utf-8"?>
++<!--  Copyright (c) 2018 The LineageOS Project
++
++ This program is free software; you can redistribute it and/or
++ modify it under the terms of the GNU General Public License
++ as published by the Free Software Foundation; either version 2
++ of the License, or (at your option) any later version.
++
++ This program is distributed in the hope that it will be useful,
++ but WITHOUT ANY WARRANTY; without even the implied warranty of
++ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ GNU General Public License for more details.
++
++ You should have received a copy of the GNU General Public License
++ along with this program; if not, write to the Free Software
++ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
++ Also add information on how to contact you by electronic and paper mail.
++
++-->
++<resources>
++    <string-array name="pref_camera_flashmode_entryvalues" translatable="false">
++        <item>off</item>
++        <item>auto</item>
++        <item>torch</item>
++        <item>red-eye</item>
++    </string-array>
++</resources>
+diff --git a/overlay/packages/apps/Snap/res/values/config.xml b/overlay/packages/apps/Snap/res/values/config.xml
+index d64ff4f..ff52e6a 100644
+--- a/overlay/packages/apps/Snap/res/values/config.xml
++++ b/overlay/packages/apps/Snap/res/values/config.xml
+@@ -23,4 +23,7 @@
+ 
+     <!-- ISO values use numbers.  Example: 50 instead of ISO50 -->
+     <bool name="iso_values_use_numbers">true</bool>
++
++    <!-- Use profile for HSR recording instead -->
++    <bool name="use_profile_for_hsr">true</bool>
+ </resources>
+-- 
+2.17.1
+

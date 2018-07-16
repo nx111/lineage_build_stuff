@@ -734,13 +734,14 @@ kpick 219020 # build: Disable backuptool for A/B on -user
 
 # device/lineage/sepolicy
 kpick 219022 # sepolicy: Fix neverallow for user builds
+kpick 220368 # sepolicy: recovery: Allow (re)mounting system
 
 # device/qcom/sepolicy
 kpick 211273 # qcom/sepol: Fix timeservice app context
-kpick 212643 # qcom/sepol: Allow mm-qcamerad to use binder even in vendor
 
 # device/samsung/klte-common
 #kpick 212648 # klte-common: Enable AOD
+kpick 220435 # Add HFR/HSR support
 
 # device/samsung/kltechnduo
 
@@ -771,6 +772,8 @@ kpick 220281 # net: ipv4: fix for a race condition in raw_sendmsg
 kpick 220282 # net: ipv4: emulate READ_ONCE() on ->hdrincl bit-field in raw_sendmsg()
 kpick 220283 # sctp: do not peel off an assoc from one netns to another one
 kpick 220284 # net: usb: rmnet_usb_ctrl: Fix use after free issue
+kpick 220380 # msm: ipa: Fix the handling of default IPA header
+kpick 220381 # net: wireless: bcmdhd: fix integer overflow in wl_get_assoc_ies
 
 # external/ant-wireless/ant_native
 
@@ -785,6 +788,7 @@ kpick 209019 # toybox: Use ISO C/clang compatible __typeof__ in minof/maxof macr
 
 # frameworks/av
 kpick 206069 # stagefright: add changes related to high-framerates in CameraSource
+kpick 209104 # Stagefright: Allow setting high-framerates in CameraSource
 kpick 209904 # Camera2Client: Add support for QTI parameters in Camera2Client
 kpick 209905 # Camera2Client: Add support for QTI specific ZSL feature
 kpick 209906 # Camera2Client: Add support for QTI specific AE bracketing feature
@@ -832,9 +836,10 @@ kpick 218430 # SystemUI: Require unlock to toggle airplane mode
 kpick 218431 # SystemUI: Require unlock to toggle location
 kpick 218437 # SystemUI: Add activity alias for LockscreenFragment
 kpick 218819 # SystemUI: Fix Data Usage tile to match Settings
-#kpick 219300 # SystemUI: tuner: Remove battery preference
+kpick 219300 # SystemUI: tuner: Remove battery preference
 kpick 219888 # Proper supplementary service notification handling (1/5).
 kpick 219930 # Telephony: Stop using rssnr, it falsly shows wrong signal bars Pixel and other devices drop this
+kpick 220394 # SystemUI: Add tunables for clock position
 
 # frameworks/native
 kpick 213549 # SurfaceFlinger: Support get/set ActiveConfigs
@@ -853,6 +858,7 @@ kpick 215450 # Add changes for sending ATEL UI Ready to RIL.
 kpick 219860 # Clean up Icc Refresh handling
 kpick 219861 # Fix SIM refresh issue
 kpick 219889 # Proper supplementary service notification handling (2/5).
+kpick 220429 # telephony: Allow overriding getRadioProxy
 
 # hardware/broadcom/libbt
 
@@ -866,16 +872,16 @@ kpick 213865 # lineage/interfaces: move vibrator to the proper directory
 kpick 213866 # lineage/interfaces: extend android.hardware.vibrator@1.0
 kpick 213867 # lineage/interfaces: vibrator: read click effect amplitude from prop
 kpick 213868 # lineage/interfaces: vibrator: implement vendor.lineage methods
-kpick 219211 # livedisplay: Restart HAL after successful data decryption
+kpick 219211 # livedisplay: Move HIDL service to late_start
 kpick 219624 # lineage/interfaces: vibrator: make define usage uniform
 kpick 219885 # livedisplay: Add a system variant
 
 # hardware/lineage/lineagehw
 
 # hardware/lineage/telephony
-kpick 220131 # Return proper value for isDsdaEnabled
 kpick 220132 # Improve compatibility with older devices
-kpick 220133 # Power up/down SIM on activation/deactivation
+kpick 220388 # telephony: Add note to readme to ignore a logcat error
+kpick 220418 # Add split implementation for using QcRilHook
 
 # hardware/qcom/audio-caf/msm8974
 
@@ -895,7 +901,6 @@ kpick 209093 # msm8974: hwc: Set ioprio for vsync thread
 # hardware/qcom/keymaster
 
 # hardware/qcom/power
-kpick 219212 # power: Allow devices disabling power stats completely
 
 # hardware/qcom/thermal
 kpick 218360 # thermal: use log/log.h header
@@ -933,7 +938,10 @@ kpick 214854 # [3/3] lineagesdk: single hand for hw keys
 kpick 216978 # sdk: add torch accent
 kpick 217419 # Add vendor security patch level to device info
 #kpick 218679 # lineage-sdk: Use ILight.getSupportedTypes for lights capabilities
-kpick 219395 # styles: do not enforce permission when it's not needed
+kpick 220396 # sdk: Add default setting for clock position
+kpick 220405 # sdk: Add an overlay to specify notch presence
+kpick 220407 # lineagesdk: Refactor battery icon options
+kpick 220417 # TelephonyExtUtils: Add possible error codes, and return with them
 
 # lineage-sdk/samples/weatherproviderservice/YahooWeatherProvider
 kpick 207864 # Updated Gradle to 3.0.1; The Lineage-SDK jar is now contained in the project files
@@ -995,6 +1003,9 @@ kpick 217644 # LineageParts: Set proper PreferenceTheme parent
 kpick 218315 # LineageParts: Fix brightness section
 kpick 219527 # LiveDisplay: Remove advanced settings category if empty
 kpick 219733 # LineageParts: Blue is the new black
+kpick 220393 # LineageParts: Bring back clock position
+kpick 220406 # LineageParts: Remove center clock position for devices with notch
+kpick 220422 # LineageParts: Bring back and refactor battery icon options
 
 # packages/apps/lockClock
 kpick 208127 # Update LockClock to use Job APIs 
@@ -1013,21 +1024,18 @@ kpick 217420 # Add vendor security patch level to device info
 kpick 218165 # Add an option to change the device hostname (1/2).
 kpick 218438 # Settings: Add lockscreen shortcuts customization to lockscreen settings
 kpick 218775 # Settings: Cleanup SimSettings additions
-#kpick 219299 # Settings: Remove battery percentage switch
+kpick 219299 # Settings: Remove battery percentage switch
+
+# packages/apps/SetupWizard
+kpick 217580 # Add original-package to AndroidManifest
 
 # packages/apps/Snap
 kpick 206595 # Use transparent navigation bar
 kpick 218826 # CameraSettings:Do not crash if zoom ratios are not exposed.
+kpick 220436 # Fix saving HSR
 
 # packages/apps/Trebuchet
 kpick 214336 # Trebuchet: initial protected apps implementation
-kpick 219266 # IconsHandler: prevent resource not found exception when getting xml
-kpick 219267 # IconsHandler: use ViewHolder, prevent AsyncTask leaks, cleanup
-kpick 219268 # logging: prevent NPE at logDeepShortcutsOpen
-kpick 219515 # Edit dialog: change brush color from black to white
-kpick 219516 # Edit dialog: dynamically apply foreground to icon
-kpick 219528 # WallpaperManager: do not crash because of insufficient permissions
-kpick 219530 # Add click handler for qsb on boot to keep it responsive
 
 # packages/apps/UnifiedEmail
 kpick 218385 # unified email: prefer account display name to sender name
@@ -1052,7 +1060,6 @@ kpick 219311 # Disable animations for translucent activities.
 
 # packages/apps/Updater
 kpick 219924 # Updater: Allow to suspend A/B updates
-kpick 219931 # Updater: Improve battery check
 
 # packages/overlays/Lineage
 kpick 215846 # dark: Add Theme.DeviceDefault.Settings.Dialog.NoActionBar style
@@ -1099,6 +1106,7 @@ kpick 215122 # libQWiFiSoftApCfg: Replace deprecated kernel header path
 
 # system/sepolicy
 kpick 206037 # sepolicy: Allow init to modify system_blk_device
+kpick 220370 # sepolicy: public: Exclude Recovery from system mount neverallow
 
 # system/update/engine
 
@@ -1114,6 +1122,8 @@ kpick 210664 # extract_utils: Support multidex
 kpick 215341 # backuptool: Revert "Temporarily render version check permissive"
 kpick 214400 # backuptool: Resolve incompatible version grep syntax
 kpick 216977 # lineage: build torch accent
+kpick 217527 # tools: Rewrite sdat2img
+kpick 217528 # sdat2img: Add support for brotli compressed files
 kpick 217628 # lineage: add generic x86_64 target
 kpick 217629 # kernel: Add TARGET_KERNEL_ADDITIONAL_FLAGS to allow setting extra cflags
 kpick 217630 # kernel: Add kernelversion recipe to generate MAJOR.MINOR kernel version
@@ -1126,6 +1136,9 @@ kpick 219342 # addonsu: Fix installation on TWRP A/B
 kpick 219388 # config: Add more GMS client base ID props
 kpick 219389 # lineage: Always disable google SystemUpdateService
 kpick 219936 # kernel: Allow installing modules on system
+kpick 220398 # extract_utils: Skip unneeded md5sum	
+kpick 220399 # extract_utils: Extract files from brotli compressed images
+
 
 # vendor/nxp/opensource/packages/apps/Nfc
 
@@ -1135,6 +1148,8 @@ kpick 219936 # kernel: Allow installing modules on system
 
 #-----------------------
 # translations
+repopick 220408-220413
+
 ##################################
 echo
 echo "---------------------------------------------------------------"
