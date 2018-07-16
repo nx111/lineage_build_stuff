@@ -734,7 +734,6 @@ kpick 219020 # build: Disable backuptool for A/B on -user
 
 # device/lineage/sepolicy
 kpick 219022 # sepolicy: Fix neverallow for user builds
-kpick 220368 # sepolicy: recovery: Allow (re)mounting system
 
 # device/qcom/sepolicy
 kpick 211273 # qcom/sepol: Fix timeservice app context
@@ -788,7 +787,6 @@ kpick 209019 # toybox: Use ISO C/clang compatible __typeof__ in minof/maxof macr
 
 # frameworks/av
 kpick 206069 # stagefright: add changes related to high-framerates in CameraSource
-kpick 209104 # Stagefright: Allow setting high-framerates in CameraSource
 kpick 209904 # Camera2Client: Add support for QTI parameters in Camera2Client
 kpick 209905 # Camera2Client: Add support for QTI specific ZSL feature
 kpick 209906 # Camera2Client: Add support for QTI specific AE bracketing feature
@@ -1013,6 +1011,7 @@ kpick 208127 # Update LockClock to use Job APIs
 # packages/apps/Nfc
 
 # packages/apps/Recoder
+kpick 220443 # Recorder: Replace hardcoded media_profiles path with a list of possible paths
 
 # packages/apps/Settings
 kpick 215672 # SimSettings: Fix dialog in dark mode
@@ -1105,8 +1104,6 @@ kpick 215122 # libQWiFiSoftApCfg: Replace deprecated kernel header path
 # system/security
 
 # system/sepolicy
-kpick 206037 # sepolicy: Allow init to modify system_blk_device
-kpick 220370 # sepolicy: public: Exclude Recovery from system mount neverallow
 
 # system/update/engine
 
@@ -1132,7 +1129,6 @@ kpick 218717 # verity_tool: Implement status getter
 kpick 218801 # libbfqio: Open bfqio once
 kpick 218817 # kernel: Do not attempt to build modules if there aren't
 kpick 218832 # lineage: Add prebuilt patchelf binaries and patch_blob function
-kpick 219342 # addonsu: Fix installation on TWRP A/B
 kpick 219388 # config: Add more GMS client base ID props
 kpick 219389 # lineage: Always disable google SystemUpdateService
 kpick 219936 # kernel: Allow installing modules on system
