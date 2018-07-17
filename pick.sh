@@ -746,6 +746,7 @@ kpick 220435 # Add HFR/HSR support
 
 # device/samsung/msm8974-common
 kpick 210313 # msm8974-common: Binderize them all
+kpick 220521 # Localise NTP to improve GPS TTFF for non-North American users.
 
 # kernel/samsung/msm8974
 kpick 210665 # wacom: Follow-up from gestures patch
@@ -878,7 +879,7 @@ kpick 219885 # livedisplay: Add a system variant
 
 # hardware/lineage/telephony
 kpick 220132 # Improve compatibility with older devices
-kpick 220388 # telephony: Add note to readme to ignore a logcat error
+kpick 220388 # telephony: Actually pull in telephony-ext into final build
 kpick 220418 # Add split implementation for using QcRilHook
 
 # hardware/qcom/audio-caf/msm8974
@@ -1011,7 +1012,7 @@ kpick 208127 # Update LockClock to use Job APIs
 # packages/apps/Nfc
 
 # packages/apps/Recoder
-kpick 220443 # Recorder: Replace hardcoded media_profiles path with a list of possible paths
+kpick 220457 # Recorder: Use native functions to get H264 info
 
 # packages/apps/Settings
 kpick 215672 # SimSettings: Fix dialog in dark mode
@@ -1124,7 +1125,6 @@ kpick 217528 # sdat2img: Add support for brotli compressed files
 kpick 217628 # lineage: add generic x86_64 target
 kpick 217629 # kernel: Add TARGET_KERNEL_ADDITIONAL_FLAGS to allow setting extra cflags
 kpick 217630 # kernel: Add kernelversion recipe to generate MAJOR.MINOR kernel version
-kpick 218496 # vendor: Fix install[boot|recovery]
 kpick 218717 # verity_tool: Implement status getter
 kpick 218801 # libbfqio: Open bfqio once
 kpick 218817 # kernel: Do not attempt to build modules if there aren't

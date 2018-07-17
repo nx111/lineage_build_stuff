@@ -1,19 +1,25 @@
-From 178a3588fd43da5a047b1050a74baaa7eabbd82d Mon Sep 17 00:00:00 2001
+From 2ff98808caf86337758d42860dabb0d2990afa6c Mon Sep 17 00:00:00 2001
 From: T H <socialentry@gmail.com>
 Date: Mon, 16 Jul 2018 00:25:42 -0400
 Subject: [PATCH 1/2] Add HFR/HSR support
 
+* Update wrapper
+* Add HSR profiles to media_profiles.xml
+* Increase bitrates in media_profiles.xml
+* Turn flash back on during preview changes
+* Add config for Snap to fix saving HSR
+
 Change-Id: Ia44d6c6a970b95db7b9687e9b2391c828e5af230
 ---
  camera/CameraWrapper.cpp                      | 198 ++++++++++++++++--
- configs/media_profiles.xml                    |  32 ++-
+ configs/media_profiles.xml                    |  68 ++++--
  .../packages/apps/Snap/res/values/arrays.xml  |  27 +++
  .../packages/apps/Snap/res/values/config.xml  |   3 +
- 4 files changed, 244 insertions(+), 16 deletions(-)
+ 4 files changed, 263 insertions(+), 33 deletions(-)
  create mode 100644 overlay/packages/apps/Snap/res/values/arrays.xml
 
 diff --git a/camera/CameraWrapper.cpp b/camera/CameraWrapper.cpp
-index ee67107..d2a505a 100644
+index ee67107..148d3ee 100644
 --- a/camera/CameraWrapper.cpp
 +++ b/camera/CameraWrapper.cpp
 @@ -49,6 +49,10 @@ using namespace android;
@@ -123,7 +129,7 @@ index ee67107..d2a505a 100644
  static char *camera_fixup_getparams(int __attribute__((unused)) id,
      const char *settings)
  {
-@@ -155,19 +233,39 @@ static char *camera_fixup_getparams(int __attribute__((unused)) id,
+@@ -155,19 +233,36 @@ static char *camera_fixup_getparams(int __attribute__((unused)) id,
                  videoSizes);
      }
  
@@ -136,10 +142,7 @@ index ee67107..d2a505a 100644
 -        char hfrModes[strlen(hfrModeValues) + 4 + 1];
 -        sprintf(hfrModes, "%s,off", hfrModeValues);
 -        params.set(KEY_VIDEO_HFR_VALUES, hfrModes);
-+    // only use supported values
-+    params.set(CameraParameters::KEY_SUPPORTED_FLASH_MODES, "off,auto,torch");
-+    params.set(CameraParameters::KEY_SUPPORTED_FOCUS_MODES, "auto,infinity,macro,continuous-video");
-+
++    // set hfr values
 +    if (id == BACK_CAMERA_ID) {
 +        params.set(KEY_VIDEO_HFR_VALUES, "60,120,off");
 +        params.set(KEY_VIDEO_HFR, OFF);
@@ -174,7 +177,7 @@ index ee67107..d2a505a 100644
          params.set(CameraParameters::KEY_VIDEO_SNAPSHOT_SUPPORTED, "true");
      }
  
-@@ -184,7 +282,7 @@ static char *camera_fixup_getparams(int __attribute__((unused)) id,
+@@ -184,7 +279,7 @@ static char *camera_fixup_getparams(int __attribute__((unused)) id,
      return ret;
  }
  
@@ -183,7 +186,20 @@ index ee67107..d2a505a 100644
  {
      CameraParameters params;
      params.unflatten(String8(settings));
-@@ -225,7 +323,37 @@ static char *camera_fixup_setparams(int id, const char *settings)
+@@ -209,6 +304,12 @@ static char *camera_fixup_setparams(int id, const char *settings)
+     const char *flashMode = params.get(CameraParameters::KEY_FLASH_MODE);
+     bool isTorch = flashMode && !strcmp(flashMode, CameraParameters::FLASH_MODE_TORCH);
+ 
++    if (id == BACK_CAMERA_ID) {
++        setTorch = true;
++    } else {
++        setTorch = false;
++    }
++
+     if (!isTorch && !wasTorch) {
+         if (isVideo) {
+             params.set(KEY_DIS, DIS_DISABLE);
+@@ -225,7 +326,37 @@ static char *camera_fixup_setparams(int id, const char *settings)
              /* need to translate video-hdr to rt-hdr */
              const char *vhdr = params.get(KEY_QC_VIDEO_HDR);
              params.set(KEY_QC_RT_HDR, vhdr && !strcmp(vhdr, "on") ? ON : OFF);
@@ -221,7 +237,7 @@ index ee67107..d2a505a 100644
      }
  
      ALOGV("%s: Fixed parameters:", __FUNCTION__);
-@@ -252,6 +380,8 @@ static int camera_set_preview_window(struct camera_device *device,
+@@ -252,6 +383,8 @@ static int camera_set_preview_window(struct camera_device *device,
      if (!device)
          return -EINVAL;
  
@@ -230,13 +246,13 @@ index ee67107..d2a505a 100644
      ALOGV("%s->%08X->%08X", __FUNCTION__, (uintptr_t)device,
              (uintptr_t)(((wrapper_camera_device_t*)device)->vendor));
  
-@@ -344,6 +474,21 @@ static int camera_start_preview(struct camera_device *device)
+@@ -344,6 +477,21 @@ static int camera_start_preview(struct camera_device *device)
      ALOGV("%s->%08X->%08X", __FUNCTION__, (uintptr_t)device,
              (uintptr_t)(((wrapper_camera_device_t*)device)->vendor));
  
 +    // set torch on
-+    if (setTorch) {
-+        int id = CAMERA_ID(device);
++    int id = CAMERA_ID(device);
++    if (setTorch && (id == BACK_CAMERA_ID)) {
 +        CameraParameters params;
 +        params.unflatten(String8(fixed_set_params[id]));
 +        const char *flashMode = params.get(CameraParameters::KEY_FLASH_MODE);
@@ -245,21 +261,20 @@ index ee67107..d2a505a 100644
 +            params.set(CameraParameters::KEY_FLASH_MODE, CameraParameters::FLASH_MODE_TORCH);
 +            free(fixed_set_params[id]);
 +            fixed_set_params[id] = strdup(params.flatten().string());
++            VENDOR_CALL(device, set_parameters, fixed_set_params[id]);
 +        }
-+        VENDOR_CALL(device, set_parameters, fixed_set_params[id]);
 +    }
 +
      return VENDOR_CALL(device, start_preview);
  }
  
-@@ -355,7 +500,23 @@ static void camera_stop_preview(struct camera_device *device)
+@@ -355,6 +503,21 @@ static void camera_stop_preview(struct camera_device *device)
      ALOGV("%s->%08X->%08X", __FUNCTION__, (uintptr_t)device,
              (uintptr_t)(((wrapper_camera_device_t*)device)->vendor));
  
--    VENDOR_CALL(device, stop_preview);
 +    // set torch off
-+    if (setTorch) {
-+        int id = CAMERA_ID(device);
++    int id = CAMERA_ID(device);
++    if (setTorch && (id == BACK_CAMERA_ID)) {
 +        CameraParameters params;
 +        params.unflatten(String8(fixed_set_params[id]));
 +        const char *flashMode = params.get(CameraParameters::KEY_FLASH_MODE);
@@ -268,16 +283,14 @@ index ee67107..d2a505a 100644
 +            params.set(CameraParameters::KEY_FLASH_MODE, CameraParameters::FLASH_MODE_OFF);
 +            free(fixed_set_params[id]);
 +            fixed_set_params[id] = strdup(params.flatten().string());
++            VENDOR_CALL(device, set_parameters, fixed_set_params[id]);
 +        }
-+        VENDOR_CALL(device, stop_preview);
-+        VENDOR_CALL(device, set_parameters, fixed_set_params[id]);
-+    } else {
-+        VENDOR_CALL(device, stop_preview);
 +    }
++
+     VENDOR_CALL(device, stop_preview);
  }
  
- static int camera_preview_enabled(struct camera_device *device)
-@@ -398,6 +559,8 @@ static int camera_start_recording(struct camera_device *device)
+@@ -398,6 +561,8 @@ static int camera_start_recording(struct camera_device *device)
          camera_set_parameters(device, strdup(parameters.flatten().string()));
      }
  
@@ -286,7 +299,7 @@ index ee67107..d2a505a 100644
      return VENDOR_CALL(device, start_recording);
  }
  
-@@ -409,6 +572,8 @@ static void camera_stop_recording(struct camera_device *device)
+@@ -409,6 +574,8 @@ static void camera_stop_recording(struct camera_device *device)
      ALOGV("%s->%08X->%08X", __FUNCTION__, (uintptr_t)device,
              (uintptr_t)(((wrapper_camera_device_t*)device)->vendor));
  
@@ -295,7 +308,7 @@ index ee67107..d2a505a 100644
      VENDOR_CALL(device, stop_recording);
  }
  
-@@ -488,7 +653,7 @@ static int camera_set_parameters(struct camera_device *device,
+@@ -488,7 +655,7 @@ static int camera_set_parameters(struct camera_device *device,
      ALOGV("%s->%08X->%08X", __FUNCTION__, (uintptr_t)device,
              (uintptr_t)(((wrapper_camera_device_t*)device)->vendor));
  
@@ -304,7 +317,7 @@ index ee67107..d2a505a 100644
  
      return VENDOR_CALL(device, set_parameters, tmp);
  }
-@@ -568,6 +733,11 @@ static int camera_device_close(hw_device_t *device)
+@@ -568,6 +735,11 @@ static int camera_device_close(hw_device_t *device)
          goto done;
      }
  
@@ -317,11 +330,96 @@ index ee67107..d2a505a 100644
          if (fixed_set_params[i])
              free(fixed_set_params[i]);
 diff --git a/configs/media_profiles.xml b/configs/media_profiles.xml
-index 6487b08..7ebc030 100644
+index 6487b08..5f55f7f 100644
 --- a/configs/media_profiles.xml
 +++ b/configs/media_profiles.xml
-@@ -233,6 +233,34 @@
-              channels="2" />
+@@ -100,7 +100,7 @@
+                    height="288"
+                    frameRate="30" />
+             <Audio codec="aac"
+-                   bitRate="96000"
++                   bitRate="128000"
+                    sampleRate="48000"
+                    channels="1" />
+         </EncoderProfile>
+@@ -112,7 +112,7 @@
+                    height="480"
+                    frameRate="30" />
+             <Audio codec="aac"
+-                   bitRate="96000"
++                   bitRate="256000"
+                    sampleRate="48000"
+                    channels="1" />
+         </EncoderProfile>
+@@ -124,7 +124,7 @@
+                    height="720"
+                    frameRate="30" />
+             <Audio codec="aac"
+-                   bitRate="96000"
++                   bitRate="256000"
+                    sampleRate="48000"
+                    channels="1" />
+         </EncoderProfile>
+@@ -136,7 +136,7 @@
+                    height="1080"
+                    frameRate="30" />
+             <Audio codec="aac"
+-                   bitRate="96000"
++                   bitRate="256000"
+                    sampleRate="48000"
+                    channels="1" />
+         </EncoderProfile>
+@@ -151,7 +151,7 @@
+       <Audio codec="aac"
+              bitRate="320000"
+              sampleRate="48000"
+-             channels="2" />
++             channels="1" />
+     </EncoderProfile>
+ 
+         <EncoderProfile quality="timelapseqcif" fileFormat="mp4" duration="30">
+@@ -175,7 +175,7 @@
+                    frameRate="30" />
+             <!-- audio setting is ignored -->
+             <Audio codec="aac"
+-                   bitRate="96000"
++                   bitRate="128000"
+                    sampleRate="48000"
+                    channels="1" />
+         </EncoderProfile>
+@@ -188,7 +188,7 @@
+                    frameRate="30" />
+             <!-- audio setting is ignored -->
+             <Audio codec="aac"
+-                   bitRate="96000"
++                   bitRate="256000"
+                    sampleRate="48000"
+                    channels="1" />
+         </EncoderProfile>
+@@ -201,7 +201,7 @@
+                    frameRate="30" />
+             <!-- audio setting is ignored -->
+             <Audio codec="aac"
+-                   bitRate="96000"
++                   bitRate="256000"
+                    sampleRate="48000"
+                    channels="1" />
+         </EncoderProfile>
+@@ -214,7 +214,7 @@
+                    frameRate="30" />
+             <!-- audio setting is ignored -->
+             <Audio codec="aac"
+-                   bitRate="96000"
++                   bitRate="256000"
+                    sampleRate="48000"
+                    channels="1" />
+         </EncoderProfile>
+@@ -230,9 +230,37 @@
+       <Audio codec="aac"
+              bitRate="320000"
+              sampleRate="48000"
+-             channels="2" />
++             channels="1" />
      </EncoderProfile>
  
 +                <!--
@@ -334,27 +432,99 @@ index 6487b08..7ebc030 100644
 +
 +                <EncoderProfile quality="highspeedhigh" fileFormat="mp4" duration="30">
 +                        <Video codec="h264" bitRate="17000000" width="1920" height="1080" frameRate="60" />
-+                        <Audio codec="aac" bitRate="96000" sampleRate="48000" channels="1" />
++                        <Audio codec="aac" bitRate="256000" sampleRate="48000" channels="1" />
 +                </EncoderProfile>
 +
 +                <EncoderProfile quality="highspeed480p" fileFormat="mp4" duration="30">
 +                        <Video codec="h264" bitRate="3449000" width="720" height="480" frameRate="60" />
-+                        <Audio codec="aac" bitRate="96000" sampleRate="48000" channels="1" />
++                        <Audio codec="aac" bitRate="256000" sampleRate="48000" channels="1" />
 +                </EncoderProfile>
 +
 +                <EncoderProfile quality="highspeed720p" fileFormat="mp4" duration="30">
 +                        <Video codec="h264" bitRate="12000000" width="1280" height="720" frameRate="60" />
-+                        <Audio codec="aac" bitRate="96000" sampleRate="48000" channels="1" />
++                        <Audio codec="aac" bitRate="256000" sampleRate="48000" channels="1" />
 +                </EncoderProfile>
 +
 +                <EncoderProfile quality="highspeed1080p" fileFormat="mp4" duration="30">
 +                        <Video codec="h264" bitRate="17000000" width="1920" height="1080" frameRate="60" />
-+                        <Audio codec="aac" bitRate="96000" sampleRate="48000" channels="1" />
++                        <Audio codec="aac" bitRate="256000" sampleRate="48000" channels="1" />
 +                </EncoderProfile>
 +
          <ImageEncoding quality="95" />
          <ImageEncoding quality="80" />
          <ImageEncoding quality="70" />
+@@ -261,7 +289,7 @@
+                    height="288"
+                    frameRate="30" />
+             <Audio codec="aac"
+-                   bitRate="96000"
++                   bitRate="128000"
+                    sampleRate="48000"
+                    channels="1" />
+         </EncoderProfile>
+@@ -273,7 +301,7 @@
+                    height="480"
+                    frameRate="30" />
+             <Audio codec="aac"
+-                   bitRate="96000"
++                   bitRate="128000"
+                    sampleRate="48000"
+                    channels="1" />
+         </EncoderProfile>
+@@ -285,7 +313,7 @@
+                    height="720"
+                    frameRate="30" />
+             <Audio codec="aac"
+-                   bitRate="96000"
++                   bitRate="128000"
+                    sampleRate="48000"
+                    channels="1" />
+         </EncoderProfile>
+@@ -297,7 +325,7 @@
+                    height="1080"
+                    frameRate="30" />
+             <Audio codec="aac"
+-                   bitRate="96000"
++                   bitRate="128000"
+                    sampleRate="48000"
+                    channels="1" />
+         </EncoderProfile>
+@@ -323,7 +351,7 @@
+                    frameRate="30" />
+             <!-- audio setting is ignored -->
+             <Audio codec="aac"
+-                   bitRate="96000"
++                   bitRate="128000"
+                    sampleRate="48000"
+                    channels="1" />
+         </EncoderProfile>
+@@ -336,7 +364,7 @@
+                    frameRate="30" />
+             <!-- audio setting is ignored -->
+             <Audio codec="aac"
+-                   bitRate="96000"
++                   bitRate="256000"
+                    sampleRate="48000"
+                    channels="1" />
+         </EncoderProfile>
+@@ -349,7 +377,7 @@
+                    frameRate="30" />
+             <!-- audio setting is ignored -->
+             <Audio codec="aac"
+-                   bitRate="96000"
++                   bitRate="256000"
+                    sampleRate="48000"
+                    channels="1" />
+         </EncoderProfile>
+@@ -362,7 +390,7 @@
+                    frameRate="30" />
+             <!-- audio setting is ignored -->
+             <Audio codec="aac"
+-                   bitRate="96000"
++                   bitRate="256000"
+                    sampleRate="48000"
+                    channels="1" />
+         </EncoderProfile>
 @@ -386,13 +414,13 @@
          minBitRate="64000" maxBitRate="50000000"
          minFrameWidth="176" maxFrameWidth="3840"
