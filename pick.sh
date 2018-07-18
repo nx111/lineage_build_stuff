@@ -839,6 +839,7 @@ kpick 219300 # SystemUI: tuner: Remove battery preference
 kpick 219888 # Proper supplementary service notification handling (1/5).
 kpick 219930 # Telephony: Stop using rssnr, it falsly shows wrong signal bars Pixel and other devices drop this
 kpick 220394 # SystemUI: Add tunables for clock position
+kpick 220542 # fw/b lights: Allow black notification color
 
 # frameworks/native
 kpick 213549 # SurfaceFlinger: Support get/set ActiveConfigs
@@ -879,7 +880,6 @@ kpick 219885 # livedisplay: Add a system variant
 
 # hardware/lineage/telephony
 kpick 220132 # Improve compatibility with older devices
-kpick 220388 # telephony: Actually pull in telephony-ext into final build
 kpick 220418 # Add split implementation for using QcRilHook
 
 # hardware/qcom/audio-caf/msm8974
@@ -1060,6 +1060,7 @@ kpick 219311 # Disable animations for translucent activities.
 
 # packages/apps/Updater
 kpick 219924 # Updater: Allow to suspend A/B updates
+kpick 220536 # Updater: Clarify A/B Performance mode string
 
 # packages/overlays/Lineage
 kpick 215846 # dark: Add Theme.DeviceDefault.Settings.Dialog.NoActionBar style
