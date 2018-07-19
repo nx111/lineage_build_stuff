@@ -839,6 +839,7 @@ kpick 219300 # SystemUI: tuner: Remove battery preference
 kpick 219888 # Proper supplementary service notification handling (1/5).
 kpick 219930 # Telephony: Stop using rssnr, it falsly shows wrong signal bars Pixel and other devices drop this
 kpick 220394 # SystemUI: Add tunables for clock position
+kpick 220541 # Tuner: Move clock seconds option to status bar settings
 kpick 220542 # fw/b lights: Allow black notification color
 
 # frameworks/native
@@ -957,7 +958,6 @@ kpick 218623 # Allow calling contacts via specific phone accounts.
 kpick 211135 # Show proper call duration
 kpick 218624 # Allow per-call account selection.
 kpick 218847 # Re-add call statistics.
-kpick 219890 # Re-add call recording.
 kpick 219891 # Proper supplementary service notification handling (5/5).
 
 # packages/apps/DeskClock
@@ -1057,6 +1057,7 @@ kpick 218400 # Pass selected folder to message search.
 kpick 218401 # Properly close body InputStreams.
 kpick 218797 # Make navigation drawer extend over status bar.
 kpick 219311 # Disable animations for translucent activities.
+kpick 220570 # Don't re-show search bar on query click.
 
 # packages/apps/Updater
 kpick 219924 # Updater: Allow to suspend A/B updates

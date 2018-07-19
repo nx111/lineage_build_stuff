@@ -1,11 +1,11 @@
-From 8e0b861114caaa8e4c05f6a0993b051b17ad7742 Mon Sep 17 00:00:00 2001
+From eb094e89b4e3d4e0572977d6011dd8a49eb5fdfd Mon Sep 17 00:00:00 2001
 From: Danny Baumann <dannybaumann@web.de>
 Date: Wed, 27 Jun 2018 15:53:56 +0200
-Subject: [PATCH 3/6] Re-add call statistics.
+Subject: [PATCH 3/5] Re-add call statistics.
 
 Change-Id: I9f2b6e912ca69a5aa7a1790bed06304ee953e752
 ---
- Android.mk                                    |   4 +-
+ Android.mk                                    |   2 +
  .../dialer/app/calllog/CallLogActivity.java   |  33 +-
  .../ExpirableCacheHeadlessFragment.java       |   4 +-
  .../dialer/app/res/values/cm_attrs.xml        |  26 ++
@@ -25,7 +25,7 @@ Change-Id: I9f2b6e912ca69a5aa7a1790bed06304ee953e752
  .../dialer/callstats/CallStatsQuery.java      |  64 +++
  .../callstats/CallStatsQueryHandler.java      | 297 ++++++++++++++
  .../callstats/DoubleDatePickerDialog.java     | 334 ++++++++++++++++
- .../res/layout/call_stats_detail.xml          | 127 ++++++
+ .../res/layout/call_stats_detail.xml          | 128 ++++++
  .../res/layout/call_stats_detail_info.xml     | 230 +++++++++++
  .../res/layout/call_stats_detail_line.xml     |  43 +++
  .../res/layout/call_stats_fragment.xml        |  80 ++++
@@ -39,7 +39,7 @@ Change-Id: I9f2b6e912ca69a5aa7a1790bed06304ee953e752
  .../dialer/callstats/res/values/styles.xml    |  29 ++
  .../dialer/proguard/proguard_base.flags       |   5 +
  .../android/dialer/widget/LinearColorBar.java | 221 +++++++++++
- 34 files changed, 3557 insertions(+), 14 deletions(-)
+ 34 files changed, 3557 insertions(+), 13 deletions(-)
  create mode 100644 java/com/android/dialer/app/res/values/cm_attrs.xml
  create mode 100644 java/com/android/dialer/calllogutils/FilterSpinnerHelper.java
  create mode 100644 java/com/android/dialer/calllogutils/res/layout/call_log_filter_spinner_item.xml
@@ -69,32 +69,25 @@ Change-Id: I9f2b6e912ca69a5aa7a1790bed06304ee953e752
  create mode 100644 java/com/android/dialer/widget/LinearColorBar.java
 
 diff --git a/Android.mk b/Android.mk
-index 3a5957efe..4d3e476ed 100644
+index 9985257f0..6119383d1 100644
 --- a/Android.mk
 +++ b/Android.mk
-@@ -79,6 +79,7 @@ RES_DIRS := \
- 	$(BASE_DIR)/dialer/calldetails/res \
+@@ -80,6 +80,7 @@ RES_DIRS := \
  	$(BASE_DIR)/dialer/calllog/ui/res \
  	$(BASE_DIR)/dialer/calllogutils/res \
+ 	$(BASE_DIR)/dialer/callrecord/res \
 +	$(BASE_DIR)/dialer/callstats/res \
  	$(BASE_DIR)/dialer/common/res \
  	$(BASE_DIR)/dialer/contactactions/res \
  	$(BASE_DIR)/dialer/contactsfragment/res \
-@@ -140,6 +141,7 @@ DIALER_MANIFEST_FILES += \
- 	$(BASE_DIR)/dialer/calldetails/AndroidManifest.xml \
+@@ -142,6 +143,7 @@ DIALER_MANIFEST_FILES += \
  	$(BASE_DIR)/dialer/calllog/ui/AndroidManifest.xml \
  	$(BASE_DIR)/dialer/calllogutils/AndroidManifest.xml \
+ 	$(BASE_DIR)/dialer/callrecord/AndroidManifest.xml \
 +	$(BASE_DIR)/dialer/callstats/AndroidManifest.xml \
  	$(BASE_DIR)/dialer/common/AndroidManifest.xml \
  	$(BASE_DIR)/dialer/contactactions/AndroidManifest.xml \
  	$(BASE_DIR)/dialer/contactsfragment/AndroidManifest.xml \
-@@ -569,4 +571,4 @@ LOCAL_UNINSTALLABLE_MODULE := true
- 
- include $(BUILD_PREBUILT)
- 
--include $(CLEAR_VARS)
-\ No newline at end of file
-+include $(CLEAR_VARS)
 diff --git a/java/com/android/dialer/app/calllog/CallLogActivity.java b/java/com/android/dialer/app/calllog/CallLogActivity.java
 index 393c0cda1..a289c5607 100644
 --- a/java/com/android/dialer/app/calllog/CallLogActivity.java
@@ -236,11 +229,11 @@ index 000000000..3155845c5
 +    </declare-styleable>
 +</resources>
 diff --git a/java/com/android/dialer/app/res/values/cm_strings.xml b/java/com/android/dialer/app/res/values/cm_strings.xml
-index 16a17f688..2406af944 100644
+index 1e872c4a0..1dcdb2b81 100644
 --- a/java/com/android/dialer/app/res/values/cm_strings.xml
 +++ b/java/com/android/dialer/app/res/values/cm_strings.xml
-@@ -33,4 +33,6 @@
-     <string name="deny">Deny</string>
+@@ -41,4 +41,6 @@
+ 
      <string name="call_via">Call via</string>
      <string name="call_via_dialog_title">Call via\u2026</string>
 +
@@ -2781,10 +2774,10 @@ index 000000000..5d11bec48
 +}
 diff --git a/java/com/android/dialer/callstats/res/layout/call_stats_detail.xml b/java/com/android/dialer/callstats/res/layout/call_stats_detail.xml
 new file mode 100644
-index 000000000..0e2a24d57
+index 000000000..b00117232
 --- /dev/null
 +++ b/java/com/android/dialer/callstats/res/layout/call_stats_detail.xml
-@@ -0,0 +1,127 @@
+@@ -0,0 +1,128 @@
 +<?xml version="1.0" encoding="utf-8"?>
 +<!-- Copyright (C) 2009 The Android Open Source Project
 +
@@ -2821,6 +2814,7 @@ index 000000000..0e2a24d57
 +    android:layout_height="wrap_content"
 +    android:layout_marginTop="@dimen/call_details_top_margin"
 +    android:paddingStart="@dimen/contact_container_padding_top_start"
++    android:paddingEnd="@dimen/contact_container_padding_bottom_end"
 +    android:paddingTop="@dimen/contact_container_padding_top_start"
 +    android:paddingBottom="@dimen/contact_container_padding_bottom_end"
 +    android:baselineAligned="false"
