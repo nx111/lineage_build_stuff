@@ -1003,6 +1003,10 @@ kpick 218315 # LineageParts: Fix brightness section
 kpick 219527 # LiveDisplay: Remove advanced settings category if empty
 kpick 219733 # LineageParts: Blue is the new black
 kpick 220393 # LineageParts: Bring back clock position
+kpick 220533 # Trust: String changes for accuracy of language
+kpick 220538 # LineageParts: Bring back clock AM/PM style
+kpick 220539 # LineageParts: Move clock seconds option to status bar settings
+kpick 220584 # StatusBarSettings: Hide clock preference category based on icon visibility
 kpick 220406 # LineageParts: Remove center clock position for devices with notch
 kpick 220422 # LineageParts: Bring back and refactor battery icon options
 
@@ -1012,7 +1016,6 @@ kpick 208127 # Update LockClock to use Job APIs
 # packages/apps/Nfc
 
 # packages/apps/Recoder
-kpick 220457 # Recorder: Use native functions to get H264 info
 
 # packages/apps/Settings
 kpick 215672 # SimSettings: Fix dialog in dark mode

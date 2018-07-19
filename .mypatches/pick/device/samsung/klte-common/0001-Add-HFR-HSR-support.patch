@@ -1,7 +1,7 @@
-From 3563134f29edf4e31460e98791ae9bdb7b0c31a9 Mon Sep 17 00:00:00 2001
+From 3f137022e9db11081e585d8b147764596a6d84ee Mon Sep 17 00:00:00 2001
 From: T H <socialentry@gmail.com>
 Date: Mon, 16 Jul 2018 00:25:42 -0400
-Subject: [PATCH 1/3] Add HFR/HSR support
+Subject: [PATCH 1/2] Add HFR/HSR support
 
 * Update wrapper
 * Add HSR profiles to media_profiles.xml
@@ -13,13 +13,11 @@ Change-Id: Ia44d6c6a970b95db7b9687e9b2391c828e5af230
 ---
  camera/CameraWrapper.cpp                      | 205 ++++++++++++++++--
  configs/media_profiles.xml                    |  68 ++++--
- .../packages/apps/Snap/res/values/arrays.xml  |  27 +++
  .../packages/apps/Snap/res/values/config.xml  |   3 +
- 4 files changed, 270 insertions(+), 33 deletions(-)
- create mode 100644 overlay/packages/apps/Snap/res/values/arrays.xml
+ 3 files changed, 243 insertions(+), 33 deletions(-)
 
 diff --git a/camera/CameraWrapper.cpp b/camera/CameraWrapper.cpp
-index ee67107..df29f85 100644
+index ee67107..1b73513 100644
 --- a/camera/CameraWrapper.cpp
 +++ b/camera/CameraWrapper.cpp
 @@ -49,6 +49,9 @@ using namespace android;
@@ -53,7 +51,7 @@ index ee67107..df29f85 100644
  
  // nv12-venus is needed for blobs, but
  // framework has no idea what it is
-@@ -130,6 +139,92 @@ static bool is_4k_video(CameraParameters &params) {
+@@ -130,6 +139,91 @@ static bool is_4k_video(CameraParameters &params) {
      return video_width * video_height == 3840 * 2160;
  }
  
@@ -63,7 +61,6 @@ index ee67107..df29f85 100644
 +
 +    VENDOR_CALL(device, cancel_auto_focus);
 +    VENDOR_CALL(device, stop_preview);
-+    // camera_stop_preview(device);
 +
 +    // load params
 +    CameraParameters params;
@@ -146,7 +143,7 @@ index ee67107..df29f85 100644
  static char *camera_fixup_getparams(int __attribute__((unused)) id,
      const char *settings)
  {
-@@ -155,19 +250,36 @@ static char *camera_fixup_getparams(int __attribute__((unused)) id,
+@@ -155,19 +249,36 @@ static char *camera_fixup_getparams(int __attribute__((unused)) id,
                  videoSizes);
      }
  
@@ -194,7 +191,7 @@ index ee67107..df29f85 100644
          params.set(CameraParameters::KEY_VIDEO_SNAPSHOT_SUPPORTED, "true");
      }
  
-@@ -184,7 +296,7 @@ static char *camera_fixup_getparams(int __attribute__((unused)) id,
+@@ -184,7 +295,7 @@ static char *camera_fixup_getparams(int __attribute__((unused)) id,
      return ret;
  }
  
@@ -203,7 +200,7 @@ index ee67107..df29f85 100644
  {
      CameraParameters params;
      params.unflatten(String8(settings));
-@@ -225,7 +337,37 @@ static char *camera_fixup_setparams(int id, const char *settings)
+@@ -225,7 +336,37 @@ static char *camera_fixup_setparams(int id, const char *settings)
              /* need to translate video-hdr to rt-hdr */
              const char *vhdr = params.get(KEY_QC_VIDEO_HDR);
              params.set(KEY_QC_RT_HDR, vhdr && !strcmp(vhdr, "on") ? ON : OFF);
@@ -241,10 +238,11 @@ index ee67107..df29f85 100644
      }
  
      ALOGV("%s: Fixed parameters:", __FUNCTION__);
-@@ -344,6 +486,20 @@ static int camera_start_preview(struct camera_device *device)
+@@ -344,6 +485,21 @@ static int camera_start_preview(struct camera_device *device)
      ALOGV("%s->%08X->%08X", __FUNCTION__, (uintptr_t)device,
              (uintptr_t)(((wrapper_camera_device_t*)device)->vendor));
  
++    // set torch on
 +    int id = CAMERA_ID(device);
 +    if ((id == BACK_CAMERA_ID) && fixed_set_params[id]) {
 +        CameraParameters params;
@@ -534,39 +532,6 @@ index 6487b08..5f55f7f 100644
  
      <VideoEncoderCap name="m4v" enabled="true"
          minBitRate="64000" maxBitRate="40000000"
-diff --git a/overlay/packages/apps/Snap/res/values/arrays.xml b/overlay/packages/apps/Snap/res/values/arrays.xml
-new file mode 100644
-index 0000000..b54579a
---- /dev/null
-+++ b/overlay/packages/apps/Snap/res/values/arrays.xml
-@@ -0,0 +1,27 @@
-+<?xml version="1.0" encoding="utf-8"?>
-+<!--  Copyright (c) 2018 The LineageOS Project
-+
-+ This program is free software; you can redistribute it and/or
-+ modify it under the terms of the GNU General Public License
-+ as published by the Free Software Foundation; either version 2
-+ of the License, or (at your option) any later version.
-+
-+ This program is distributed in the hope that it will be useful,
-+ but WITHOUT ANY WARRANTY; without even the implied warranty of
-+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-+ GNU General Public License for more details.
-+
-+ You should have received a copy of the GNU General Public License
-+ along with this program; if not, write to the Free Software
-+ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
-+ Also add information on how to contact you by electronic and paper mail.
-+
-+-->
-+<resources>
-+    <string-array name="pref_camera_flashmode_entryvalues" translatable="false">
-+        <item>off</item>
-+        <item>auto</item>
-+        <item>torch</item>
-+        <item>red-eye</item>
-+    </string-array>
-+</resources>
 diff --git a/overlay/packages/apps/Snap/res/values/config.xml b/overlay/packages/apps/Snap/res/values/config.xml
 index d64ff4f..ff52e6a 100644
 --- a/overlay/packages/apps/Snap/res/values/config.xml
