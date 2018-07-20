@@ -741,12 +741,12 @@ kpick 211273 # qcom/sepol: Fix timeservice app context
 # device/samsung/klte-common
 #kpick 212648 # klte-common: Enable AOD
 kpick 220435 # Add HFR/HSR support
+kpick 220856 # klte-common: Update call recording overlay.
 
 # device/samsung/kltechnduo
 
 # device/samsung/msm8974-common
 kpick 210313 # msm8974-common: Binderize them all
-kpick 220521 # Localise NTP to improve GPS TTFF for non-North American users.
 
 # kernel/samsung/msm8974
 kpick 210665 # wacom: Follow-up from gestures patch
@@ -876,6 +876,8 @@ kpick 213868 # lineage/interfaces: vibrator: implement vendor.lineage methods
 kpick 219211 # livedisplay: Move HIDL service to late_start
 kpick 219624 # lineage/interfaces: vibrator: make define usage uniform
 kpick 219885 # livedisplay: Add a system variant
+kpick 220840 # livedisplay: Enable cabl via mm-pp-daemon.
+kpick 220841 # livedisplay: Query active state via native call.
 
 # hardware/lineage/lineagehw
 
@@ -891,6 +893,7 @@ kpick 220418 # Add split implementation for using QcRilHook
 kpick 209093 # msm8974: hwc: Set ioprio for vsync thread
 
 # hardware/qcom/display-caf/msm8974
+kpick 220858 # libgralloc: Fix adding offset to the mapped base address
 
 # hardware/qcom/gps
 
@@ -911,7 +914,7 @@ kpick 218360 # thermal: use log/log.h header
 
 # hardware/samsung
 kpick 218823 # audio: Add flag to opt in/out amplifier support
-kpick 218862 # audio: improve log message to support for devices that dont have an amp
+kpick 220853 # dtbhtool: Add new DTBH_MODEL entry
 
 # lineage/charter
 kpick 213574 # charter: Add some new USB rules
@@ -1136,7 +1139,6 @@ kpick 218817 # kernel: Do not attempt to build modules if there aren't
 kpick 218832 # lineage: Add prebuilt patchelf binaries and patch_blob function
 kpick 219388 # config: Add more GMS client base ID props
 kpick 219389 # lineage: Always disable google SystemUpdateService
-kpick 219936 # kernel: Allow installing modules on system
 kpick 220398 # extract_utils: Skip unneeded md5sum	
 kpick 220399 # extract_utils: Extract files from brotli compressed images
 
