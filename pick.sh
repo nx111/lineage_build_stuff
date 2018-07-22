@@ -887,15 +887,23 @@ kpick 220418 # Add split implementation for using QcRilHook
 
 # hardware/qcom/audio-caf/msm8974
 
+# hardware/qcom/bootctrl
+
+# hardware/qcom/bt
+kpick 220887 # bt: use TARGET_BOARD_AUTO to override qcom hals
+
 # hardware/qcom/bt-caf
 
 # hardware/qcom/display
 kpick 209093 # msm8974: hwc: Set ioprio for vsync thread
+kpick 220883 # hwc2: Do not treat color mode errors as fatal at init
+kpick 220885 # color_manager: Update display color api libname
 
 # hardware/qcom/display-caf/msm8974
 kpick 220858 # libgralloc: Fix adding offset to the mapped base address
 
 # hardware/qcom/gps
+kpick 220877 # gps: use TARGET_BOARD_AUTO to override qcom hals
 
 # hardware/qcom/media
 
@@ -939,7 +947,6 @@ kpick 219543 # wiki: add workaround for booting into TWRP recovery
 kpick 213367 # NetworkTraffic: Include tethering traffic statistics
 kpick 214854 # [3/3] lineagesdk: single hand for hw keys
 kpick 216978 # sdk: add torch accent
-kpick 217419 # Add vendor security patch level to device info
 #kpick 218679 # lineage-sdk: Use ILight.getSupportedTypes for lights capabilities
 kpick 220396 # sdk: Add default setting for clock position
 kpick 220405 # sdk: Add an overlay to specify notch presence
@@ -1026,7 +1033,6 @@ kpick 216687 # settings: wifi: Default to numeric keyboard for static IP items
 kpick 216822 # Settings: Allow setting device phone number
 kpick 216871 # Utils: Always show SIM Settings menu
 kpick 216909 # Settings: Apply accent color to on-body detection icon
-kpick 217420 # Add vendor security patch level to device info
 kpick 218165 # Add an option to change the device hostname (1/2).
 kpick 218438 # Settings: Add lockscreen shortcuts customization to lockscreen settings
 kpick 218775 # Settings: Cleanup SimSettings additions
@@ -1094,6 +1100,7 @@ kpick 217313 # add odm partition to ld.config.legacy
 kpick 217314 # Allow firmware loading from ODM partition
 kpick 218837 # libsuspend: Add property support for timeout of autosuspend
 kpick 219304 # init: Allow devices to opt-out of fsck'ing on power off
+kpick 220878 # bsdgrep: for -r, use the working directory if none specified
 
 # system/extras
 kpick 211210 # ext4: Add /data/stache/ to encryption exclusion list
@@ -1151,7 +1158,12 @@ kpick 220399 # extract_utils: Extract files from brotli compressed images
 
 #-----------------------
 # translations
-repopick 220408-220413
+kpick 220408
+kpick 220409
+kpick 220410
+kpick 220411
+kpick 220412
+kpick 220413
 
 ##################################
 echo

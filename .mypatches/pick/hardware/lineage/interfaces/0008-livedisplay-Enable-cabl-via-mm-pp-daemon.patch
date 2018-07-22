@@ -1,0 +1,173 @@
+From fdc9cc15d1a1e2ffe95bf167dbe7c79ff6a675ee Mon Sep 17 00:00:00 2001
+From: Quallenauge <Hamsi2k@freenet.de>
+Date: Wed, 18 Jul 2018 01:55:01 -0100
+Subject: [PATCH 8/9] livedisplay: Enable cabl via mm-pp-daemon.
+
+Similar to the SDM implementation, for cabl exists
+a control property ( ro.qualcomm.cabl ) which enables
+or disables the cabl state in general.
+The value is vendor specific and is off in case
+it is set to 0.
+
+The runtime activation state can be done via socket
+communication with the mm-pp-daemon. Despite the SDM
+implementation, here the library function
+disp_api_active_feature_control()
+is used to enable/disable the CABL state.
+
+Note: There's weird issues when enabling the CABL
+state for the first time from this library call.
+It stucks after sending the enable command; the daemon
+doesn't accepts further commands.
+To work around this, the daemon has to be started
+with at least the --enable-aba-cabl option
+which let the daemon performs some initializations.
+
+Change-Id: I081a4da4268835acc15c2bc6c4bbf890c192f99b
+---
+ .../default/controller/LegacyMMController.cpp |  5 ++++
+ livedisplay/1.0/default/impl/LegacyMM.cpp     | 23 +++++++++++++++++++
+ .../include/controller/LegacyMMController.h   |  3 +++
+ .../1.0/default/include/impl/LegacyMM.h       | 11 ++++-----
+ 4 files changed, 35 insertions(+), 7 deletions(-)
+
+diff --git a/livedisplay/1.0/default/controller/LegacyMMController.cpp b/livedisplay/1.0/default/controller/LegacyMMController.cpp
+index 403692b..0515062 100644
+--- a/livedisplay/1.0/default/controller/LegacyMMController.cpp
++++ b/livedisplay/1.0/default/controller/LegacyMMController.cpp
+@@ -43,6 +43,7 @@
+     MACRO(get_pa_range)             \
+     MACRO(get_pa_config)            \
+     MACRO(set_pa_config)            \
++    MACRO(active_feature_control)   \
+     MACRO(supported)
+ 
+ #define CONTROLLER_CHECK(function, ...)    \
+@@ -148,6 +149,10 @@ int32_t LegacyMMController::set_pa_config(int32_t disp_id, void* cfg) {
+     CONTROLLER_CHECK(set_pa_config, disp_id, cfg);
+ }
+ 
++int32_t LegacyMMController::active_feature_control(int32_t disp_id, uint32_t feature_id, int32_t req_id) {
++    CONTROLLER_CHECK(active_feature_control, disp_id, feature_id, req_id);
++}
++
+ int32_t LegacyMMController::supported(int32_t disp_id, uint32_t feature_id) {
+     CONTROLLER_CHECK(supported, disp_id, feature_id);
+ }
+diff --git a/livedisplay/1.0/default/impl/LegacyMM.cpp b/livedisplay/1.0/default/impl/LegacyMM.cpp
+index ce613a8..3765c86 100644
+--- a/livedisplay/1.0/default/impl/LegacyMM.cpp
++++ b/livedisplay/1.0/default/impl/LegacyMM.cpp
+@@ -25,8 +25,11 @@
+ #include "Utils.h"
+ 
+ #include <android-base/logging.h>
++#include <android-base/properties.h>
+ 
+ namespace {
++constexpr char kCablProperty[] = "ro.qualcomm.cabl";
++
+ struct mm_pa_data {
+     int hue;
+     int saturation;
+@@ -97,6 +100,8 @@ LegacyMM::LegacyMM() {
+             setDisplayMode(mode->id, false);
+         }
+     }
++
++    mCABLEnabled  = android::base::GetIntProperty(kCablProperty, 0) > 0;
+ }
+ 
+ LegacyMM::~LegacyMM() {
+@@ -295,6 +300,8 @@ bool LegacyMM::hasFeature(Feature feature) {
+         case Feature::PICTURE_ADJUSTMENT:
+             id = 4;
+             break;
++        case Feature::ADAPTIVE_BACKLIGHT:
++            return mCABLEnabled;
+         default:
+             return false;
+     }
+@@ -346,6 +353,22 @@ sp<disp_mode> LegacyMM::getDisplayModeById(int32_t id) {
+     return nullptr;
+ }
+ 
++status_t LegacyMM::setAdaptiveBacklightEnabled(bool enabled) {
++    status_t rc = NO_INIT;
++    if (enabled == mCachedCABLStatus) {
++        return OK;
++    }
++    if (!mController->active_feature_control(0, 0, !enabled)){
++        rc = OK;
++        mCachedCABLStatus = enabled;
++    }
++    return rc;
++}
++
++bool LegacyMM::isAdaptiveBacklightEnabled() {
++    return mCachedCABLStatus;
++}
++
+ }  // namespace implementation
+ }  // namespace V1_0
+ }  // namespace livedisplay
+diff --git a/livedisplay/1.0/default/include/controller/LegacyMMController.h b/livedisplay/1.0/default/include/controller/LegacyMMController.h
+index 8265001..4185892 100644
+--- a/livedisplay/1.0/default/include/controller/LegacyMMController.h
++++ b/livedisplay/1.0/default/include/controller/LegacyMMController.h
+@@ -44,6 +44,7 @@ class LegacyMMController {
+     int32_t get_pa_range(int32_t disp_id, void* range);
+     int32_t get_pa_config(int32_t disp_id, void* cfg);
+     int32_t set_pa_config(int32_t disp_id, void* cfg);
++    int32_t active_feature_control(int32_t disp_id, uint32_t feature_id, int32_t req_id);
+     int32_t supported(int32_t disp_id, uint32_t feature_id);
+ 
+   private:
+@@ -60,6 +61,7 @@ class LegacyMMController {
+     typedef int32_t (*disp_api_get_pa_range)(int32_t, void*);
+     typedef int32_t (*disp_api_get_pa_config)(int32_t, void*);
+     typedef int32_t (*disp_api_set_pa_config)(int32_t, void*);
++    typedef int32_t (*disp_api_active_feature_control)(int32_t disp_id, uint32_t feature_id, int32_t req_id);
+     typedef int32_t (*disp_api_supported)(int32_t, uint32_t);
+ 
+     std::shared_ptr<void> mHandle;
+@@ -77,6 +79,7 @@ class LegacyMMController {
+     disp_api_get_pa_range mFn_get_pa_range;
+     disp_api_get_pa_config mFn_get_pa_config;
+     disp_api_set_pa_config mFn_set_pa_config;
++    disp_api_active_feature_control mFn_active_feature_control;
+     disp_api_supported mFn_supported;
+ };
+ 
+diff --git a/livedisplay/1.0/default/include/impl/LegacyMM.h b/livedisplay/1.0/default/include/impl/LegacyMM.h
+index f7bcc41..a53d060 100644
+--- a/livedisplay/1.0/default/include/impl/LegacyMM.h
++++ b/livedisplay/1.0/default/include/impl/LegacyMM.h
+@@ -32,13 +32,8 @@ class LegacyMM : public ColorBackend {
+     LegacyMM();
+     ~LegacyMM();
+ 
+-    virtual android::status_t setAdaptiveBacklightEnabled(bool /* enabled */) override {
+-        return android::NO_INIT;
+-    }
+-
+-    virtual bool isAdaptiveBacklightEnabled() override {
+-        return false;
+-    }
++    virtual android::status_t setAdaptiveBacklightEnabled(bool enabled) override;
++    virtual bool isAdaptiveBacklightEnabled() override;
+ 
+     virtual android::status_t setOutdoorModeEnabled(bool /* enabled */) override {
+         return android::NO_INIT;
+@@ -65,6 +60,8 @@ class LegacyMM : public ColorBackend {
+     virtual bool hasFeature(Feature feature) override;
+ 
+   private:
++    bool mCABLEnabled;
++    bool mCachedCABLStatus;
+     uint32_t getNumDisplayModes();
+     android::sp<disp_mode> getDisplayModeById(int32_t id);
+ 
+-- 
+2.17.1
+

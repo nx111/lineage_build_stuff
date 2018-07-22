@@ -1,40 +1,49 @@
-From 08d367de677a8b977305cfc325d8661a5faba49c Mon Sep 17 00:00:00 2001
+From 9fe3aafd26158a4fad117cc9177813e343b48984 Mon Sep 17 00:00:00 2001
 From: Luca Stefani <luca.stefani.ge1@gmail.com>
 Date: Sun, 15 Jul 2018 17:09:54 +0200
 Subject: [PATCH 30/35] SystemUI: Add tunables for clock position
 
 Change-Id: Icdc039d13fd2676c1eb979a81fb77f9a6ec59b4a
 ---
- packages/SystemUI/res/layout/status_bar.xml   | 29 +++++++
- .../statusbar/phone/ClockController.java      | 82 +++++++++++++++++++
- .../phone/CollapsedStatusBarFragment.java     |  6 ++
- .../phone/PhoneStatusBarTransitions.java      | 11 ++-
- .../systemui/statusbar/policy/Clock.java      |  8 +-
- 5 files changed, 127 insertions(+), 9 deletions(-)
+ packages/SystemUI/res/layout/status_bar.xml   |  38 +++++++
+ .../statusbar/phone/ClockController.java      | 102 ++++++++++++++++++
+ .../phone/CollapsedStatusBarFragment.java     |   6 ++
+ .../phone/PhoneStatusBarTransitions.java      |  11 +-
+ .../systemui/statusbar/policy/Clock.java      |   8 +-
+ 5 files changed, 156 insertions(+), 9 deletions(-)
  create mode 100644 packages/SystemUI/src/com/android/systemui/statusbar/phone/ClockController.java
 
 diff --git a/packages/SystemUI/res/layout/status_bar.xml b/packages/SystemUI/res/layout/status_bar.xml
-index b99f517c6cf..9e73342698a 100644
+index b99f517c6cf..9a8a7d72f29 100644
 --- a/packages/SystemUI/res/layout/status_bar.xml
 +++ b/packages/SystemUI/res/layout/status_bar.xml
-@@ -49,6 +49,16 @@
+@@ -49,6 +49,25 @@
          android:orientation="horizontal"
          >
  
-+        <com.android.systemui.statusbar.policy.Clock
-+            android:id="@+id/clock_left"
-+            android:textAppearance="@style/TextAppearance.StatusBar.Clock"
++        <com.android.keyguard.AlphaOptimizedLinearLayout
++            android:id="@+id/left_clock_layout"
 +            android:layout_width="wrap_content"
-+            android:layout_height="fill_parent"
-+            android:singleLine="true"
-+            android:paddingEnd="6dip"
-+            android:gravity="center"
-+            android:visibility="gone" />
++            android:layout_height="match_parent"
++            android:orientation="horizontal"
++            >
++
++            <com.android.systemui.statusbar.policy.Clock
++                android:id="@+id/clock_left"
++                android:textAppearance="@style/TextAppearance.StatusBar.Clock"
++                android:layout_width="wrap_content"
++                android:layout_height="fill_parent"
++                android:singleLine="true"
++                android:paddingEnd="6dip"
++                android:gravity="center"
++                android:visibility="gone"
++                />
++        </com.android.keyguard.AlphaOptimizedLinearLayout>
 +
          <!-- The alpha of this area is controlled from both PhoneStatusBarTransitions and
               PhoneStatusBar (DISABLE_NOTIFICATION_ICONS). -->
          <com.android.systemui.statusbar.AlphaOptimizedFrameLayout
-@@ -94,6 +104,25 @@
+@@ -94,6 +113,25 @@
          </com.android.keyguard.AlphaOptimizedLinearLayout>
      </LinearLayout>
  
@@ -62,10 +71,26 @@ index b99f517c6cf..9e73342698a 100644
          android:layout_width="wrap_content"
 diff --git a/packages/SystemUI/src/com/android/systemui/statusbar/phone/ClockController.java b/packages/SystemUI/src/com/android/systemui/statusbar/phone/ClockController.java
 new file mode 100644
-index 00000000000..e36a3d4596c
+index 00000000000..76fe68f2d9b
 --- /dev/null
 +++ b/packages/SystemUI/src/com/android/systemui/statusbar/phone/ClockController.java
-@@ -0,0 +1,82 @@
+@@ -0,0 +1,102 @@
++/*
++ * Copyright (C) 2018 The LineageOS Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
 +package com.android.systemui.statusbar.phone;
 +
 +import android.util.Log;
@@ -84,13 +109,14 @@ index 00000000000..e36a3d4596c
 +
 +    private static final String TAG = "ClockController";
 +
-+    public static final int CLOCK_POSITION_RIGHT = 0;
-+    public static final int CLOCK_POSITION_CENTER = 1;
-+    public static final int CLOCK_POSITION_LEFT = 2;
++    private static final int CLOCK_POSITION_RIGHT = 0;
++    private static final int CLOCK_POSITION_CENTER = 1;
++    private static final int CLOCK_POSITION_LEFT = 2;
 +
-+    public static final String CLOCK_POSITION = "lineagesystem:status_bar_clock";
++    private static final String CLOCK_POSITION = "lineagesystem:status_bar_clock";
 +
 +    private Clock mRightClock, mCenterClock, mLeftClock, mActiveClock;
++    private View mCenterClockLayout, mLeftClockLayout;
 +
 +    private int mClockPosition = CLOCK_POSITION_RIGHT;
 +    private boolean mBlackListed = false;
@@ -99,6 +125,8 @@ index 00000000000..e36a3d4596c
 +        mRightClock = statusBar.findViewById(R.id.clock);
 +        mCenterClock = statusBar.findViewById(R.id.clock_center);
 +        mLeftClock = statusBar.findViewById(R.id.clock_left);
++        mCenterClockLayout = statusBar.findViewById(R.id.center_clock_layout);
++        mLeftClockLayout = statusBar.findViewById(R.id.left_clock_layout);
 +
 +        mActiveClock = mRightClock;
 +
@@ -145,7 +173,8 @@ index 00000000000..e36a3d4596c
 +    }
 +
 +    public View getClock() {
-+        return mActiveClock;
++        // We default to center, but it has no effect as long the clock itself is invisible
++        return mClockPosition == CLOCK_POSITION_LEFT ? mLeftClockLayout : mCenterClockLayout;
 +    }
 +}
 diff --git a/packages/SystemUI/src/com/android/systemui/statusbar/phone/CollapsedStatusBarFragment.java b/packages/SystemUI/src/com/android/systemui/statusbar/phone/CollapsedStatusBarFragment.java
