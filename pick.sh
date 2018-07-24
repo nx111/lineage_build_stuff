@@ -678,7 +678,6 @@ if [ $op_base_pick -eq 1 ]; then
    repo sync 
    apply_force_changes
 
-   kpick 212920 # libc: Mark libstdc++ as vendor available
    kpick 209019 # toybox: Use ISO C/clang compatible __typeof__ in minof/maxof macros
 
    echo 
@@ -699,7 +698,6 @@ repo sync packages/apps/Exchange
 repo sync hardware/lineage/telephony
 
 # bionic
-kpick 212920 # libc: Mark libstdc++ as vendor available
 kpick 217311 # linker: add support for odm partition
 kpick 217312 # libc: add /odm/bin to the DEFPATH
 
@@ -741,7 +739,6 @@ kpick 211273 # qcom/sepol: Fix timeservice app context
 # device/samsung/klte-common
 #kpick 212648 # klte-common: Enable AOD
 kpick 220435 # Add HFR/HSR support
-kpick 220856 # klte-common: Update call recording overlay.
 
 # device/samsung/kltechnduo
 
@@ -819,6 +816,7 @@ kpick 206568 # base: audioservice: Set BT_SCO status
 kpick 207583 # BatteryService: Add support for oem fast charger detection
 kpick 209031 # TelephonyManager: Prevent NPE when registering phone state listener
 kpick 206940 # Avoid crash when the actionbar is disabled in settings
+#kpick 209582 # [1/2] base: battery styles
 kpick 210106 # camera: Check if aux camera whitelist is set before restricting cameras
 kpick 214262 # Bind app name to menu row when notification updated
 kpick 214263 # Fix intercepting touch events for guts
@@ -835,10 +833,11 @@ kpick 218430 # SystemUI: Require unlock to toggle airplane mode
 kpick 218431 # SystemUI: Require unlock to toggle location
 kpick 218437 # SystemUI: Add activity alias for LockscreenFragment
 kpick 218819 # SystemUI: Fix Data Usage tile to match Settings
-kpick 219300 # SystemUI: tuner: Remove battery preference
+#kpick 219300 # SystemUI: tuner: Remove battery preference
 kpick 219888 # Proper supplementary service notification handling (1/5).
 kpick 219930 # Telephony: Stop using rssnr, it falsly shows wrong signal bars Pixel and other devices drop this
 kpick 220394 # SystemUI: Add tunables for clock position
+kpick 220540 # SystemUI: Add tunables for clock AM/PM style
 kpick 220541 # Tuner: Move clock seconds option to status bar settings
 kpick 220542 # fw/b lights: Allow black notification color
 
@@ -1019,6 +1018,7 @@ kpick 220539 # LineageParts: Move clock seconds option to status bar settings
 kpick 220584 # StatusBarSettings: Hide clock preference category based on icon visibility
 kpick 220406 # LineageParts: Remove center clock position for devices with notch
 kpick 220422 # LineageParts: Bring back and refactor battery icon options
+kpick 221359 # Remove actionbar calls
 
 # packages/apps/lockClock
 kpick 208127 # Update LockClock to use Job APIs 
@@ -1028,6 +1028,7 @@ kpick 208127 # Update LockClock to use Job APIs
 # packages/apps/Recoder
 
 # packages/apps/Settings
+#kpick 209583 # [2/2] Settings: battery styles
 kpick 215672 # SimSettings: Fix dialog in dark mode
 kpick 216687 # settings: wifi: Default to numeric keyboard for static IP items
 kpick 216822 # Settings: Allow setting device phone number
@@ -1036,7 +1037,7 @@ kpick 216909 # Settings: Apply accent color to on-body detection icon
 kpick 218165 # Add an option to change the device hostname (1/2).
 kpick 218438 # Settings: Add lockscreen shortcuts customization to lockscreen settings
 kpick 218775 # Settings: Cleanup SimSettings additions
-kpick 219299 # Settings: Remove battery percentage switch
+#kpick 219299 # Settings: Remove battery percentage switch
 
 # packages/apps/SetupWizard
 kpick 217580 # Add original-package to AndroidManifest
@@ -1100,7 +1101,6 @@ kpick 217313 # add odm partition to ld.config.legacy
 kpick 217314 # Allow firmware loading from ODM partition
 kpick 218837 # libsuspend: Add property support for timeout of autosuspend
 kpick 219304 # init: Allow devices to opt-out of fsck'ing on power off
-kpick 220878 # bsdgrep: for -r, use the working directory if none specified
 
 # system/extras
 kpick 211210 # ext4: Add /data/stache/ to encryption exclusion list
@@ -1158,12 +1158,6 @@ kpick 220399 # extract_utils: Extract files from brotli compressed images
 
 #-----------------------
 # translations
-kpick 220408
-kpick 220409
-kpick 220410
-kpick 220411
-kpick 220412
-kpick 220413
 
 ##################################
 echo

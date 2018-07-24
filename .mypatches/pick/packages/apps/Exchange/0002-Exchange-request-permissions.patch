@@ -1,17 +1,23 @@
-From 9a1bf93818a852a76f9af3bab6edd6e298233683 Mon Sep 17 00:00:00 2001
+From 8a6143660b4c2e7b7015185bd10a94fc71666401 Mon Sep 17 00:00:00 2001
 From: monojp <martin@herndl.org>
 Date: Fri, 6 Apr 2018 23:49:31 +0200
-Subject: [PATCH 2/3] Exchange: request permissions
+Subject: [PATCH 2/2] Exchange: request permissions
 
 Change-Id: I3fe87cc75d5152aa847b539cec7d5f60f7c5ed44
 ---
  Android.mk                                    |  3 +-
  AndroidManifest.xml                           |  2 +
- .../exchange/PermissionRequestActivity.java   | 65 +++++++++++++++++++
- src/com/android/exchange/eas/EasSyncBase.java |  2 +-
- .../android/exchange/eas/EasSyncCalendar.java | 16 +++++
- .../android/exchange/eas/EasSyncContacts.java | 18 ++++-
- 6 files changed, 103 insertions(+), 3 deletions(-)
+ .../exchange/PermissionRequestActivity.java   | 91 +++++++++++++++++++
+ .../android/exchange/eas/EasOperation.java    |  9 ++
+ src/com/android/exchange/eas/EasSyncBase.java |  8 ++
+ .../android/exchange/eas/EasSyncCalendar.java | 11 +++
+ .../eas/EasSyncCollectionTypeBase.java        | 14 +++
+ .../android/exchange/eas/EasSyncContacts.java | 11 +++
+ .../service/AbstractSyncAdapterService.java   | 30 ++++++
+ .../service/CalendarSyncAdapterService.java   |  9 ++
+ .../service/ContactsSyncAdapterService.java   |  9 ++
+ .../android/exchange/service/EasService.java  |  3 +
+ 12 files changed, 199 insertions(+), 1 deletion(-)
  create mode 100644 src/com/android/exchange/PermissionRequestActivity.java
 
 diff --git a/Android.mk b/Android.mk
@@ -50,10 +56,10 @@ index e5868f0a..ba2947dc 100644
                  <action android:name="android.intent.action.MANAGE_NETWORK_USAGE" />
 diff --git a/src/com/android/exchange/PermissionRequestActivity.java b/src/com/android/exchange/PermissionRequestActivity.java
 new file mode 100644
-index 00000000..a66dd27a
+index 00000000..a6eb67a6
 --- /dev/null
 +++ b/src/com/android/exchange/PermissionRequestActivity.java
-@@ -0,0 +1,65 @@
+@@ -0,0 +1,91 @@
 +/*
 + * Copyright (C) 2018 The LineageOS Project
 + *
@@ -72,9 +78,13 @@ index 00000000..a66dd27a
 +package com.android.exchange;
 +
 +import android.app.Activity;
++import android.content.Context;
 +import android.content.Intent;
 +import android.content.pm.PackageManager;
 +import android.os.Bundle;
++import android.os.Message;
++import android.os.Messenger;
++import android.os.RemoteException;
 +import android.support.v4.app.ActivityCompat;
 +import android.util.Log;
 +
@@ -82,21 +92,47 @@ index 00000000..a66dd27a
 +        implements ActivityCompat.OnRequestPermissionsResultCallback {
 +    private static final String TAG = Eas.LOG_TAG;
 +
++    public static Intent createIntent(Context context, String[] permissions, Messenger messenger) {
++        return new Intent(context, PermissionRequestActivity.class)
++            .putExtra("permissions", permissions)
++            .putExtra("messenger", messenger);
++    }
++
++    private Messenger mMessenger;
++
 +    @Override
 +    protected void onCreate(Bundle savedInstanceState) {
 +        super.onCreate(savedInstanceState);
++
 +        Intent intent = getIntent();
 +        String[] permissions = intent.getStringArrayExtra("permissions");
 +        if (permissions == null) {
 +            Log.e(TAG, "No permission StringArray found in intent for PermissionRequestActivity");
-+        } else {
-+            int requestCode = intent.getIntExtra("requestCode", 0);
-+            if (!permissionsGranted(permissions)) {
-+                requestPermissions(permissions, requestCode);
-+            }
++            finish();
++            return;
 +        }
 +
-+        finish();
++        mMessenger = intent.getParcelableExtra("messenger");
++        if (permissionsGranted(permissions)) {
++            int[] results = new int[permissions.length];
++            for (int i = 0; i < results.length; i++) {
++                results[i] = PackageManager.PERMISSION_GRANTED;
++            }
++            sendResults(results);
++            finish();
++        } else {
++            requestPermissions(permissions, 0);
++        }
++    }
++
++    private void sendResults(int[] results) {
++        Message msg = Message.obtain();
++        msg.obj = results;
++        try {
++            mMessenger.send(msg);
++        } catch (RemoteException e) {
++            // ignored
++        }
 +    }
 +
 +    private boolean permissionsGranted(String[] permissions) {
@@ -110,90 +146,138 @@ index 00000000..a66dd27a
 +
 +    @Override
 +    public void onRequestPermissionsResult(int requestCode,
-+                                           String permissions[], int[] grantResults) {
-+        for (int i = 0; i < permissions.length; i++) {
-+            if (grantResults[i] != PackageManager.PERMISSION_GRANTED) {
-+                Log.i(TAG, "Permission " + permissions[i] + " was not granted, request code was "
-+                        + requestCode);
-+            }
-+        }
++            String permissions[], int[] grantResults) {
++        sendResults(grantResults);
++        finish();
 +    }
 +}
+diff --git a/src/com/android/exchange/eas/EasOperation.java b/src/com/android/exchange/eas/EasOperation.java
+index c6330506..c15aad48 100644
+--- a/src/com/android/exchange/eas/EasOperation.java
++++ b/src/com/android/exchange/eas/EasOperation.java
+@@ -143,6 +143,8 @@ public abstract class EasOperation {
+     /** Error code indicating that this operation failed, but we should not abort the sync */
+     /** TODO: This is currently only used in EasOutboxSync, no other place handles it correctly */
+     public static final int RESULT_NON_FATAL_ERROR = -12;
++    /** Error code indicating we lack required permissions */
++    public static final int RESULT_NO_PERMISSIONS = -13;
+     /** Error code indicating some other failure. */
+     public static final int RESULT_OTHER_FAILURE = -99;
+     /** Constant to delimit where op specific error codes begin. */
+@@ -204,6 +206,10 @@ public abstract class EasOperation {
+         return true;
+     }
+ 
++    public boolean hasRequiredPermissions() {
++        return true;
++    }
++
+     public final long getAccountId() {
+         return mAccount.getId();
+     }
+@@ -260,6 +266,9 @@ public abstract class EasOperation {
+                     getAccountId(), getCommand());
+             return RESULT_INITIALIZATION_FAILURE;
+         }
++        if (!hasRequiredPermissions()) {
++            return RESULT_NO_PERMISSIONS;
++        }
+         try {
+             return performOperationInternal();
+         } finally {
 diff --git a/src/com/android/exchange/eas/EasSyncBase.java b/src/com/android/exchange/eas/EasSyncBase.java
-index 8e77e26d..e3090d63 100644
+index 8e77e26d..65bbde76 100644
 --- a/src/com/android/exchange/eas/EasSyncBase.java
 +++ b/src/com/android/exchange/eas/EasSyncBase.java
-@@ -167,7 +167,7 @@ public class EasSyncBase extends EasOperation {
-                 return new EasSyncCalendar(mContext, mAccount, mMailbox);
-             }
-             case Mailbox.TYPE_CONTACTS:
--                return new EasSyncContacts(mAccount.mEmailAddress);
-+                return new EasSyncContacts(mContext, mAccount.mEmailAddress);
-             default:
-                 LogUtils.e(LOG_TAG, "unexpected collectiontype %d", type);
-                 return null;
+@@ -76,6 +76,14 @@ public class EasSyncBase extends EasOperation {
+         return true;
+     }
+ 
++    @Override
++    public boolean hasRequiredPermissions() {
++        if (mCollectionTypeHandler != null && !mCollectionTypeHandler.hasRequiredPermissions(mContext)) {
++            return false;
++        }
++        return super.hasRequiredPermissions();
++    }
++
+     @Override
+     protected HttpEntity getRequestEntity() throws IOException {
+         final String className = Eas.getFolderClass(mMailbox.mType);
 diff --git a/src/com/android/exchange/eas/EasSyncCalendar.java b/src/com/android/exchange/eas/EasSyncCalendar.java
-index 418d5912..abd769e0 100644
+index 418d5912..d0f42e70 100644
 --- a/src/com/android/exchange/eas/EasSyncCalendar.java
 +++ b/src/com/android/exchange/eas/EasSyncCalendar.java
-@@ -1,11 +1,13 @@
+@@ -1,5 +1,6 @@
  package com.android.exchange.eas;
  
 +import android.Manifest;
  import android.content.ContentResolver;
  import android.content.ContentUris;
  import android.content.ContentValues;
- import android.content.Context;
- import android.content.Entity;
- import android.content.EntityIterator;
-+import android.content.Intent;
- import android.database.Cursor;
- import android.database.DatabaseUtils;
- import android.net.Uri;
-@@ -29,6 +31,7 @@ import com.android.emailcommon.provider.EmailContent.Message;
- import com.android.emailcommon.provider.Mailbox;
- import com.android.emailcommon.utility.Utility;
- import com.android.exchange.Eas;
-+import com.android.exchange.PermissionRequestActivity;
- import com.android.exchange.R;
- import com.android.exchange.adapter.AbstractSyncParser;
- import com.android.exchange.adapter.CalendarSyncParser;
-@@ -52,6 +55,8 @@ import java.util.UUID;
- public class EasSyncCalendar extends EasSyncCollectionTypeBase {
-     private static final String TAG = Eas.LOG_TAG;
- 
-+    private static final int PERMISSION_REQUEST_CODE = 1;
-+
+@@ -55,6 +56,11 @@ public class EasSyncCalendar extends EasSyncCollectionTypeBase {
      // TODO: Some constants are copied from CalendarSyncAdapter and are still used by the parser.
      // These values need to stay in sync; when the parser is cleaned up, be sure to unify them.
  
-@@ -128,6 +133,7 @@ public class EasSyncCalendar extends EasSyncCollectionTypeBase {
-     public EasSyncCalendar(final Context context, final Account account,
-             final Mailbox mailbox) {
-         super();
-+        requestPermissions(context);
-         mAndroidAccount = new android.accounts.Account(account.mEmailAddress,
-             Eas.EXCHANGE_ACCOUNT_MANAGER_TYPE);
-         final ContentResolver cr = context.getContentResolver();
-@@ -187,6 +193,16 @@ public class EasSyncCalendar extends EasSyncCollectionTypeBase {
++    private static final String[] NEEDED_PERMISSIONS = {
++        Manifest.permission.READ_CALENDAR,
++        Manifest.permission.WRITE_CALENDAR
++    };
++
+     private static final int PIM_WINDOW_SIZE_CALENDAR = 10;
+ 
+     /** Projection for getting a calendar id. */
+@@ -187,6 +193,11 @@ public class EasSyncCalendar extends EasSyncCollectionTypeBase {
          }
      }
  
-+    private void requestPermissions(Context context) {
-+        Intent permissionIntent = new Intent(context, PermissionRequestActivity.class);
-+        permissionIntent.putExtra("permissions", new String[]{Manifest.permission.READ_CALENDAR,
-+                Manifest.permission.WRITE_CALENDAR});
-+        permissionIntent.putExtra("requestCode", PERMISSION_REQUEST_CODE);
-+        permissionIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK
-+                | Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS);
-+        context.startActivity(permissionIntent);
++    @Override
++    public boolean hasRequiredPermissions(final Context context) {
++        return hasPermissions(context, NEEDED_PERMISSIONS);
 +    }
 +
      @Override
      public void setSyncOptions(final Context context, final Serializer s,
          final double protocolVersion, final Account account, final Mailbox mailbox,
+diff --git a/src/com/android/exchange/eas/EasSyncCollectionTypeBase.java b/src/com/android/exchange/eas/EasSyncCollectionTypeBase.java
+index 555e5353..1c98c2e7 100644
+--- a/src/com/android/exchange/eas/EasSyncCollectionTypeBase.java
++++ b/src/com/android/exchange/eas/EasSyncCollectionTypeBase.java
+@@ -1,6 +1,7 @@
+ package com.android.exchange.eas;
+ 
+ import android.content.Context;
++import android.content.pm.PackageManager;
+ 
+ import com.android.emailcommon.provider.Account;
+ import com.android.emailcommon.provider.Mailbox;
+@@ -67,6 +68,10 @@ public abstract class EasSyncCollectionTypeBase {
+      */
+     public void cleanup(final Context context, final Account account) {}
+ 
++    public boolean hasRequiredPermissions(final Context context) {
++        return true;
++    }
++
+     /**
+      * Shared non-initial sync options for PIM (contacts & calendar) objects.
+      *
+@@ -98,4 +103,13 @@ public abstract class EasSyncCollectionTypeBase {
+         }
+         s.end();
+     }
++
++    protected static boolean hasPermissions(Context context, String[] permissions) {
++        for (String permission : permissions) {
++            if (context.checkSelfPermission(permission) != PackageManager.PERMISSION_GRANTED) {
++                return false;
++            }
++        }
++        return true;
++    }
+ }
 diff --git a/src/com/android/exchange/eas/EasSyncContacts.java b/src/com/android/exchange/eas/EasSyncContacts.java
-index 0b9d9440..e79d05ec 100644
+index 0b9d9440..caddd057 100644
 --- a/src/com/android/exchange/eas/EasSyncContacts.java
 +++ b/src/com/android/exchange/eas/EasSyncContacts.java
 @@ -1,5 +1,6 @@
@@ -203,55 +287,155 @@ index 0b9d9440..e79d05ec 100644
  import android.content.ContentProviderOperation;
  import android.content.ContentResolver;
  import android.content.ContentUris;
-@@ -7,6 +8,7 @@ import android.content.ContentValues;
- import android.content.Context;
- import android.content.Entity;
- import android.content.EntityIterator;
-+import android.content.Intent;
- import android.database.Cursor;
- import android.net.Uri;
- import android.provider.ContactsContract;
-@@ -32,6 +34,7 @@ import com.android.emailcommon.provider.Account;
- import com.android.emailcommon.provider.Mailbox;
- import com.android.emailcommon.utility.Utility;
- import com.android.exchange.Eas;
-+import com.android.exchange.PermissionRequestActivity;
- import com.android.exchange.adapter.AbstractSyncParser;
- import com.android.exchange.adapter.ContactsSyncParser;
- import com.android.exchange.adapter.Serializer;
-@@ -56,6 +59,8 @@ import java.util.TimeZone;
+@@ -56,6 +57,11 @@ import java.util.TimeZone;
  public class EasSyncContacts extends EasSyncCollectionTypeBase {
      private static final String TAG = Eas.LOG_TAG;
  
-+    private static final int PERMISSION_REQUEST_CODE = 2;
++    private static final String[] NEEDED_PERMISSIONS = {
++        Manifest.permission.READ_CONTACTS,
++        Manifest.permission.WRITE_CONTACTS
++    };
 +
      public static final int PIM_WINDOW_SIZE_CONTACTS = 10;
  
      private static final String MIMETYPE_GROUP_MEMBERSHIP_AND_ID_EQUALS =
-@@ -153,11 +158,22 @@ public class EasSyncContacts extends EasSyncCollectionTypeBase {
-         public static final String ACCOUNT_NAME = "data8";
-     }
- 
--    public EasSyncContacts(final String emailAddress) {
-+    public EasSyncContacts(final Context context, final String emailAddress) {
-+        requestPermissions(context);
-         mAccountManagerAccount = new android.accounts.Account(emailAddress,
+@@ -158,6 +164,11 @@ public class EasSyncContacts extends EasSyncCollectionTypeBase {
                  Eas.EXCHANGE_ACCOUNT_MANAGER_TYPE);
      }
  
-+    private void requestPermissions(Context context) {
-+        Intent permissionIntent = new Intent(context, PermissionRequestActivity.class);
-+        permissionIntent.putExtra("permissions", new String[]{Manifest.permission.READ_CONTACTS,
-+                Manifest.permission.WRITE_CONTACTS});
-+        permissionIntent.putExtra("requestCode", PERMISSION_REQUEST_CODE);
-+        permissionIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK
-+                | Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS);
-+        context.startActivity(permissionIntent);
++    @Override
++    public boolean hasRequiredPermissions(final Context context) {
++        return hasPermissions(context, NEEDED_PERMISSIONS);
 +    }
 +
      @Override
      public int getTrafficFlag() {
          return TrafficFlags.DATA_CONTACTS;
+diff --git a/src/com/android/exchange/service/AbstractSyncAdapterService.java b/src/com/android/exchange/service/AbstractSyncAdapterService.java
+index 6e09de58..4ac1cdc5 100644
+--- a/src/com/android/exchange/service/AbstractSyncAdapterService.java
++++ b/src/com/android/exchange/service/AbstractSyncAdapterService.java
+@@ -26,8 +26,13 @@ import android.content.Context;
+ import android.content.Intent;
+ import android.content.ServiceConnection;
+ import android.content.SyncResult;
++import android.content.pm.PackageManager;
+ import android.database.Cursor;
+ import android.net.Uri;
++import android.os.Handler;
++import android.os.Looper;
++import android.os.Message;
++import android.os.Messenger;
+ import android.os.IBinder;
+ import android.text.format.DateUtils;
+ 
+@@ -36,6 +41,7 @@ import com.android.emailcommon.provider.EmailContent;
+ import com.android.emailcommon.service.EmailServiceStatus;
+ import com.android.emailcommon.service.IEmailService;
+ import com.android.emailcommon.utility.IntentUtilities;
++import com.android.exchange.PermissionRequestActivity;
+ import com.android.exchange.R;
+ import com.android.mail.utils.LogUtils;
+ 
+@@ -138,6 +144,30 @@ public abstract class AbstractSyncAdapterService extends Service {
+         nm.notify("AuthError", 0, notification);
+     }
+ 
++    protected boolean requestPermissions(String[] permissions) {
++        Looper.prepare();
++
++        boolean[] result = new boolean[1];
++
++        Handler handler = new Handler(Looper.myLooper()) {
++            @Override
++            public void handleMessage(Message msg) {
++                int[] grantResults = (int[]) msg.obj;
++                result[0] = true;
++                for (int i = 0; i < grantResults.length; i++) {
++                    result[0] &= grantResults[i] == PackageManager.PERMISSION_GRANTED;
++                }
++                getLooper().quitSafely();
++            }
++        };
++        Messenger messenger = new Messenger(handler);
++
++        startActivity(PermissionRequestActivity.createIntent(this, permissions, messenger));
++        Looper.loop();
++
++        return result[0];
++    }
++
+     /**
+      * Interpret a result code from an {@link IEmailService.sync()} and, if it's an error, write
+      * it to the appropriate field in {@link android.content.SyncResult}.
+diff --git a/src/com/android/exchange/service/CalendarSyncAdapterService.java b/src/com/android/exchange/service/CalendarSyncAdapterService.java
+index 06160643..c26bc63b 100644
+--- a/src/com/android/exchange/service/CalendarSyncAdapterService.java
++++ b/src/com/android/exchange/service/CalendarSyncAdapterService.java
+@@ -42,6 +42,11 @@ public class CalendarSyncAdapterService extends AbstractSyncAdapterService {
+     private static final String DIRTY_IN_ACCOUNT =
+         Events.DIRTY + "=1 AND " + Events.ACCOUNT_NAME + "=?";
+ 
++    private static final String[] NEEDED_PERMISSIONS = {
++        android.Manifest.permission.READ_CALENDAR,
++        android.Manifest.permission.WRITE_CALENDAR
++    };
++
+     private static final Object sSyncAdapterLock = new Object();
+     private static AbstractThreadedSyncAdapter sSyncAdapter = null;
+ 
+@@ -88,6 +93,10 @@ public class CalendarSyncAdapterService extends AbstractSyncAdapterService {
+                 return;
+             }
+ 
++            if (!requestPermissions(NEEDED_PERMISSIONS)) {
++                return;
++            }
++
+             // TODO: is this still needed?
+             if (extras.getBoolean(ContentResolver.SYNC_EXTRAS_UPLOAD)) {
+                 final Cursor c = getContentResolver().query(Events.CONTENT_URI,
+diff --git a/src/com/android/exchange/service/ContactsSyncAdapterService.java b/src/com/android/exchange/service/ContactsSyncAdapterService.java
+index ce455bab..ab1a3c24 100644
+--- a/src/com/android/exchange/service/ContactsSyncAdapterService.java
++++ b/src/com/android/exchange/service/ContactsSyncAdapterService.java
+@@ -42,6 +42,11 @@ public class ContactsSyncAdapterService extends AbstractSyncAdapterService {
+     private static final String ACCOUNT_AND_TYPE_CONTACTS =
+         MailboxColumns.ACCOUNT_KEY + "=? AND " + MailboxColumns.TYPE + '=' + Mailbox.TYPE_CONTACTS;
+ 
++    private static final String[] NEEDED_PERMISSIONS = {
++        android.Manifest.permission.READ_CONTACTS,
++        android.Manifest.permission.WRITE_CONTACTS
++    };
++
+     private static final Object sSyncAdapterLock = new Object();
+     private static AbstractThreadedSyncAdapter sSyncAdapter = null;
+ 
+@@ -88,6 +93,10 @@ public class ContactsSyncAdapterService extends AbstractSyncAdapterService {
+                 return;
+             }
+ 
++            if (!requestPermissions(NEEDED_PERMISSIONS)) {
++                return;
++            }
++
+             // TODO: is this still needed?
+             // If we've been asked to do an upload, make sure we've got work to do
+             if (extras.getBoolean(ContentResolver.SYNC_EXTRAS_UPLOAD)) {
+diff --git a/src/com/android/exchange/service/EasService.java b/src/com/android/exchange/service/EasService.java
+index fe496ed8..9514e4e7 100644
+--- a/src/com/android/exchange/service/EasService.java
++++ b/src/com/android/exchange/service/EasService.java
+@@ -135,6 +135,9 @@ public class EasService extends Service {
+                 if (result == EasFullSyncOperation.RESULT_SECURITY_HOLD) {
+                     LogUtils.i(LogUtils.TAG, "Security Hold trying to sync");
+                     return EmailServiceStatus.INTERNAL_ERROR;
++                } else if (result == EasFullSyncOperation.RESULT_NO_PERMISSIONS) {
++                    LogUtils.i(LogUtils.TAG, "No permissions trying to sync");
++                    return EmailServiceStatus.INTERNAL_ERROR;
+                 }
+                 return convertToEmailServiceStatus(result);
+             } else {
 -- 
 2.17.1
 
