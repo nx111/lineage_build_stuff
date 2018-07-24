@@ -744,6 +744,7 @@ kpick 220435 # Add HFR/HSR support
 
 # device/samsung/msm8974-common
 kpick 210313 # msm8974-common: Binderize them all
+kpick 221457 # libril: Protect against NULL unsolicited response function
 
 # kernel/samsung/msm8974
 kpick 210665 # wacom: Follow-up from gestures patch
@@ -771,6 +772,12 @@ kpick 220283 # sctp: do not peel off an assoc from one netns to another one
 kpick 220284 # net: usb: rmnet_usb_ctrl: Fix use after free issue
 kpick 220380 # msm: ipa: Fix the handling of default IPA header
 kpick 220381 # net: wireless: bcmdhd: fix integer overflow in wl_get_assoc_ies
+kpick 221436 # UPSTREAM: ipv4, ipv6: ensure raw socket message is big enough to hold an IP header
+kpick 221437 # msm: ADSPRPC: Use ID in response to get context pointer
+kpick 221438 # msm: adsprpc: Fix race conditions on same buffer
+kpick 221439 # BACKPORT: futex: Remove requirement for lock_page() in get_futex_key()
+kpick 221440 # BACKPORT: futex: Prevent overflow by strengthen input validation
+#kpick 221441 # BACKPORT: msm: adsprpc: Use unsigned integer for length values
 
 # external/ant-wireless/ant_native
 
@@ -859,6 +866,7 @@ kpick 219860 # Clean up Icc Refresh handling
 kpick 219861 # Fix SIM refresh issue
 kpick 219889 # Proper supplementary service notification handling (2/5).
 kpick 220429 # telephony: Allow overriding getRadioProxy
+kpick 221454 # IMS: Sudden deregisteration takes place soon after registeration.
 
 # hardware/broadcom/libbt
 
@@ -882,7 +890,6 @@ kpick 220841 # livedisplay: Query active state via native call.
 
 # hardware/lineage/telephony
 kpick 220132 # Improve compatibility with older devices
-kpick 220418 # Add split implementation for using QcRilHook
 
 # hardware/qcom/audio-caf/msm8974
 
@@ -938,7 +945,6 @@ kpick 207545 # Add batch gerrit script
 # lineage/website(LineageOS/www)
 
 # lineage/wiki
-kpick 218356 # Add tip to compile Heimdall from source.
 kpick 219164 # Introduce a supported versions column in device tables
 kpick 219543 # wiki: add workaround for booting into TWRP recovery
 
@@ -975,28 +981,11 @@ kpick 213051 # Deskclock: set targetSdk to 27
 # packages/apps/Eleven
 
 # packages/apps/Email
-kpick 218318 # Email: Remove duplicate permission
-kpick 218687 # Allow account deletion.
-kpick 218369 # email: support for auto-sync multiple IMAP folders
-kpick 218379 # email: Add an ActionBar to the mail app's PreferenceActivity
-kpick 218370 # email: support per-folder notifications
-kpick 218373 # email: fix eas autodiscover
-kpick 218374 # Implement IMAP push using IMAP IDLE.
-kpick 219312 # Request battery optimization exemption if IMAP IDLE is used.
-kpick 218375 # Fix crash when attempting to view EML files.
-kpick 218376 # Allow download of compressed attachments.
-kpick 218377 # email: fix empty body update
-kpick 218378 # Improve notification coalescence algorithm.
-kpick 218380 # Email: Fix the ActivityNotFoundException when click "Update now"
-kpick 218382 # email: return default folder name for subfolders
-kpick 218383 # email: junk icon
-kpick 218384 # Search in folder specified via URI parameter, if possible.
-kpick 218846 # Rewrite MailboxSettings loading logic.
 kpick 219906 # Increase max aspect ratio.
 
 # packages/apps/Exchange
 kpick 209820 # Revert changes to make Exchange buildable.
-kpick 211382 # correct the targeted SDK version to avoid permission fails otherwise not manually granted permissions lead to fc on account setup
+kpick 211382 # Exchange: request permissions
 
 # packages/apps/Flipflap
 
@@ -1051,30 +1040,12 @@ kpick 220436 # Fix saving HSR
 kpick 214336 # Trebuchet: initial protected apps implementation
 
 # packages/apps/UnifiedEmail
-kpick 218385 # unified email: prefer account display name to sender name
-kpick 218386 # email: fix back button
-kpick 218387 # unified-email: check notification support prior to create notification objects
-kpick 218388 # unified-email: respect swipe user setting
-kpick 218389 # email: linkify urls in plain text emails
-kpick 218390 # email: do not close the input attachment buffer in Conversion#parseBodyFields
-kpick 218391 # email: linkify phone numbers
-kpick 218392 # Remove obsolete theme.
-kpick 218393 # Don't assume that a string isn't empty
-kpick 218394 # Add an ActionBar to the mail app's PreferenceActivity.
-kpick 218395 # email: allow move/copy operations to more system folders
-kpick 218396 # unifiedemail: junk icon
-kpick 218397 # Remove mail signatures from notification text.
-kpick 218398 # MimeUtility: ensure streams are always closed
-kpick 218399 # Fix cut off notification sounds.
-kpick 218400 # Pass selected folder to message search.
-kpick 218401 # Properly close body InputStreams.
-kpick 218797 # Make navigation drawer extend over status bar.
-kpick 219311 # Disable animations for translucent activities.
-kpick 220570 # Don't re-show search bar on query click.
 
 # packages/apps/Updater
 kpick 219924 # Updater: Allow to suspend A/B updates
 kpick 220536 # Updater: Clarify A/B Performance mode string
+kpick 221444 # Updater: Fix 'REBOOT' button not showing up after A/B update
+kpick 221445 # Updater: Use PowerManager instead of Intent.ACTION_REBOOT broadcast
 
 # packages/overlays/Lineage
 kpick 215846 # dark: Add Theme.DeviceDefault.Settings.Dialog.NoActionBar style
@@ -1148,7 +1119,8 @@ kpick 219388 # config: Add more GMS client base ID props
 kpick 219389 # lineage: Always disable google SystemUpdateService
 kpick 220398 # extract_utils: Skip unneeded md5sum	
 kpick 220399 # extract_utils: Extract files from brotli compressed images
-
+kpick 221452 # Update README with minor fixes
+kpick 221453 # config/common: Remove BluetoothExt from PRODUCT_PACKAGES
 
 # vendor/nxp/opensource/packages/apps/Nfc
 
