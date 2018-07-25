@@ -1,0 +1,83 @@
+From 8272382854a9cd0165be22eea3c8605357b6da40 Mon Sep 17 00:00:00 2001
+From: T H <socialentry@gmail.com>
+Date: Tue, 24 Jul 2018 12:40:59 -0400
+Subject: [PATCH 33/36] SystemSensorManager: Fix accel/rotation issue
+
+On certain devices (kltedv tested) calling registerListener with
+maxReportLatencyUs greater than samplingPeriodUs, causes the
+accelerometer to stop reporting until the listener is unregistered.
+
+Opengapps has a class that causes this problem, just deny the request
+since it doesn't even work and it breaks rotation.
+
+Change-Id: I0d8e5f906e39f11f98695de79d71ded2177de561
+---
+ core/java/android/hardware/SystemSensorManager.java | 13 +++++++++++++
+ core/res/res/values/config.xml                      |  3 +++
+ core/res/res/values/symbols.xml                     |  2 ++
+ 3 files changed, 18 insertions(+)
+
+diff --git a/core/java/android/hardware/SystemSensorManager.java b/core/java/android/hardware/SystemSensorManager.java
+index 607788d3eff..e8b0f195b17 100644
+--- a/core/java/android/hardware/SystemSensorManager.java
++++ b/core/java/android/hardware/SystemSensorManager.java
+@@ -99,6 +99,9 @@ public class SystemSensorManager extends SensorManager {
+     private final Context mContext;
+     private final long mNativeInstance;
+ 
++    // Config
++    private boolean mDenySpecificBatch = false;
++
+     /** {@hide} */
+     public SystemSensorManager(Context context, Looper mainLooper) {
+         synchronized(sLock) {
+@@ -113,6 +116,9 @@ public class SystemSensorManager extends SensorManager {
+         mContext = context;
+         mNativeInstance = nativeCreate(context.getOpPackageName());
+ 
++        mDenySpecificBatch = context.getResources().getBoolean(
++            com.android.internal.R.bool.config_denySpecificBatch);
++
+         // initialize the sensor list
+         for (int index = 0;;++index) {
+             Sensor sensor = new Sensor();
+@@ -162,6 +168,13 @@ public class SystemSensorManager extends SensorManager {
+                 MAX_LISTENER_COUNT);
+         }
+ 
++        if (mDenySpecificBatch) {
++            if (maxBatchReportLatencyUs > delayUs) {
++                Log.e(TAG, "batch value denied");
++                return false;
++            }
++        }
++
+         // Invariants to preserve:
+         // - one Looper per SensorEventListener
+         // - one Looper per SensorEventQueue
+diff --git a/core/res/res/values/config.xml b/core/res/res/values/config.xml
+index 8a077b3ffc3..cde52756536 100644
+--- a/core/res/res/values/config.xml
++++ b/core/res/res/values/config.xml
+@@ -3092,4 +3092,7 @@
+          booted.  -->
+     <integer name="config_stableDeviceDisplayWidth">-1</integer>
+     <integer name="config_stableDeviceDisplayHeight">-1</integer>
++
++    <!-- Deny specific batch setting to fix accelerometer freezing -->
++    <bool name="config_denySpecificBatch">false</bool>
+ </resources>
+diff --git a/core/res/res/values/symbols.xml b/core/res/res/values/symbols.xml
+index 15a353ba2b0..0f003dea650 100644
+--- a/core/res/res/values/symbols.xml
++++ b/core/res/res/values/symbols.xml
+@@ -3078,4 +3078,6 @@
+ 
+   <java-symbol type="integer" name="config_stableDeviceDisplayWidth" />
+   <java-symbol type="integer" name="config_stableDeviceDisplayHeight" />
++
++  <java-symbol type="bool" name="config_denySpecificBatch" />
+ </resources>
+-- 
+2.17.1
+

@@ -739,12 +739,12 @@ kpick 211273 # qcom/sepol: Fix timeservice app context
 # device/samsung/klte-common
 #kpick 212648 # klte-common: Enable AOD
 kpick 220435 # Add HFR/HSR support
+kpick 221474 # klte-common: Fix accel/rotation issue
 
 # device/samsung/kltechnduo
 
 # device/samsung/msm8974-common
 kpick 210313 # msm8974-common: Binderize them all
-kpick 221457 # libril: Protect against NULL unsolicited response function
 
 # kernel/samsung/msm8974
 kpick 210665 # wacom: Follow-up from gestures patch
@@ -772,12 +772,20 @@ kpick 220283 # sctp: do not peel off an assoc from one netns to another one
 kpick 220284 # net: usb: rmnet_usb_ctrl: Fix use after free issue
 kpick 220380 # msm: ipa: Fix the handling of default IPA header
 kpick 220381 # net: wireless: bcmdhd: fix integer overflow in wl_get_assoc_ies
+kpick 220867 # Input: gtco - fix potential out-of-bound access
+kpick 220868 # loop: fix concurrent lo_open/lo_release
+kpick 220869 # msm: vidc: Fix use after free bug in set_output_buffers
+kpick 220874 # msm: camera: Add NULL check in msm_actuator
+kpick 220870 # msm: sensor: actuator: avoid accessing out of bound memory
+kpick 220871 # crypto: hmac - require that the underlying hash algorithm is unkeyed
+kpick 220872 # KEYS: add missing permission check for request_key() destination
+kpick 220873 # diag: Validate copying length against source buffer length
 kpick 221436 # UPSTREAM: ipv4, ipv6: ensure raw socket message is big enough to hold an IP header
-kpick 221437 # msm: ADSPRPC: Use ID in response to get context pointer
+#kpick 221437 # msm: ADSPRPC: Use ID in response to get context pointer
 kpick 221438 # msm: adsprpc: Fix race conditions on same buffer
 kpick 221439 # BACKPORT: futex: Remove requirement for lock_page() in get_futex_key()
 kpick 221440 # BACKPORT: futex: Prevent overflow by strengthen input validation
-#kpick 221441 # BACKPORT: msm: adsprpc: Use unsigned integer for length values
+kpick 221441 # BACKPORT: msm: adsprpc: Use unsigned integer for length values
 
 # external/ant-wireless/ant_native
 
@@ -847,6 +855,7 @@ kpick 220394 # SystemUI: Add tunables for clock position
 kpick 220540 # SystemUI: Add tunables for clock AM/PM style
 kpick 220541 # Tuner: Move clock seconds option to status bar settings
 kpick 220542 # fw/b lights: Allow black notification color
+kpick 221470 # SystemSensorManager: Fix accel/rotation issue
 
 # frameworks/native
 kpick 213549 # SurfaceFlinger: Support get/set ActiveConfigs
@@ -918,6 +927,7 @@ kpick 220877 # gps: use TARGET_BOARD_AUTO to override qcom hals
 # hardware/qcom/keymaster
 
 # hardware/qcom/power
+kpick 221466 # power: Fix several typos in power profiles
 
 # hardware/qcom/thermal
 kpick 218360 # thermal: use log/log.h header
@@ -981,11 +991,20 @@ kpick 213051 # Deskclock: set targetSdk to 27
 # packages/apps/Eleven
 
 # packages/apps/Email
-kpick 219906 # Increase max aspect ratio.
 
 # packages/apps/Exchange
-kpick 209820 # Revert changes to make Exchange buildable.
 kpick 211382 # Exchange: request permissions
+kpick 221479 # Add multi reminders
+kpick 221480 # Patch Exchange Autodiscover Code for Security Issue
+kpick 221481 # exchange: serialize the account parcelable before using with AlarmManager
+kpick 221482 # Display model name on exchange server and exclude illegal characters
+kpick 221483 # exchange: fix typo in switch case flow
+kpick 221484 # exchange: fix eas autodiscover
+kpick 221485 # exchange: imap push
+kpick 221486 # Fix authentication error notification click handling.
+kpick 221487 # Exchange: Remove leftover translation
+kpick 221488 # Failure in testAllSystemAppsUsingRuntimePermissionsTargetMncAndAboveSdk	
+kpick 221489 # Automatic translation import
 
 # packages/apps/Flipflap
 
@@ -1044,8 +1063,7 @@ kpick 214336 # Trebuchet: initial protected apps implementation
 # packages/apps/Updater
 kpick 219924 # Updater: Allow to suspend A/B updates
 kpick 220536 # Updater: Clarify A/B Performance mode string
-kpick 221444 # Updater: Fix 'REBOOT' button not showing up after A/B update
-kpick 221445 # Updater: Use PowerManager instead of Intent.ACTION_REBOOT broadcast
+kpick 221499 # Updater: Use SharedPreference listener to get perf mode setting
 
 # packages/overlays/Lineage
 kpick 215846 # dark: Add Theme.DeviceDefault.Settings.Dialog.NoActionBar style
@@ -1121,6 +1139,10 @@ kpick 220398 # extract_utils: Skip unneeded md5sum
 kpick 220399 # extract_utils: Extract files from brotli compressed images
 kpick 221452 # Update README with minor fixes
 kpick 221453 # config/common: Remove BluetoothExt from PRODUCT_PACKAGES
+kpick 221502 # config: Remove 7z lib7z unrar unzip zip makefile entries
+kpick 221504 # config/common: Organize filesystems tools
+kpick 221505 # config/common: Clean up debug packages
+kpick 221506 # tools: Bump baksmali/smali to v2.2.4
 
 # vendor/nxp/opensource/packages/apps/Nfc
 

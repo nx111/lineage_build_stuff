@@ -1,0 +1,151 @@
+From c320ba0bb9080355c3267e8612921bc418eac66e Mon Sep 17 00:00:00 2001
+From: Rohan Shah <shahrk@google.com>
+Date: Wed, 10 Feb 2016 17:45:52 -0800
+Subject: [PATCH 03/12] Patch Exchange Autodiscover Code for Security Issue
+
+The change removes the unauthenticated GET fallback attempt for the
+Autodiscover process. Given that the Autodiscover code is functionally broken
+and this fallback attempt wouldn't succeed unless an attacker faked a success
+response, a good way to patch the security issue is to disable the attempt.
+
+The change also updates the request content type, disables automatic
+redirects, and allows for parsing namespaces to help the first two attempts
+succeed. As this is not meant to be a functional patch but a security patch,
+there are no further changes to the Autodiscover code.
+
+BUG: 26488455
+Change-Id: I0fc93c95e755c8fa60e94da5bec4b3b4c49cdfc1
+(cherry picked from commit 0e56d74af392ce548ab7f35b17585af3277257c6)
+---
+ src/com/android/exchange/EasResponse.java     | 11 +++++-
+ .../android/exchange/eas/EasAutoDiscover.java | 38 +++++++++++--------
+ 2 files changed, 32 insertions(+), 17 deletions(-)
+
+diff --git a/src/com/android/exchange/EasResponse.java b/src/com/android/exchange/EasResponse.java
+index 5af80fdd..4a5035a2 100644
+--- a/src/com/android/exchange/EasResponse.java
++++ b/src/com/android/exchange/EasResponse.java
+@@ -134,6 +134,15 @@ public class EasResponse {
+         return null;
+     }
+ 
++    /**
++     * Returns the redirect address from this response in {@link Uri} form or {@code null} if the
++     * location field is missing from the header.
++     */
++    public Uri getRedirectUri() {
++        final Header locHeader = getHeader("Location");
++        return locHeader != null ? Uri.parse(locHeader.getValue()) : null;
++    }
++
+     /**
+      * Return an appropriate input stream for the response, either a GZIPInputStream, for
+      * compressed data, or a generic InputStream otherwise
+@@ -203,4 +212,4 @@ public class EasResponse {
+             mClosed = true;
+         }
+     }
+-}
+\ No newline at end of file
++}
+diff --git a/src/com/android/exchange/eas/EasAutoDiscover.java b/src/com/android/exchange/eas/EasAutoDiscover.java
+index 4cd963c8..b8e95719 100644
+--- a/src/com/android/exchange/eas/EasAutoDiscover.java
++++ b/src/com/android/exchange/eas/EasAutoDiscover.java
+@@ -17,6 +17,7 @@ import com.android.mail.utils.LogUtils;
+ import org.apache.http.HttpEntity;
+ import org.apache.http.HttpStatus;
+ import org.apache.http.client.methods.HttpUriRequest;
++import org.apache.http.client.params.HttpClientParams;
+ import org.apache.http.entity.StringEntity;
+ import org.xmlpull.v1.XmlPullParser;
+ import org.xmlpull.v1.XmlPullParserException;
+@@ -30,8 +31,7 @@ public class EasAutoDiscover extends EasOperation {
+ 
+     public final static int ATTEMPT_PRIMARY = 0;
+     public final static int ATTEMPT_ALTERNATE = 1;
+-    public final static int ATTEMPT_UNAUTHENTICATED_GET = 2;
+-    public final static int ATTEMPT_MAX = 2;
++    public final static int ATTEMPT_MAX = 1;
+ 
+     public final static int RESULT_OK = 1;
+     public final static int RESULT_SC_UNAUTHORIZED = RESULT_OP_SPECIFIC_ERROR_RESULT - 0;
+@@ -44,6 +44,8 @@ public class EasAutoDiscover extends EasOperation {
+     private static final String AUTO_DISCOVER_SCHEMA_PREFIX =
+             "http://schemas.microsoft.com/exchange/autodiscover/mobilesync/";
+     private static final String AUTO_DISCOVER_PAGE = "/autodiscover/autodiscover.xml";
++    private static final String AUTODISCOVER_CONTENT_TYPE = "text/xml";
++    private static final String HTTPS_SCHEME = "https";
+ 
+     // Set of string constants for parsing the autodiscover response.
+     // TODO: Merge this into Tags.java? It's not quite the same but conceptually belongs there.
+@@ -105,8 +107,6 @@ public class EasAutoDiscover extends EasOperation {
+                 return "https://" + domain + AUTO_DISCOVER_PAGE;
+             case ATTEMPT_ALTERNATE:
+                 return "https://autodiscover." + domain + AUTO_DISCOVER_PAGE;
+-            case ATTEMPT_UNAUTHENTICATED_GET:
+-                return "http://autodiscover." + domain + AUTO_DISCOVER_PAGE;
+             default:
+                 LogUtils.wtf(TAG, "Illegal attempt number %d", attemptNumber);
+                 return null;
+@@ -156,6 +156,12 @@ public class EasAutoDiscover extends EasOperation {
+         return null;
+     }
+ 
++    /** Returns the content type of Autodiscover requests. */
++    @Override
++    protected String getRequestContentType() {
++        return AUTODISCOVER_CONTENT_TYPE;
++    }
++
+     /**
+      * Create the request object for this operation.
+      * The default is to use a POST, but some use other request types (e.g. Options).
+@@ -164,13 +170,10 @@ public class EasAutoDiscover extends EasOperation {
+      */
+     protected HttpUriRequest makeRequest() throws IOException, MessageInvalidException {
+         final String requestUri = getRequestUri();
+-        HttpUriRequest req;
+-        if (mAttemptNumber == ATTEMPT_UNAUTHENTICATED_GET) {
+-            req = mConnection.makeGet(requestUri);
+-        } else {
+-            req = mConnection.makePost(requestUri, getRequestEntity(),
+-                    getRequestContentType(), addPolicyKeyHeaderToRequest());
+-        }
++        final HttpUriRequest req = mConnection.makePost(requestUri, getRequestEntity(),
++                getRequestContentType(), addPolicyKeyHeaderToRequest());
++        // Disable auto-redirecting for this request.
++        HttpClientParams.setRedirecting(req.getParams(), false);
+         return req;
+     }
+ 
+@@ -185,10 +188,10 @@ public class EasAutoDiscover extends EasOperation {
+         final int code = response.getStatus();
+ 
+         if (response.isRedirectError()) {
+-            final String loc = response.getRedirectAddress();
+-            if (loc != null && loc.startsWith("http")) {
+-                LogUtils.d(TAG, "Posting autodiscover to redirect: " + loc);
+-                mRedirectUri = loc;
++            final Uri loc = response.getRedirectUri();
++            if (loc != null && HTTPS_SCHEME.equalsIgnoreCase(loc.getScheme())) {
++                mRedirectUri = loc.toString();
++                LogUtils.d(TAG, "Posting autodiscover to redirect: " + mRedirectUri);
+                 return RESULT_REDIRECT;
+             } else {
+                 LogUtils.w(TAG, "Invalid redirect %s", loc);
+@@ -377,7 +380,10 @@ public class EasAutoDiscover extends EasOperation {
+     private static HostAuth parseAutodiscover(final EasResponse resp) {
+         // The response to Autodiscover is regular XML (not WBXML)
+         try {
+-            final XmlPullParser parser = XmlPullParserFactory.newInstance().newPullParser();
++            final XmlPullParserFactory parserFactory = XmlPullParserFactory.newInstance();
++            // Calling setNamespaceAware(true) will enable parsing the autodiscover namespace tag.
++            parserFactory.setNamespaceAware(true);
++            final XmlPullParser parser = parserFactory.newPullParser();
+             parser.setInput(resp.getInputStream(), "UTF-8");
+             if (parser.getEventType() != XmlPullParser.START_DOCUMENT) {
+                 return null;
+-- 
+2.17.1
+
