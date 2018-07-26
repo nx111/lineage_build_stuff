@@ -749,43 +749,7 @@ kpick 210313 # msm8974-common: Binderize them all
 # kernel/samsung/msm8974
 kpick 210665 # wacom: Follow-up from gestures patch
 kpick 210666 # wacom: Report touch when pen button is pressed if gestures are off
-kpick 220264 # ALSA: usb-audio: Kill stray URB at exiting
-kpick 220265 # BACKPORT: packet: in packet_do_bind, test fanout with bind_lock held
-kpick 220266 # diag: Add protection while de-initializing clients
-kpick 220267 # ASoC: msm: qdsp6v2: Set freed pointers to NULL
-kpick 220268 # msm: ipa: Add declaration of ipa_del_hdr_by_user
-kpick 220269 # msm: ipa: Remove duplicate definition of list_next_entry()
-kpick 220270 # msm:ipa: Fix to incorrect structure access
-kpick 220271 # USB: serial: console: fix use-after-free after failed setup
-kpick 220272 # USB: core: fix out-of-bounds access bug in usb_get_bos_descriptor()
-kpick 220273 # HID: usbhid: fix out-of-bounds bug
-kpick 220274 # USB: fix out-of-bounds in usb_set_configuration
-kpick 220275 # ALSA: usb-audio: Check out-of-bounds access by corrupted buffer descriptor
-kpick 220276 # BACKPORT: USB: core: harden cdc_parse_cdc_header
-kpick 220277 # ASoC: apr: Add validity check to APR port
-kpick 220278 # UPSTREAM: KEYS: encrypted: fix buffer overread in valid_master_desc()
-kpick 220279 # ipv4: Use standard iovec primitive in raw_probe_proto_opt
-kpick 220280 # ipv4: Avoid reading user iov twice after raw_probe_proto_opt
-kpick 220281 # net: ipv4: fix for a race condition in raw_sendmsg
-kpick 220282 # net: ipv4: emulate READ_ONCE() on ->hdrincl bit-field in raw_sendmsg()
-kpick 220283 # sctp: do not peel off an assoc from one netns to another one
-kpick 220284 # net: usb: rmnet_usb_ctrl: Fix use after free issue
-kpick 220380 # msm: ipa: Fix the handling of default IPA header
-kpick 220381 # net: wireless: bcmdhd: fix integer overflow in wl_get_assoc_ies
-kpick 220867 # Input: gtco - fix potential out-of-bound access
-kpick 220868 # loop: fix concurrent lo_open/lo_release
-kpick 220869 # msm: vidc: Fix use after free bug in set_output_buffers
-kpick 220874 # msm: camera: Add NULL check in msm_actuator
-kpick 220870 # msm: sensor: actuator: avoid accessing out of bound memory
-kpick 220871 # crypto: hmac - require that the underlying hash algorithm is unkeyed
-kpick 220872 # KEYS: add missing permission check for request_key() destination
-kpick 220873 # diag: Validate copying length against source buffer length
-kpick 221436 # UPSTREAM: ipv4, ipv6: ensure raw socket message is big enough to hold an IP header
 #kpick 221437 # msm: ADSPRPC: Use ID in response to get context pointer
-kpick 221438 # msm: adsprpc: Fix race conditions on same buffer
-kpick 221439 # BACKPORT: futex: Remove requirement for lock_page() in get_futex_key()
-kpick 221440 # BACKPORT: futex: Prevent overflow by strengthen input validation
-kpick 221441 # BACKPORT: msm: adsprpc: Use unsigned integer for length values
 
 # external/ant-wireless/ant_native
 
@@ -849,13 +813,15 @@ kpick 218431 # SystemUI: Require unlock to toggle location
 kpick 218437 # SystemUI: Add activity alias for LockscreenFragment
 kpick 218819 # SystemUI: Fix Data Usage tile to match Settings
 #kpick 219300 # SystemUI: tuner: Remove battery preference
-kpick 219888 # Proper supplementary service notification handling (1/5).
 kpick 219930 # Telephony: Stop using rssnr, it falsly shows wrong signal bars Pixel and other devices drop this
 kpick 220394 # SystemUI: Add tunables for clock position
 kpick 220540 # SystemUI: Add tunables for clock AM/PM style
 kpick 220541 # Tuner: Move clock seconds option to status bar settings
 kpick 220542 # fw/b lights: Allow black notification color
 kpick 221470 # SystemSensorManager: Fix accel/rotation issue
+kpick 221518 # 	[1/2] base: allow disable of screenshot shutter sound
+kpick 221557 # Make volume steps adjustable for the alarm and ringtone streams
+kpick 221654 # 	Disable restrictions on swipe to dismiss and action bars
 
 # frameworks/native
 kpick 213549 # SurfaceFlinger: Support get/set ActiveConfigs
@@ -873,7 +839,6 @@ kpick 214316 # RIL: Allow overriding RadioResponse and RadioIndication
 kpick 215450 # Add changes for sending ATEL UI Ready to RIL.
 kpick 219860 # Clean up Icc Refresh handling
 kpick 219861 # Fix SIM refresh issue
-kpick 219889 # Proper supplementary service notification handling (2/5).
 kpick 220429 # telephony: Allow overriding getRadioProxy
 kpick 221454 # IMS: Sudden deregisteration takes place soon after registeration.
 
@@ -894,6 +859,9 @@ kpick 219624 # lineage/interfaces: vibrator: make define usage uniform
 kpick 219885 # livedisplay: Add a system variant
 kpick 220840 # livedisplay: Enable cabl via mm-pp-daemon.
 kpick 220841 # livedisplay: Query active state via native call.
+kpick 221642 # interfaces: Add vendor.lineage.stache@1.0::ISecureStorage
+kpick 221643 # interfaces: Do not add custom interfaces to VNDK
+kpick 221644 # stache: Add default ext4 crypto implementation
 
 # hardware/lineage/lineagehw
 
@@ -977,13 +945,9 @@ kpick 218319 # Bluetooth: Remove duplicate permission
 # packages/apps/Camera2
 
 # packages/apps/Contacts
-kpick 218623 # Allow calling contacts via specific phone accounts.
 
 # packages/apps/Dialer
 kpick 211135 # Show proper call duration
-kpick 218624 # Allow per-call account selection.
-kpick 218847 # Re-add call statistics.
-kpick 219891 # Proper supplementary service notification handling (5/5).
 
 # packages/apps/DeskClock
 kpick 213051 # Deskclock: set targetSdk to 27
@@ -1046,6 +1010,7 @@ kpick 218165 # Add an option to change the device hostname (1/2).
 kpick 218438 # Settings: Add lockscreen shortcuts customization to lockscreen settings
 kpick 218775 # Settings: Cleanup SimSettings additions
 #kpick 219299 # Settings: Remove battery percentage switch
+kpick 221519 # [2/2] Settings: allow disable of screenshot shutter sound
 
 # packages/apps/SetupWizard
 kpick 217580 # Add original-package to AndroidManifest
@@ -1074,11 +1039,9 @@ kpick 216979 # overlays: add torch accent
 # packages/resources/devicesettings
 
 # pakcages/service/Telecomm
-kpick 219894 # Proper supplementary service notification handling (3/5)
 
 # packages/service/Telephony
 kpick 209045 # Telephony: Fallback gracefully for emergency calls if suitable app isn't found
-kpick 219892 # Proper supplementary service notification handling (4/5).
 
 # system/bt
 
@@ -1090,6 +1053,7 @@ kpick 217313 # add odm partition to ld.config.legacy
 kpick 217314 # Allow firmware loading from ODM partition
 kpick 218837 # libsuspend: Add property support for timeout of autosuspend
 kpick 219304 # init: Allow devices to opt-out of fsck'ing on power off
+kpick 221647 # healthd: BatteryMonitor: Fix compiler warning
 
 # system/extras
 kpick 211210 # ext4: Add /data/stache/ to encryption exclusion list
@@ -1138,11 +1102,7 @@ kpick 219389 # lineage: Always disable google SystemUpdateService
 kpick 220398 # extract_utils: Skip unneeded md5sum	
 kpick 220399 # extract_utils: Extract files from brotli compressed images
 kpick 221452 # Update README with minor fixes
-kpick 221453 # config/common: Remove BluetoothExt from PRODUCT_PACKAGES
-kpick 221502 # config: Remove 7z lib7z unrar unzip zip makefile entries
-kpick 221504 # config/common: Organize filesystems tools
 kpick 221505 # config/common: Clean up debug packages
-kpick 221506 # tools: Bump baksmali/smali to v2.2.4
 
 # vendor/nxp/opensource/packages/apps/Nfc
 

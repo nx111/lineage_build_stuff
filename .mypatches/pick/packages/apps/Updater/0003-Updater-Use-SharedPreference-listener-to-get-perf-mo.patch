@@ -1,4 +1,4 @@
-From 173cbab44b48ea708cbe41fe8f4091c227f9a019 Mon Sep 17 00:00:00 2001
+From 4ff73fe23c336730cd22d05876cd2cc3307db536 Mon Sep 17 00:00:00 2001
 From: Ethan Chen <intervigil@gmail.com>
 Date: Tue, 24 Jul 2018 20:04:50 -0700
 Subject: [PATCH 3/3] Updater: Use SharedPreference listener to get perf mode
@@ -8,68 +8,91 @@ Subject: [PATCH 3/3] Updater: Use SharedPreference listener to get perf mode
 
 Change-Id: I022d76ba0659d9ad3fac48d84fa4172476cb506b
 ---
- .../updater/controller/ABUpdateInstaller.java | 23 ++++++++++++++++---
- 1 file changed, 20 insertions(+), 3 deletions(-)
+ .../lineageos/updater/UpdatesActivity.java    | 33 +++++++++++++++++--
+ .../updater/controller/ABUpdateInstaller.java |  4 ---
+ 2 files changed, 30 insertions(+), 7 deletions(-)
 
-diff --git a/src/org/lineageos/updater/controller/ABUpdateInstaller.java b/src/org/lineageos/updater/controller/ABUpdateInstaller.java
-index b0be201..aeb77e4 100644
---- a/src/org/lineageos/updater/controller/ABUpdateInstaller.java
-+++ b/src/org/lineageos/updater/controller/ABUpdateInstaller.java
-@@ -53,6 +53,7 @@ class ABUpdateInstaller {
- 
-     private UpdateEngine mUpdateEngine;
-     private boolean mBound;
-+    private boolean mPerfModeEnabled;
- 
-     private boolean mFinalizing;
-     private int mProgress;
-@@ -119,6 +120,16 @@ class ABUpdateInstaller {
-         }
-     };
+diff --git a/src/org/lineageos/updater/UpdatesActivity.java b/src/org/lineageos/updater/UpdatesActivity.java
+index 2d3fc57..8278050 100644
+--- a/src/org/lineageos/updater/UpdatesActivity.java
++++ b/src/org/lineageos/updater/UpdatesActivity.java
+@@ -75,6 +75,16 @@ public class UpdatesActivity extends UpdatesListActivity {
+     private View mRefreshIconView;
+     private RotateAnimation mRefreshAnimation;
  
 +    private final SharedPreferences.OnSharedPreferenceChangeListener mPrefListener =
 +        new SharedPreferences.OnSharedPreferenceChangeListener() {
 +        @Override
 +        public void onSharedPreferenceChanged(SharedPreferences sharedPrefs, String key) {
 +            if (Constants.PREF_AB_PERF_MODE.equals(key)) {
-+                mPerfModeEnabled = isPerfModeEnabled(mContext);
++                setPerfMode();
 +            }
 +        }
 +    };
 +
-     static synchronized boolean isInstallingUpdate(Context context) {
-         SharedPreferences pref = PreferenceManager.getDefaultSharedPreferences(context);
-         return pref.getString(ABUpdateInstaller.PREF_INSTALLING_AB_ID, null) != null ||
-@@ -147,10 +158,18 @@ class ABUpdateInstaller {
-         return TextUtils.equals(waitingId, downloadId);
+     @Override
+     protected void onCreate(Bundle savedInstanceState) {
+         super.onCreate(savedInstanceState);
+@@ -156,6 +166,7 @@ public class UpdatesActivity extends UpdatesListActivity {
+                 Animation.RELATIVE_TO_SELF, 0.5f);
+         mRefreshAnimation.setInterpolator(new LinearInterpolator());
+         mRefreshAnimation.setDuration(1000);
++
      }
  
-+    static synchronized boolean isPerfModeEnabled(Context context) {
-+        return PreferenceManager.getDefaultSharedPreferences(context)
-+            .getBoolean(Constants.PREF_AB_PERF_MODE, false);
+     @Override
+@@ -173,6 +184,19 @@ public class UpdatesActivity extends UpdatesListActivity {
+         LocalBroadcastManager.getInstance(this).registerReceiver(mBroadcastReceiver, intentFilter);
+     }
+ 
++    @Override
++    public void onResume() {
++        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(this);
++        prefs.registerOnSharedPreferenceChangeListener(mPrefListener);
++        setPerfMode();
 +    }
 +
-     private ABUpdateInstaller(Context context, UpdaterController updaterController) {
-         mUpdaterController = updaterController;
-         mContext = context.getApplicationContext();
-         mUpdateEngine = new UpdateEngine();
-+        mPerfModeEnabled = isPerfModeEnabled(mContext);
-+        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(mContext);
-+        prefs.registerOnSharedPreferenceChangeListener(mPrefListener);
++    @Override
++    public void onPause() {
++        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(this);
++        prefs.unregisterOnSharedPreferenceChangeListener(mPrefListener);
++    }
++
+     @Override
+     public void onStop() {
+         LocalBroadcastManager.getInstance(this).unregisterReceiver(mBroadcastReceiver);
+@@ -442,10 +466,13 @@ public class UpdatesActivity extends UpdatesListActivity {
+                         UpdatesCheckReceiver.cancelRepeatingUpdatesCheck(this);
+                         UpdatesCheckReceiver.cancelUpdatesCheck(this);
+                     }
+-
+-                    boolean enableABPerfMode = abPerfMode.isChecked();
+-                    mUpdaterService.getUpdaterController().setPerformanceMode(enableABPerfMode);
+                 })
+                 .show();
      }
- 
-     static synchronized ABUpdateInstaller getInstance(Context context,
-@@ -214,9 +233,7 @@ class ABUpdateInstaller {
++
++    private void setPerfMode() {
++        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(this);
++        boolean enabled = prefs.getBoolean(Constants.PREF_AB_PERF_MODE, false);
++        mUpdaterService.getUpdaterController().setPerformanceMode(enabled);
++    }
+ }
+diff --git a/src/org/lineageos/updater/controller/ABUpdateInstaller.java b/src/org/lineageos/updater/controller/ABUpdateInstaller.java
+index b0be201..57bd2c1 100644
+--- a/src/org/lineageos/updater/controller/ABUpdateInstaller.java
++++ b/src/org/lineageos/updater/controller/ABUpdateInstaller.java
+@@ -214,10 +214,6 @@ class ABUpdateInstaller {
              }
          }
  
 -        boolean enableABPerfMode = PreferenceManager.getDefaultSharedPreferences(mContext)
 -                .getBoolean(Constants.PREF_AB_PERF_MODE, false);
 -        mUpdateEngine.setPerformanceMode(enableABPerfMode);
-+        setPerformanceMode(mPerfModeEnabled);
- 
+-
          String zipFileUri = "file://" + file.getAbsolutePath();
          mUpdateEngine.applyPayload(zipFileUri, offset, 0, headerKeyValuePairs);
+ 
 -- 
 2.17.1
 
