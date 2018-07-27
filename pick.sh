@@ -700,6 +700,7 @@ repo sync hardware/lineage/telephony
 # bionic
 kpick 217311 # linker: add support for odm partition
 kpick 217312 # libc: add /odm/bin to the DEFPATH
+kpick 221709 # libc: Add generated copyrights
 
 # bootable/recovery
 kpick 219194 # minui: drm: ARGB8888 support
@@ -774,7 +775,6 @@ kpick 209910 # Camera2Client: Add support for enabling QTI Video/Sensor HDR feat
 kpick 209911 # Camera2Client: Add support for QTI specific AutoHDR and Histogram feature
 kpick 209912 # Camera: Skip stream size check for whitelisted apps
 kpick 213115 # camera: Disable extra HDR frame on QCOM_HARDWARE
-kpick 219724 # NdkMediaCodec: add AMediaCodec_getBufferFormat
 kpick 220018 # Camera2Client: Add support for Raw snapshot in Camera2Client
 kpick 220019 # Camera2Client: Integrate O-MR1 changes for QTI camera2client
 kpick 220020 # Camera2Client: Disable ZSL by default in QTI camera2client
@@ -814,9 +814,6 @@ kpick 218437 # SystemUI: Add activity alias for LockscreenFragment
 kpick 218819 # SystemUI: Fix Data Usage tile to match Settings
 #kpick 219300 # SystemUI: tuner: Remove battery preference
 kpick 219930 # Telephony: Stop using rssnr, it falsly shows wrong signal bars Pixel and other devices drop this
-kpick 220394 # SystemUI: Add tunables for clock position
-kpick 220540 # SystemUI: Add tunables for clock AM/PM style
-kpick 220541 # Tuner: Move clock seconds option to status bar settings
 kpick 220542 # fw/b lights: Allow black notification color
 kpick 221470 # SystemSensorManager: Fix accel/rotation issue
 kpick 221518 # 	[1/2] base: allow disable of screenshot shutter sound
@@ -883,7 +880,6 @@ kpick 220883 # hwc2: Do not treat color mode errors as fatal at init
 kpick 220885 # color_manager: Update display color api libname
 
 # hardware/qcom/display-caf/msm8974
-kpick 220858 # libgralloc: Fix adding offset to the mapped base address
 
 # hardware/qcom/gps
 kpick 220877 # gps: use TARGET_BOARD_AUTO to override qcom hals
@@ -931,10 +927,9 @@ kpick 213367 # NetworkTraffic: Include tethering traffic statistics
 kpick 214854 # [3/3] lineagesdk: single hand for hw keys
 kpick 216978 # sdk: add torch accent
 #kpick 218679 # lineage-sdk: Use ILight.getSupportedTypes for lights capabilities
-kpick 220396 # sdk: Add default setting for clock position
-kpick 220405 # sdk: Add an overlay to specify notch presence
 kpick 220407 # lineagesdk: Refactor battery icon options
 kpick 220417 # TelephonyExtUtils: Add possible error codes, and return with them
+kpick 221717 # sdk: Make smarter low-power display mode choices	
 
 # lineage-sdk/samples/weatherproviderservice/YahooWeatherProvider
 kpick 207864 # Updated Gradle to 3.0.1; The Lineage-SDK jar is now contained in the project files
@@ -951,6 +946,7 @@ kpick 211135 # Show proper call duration
 
 # packages/apps/DeskClock
 kpick 213051 # Deskclock: set targetSdk to 27
+kpick 221714 # DeskClock : update alarm if it is handled in min framework
 
 # packages/apps/Eleven
 
@@ -983,12 +979,7 @@ kpick 217644 # LineageParts: Set proper PreferenceTheme parent
 kpick 218315 # LineageParts: Fix brightness section
 kpick 219527 # LiveDisplay: Remove advanced settings category if empty
 kpick 219733 # LineageParts: Blue is the new black
-kpick 220393 # LineageParts: Bring back clock position
 kpick 220533 # Trust: String changes for accuracy of language
-kpick 220538 # LineageParts: Bring back clock AM/PM style
-kpick 220539 # LineageParts: Move clock seconds option to status bar settings
-kpick 220584 # StatusBarSettings: Hide clock preference category based on icon visibility
-kpick 220406 # LineageParts: Remove center clock position for devices with notch
 kpick 220422 # LineageParts: Bring back and refactor battery icon options
 kpick 221359 # Remove actionbar calls
 
@@ -1029,6 +1020,7 @@ kpick 214336 # Trebuchet: initial protected apps implementation
 kpick 219924 # Updater: Allow to suspend A/B updates
 kpick 220536 # Updater: Clarify A/B Performance mode string
 kpick 221499 # Updater: Use SharedPreference listener to get perf mode setting
+kpick 221713 # push-update: Don't leave adb in root mode
 
 # packages/overlays/Lineage
 kpick 215846 # dark: Add Theme.DeviceDefault.Settings.Dialog.NoActionBar style
@@ -1053,6 +1045,7 @@ kpick 217313 # add odm partition to ld.config.legacy
 kpick 217314 # Allow firmware loading from ODM partition
 kpick 218837 # libsuspend: Add property support for timeout of autosuspend
 kpick 219304 # init: Allow devices to opt-out of fsck'ing on power off
+kpick 221507 # [1/2] init.rc: set DOWNLOAD_CACHE based on prop
 kpick 221647 # healthd: BatteryMonitor: Fix compiler warning
 
 # system/extras

@@ -1,0 +1,134 @@
+From 970b4b642166e3095c751239d7d8d02827bc2b77 Mon Sep 17 00:00:00 2001
+From: Mao Jinlong <jinlmao@codeaurora.org>
+Date: Thu, 28 Sep 2017 13:55:50 +0800
+Subject: [PATCH 2/2] DeskClock : update alarm if it is handled in min
+ framework
+
+Update the alarm instance status when the power off alarm is handled
+in min framework mode.
+
+CRs-Fixed: 2113033
+Change-Id: I5f10d80fa17c6d89fca990a5d3ccc90a41fa3d5f
+---
+ AndroidManifest.xml                           |  1 +
+ .../android/deskclock/AlarmInitReceiver.java  | 52 +++++++++++++++++++
+ .../deskclock/alarms/AlarmNotifications.java  |  4 +-
+ 3 files changed, 55 insertions(+), 2 deletions(-)
+
+diff --git a/AndroidManifest.xml b/AndroidManifest.xml
+index 67632ed7c..82e3049e3 100644
+--- a/AndroidManifest.xml
++++ b/AndroidManifest.xml
+@@ -166,6 +166,7 @@
+                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                 <action android:name="android.intent.action.TIME_SET" />
+                 <action android:name="android.intent.action.TIMEZONE_CHANGED" />
++                <action android:name="org.codeaurora.poweroffalarm.action.UPDATE_ALARM" />
+             </intent-filter>
+         </receiver>
+ 
+diff --git a/src/com/android/deskclock/AlarmInitReceiver.java b/src/com/android/deskclock/AlarmInitReceiver.java
+index 8bd7cdec7..ba1fb2768 100644
+--- a/src/com/android/deskclock/AlarmInitReceiver.java
++++ b/src/com/android/deskclock/AlarmInitReceiver.java
+@@ -18,16 +18,32 @@ package com.android.deskclock;
+ 
+ import android.annotation.SuppressLint;
+ import android.content.BroadcastReceiver;
++import android.content.ContentResolver;
+ import android.content.Context;
+ import android.content.Intent;
+ import android.os.PowerManager.WakeLock;
+ 
+ import com.android.deskclock.alarms.AlarmStateManager;
++import com.android.deskclock.alarms.AlarmNotifications;
++import com.android.deskclock.provider.AlarmInstance;
+ import com.android.deskclock.controller.Controller;
+ import com.android.deskclock.data.DataModel;
+ 
++import java.util.Calendar;
++import java.util.List;
++
+ public class AlarmInitReceiver extends BroadcastReceiver {
+ 
++    private static final String ACTION_UPDATE_ALARM_STATUS =
++            "org.codeaurora.poweroffalarm.action.UPDATE_ALARM";
++
++    private static final int SNOOZE_STATUS = 2;
++    private static final int DISMISS_STATUS = 3;
++
++    private static final String STATUS = "status";
++    private static final String TIME = "time";
++    private static final String SNOOZE_TIME = "snooze_time";
++
+     /**
+      * When running on N devices, we're interested in the boot completed event that is sent while
+      * the user is still locked, so that we can schedule alarms.
+@@ -85,6 +101,42 @@ public class AlarmInitReceiver extends BroadcastReceiver {
+             Controller.getController().updateShortcuts();
+         }
+ 
++        // Update alarm status once receive the status update broadcast
++        if (ACTION_UPDATE_ALARM_STATUS.equals(action)) {
++            long alarmTime = intent.getLongExtra(TIME, 0L);
++            int alarmStatus = intent.getIntExtra(STATUS, 0);
++
++            if (alarmTime != 0) {
++                ContentResolver cr = context.getContentResolver();
++                List<AlarmInstance> alarmInstances = AlarmInstance
++                            .getInstances(cr, null);
++                AlarmInstance alarmInstance = null;
++                for (AlarmInstance instance : alarmInstances) {
++                    if (instance.getAlarmTime().getTimeInMillis() == alarmTime) {
++                        alarmInstance = instance;
++                        break;
++                    }
++                }
++
++                if (alarmInstance != null) {
++                    // Update alarm status if the alarm instance is not null
++                    if (alarmStatus == DISMISS_STATUS) {
++                        AlarmStateManager.setDismissState(context, alarmInstance);
++                    } else if (alarmStatus == SNOOZE_STATUS){
++                        long snoozeTime = intent.getLongExtra(SNOOZE_TIME, 0L);
++                        if (snoozeTime > System.currentTimeMillis()) {
++                            AlarmNotifications.clearNotification(context, alarmInstance);
++                            Calendar c = Calendar.getInstance();
++                            c.setTimeInMillis(snoozeTime);
++                            alarmInstance.setAlarmTime(c);
++                            alarmInstance.mAlarmState = AlarmInstance.SNOOZE_STATE;
++                            AlarmInstance.updateInstance(cr, alarmInstance);
++                        }
++                    }
++                }
++            }
++        }
++
+         AsyncHandler.post(new Runnable() {
+             @Override
+             public void run() {
+diff --git a/src/com/android/deskclock/alarms/AlarmNotifications.java b/src/com/android/deskclock/alarms/AlarmNotifications.java
+index a21235330..a4db3806a 100644
+--- a/src/com/android/deskclock/alarms/AlarmNotifications.java
++++ b/src/com/android/deskclock/alarms/AlarmNotifications.java
+@@ -45,7 +45,7 @@ import java.text.SimpleDateFormat;
+ import java.util.Locale;
+ import java.util.Objects;
+ 
+-final class AlarmNotifications {
++public final class AlarmNotifications {
+     static final String EXTRA_NOTIFICATION_ID = "extra_notification_id";
+ 
+     /**
+@@ -448,7 +448,7 @@ final class AlarmNotifications {
+         service.startForeground(ALARM_FIRING_NOTIFICATION_ID, notification.build());
+     }
+ 
+-    static synchronized void clearNotification(Context context, AlarmInstance instance) {
++    public static synchronized void clearNotification(Context context, AlarmInstance instance) {
+         LogUtils.v("Clearing notifications for alarm instance: " + instance.mId);
+         NotificationManagerCompat nm = NotificationManagerCompat.from(context);
+         final int id = instance.hashCode();
+-- 
+2.17.1
+
