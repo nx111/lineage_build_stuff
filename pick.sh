@@ -707,7 +707,6 @@ kpick 219194 # minui: drm: ARGB8888 support
 kpick 219195 # minui: drm: wait for page flip event before next flip	
 
 # build/make
-kpick 208102 # Adapt ijar for WSL
 kpick 208381 # build: Add ability for device to specify additional targets
 kpick 208567 # [DNM] updater: Don't check fingerprint for incrementals
 kpick 209023 # build: Add script to generate extra images
@@ -717,9 +716,6 @@ kpick 210238 # releasetools: Store the build.prop file in the OTA zip
 kpick 212820 # build: Implement prebuilt caching
 kpick 213515 # build: Use minimial compression when zipping targetfiles
 kpick 213572 # Allow to exclude imgs from target-files zip
-kpick 214842 # dex2oat: disable multithreading
-kpick 214883 # core: config: Use host ijar if requested
-kpick 214892 # Add detection for WSL
 kpick 218985 # releasetools: Fix the rebuilding of vbmeta.img.
 kpick 218986 # releasetools: Allow building AVB-enabled recovery.img.
 kpick 218987 # Reorder assert-max-image-size and AVB signing
@@ -740,7 +736,6 @@ kpick 211273 # qcom/sepol: Fix timeservice app context
 # device/samsung/klte-common
 #kpick 212648 # klte-common: Enable AOD
 kpick 220435 # Add HFR/HSR support
-kpick 221474 # klte-common: Fix accel/rotation issue
 
 # device/samsung/kltechnduo
 
@@ -795,7 +790,6 @@ kpick 206568 # base: audioservice: Set BT_SCO status
 kpick 207583 # BatteryService: Add support for oem fast charger detection
 kpick 209031 # TelephonyManager: Prevent NPE when registering phone state listener
 kpick 206940 # Avoid crash when the actionbar is disabled in settings
-#kpick 209582 # [1/2] base: battery styles
 kpick 210106 # camera: Check if aux camera whitelist is set before restricting cameras
 kpick 214262 # Bind app name to menu row when notification updated
 kpick 214263 # Fix intercepting touch events for guts
@@ -812,13 +806,14 @@ kpick 218430 # SystemUI: Require unlock to toggle airplane mode
 kpick 218431 # SystemUI: Require unlock to toggle location
 kpick 218437 # SystemUI: Add activity alias for LockscreenFragment
 kpick 218819 # SystemUI: Fix Data Usage tile to match Settings
-#kpick 219300 # SystemUI: tuner: Remove battery preference
 kpick 219930 # Telephony: Stop using rssnr, it falsly shows wrong signal bars Pixel and other devices drop this
 kpick 220542 # fw/b lights: Allow black notification color
 kpick 221470 # SystemSensorManager: Fix accel/rotation issue
 kpick 221518 # 	[1/2] base: allow disable of screenshot shutter sound
 kpick 221557 # Make volume steps adjustable for the alarm and ringtone streams
 kpick 221654 # 	Disable restrictions on swipe to dismiss and action bars
+kpick 221716 # Where's my circle battery, dude?
+kpick 221805 # System Profiles in QS Tiles
 
 # frameworks/native
 kpick 213549 # SurfaceFlinger: Support get/set ActiveConfigs
@@ -861,6 +856,7 @@ kpick 221643 # interfaces: Do not add custom interfaces to VNDK
 kpick 221644 # stache: Add default ext4 crypto implementation
 
 # hardware/lineage/lineagehw
+kpick 221746 # lineagehw: Don't send updates to livedisplay driver unnecessarily
 
 # hardware/lineage/telephony
 kpick 220132 # Improve compatibility with older devices
@@ -926,7 +922,6 @@ kpick 219543 # wiki: add workaround for booting into TWRP recovery
 kpick 213367 # NetworkTraffic: Include tethering traffic statistics
 kpick 214854 # [3/3] lineagesdk: single hand for hw keys
 kpick 216978 # sdk: add torch accent
-#kpick 218679 # lineage-sdk: Use ILight.getSupportedTypes for lights capabilities
 kpick 220407 # lineagesdk: Refactor battery icon options
 kpick 220417 # TelephonyExtUtils: Add possible error codes, and return with them
 kpick 221717 # sdk: Make smarter low-power display mode choices	
@@ -947,6 +942,7 @@ kpick 211135 # Show proper call duration
 # packages/apps/DeskClock
 kpick 213051 # Deskclock: set targetSdk to 27
 kpick 221714 # DeskClock : update alarm if it is handled in min framework
+kpick 221810 # Revert "Adding Notification Channel"
 
 # packages/apps/Eleven
 
@@ -982,6 +978,7 @@ kpick 219733 # LineageParts: Blue is the new black
 kpick 220533 # Trust: String changes for accuracy of language
 kpick 220422 # LineageParts: Bring back and refactor battery icon options
 kpick 221359 # Remove actionbar calls
+kpick 221756 # StatusBarSettings: Hide battery preference category based on icon visibility
 
 # packages/apps/lockClock
 kpick 208127 # Update LockClock to use Job APIs 
@@ -1000,8 +997,9 @@ kpick 216909 # Settings: Apply accent color to on-body detection icon
 kpick 218165 # Add an option to change the device hostname (1/2).
 kpick 218438 # Settings: Add lockscreen shortcuts customization to lockscreen settings
 kpick 218775 # Settings: Cleanup SimSettings additions
-#kpick 219299 # Settings: Remove battery percentage switch
+kpick 219299 # Settings: Remove battery percentage switch
 kpick 221519 # [2/2] Settings: allow disable of screenshot shutter sound
+kpick 221748 # BatteryMeterView: Adapt to enhanced BatteryMeterDrawableBase
 
 # packages/apps/SetupWizard
 kpick 217580 # Add original-package to AndroidManifest
@@ -1020,7 +1018,6 @@ kpick 214336 # Trebuchet: initial protected apps implementation
 kpick 219924 # Updater: Allow to suspend A/B updates
 kpick 220536 # Updater: Clarify A/B Performance mode string
 kpick 221499 # Updater: Use SharedPreference listener to get perf mode setting
-kpick 221713 # push-update: Don't leave adb in root mode
 
 # packages/overlays/Lineage
 kpick 215846 # dark: Add Theme.DeviceDefault.Settings.Dialog.NoActionBar style
