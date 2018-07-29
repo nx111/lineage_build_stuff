@@ -999,7 +999,6 @@ kpick 218438 # Settings: Add lockscreen shortcuts customization to lockscreen se
 kpick 218775 # Settings: Cleanup SimSettings additions
 kpick 219299 # Settings: Remove battery percentage switch
 kpick 221519 # [2/2] Settings: allow disable of screenshot shutter sound
-kpick 221748 # BatteryMeterView: Adapt to enhanced BatteryMeterDrawableBase
 
 # packages/apps/SetupWizard
 kpick 217580 # Add original-package to AndroidManifest
