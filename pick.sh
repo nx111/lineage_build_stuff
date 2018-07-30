@@ -724,6 +724,8 @@ kpick 218989 # releasetools: Fix the size check for AVB images.
 kpick 218990 # releasetools: Always create IMAGES/ directory.
 kpick 218991 # releasetools: Move the AVB salt setup into common.LoadInfoDict().
 kpick 219020 # build: Disable backuptool for A/B on -user
+kpick 222016 # releasetools: Add system-as-root handling for non-A/B backuptool
+kpick 222017 # core: Add bootimage only cmdline flag
 
 # build/soong
 
@@ -821,6 +823,8 @@ kpick 219130 # Revert "SF: Fix hwrotation screenshots at surfaceflinger layer"
 kpick 219131 # Revert "SF: Squashed hwrotation support"
 kpick 219132 # Fix landscape LCM issue
 kpick 219133 # Need GSI to support landscape LCM
+kpick 221924 # SF: Backport "Need GSI to support landscape LCM" for legacy hwc
+kpick 221925 # SF: Backport "Fix landscape LCM issue" for legacy hwc	
 
 # frameworks/opt/chips
 
@@ -929,6 +933,9 @@ kpick 221717 # sdk: Make smarter low-power display mode choices
 # lineage-sdk/samples/weatherproviderservice/YahooWeatherProvider
 kpick 207864 # Updated Gradle to 3.0.1; The Lineage-SDK jar is now contained in the project files
 
+# packages/apps/AudioFX
+kpick 221890 # AudioFX: bump to api27
+
 # packages/apps/Bluetooth
 kpick 218319 # Bluetooth: Remove duplicate permission
 
@@ -945,6 +952,7 @@ kpick 221714 # DeskClock : update alarm if it is handled in min framework
 kpick 221810 # Revert "Adding Notification Channel"
 
 # packages/apps/Eleven
+kpick 221891 # Eleven: bump to api26
 
 # packages/apps/Email
 
@@ -979,6 +987,8 @@ kpick 220533 # Trust: String changes for accuracy of language
 kpick 220422 # LineageParts: Bring back and refactor battery icon options
 kpick 221359 # Remove actionbar calls
 kpick 221756 # StatusBarSettings: Hide battery preference category based on icon visibility
+kpick 221905 # LineageParts: Hide dark mode on light design
+kpick 221906 # LineageParts: Styles: Remove unused imports
 
 # packages/apps/lockClock
 kpick 208127 # Update LockClock to use Job APIs 
@@ -1007,6 +1017,7 @@ kpick 217580 # Add original-package to AndroidManifest
 kpick 206595 # Use transparent navigation bar
 kpick 218826 # CameraSettings:Do not crash if zoom ratios are not exposed.
 kpick 220436 # Fix saving HSR
+kpick 222005 # Snap: Add Denoise to video menu
 
 # packages/apps/Trebuchet
 kpick 214336 # Trebuchet: initial protected apps implementation
