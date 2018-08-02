@@ -1,0 +1,140 @@
+From a8d6c1cf29f9ff4baa65a0f95d632bd4fcaa3d4c Mon Sep 17 00:00:00 2001
+From: Harry Youd <harry@harryyoud.co.uk>
+Date: Fri, 22 Jun 2018 11:49:57 +0200
+Subject: [PATCH 21/36] Revert "SystemUI: disable wallpaper-based tint for
+ scrim"
+
+This reverts commit 759d6831f0207f8b59445b33fd57d770c16d3750.
+
+Change-Id: I86490f2f9f7a4d786e06dfa2de43dc2afa7ec50d
+---
+ .../globalactions/GlobalActionsDialog.java    | 23 +++-------------
+ .../statusbar/phone/ScrimController.java      | 27 ++++++-------------
+ 2 files changed, 12 insertions(+), 38 deletions(-)
+
+diff --git a/packages/SystemUI/src/com/android/systemui/globalactions/GlobalActionsDialog.java b/packages/SystemUI/src/com/android/systemui/globalactions/GlobalActionsDialog.java
+index a3fe7412926..2951c622929 100644
+--- a/packages/SystemUI/src/com/android/systemui/globalactions/GlobalActionsDialog.java
++++ b/packages/SystemUI/src/com/android/systemui/globalactions/GlobalActionsDialog.java
+@@ -55,7 +55,6 @@ import android.database.ContentObserver;
+ import android.graphics.Bitmap;
+ import android.graphics.BitmapShader;
+ import android.graphics.Canvas;
+-import android.graphics.Color;
+ import android.graphics.Matrix;
+ import android.graphics.Paint;
+ import android.graphics.Point;
+@@ -130,9 +129,6 @@ class GlobalActionsDialog implements DialogInterface.OnDismissListener, DialogIn
+ 
+     private static final boolean SHOW_SILENT_TOGGLE = false;
+ 
+-    // Default scrim color
+-    private static final int SCRIM_DEFAULT_COLOR = Color.BLACK;
+-
+     private final Context mContext;
+     private final GlobalActionsManager mWindowManagerFuncs;
+     private final AudioManager mAudioManager;
+@@ -1666,9 +1662,8 @@ class GlobalActionsDialog implements DialogInterface.OnDismissListener, DialogIn
+             mContext.getDisplay().getRealSize(displaySize);
+             mColorExtractor.addOnColorsChangedListener(this);
+             mGradientDrawable.setScreenSize(displaySize.x, displaySize.y);
+-            GradientColors colors = getDarkGradientColor(
+-                    mColorExtractor.getColors(mKeyguardShowing ?
+-                    WallpaperManager.FLAG_LOCK : WallpaperManager.FLAG_SYSTEM));
++            GradientColors colors = mColorExtractor.getColors(mKeyguardShowing ?
++                    WallpaperManager.FLAG_LOCK : WallpaperManager.FLAG_SYSTEM);
+             mGradientDrawable.setColors(colors, false);
+         }
+ 
+@@ -1739,25 +1734,15 @@ class GlobalActionsDialog implements DialogInterface.OnDismissListener, DialogIn
+         public void onColorsChanged(ColorExtractor extractor, int which) {
+             if (mKeyguardShowing) {
+                 if ((WallpaperManager.FLAG_LOCK & which) != 0) {
+-                    mGradientDrawable.setColors(getDarkGradientColor(
+-                            extractor.getColors(WallpaperManager.FLAG_LOCK)));
++                    mGradientDrawable.setColors(extractor.getColors(WallpaperManager.FLAG_LOCK));
+                 }
+             } else {
+                 if ((WallpaperManager.FLAG_SYSTEM & which) != 0) {
+-                    mGradientDrawable.setColors(getDarkGradientColor(
+-                            extractor.getColors(WallpaperManager.FLAG_SYSTEM)));
++                    mGradientDrawable.setColors(extractor.getColors(WallpaperManager.FLAG_SYSTEM));
+                 }
+             }
+         }
+ 
+-        private GradientColors getDarkGradientColor(GradientColors fromWallpaper) {
+-            GradientColors colors = new GradientColors();
+-            colors.setMainColor(SCRIM_DEFAULT_COLOR);
+-            colors.setSecondaryColor(SCRIM_DEFAULT_COLOR);
+-            colors.setSupportsDarkText(fromWallpaper.supportsDarkText());
+-            return colors;
+-        }
+-
+         public void setKeyguardShowing(boolean keyguardShowing) {
+             mKeyguardShowing = keyguardShowing;
+         }
+diff --git a/packages/SystemUI/src/com/android/systemui/statusbar/phone/ScrimController.java b/packages/SystemUI/src/com/android/systemui/statusbar/phone/ScrimController.java
+index 258e6b2bf81..702afa3a38b 100644
+--- a/packages/SystemUI/src/com/android/systemui/statusbar/phone/ScrimController.java
++++ b/packages/SystemUI/src/com/android/systemui/statusbar/phone/ScrimController.java
+@@ -77,9 +77,6 @@ public class ScrimController implements ViewTreeObserver.OnPreDrawListener,
+     private static final int TAG_END_ALPHA = R.id.scrim_alpha_end;
+     private static final float NOT_INITIALIZED = -1;
+ 
+-    // Default scrim color
+-    private static final int SCRIM_DEFAULT_COLOR = Color.BLACK;
+-
+     private final LightBarController mLightBarController;
+     protected final ScrimView mScrimBehind;
+     protected final ScrimView mScrimInFront;
+@@ -155,10 +152,10 @@ public class ScrimController implements ViewTreeObserver.OnPreDrawListener,
+ 
+         mColorExtractor = Dependency.get(SysuiColorExtractor.class);
+         mColorExtractor.addOnColorsChangedListener(this);
+-        mLockColors = getDarkGradientColor(mColorExtractor.getColors(
+-                WallpaperManager.FLAG_LOCK, ColorExtractor.TYPE_DARK, true));
+-        mSystemColors = getDarkGradientColor(mColorExtractor.getColors(
+-                WallpaperManager.FLAG_SYSTEM, ColorExtractor.TYPE_DARK, true));
++        mLockColors = mColorExtractor.getColors(WallpaperManager.FLAG_LOCK,
++                ColorExtractor.TYPE_DARK, true /* ignoreVisibility */);
++        mSystemColors = mColorExtractor.getColors(WallpaperManager.FLAG_SYSTEM,
++                ColorExtractor.TYPE_DARK, true /* ignoreVisibility */);
+         mNeedsDrawableColorUpdate = true;
+ 
+         updateHeadsUpScrim(false);
+@@ -760,27 +757,19 @@ public class ScrimController implements ViewTreeObserver.OnPreDrawListener,
+     @Override
+     public void onColorsChanged(ColorExtractor colorExtractor, int which) {
+         if ((which & WallpaperManager.FLAG_LOCK) != 0) {
+-            mLockColors = getDarkGradientColor(mColorExtractor.getColors(
+-                    WallpaperManager.FLAG_LOCK, ColorExtractor.TYPE_DARK, true));
++            mLockColors = mColorExtractor.getColors(WallpaperManager.FLAG_LOCK,
++                    ColorExtractor.TYPE_DARK, true /* ignoreVisibility */);
+             mNeedsDrawableColorUpdate = true;
+             scheduleUpdate();
+         }
+         if ((which & WallpaperManager.FLAG_SYSTEM) != 0) {
+-            mSystemColors = getDarkGradientColor(mColorExtractor.getColors(
+-                    WallpaperManager.FLAG_SYSTEM, ColorExtractor.TYPE_DARK, mKeyguardShowing));
++            mSystemColors = mColorExtractor.getColors(WallpaperManager.FLAG_SYSTEM,
++                    ColorExtractor.TYPE_DARK, mKeyguardShowing);
+             mNeedsDrawableColorUpdate = true;
+             scheduleUpdate();
+         }
+     }
+ 
+-    private GradientColors getDarkGradientColor(GradientColors fromWallpaper) {
+-        GradientColors colors = new GradientColors();
+-        colors.setMainColor(SCRIM_DEFAULT_COLOR);
+-        colors.setSecondaryColor(SCRIM_DEFAULT_COLOR);
+-        colors.setSupportsDarkText(fromWallpaper.supportsDarkText());
+-        return colors;
+-    }
+-
+     public void dump(PrintWriter pw) {
+         pw.println(" ScrimController:");
+ 
+-- 
+2.17.1
+

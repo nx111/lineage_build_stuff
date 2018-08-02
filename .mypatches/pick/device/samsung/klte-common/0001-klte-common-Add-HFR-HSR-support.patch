@@ -1,4 +1,4 @@
-From 16d9d54d2293f99982cf4a827b49e43407d29221 Mon Sep 17 00:00:00 2001
+From 3c266007f02821cde514ad4d8e3699b0a5ebe8fb Mon Sep 17 00:00:00 2001
 From: T H <socialentry@gmail.com>
 Date: Mon, 16 Jul 2018 00:25:42 -0400
 Subject: [PATCH 1/2] klte-common: Add HFR/HSR support
@@ -13,12 +13,12 @@ Subject: [PATCH 1/2] klte-common: Add HFR/HSR support
 
 Change-Id: Ia44d6c6a970b95db7b9687e9b2391c828e5af230
 ---
- camera/CameraWrapper.cpp   | 198 ++++++++++-
+ camera/CameraWrapper.cpp   | 177 +++++++++-
  configs/media_profiles.xml | 664 +++++++++++++++++++------------------
- 2 files changed, 532 insertions(+), 330 deletions(-)
+ 2 files changed, 511 insertions(+), 330 deletions(-)
 
 diff --git a/camera/CameraWrapper.cpp b/camera/CameraWrapper.cpp
-index ee67107..6559a0c 100644
+index ee67107..db63928 100644
 --- a/camera/CameraWrapper.cpp
 +++ b/camera/CameraWrapper.cpp
 @@ -49,6 +49,9 @@ using namespace android;
@@ -42,38 +42,31 @@ index ee67107..6559a0c 100644
  
  // nv12-venus is needed for blobs, but
  // framework has no idea what it is
-@@ -130,6 +136,91 @@ static bool is_4k_video(CameraParameters &params) {
+@@ -130,6 +136,96 @@ static bool is_4k_video(CameraParameters &params) {
      return video_width * video_height == 3840 * 2160;
  }
  
-+void setHfrParameters(struct camera_device * device, bool reset) {
++static void setHfrParameters(struct camera_device * device, bool reset) {
 +    int id = CAMERA_ID(device);
 +    if ((!hfr && !hsr) || (id == FRONT_CAMERA_ID)) return;
 +
 +    VENDOR_CALL(device, cancel_auto_focus);
 +    VENDOR_CALL(device, stop_preview);
 +
-+    // load params
 +    CameraParameters params;
 +    params.unflatten(String8(fixed_set_params[id]));
-+
-+    // set recording hint to false
 +    params.set(CameraParameters::KEY_RECORDING_HINT, "false");
 +
-+    // set flash parameter OFF
 +    const char *flashMode = params.get(CameraParameters::KEY_FLASH_MODE);
 +    bool isTorch = flashMode && !strcmp(flashMode, CameraParameters::FLASH_MODE_TORCH);
-+    if (isTorch) {
++    if (isTorch)
 +        params.set(CameraParameters::KEY_FLASH_MODE, CameraParameters::FLASH_MODE_OFF);
-+    }
 +
-+    // set params
 +    free(fixed_set_params[id]);
 +    fixed_set_params[id] = strdup(params.flatten().string());
 +    VENDOR_CALL(device, set_parameters, fixed_set_params[id]);
 +
 +    if (reset) {
-+        // reset values
 +        params.set(KEY_PHASE_AF, ON);
 +        params.set(KEY_VIDEO_FAST_FPS_MODE, "0");
 +        params.set(CameraParameters::KEY_PREVIEW_FPS_RANGE, "30000,30000");
@@ -114,27 +107,39 @@ index ee67107..6559a0c 100644
 +        }
 +    }
 +
-+    // set recording hint to true
 +    params.set(CameraParameters::KEY_RECORDING_HINT, "true");
 +
-+    // check torch mode
-+    if (isTorch) {
++    if (isTorch)
 +        params.set(CameraParameters::KEY_FLASH_MODE, CameraParameters::FLASH_MODE_TORCH);
-+    }
 +
-+    // set params
 +    free(fixed_set_params[id]);
 +    fixed_set_params[id] = strdup(params.flatten().string());
 +    VENDOR_CALL(device, set_parameters, fixed_set_params[id]);
 +
-+    // start preview
 +    VENDOR_CALL(device, start_preview);
++}
++
++static void setTorch(struct camera_device *device, bool on) {
++    int id = CAMERA_ID(device);
++    if ((id == BACK_CAMERA_ID) && fixed_set_params[id]) {
++        CameraParameters params;
++        params.unflatten(String8(fixed_set_params[id]));
++        const char *flashMode = params.get(CameraParameters::KEY_FLASH_MODE);
++        bool isTorch = flashMode && !strcmp(flashMode, CameraParameters::FLASH_MODE_TORCH);
++        if (isTorch) {
++            params.set(CameraParameters::KEY_FLASH_MODE, (on ?
++                CameraParameters::FLASH_MODE_TORCH : CameraParameters::FLASH_MODE_OFF));
++            free(fixed_set_params[id]);
++            fixed_set_params[id] = strdup(params.flatten().string());
++            VENDOR_CALL(device, set_parameters, fixed_set_params[id]);
++        }
++    }
 +}
 +
  static char *camera_fixup_getparams(int __attribute__((unused)) id,
      const char *settings)
  {
-@@ -155,19 +246,36 @@ static char *camera_fixup_getparams(int __attribute__((unused)) id,
+@@ -155,19 +251,36 @@ static char *camera_fixup_getparams(int __attribute__((unused)) id,
                  videoSizes);
      }
  
@@ -182,7 +187,7 @@ index ee67107..6559a0c 100644
          params.set(CameraParameters::KEY_VIDEO_SNAPSHOT_SUPPORTED, "true");
      }
  
-@@ -225,7 +333,37 @@ static char *camera_fixup_setparams(int id, const char *settings)
+@@ -225,7 +338,37 @@ static char *camera_fixup_setparams(int id, const char *settings)
              /* need to translate video-hdr to rt-hdr */
              const char *vhdr = params.get(KEY_QC_VIDEO_HDR);
              params.set(KEY_QC_RT_HDR, vhdr && !strcmp(vhdr, "on") ? ON : OFF);
@@ -220,51 +225,25 @@ index ee67107..6559a0c 100644
      }
  
      ALOGV("%s: Fixed parameters:", __FUNCTION__);
-@@ -344,6 +482,21 @@ static int camera_start_preview(struct camera_device *device)
+@@ -344,6 +487,8 @@ static int camera_start_preview(struct camera_device *device)
      ALOGV("%s->%08X->%08X", __FUNCTION__, (uintptr_t)device,
              (uintptr_t)(((wrapper_camera_device_t*)device)->vendor));
  
-+    // set torch on
-+    int id = CAMERA_ID(device);
-+    if ((id == BACK_CAMERA_ID) && fixed_set_params[id]) {
-+        CameraParameters params;
-+        params.unflatten(String8(fixed_set_params[id]));
-+        const char *flashMode = params.get(CameraParameters::KEY_FLASH_MODE);
-+        bool isTorch = flashMode && !strcmp(flashMode, CameraParameters::FLASH_MODE_TORCH);
-+        if (isTorch) {
-+            params.set(CameraParameters::KEY_FLASH_MODE, CameraParameters::FLASH_MODE_TORCH);
-+            free(fixed_set_params[id]);
-+            fixed_set_params[id] = strdup(params.flatten().string());
-+            VENDOR_CALL(device, set_parameters, fixed_set_params[id]);
-+        }
-+    }
++    setTorch(device, true);
 +
      return VENDOR_CALL(device, start_preview);
  }
  
-@@ -355,6 +508,21 @@ static void camera_stop_preview(struct camera_device *device)
+@@ -355,6 +500,8 @@ static void camera_stop_preview(struct camera_device *device)
      ALOGV("%s->%08X->%08X", __FUNCTION__, (uintptr_t)device,
              (uintptr_t)(((wrapper_camera_device_t*)device)->vendor));
  
-+    // set torch off
-+    int id = CAMERA_ID(device);
-+    if ((id == BACK_CAMERA_ID) && fixed_set_params[id]) {
-+        CameraParameters params;
-+        params.unflatten(String8(fixed_set_params[id]));
-+        const char *flashMode = params.get(CameraParameters::KEY_FLASH_MODE);
-+        bool isTorch = flashMode && !strcmp(flashMode, CameraParameters::FLASH_MODE_TORCH);
-+        if (isTorch) {
-+            params.set(CameraParameters::KEY_FLASH_MODE, CameraParameters::FLASH_MODE_OFF);
-+            free(fixed_set_params[id]);
-+            fixed_set_params[id] = strdup(params.flatten().string());
-+            VENDOR_CALL(device, set_parameters, fixed_set_params[id]);
-+        }
-+    }
++    setTorch(device, false);
 +
      VENDOR_CALL(device, stop_preview);
  }
  
-@@ -398,6 +566,8 @@ static int camera_start_recording(struct camera_device *device)
+@@ -398,6 +545,8 @@ static int camera_start_recording(struct camera_device *device)
          camera_set_parameters(device, strdup(parameters.flatten().string()));
      }
  
@@ -273,7 +252,7 @@ index ee67107..6559a0c 100644
      return VENDOR_CALL(device, start_recording);
  }
  
-@@ -409,6 +579,8 @@ static void camera_stop_recording(struct camera_device *device)
+@@ -409,6 +558,8 @@ static void camera_stop_recording(struct camera_device *device)
      ALOGV("%s->%08X->%08X", __FUNCTION__, (uintptr_t)device,
              (uintptr_t)(((wrapper_camera_device_t*)device)->vendor));
  
@@ -282,7 +261,7 @@ index ee67107..6559a0c 100644
      VENDOR_CALL(device, stop_recording);
  }
  
-@@ -568,6 +740,10 @@ static int camera_device_close(hw_device_t *device)
+@@ -568,6 +719,10 @@ static int camera_device_close(hw_device_t *device)
          goto done;
      }
  

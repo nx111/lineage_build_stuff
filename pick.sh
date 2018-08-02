@@ -905,6 +905,7 @@ kpick 218360 # thermal: use log/log.h header
 # hardware/samsung
 kpick 218823 # audio: Add flag to opt in/out amplifier support
 kpick 220853 # dtbhtool: Add new DTBH_MODEL entry
+kpick 222235 # macloader: Correct classification of f0:25:b7
 
 # lineage/charter
 kpick 213574 # charter: Add some new USB rules
@@ -949,6 +950,7 @@ kpick 218319 # Bluetooth: Remove duplicate permission
 
 # packages/apps/Dialer
 kpick 211135 # Show proper call duration
+#kpick 222240 # Dialer: add to support multi-language smart search
 
 # packages/apps/DeskClock
 kpick 213051 # Deskclock: set targetSdk to 27
@@ -1061,6 +1063,7 @@ kpick 218837 # libsuspend: Add property support for timeout of autosuspend
 kpick 219304 # init: Allow devices to opt-out of fsck'ing on power off
 kpick 221507 # [1/2] init.rc: set DOWNLOAD_CACHE based on prop
 kpick 221647 # healthd: BatteryMonitor: Fix compiler warning
+kpick 222237 # Add back atomic symbols
 
 # system/extras
 kpick 211210 # ext4: Add /data/stache/ to encryption exclusion list
