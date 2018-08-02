@@ -816,6 +816,8 @@ kpick 221557 # Make volume steps adjustable for the alarm and ringtone streams
 kpick 221654 # 	Disable restrictions on swipe to dismiss and action bars
 kpick 221716 # Where's my circle battery, dude?
 kpick 221805 # System Profiles in QS Tiles
+kpick 222226 # [1/3] SystemUI: add burnIn protection setting
+kpick 222230 # SystemUI: Initialize mClockVisibleByUser to android:visibility
 
 # frameworks/native
 kpick 213549 # SurfaceFlinger: Support get/set ActiveConfigs
@@ -929,6 +931,8 @@ kpick 216978 # sdk: add torch accent
 kpick 220407 # lineagesdk: Refactor battery icon options
 kpick 220417 # TelephonyExtUtils: Add possible error codes, and return with them
 kpick 221717 # sdk: Make smarter low-power display mode choices	
+kpick 222146 # sdk: Add minimal LineageSettingsService
+#kpick 222225 # Revert "[3/3] cmsdk: add burnIn protection setting"
 
 # lineage-sdk/samples/weatherproviderservice/YahooWeatherProvider
 kpick 207864 # Updated Gradle to 3.0.1; The Lineage-SDK jar is now contained in the project files
@@ -949,7 +953,7 @@ kpick 211135 # Show proper call duration
 # packages/apps/DeskClock
 kpick 213051 # Deskclock: set targetSdk to 27
 kpick 221714 # DeskClock : update alarm if it is handled in min framework
-kpick 221810 # Revert "Adding Notification Channel"
+#kpick 221810 # Revert "Adding Notification Channel"
 
 # packages/apps/Eleven
 kpick 221891 # Eleven: bump to api26
@@ -1009,6 +1013,7 @@ kpick 218438 # Settings: Add lockscreen shortcuts customization to lockscreen se
 kpick 218775 # Settings: Cleanup SimSettings additions
 kpick 219299 # Settings: Remove battery percentage switch
 kpick 221519 # [2/2] Settings: allow disable of screenshot shutter sound
+kpick 222227 # [2/3] Settings: add burnIn protection setting
 
 # packages/apps/SetupWizard
 kpick 217580 # Add original-package to AndroidManifest
@@ -1021,6 +1026,7 @@ kpick 222005 # Snap: Add Denoise to video menu
 
 # packages/apps/Trebuchet
 kpick 214336 # Trebuchet: initial protected apps implementation
+kpick 222121 # Trebuchet: fix derp
 
 # packages/apps/UnifiedEmail
 
@@ -1041,6 +1047,7 @@ kpick 216979 # overlays: add torch accent
 
 # packages/service/Telephony
 kpick 209045 # Telephony: Fallback gracefully for emergency calls if suitable app isn't found
+kpick 222120 # Use proper summary for network select list preference on dsds/trds
 
 # system/bt
 
@@ -1103,6 +1110,7 @@ kpick 220398 # extract_utils: Skip unneeded md5sum
 kpick 220399 # extract_utils: Extract files from brotli compressed images
 kpick 221452 # Update README with minor fixes
 kpick 221505 # config/common: Clean up debug packages
+kpick 222148 # vendor: Copy org.lineageos.settings permission
 
 # vendor/nxp/opensource/packages/apps/Nfc
 
