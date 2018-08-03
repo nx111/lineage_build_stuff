@@ -705,6 +705,8 @@ kpick 221709 # libc: Add generated copyrights
 # bootable/recovery
 kpick 219194 # minui: drm: ARGB8888 support
 kpick 219195 # minui: drm: wait for page flip event before next flip	
+kpick 222281 # f2fs: support f2fs by setting unmovable bit for package file
+kpick 222282 # uncrypt: fix f2fs ioctl argument for pin_file
 
 # build/make
 kpick 208381 # build: Add ability for device to specify additional targets
@@ -738,6 +740,7 @@ kpick 211273 # qcom/sepol: Fix timeservice app context
 # device/samsung/klte-common
 #kpick 212648 # klte-common: Enable AOD
 kpick 220435 # Add HFR/HSR support
+kpick 222288 # klte-common: Import sensors MultiHAL
 
 # device/samsung/kltechnduo
 
@@ -792,7 +795,6 @@ kpick 206568 # base: audioservice: Set BT_SCO status
 kpick 207583 # BatteryService: Add support for oem fast charger detection
 kpick 209031 # TelephonyManager: Prevent NPE when registering phone state listener
 kpick 206940 # Avoid crash when the actionbar is disabled in settings
-kpick 210106 # camera: Check if aux camera whitelist is set before restricting cameras
 kpick 214262 # Bind app name to menu row when notification updated
 kpick 214263 # Fix intercepting touch events for guts
 kpick 214265 # Better QS detail clip animation
@@ -801,7 +803,6 @@ kpick 215128 # Make the startup of SoundTrigger service conditional
 kpick 216872 # SystemUI: Fix systemui crash when showing data usage detail
 kpick 217594 # Fingerprint: Speed up wake-and-unlock scenario
 kpick 217595 # display: Don't animate screen brightness when turning the screen on
-kpick 218166 # Add an option to change the device hostname (1/2).
 kpick 218317 # SystemUI: Remove duplicate permission
 kpick 218359 # Revert "SystemUI: disable wallpaper-based tint for scrim"
 kpick 218430 # SystemUI: Require unlock to toggle airplane mode
@@ -809,8 +810,6 @@ kpick 218431 # SystemUI: Require unlock to toggle location
 kpick 218437 # SystemUI: Add activity alias for LockscreenFragment
 kpick 218819 # SystemUI: Fix Data Usage tile to match Settings
 kpick 219930 # Telephony: Stop using rssnr, it falsly shows wrong signal bars Pixel and other devices drop this
-kpick 220542 # fw/b lights: Allow black notification color
-kpick 221470 # SystemSensorManager: Fix accel/rotation issue
 kpick 221518 # 	[1/2] base: allow disable of screenshot shutter sound
 kpick 221557 # Make volume steps adjustable for the alarm and ringtone streams
 kpick 221654 # 	Disable restrictions on swipe to dismiss and action bars
@@ -838,7 +837,6 @@ kpick 215450 # Add changes for sending ATEL UI Ready to RIL.
 kpick 219860 # Clean up Icc Refresh handling
 kpick 219861 # Fix SIM refresh issue
 kpick 220429 # telephony: Allow overriding getRadioProxy
-kpick 221454 # IMS: Sudden deregisteration takes place soon after registeration.
 
 # hardware/broadcom/libbt
 
@@ -931,9 +929,9 @@ kpick 214854 # [3/3] lineagesdk: single hand for hw keys
 kpick 216978 # sdk: add torch accent
 kpick 220407 # lineagesdk: Refactor battery icon options
 kpick 220417 # TelephonyExtUtils: Add possible error codes, and return with them
-kpick 221717 # sdk: Make smarter low-power display mode choices	
 kpick 222146 # sdk: Add minimal LineageSettingsService
-#kpick 222225 # Revert "[3/3] cmsdk: add burnIn protection setting"
+kpick 222262 # sdk: Allow controllable brightness for non-RGB segmented battery LEDs
+kpick 222276 # Import preference class for custom hostname feature
 
 # lineage-sdk/samples/weatherproviderservice/YahooWeatherProvider
 kpick 207864 # Updated Gradle to 3.0.1; The Lineage-SDK jar is now contained in the project files
@@ -954,7 +952,6 @@ kpick 211135 # Show proper call duration
 
 # packages/apps/DeskClock
 kpick 213051 # Deskclock: set targetSdk to 27
-kpick 221714 # DeskClock : update alarm if it is handled in min framework
 #kpick 221810 # Revert "Adding Notification Channel"
 
 # packages/apps/Eleven
@@ -988,13 +985,13 @@ kpick 217642 # Align learn more and got it horizontally
 kpick 217644 # LineageParts: Set proper PreferenceTheme parent	
 kpick 218315 # LineageParts: Fix brightness section
 kpick 219527 # LiveDisplay: Remove advanced settings category if empty
-kpick 219733 # LineageParts: Blue is the new black
 kpick 220533 # Trust: String changes for accuracy of language
 kpick 220422 # LineageParts: Bring back and refactor battery icon options
 kpick 221359 # Remove actionbar calls
 kpick 221756 # StatusBarSettings: Hide battery preference category based on icon visibility
 kpick 221905 # LineageParts: Hide dark mode on light design
 kpick 221906 # LineageParts: Styles: Remove unused imports
+kpick 222277 # LineageParts: Allow brightness control for segmented LEDs
 
 # packages/apps/lockClock
 kpick 208127 # Update LockClock to use Job APIs 
@@ -1023,7 +1020,6 @@ kpick 217580 # Add original-package to AndroidManifest
 # packages/apps/Snap
 kpick 206595 # Use transparent navigation bar
 kpick 218826 # CameraSettings:Do not crash if zoom ratios are not exposed.
-kpick 220436 # Fix saving HSR
 kpick 222005 # Snap: Add Denoise to video menu
 
 # packages/apps/Trebuchet
@@ -1049,7 +1045,6 @@ kpick 216979 # overlays: add torch accent
 
 # packages/service/Telephony
 kpick 209045 # Telephony: Fallback gracefully for emergency calls if suitable app isn't found
-kpick 222120 # Use proper summary for network select list preference on dsds/trds
 
 # system/bt
 
@@ -1111,7 +1106,6 @@ kpick 219388 # config: Add more GMS client base ID props
 kpick 219389 # lineage: Always disable google SystemUpdateService
 kpick 220398 # extract_utils: Skip unneeded md5sum	
 kpick 220399 # extract_utils: Extract files from brotli compressed images
-kpick 221452 # Update README with minor fixes
 kpick 221505 # config/common: Clean up debug packages
 kpick 222148 # vendor: Copy org.lineageos.settings permission
 
