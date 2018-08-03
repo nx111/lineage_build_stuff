@@ -733,6 +733,7 @@ kpick 222017 # core: Add bootimage only cmdline flag
 
 # device/lineage/sepolicy
 kpick 219022 # sepolicy: Fix neverallow for user builds
+#kpick 222307 # sepolicy: update policies for custom vibrator hal
 
 # device/qcom/sepolicy
 kpick 211273 # qcom/sepol: Fix timeservice app context
@@ -817,6 +818,7 @@ kpick 221716 # Where's my circle battery, dude?
 kpick 221805 # System Profiles in QS Tiles
 kpick 222226 # [1/3] SystemUI: add burnIn protection setting
 kpick 222230 # SystemUI: Initialize mClockVisibleByUser to android:visibility
+kpick 222305 # SettingsLib: add action callbacks to CustomDialogPreferences
 
 # frameworks/native
 kpick 213549 # SurfaceFlinger: Support get/set ActiveConfigs
@@ -1012,7 +1014,8 @@ kpick 218438 # Settings: Add lockscreen shortcuts customization to lockscreen se
 kpick 218775 # Settings: Cleanup SimSettings additions
 kpick 219299 # Settings: Remove battery percentage switch
 kpick 221519 # [2/2] Settings: allow disable of screenshot shutter sound
-kpick 222227 # [2/3] Settings: add burnIn protection setting
+#kpick 222227 # [2/3] Settings: add burnIn protection setting
+#kpick 222306 # Settings: add HIDL vibration intensity preference
 
 # packages/apps/SetupWizard
 kpick 217580 # Add original-package to AndroidManifest
@@ -1024,7 +1027,6 @@ kpick 222005 # Snap: Add Denoise to video menu
 
 # packages/apps/Trebuchet
 kpick 214336 # Trebuchet: initial protected apps implementation
-kpick 222121 # Trebuchet: fix derp
 
 # packages/apps/UnifiedEmail
 

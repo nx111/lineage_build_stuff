@@ -1,4 +1,4 @@
-From 318510366b52bbc3d5a9165ebda18d77da1a9c9d Mon Sep 17 00:00:00 2001
+From 789ff8047dac273a15fc79336edb2a1b99718864 Mon Sep 17 00:00:00 2001
 From: T H <socialentry@gmail.com>
 Date: Thu, 2 Aug 2018 17:06:04 -0400
 Subject: [PATCH 2/3] klte-common: Import sensors MultiHAL
@@ -7,36 +7,22 @@ Subject: [PATCH 2/3] klte-common: Import sensors MultiHAL
 
 Change-Id: I527e72e2e0419931ba21137826774f5b65299f92
 ---
- Android.bp                   |   3 +
  common-proprietary-files.txt |   2 +-
  configs/_hals.conf           |   1 +
  klte.mk                      |   7 +
- sensors/Android.bp           |  15 +
  sensors/Android.mk           |  38 ++
  sensors/SensorEventQueue.cpp |  91 +++++
  sensors/SensorEventQueue.h   |  76 ++++
- sensors/multihal.cpp         | 712 +++++++++++++++++++++++++++++++++++
- sensors/multihal.h           |  29 ++
- 10 files changed, 973 insertions(+), 1 deletion(-)
- create mode 100644 Android.bp
+ sensors/multihal.cpp         | 690 +++++++++++++++++++++++++++++++++++
+ sensors/multihal.h           |  26 ++
+ 8 files changed, 930 insertions(+), 1 deletion(-)
  create mode 100644 configs/_hals.conf
- create mode 100644 sensors/Android.bp
  create mode 100644 sensors/Android.mk
  create mode 100644 sensors/SensorEventQueue.cpp
  create mode 100644 sensors/SensorEventQueue.h
  create mode 100644 sensors/multihal.cpp
  create mode 100644 sensors/multihal.h
 
-diff --git a/Android.bp b/Android.bp
-new file mode 100644
-index 0000000..392c8b4
---- /dev/null
-+++ b/Android.bp
-@@ -0,0 +1,3 @@
-+subdirs = [
-+    "sensors"
-+]
-\ No newline at end of file
 diff --git a/common-proprietary-files.txt b/common-proprietary-files.txt
 index 82764d4..b5c3999 100644
 --- a/common-proprietary-files.txt
@@ -76,27 +62,6 @@ index dd4936a..94b666c 100644
  # Device uses high-density artwork where available
  PRODUCT_AAPT_CONFIG := normal
  PRODUCT_AAPT_PREF_CONFIG := xxhdpi
-diff --git a/sensors/Android.bp b/sensors/Android.bp
-new file mode 100644
-index 0000000..0eaf4b1
---- /dev/null
-+++ b/sensors/Android.bp
-@@ -0,0 +1,15 @@
-+cc_library_static {
-+    name: "multihal-samsung",
-+    vendor: true,
-+    srcs: [
-+        "multihal.cpp",
-+        "SensorEventQueue.cpp"
-+    ],
-+    shared_libs: [
-+        "liblog",
-+        "libcutils",
-+        "libutils",
-+        "libdl"
-+    ],
-+    export_include_dirs: ["."],
-+}
 diff --git a/sensors/Android.mk b/sensors/Android.mk
 new file mode 100644
 index 0000000..833c15a
@@ -322,10 +287,10 @@ index 0000000..9778e93
 +#endif // SENSOREVENTQUEUE_H_
 diff --git a/sensors/multihal.cpp b/sensors/multihal.cpp
 new file mode 100644
-index 0000000..88786f0
+index 0000000..ddc3706
 --- /dev/null
 +++ b/sensors/multihal.cpp
-@@ -0,0 +1,712 @@
+@@ -0,0 +1,690 @@
 +/*
 + * Copyright (C) 2013 The Android Open Source Project
 + *
@@ -792,8 +757,7 @@ index 0000000..88786f0
 + * The vector must not be null.
 + */
 +static void get_so_paths(std::vector<std::string> *so_paths) {
-+    const std::vector<const char *> config_path_list(
-+            { MULTI_HAL_CONFIG_FILE_PATH, DEPRECATED_MULTI_HAL_CONFIG_FILE_PATH });
++    const std::vector<const char *> config_path_list({ MULTI_HAL_CONFIG_FILE_PATH });
 +
 +    std::ifstream stream;
 +    const char *path = nullptr;
@@ -809,11 +773,6 @@ index 0000000..88786f0
 +        ALOGW("No multihal config file found");
 +        return;
 +    }
-+
-+    ALOGE_IF(strcmp(path, DEPRECATED_MULTI_HAL_CONFIG_FILE_PATH) == 0,
-+            "Multihal configuration file path %s is not compatible with Treble "
-+            "requirements. Please move it to %s.",
-+            path, MULTI_HAL_CONFIG_FILE_PATH);
 +
 +    ALOGV("Multihal config file found at %s", path);
 +    std::string line;
@@ -876,22 +835,6 @@ index 0000000..88786f0
 +     */
 +    sensor.fifoReservedEventCount = 0;
 +    sensor.fifoMaxEventCount = 0;
-+
-+    switch (sensor.type) {
-+    /*
-+     * Use the flags suggested by the sensors documentation.
-+     */
-+    case SENSOR_TYPE_TILT_DETECTOR:
-+        sensor.flags = SENSOR_FLAG_WAKE_UP | SENSOR_FLAG_ON_CHANGE_MODE;
-+        break;
-+    /*
-+     * Report a proper range to fix doze proximity check.
-+     */
-+    case SENSOR_TYPE_PROXIMITY:
-+        sensor.flags = SENSOR_FLAG_WAKE_UP | SENSOR_FLAG_ON_CHANGE_MODE;
-+        sensor.maxRange = 5.0;
-+        break;
-+    }
 +}
 +
 +/*
@@ -1040,10 +983,10 @@ index 0000000..88786f0
 +}
 diff --git a/sensors/multihal.h b/sensors/multihal.h
 new file mode 100644
-index 0000000..20a9262
+index 0000000..4629ecb
 --- /dev/null
 +++ b/sensors/multihal.h
-@@ -0,0 +1,29 @@
+@@ -0,0 +1,26 @@
 +/*
 + * Copyright (C) 2016 The Android Open Source Project
 + *
@@ -1066,9 +1009,6 @@ index 0000000..20a9262
 +#include <hardware/hardware.h>
 +
 +static const char* MULTI_HAL_CONFIG_FILE_PATH = "/system/vendor/etc/_hals.conf";
-+
-+// Depracated because system partition HAL config file does not satisfy treble requirements.
-+static const char* DEPRECATED_MULTI_HAL_CONFIG_FILE_PATH = "/system/vendor/etc/_hals.conf";
 +
 +struct sensors_module_t *get_multi_hal_module_info(void);
 +
