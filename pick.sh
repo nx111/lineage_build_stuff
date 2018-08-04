@@ -705,8 +705,6 @@ kpick 221709 # libc: Add generated copyrights
 # bootable/recovery
 kpick 219194 # minui: drm: ARGB8888 support
 kpick 219195 # minui: drm: wait for page flip event before next flip	
-kpick 222281 # f2fs: support f2fs by setting unmovable bit for package file
-kpick 222282 # uncrypt: fix f2fs ioctl argument for pin_file
 
 # build/make
 kpick 208381 # build: Add ability for device to specify additional targets
@@ -747,6 +745,9 @@ kpick 222288 # klte-common: Import sensors MultiHAL
 
 # device/samsung/msm8974-common
 kpick 210313 # msm8974-common: Binderize them all
+kpick 222340 # msm8974-common: Import sensors MultiHAL
+kpick 222341 # msm8974-common: sensors: Adjust for our usecase
+kpick 222342 # msm8974-common: sensors: Disable batching
 
 # kernel/samsung/msm8974
 kpick 210665 # wacom: Follow-up from gestures patch
@@ -832,6 +833,7 @@ kpick 221925 # SF: Backport "Fix landscape LCM issue" for legacy hwc
 # frameworks/opt/chips
 
 # frameworks/opt/net/wifi
+kpick 222334 # wifi: Not reset country code for Dual SIM if any slot is active
 
 # frameworks/opt/telephony
 kpick 214316 # RIL: Allow overriding RadioResponse and RadioIndication
@@ -929,11 +931,11 @@ kpick 219543 # wiki: add workaround for booting into TWRP recovery
 kpick 213367 # NetworkTraffic: Include tethering traffic statistics
 kpick 214854 # [3/3] lineagesdk: single hand for hw keys
 kpick 216978 # sdk: add torch accent
+#kpick 218679 # lineage-sdk: Use ILight.getSupportedTypes for lights capabilities
 kpick 220407 # lineagesdk: Refactor battery icon options
 kpick 220417 # TelephonyExtUtils: Add possible error codes, and return with them
-kpick 222146 # sdk: Add minimal LineageSettingsService
+kpick 222035 # sdk: Add migration for /missing/ custom button actions
 kpick 222262 # sdk: Allow controllable brightness for non-RGB segmented battery LEDs
-kpick 222276 # Import preference class for custom hostname feature
 
 # lineage-sdk/samples/weatherproviderservice/YahooWeatherProvider
 kpick 207864 # Updated Gradle to 3.0.1; The Lineage-SDK jar is now contained in the project files
@@ -991,9 +993,10 @@ kpick 220533 # Trust: String changes for accuracy of language
 kpick 220422 # LineageParts: Bring back and refactor battery icon options
 kpick 221359 # Remove actionbar calls
 kpick 221756 # StatusBarSettings: Hide battery preference category based on icon visibility
-kpick 221905 # LineageParts: Hide dark mode on light design
-kpick 221906 # LineageParts: Styles: Remove unused imports
+kpick 222033 # LineageParts: Remove PrivacySettings
 kpick 222277 # LineageParts: Allow brightness control for segmented LEDs
+kpick 222323 # LineageParts: (Not-so-)Small cleanup
+kpick 222333 # LineageParts: Add missing cursor close
 
 # packages/apps/lockClock
 kpick 208127 # Update LockClock to use Job APIs 
@@ -1009,13 +1012,13 @@ kpick 216687 # settings: wifi: Default to numeric keyboard for static IP items
 kpick 216822 # Settings: Allow setting device phone number
 kpick 216871 # Utils: Always show SIM Settings menu
 kpick 216909 # Settings: Apply accent color to on-body detection icon
-kpick 218165 # Add an option to change the device hostname (1/2).
 kpick 218438 # Settings: Add lockscreen shortcuts customization to lockscreen settings
 kpick 218775 # Settings: Cleanup SimSettings additions
 kpick 219299 # Settings: Remove battery percentage switch
 kpick 221519 # [2/2] Settings: allow disable of screenshot shutter sound
+kpick 221840 # Fixed translation
 #kpick 222227 # [2/3] Settings: add burnIn protection setting
-#kpick 222306 # Settings: add HIDL vibration intensity preference
+kpick 222306 # Settings: add HIDL vibration intensity preference
 
 # packages/apps/SetupWizard
 kpick 217580 # Add original-package to AndroidManifest
@@ -1109,7 +1112,6 @@ kpick 219389 # lineage: Always disable google SystemUpdateService
 kpick 220398 # extract_utils: Skip unneeded md5sum	
 kpick 220399 # extract_utils: Extract files from brotli compressed images
 kpick 221505 # config/common: Clean up debug packages
-kpick 222148 # vendor: Copy org.lineageos.settings permission
 
 # vendor/nxp/opensource/packages/apps/Nfc
 
