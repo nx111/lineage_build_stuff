@@ -495,7 +495,7 @@ function kpick()
                            | xargs md5sum | sed -e "s/\(.*\)/\1 postimage/" >>$md5file
                        grep "using previous resolution" $errfile | sed -e "s|Resolved '\(.*\)' using previous resolution.*|\1|" \
                            | xargs git add -f
-                       if git cherry-pick --continue; then
+                       if git commit --no-edit; then
                           breakout=0
                           conflict_resolved=1
                           get_active_rrcache $project $md5file
@@ -822,7 +822,6 @@ kpick 221654 # 	Disable restrictions on swipe to dismiss and action bars
 kpick 221716 # Where's my circle battery, dude?
 kpick 221805 # System Profiles in QS Tiles
 kpick 222226 # [1/3] SystemUI: add burnIn protection setting
-kpick 222230 # SystemUI: Initialize mClockVisibleByUser to android:visibility
 kpick 222305 # SettingsLib: add action callbacks to CustomDialogPreferences
 kpick 222474 # Tiles: SystemProfiles: Adapt behaviour
 kpick 222475 # LocationTile: Replace deprecated MetricsLogger calls
@@ -839,7 +838,6 @@ kpick 221925 # SF: Backport "Fix landscape LCM issue" for legacy hwc
 # frameworks/opt/chips
 
 # frameworks/opt/net/wifi
-kpick 222334 # wifi: Not reset country code for Dual SIM if any slot is active
 
 # frameworks/opt/telephony
 kpick 214316 # RIL: Allow overriding RadioResponse and RadioIndication
@@ -874,6 +872,7 @@ kpick 221746 # lineagehw: Don't send updates to livedisplay driver unnecessarily
 
 # hardware/lineage/telephony
 kpick 220132 # Improve compatibility with older devices
+kpick 220418 # Add split implementation for using QcRilHook
 
 # hardware/qcom/audio-caf/msm8974
 
@@ -962,6 +961,7 @@ kpick 211135 # Show proper call duration
 # packages/apps/DeskClock
 kpick 213051 # Deskclock: set targetSdk to 27
 #kpick 221810 # Revert "Adding Notification Channel"
+kpick 222493 # Overlay layouts for round-watch
 
 # packages/apps/Eleven
 kpick 221891 # Eleven: bump to api26
@@ -989,7 +989,6 @@ kpick 220533 # Trust: String changes for accuracy of language
 kpick 220422 # LineageParts: Bring back and refactor battery icon options
 kpick 221359 # Remove actionbar calls
 kpick 221756 # StatusBarSettings: Hide battery preference category based on icon visibility
-kpick 222033 # LineageParts: Remove PrivacySettings
 kpick 222323 # LineageParts: (Not-so-)Small cleanup
 kpick 222333 # LineageParts: Add missing cursor close
 
@@ -1088,7 +1087,6 @@ kpick 215122 # libQWiFiSoftApCfg: Replace deprecated kernel header path
 # system/vold
 kpick 209189 # vold: Conditionally remove secdiscard command
 kpick 218416 # vold: utils: Introduce ForkCallp
-kpick 222455 # secdiscard: should pin_file to avoid moving blocks in F2FS
 
 # vendor/lineage
 kpick 206154 # Include build manifest on target
@@ -1110,8 +1108,6 @@ kpick 219389 # lineage: Always disable google SystemUpdateService
 kpick 220398 # extract_utils: Skip unneeded md5sum	
 kpick 220399 # extract_utils: Extract files from brotli compressed images
 kpick 221505 # config/common: Clean up debug packages
-kpick 222472 # Revert "ota: Validate any installed data's signature against our own"
-kpick 222480 # lineage: Allow background broadcast for CAMERA_BUTTON
 
 # vendor/nxp/opensource/packages/apps/Nfc
 
