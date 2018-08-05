@@ -1,0 +1,134 @@
+From 9cc7d62bc25519fb207a27dd6657413ec33d7d10 Mon Sep 17 00:00:00 2001
+From: Michael Bestas <mkbestas@lineageos.org>
+Date: Sat, 4 Aug 2018 17:46:35 +0300
+Subject: [PATCH 22/23] Revert "ota: Validate any installed data's signature
+ against our own"
+
+* otasigcheck doesn't work on encrypted devices and makes
+  the zip installation fail since oreo.
+* The build part of this was never ported to oreo.
+
+This reverts commit aff5e54c4ef5fec7e67e830f83ee64424005d07c.
+
+Change-Id: I411f33c1db64844091c1692ef4706ae541925d4f
+---
+ config/common.mk                   |  4 --
+ prebuilt/common/bin/otasigcheck.sh | 91 ------------------------------
+ 2 files changed, 95 deletions(-)
+ delete mode 100644 prebuilt/common/bin/otasigcheck.sh
+
+diff --git a/config/common.mk b/config/common.mk
+index 10fc4939..6bc6c01a 100644
+--- a/config/common.mk
++++ b/config/common.mk
+@@ -65,10 +65,6 @@ PRODUCT_COPY_FILES += \
+ PRODUCT_COPY_FILES += \
+     vendor/lineage/config/permissions/lineage-sysconfig.xml:system/etc/sysconfig/lineage-sysconfig.xml
+ 
+-# Signature compatibility validation
+-PRODUCT_COPY_FILES += \
+-    vendor/lineage/prebuilt/common/bin/otasigcheck.sh:install/bin/otasigcheck.sh
+-
+ # init.d support
+ PRODUCT_COPY_FILES += \
+     vendor/lineage/prebuilt/common/etc/init.d/00banner:system/etc/init.d/00banner \
+diff --git a/prebuilt/common/bin/otasigcheck.sh b/prebuilt/common/bin/otasigcheck.sh
+deleted file mode 100644
+index aba53b01..00000000
+--- a/prebuilt/common/bin/otasigcheck.sh
++++ /dev/null
+@@ -1,91 +0,0 @@
+-#!/sbin/sh
+-
+-# Validate that the incoming OTA is compatible with an already-installed
+-# system
+-
+-grep -q "Command:.*\"--wipe\_data\"" /tmp/recovery.log
+-if [ $? -eq 0 ]; then
+-  echo "Data will be wiped after install; skipping signature check..."
+-  exit 0
+-fi
+-
+-grep -q "Command:.*\"--headless\"" /tmp/recovery.log
+-if [ $? -eq 0 ]; then
+-  echo "Headless mode install; skipping signature check..."
+-  exit 0
+-fi
+-
+-if [ -f "/data/system/packages.xml" -a -f "/tmp/releasekey" ]; then
+-  relkey=$(cat "/tmp/releasekey")
+-  OLDIFS="$IFS"
+-  IFS=""
+-  while read line; do
+-    if [ "${#line}" -gt 4094 ]; then
+-      continue
+-    fi
+-    params=${line# *<package *}
+-    if [ "$line" != "$params" ]; then
+-      kvp=${params%% *}
+-      params=${params#* }
+-      while [ "$kvp" != "$params" ]; do
+-        key=${kvp%%=*}
+-        val=${kvp#*=}
+-        vlen=$(( ${#val} - 2 ))
+-        val=${val:1:$vlen}
+-        if [ "$key" = "name" ]; then
+-          package="$val"
+-        fi
+-        kvp=${params%% *}
+-        params=${params#* }
+-      done
+-      continue
+-    fi
+-    params=${line# *<cert *}
+-    if [ "$line" != "$params" ]; then
+-      keyidx=""
+-      keyval=""
+-      kvp=${params%% *}
+-      params=${params#* }
+-      while [ "$kvp" != "$params" ]; do
+-        key=${kvp%%=*}
+-        val=${kvp#*=}
+-        vlen=$(( ${#val} - 2 ))
+-        val=${val:1:$vlen}
+-        if [ "$key" = "index" ]; then
+-          keyidx="$val"
+-        fi
+-        if [ "$key" = "key" ]; then
+-          keyval="$val"
+-        fi
+-        kvp=${params%% *}
+-        params=${params#* }
+-      done
+-      if [ -n "$keyidx" ]; then
+-        if [ "$package" = "com.android.htmlviewer" ]; then
+-          cert_idx="$keyidx"
+-        fi
+-      fi
+-      if [ -n "$keyval" ]; then
+-        eval "key_$keyidx=$keyval"
+-      fi
+-      continue
+-    fi
+-  done < "/data/system/packages.xml"
+-  IFS="$OLDIFS"
+-
+-  # Tools missing? Err on the side of caution and exit cleanly
+-  if [ -z "$cert_idx" ]; then
+-    echo "Package cert index not found; skipping signature check..."
+-    exit 0
+-  fi
+-
+-  varname="key_$cert_idx"
+-  eval "pkgkey=\$$varname"
+-
+-  if [ "$pkgkey" != "$relkey" ]; then
+-     echo "You have an installed system that isn't signed with this build's key, aborting..."
+-     exit 124
+-  fi
+-fi
+-
+-exit 0
+-- 
+2.17.1
+

@@ -705,6 +705,7 @@ kpick 221709 # libc: Add generated copyrights
 # bootable/recovery
 kpick 219194 # minui: drm: ARGB8888 support
 kpick 219195 # minui: drm: wait for page flip event before next flip	
+kpick 222457 # backup: Fix compiler warnings
 
 # build/make
 kpick 208381 # build: Add ability for device to specify additional targets
@@ -731,7 +732,7 @@ kpick 222017 # core: Add bootimage only cmdline flag
 
 # device/lineage/sepolicy
 kpick 219022 # sepolicy: Fix neverallow for user builds
-#kpick 222307 # sepolicy: update policies for custom vibrator hal
+kpick 222307 # sepolicy: update policies for custom vibrator hal
 
 # device/qcom/sepolicy
 kpick 211273 # qcom/sepol: Fix timeservice app context
@@ -753,11 +754,14 @@ kpick 222342 # msm8974-common: sensors: Disable batching
 kpick 210665 # wacom: Follow-up from gestures patch
 kpick 210666 # wacom: Report touch when pen button is pressed if gestures are off
 #kpick 221437 # msm: ADSPRPC: Use ID in response to get context pointer
+kpick 222483 # input: synaptics: Disable stylus mode
 
 # external/ant-wireless/ant_native
 
 # external/chromium-webview
 kpick 219572 # Add information on the arch-dependent version number
+
+# external/f2fs-tools
 
 # external/tinecompress
 kpick 215115 # tinycompress: Replace deprecated kernel header path
@@ -820,6 +824,8 @@ kpick 221805 # System Profiles in QS Tiles
 kpick 222226 # [1/3] SystemUI: add burnIn protection setting
 kpick 222230 # SystemUI: Initialize mClockVisibleByUser to android:visibility
 kpick 222305 # SettingsLib: add action callbacks to CustomDialogPreferences
+kpick 222474 # Tiles: SystemProfiles: Adapt behaviour
+kpick 222475 # LocationTile: Replace deprecated MetricsLogger calls
 
 # frameworks/native
 kpick 213549 # SurfaceFlinger: Support get/set ActiveConfigs
@@ -935,7 +941,6 @@ kpick 216978 # sdk: add torch accent
 kpick 220407 # lineagesdk: Refactor battery icon options
 kpick 220417 # TelephonyExtUtils: Add possible error codes, and return with them
 kpick 222035 # sdk: Add migration for /missing/ custom button actions
-kpick 222262 # sdk: Allow controllable brightness for non-RGB segmented battery LEDs
 
 # lineage-sdk/samples/weatherproviderservice/YahooWeatherProvider
 kpick 207864 # Updated Gradle to 3.0.1; The Lineage-SDK jar is now contained in the project files
@@ -965,15 +970,6 @@ kpick 221891 # Eleven: bump to api26
 
 # packages/apps/Exchange
 kpick 211382 # Exchange: request permissions
-kpick 221479 # Add multi reminders
-kpick 221480 # Patch Exchange Autodiscover Code for Security Issue
-kpick 221481 # exchange: serialize the account parcelable before using with AlarmManager
-kpick 221482 # Display model name on exchange server and exclude illegal characters
-kpick 221483 # exchange: fix typo in switch case flow
-kpick 221484 # exchange: fix eas autodiscover
-kpick 221485 # exchange: imap push
-kpick 221486 # Fix authentication error notification click handling.
-kpick 221487 # Exchange: Remove leftover translation
 kpick 221488 # Failure in testAllSystemAppsUsingRuntimePermissionsTargetMncAndAboveSdk	
 kpick 221489 # Automatic translation import
 
@@ -994,7 +990,6 @@ kpick 220422 # LineageParts: Bring back and refactor battery icon options
 kpick 221359 # Remove actionbar calls
 kpick 221756 # StatusBarSettings: Hide battery preference category based on icon visibility
 kpick 222033 # LineageParts: Remove PrivacySettings
-kpick 222277 # LineageParts: Allow brightness control for segmented LEDs
 kpick 222323 # LineageParts: (Not-so-)Small cleanup
 kpick 222333 # LineageParts: Add missing cursor close
 
@@ -1027,6 +1022,7 @@ kpick 217580 # Add original-package to AndroidManifest
 kpick 206595 # Use transparent navigation bar
 kpick 218826 # CameraSettings:Do not crash if zoom ratios are not exposed.
 kpick 222005 # Snap: Add Denoise to video menu
+kpick 222464 # Snap: Allow quickreader to work with secure device
 
 # packages/apps/Trebuchet
 kpick 214336 # Trebuchet: initial protected apps implementation
@@ -1043,6 +1039,9 @@ kpick 215846 # dark: Add Theme.DeviceDefault.Settings.Dialog.NoActionBar style
 kpick 216979 # overlays: add torch accent
 
 # packages/providers/ContactsProvider
+
+# packages/providers/DownloadProvider
+kpick 222467 # Fix plural translatability for download speed
 
 # packages/resources/devicesettings
 
@@ -1089,8 +1088,7 @@ kpick 215122 # libQWiFiSoftApCfg: Replace deprecated kernel header path
 # system/vold
 kpick 209189 # vold: Conditionally remove secdiscard command
 kpick 218416 # vold: utils: Introduce ForkCallp
-#kpick 218417 # vold: Put recovery fstools in minivold
-#kpick 218418 # vold: Use ForkCallp for e2fsck
+kpick 222455 # secdiscard: should pin_file to avoid moving blocks in F2FS
 
 # vendor/lineage
 kpick 206154 # Include build manifest on target
@@ -1112,6 +1110,8 @@ kpick 219389 # lineage: Always disable google SystemUpdateService
 kpick 220398 # extract_utils: Skip unneeded md5sum	
 kpick 220399 # extract_utils: Extract files from brotli compressed images
 kpick 221505 # config/common: Clean up debug packages
+kpick 222472 # Revert "ota: Validate any installed data's signature against our own"
+kpick 222480 # lineage: Allow background broadcast for CAMERA_BUTTON
 
 # vendor/nxp/opensource/packages/apps/Nfc
 

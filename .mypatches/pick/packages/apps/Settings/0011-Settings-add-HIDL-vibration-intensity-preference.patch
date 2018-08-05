@@ -1,4 +1,4 @@
-From d1004583afb15e5401b1e572b2593f44c92b2ae3 Mon Sep 17 00:00:00 2001
+From 68f33f41e149c4b50b52ad4ddfe9a06e0c521e1c Mon Sep 17 00:00:00 2001
 From: Joey <joey@lineageos.org>
 Date: Mon, 30 Jul 2018 11:53:43 +0200
 Subject: [PATCH 11/12] Settings: add HIDL vibration intensity preference
@@ -29,9 +29,9 @@ Signed-off-by: Joey <joey@lineageos.org>
  res/values/cm_strings.xml                     |   5 +
  res/xml/sound_settings.xml                    |   9 +
  .../settings/notification/SoundSettings.java  |   4 +
- .../notification/VibratorIntensity.java       | 204 ++++++++++++++++++
- .../VibratorIntensityController.java          |  58 +++++
- 7 files changed, 333 insertions(+), 1 deletion(-)
+ .../notification/VibratorIntensity.java       | 192 ++++++++++++++++++
+ .../VibratorIntensityController.java          |  58 ++++++
+ 7 files changed, 321 insertions(+), 1 deletion(-)
  create mode 100644 res/layout/vibrator_intensity.xml
  create mode 100644 src/com/android/settings/notification/VibratorIntensity.java
  create mode 100644 src/com/android/settings/notification/VibratorIntensityController.java
@@ -165,10 +165,10 @@ index e4c7e4cac3..be8881c3c2 100644
  
 diff --git a/src/com/android/settings/notification/VibratorIntensity.java b/src/com/android/settings/notification/VibratorIntensity.java
 new file mode 100644
-index 0000000000..fe93476e8d
+index 0000000000..7086238859
 --- /dev/null
 +++ b/src/com/android/settings/notification/VibratorIntensity.java
-@@ -0,0 +1,204 @@
+@@ -0,0 +1,192 @@
 +/**
 + * Copyright (C) 2013-2016 The CyanogenMod Project
 + * Copyright (C) 2018 The LineageOS Project
@@ -191,17 +191,12 @@ index 0000000000..fe93476e8d
 +import android.app.AlertDialog;
 +import android.content.Context;
 +import android.content.DialogInterface;
-+import android.content.SharedPreferences;
-+import android.content.SharedPreferences.Editor;
 +import android.graphics.Color;
 +import android.graphics.LightingColorFilter;
 +import android.graphics.drawable.Drawable;
 +import android.graphics.drawable.LayerDrawable;
-+import android.os.Bundle;
 +import android.os.RemoteException;
 +import android.os.Vibrator;
-+import android.support.v7.preference.DialogPreference;
-+import android.support.v7.preference.PreferenceManager;
 +import android.util.AttributeSet;
 +import android.util.Log;
 +import android.view.View;
@@ -224,7 +219,6 @@ index 0000000000..fe93476e8d
 +
 +    private int mOriginalValue;
 +    private int mDefaultValue;
-+    private int mWarningValue;
 +
 +    private SeekBar mSeekBar;
 +    private TextView mValueText;
@@ -260,20 +254,21 @@ index 0000000000..fe93476e8d
 +            mServer = IVibrator.getService();
 +
 +            // Read the current value in case user wants to dismiss his changes
-+            mOriginalValue = mServer.getIntensity();
-+            mWarningValue = mServer.getDefaultIntensity();
 +            mDefaultValue = mServer.getDefaultIntensity();
++            mOriginalValue = LineageSettings.Secure.getInt(getContext().getContentResolver(),
++                    LineageSettings.Secure.VIBRATOR_INTENSITY, mDefaultValue);
++
 +        } catch (NoSuchElementException | RemoteException e) {
 +            throw new RuntimeException("Service not found!");
 +        }
 +
-+        if (mWarningValue <= 0) {
-+            mWarningText.setVisibility(View.GONE);
-+        } else {
++        if (mDefaultValue > 0 && mDefaultValue < 255) {
 +            final String message = getContext().getResources().getString(
 +                    R.string.vibrator_intensity_dialog_warning,
-+                    intensityToPercent(mWarningValue));
++                    intensityToPercent(mDefaultValue));
 +            mWarningText.setText(message);
++        } else {
++            mWarningText.setVisibility(View.GONE);
 +        }
 +
 +        final Drawable progressDrawable = mSeekBar.getProgressDrawable();
@@ -296,8 +291,7 @@ index 0000000000..fe93476e8d
 +        // to be kept open on click
 +        if (which == DialogInterface.BUTTON_NEUTRAL) {
 +            mSeekBar.setProgress(mDefaultValue);
-+            setVibratorIntensity(mDefaultValue);
-+            testVibration();
++            testVibratorIntensity(mDefaultValue);
 +            return false;
 +        }
 +        return true;
@@ -308,12 +302,7 @@ index 0000000000..fe93476e8d
 +        super.onDialogClosed(positiveResult);
 +
 +        if (positiveResult) {
-+            // Store percent value in SharedPreferences object
-+            final SharedPreferences prefs = PreferenceManager
-+                    .getDefaultSharedPreferences(getContext());
 +            final int intensity = mSeekBar.getProgress();
-+            final int percent = intensityToPercent(intensity);
-+            prefs.edit().putInt(LineageSettings.Secure.VIBRATOR_INTENSITY, percent).commit();
 +            LineageSettings.Secure.putInt(getContext().getContentResolver(),
 +                    LineageSettings.Secure.VIBRATOR_INTENSITY, intensity);
 +        } else {
@@ -325,7 +314,8 @@ index 0000000000..fe93476e8d
 +    public void onProgressChanged(
 +                final SeekBar seekBar, final int progress, final boolean fromUser) {
 +        final int intensity = progress;
-+        final boolean shouldWarn = mWarningValue > 0 && intensity >= mWarningValue;
++        final boolean shouldWarn = mDefaultValue > 0 && mDefaultValue < 255
++                && intensity >= mDefaultValue;
 +
 +        if (mProgressDrawable != null) {
 +            mProgressDrawable.setColorFilter(shouldWarn ? mRedFilter : null);
@@ -345,8 +335,7 @@ index 0000000000..fe93476e8d
 +
 +    @Override
 +    public void onStopTrackingTouch(final SeekBar seekBar) {
-+        setVibratorIntensity(seekBar.getProgress());
-+        testVibration();
++        testVibratorIntensity(seekBar.getProgress());
 +    }
 +
 +    private void setVibratorIntensity(final int intensity) {
@@ -356,11 +345,10 @@ index 0000000000..fe93476e8d
 +        }
 +    }
 +
-+    private void testVibration() {
-+        try {
-+            mServer.on(200);
-+        } catch (RemoteException ignored) {
-+        }
++    private void testVibratorIntensity(final int intensity) {
++        setVibratorIntensity(intensity);
++        final Vibrator vib = (Vibrator) getContext().getSystemService(Context.VIBRATOR_SERVICE);
++        vib.vibrate(200);
 +    }
 +
 +    private static int intensityToPercent(int value) {

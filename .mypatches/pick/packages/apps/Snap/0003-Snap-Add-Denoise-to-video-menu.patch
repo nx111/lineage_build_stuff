@@ -1,16 +1,33 @@
-From 92cb77f93ca993a739741cc810a66b3a8a6618b5 Mon Sep 17 00:00:00 2001
+From bcdb503e558e792a0bc0465c29004b6fa6eae8cc Mon Sep 17 00:00:00 2001
 From: T H <socialentry@gmail.com>
 Date: Sun, 29 Jul 2018 19:56:27 -0400
-Subject: [PATCH 3/3] Snap: Add Denoise to video menu
+Subject: [PATCH 3/4] Snap: Add Denoise to video menu
+
+* Separate photo denoise and video denoise preferences
 
 Change-Id: Iea1c08838e81b694a295c1eb38b46b20c08e4aa9
 ---
- res/xml/video_preferences.xml         | 7 +++++++
- src/com/android/camera/VideoMenu.java | 2 ++
- 2 files changed, 9 insertions(+)
+ res/values/qcomstrings.xml                 | 1 +
+ res/xml/video_preferences.xml              | 7 +++++++
+ src/com/android/camera/CameraSettings.java | 7 +++++++
+ src/com/android/camera/VideoMenu.java      | 2 ++
+ src/com/android/camera/VideoModule.java    | 4 ++--
+ 5 files changed, 19 insertions(+), 2 deletions(-)
 
+diff --git a/res/values/qcomstrings.xml b/res/values/qcomstrings.xml
+index 8f64a0575..3fab54ca7 100755
+--- a/res/values/qcomstrings.xml
++++ b/res/values/qcomstrings.xml
+@@ -432,6 +432,7 @@
+     <!-- Denoise Settings screen, setting title text -->
+     <string name="pref_camera_denoise_title">Denoise</string>
+     <string name="pref_camera_denoise_default" translatable="false">denoise-on</string>
++    <string name="pref_camera_video_denoise_default" translatable="false">denoise-on</string>
+ 
+     <!-- Denoise Settings screen, Record location dialog choices -->
+     <string name="pref_camera_denoise_entry_off">Off</string>
 diff --git a/res/xml/video_preferences.xml b/res/xml/video_preferences.xml
-index e60dbc32e..8570eb25c 100644
+index e60dbc32e..82617e32e 100644
 --- a/res/xml/video_preferences.xml
 +++ b/res/xml/video_preferences.xml
 @@ -227,6 +227,13 @@
@@ -18,8 +35,8 @@ index e60dbc32e..8570eb25c 100644
              camera:entries="@array/pref_switch_entries"
              camera:entryValues="@array/pref_switch_entryvalues" />
 +    <IconListPreference
-+            camera:key="pref_camera_denoise_key"
-+            camera:defaultValue="@string/pref_camera_denoise_default"
++            camera:key="pref_camera_video_denoise_key"
++            camera:defaultValue="@string/pref_camera_video_denoise_default"
 +            camera:title="@string/pref_camera_denoise_title"
 +            camera:singleIcon="@drawable/ic_settings_denoise"
 +            camera:entries="@array/pref_camera_denoise_entries"
@@ -27,15 +44,47 @@ index e60dbc32e..8570eb25c 100644
      <IconListPreference
              camera:key="pref_max_brightness"
              camera:defaultValue="@string/pref_camera_max_brightness_default"
+diff --git a/src/com/android/camera/CameraSettings.java b/src/com/android/camera/CameraSettings.java
+index 73f8ddb65..189ac6698 100644
+--- a/src/com/android/camera/CameraSettings.java
++++ b/src/com/android/camera/CameraSettings.java
+@@ -111,6 +111,7 @@ public class CameraSettings {
+     public static final String KEY_LENSSHADING = "pref_camera_lensshading_key";
+     public static final String KEY_HISTOGRAM = "pref_camera_histogram_key";
+     public static final String KEY_DENOISE = "pref_camera_denoise_key";
++    public static final String KEY_VIDEO_DENOISE = "pref_camera_video_denoise_key";
+     public static final String KEY_BRIGHTNESS = "pref_camera_brightness_key";
+     public static final String KEY_REDEYE_REDUCTION = "pref_camera_redeyereduction_key";
+     public static final String KEY_SELFIE_MIRROR = "pref_camera_selfiemirror_key";
+@@ -815,6 +816,7 @@ public class CameraSettings {
+         ListPreference lensShade = group.findPreference(KEY_LENSSHADING);
+         ListPreference histogram = group.findPreference(KEY_HISTOGRAM);
+         ListPreference denoise = group.findPreference(KEY_DENOISE);
++        ListPreference videoDenoise = group.findPreference(KEY_VIDEO_DENOISE);
+         ListPreference redeyeReduction = group.findPreference(KEY_REDEYE_REDUCTION);
+         ListPreference aeBracketing = group.findPreference(KEY_AE_BRACKET_HDR);
+         ListPreference advancedFeatures = group.findPreference(KEY_ADVANCED_FEATURES);
+@@ -936,6 +938,11 @@ public class CameraSettings {
+                     denoise, ParametersWrapper.getSupportedDenoiseModes(mParameters));
+         }
+ 
++        if (videoDenoise != null) {
++            filterUnsupportedOptions(group,
++                    videoDenoise, ParametersWrapper.getSupportedDenoiseModes(mParameters));
++        }
++
+         if (videoHdr != null) {
+             filterUnsupportedOptions(group,
+                     videoHdr, ParametersWrapper.getSupportedVideoHDRModes(mParameters));
 diff --git a/src/com/android/camera/VideoMenu.java b/src/com/android/camera/VideoMenu.java
-index 1de936eb9..d2e1aeace 100644
+index 1de936eb9..d42e91485 100644
 --- a/src/com/android/camera/VideoMenu.java
 +++ b/src/com/android/camera/VideoMenu.java
 @@ -126,6 +126,7 @@ public class VideoMenu extends MenuController
                  CameraSettings.KEY_VIDEO_HIGH_FRAME_RATE,
                  CameraSettings.KEY_DIS,
                  CameraSettings.KEY_POWER_SHUTTER,
-+                CameraSettings.KEY_DENOISE,
++                CameraSettings.KEY_VIDEO_DENOISE,
                  CameraSettings.KEY_MAX_BRIGHTNESS
          };
          mOtherKeys2 = new String[] {
@@ -43,10 +92,25 @@ index 1de936eb9..d2e1aeace 100644
                  CameraSettings.KEY_VIDEOCAMERA_FOCUS_TIME,
                  CameraSettings.KEY_VIDEO_HIGH_FRAME_RATE,
                  CameraSettings.KEY_POWER_SHUTTER,
-+                CameraSettings.KEY_DENOISE,
++                CameraSettings.KEY_VIDEO_DENOISE,
                  CameraSettings.KEY_MAX_BRIGHTNESS,
                  CameraSettings.KEY_SEE_MORE,
                  CameraSettings.KEY_NOISE_REDUCTION,
+diff --git a/src/com/android/camera/VideoModule.java b/src/com/android/camera/VideoModule.java
+index 14732483c..d7369d131 100644
+--- a/src/com/android/camera/VideoModule.java
++++ b/src/com/android/camera/VideoModule.java
+@@ -953,8 +953,8 @@ public class VideoModule implements CameraModule,
+ 
+         // Set wavelet denoise mode
+         if (ParametersWrapper.getSupportedDenoiseModes(mParameters) != null) {
+-            String denoise = mPreferences.getString(CameraSettings.KEY_DENOISE,
+-                    mActivity.getString(R.string.pref_camera_denoise_default));
++            String denoise = mPreferences.getString(CameraSettings.KEY_VIDEO_DENOISE,
++                    mActivity.getString(R.string.pref_camera_video_denoise_default));
+             ParametersWrapper.setDenoise(mParameters, denoise);
+         }
+    }
 -- 
 2.17.1
 
