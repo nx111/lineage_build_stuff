@@ -740,21 +740,16 @@ kpick 211273 # qcom/sepol: Fix timeservice app context
 # device/samsung/klte-common
 #kpick 212648 # klte-common: Enable AOD
 kpick 220435 # Add HFR/HSR support
-kpick 222288 # klte-common: Import sensors MultiHAL
 
 # device/samsung/kltechnduo
 
 # device/samsung/msm8974-common
 kpick 210313 # msm8974-common: Binderize them all
-kpick 222340 # msm8974-common: Import sensors MultiHAL
-kpick 222341 # msm8974-common: sensors: Adjust for our usecase
-kpick 222342 # msm8974-common: sensors: Disable batching
 
 # kernel/samsung/msm8974
 kpick 210665 # wacom: Follow-up from gestures patch
 kpick 210666 # wacom: Report touch when pen button is pressed if gestures are off
 #kpick 221437 # msm: ADSPRPC: Use ID in response to get context pointer
-kpick 222483 # input: synaptics: Disable stylus mode
 
 # external/ant-wireless/ant_native
 
@@ -825,6 +820,7 @@ kpick 222226 # [1/3] SystemUI: add burnIn protection setting
 kpick 222305 # SettingsLib: add action callbacks to CustomDialogPreferences
 kpick 222474 # Tiles: SystemProfiles: Adapt behaviour
 kpick 222475 # LocationTile: Replace deprecated MetricsLogger calls
+kpick 222511 # SystemUI: Fix inconsistent disabled state tile color
 
 # frameworks/native
 kpick 213549 # SurfaceFlinger: Support get/set ActiveConfigs
@@ -869,6 +865,7 @@ kpick 221644 # stache: Add default ext4 crypto implementation
 
 # hardware/lineage/lineagehw
 kpick 221746 # lineagehw: Don't send updates to livedisplay driver unnecessarily
+kpick 222510 # Remove deprecated VibratorHW
 
 # hardware/lineage/telephony
 kpick 220132 # Improve compatibility with older devices
@@ -912,7 +909,6 @@ kpick 218360 # thermal: use log/log.h header
 # hardware/samsung
 kpick 218823 # audio: Add flag to opt in/out amplifier support
 kpick 220853 # dtbhtool: Add new DTBH_MODEL entry
-kpick 222235 # macloader: Correct classification of f0:25:b7
 
 # lineage/charter
 kpick 213574 # charter: Add some new USB rules
@@ -940,6 +936,8 @@ kpick 216978 # sdk: add torch accent
 kpick 220407 # lineagesdk: Refactor battery icon options
 kpick 220417 # TelephonyExtUtils: Add possible error codes, and return with them
 kpick 222035 # sdk: Add migration for /missing/ custom button actions
+kpick 222512 # Fix inconsistent disabled state color for LiveDisplay tile
+kpick 222513 # Remove deprecated VibratorHW
 
 # lineage-sdk/samples/weatherproviderservice/YahooWeatherProvider
 kpick 207864 # Updated Gradle to 3.0.1; The Lineage-SDK jar is now contained in the project files
@@ -959,8 +957,7 @@ kpick 211135 # Show proper call duration
 #kpick 222240 # Dialer: add to support multi-language smart search
 
 # packages/apps/DeskClock
-kpick 213051 # Deskclock: set targetSdk to 27
-#kpick 221810 # Revert "Adding Notification Channel"
+#kpick 213051 # Deskclock: set targetSdk to 27
 kpick 222493 # Overlay layouts for round-watch
 
 # packages/apps/Eleven

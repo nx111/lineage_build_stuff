@@ -1,0 +1,253 @@
+From 0d5aad8cedf30551094a4319c5aff48ba5e61f8c Mon Sep 17 00:00:00 2001
+From: Michael Bestas <mkbestas@lineageos.org>
+Date: Sat, 4 Aug 2018 19:30:48 +0300
+Subject: [PATCH 8/9] Remove deprecated VibratorHW
+
+* Replaced by new HIDL interface
+
+Change-Id: I25ba95ddf6cf03e9693c9e809749938ac703fcd3
+---
+ api/lineage_current.txt                       |  7 --
+ .../internal/LineageHardwareService.java      | 42 ---------
+ .../hardware/ILineageHardwareService.aidl     |  3 -
+ .../hardware/LineageHardwareManager.java      | 90 -------------------
+ 4 files changed, 142 deletions(-)
+
+diff --git a/api/lineage_current.txt b/api/lineage_current.txt
+index 5653171..1fbf184 100644
+--- a/api/lineage_current.txt
++++ b/api/lineage_current.txt
+@@ -199,11 +199,6 @@ package lineageos.hardware {
+     method public java.lang.String getSerialNumber();
+     method public int getSupportedFeatures();
+     method public lineageos.hardware.TouchscreenGesture[] getTouchscreenGestures();
+-    method public int getVibratorDefaultIntensity();
+-    method public int getVibratorIntensity();
+-    method public int getVibratorMaxIntensity();
+-    method public int getVibratorMinIntensity();
+-    method public int getVibratorWarningIntensity();
+     method public boolean isSunlightEnhancementSelfManaged();
+     method public boolean isSupported(int);
+     method public boolean requireAdaptiveBacklightForSunlightEnhancement();
+@@ -215,7 +210,6 @@ package lineageos.hardware {
+     method public boolean setGrayscale(boolean);
+     method public boolean setPictureAdjustment(lineageos.hardware.HSIC);
+     method public boolean setTouchscreenGestureEnabled(lineageos.hardware.TouchscreenGesture, boolean);
+-    method public boolean setVibratorIntensity(int);
+     field public static final int FEATURE_ADAPTIVE_BACKLIGHT = 1; // 0x1
+     field public static final int FEATURE_AUTO_CONTRAST = 4096; // 0x1000
+     field public static final int FEATURE_COLOR_BALANCE = 131072; // 0x20000
+@@ -232,7 +226,6 @@ package lineageos.hardware {
+     field public static final int FEATURE_SUNLIGHT_ENHANCEMENT = 256; // 0x100
+     field public static final int FEATURE_TOUCHSCREEN_GESTURES = 524288; // 0x80000
+     field public static final int FEATURE_TOUCH_HOVERING = 2048; // 0x800
+-    field public static final int FEATURE_VIBRATOR = 1024; // 0x400
+   }
+ 
+   public class LiveDisplayConfig implements android.os.Parcelable {
+diff --git a/lineage/lib/main/java/org/lineageos/platform/internal/LineageHardwareService.java b/lineage/lib/main/java/org/lineageos/platform/internal/LineageHardwareService.java
+index f40cec5..6a98bc0 100644
+--- a/lineage/lib/main/java/org/lineageos/platform/internal/LineageHardwareService.java
++++ b/lineage/lib/main/java/org/lineageos/platform/internal/LineageHardwareService.java
+@@ -56,7 +56,6 @@ import org.lineageos.hardware.SerialNumber;
+ import org.lineageos.hardware.SunlightEnhancement;
+ import org.lineageos.hardware.TouchscreenGestures;
+ import org.lineageos.hardware.TouchscreenHovering;
+-import org.lineageos.hardware.VibratorHW;
+ 
+ /** @hide */
+ public class LineageHardwareService extends LineageSystemService {
+@@ -83,9 +82,6 @@ public class LineageHardwareService extends LineageSystemService {
+         public int[] getDisplayGammaCalibration(int idx);
+         public boolean setDisplayGammaCalibration(int idx, int[] rgb);
+ 
+-        public int[] getVibratorIntensity();
+-        public boolean setVibratorIntensity(int intensity);
+-
+         public String getLtoSource();
+         public String getLtoDestination();
+         public long getLtoDownloadInterval();
+@@ -141,8 +137,6 @@ public class LineageHardwareService extends LineageSystemService {
+                 mSupportedFeatures |= LineageHardwareManager.FEATURE_SERIAL_NUMBER;
+             if (SunlightEnhancement.isSupported())
+                 mSupportedFeatures |= LineageHardwareManager.FEATURE_SUNLIGHT_ENHANCEMENT;
+-            if (VibratorHW.isSupported())
+-                mSupportedFeatures |= LineageHardwareManager.FEATURE_VIBRATOR;
+             if (TouchscreenHovering.isSupported())
+                 mSupportedFeatures |= LineageHardwareManager.FEATURE_TOUCH_HOVERING;
+             if (AutoContrast.isSupported())
+@@ -280,20 +274,6 @@ public class LineageHardwareService extends LineageSystemService {
+             return DisplayGammaCalibration.setGamma(idx, rgbToString(rgb));
+         }
+ 
+-        public int[] getVibratorIntensity() {
+-            int[] vibrator = new int[5];
+-            vibrator[LineageHardwareManager.VIBRATOR_INTENSITY_INDEX] = VibratorHW.getCurIntensity();
+-            vibrator[LineageHardwareManager.VIBRATOR_DEFAULT_INDEX] = VibratorHW.getDefaultIntensity();
+-            vibrator[LineageHardwareManager.VIBRATOR_MIN_INDEX] = VibratorHW.getMinIntensity();
+-            vibrator[LineageHardwareManager.VIBRATOR_MAX_INDEX] = VibratorHW.getMaxIntensity();
+-            vibrator[LineageHardwareManager.VIBRATOR_WARNING_INDEX] = VibratorHW.getWarningThreshold();
+-            return vibrator;
+-        }
+-
+-        public boolean setVibratorIntensity(int intensity) {
+-            return VibratorHW.setIntensity(intensity);
+-        }
+-
+         public String getLtoSource() {
+             return LongTermOrbits.getSourceLocation();
+         }
+@@ -529,28 +509,6 @@ public class LineageHardwareService extends LineageSystemService {
+             return mLineageHwImpl.setDisplayGammaCalibration(idx, rgb);
+         }
+ 
+-        @Override
+-        public int[] getVibratorIntensity() {
+-            mContext.enforceCallingOrSelfPermission(
+-                    lineageos.platform.Manifest.permission.HARDWARE_ABSTRACTION_ACCESS, null);
+-            if (!isSupported(LineageHardwareManager.FEATURE_VIBRATOR)) {
+-                Log.e(TAG, "Vibrator is not supported");
+-                return null;
+-            }
+-            return mLineageHwImpl.getVibratorIntensity();
+-        }
+-
+-        @Override
+-        public boolean setVibratorIntensity(int intensity) {
+-            mContext.enforceCallingOrSelfPermission(
+-                    lineageos.platform.Manifest.permission.HARDWARE_ABSTRACTION_ACCESS, null);
+-            if (!isSupported(LineageHardwareManager.FEATURE_VIBRATOR)) {
+-                Log.e(TAG, "Vibrator is not supported");
+-                return false;
+-            }
+-            return mLineageHwImpl.setVibratorIntensity(intensity);
+-        }
+-
+         @Override
+         public String getLtoSource() {
+             mContext.enforceCallingOrSelfPermission(
+diff --git a/sdk/src/java/lineageos/hardware/ILineageHardwareService.aidl b/sdk/src/java/lineageos/hardware/ILineageHardwareService.aidl
+index aaa1ce5..3c491a6 100644
+--- a/sdk/src/java/lineageos/hardware/ILineageHardwareService.aidl
++++ b/sdk/src/java/lineageos/hardware/ILineageHardwareService.aidl
+@@ -35,9 +35,6 @@ interface ILineageHardwareService {
+     int[] getDisplayGammaCalibration(int idx);
+     boolean setDisplayGammaCalibration(int idx, in int[] rgb);
+ 
+-    int[] getVibratorIntensity();
+-    boolean setVibratorIntensity(int intensity);
+-
+     String getLtoSource();
+     String getLtoDestination();
+     long getLtoDownloadInterval();
+diff --git a/sdk/src/java/lineageos/hardware/LineageHardwareManager.java b/sdk/src/java/lineageos/hardware/LineageHardwareManager.java
+index c58b1c9..a7ada64 100644
+--- a/sdk/src/java/lineageos/hardware/LineageHardwareManager.java
++++ b/sdk/src/java/lineageos/hardware/LineageHardwareManager.java
+@@ -110,12 +110,6 @@ public final class LineageHardwareManager {
+     @VisibleForTesting
+     public static final int FEATURE_SUNLIGHT_ENHANCEMENT = 0x100;
+ 
+-    /**
+-     * Variable vibrator intensity
+-     */
+-    @VisibleForTesting
+-    public static final int FEATURE_VIBRATOR = 0x400;
+-
+     /**
+      * Touchscreen hovering
+      */
+@@ -314,90 +308,6 @@ public final class LineageHardwareManager {
+         return arr[idx];
+     }
+ 
+-    /**
+-     * {@hide}
+-     */
+-    public static final int VIBRATOR_INTENSITY_INDEX = 0;
+-    /**
+-     * {@hide}
+-     */
+-    public static final int VIBRATOR_DEFAULT_INDEX = 1;
+-    /**
+-     * {@hide}
+-     */
+-    public static final int VIBRATOR_MIN_INDEX = 2;
+-    /**
+-     * {@hide}
+-     */
+-    public static final int VIBRATOR_MAX_INDEX = 3;
+-    /**
+-     * {@hide}
+-     */
+-    public static final int VIBRATOR_WARNING_INDEX = 4;
+-
+-    private int[] getVibratorIntensityArray() {
+-        try {
+-            if (checkService()) {
+-                return sService.getVibratorIntensity();
+-            }
+-        } catch (RemoteException e) {
+-        }
+-        return null;
+-    }
+-
+-    /**
+-     * @return The current vibrator intensity.
+-     */
+-    public int getVibratorIntensity() {
+-        return getArrayValue(getVibratorIntensityArray(), VIBRATOR_INTENSITY_INDEX, 0);
+-    }
+-
+-    /**
+-     * @return The default vibrator intensity.
+-     */
+-    public int getVibratorDefaultIntensity() {
+-        return getArrayValue(getVibratorIntensityArray(), VIBRATOR_DEFAULT_INDEX, 0);
+-    }
+-
+-    /**
+-     * @return The minimum vibrator intensity.
+-     */
+-    public int getVibratorMinIntensity() {
+-        return getArrayValue(getVibratorIntensityArray(), VIBRATOR_MIN_INDEX, 0);
+-    }
+-
+-    /**
+-     * @return The maximum vibrator intensity.
+-     */
+-    public int getVibratorMaxIntensity() {
+-        return getArrayValue(getVibratorIntensityArray(), VIBRATOR_MAX_INDEX, 0);
+-    }
+-
+-    /**
+-     * @return The warning threshold vibrator intensity.
+-     */
+-    public int getVibratorWarningIntensity() {
+-        return getArrayValue(getVibratorIntensityArray(), VIBRATOR_WARNING_INDEX, 0);
+-    }
+-
+-    /**
+-     * Set the current vibrator intensity
+-     *
+-     * @param intensity the intensity to set, between {@link #getVibratorMinIntensity()} and
+-     * {@link #getVibratorMaxIntensity()} inclusive.
+-     *
+-     * @return true on success, false otherwise.
+-     */
+-    public boolean setVibratorIntensity(int intensity) {
+-        try {
+-            if (checkService()) {
+-                return sService.setVibratorIntensity(intensity);
+-            }
+-        } catch (RemoteException e) {
+-        }
+-        return false;
+-    }
+-
+     /**
+      * {@hide}
+      */
+-- 
+2.17.1
+
