@@ -695,7 +695,6 @@ apply_force_changes
 # android
 kpick 213705 # 	Build Exchange
 repo sync packages/apps/Exchange
-repo sync hardware/lineage/telephony
 
 # bionic
 kpick 217311 # linker: add support for odm partition
@@ -988,6 +987,7 @@ kpick 221359 # Remove actionbar calls
 kpick 221756 # StatusBarSettings: Hide battery preference category based on icon visibility
 kpick 222323 # LineageParts: (Not-so-)Small cleanup
 kpick 222333 # LineageParts: Add missing cursor close
+kpick 222572 # Remove icons and center layouts
 
 # packages/apps/lockClock
 kpick 208127 # Update LockClock to use Job APIs 
@@ -1029,6 +1029,7 @@ kpick 214336 # Trebuchet: initial protected apps implementation
 kpick 219924 # Updater: Allow to suspend A/B updates
 kpick 220536 # Updater: Clarify A/B Performance mode string
 kpick 221499 # Updater: Use SharedPreference listener to get perf mode setting
+kpick 222578 # Updater: Fix EXTRA_PLUGGED check in isBatteryLevelOk
 
 # packages/overlays/Lineage
 kpick 215846 # dark: Add Theme.DeviceDefault.Settings.Dialog.NoActionBar style
@@ -1062,6 +1063,7 @@ kpick 222237 # Add back atomic symbols
 
 # system/extras
 kpick 211210 # ext4: Add /data/stache/ to encryption exclusion list
+kpick 222574 # ext4_utils: Yet another MMC discard pain in the ass
 
 # system/extras/su
 
@@ -1105,6 +1107,8 @@ kpick 219389 # lineage: Always disable google SystemUpdateService
 kpick 220398 # extract_utils: Skip unneeded md5sum	
 kpick 220399 # extract_utils: Extract files from brotli compressed images
 kpick 221505 # config/common: Clean up debug packages
+#kpick 222564 # extract-utils: initial support for brotli packaged images.
+kpick 222576 # soong_config: Add NO_SECURE_DISCARD flag
 
 # vendor/nxp/opensource/packages/apps/Nfc
 

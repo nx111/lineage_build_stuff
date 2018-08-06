@@ -1,0 +1,61 @@
+From fefb4d76761483e88fa55feec7377fdeb67fc5a5 Mon Sep 17 00:00:00 2001
+From: Steve Kondik <shade@chemlab.org>
+Date: Sat, 16 Nov 2013 07:36:33 -0800
+Subject: [PATCH 2/2] ext4_utils: Yet another MMC discard pain in the ass
+
+ * Secure discard on some device is painfully slow. Use regular
+   discard until the issue is sorted out.
+
+Change-Id: Ib8ccb12829385aa267253f772e243bef8850f455
+---
+ ext4_utils/Android.bp | 7 +++++++
+ ext4_utils/wipe.c     | 5 ++++-
+ 2 files changed, 11 insertions(+), 1 deletion(-)
+
+diff --git a/ext4_utils/Android.bp b/ext4_utils/Android.bp
+index 872d1665..1adb6036 100644
+--- a/ext4_utils/Android.bp
++++ b/ext4_utils/Android.bp
+@@ -68,4 +68,11 @@ cc_library {
+             },
+         },
+     },
++    product_variables: {
++        lineage: {
++            no_secure_discard: {
++                cflags: ["-DNO_SECURE_DISCARD"],
++            },
++        },
++    },
+ }
+diff --git a/ext4_utils/wipe.c b/ext4_utils/wipe.c
+index a519d743..f73bcd75 100644
+--- a/ext4_utils/wipe.c
++++ b/ext4_utils/wipe.c
+@@ -43,10 +43,12 @@ int wipe_block_device(int fd, s64 len)
+ 		return 0;
+ 	}
+ 
++#ifndef NO_SECURE_DISCARD
+ 	range[0] = 0;
+ 	range[1] = len;
+ 	ret = ioctl(fd, BLKSECDISCARD, &range);
+ 	if (ret < 0) {
++#endif
+ 		range[0] = 0;
+ 		range[1] = len;
+ 		ret = ioctl(fd, BLKDISCARD, &range);
+@@ -57,8 +59,9 @@ int wipe_block_device(int fd, s64 len)
+ 			warn("Wipe via secure discard failed, used discard instead\n");
+ 			return 0;
+ 		}
++#ifndef NO_SECURE_DISCARD
+ 	}
+-
++#endif
+ 	return 0;
+ }
+ 
+-- 
+2.17.1
+
