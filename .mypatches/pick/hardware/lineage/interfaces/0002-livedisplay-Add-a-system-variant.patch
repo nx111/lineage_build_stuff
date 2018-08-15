@@ -1,0 +1,139 @@
+From a88813e9f4ab0af2d8030b7631284b844ad77b4d Mon Sep 17 00:00:00 2001
+From: Luca Stefani <luca.stefani.ge1@gmail.com>
+Date: Tue, 10 Jul 2018 08:40:48 +0200
+Subject: [PATCH 2/9] livedisplay: Add a system variant
+
+Change-Id: I97e713bd1b013c4965cfc2778f59a277efe01829
+---
+ livedisplay/1.0/default/Android.bp            | 19 +++++++++++++++++--
+ .../1.0/default/controller/SDMController.cpp  |  4 ++++
+ livedisplay/1.0/default/service.cpp           |  5 +++++
+ livedisplay/1.0/default/src/Utils.cpp         |  4 ++++
+ ...eage.livedisplay@1.0-service-sdm_system.rc |  7 +++++++
+ 5 files changed, 37 insertions(+), 2 deletions(-)
+ create mode 100644 livedisplay/1.0/default/vendor.lineage.livedisplay@1.0-service-sdm_system.rc
+
+diff --git a/livedisplay/1.0/default/Android.bp b/livedisplay/1.0/default/Android.bp
+index 4fef10e..8c74294 100644
+--- a/livedisplay/1.0/default/Android.bp
++++ b/livedisplay/1.0/default/Android.bp
+@@ -16,7 +16,6 @@ cc_defaults {
+     name: "livedisplay_defaults",
+     relative_install_path: "hw",
+     defaults: ["hidl_defaults"],
+-    proprietary: true,
+     local_include_dirs: ["include"],
+     srcs: [
+         "service.cpp",
+@@ -31,7 +30,6 @@ cc_defaults {
+         "libhidlbase",
+         "libhidltransport",
+         "libutils",
+-        "vendor.lineage.livedisplay@1.0_vendor",
+     ],
+ }
+ 
+@@ -39,20 +37,37 @@ cc_binary {
+     name: "vendor.lineage.livedisplay@1.0-service-legacymm",
+     init_rc: ["vendor.lineage.livedisplay@1.0-service-legacymm.rc"],
+     defaults: ["livedisplay_defaults"],
++    proprietary: true,
+     cflags: ["-DCOLOR_BACKEND_LEGACYMM"],
+     srcs: [
+         "impl/LegacyMM.cpp",
+         "controller/LegacyMMController.cpp",
+     ],
++    shared_libs: ["vendor.lineage.livedisplay@1.0_vendor"],
++
+ }
+ 
+ cc_binary {
+     name: "vendor.lineage.livedisplay@1.0-service-sdm",
+     init_rc: ["vendor.lineage.livedisplay@1.0-service-sdm.rc"],
+     defaults: ["livedisplay_defaults"],
++    proprietary: true,
+     cflags: ["-DCOLOR_BACKEND_SDM"],
+     srcs: [
+         "impl/SDM.cpp",
+         "controller/SDMController.cpp",
+     ],
++    shared_libs: ["vendor.lineage.livedisplay@1.0_vendor"],
++}
++
++cc_binary {
++    name: "vendor.lineage.livedisplay@1.0-service-sdm_system",
++    init_rc: ["vendor.lineage.livedisplay@1.0-service-sdm_system.rc"],
++    defaults: ["livedisplay_defaults"],
++    cflags: ["-DCOLOR_BACKEND_SDM", "-DLIVES_IN_SYSTEM"],
++    srcs: [
++        "impl/SDM.cpp",
++        "controller/SDMController.cpp",
++    ],
++    shared_libs: ["vendor.lineage.livedisplay@1.0"],
+ }
+diff --git a/livedisplay/1.0/default/controller/SDMController.cpp b/livedisplay/1.0/default/controller/SDMController.cpp
+index 1355ce2..8d4f69a 100644
+--- a/livedisplay/1.0/default/controller/SDMController.cpp
++++ b/livedisplay/1.0/default/controller/SDMController.cpp
+@@ -53,7 +53,11 @@
+     return 0;
+ 
+ namespace {
++#ifdef LIVES_IN_SYSTEM
++constexpr char kFilename[] = "libsdm-disp-apis.so";
++#else
+ constexpr char kFilename[] = "libsdm-disp-vndapis.so";
++#endif
+ 
+ template <typename Function>
+ Function loadFunction(std::shared_ptr<void> handle, const char* name) {
+diff --git a/livedisplay/1.0/default/service.cpp b/livedisplay/1.0/default/service.cpp
+index 4370545..161aed6 100644
+--- a/livedisplay/1.0/default/service.cpp
++++ b/livedisplay/1.0/default/service.cpp
+@@ -42,8 +42,13 @@ int main() {
+ 
+     LOG(INFO) << "LiveDisplay HAL service is starting.";
+ 
++#ifdef LIVES_IN_SYSTEM
++    // The LiveDisplay HAL may communicate to other components via /dev/binder
++    android::ProcessState::initWithDriver("/dev/binder");
++#else
+     // The LiveDisplay HAL may communicate to other vendor components via /dev/vndbinder
+     android::ProcessState::initWithDriver("/dev/vndbinder");
++#endif
+ 
+     android::sp<IColor> service = new Color();
+     if (service == nullptr) {
+diff --git a/livedisplay/1.0/default/src/Utils.cpp b/livedisplay/1.0/default/src/Utils.cpp
+index bb14a68..7db6efc 100644
+--- a/livedisplay/1.0/default/src/Utils.cpp
++++ b/livedisplay/1.0/default/src/Utils.cpp
+@@ -29,7 +29,11 @@
+ 
+ #include <cutils/sockets.h>
+ 
++#ifdef LIVES_IN_SYSTEM
++constexpr char LOCAL_STORAGE_PATH[] = "/data/display";
++#else
+ constexpr char LOCAL_STORAGE_PATH[] = "/data/vendor/display";
++#endif
+ constexpr char LOCAL_MODE_ID[] = "livedisplay_mode";
+ constexpr char LOCAL_INITIAL_MODE_ID[] = "livedisplay_initial_mode";
+ 
+diff --git a/livedisplay/1.0/default/vendor.lineage.livedisplay@1.0-service-sdm_system.rc b/livedisplay/1.0/default/vendor.lineage.livedisplay@1.0-service-sdm_system.rc
+new file mode 100644
+index 0000000..473362c
+--- /dev/null
++++ b/livedisplay/1.0/default/vendor.lineage.livedisplay@1.0-service-sdm_system.rc
+@@ -0,0 +1,7 @@
++on boot
++    mkdir /data/display 0770 system graphics
++
++service livedisplay-hal-1-0 /system/bin/hw/vendor.lineage.livedisplay@1.0-service-sdm_system
++    class hal
++    user system
++    group system
+-- 
+2.17.1
+

@@ -728,10 +728,10 @@ kpick 222016 # releasetools: Add system-as-root handling for non-A/B backuptool
 kpick 222017 # core: Add bootimage only cmdline flag
 
 # build/soong
+kpick 223432 # soong: Enforce absolute path if OUT_DIR is set
 
 # device/lineage/sepolicy
 kpick 219022 # sepolicy: Fix neverallow for user builds
-kpick 222307 # sepolicy: update policies for custom vibrator hal
 
 # device/qcom/sepolicy
 kpick 211273 # qcom/sepol: Fix timeservice app context
@@ -753,7 +753,6 @@ kpick 210666 # wacom: Report touch when pen button is pressed if gestures are of
 # external/ant-wireless/ant_native
 
 # external/chromium-webview
-kpick 219572 # Add information on the arch-dependent version number
 
 # external/f2fs-tools
 
@@ -783,6 +782,7 @@ kpick 220022 # Camera2Client: Use Max YUV Resolution instead of active array siz
 kpick 220023 # Camera2Client: Fix issue with supported scene modes.
 kpick 220024 # Camera2Client: Update vendor tag only if it is present
 kpick 220025 # Camera2Client: Fix issue with AE Bracketing mode.
+kpick 223145 # av: camera: Allow disabling shutter sound for specific packages
 
 # frameworks/base
 kpick -f 206054 # SystemUI: use vector drawables for navbar icons
@@ -808,7 +808,6 @@ kpick 218359 # Revert "SystemUI: disable wallpaper-based tint for scrim"
 kpick 218430 # SystemUI: Require unlock to toggle airplane mode
 kpick 218431 # SystemUI: Require unlock to toggle location
 kpick 218437 # SystemUI: Add activity alias for LockscreenFragment
-kpick 218819 # SystemUI: Fix Data Usage tile to match Settings
 kpick 219930 # Telephony: Stop using rssnr, it falsly shows wrong signal bars Pixel and other devices drop this
 kpick 221518 # 	[1/2] base: allow disable of screenshot shutter sound
 kpick 221557 # Make volume steps adjustable for the alarm and ringtone streams
@@ -820,15 +819,13 @@ kpick 222305 # SettingsLib: add action callbacks to CustomDialogPreferences
 kpick 222474 # Tiles: SystemProfiles: Adapt behaviour
 kpick 222475 # LocationTile: Replace deprecated MetricsLogger calls
 kpick 222511 # SystemUI: Fix inconsistent disabled state tile color
+kpick 223332 # Animation and style adjustments to make UI stutter go away
+kpick 223333 # Set windowElevation to 0 on watch dialogs.
+kpick 223334 # Update device default colors for darker UI
+kpick 224392 # VibratorService: Apply vibrator intensity setting.
 
 # frameworks/native
 kpick 213549 # SurfaceFlinger: Support get/set ActiveConfigs
-kpick 219130 # Revert "SF: Fix hwrotation screenshots at surfaceflinger layer"
-kpick 219131 # Revert "SF: Squashed hwrotation support"
-kpick 219132 # Fix landscape LCM issue
-kpick 219133 # Need GSI to support landscape LCM
-kpick 221924 # SF: Backport "Need GSI to support landscape LCM" for legacy hwc
-kpick 221925 # SF: Backport "Fix landscape LCM issue" for legacy hwc	
 
 # frameworks/opt/chips
 
@@ -849,26 +846,20 @@ kpick 220429 # telephony: Allow overriding getRadioProxy
 kpick 206140 # gps.default.so: fix crash on access to unset AGpsRilCallbacks::request_refloc
 
 # hardware/lineage/interfaces
-kpick 213865 # lineage/interfaces: move vibrator to the proper directory
-kpick 213866 # lineage/interfaces: extend android.hardware.vibrator@1.0
-kpick 213867 # lineage/interfaces: vibrator: read click effect amplitude from prop
-kpick 213868 # lineage/interfaces: vibrator: implement vendor.lineage methods
 kpick 219211 # livedisplay: Move HIDL service to late_start
-kpick 219624 # lineage/interfaces: vibrator: make define usage uniform
 kpick 219885 # livedisplay: Add a system variant
 kpick 220840 # livedisplay: Enable cabl via mm-pp-daemon.
 kpick 220841 # livedisplay: Query active state via native call.
 kpick 221642 # interfaces: Add vendor.lineage.stache@1.0::ISecureStorage
 kpick 221643 # interfaces: Do not add custom interfaces to VNDK
 kpick 221644 # stache: Add default ext4 crypto implementation
+kpick 223909 # biometrics: fingerprint: add locking to default impl
+kpick 224208 # camera: 1.0-legacy: Build with BOARD_VNDK_VERSION=current
 
 # hardware/lineage/lineagehw
-kpick 221746 # lineagehw: Don't send updates to livedisplay driver unnecessarily
 kpick 222510 # Remove deprecated VibratorHW
 
 # hardware/lineage/telephony
-kpick 220132 # Improve compatibility with older devices
-kpick 220418 # Add split implementation for using QcRilHook
 
 # hardware/qcom/audio-caf/msm8974
 
@@ -896,7 +887,6 @@ kpick 220877 # gps: use TARGET_BOARD_AUTO to override qcom hals
 # hardware/qcom/keymaster
 
 # hardware/qcom/power
-kpick 221466 # power: Fix several typos in power profiles
 
 # hardware/qcom/thermal
 kpick 218360 # thermal: use log/log.h header
@@ -937,12 +927,12 @@ kpick 220417 # TelephonyExtUtils: Add possible error codes, and return with them
 kpick 222035 # sdk: Add migration for /missing/ custom button actions
 kpick 222512 # Fix inconsistent disabled state color for LiveDisplay tile
 kpick 222513 # Remove deprecated VibratorHW
+kpick 223458 # Regen lineage_current
 
 # lineage-sdk/samples/weatherproviderservice/YahooWeatherProvider
 kpick 207864 # Updated Gradle to 3.0.1; The Lineage-SDK jar is now contained in the project files
 
 # packages/apps/AudioFX
-kpick 221890 # AudioFX: bump to api27
 
 # packages/apps/Bluetooth
 kpick 218319 # Bluetooth: Remove duplicate permission
@@ -963,6 +953,7 @@ kpick 222493 # Overlay layouts for round-watch
 kpick 221891 # Eleven: bump to api26
 
 # packages/apps/Email
+kpick 224401 # Don't request battery optimization exemption if not needed.
 
 # packages/apps/Exchange
 kpick 211382 # Exchange: request permissions
@@ -972,6 +963,7 @@ kpick 221489 # Automatic translation import
 # packages/apps/Flipflap
 
 # packages/apps/Gallery2
+kpick 222465 # Gallery2: Fix wrong string for empty albums
 
 # packages/apps/Jelly
 
@@ -986,7 +978,6 @@ kpick 220422 # LineageParts: Bring back and refactor battery icon options
 kpick 221359 # Remove actionbar calls
 kpick 221756 # StatusBarSettings: Hide battery preference category based on icon visibility
 kpick 222323 # LineageParts: (Not-so-)Small cleanup
-kpick 222333 # LineageParts: Add missing cursor close
 kpick 222572 # Remove icons and center layouts
 
 # packages/apps/lockClock
@@ -1000,16 +991,16 @@ kpick 208127 # Update LockClock to use Job APIs
 #kpick 209583 # [2/2] Settings: battery styles
 kpick 215672 # SimSettings: Fix dialog in dark mode
 kpick 216687 # settings: wifi: Default to numeric keyboard for static IP items
-kpick 216822 # Settings: Allow setting device phone number
+kpick 218775 # Settings: Cleanup SimSettings additions
+#kpick 216822 # Settings: Allow setting device phone number
 kpick 216871 # Utils: Always show SIM Settings menu
 kpick 216909 # Settings: Apply accent color to on-body detection icon
 kpick 218438 # Settings: Add lockscreen shortcuts customization to lockscreen settings
-kpick 218775 # Settings: Cleanup SimSettings additions
 kpick 219299 # Settings: Remove battery percentage switch
 kpick 221519 # [2/2] Settings: allow disable of screenshot shutter sound
 kpick 221840 # Fixed translation
 #kpick 222227 # [2/3] Settings: add burnIn protection setting
-kpick 222306 # Settings: add HIDL vibration intensity preference
+#kpick 222306 # Settings: add HIDL vibration intensity preference
 
 # packages/apps/SetupWizard
 kpick 217580 # Add original-package to AndroidManifest
@@ -1018,7 +1009,6 @@ kpick 217580 # Add original-package to AndroidManifest
 kpick 206595 # Use transparent navigation bar
 kpick 218826 # CameraSettings:Do not crash if zoom ratios are not exposed.
 kpick 222005 # Snap: Add Denoise to video menu
-kpick 222464 # Snap: Allow quickreader to work with secure device
 
 # packages/apps/Trebuchet
 kpick 214336 # Trebuchet: initial protected apps implementation
@@ -1029,7 +1019,6 @@ kpick 214336 # Trebuchet: initial protected apps implementation
 kpick 219924 # Updater: Allow to suspend A/B updates
 kpick 220536 # Updater: Clarify A/B Performance mode string
 kpick 221499 # Updater: Use SharedPreference listener to get perf mode setting
-kpick 222578 # Updater: Fix EXTRA_PLUGGED check in isBatteryLevelOk
 
 # packages/overlays/Lineage
 kpick 215846 # dark: Add Theme.DeviceDefault.Settings.Dialog.NoActionBar style
@@ -1057,13 +1046,11 @@ kpick 217313 # add odm partition to ld.config.legacy
 kpick 217314 # Allow firmware loading from ODM partition
 kpick 218837 # libsuspend: Add property support for timeout of autosuspend
 kpick 219304 # init: Allow devices to opt-out of fsck'ing on power off
-kpick 221507 # [1/2] init.rc: set DOWNLOAD_CACHE based on prop
 kpick 221647 # healthd: BatteryMonitor: Fix compiler warning
 kpick 222237 # Add back atomic symbols
 
 # system/extras
 kpick 211210 # ext4: Add /data/stache/ to encryption exclusion list
-kpick 222574 # ext4_utils: Yet another MMC discard pain in the ass
 
 # system/extras/su
 
@@ -1090,8 +1077,6 @@ kpick 218416 # vold: utils: Introduce ForkCallp
 # vendor/lineage
 kpick 206154 # Include build manifest on target
 kpick 210664 # extract_utils: Support multidex
-kpick 215341 # backuptool: Revert "Temporarily render version check permissive"
-kpick 214400 # backuptool: Resolve incompatible version grep syntax
 kpick 216977 # lineage: build torch accent
 kpick 217527 # tools: Rewrite sdat2img
 kpick 217528 # sdat2img: Add support for brotli compressed files
@@ -1108,7 +1093,7 @@ kpick 220398 # extract_utils: Skip unneeded md5sum
 kpick 220399 # extract_utils: Extract files from brotli compressed images
 kpick 221505 # config/common: Clean up debug packages
 #kpick 222564 # extract-utils: initial support for brotli packaged images.
-kpick 222576 # soong_config: Add NO_SECURE_DISCARD flag
+kpick 222612 # build: Update vdexExtractor
 
 # vendor/nxp/opensource/packages/apps/Nfc
 
