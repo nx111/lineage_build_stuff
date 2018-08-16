@@ -822,7 +822,6 @@ kpick 222511 # SystemUI: Fix inconsistent disabled state tile color
 kpick 223332 # Animation and style adjustments to make UI stutter go away
 kpick 223333 # Set windowElevation to 0 on watch dialogs.
 kpick 223334 # Update device default colors for darker UI
-kpick 224392 # VibratorService: Apply vibrator intensity setting.
 
 # frameworks/native
 kpick 213549 # SurfaceFlinger: Support get/set ActiveConfigs
@@ -953,7 +952,6 @@ kpick 222493 # Overlay layouts for round-watch
 kpick 221891 # Eleven: bump to api26
 
 # packages/apps/Email
-kpick 224401 # Don't request battery optimization exemption if not needed.
 
 # packages/apps/Exchange
 kpick 211382 # Exchange: request permissions
@@ -991,16 +989,16 @@ kpick 208127 # Update LockClock to use Job APIs
 #kpick 209583 # [2/2] Settings: battery styles
 kpick 215672 # SimSettings: Fix dialog in dark mode
 kpick 216687 # settings: wifi: Default to numeric keyboard for static IP items
-kpick 218775 # Settings: Cleanup SimSettings additions
-#kpick 216822 # Settings: Allow setting device phone number
+kpick 216822 # Settings: Allow setting device phone number
 kpick 216871 # Utils: Always show SIM Settings menu
 kpick 216909 # Settings: Apply accent color to on-body detection icon
 kpick 218438 # Settings: Add lockscreen shortcuts customization to lockscreen settings
+kpick 218775 # Settings: Cleanup SimSettings additions
 kpick 219299 # Settings: Remove battery percentage switch
 kpick 221519 # [2/2] Settings: allow disable of screenshot shutter sound
 kpick 221840 # Fixed translation
 #kpick 222227 # [2/3] Settings: add burnIn protection setting
-#kpick 222306 # Settings: add HIDL vibration intensity preference
+kpick 222306 # Settings: add HIDL vibration intensity preference
 
 # packages/apps/SetupWizard
 kpick 217580 # Add original-package to AndroidManifest
