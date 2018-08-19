@@ -362,12 +362,14 @@ function get_active_rrcache()
         fil=$(echo $line | sed -e "s: \{2,\}: :g" | cut -d' ' -f2)
         #typ=$(echo $line | sed -e "s: \{2,\}: :g" | cut -d' ' -f3)
         key=$(md5sum $topdir/$project/$fil | sed -e "s/ .*//g")
+        [ -d $topdir/.mypatches/rr-cache ] && \
         find $topdir/$project/.git/rr-cache/ -mindepth 2 -maxdepth 2 -type f -name "postimage*" > $rrtmp
         [ -f "$rrtmp" ] && while read rrf; do
             md5num=$(md5sum $rrf|cut -d' ' -f1)
             #echo "$key ?= $md5num   ----->  $rrf"
             if [ "$key" = "$md5num" ]; then
                rrid=$(basename $(dirname $rrf))
+               [ -d $topdir/.mypatches/rr-cache ] || mkdir -p $topdir/.mypatches/rr-cache
                [ -f $topdir/.mypatches/rr-cache/rr-cache.tmp ] || touch $topdir/.mypatches/rr-cache/rr-cache.tmp
                if ! grep -q "$rrid $project" $topdir/.mypatches/rr-cache/rr-cache.tmp; then
                     echo "$rrid $project" >> $topdir/.mypatches/rr-cache/rr-cache.tmp
@@ -572,12 +574,21 @@ function kpick()
         [ "$project" = "" ] && project=$(cat $logfile | grep "Project path" | cut -d: -f2 | sed "s/ //g")
         ref=$(grep "\['git fetch" $logfile | cut -d, -f2 | cut -d\' -f2)
         if [ "$project" = "android" ]; then
-             url=$(cat $topdir/$project/.git/config | grep "url" | cut -d= -f2 | sed -e "s/ //g")
+             cd $topdir/android
+             git format-patch HEAD^ --stdout > /tmp/change_$changeNumber.patch
+             local changeid=$(grep "Change-Id:" /tmp/change_$changeNumber.patch | cut -d' ' -f 2)
              cd $topdir/.repo/manifests
-             git fetch $url $ref >/dev/null 2>/dev/null && git cherry-pick FETCH_HEAD >/dev/null 2>/dev/null
+             git log -n 50 | grep "Change-Id:"  | cut -d: -f2 | sed -e "s/ //g" > /tmp/manifest_changeids.txt
+             if ! grep -q "$changeid" /tmp/manifest_changeids.txt;  then
+                 if ! git am -3 < /tmp/change_$changeNumber.patch >/dev/null 2>/tmp/change_$changeNumber.err; then
+                      echo  "  >> git am conflict, please resolv it, then press ENTER to continue ..."
+                      sed q </dev/tty
+                 fi
+             fi
+             rm -f /tmp/change_$changeNumber.patch /tmp/change_$changeNumber.err /tmp/manifest_changeids.txt
              cd $topdir
         fi
-        if [ -f $logfile ] && grep -q -E "Change status is MERGED.|nothing to commit" $logfile; then
+        if [ -f $logfile -a "$script_file" != "bash" ] && grep -q -E "Change status is MERGED.|nothing to commit" $logfile; then
            [ -f $script_file.tmp ] || cp $script_file $script_file.tmp
            eval  sed -e \"/[[:space:]]*kpick $changeNumber[[:space:]]*.*/d\" -i $script_file.tmp
         elif [ -f $logfile ] && grep -q -E "Change status is ABANDONED." $logfile; then
@@ -597,6 +608,7 @@ function kpick()
 
 function apply_force_changes(){
     [ -z $topdir ] && topdir=$(gettop)
+    [ -d "$topdir/.mypatches/local/vendor/lineage"  ] || return 0
     find $topdir/.mypatches/local/vendor/lineage/ -type f -name "*-\[ALWAYS\]-*.patch" -o -name "*-\[ALWAYS\]-*.diff" \
       | while read f; do
          cd $topdir/vendor/lineage;
@@ -693,7 +705,16 @@ fi
 apply_force_changes
 
 # android
+repo sync android
+cd .repo/manifests;
+git fetch --all >/dev/null
+git reset --hard $(git branch -a | grep "/m/" | cut -d'>' -f 2 | sed -e "s/ //g") >/dev/null
+cd $topdir
+
 kpick 213705 # 	Build Exchange
+#android_head=$(cd android;git log -n 1 | sed -n 1p | cut -d' ' -f2;cd $topdir)
+#repo sync
+#cd android;git reset --hard $android_head >/dev/null;cd $topdir
 repo sync packages/apps/Exchange
 
 # bionic
@@ -822,6 +843,8 @@ kpick 222511 # SystemUI: Fix inconsistent disabled state tile color
 kpick 223332 # Animation and style adjustments to make UI stutter go away
 kpick 223333 # Set windowElevation to 0 on watch dialogs.
 kpick 223334 # Update device default colors for darker UI
+kpick 224392 # VibratorService: Apply vibrator intensity setting.
+kpick 224757 # webkit: Add AOSP WebView provider by default
 
 # frameworks/native
 kpick 213549 # SurfaceFlinger: Support get/set ActiveConfigs
@@ -843,6 +866,7 @@ kpick 220429 # telephony: Allow overriding getRadioProxy
 
 # hardware/interfaces
 kpick 206140 # gps.default.so: fix crash on access to unset AGpsRilCallbacks::request_refloc
+kpick 224430 # fpc: keep fpc in system-background
 
 # hardware/lineage/interfaces
 kpick 219211 # livedisplay: Move HIDL service to late_start
@@ -998,7 +1022,7 @@ kpick 219299 # Settings: Remove battery percentage switch
 kpick 221519 # [2/2] Settings: allow disable of screenshot shutter sound
 kpick 221840 # Fixed translation
 #kpick 222227 # [2/3] Settings: add burnIn protection setting
-kpick 222306 # Settings: add HIDL vibration intensity preference
+#kpick 222306 # Settings: add HIDL vibration intensity preference
 
 # packages/apps/SetupWizard
 kpick 217580 # Add original-package to AndroidManifest
@@ -1101,6 +1125,8 @@ kpick 222612 # build: Update vdexExtractor
 
 #-----------------------
 # translations
+
+kpick 224535-224566
 
 ##################################
 echo

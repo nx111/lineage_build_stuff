@@ -1,0 +1,172 @@
+From 1a9eee0daac0c6c0d6240c013c530657d7ced23a Mon Sep 17 00:00:00 2001
+From: Paul Keith <javelinanddart@gmail.com>
+Date: Sun, 3 Jun 2018 00:11:17 +0200
+Subject: [PATCH 03/12] Settings: Allow setting device phone number
+
+Change-Id: I4039dd1498b3f3c9cce5a27d89cfdd6e9cdea0e5
+---
+ AndroidManifest.xml                           |  3 +-
+ res/layout/multi_sim_dialog.xml               |  5 ++-
+ res/values/cm_strings.xml                     |  5 +++
+ src/com/android/settings/RadioInfo.java       |  4 +--
+ .../settings/sim/SimPreferenceDialog.java     | 34 ++++++++++++++++---
+ 5 files changed, 42 insertions(+), 9 deletions(-)
+
+diff --git a/AndroidManifest.xml b/AndroidManifest.xml
+index a2afa54ea7..adacda96b1 100644
+--- a/AndroidManifest.xml
++++ b/AndroidManifest.xml
+@@ -2839,7 +2839,8 @@
+ 
+         <activity android:name=".sim.SimPreferenceDialog"
+             android:theme="@*android:style/Theme.DeviceDefault.Settings.Dialog.NoActionBar"
+-            android:excludeFromRecents="true">
++            android:excludeFromRecents="true"
++            android:process="com.android.phone">
+         </activity>
+ 
+         <activity android:name=".wifi.RequestToggleWiFiActivity"
+diff --git a/res/layout/multi_sim_dialog.xml b/res/layout/multi_sim_dialog.xml
+index eea2c4f333..8299d06ffe 100644
+--- a/res/layout/multi_sim_dialog.xml
++++ b/res/layout/multi_sim_dialog.xml
+@@ -108,13 +108,16 @@
+                     android:textColor="?android:attr/textColorSecondary"
+                     android:text="@string/sim_editor_number" />
+ 
+-            <TextView android:id="@+id/number"
++            <EditText android:id="@+id/sim_number"
+                     android:layout_width="match_parent"
+                     android:layout_height="wrap_content"
+                     android:paddingBottom="@dimen/sim_dialog_margin_bottom"
+                     android:paddingStart="@dimen/sim_content_padding"
+                     android:singleLine="true"
+                     android:textColor="?android:attr/textColorPrimary"
++                    android:hint="@string/phone_number_hint"
++                    android:inputType="phone"
++                    android:digits="0123456789+"
+                     style="?android:attr/textAppearanceMedium" />
+ 
+         </LinearLayout>
+diff --git a/res/values/cm_strings.xml b/res/values/cm_strings.xml
+index 91238336d9..cd0759f42c 100644
+--- a/res/values/cm_strings.xml
++++ b/res/values/cm_strings.xml
+@@ -374,4 +374,9 @@
+     <string name="data_usage_app_restrict_data_summary">Enable usage of cellular data</string>
+     <string name="data_usage_app_restrict_wifi">Wi\u2011Fi data</string>
+     <string name="data_usage_app_restrict_wifi_summary">Enable usage of Wi\u2011Fi data</string>
++
++    <!-- Phone number settings -->
++    <string name="phone_number_hint">Set phone number</string>
++    <string name="set_phone_number_failed">Setting phone number failed</string>
++    <string name="msisdn_alpha_tag" translatable="false">Voice Line 1</string>
+ </resources>
+diff --git a/src/com/android/settings/RadioInfo.java b/src/com/android/settings/RadioInfo.java
+index 776e3b25bc..0e0a6b74b9 100644
+--- a/src/com/android/settings/RadioInfo.java
++++ b/src/com/android/settings/RadioInfo.java
+@@ -172,7 +172,7 @@ public class RadioInfo extends Activity {
+     private static final int MENU_ITEM_TOGGLE_DATA  = 5;
+ 
+     private TextView mDeviceId; //DeviceId is the IMEI in GSM and the MEID in CDMA
+-    private TextView number;
++    private EditText number;
+     private TextView mSubscriberId;
+     private TextView callState;
+     private TextView operatorName;
+@@ -373,7 +373,7 @@ public class RadioInfo extends Activity {
+                 SubscriptionManager.getDefaultVoicePhoneId());
+ 
+         mDeviceId = (TextView) findViewById(R.id.imei);
+-        number = (TextView) findViewById(R.id.number);
++        number = (EditText) findViewById(R.id.sim_number);
+         mSubscriberId = (TextView) findViewById(R.id.imsi);
+         callState = (TextView) findViewById(R.id.call);
+         operatorName = (TextView) findViewById(R.id.operator);
+diff --git a/src/com/android/settings/sim/SimPreferenceDialog.java b/src/com/android/settings/sim/SimPreferenceDialog.java
+index d195724117..969837fda5 100644
+--- a/src/com/android/settings/sim/SimPreferenceDialog.java
++++ b/src/com/android/settings/sim/SimPreferenceDialog.java
+@@ -37,8 +37,11 @@ import android.widget.ArrayAdapter;
+ import android.widget.EditText;
+ import android.widget.ImageView;
+ import android.widget.Spinner;
++import android.widget.Toast;
+ import android.widget.TextView;
+ 
++import com.android.internal.telephony.Phone;
++import com.android.internal.telephony.PhoneFactory;
+ import com.android.settings.R;
+ 
+ public class SimPreferenceDialog extends Activity {
+@@ -53,6 +56,7 @@ public class SimPreferenceDialog extends Activity {
+     AlertDialog.Builder mBuilder;
+     View mDialogLayout;
+     private final String SIM_NAME = "sim_name";
++    private final String SIM_NUMBER = "sim_number";
+     private final String TINT_POS = "tint_pos";
+ 
+     @Override
+@@ -83,6 +87,9 @@ public class SimPreferenceDialog extends Activity {
+         final EditText nameText = (EditText)mDialogLayout.findViewById(R.id.sim_name);
+         savedInstanceState.putString(SIM_NAME, nameText.getText().toString());
+ 
++        final EditText numberText = (EditText)mDialogLayout.findViewById(R.id.sim_number);
++        savedInstanceState.putString(SIM_NUMBER, numberText.getText().toString());
++
+         super.onSaveInstanceState(savedInstanceState);
+ 
+     }
+@@ -98,6 +105,9 @@ public class SimPreferenceDialog extends Activity {
+ 
+         EditText nameText = (EditText)mDialogLayout.findViewById(R.id.sim_name);
+         nameText.setText(savedInstanceState.getString(SIM_NAME));
++
++        EditText numberText = (EditText)mDialogLayout.findViewById(R.id.sim_number);
++        numberText.setText(savedInstanceState.getString(SIM_NUMBER));
+     }
+ 
+     private void createEditDialog(Bundle bundle) {
+@@ -134,12 +144,10 @@ public class SimPreferenceDialog extends Activity {
+ 
+         final TelephonyManager tm = (TelephonyManager) mContext.getSystemService(
+                 Context.TELEPHONY_SERVICE);
+-        TextView numberView = (TextView)mDialogLayout.findViewById(R.id.number);
++        EditText numberView = (EditText)mDialogLayout.findViewById(R.id.sim_number);
+         final String rawNumber =  tm.getLine1Number(mSubInfoRecord.getSubscriptionId());
+-        if (TextUtils.isEmpty(rawNumber)) {
+-            numberView.setText(res.getString(com.android.internal.R.string.unknownName));
+-        } else {
+-            numberView.setText(PhoneNumberUtils.formatNumber(rawNumber));
++        if (!TextUtils.isEmpty(rawNumber)) {
++            numberView.setText(rawNumber);
+         }
+ 
+         String simCarrierName = tm.getSimOperatorName(mSubInfoRecord.getSubscriptionId());
+@@ -161,6 +169,22 @@ public class SimPreferenceDialog extends Activity {
+                 mSubscriptionManager.setDisplayName(displayName, subId,
+                         SubscriptionManager.NAME_SOURCE_USER_INPUT);
+ 
++                String phoneNumber = numberView.getText().toString();
++                Phone phone = PhoneFactory.getPhone(mSlotId);
++                if (phone != null) {
++                    String alphaTag = phone.getLine1AlphaTag();
++                    if (TextUtils.isEmpty(alphaTag)) {
++                        // No tag, set it.
++                        alphaTag = res.getString(R.string.msisdn_alpha_tag);
++                    }
++                    if (!TextUtils.isEmpty(phoneNumber) && !phoneNumber.equals(rawNumber)) {
++                        if (!phone.setLine1Number(alphaTag, phoneNumber, null)) {
++                            Toast.makeText(mContext, res.getString(
++                                    R.string.set_phone_number_failed), Toast.LENGTH_LONG).show();
++                        }
++                    }
++                }
++
+                 final int tintSelected = tintSpinner.getSelectedItemPosition();
+                 int subscriptionId = mSubInfoRecord.getSubscriptionId();
+                 int tint = mTintArr[tintSelected];
+-- 
+2.17.1
+
