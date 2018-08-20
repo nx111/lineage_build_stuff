@@ -1,0 +1,114 @@
+From ea7c98603ebc62b21a2ca70b52ce24f03fa10f21 Mon Sep 17 00:00:00 2001
+From: Chris Sarbora <sarbs@cyngn.com>
+Date: Wed, 17 Dec 2014 14:41:04 -0800
+Subject: [PATCH 06/10] Allow finer control over how product variables are
+ inherited.
+
+Change-Id: I3abc22eea94293d1d0ebf0a81b396ebea0baf5a8
+(cherry picked from commit 29357f5ea1dd8507f70efc330b2e5966d13504e8)
+---
+ core/product.mk | 69 +++++++++++++++++++++++++++++++++++++++++++------
+ 1 file changed, 61 insertions(+), 8 deletions(-)
+
+diff --git a/core/product.mk b/core/product.mk
+index 193e71062..5ad28bc36 100644
+--- a/core/product.mk
++++ b/core/product.mk
+@@ -172,19 +172,37 @@ $(foreach p,$(PRODUCTS),$(call dump-product,$(p)))
+ endef
+ 
+ #
+-# $(1): product to inherit
++# Internal function. Appends inherited product variables to an existing one.
+ #
+-# Does three things:
+-#  1. Inherits all of the variables from $1.
+-#  2. Records the inheritance in the .INHERITS_FROM variable
+-#  3. Records that we've visited this node, in ALL_PRODUCTS
++# $(1): Product variable to operate on
++# $(2): Value to append
+ #
+-define inherit-product
++define inherit-product_append-var
++  $(if $(findstring ../,$(2)),\
++    $(eval np := $(call normalize-paths,$(2))),\
++    $(eval np := $(strip $(2))))\
++  $(eval $(1) := $($(1)) $(INHERIT_TAG)$(np))
++endef
++
++#
++# Internal function. Prepends inherited product variables to an existing one.
++#
++# $(1): Product variable to operate on
++# $(2): Value to prepend
++#
++define inherit-product_prepend-var
++  $(eval $(1) := $(INHERIT_TAG)$(strip $(2)) $($(1)))
++endef
++
++#
++# Internal function. Tracks visited notes during inheritance resolution.
++#
++# $(1): Product being inherited
++#
++define inherit-product_track-node
+   $(if $(findstring ../,$(1)),\
+     $(eval np := $(call normalize-paths,$(1))),\
+     $(eval np := $(strip $(1))))\
+-  $(foreach v,$(_product_var_list), \
+-      $(eval $(v) := $($(v)) $(INHERIT_TAG)$(np))) \
+   $(eval inherit_var := \
+       PRODUCTS.$(strip $(word 1,$(_include_stack))).INHERITS_FROM) \
+   $(eval $(inherit_var) := $(sort $($(inherit_var)) $(np))) \
+@@ -192,6 +210,34 @@ define inherit-product
+   $(eval ALL_PRODUCTS := $(sort $(ALL_PRODUCTS) $(word 1,$(_include_stack))))
+ endef
+ 
++#
++# $(1): product to inherit
++#
++# Does three things:
++#  1. Inherits all of the variables from $1, prioritizing existing settings.
++#  2. Records the inheritance in the .INHERITS_FROM variable
++#  3. Records that we've visited this node, in ALL_PRODUCTS
++#
++
++define inherit-product
++  $(foreach v,$(_product_var_list), \
++      $(call inherit-product_append-var,$(v),$(1))) \
++  $(call inherit-product_track-node,$(1))
++endef
++
++#
++# $(1): product to inherit
++#
++# Does three things:
++#  1. Inherits all of the variables from $1, prioritizing inherited settings.
++#  2. Records the inheritance in the .INHERITS_FROM variable
++#  3. Records that we've visited this node, in ALL_PRODUCTS
++#
++define prepend-product
++  $(foreach v,$(_product_var_list), \
++      $(call inherit-product_prepend-var,$(v),$(1))) \
++  $(call inherit-product_track-node,$(1))
++endef
+ 
+ #
+ # Do inherit-product only if $(1) exists
+@@ -200,6 +246,13 @@ define inherit-product-if-exists
+   $(if $(wildcard $(1)),$(call inherit-product,$(1)),)
+ endef
+ 
++#
++# Do inherit-product-prepend only if $(1) exists
++#
++define prepend-product-if-exists
++  $(if $(wildcard $(1)),$(call prepend-product,$(1)),)
++endef
++
+ #
+ # $(1): product makefile list
+ #
+-- 
+2.17.1
+

@@ -1,0 +1,128 @@
+From b83308a8806b2c86853d00b5d16e89df2891c573 Mon Sep 17 00:00:00 2001
+From: Aalique Grahame <agrahame@codeaurora.org>
+Date: Mon, 20 Nov 2017 17:00:39 -0800
+Subject: [PATCH 13/14] audiopolicy: allow dp device selection for voice
+ usecases
+
+Allow for display-port to be selected for voice Rx device
+if it is connected and can be used
+
+CRs-Fixed: 2151865
+Change-Id: I13f1ddd0fd3655376d28a0ebe028d495fa2c6e5f
+---
+ .../interface/AudioPolicyManagerInterface.h   |  8 ++++++++
+ .../audiopolicy/enginedefault/src/Engine.cpp  | 20 +++++++++++++++++++
+ .../audiopolicy/enginedefault/src/Engine.h    | 12 +++++++++++
+ 3 files changed, 40 insertions(+)
+
+diff --git a/services/audiopolicy/engine/interface/AudioPolicyManagerInterface.h b/services/audiopolicy/engine/interface/AudioPolicyManagerInterface.h
+index 04594f5df..a3f7b0d1e 100644
+--- a/services/audiopolicy/engine/interface/AudioPolicyManagerInterface.h
++++ b/services/audiopolicy/engine/interface/AudioPolicyManagerInterface.h
+@@ -101,6 +101,14 @@ public:
+      */
+     virtual audio_mode_t getPhoneState() const = 0;
+ 
++    /**
++     * Set whether display-port is connected and is allowed to be used
++     * for voice usecases
++     *
++     * @param[in] connAndAllowed: if display-port is connected and can be used
++     */
++    virtual void setDpConnAndAllowedForVoice(bool connAndAllowed) = 0;
++
+     /**
+      * Set Force Use config for a given usage.
+      *
+diff --git a/services/audiopolicy/enginedefault/src/Engine.cpp b/services/audiopolicy/enginedefault/src/Engine.cpp
+index 3e13e50a4..7a4805b8d 100644
+--- a/services/audiopolicy/enginedefault/src/Engine.cpp
++++ b/services/audiopolicy/enginedefault/src/Engine.cpp
+@@ -40,6 +40,7 @@ namespace audio_policy
+ Engine::Engine()
+     : mManagerInterface(this),
+       mPhoneState(AUDIO_MODE_NORMAL),
++      mDpConnAndAllowedForVoice(false),
+       mApmObserver(NULL)
+ {
+     for (int i = 0; i < AUDIO_POLICY_FORCE_USE_CNT; i++) {
+@@ -62,6 +63,11 @@ status_t Engine::initCheck()
+     return (mApmObserver != NULL) ?  NO_ERROR : NO_INIT;
+ }
+ 
++void Engine::setDpConnAndAllowedForVoice(bool connAndAllowed)
++{
++    mDpConnAndAllowedForVoice = connAndAllowed;
++}
++
+ status_t Engine::setPhoneState(audio_mode_t state)
+ {
+     ALOGV("setPhoneState() state %d", state);
+@@ -367,6 +373,10 @@ audio_devices_t Engine::getDeviceForStrategyInt(routing_strategy strategy,
+             if (device) break;
+             device = availableOutputDevicesType & AUDIO_DEVICE_OUT_USB_DEVICE;
+             if (device) break;
++            if (getDpConnAndAllowedForVoice() && isInCall()) {
++                device = availableOutputDevicesType & AUDIO_DEVICE_OUT_AUX_DIGITAL;
++                if (device) break;
++            }
+             if (!isInCall()) {
+                 device = availableOutputDevicesType & AUDIO_DEVICE_OUT_USB_ACCESSORY;
+                 if (device) break;
+@@ -465,6 +475,16 @@ audio_devices_t Engine::getDeviceForStrategyInt(routing_strategy strategy,
+                 }
+             }
+         }
++
++        // if display-port is connected and being used in voice usecase,
++        // play ringtone over speaker and display-port
++        if ((strategy == STRATEGY_SONIFICATION) && getDpConnAndAllowedForVoice()) {
++            uint32_t device2 = availableOutputDevicesType & AUDIO_DEVICE_OUT_AUX_DIGITAL;
++            if (device2 != AUDIO_DEVICE_NONE) {
++                device |= device2;
++                break;
++            }
++        }
+         // The second device used for sonification is the same as the device used by media strategy
+         // FALL THROUGH
+ 
+diff --git a/services/audiopolicy/enginedefault/src/Engine.h b/services/audiopolicy/enginedefault/src/Engine.h
+index 06186c1c3..09fa0806d 100644
+--- a/services/audiopolicy/enginedefault/src/Engine.h
++++ b/services/audiopolicy/enginedefault/src/Engine.h
+@@ -78,6 +78,10 @@ private:
+         {
+             return mPolicyEngine->getPhoneState();
+         }
++        virtual void setDpConnAndAllowedForVoice(bool connAndAllowed)
++        {
++            return mPolicyEngine->setDpConnAndAllowedForVoice(connAndAllowed);
++        }
+         virtual status_t setForceUse(audio_policy_force_use_t usage,
+                                      audio_policy_forced_cfg_t config)
+         {
+@@ -110,6 +114,12 @@ private:
+         return is_state_in_call(mPhoneState);
+     }
+ 
++    inline bool getDpConnAndAllowedForVoice() const
++    {
++        return mDpConnAndAllowedForVoice;
++    }
++
++    void setDpConnAndAllowedForVoice(bool connAndAllowed);
+     status_t setPhoneState(audio_mode_t mode);
+     audio_mode_t getPhoneState() const
+     {
+@@ -132,6 +142,8 @@ private:
+             uint32_t outputDeviceTypesToIgnore) const;
+     audio_devices_t getDeviceForInputSource(audio_source_t inputSource) const;
+     audio_mode_t mPhoneState;  /**< current phone state. */
++    /* if display-port is connected and can be used for voip/voice */
++    bool mDpConnAndAllowedForVoice;
+ 
+     /** current forced use configuration. */
+     audio_policy_forced_cfg_t mForceUse[AUDIO_POLICY_FORCE_USE_CNT];
+-- 
+2.17.1
+

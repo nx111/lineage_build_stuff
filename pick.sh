@@ -362,13 +362,14 @@ function get_active_rrcache()
         fil=$(echo $line | sed -e "s: \{2,\}: :g" | cut -d' ' -f2)
         #typ=$(echo $line | sed -e "s: \{2,\}: :g" | cut -d' ' -f3)
         key=$(md5sum $topdir/$project/$fil | sed -e "s/ .*//g")
+        [ -d $topdir/.mypatches/rr-cache ] && \
         find $topdir/$project/.git/rr-cache/ -mindepth 2 -maxdepth 2 -type f -name "postimage*" > $rrtmp
         [ -f "$rrtmp" ] && while read rrf; do
             md5num=$(md5sum $rrf|cut -d' ' -f1)
             #echo "$key ?= $md5num   ----->  $rrf"
             if [ "$key" = "$md5num" ]; then
                rrid=$(basename $(dirname $rrf))
-               [ -d $topdir/.mypatches/rr-cache ] && mkdir -p $topdir/.mypatches/rr-cache
+               [ -d $topdir/.mypatches/rr-cache ] || mkdir -p $topdir/.mypatches/rr-cache
                [ -f $topdir/.mypatches/rr-cache/rr-cache.tmp ] || touch $topdir/.mypatches/rr-cache/rr-cache.tmp
                if ! grep -q "$rrid $project" $topdir/.mypatches/rr-cache/rr-cache.tmp; then
                     echo "$rrid $project" >> $topdir/.mypatches/rr-cache/rr-cache.tmp
@@ -587,7 +588,7 @@ function kpick()
              rm -f /tmp/change_$changeNumber.patch /tmp/change_$changeNumber.err /tmp/manifest_changeids.txt
              cd $topdir
         fi
-        if [ -f $logfile ] && grep -q -E "Change status is MERGED.|nothing to commit" $logfile; then
+        if [ -f $logfile -a "$script_file" != "bash" ] && grep -q -E "Change status is MERGED.|nothing to commit" $logfile; then
            [ -f $script_file.tmp ] || cp $script_file $script_file.tmp
            eval  sed -e \"/[[:space:]]*kpick $changeNumber[[:space:]]*.*/d\" -i $script_file.tmp
         elif [ -f $logfile ] && grep -q -E "Change status is ABANDONED." $logfile; then
@@ -704,10 +705,21 @@ fi
 apply_force_changes
 
 # android
-#kpick 223682 # [DNM] Temp manifest for tracking staged stuff
+repo sync android
+cd .repo/manifests;
+git fetch --all
+git reset --hard $(git branch -a | grep "/m/" | cut -d'>' -f 2 | sed -e "s/ //g")
+cd $topdir
+
+kpick 223893 # manifest: Re-enable bash, nano and other cmdline tools
 kpick 223141 # manifest: pie sdk bringup
+kpick 224424 # lineage: qcom: Fork newest custom audio policy HAL
+kpick 224960 # lineage: Enable already working Lineage apps
+kpick 225040 # manifest: Re-add top-level Android.bp symlink
+
+android_head=$(cd android;git log -n 1 | sed -n 1p | cut -d' ' -f2;cd $topdir)
 repo sync
-kpick 223141 # manifest: pie sdk bringup
+cd android;git reset --hard $android_head;cd $topdir
 
 # build/make
 kpick 222733 # core: Disable vendor restrictions
@@ -733,7 +745,8 @@ kpick 224827 # soong: Add java sources overlay support
 
 # device/samsung/klte-common
 kpick 224852 # klte-common: Import stock Dalvik heap overrides
-kpick 224853 # 	klte-common: Increase heap start size to 16m to minimize GC with larger bitmaps
+kpick 224853 # klte-common: Increase heap start size to 16m to minimize GC with larger bitmaps
+kpick 224917 # klte-common: Requisite bring-up BS change
 
 # device/samsung/msm8974-common
 kpick 224851 # msm8974-common: config.fs: Add 'VENDOR' prefix to AIDs
@@ -778,10 +791,10 @@ kpick 224616 # [TEMP] fw/b AssetManager: Load lineage resources
 kpick 224801 # [DNM][TEMP] services: Avoid NPE if KeyguardManager is not yet available
 
 # hardware/lineage/interfaces
+kpick 223149 # lineage/interfaces: Regenerate HIDL makefiles and blueprints for pie
+#kpick 223374 # interfaces: Add 2.0 livedisplay interfaces
 kpick 223410 # interfaces: Add touch HIDL interface definitions
 kpick 223411 # interfaces: Add id HAL definition
-kpick 223149 # lineage/interfaces: Regenerate HIDL makefiles and blueprints for pie
-kpick 223374 # interfaces: Add 2.0 livedisplay interfaces
 kpick 223906 # biometrics: fingerprint: add locking to default impl
 kpick 223907 # Use -Werror in hardware/interfaces/biometrics/fingerprint
 kpick 223908 # fpc: keep fpc in system-background
@@ -789,6 +802,9 @@ kpick 224525 # lineage/interfaces: Add basic USB HAL that reports no status chan
 
 # hardware/lineage/lineagehw
 kpick 224046 # DO NOT MERGE: Use generic classes with Android.bp
+
+# hardware/qcom/audio-caf/msm8974
+kpick 224441 # audio: Remove policy hal directory
 
 # hardware/samsung
 kpick 223882 # resolve compiling warnings/errors
@@ -824,6 +840,10 @@ kpick 223133 # AIDL: Add option to generate No-Op methods
 
 # vendor/lineage
 kpick 224828 # vendor/lineage: Add support for java source overlays
+
+# vendor/qcom/opensource/audio
+kpick 224975 # [TMP] Align with AOSP
+kpick 225028 # policy_hal: Line up default features with audio HAL
 
 #-----------------------
 # translations
