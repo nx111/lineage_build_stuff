@@ -393,6 +393,8 @@ function kpick()
     echo ""
     local changeNumber=""
     local op_is_m_parent=0
+    local op_is_topic=0
+    local topic=""
     local m_parent=1
     local nops=""
     for op in $*; do
@@ -400,14 +402,22 @@ function kpick()
              [[ $op =~ ^[0-9]+$ ]] && [ $op -lt 10 ] && m_parent=$op
              op_is_m_parent=0
              continue
+        elif [ $op_is_topic -eq 1 ]; then
+             topic=$op
+             op_is_topic=0
         fi
         [ "$op" = "-m" ] && op_is_m_parent=1 && continue
         [ -z "$changeNumber" ] && [[ $op =~ ^[0-9]+$ ]] && [ $op -gt 1000 ] && changeNumber=$op
         [ "$op" = "-f" ] && op_force_pick=1
+        [ "$op" = "-t" ] && op_is_topic=1
         nops="$nops $op"
     done
     if  [ "$changeNumber" = "" ]; then
-         echo ">>> Picking $nops ..."
+         if [ "$topic" != "" ]; then
+               echo ">>> Picking topic [$topic] ..."
+         else
+               echo ">>> Picking $nops ..."
+         fi
          repopick $nops || exit -1
     fi
 
@@ -588,23 +598,24 @@ function kpick()
              rm -f /tmp/change_$changeNumber.patch /tmp/change_$changeNumber.err /tmp/manifest_changeids.txt
              cd $topdir
         fi
-        if [ -f $logfile -a "$script_file" != "bash" ] && grep -q -E "Change status is MERGED.|nothing to commit" $logfile; then
-           [ -f $script_file.tmp ] || cp $script_file $script_file.tmp
-           eval  sed -e \"/[[:space:]]*kpick $changeNumber[[:space:]]*.*/d\" -i $script_file.tmp
-        elif [ -f $logfile ] && grep -q -E "Change status is ABANDONED." $logfile; then
-           [ -f $script_file.tmp ] || cp $script_file $script_file.tmp
-           eval  sed -e \"/[[:space:]]*kpick $changeNumber[[:space:]]*.*/d\" -i $script_file.tmp
-        elif [ -f $logfile ] && grep -q -E "Change $changeNumber not found, skipping" $logfile; then
-           [ -f $script_file.tmp ] || cp $script_file $script_file.tmp
-           eval  sed -e \"/[[:space:]]*kpick $changeNumber[[:space:]]*.*/d\" -i $script_file.tmp
-        elif [ -f $errfile ] && grep -q "could not determine the project path for" $errfile; then
-           [ -f $script_file.tmp ] || cp $script_file $script_file.tmp
-           eval  sed -e \"/[[:space:]]*kpick $changeNumber[[:space:]]*.*/d\" -i $script_file.tmp
-        fi
+        if [ -f $logfile -a "$script_file" != "bash" ]; then
+            if grep -q -E "Change status is MERGED.|nothing to commit" $logfile; then
+               [ -f $script_file.tmp ] || cp $script_file $script_file.tmp
+               eval  sed -e \"/[[:space:]]*kpick $changeNumber[[:space:]]*.*/d\" -i $script_file.tmp
+            elif grep -q -E "Change status is ABANDONED." $logfile; then
+               [ -f $script_file.tmp ] || cp $script_file $script_file.tmp
+               eval  sed -e \"/[[:space:]]*kpick $changeNumber[[:space:]]*.*/d\" -i $script_file.tmp
+            elif grep -q -E "Change $changeNumber not found, skipping" $logfile; then
+               [ -f $script_file.tmp ] || cp $script_file $script_file.tmp
+               eval  sed -e \"/[[:space:]]*kpick $changeNumber[[:space:]]*.*/d\" -i $script_file.tmp
+            elif grep -q "could not determine the project path for" $errfile; then
+               [ -f $script_file.tmp ] || cp $script_file $script_file.tmp
+               eval  sed -e \"/[[:space:]]*kpick $changeNumber[[:space:]]*.*/d\" -i $script_file.tmp
+            fi
+         fi
     fi
     rm -f $errfile $logfile
 }
-
 
 function apply_force_changes(){
     [ -z $topdir ] && topdir=$(gettop)
@@ -708,7 +719,7 @@ apply_force_changes
 repo sync android
 cd .repo/manifests;
 git fetch --all >/dev/null
-git reset --hard $(git branch -a | grep "/m/" | cut -d'>' -f 2 | sed -e "s/ //g") >/dev/null
+git reset --hard $(git branch -a | grep "/m/" | cut -d'>' -f 2 | sed -e "s/ //g")
 cd $topdir
 
 kpick 213705 # 	Build Exchange
@@ -747,11 +758,13 @@ kpick 218991 # releasetools: Move the AVB salt setup into common.LoadInfoDict().
 kpick 219020 # build: Disable backuptool for A/B on -user
 kpick 222016 # releasetools: Add system-as-root handling for non-A/B backuptool
 kpick 222017 # core: Add bootimage only cmdline flag
+kpick 222034 # build: Allow using prebuilt vbmeta images in signed builds
 
 # build/soong
 kpick 223432 # soong: Enforce absolute path if OUT_DIR is set
 
 # device/lineage/sepolicy
+kpick 212927 # selinux: add domain for snap
 kpick 219022 # sepolicy: Fix neverallow for user builds
 
 # device/qcom/sepolicy
@@ -804,6 +817,7 @@ kpick 220023 # Camera2Client: Fix issue with supported scene modes.
 kpick 220024 # Camera2Client: Update vendor tag only if it is present
 kpick 220025 # Camera2Client: Fix issue with AE Bracketing mode.
 kpick 223145 # av: camera: Allow disabling shutter sound for specific packages
+kpick 225508 # effects: fix volume burst on pause/resume with AudioFX
 
 # frameworks/base
 kpick -f 206054 # SystemUI: use vector drawables for navbar icons
@@ -1031,6 +1045,7 @@ kpick 217580 # Add original-package to AndroidManifest
 kpick 206595 # Use transparent navigation bar
 kpick 218826 # CameraSettings:Do not crash if zoom ratios are not exposed.
 kpick 222005 # Snap: Add Denoise to video menu
+kpick 225516 # Snap: use platform cert
 
 # packages/apps/Trebuchet
 kpick 214336 # Trebuchet: initial protected apps implementation
@@ -1116,6 +1131,7 @@ kpick 220399 # extract_utils: Extract files from brotli compressed images
 kpick 221505 # config/common: Clean up debug packages
 #kpick 222564 # extract-utils: initial support for brotli packaged images.
 kpick 222612 # build: Update vdexExtractor
+kpick 225195 # lineage: enable roundIcons by default
 
 # vendor/nxp/opensource/packages/apps/Nfc
 
