@@ -393,6 +393,8 @@ function kpick()
     echo ""
     local changeNumber=""
     local op_is_m_parent=0
+    local op_is_topic=0
+    local topic=""
     local m_parent=1
     local nops=""
     for op in $*; do
@@ -400,14 +402,22 @@ function kpick()
              [[ $op =~ ^[0-9]+$ ]] && [ $op -lt 10 ] && m_parent=$op
              op_is_m_parent=0
              continue
+        elif [ $op_is_topic -eq 1 ]; then
+             topic=$op
+             op_is_topic=0
         fi
         [ "$op" = "-m" ] && op_is_m_parent=1 && continue
         [ -z "$changeNumber" ] && [[ $op =~ ^[0-9]+$ ]] && [ $op -gt 1000 ] && changeNumber=$op
         [ "$op" = "-f" ] && op_force_pick=1
+        [ "$op" = "-t" ] && op_is_topic=1
         nops="$nops $op"
     done
     if  [ "$changeNumber" = "" ]; then
-         echo ">>> Picking $nops ..."
+         if [ "$topic" != "" ]; then
+               echo ">>> Picking topic [$topic] ..."
+         else
+               echo ">>> Picking $nops ..."
+         fi
          repopick $nops || exit -1
     fi
 
@@ -576,7 +586,7 @@ function kpick()
         if [ "$project" = "android" ]; then
              cd $topdir/android
              git format-patch HEAD^ --stdout > /tmp/change_$changeNumber.patch
-             local changid=$(grep "Change-Id:" /tmp/change_$changeNumber.patch | cut -d' ' -f 2)
+             local changeid=$(grep "Change-Id:" /tmp/change_$changeNumber.patch | cut -d' ' -f 2)
              cd $topdir/.repo/manifests
              git log -n 50 | grep "Change-Id:"  | cut -d: -f2 | sed -e "s/ //g" > /tmp/manifest_changeids.txt
              if ! grep -q "$changeid" /tmp/manifest_changeids.txt;  then
@@ -588,19 +598,21 @@ function kpick()
              rm -f /tmp/change_$changeNumber.patch /tmp/change_$changeNumber.err /tmp/manifest_changeids.txt
              cd $topdir
         fi
-        if [ -f $logfile -a "$script_file" != "bash" ] && grep -q -E "Change status is MERGED.|nothing to commit" $logfile; then
-           [ -f $script_file.tmp ] || cp $script_file $script_file.tmp
-           eval  sed -e \"/[[:space:]]*kpick $changeNumber[[:space:]]*.*/d\" -i $script_file.tmp
-        elif [ -f $logfile ] && grep -q -E "Change status is ABANDONED." $logfile; then
-           [ -f $script_file.tmp ] || cp $script_file $script_file.tmp
-           eval  sed -e \"/[[:space:]]*kpick $changeNumber[[:space:]]*.*/d\" -i $script_file.tmp
-        elif [ -f $logfile ] && grep -q -E "Change $changeNumber not found, skipping" $logfile; then
-           [ -f $script_file.tmp ] || cp $script_file $script_file.tmp
-           eval  sed -e \"/[[:space:]]*kpick $changeNumber[[:space:]]*.*/d\" -i $script_file.tmp
-        elif [ -f $errfile ] && grep -q "could not determine the project path for" $errfile; then
-           [ -f $script_file.tmp ] || cp $script_file $script_file.tmp
-           eval  sed -e \"/[[:space:]]*kpick $changeNumber[[:space:]]*.*/d\" -i $script_file.tmp
-        fi
+        if [ -f $logfile -a "$script_file" != "bash" ]; then
+            if grep -q -E "Change status is MERGED.|nothing to commit" $logfile; then
+               [ -f $script_file.tmp ] || cp $script_file $script_file.tmp
+               eval  sed -e \"/[[:space:]]*kpick $changeNumber[[:space:]]*.*/d\" -i $script_file.tmp
+            elif grep -q -E "Change status is ABANDONED." $logfile; then
+               [ -f $script_file.tmp ] || cp $script_file $script_file.tmp
+               eval  sed -e \"/[[:space:]]*kpick $changeNumber[[:space:]]*.*/d\" -i $script_file.tmp
+            elif grep -q -E "Change $changeNumber not found, skipping" $logfile; then
+               [ -f $script_file.tmp ] || cp $script_file $script_file.tmp
+               eval  sed -e \"/[[:space:]]*kpick $changeNumber[[:space:]]*.*/d\" -i $script_file.tmp
+            elif grep -q "could not determine the project path for" $errfile; then
+               [ -f $script_file.tmp ] || cp $script_file $script_file.tmp
+               eval  sed -e \"/[[:space:]]*kpick $changeNumber[[:space:]]*.*/d\" -i $script_file.tmp
+            fi
+         fi
     fi
     rm -f $errfile $logfile
 }
@@ -705,21 +717,39 @@ fi
 apply_force_changes
 
 # android
-repo sync android
+repo sync android >/dev/null 2>/dev/null
 cd .repo/manifests;
-git fetch --all
+git fetch --all >/dev/null 2>/dev/null
 git reset --hard $(git branch -a | grep "/m/" | cut -d'>' -f 2 | sed -e "s/ //g")
 cd $topdir
 
-kpick 223893 # manifest: Re-enable bash, nano and other cmdline tools
-kpick 223141 # manifest: pie sdk bringup
-kpick 224424 # lineage: qcom: Fork newest custom audio policy HAL
+kpick 224442 # lineage: qcom: Fork newest custom audio policy HAL
 kpick 224960 # lineage: Enable already working Lineage apps
-kpick 225040 # manifest: Re-add top-level Android.bp symlink
+kpick 223141 # manifest: pie sdk bringup
+kpick 223893 # manifest: Re-enable bash, nano and other cmdline tools
 
 android_head=$(cd android;git log -n 1 | sed -n 1p | cut -d' ' -f2;cd $topdir)
 repo sync
-cd android;git reset --hard $android_head;cd $topdir
+cd android;git reset --hard $android_head >/dev/null 2>/dev/null;cd $topdir
+
+# bionic
+kpick 223063 # bionic: Let popen and system fall back to /sbin/sh
+kpick 223065 # linker: Add support for dynamic SHIM libraries
+kpick 223067 # libc fortify: Ignore open() O_TMPFILE mode bits warning
+kpick 223412 # bionic: Fix compilation
+kpick 223943 # bionic: meh
+kpick 225463 # bionic: Let popen and system fall back to /sbin/sh
+kpick 225464 # bionic: Sort and cache hosts file data for fast lookup
+kpick 225465 # libc: Mark libstdc++ as vendor available
+
+# boot/recovery
+kpick 222993 # Revert "updater: Remove dead make_parents()."
+kpick 222994 # Revert "otautil: Delete dirUnlinkHierarchy()."
+kpick 222995 # Revert "kill package_extract_dir"
+kpick 222996 # Revert "Remove the obsolete package_extract_dir() test"
+kpick 222997 # Revert "updater: Remove some obsoleted functions for file-based OTA."
+kpick 222998 # Revert "Format formattable partitions if mount fails"
+kpick 223781 # Skip BLKDISCARD if not supported by the device
 
 # build/make
 kpick 222733 # core: Disable vendor restrictions
@@ -735,29 +765,83 @@ kpick 223139 # build: Make sure we're building our secondary resource package as
 
 
 # build/soong
+kpick 222648 # Allow providing flex and bison binaries
 kpick 223315 # soong: Special case org.lineageos.platform-res.apk
 kpick 224204 # soong: Add function to return camera parameters library name
+kpick 223431 # soong: Enforce absolute path if OUT_DIR is set
 kpick 224613 # soong: Add LOCAL_AIDL_FLAGS handling
-kpick 224646 # Declare proguard_dictionary as implicit output of r8
 kpick 224827 # soong: Add java sources overlay support
+
+# dalvik
+kpick 225475 # dexdeps: Add option for --include-lineage-classes.
+kpick 225476 # dexdeps: Ignore static initializers on analysis.
 
 # device/samsung/kltechnduo
 
 # device/samsung/klte-common
-kpick 224852 # klte-common: Import stock Dalvik heap overrides
-kpick 224853 # klte-common: Increase heap start size to 16m to minimize GC with larger bitmaps
 kpick 224917 # klte-common: Requisite bring-up BS change
+kpick 225186 # klte-common: wlan: Update supplicant services for new calling sequence
+kpick 225187 # klte-common: wifi_supplicant: deprecate entropy.bin
+kpick 225188 # klte-common: wpa_supplicant: Move control sockets to /data/vendor
+kpick 225189 # klte-common: Don't start supplicant with interfaces
+kpick 225190 # klte-common: wpa_supplicant(hidl): Add support for starting HAL lazily
+kpick 225191 # klte-common: Add p2p_no_group_iface=1 to p2p_supplicant_overlay
+kpick 225192 # klte-common: Apply android-8.1.0_r43->android-9.0.0_r1 changes to ril.h
 
 # device/samsung/msm8974-common
 kpick 224851 # msm8974-common: config.fs: Add 'VENDOR' prefix to AIDs
+kpick 224916 # DO NOT MERGE: msm8974-common: Disable our and device/qcom sepolicy
+kpick 225249 # msm8974-common: Uprev Wi-Fi HAL to 1.2
+kpick 225250 # msm8974-common: Uprev to supplicant 1.1
+kpick 225251 # msm8974-common: Add hostapd HIDL interface
+kpick 225466 # msm8974-common: libril: Remove LOCAL_CLANG
+kpick 225467 # msm8974-common: libril: Fix Const-Correctness for RIL_RadioFunctions
+kpick 225468 # msm8974-common: libril: Remove unused code
+kpick 225469 # msm8974-common: libril: Fix double freeing of memory in SAP service and add ...
+kpick 225470 # msm8974-common: libril: Store the system time when NITZ is received.
+kpick 225471 # msm8974-common: libril: Add DISABLE_RILD_OEM_HOOK.
+kpick 225472 # msm8974-common: libril: Change rild initial sequence to guarantee non-null ...
+kpick 225473 # msm8974-common: libril: Add SIM_ABSENT error
 
 # device/samsung/qcom-common
-kpick 224845 # qcom-common: doze: Set LOCAL_PRIVATE_PLATFORM_APIS
 
 # kernel/samsung/msm8974
 
+# device/lineage/sepolicy
+kpick 224765 # sepol: Remove exfat context
+kpick 224766 # sepol: Remove recovery access to vold_socket
+
+# device/qcom/sepolicy
+kpick 224767 # sepol: Remove duplicated hal_vehicle attribute
+kpick 224768 # sepol: hostapd is now hal_wifi_hostapd
+
+# external/openssh
+kpick 224032 # openssh: Update for pie boringssl
+kpick 224033 # openssh: don't spam warnings as errors
+
+# external/p7zip
+kpick 224028 # p7zip: Cleanup if statement braces, whitespace lines, and ifs without paranthesis)
+kpick 224029 # p7zip: don't spam warnings as errors
+
+# external/perfetto
+kpick 223413 # perfetto_cmd: Resolve missing O_CREAT mode
+
+# external/tinycompress
+kpick 223008 # tinycompress: squash tinycompress fixes
+kpick 223009 # tinycompress: Add get_metadata() and set_metadata() API support
+kpick 223010 # tinycompress: Generate vendor specifc tinycompress
+kpick 223011 # tinycompress: Fix compilation on old targets
+kpick 223012 # audio: compress error propagation
+kpick 223013 # tinycompress: Move [get,set]_metadata to vendor extension
+kpick 223014 # Revert "libtinycompress: Android.mk -> Android.bp"
+kpick 223015 # tinycompress: include kernel headers
 
 # external/toybox
+
+# external/zlib
+kpick 225237 # zlib: Fix build under Android 6.0 and higher
+kpick 225238 # minizip: Clean up the code
+kpick 225239 # zlib: crc optimization for arm64
 
 # frameworks/av
 kpick 223017 # audiopolicy: make audio policy extensible
@@ -773,12 +857,11 @@ kpick 224182 # libstagefright: use 64-bit usage for native_window_set_usage
 kpick 224183 # camera/media: Support legacy HALv1 camera in mediaserver
 kpick 224184 # Camera: check metadata type before releasing frame	
 #kpick 224203 # camera: Allow devices to load custom CameraParameter code
-kpick 224126 # MTP: Fix crash when no storages are available
+kpick 224216 # MTP: Fix crash when no storages are available
 kpick 224434 # audiopolicy: allow dp device selection for voice usecases
 kpick 224863 # audiopolicy: Add AudioSessionInfo API
 
 # frameworks/base
-kpick 222960 # Bring back aapt -x <pkgid>
 kpick 222961 # androidfw: Squash of declare and load lineage sdk resource package w/ id
 kpick 222962 # Add lineage sdk resource APK to Zygote FD whitelist
 kpick 222963 # services: Kick off to LineageSystemServer for external service init.
@@ -789,22 +872,73 @@ kpick 222967 # SystemUI: Add lineage-sdk dep
 kpick 224514 # fw/base: Enable home button wake
 kpick 224616 # [TEMP] fw/b AssetManager: Load lineage resources
 kpick 224801 # [DNM][TEMP] services: Avoid NPE if KeyguardManager is not yet available
+kpick 224842 # LockPatternUtils: Make settings getter and setters protected
+kpick 224844 # lockscreen: Add option for showing unlock screen directly
+kpick 224856 # admin: Restore requireSecureKeyguard interface.
+kpick 224857 # Check for null callerPackage in getStorageEncryptionStatus
+kpick 224861 # perf: Add plumbing for PerformanceManager
+kpick 224862 # perf: Adapt for HIDL Lineage power hal
+kpick 224895 # ActivityManager: Restore getRecentTasksForUser method
+kpick 224919 # Allow lid to send a generic COVER_CHANGED broadcast
+kpick 225425 # SettingsLib: Add LineageParts settings to tile list
+
+# frameworks/opt/telephony
+kpick 223774 # telephony: Squashed support for simactivation feature
+
+# hardware/interfaces
+kpick 224064 # Revert "Bluetooth: Remove random MAC addresses"
+kpick 225506 # Camed HAL extension: Added support in HIDL for Extended FD.
+kpick 225507 # camera: Only link and use vendor.qti.hardware.camera.device if specified
+
+# hardware/libhardware
+kpick 223096 # audio: Add audio amplifier HAL
+kpick 223097 # hardware/libhw: Add display_defs.h to declare custom enums/flags
+kpick 223098 # audio_amplifier: add hooks for stream parameter manipulation
+kpick 223681 # power: Add new power hints
+ 
+# hardware/libhardware_legacy
+kpick 223521 # Wifi: Add Qpower interface to libhardware_legacy
 
 # hardware/lineage/interfaces
-kpick 223149 # lineage/interfaces: Regenerate HIDL makefiles and blueprints for pie
-#kpick 223374 # interfaces: Add 2.0 livedisplay interfaces
+kpick 223374 # interfaces: Add 2.0 livedisplay interfaces
 kpick 223410 # interfaces: Add touch HIDL interface definitions
 kpick 223411 # interfaces: Add id HAL definition
 kpick 223906 # biometrics: fingerprint: add locking to default impl
 kpick 223907 # Use -Werror in hardware/interfaces/biometrics/fingerprint
 kpick 223908 # fpc: keep fpc in system-background
-kpick 224525 # lineage/interfaces: Add basic USB HAL that reports no status change
+#kpick 224525 # lineage/interfaces: Add basic USB HAL that reports no status change
 
 # hardware/lineage/lineagehw
 kpick 224046 # DO NOT MERGE: Use generic classes with Android.bp
 
 # hardware/qcom/audio-caf/msm8974
+kpick 223436 # Add -Wno-error to compile with global -Werror.
 kpick 224441 # audio: Remove policy hal directory
+kpick 225193 # hal: Update prefixes for audio system properties
+
+# hardware/qcom/display-caf/msm8974
+kpick 223433 # Use libhwui.so instead of libskia.so
+kpick 223434 # Include what we use.
+kpick 223435 # Add -Wno-error to compile with global -Werror.
+
+# hardware/qcom/gps
+kpick 223351 # Revert "msm8974: deprecate msm8974"
+kpick 223352 # Revert "msm8974: remove from top level makefile"
+kpick 223353 # msm8974: Add missing liblog dependency
+kpick 223354 # msm8974: Default apn ip type to ipv4
+kpick 223355 # msm8974: Cleanup obsolete LOCAL_PRELINK_MODULE
+kpick 223356 # msm8974: Move device dependent modules to /vendor
+kpick 223357 # msm8974: Fix duplicate gps.conf for hammerhead
+kpick 223358 # msm8974: Fix logging level and remove nmea log
+kpick 223359 # msm8974: Don't rely on transitively included headers
+kpick 223360 # msm8974: Return the correct length of nmea sentence
+
+# hardware/qcom/media-caf/msm8974
+kpick 223441 # Add -Wno-error to compile with global -Werror.
+
+# hardware/qcom/power
+kpick 223892 # power: Add power hint to set profile
+kpick 223890 # Revert "power: Depend on vendor lineage power HAL"
 
 # hardware/samsung
 kpick 223882 # resolve compiling warnings/errors
@@ -812,38 +946,254 @@ kpick 223982 # DNM: exclude AdvancedDisplay
 kpick 224760 # libril: sync with Pie AOSP libril
 
 # lineage-sdk
-kpick 223134 # lineage-sdk: Set LOCAL_PRIVATE_PLATFORM_APIS := true
-kpick 223135 # lineage-sdk: Remove proguard shrinktests
-kpick 223136 # lineage-sdk: Add libnativehelper includes
 kpick 223137 # lineage-sdk: Comment out org_lineageos_platform_internal_LineageAudioService.cpp
-kpick 223148 # lineage-sdk: update lineage_platform_res for pie
 kpick 223154 # lineage-sdk: Comment out unbuildable code
 kpick 223200 # lineage-sdk: Add isPersisted() to lineage-sdk preferences
-kpick 223201 # lineage-sdk: ServiceType moved from BatterySaverPolicy to PowerManager
-kpick 223202 # lineage-sdk: Use java.utils.Objects instead of libcore.util.Objects
 kpick 224047 # lineage-sdk: Android.mk -> Android.bp
 kpick 224608 # [TEMP] LineageSettingsProvider: Do not access system settings during startup
 kpick 224614 # lineage-sdk: Update attr.xml for aapt2
-kpick 224691 # [TEMP] lineage-sdk: Comment more things out
-kpick 224826 # StyleInterfaceService: Adapt to new overlay API
+
+# packages/apps/AudioFX
+kpick 224892 # AudioFX: Properly depend on Lineage SDK
+
+# packages/apps/Calender
+kpick 225253 # 	Calendar: adaptive icon
+
+# packages/apps/Camera2
+kpick 224752 # Use mCameraAgentNg for getting camera info when available
+kpick 225254 # Camera2: adaptive icon
+kpick 225255 # Camera2: Target API 27
+kpick 225256 # Don't attempt to convert degree to orientation enum twice
+kpick 225257 # Camera2: Only autofocus before a snap if we are actually in "auto" mode.
+kpick 225258 # Camera2: Remove settings preferences only once
+kpick 225259 # Camera2: Stop using GPS when going to background
+kpick 225260 # Camera: Powerkey shutter (2/2)
+kpick 225261 # Camera2: Add option to set max screen brightness
+kpick 225262 # Camera2: Remove google help preference
+kpick 225263 # Camera2: Fix Undo button behaviour
+kpick 225264 # Fix crash if Exif-Tag buffer-length and component-count are both 0
+kpick 225265 # 	Add Storage preference (1/2)
+
+# packages/apps/CarrierConfig
+kpick 225266 # CarrierConfig: Add selected configs for national roaming
+kpick 225267 # CarrierConfig: Load ERI configuration for U.S. Cellular
+kpick 225268 # Disable OTA for U.S. Cellular since there is no need for it
+kpick 225269 # CarrierConfig: HoT and tele.ring (232 07) may roam on T-Mobile (232 03)
+
+# packages/apps/Contacts
+kpick 225270 # Contacts: define app category
+kpick 225271 # Contacts: adaptive icon
+kpick 225272 # Contacts: Enable support for device contact.
+kpick 225273 # Place MyInfo shortcut on drawer
+kpick 225274 # Place EmergencyInfo shortcut on drawer
+kpick 225275 # Contacts: update splash screen to match the new icon
+kpick 225276 # Allow calling contacts via specific phone accounts.
+
+# packages/apps/DeskClock
+kpick 225277 # DeskClock : Add set and cancel power off alarm actions
+kpick 225278 # DeskClock : Improve the priority of power off alarm broadcast
+kpick 225279 # DeskClock : update alarm if it is handled in min framework
+kpick 225280 # Make new menu entry to link to cLock widget settings.
+kpick 225281 # DeskClock: Add back flip and shake actions
+kpick 225282 # DeskClock: Use accelerometer instead of orientation sensor
+kpick 225283 # Deskclock: define app category
+kpick 225284 # Provide upgrade path for cm-14.1 -> lineage-15.1
+kpick 225285 # DeskClock: adaptive icon
+kpick 225286 # Revert "Fix alarm not firing in memory-pressure situations"
+
+# packages/apps/DocumentsUI
+kpick 225287 # DocumentsUI: define appcategory
+kpick 225288 # DocumentsUI: adaptive icon
+kpick 225289 # DocumentsUI: support night mode
+
+# packages/apps/Email
+kpick 225292 # Email: handle databases from cm-14.1
+kpick 225293 # Email: adaptive icon
+kpick 225294 # Allow account deletion.
+kpick 225295 # email: support for auto-sync multiple IMAP folders
+kpick 225296 # email: Add an ActionBar to the mail app's PreferenceActivity
+kpick 225297 # email: support per-folder notifications
+kpick 225298 # Rewrite MailboxSettings loading logic.
+kpick 225299 # email: fix eas autodiscover
+kpick 225300 # Implement IMAP push using IMAP IDLE.
+kpick 225301 # Request battery optimization exemption if IMAP IDLE is used.
+kpick 225302 # Fix crash when attempting to view EML files.
+kpick 225303 # Allow download of compressed attachments.
+kpick 225304 # email: fix empty body update
+kpick 225305 # Improve notification coalescence algorithm.
+kpick 225306 # Email: Fix the ActivityNotFoundException when click "Update now"
+kpick 225307 # Email: Clean duplicated WRITE_CONTACTS permission
+kpick 225308 # email: return default folder name for subfolders
+kpick 225309 # email: junk icon
+kpick 225310 # Search in folder specified via URI parameter, if possible.
+kpick 225311 # Remove max aspect ratio.
+kpick 225312 # Update strings for crowdin
 
 # packages/apps/FlipFlap
-kpick 223475 # FlipFlap: Set LOCAL_PRIVATE_PLATFORM_APIS
-kpick 224890 # FlipFlap: Set LOCAL_SDK_VERSION
 
 # packages/apps/LineageParts
-kpick 223140 # LineageParts: Enable linking with platform APIs
 kpick 223153 # LineageParts: Comment out unbuildable code
+
+# packages/apps/Nfc
+kpick 223706 # NFC: Restore legacy NXP stack
+kpick 223707 # nxp: jni: Forward-port the stack sources
+kpick 223697 # nxp: NativeNfcManager: Implement missing inherited abstract methods
+kpick 223698 # nxp: jni: use proper nativehelper headers
+kpick 223699 # nxp: jni: Remove unused variables and functions
+kpick 223700 # NFC: Adding new vendor specific interface to NFC Service
+kpick 223701 # NFC: Clean duplicated and unknown permissions
+kpick 223703 # nxp: jni: Implement AOSP P abstract methods
+
+# packages/apps/Recorder
+kpick 223673 # Recorder: Upgrade to AOSP P common libraries and AAPT2	
+kpick 223674 # Recorder: Request FOREGROUND_SERVICE permission
+
+# packages/apps/SetupWizard
+
+# packages/apps/Stk
+kpick 225342 # Stk: adaptive icon
+
+# packages/apps/UnifiedEmail
+kpick 225343 # unified email: prefer account display name to sender name
+kpick 225344 # email: fix back button
+kpick 225345 # unified-email: check notification support prior to create notification objects
+kpick 225346 # unified-email: respect swipe user setting
+kpick 225347 # email: linkify urls in plain text emails
+kpick 225348 # email: do not close the input attachment buffer in Conversion#parseBodyFields
+kpick 225349 # email: linkify phone numbers
+kpick 225350 # Remove obsolete theme.
+kpick 225351 # Don't assume that a string isn't empty
+kpick 225352 # Add an ActionBar to the mail app's PreferenceActivity.
+kpick 225353 # email: allow move/copy operations to more system folders
+kpick 225354 # unifiedemail: junk icon
+kpick 225355 # Remove mail signatures from notification text.
+kpick 225356 # MimeUtility: ensure streams are always closed
+kpick 225357 # Fix cut off notification sounds.
+kpick 225358 # Pass selected folder to message search.
+kpick 225359 # Properly close body InputStreams.
+kpick 225360 # Make navigation drawer extend over status bar.
+kpick 225361 # Disable animations for translucent activities.
+kpick 225362 # Don't re-show search bar on query click.
+
+# packages/apps/WallpaperPicker
+kpick 225363 # WallpaperPicker: bump gradle
+kpick 225364 # WallpaperPicker: add adaptive icon
+kpick 225365 # WallpaperPicker: materialize delete icon
+kpick 225367 # WallpaperPicker: Update for wallpaper API changes
+kpick 225370 # WallpaperPicker: add a "No Wallpaper" option
+kpick 225371 # WallpaperPicker: Move strings for translation
+kpick 225372 # WallpaperPicker: 15.1 wallpapers
+
+# packages/inputmethods/LatinIME
+kpick -t pie-keyboard
+
+# packages/providers/BlockedNumberProvider
+kpick 225403 # # packages/providers/BlockedNumberProvider
+
+# packages/providers/BookmarkProvider
+kpick 225404 # BookmarkProvider: adaptive icon
+
+# packages/providers/CalendarProvider
+kpick 225405 # CalendarProvider: adaptive icon
+
+# packages/providers/CallLogProvider
+kpick 225406 # CallLogBackup: adaptive icon
+
+# packages/provider/ContackProvider
+kpick 225407 # ContactsProvider: adaptive icon
+kpick 225408 # ContactsProvider: Prevent device contact being deleted.
+kpick 225409 # CallLogDatabase: Bump the version and try to re-run the version 5 upgrade path
+
+# packages/providers/DownloadProvider
+kpick 225410 # DownloadProvider: Display download speed in notification
+kpick 225411 # DownloadProvider: Add support for manual pause/resume
+
+# packages/providers/MediaProvider
+kpick 225412 # Fix mounting of non-FAT formatted SD cards (2/2)
+kpick 225413 # MediaProvider: adaptive-icon
+
+# packages/providers/TelephonyProvider
+kpick 225414 # 	TelephonyProvider: adaptive icon
+
+# packages/services/Mms
+kpick 225416 # Mms: adaptive icon
+
+# packages/services/Telecomm
+kpick 223099 # Telecomm: Squashed phone_type switch support
+kpick 225417 # Telecomm: adaptive icon
+
+# packages/services/Telephony
+kpick 225419 # Telephony: adaptive icon
+kpick 225420 # Use proper summary for network select list preference on dsds/dsda/tsts
+
+# packages/wallpapers/LivePicker
+kpick 225421 # LivePicker: adaptive icon
+
+# system/bt
+kpick 223945 # Prevent abort in case of command timeout
+kpick 224813 # bt: osi: undef PROPERTY_VALUE_MAX
+kpick 225422 # Bluetooth: Read BLE vendor capability to proceed on Secure conn
+kpick 225423 # Add support to force disable enhanced sco commands
+
+# system/core
+kpick 223085 # adbd: Disable "adb root" by system property (2/3)
+kpick 223147 # init: don't skip starting a service with no domain if permissive
+kpick 224264 # debuggerd: Resolve tombstoned missing O_CREAT mode
+
+# system/extra
+kpick 225426 # f2fs_utils: Add a static libf2fs_sparseblock for minvold
+kpick 225427 # ext4_utils: Fix FS creation for filesystems with exactly 32768 blocks.
+kpick 225428 # extras: remove su
+
+# system/sepolicy
+kpick 223745 # Allow e2fs to format cache
+kpick 223746 # Add rules required for TARGET_HAS_LEGACY_CAMERA_HAL1
+kpick 223748 # Build sepolicy tools with Android.bp.
+kpick 224808 # sepolicy: We need to declare before referencing
+kpick 224809 # sepolicy: Allow su by apps on userdebug_or_eng
+kpick 224810 # sepolicy: update policies for sudaemon on O
+kpick 224811 # sepolicy: add sudaemon to ignore list
+kpick 224812 # sepolicy: Allow recovery to write to rootfs
 
 # system/tool/aidl
 kpick 223133 # AIDL: Add option to generate No-Op methods
 
+# system/update/engine
+kpick 225430 # update_engine: run backuptool script before normal postinstall script
+kpick 225431 # update_engine: Add performance mode
+
+# system/vold
+kpick 225436 # vold: add support for more filesystems for public storage
+kpick 225437 # vold: Fix fsck on public volumes
+kpick 225438 # vold: Support internal storage partitions
+kpick 225439 # vold: Honor mount options for ext4 partitions
+kpick 225440 # vold: Honor mount options for f2fs partitions
+kpick 225441 # vold: Mount ext4/f2fs portable storage with sdcard_posix
+kpick 225442 # vold: ntfs: Use strlcat
+kpick 225443 # Treat removable UFS card as SD card
+kpick 225444 # vold: dont't use commas in device names
+kpick 225445 # vold ext4/f2fs: do not use dirsync if we're mounting adopted storage
+kpick 225446 # Fix the group permissions of the sdcard root.
+kpick 225447 # vold: skip first disk change when converting MBR to GPT
+kpick 225448 # vold: Allow reset after shutdown
+kpick 225449 # vold: Accept Linux GPT partitions on external SD cards
+kpick 225450 # vold: Make sure block device exists before formatting it
+kpick 225451 # vold: Also wait for dm device when mounting private volume
+kpick 225452 # secdiscard: should pin_file to avoid moving blocks in F2FS
+
 # vendor/lineage
+kpick 224511 # config/common: Clean up debug packages
+kpick 223980 # lineage: Exclude all lineage overlays from RRO
+kpick 224421 # overlay: Default materials buttons to not all caps
+kpick 224021 # overlay: Fix status bar padding for all devices
+kpick 224893 # overlay: Remove deprecated overlay
+kpick 224649 # overlay: Enable rounded corners for dialogues and buttons
+kpick 224759 # lineage: Ignore neverallows
 kpick 224828 # vendor/lineage: Add support for java source overlays
+kpick 225495 # config: Use standard inherit-product-if-exists for vendor/extra
 
 # vendor/qcom/opensource/audio
 kpick 224975 # [TMP] Align with AOSP
-kpick 225028 # policy_hal: Line up default features with audio HAL
 
 #-----------------------
 # translations
