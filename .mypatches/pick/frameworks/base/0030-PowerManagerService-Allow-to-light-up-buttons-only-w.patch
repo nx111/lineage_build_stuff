@@ -1,0 +1,150 @@
+From 2f47678285d07c623651bb5af52d982ebbac9d53 Mon Sep 17 00:00:00 2001
+From: Anas Karbila <anaskarbila@gmail.com>
+Date: Sat, 3 Jun 2017 03:21:32 +0200
+Subject: [PATCH 30/80] PowerManagerService: Allow to light up buttons only
+ when pressed
+
+Author: Anas Karbila <anaskarbila@gmail.com>
+Date:   Sat Jun 3 03:21:32 2017 +0200
+
+    PowerManagerService: Allow to light up buttons only when pressed
+
+     * Right now capactive, lit hardware keys are being
+       lit every time you either touch them or the screen.
+
+       But some devices handle this differently on stock:
+
+       Display touch => buttons not lit
+       Buttons touch => buttons lit
+
+     * Thus, add a setting in order to allow the user
+       to choose the preferred behavior.
+
+    Change-Id: I35ac71a8274568901f962c9692788d1c682a98dd
+
+Author: Corinna Vinschen <xda@vinschen.de>
+Date:   Sun Aug 6 15:05:54 2017 +0200
+
+    PowerManagerService: fix HW button illumination timeout
+
+    Change I35ac71a8274568901f962c9692788d1c682a98dd, introducing hardware
+    button backlight on button keypress only, also introduced a bug:
+
+    When touching a button and then performing display activity while
+    the buttons are still on, the buttons would keep lightened up until
+    the next user interaction, potentially only switched off at the next
+    screen off timeout.  Also, the buttons were not illuminated on
+    device wakeup.
+
+    This patch fixes it, together with another, long-standing problem:
+
+    When touching a hardware button, nextTimeout was set to
+    now + mButtonTimeout, even if mButtonTimeout is longer than the timeout
+    determined by the screen off timeout.  To wit, if screen timeout is set
+    to 15 secs, but button timeout to values > 15 secs.
+
+    Change-Id: I8a56f1d1e0138c38ed6fe294e4816a9f7f744f1e
+    Signed-off-by: Corinna Vinschen <xda@vinschen.de>
+
+Change-Id: I5b486e65a5b7d9d16590941df0af4d9c604dedc4
+---
+ .../server/power/PowerManagerService.java     | 36 +++++++++++++++++--
+ 1 file changed, 33 insertions(+), 3 deletions(-)
+
+diff --git a/services/core/java/com/android/server/power/PowerManagerService.java b/services/core/java/com/android/server/power/PowerManagerService.java
+index b749af1107b..d4a8e8fb47c 100644
+--- a/services/core/java/com/android/server/power/PowerManagerService.java
++++ b/services/core/java/com/android/server/power/PowerManagerService.java
+@@ -260,6 +260,10 @@ public final class PowerManagerService extends SystemService
+     private int mButtonBrightness;
+     private int mButtonBrightnessSettingDefault;
+ 
++    private boolean mButtonPressed;
++    private boolean mButtonOn;
++    private boolean mButtonLightOnKeypressOnly;
++
+     private final Object mLock = LockGuard.installNewLock(LockGuard.INDEX_POWER);
+ 
+     // A bitfield that indicates what parts of the power state have
+@@ -306,6 +310,7 @@ public final class PowerManagerService extends SystemService
+     private long mLastSleepTime;
+ 
+     // Timestamp of the last call to user activity.
++    private long mLastButtonActivityTime;
+     private long mLastUserActivityTime;
+     private long mLastUserActivityTimeNoChangeLights;
+ 
+@@ -879,6 +884,9 @@ public final class PowerManagerService extends SystemService
+         resolver.registerContentObserver(LineageSettings.Secure.getUriFor(
+                 LineageSettings.Secure.BUTTON_BACKLIGHT_TIMEOUT),
+                 false, mSettingsObserver, UserHandle.USER_ALL);
++        resolver.registerContentObserver(LineageSettings.System.getUriFor(
++                LineageSettings.System.BUTTON_BACKLIGHT_ONLY_WHEN_PRESSED),
++                false, mSettingsObserver, UserHandle.USER_ALL);
+         resolver.registerContentObserver(LineageSettings.System.getUriFor(
+                 LineageSettings.System.PROXIMITY_ON_WAKE),
+                 false, mSettingsObserver, UserHandle.USER_ALL);
+@@ -1015,6 +1023,9 @@ public final class PowerManagerService extends SystemService
+         mButtonBrightness = LineageSettings.Secure.getIntForUser(resolver,
+                 LineageSettings.Secure.BUTTON_BRIGHTNESS, mButtonBrightnessSettingDefault,
+                 UserHandle.USER_CURRENT);
++        mButtonLightOnKeypressOnly = LineageSettings.System.getIntForUser(resolver,
++                LineageSettings.System.BUTTON_BACKLIGHT_ONLY_WHEN_PRESSED,
++                0, UserHandle.USER_CURRENT) == 1;
+ 
+         mProximityWakeEnabled = LineageSettings.System.getInt(resolver,
+                 LineageSettings.System.PROXIMITY_ON_WAKE,
+@@ -1376,6 +1387,12 @@ public final class PowerManagerService extends SystemService
+                 }
+             } else {
+                 if (eventTime > mLastUserActivityTime) {
++                    mButtonPressed = event == PowerManager.USER_ACTIVITY_EVENT_BUTTON;
++                    if ((mButtonLightOnKeypressOnly && mButtonPressed)
++                            || eventTime == mLastWakeTime) {
++                        mButtonPressed = true;
++                        mLastButtonActivityTime = eventTime;
++                    }
+                     mLastUserActivityTime = eventTime;
+                     mDirty |= DIRTY_USER_ACTIVITY;
+                     if (event == PowerManager.USER_ACTIVITY_EVENT_BUTTON) {
+@@ -2041,14 +2058,26 @@ public final class PowerManagerService extends SystemService
+                                 buttonBrightness = mButtonBrightness;
+                             }
+ 
+-                            if (mButtonTimeout != 0 && now > mLastUserActivityTime + mButtonTimeout) {
++                            mLastButtonActivityTime = mButtonLightOnKeypressOnly ?
++                                    mLastButtonActivityTime : mLastUserActivityTime;
++                            if (mButtonTimeout != 0 &&
++                                    now > mLastButtonActivityTime + mButtonTimeout) {
+                                 mButtonsLight.setBrightness(0);
++                                mButtonOn = false;
+                             } else {
+-                                if (!mProximityPositive) {
++                                if ((!mButtonLightOnKeypressOnly || mButtonPressed) &&
++                                        !mProximityPositive) {
+                                     mButtonsLight.setBrightness(buttonBrightness);
++                                    mButtonPressed = false;
+                                     if (buttonBrightness != 0 && mButtonTimeout != 0) {
+-                                        nextTimeout = now + mButtonTimeout;
++                                        mButtonOn = true;
++                                        if (now + mButtonTimeout < nextTimeout) {
++                                            nextTimeout = now + mButtonTimeout;
++                                        }
+                                     }
++                                } else if (mButtonLightOnKeypressOnly && mButtonOn &&
++                                        mLastButtonActivityTime + mButtonTimeout < nextTimeout) {
++                                    nextTimeout = mLastButtonActivityTime + mButtonTimeout;
+                                 }
+                             }
+                         }
+@@ -2058,6 +2087,7 @@ public final class PowerManagerService extends SystemService
+                             mUserActivitySummary = USER_ACTIVITY_SCREEN_DIM;
+                             if (mWakefulness == WAKEFULNESS_AWAKE) {
+                                 mButtonsLight.setBrightness(0);
++                                mButtonOn = false;
+                             }
+                         }
+                     }
+-- 
+2.17.1
+

@@ -1,0 +1,143 @@
+From 087f97d7e8e494c426dc0a47a136f99b0880f353 Mon Sep 17 00:00:00 2001
+From: Keith Mok <kmok@cyngn.com>
+Date: Tue, 10 May 2016 09:31:22 -0700
+Subject: [PATCH 06/10] DeskClock: Use accelerometer instead of orientation
+ sensor
+
+Orientation sensor is deprecated, and usually it requires
+devices to have magnetic sensor for orientation sensor
+to be available. For flip action, we can just use accelerometer
+instead. Solve the problem that flip to action is not available
+for device without a magnetic sensor.
+
+FEIJ-539
+
+Change-Id: I716bf5d43a4042bc4da5d8e68126f52974fb1e7d
+---
+ .../deskclock/alarms/AlarmService.java        | 79 +++++++++++--------
+ 1 file changed, 46 insertions(+), 33 deletions(-)
+
+diff --git a/src/com/android/deskclock/alarms/AlarmService.java b/src/com/android/deskclock/alarms/AlarmService.java
+index 67ae139be..83c2f57a7 100644
+--- a/src/com/android/deskclock/alarms/AlarmService.java
++++ b/src/com/android/deskclock/alarms/AlarmService.java
+@@ -288,15 +288,18 @@ public class AlarmService extends Service {
+         }
+     }
+ 
+-    private final SensorEventListener mFlipListener = new SensorEventListener() {
+-        private static final int FACE_UP_LOWER_LIMIT = -45;
+-        private static final int FACE_UP_UPPER_LIMIT = 45;
+-        private static final int FACE_DOWN_UPPER_LIMIT = 135;
+-        private static final int FACE_DOWN_LOWER_LIMIT = -135;
+-        private static final int TILT_UPPER_LIMIT = 45;
+-        private static final int TILT_LOWER_LIMIT = -45;
++    private interface ResettableSensorEventListener extends SensorEventListener {
++        public void reset();
++    }
++
++    private final ResettableSensorEventListener mFlipListener =
++        new ResettableSensorEventListener() {
++        // Accelerometers are not quite accurate.
++        private static final float GRAVITY_UPPER_THRESHOLD = 1.3f * SensorManager.STANDARD_GRAVITY;
++        private static final float GRAVITY_LOWER_THRESHOLD = 0.7f * SensorManager.STANDARD_GRAVITY;
+         private static final int SENSOR_SAMPLES = 3;
+ 
++        private boolean mStopped;
+         private boolean mWasFaceUp;
+         private boolean[] mSamples = new boolean[SENSOR_SAMPLES];
+         private int mSampleIndex;
+@@ -305,45 +308,54 @@ public class AlarmService extends Service {
+         public void onAccuracyChanged(Sensor sensor, int acc) {
+         }
+ 
++        @Override
++        public void reset() {
++            mWasFaceUp = false;
++            mStopped = false;
++            for (int i = 0; i < SENSOR_SAMPLES; i++) {
++                mSamples[i] = false;
++            }
++        }
++
++        private boolean filterSamples() {
++            boolean allPass = true;
++            for (boolean sample : mSamples) {
++                allPass = allPass && sample;
++            }
++            return allPass;
++        }
++
+         @Override
+         public void onSensorChanged(SensorEvent event) {
+             // Add a sample overwriting the oldest one. Several samples
+-            // are used
+-            // to avoid the erroneous values the sensor sometimes
++            // are used to avoid the erroneous values the sensor sometimes
+             // returns.
+-            float y = event.values[1];
+             float z = event.values[2];
+ 
++            if (mStopped) {
++                return;
++            }
++
+             if (!mWasFaceUp) {
+                 // Check if its face up enough.
+-                mSamples[mSampleIndex] = y > FACE_UP_LOWER_LIMIT
+-                        && y < FACE_UP_UPPER_LIMIT
+-                        && z > TILT_LOWER_LIMIT && z < TILT_UPPER_LIMIT;
+-
+-                // The device first needs to be face up.
+-                boolean faceUp = true;
+-                for (boolean sample : mSamples) {
+-                    faceUp = faceUp && sample;
+-                }
+-                if (faceUp) {
++                mSamples[mSampleIndex] = (z > GRAVITY_LOWER_THRESHOLD) &&
++                    (z < GRAVITY_UPPER_THRESHOLD);
++
++                // face up
++                if (filterSamples()) {
+                     mWasFaceUp = true;
+                     for (int i = 0; i < SENSOR_SAMPLES; i++) {
+                         mSamples[i] = false;
+                     }
+                 }
+             } else {
+-                // Check if its face down enough. Note that wanted
+-                // values go from FACE_DOWN_UPPER_LIMIT to 180
+-                // and from -180 to FACE_DOWN_LOWER_LIMIT
+-                mSamples[mSampleIndex] = (y > FACE_DOWN_UPPER_LIMIT || y < FACE_DOWN_LOWER_LIMIT)
+-                        && z > TILT_LOWER_LIMIT
+-                        && z < TILT_UPPER_LIMIT;
+-
+-                boolean faceDown = true;
+-                for (boolean sample : mSamples) {
+-                    faceDown = faceDown && sample;
+-                }
+-                if (faceDown) {
++                // Check if its face down enough.
++                mSamples[mSampleIndex] = (z < -GRAVITY_LOWER_THRESHOLD) &&
++                    (z > -GRAVITY_UPPER_THRESHOLD);
++
++                // face down
++                if (filterSamples()) {
++                    mStopped = true;
+                     handleAction(mFlipAction);
+                 }
+             }
+@@ -389,8 +401,9 @@ public class AlarmService extends Service {
+ 
+     private void attachListeners() {
+         if (mFlipAction != ALARM_NO_ACTION) {
++            mFlipListener.reset();
+             mSensorManager.registerListener(mFlipListener,
+-                    mSensorManager.getDefaultSensor(Sensor.TYPE_ORIENTATION),
++                    mSensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER),
+                     SensorManager.SENSOR_DELAY_NORMAL,
+                     300 * 1000); //batch every 300 milliseconds
+         }
+-- 
+2.17.1
+

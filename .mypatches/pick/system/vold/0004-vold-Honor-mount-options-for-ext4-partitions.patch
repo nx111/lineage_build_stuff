@@ -1,0 +1,286 @@
+From 156e79664c2be5c0bf2a23033ec711534b5493e9 Mon Sep 17 00:00:00 2001
+From: Tom Marshall <tdm@cyngn.com>
+Date: Thu, 5 Nov 2015 11:20:54 -0800
+Subject: [PATCH 04/20] vold: Honor mount options for ext4 partitions
+
+ * Save mount options and fstype for DiskPartition objects
+ * Pass mount options and fstype to PublicVolume ctor
+ * Pass mount options to Ext4::Mount
+ * Use specified/default fstype if blkid fails
+
+This is trivially extensible for other fs types.
+
+[mikeioannina] Adapt for Pie
+
+Change-Id: Ie5dd27f26a4a7129dd9efe6a7ad0a589928282a0
+---
+ VolumeManager.cpp       |  3 ++-
+ VolumeManager.h         | 12 ++++++++++--
+ fs/Ext4.cpp             |  5 +++--
+ fs/Ext4.h               |  2 +-
+ main.cpp                | 11 ++++++++++-
+ model/Disk.cpp          |  6 ++++--
+ model/Disk.h            |  4 +++-
+ model/DiskPartition.cpp |  9 ++++++---
+ model/DiskPartition.h   |  7 ++++++-
+ model/PublicVolume.cpp  |  8 +++++---
+ model/PublicVolume.h    |  5 ++++-
+ 11 files changed, 54 insertions(+), 18 deletions(-)
+
+diff --git a/VolumeManager.cpp b/VolumeManager.cpp
+index 9e7845c..339090d 100644
+--- a/VolumeManager.cpp
++++ b/VolumeManager.cpp
+@@ -213,7 +213,8 @@ void VolumeManager::handleBlockEvent(NetlinkEvent *evt) {
+                                 source->getNickname(), flags) :
+                         new android::vold::DiskPartition(eventPath, device,
+                                 source->getNickname(), flags,
+-                                source->getPartNum());
++                                source->getPartNum(),
++                                source->getFsType(), source->getMntOpts());
+                 handleDiskAdded(std::shared_ptr<android::vold::Disk>(disk));
+                 break;
+             }
+diff --git a/VolumeManager.h b/VolumeManager.h
+index 02eaddd..119a56a 100644
+--- a/VolumeManager.h
++++ b/VolumeManager.h
+@@ -64,8 +64,12 @@ public:
+ 
+     class DiskSource {
+     public:
+-        DiskSource(const std::string& sysPattern, const std::string& nickname, int partnum, int flags) :
+-                mSysPattern(sysPattern), mNickname(nickname), mPartNum(partnum), mFlags(flags) {
++        DiskSource(const std::string& sysPattern, const std::string& nickname,
++                        int partnum, int flags,
++                        const std::string& fstype, const std::string mntopts) :
++                mSysPattern(sysPattern), mNickname(nickname),
++                mPartNum(partnum), mFlags(flags),
++                mFsType(fstype), mMntOpts(mntopts) {
+         }
+ 
+         bool matches(const std::string& sysPath) {
+@@ -75,12 +79,16 @@ public:
+         const std::string& getNickname() { return mNickname; }
+         int getPartNum() { return mPartNum; }
+         int getFlags() { return mFlags; }
++        const std::string& getFsType() { return mFsType; }
++        const std::string& getMntOpts() { return mMntOpts; }
+ 
+     private:
+         std::string mSysPattern;
+         std::string mNickname;
+         int mPartNum;
+         int mFlags;
++        std::string mFsType;
++        std::string mMntOpts;
+     };
+ 
+     void addDiskSource(const std::shared_ptr<DiskSource>& diskSource);
+diff --git a/fs/Ext4.cpp b/fs/Ext4.cpp
+index 83a2885..8b95cda 100644
+--- a/fs/Ext4.cpp
++++ b/fs/Ext4.cpp
+@@ -129,12 +129,13 @@ status_t Check(const std::string& source, const std::string& target, bool truste
+ }
+ 
+ status_t Mount(const std::string& source, const std::string& target, bool ro,
+-        bool remount, bool executable) {
++        bool remount, bool executable, const std::string& opts /* = "" */) {
+     int rc;
+     unsigned long flags;
+ 
+     const char* c_source = source.c_str();
+     const char* c_target = target.c_str();
++    const char* c_opts = opts.c_str();
+ 
+     flags = MS_NOATIME | MS_NODEV | MS_NOSUID | MS_DIRSYNC;
+ 
+@@ -142,7 +143,7 @@ status_t Mount(const std::string& source, const std::string& target, bool ro,
+     flags |= (ro ? MS_RDONLY : 0);
+     flags |= (remount ? MS_REMOUNT : 0);
+ 
+-    rc = mount(c_source, c_target, "ext4", flags, NULL);
++    rc = mount(c_source, c_target, "ext4", flags, c_opts);
+ 
+     if (rc && errno == EROFS) {
+         LOG(ERROR) << source << " appears to be a read only filesystem - retrying mount RO";
+diff --git a/fs/Ext4.h b/fs/Ext4.h
+index 8213c47..3fdf6f7 100644
+--- a/fs/Ext4.h
++++ b/fs/Ext4.h
+@@ -29,7 +29,7 @@ bool IsSupported();
+ 
+ status_t Check(const std::string& source, const std::string& target, bool trusted);
+ status_t Mount(const std::string& source, const std::string& target, bool ro,
+-        bool remount, bool executable);
++        bool remount, bool executable, const std::string& opts = "");
+ status_t Format(const std::string& source, unsigned long numSectors,
+         const std::string& target);
+ status_t Resize(const std::string& source, unsigned long numSectors);
+diff --git a/main.cpp b/main.cpp
+index 0ca1d26..3007f73 100644
+--- a/main.cpp
++++ b/main.cpp
+@@ -238,6 +238,14 @@ static int process_config(VolumeManager* vm, bool* has_adoptable, bool* has_quot
+ 
+         if (fs_mgr_is_voldmanaged(rec)) {
+             std::string sysPattern(rec->blk_device);
++            std::string fstype;
++            if (recs->fs_type) {
++                fstype = recs->fs_type;
++            }
++            std::string mntopts;
++            if (recs->fs_options) {
++                mntopts = recs->fs_options;
++            }
+             std::string nickname(rec->label);
+             int partnum = rec->partnum;
+             int flags = 0;
+@@ -255,7 +263,8 @@ static int process_config(VolumeManager* vm, bool* has_adoptable, bool* has_quot
+             }
+ 
+             vm->addDiskSource(std::shared_ptr<VolumeManager::DiskSource>(
+-                    new VolumeManager::DiskSource(sysPattern, nickname, partnum, flags)));
++                    new VolumeManager::DiskSource(sysPattern, nickname, partnum, flags,
++                                    fstype, mntopts)));
+         }
+     }
+     return 0;
+diff --git a/model/Disk.cpp b/model/Disk.cpp
+index afcb54e..04d7e11 100644
+--- a/model/Disk.cpp
++++ b/model/Disk.cpp
+@@ -175,8 +175,10 @@ status_t Disk::destroy() {
+     return OK;
+ }
+ 
+-void Disk::createPublicVolume(dev_t device) {
+-    auto vol = std::shared_ptr<VolumeBase>(new PublicVolume(device));
++void Disk::createPublicVolume(dev_t device,
++                const std::string& fstype /* = "" */,
++                const std::string& mntopts /* = "" */) {
++    auto vol = std::shared_ptr<VolumeBase>(new PublicVolume(device, fstype, mntopts));
+     if (mJustPartitioned) {
+         LOG(DEBUG) << "Device just partitioned; silently formatting";
+         vol->setSilent(true);
+diff --git a/model/Disk.h b/model/Disk.h
+index fda4566..8da785d 100644
+--- a/model/Disk.h
++++ b/model/Disk.h
+@@ -107,7 +107,9 @@ protected:
+     /* Flag that we just partitioned and should format all volumes */
+     bool mJustPartitioned;
+ 
+-    void createPublicVolume(dev_t device);
++    void createPublicVolume(dev_t device,
++                    const std::string& fstype = "",
++                    const std::string& mntopts = "");
+     void createPrivateVolume(dev_t device, const std::string& partGuid);
+ 
+     void destroyAllVolumes();
+diff --git a/model/DiskPartition.cpp b/model/DiskPartition.cpp
+index e0a606a..bb979da 100644
+--- a/model/DiskPartition.cpp
++++ b/model/DiskPartition.cpp
+@@ -45,9 +45,12 @@ namespace android {
+ namespace vold {
+ 
+ DiskPartition::DiskPartition(const std::string& eventPath, dev_t device,
+-            const std::string& nickname, int flags, int partnum) :
++            const std::string& nickname, int flags, int partnum,
++            const std::string& fstype /* = "" */, const std::string& mntopts /* = "" */) :
+         Disk(eventPath, device, nickname, flags),
+-        mPartNum(partnum) {
++        mPartNum(partnum),
++        mFsType(fstype),
++        mMntOpts(mntopts) {
+     // Empty
+ }
+ 
+@@ -60,7 +63,7 @@ status_t DiskPartition::create() {
+     mCreated = true;
+     notifyEvent(ResponseCode::DiskCreated, StringPrintf("%d", mFlags));
+     dev_t partDevice = makedev(major(mDevice), minor(mDevice) + mPartNum);
+-    createPublicVolume(partDevice);
++    createPublicVolume(partDevice, mFsType, mMntOpts);
+     return OK;
+ }
+ 
+diff --git a/model/DiskPartition.h b/model/DiskPartition.h
+index 274d6be..7756271 100644
+--- a/model/DiskPartition.h
++++ b/model/DiskPartition.h
+@@ -31,7 +31,8 @@ class DiskPartition : public Disk {
+ public:
+     DiskPartition(const std::string& eventPath, dev_t device,
+             const std::string& nickname,
+-            int flags, int partnum);
++             int flags, int partnum,
++            const std::string& fstype = "", const std::string& mntopts = "");
+     virtual ~DiskPartition();
+ 
+     virtual status_t create();
+@@ -44,6 +45,10 @@ public:
+ private:
+     /* Partition number */
+     int mPartNum;
++    /* Filesystem type */
++    std::string mFsType;
++    /* Mount options */
++    std::string mMntOpts;
+ };
+ 
+ }  // namespace vold
+diff --git a/model/PublicVolume.cpp b/model/PublicVolume.cpp
+index 5955e4e..d6a42d1 100644
+--- a/model/PublicVolume.cpp
++++ b/model/PublicVolume.cpp
+@@ -46,8 +46,10 @@ static const char* kFusePath = "/system/bin/sdcard";
+ 
+ static const char* kAsecPath = "/mnt/secure/asec";
+ 
+-PublicVolume::PublicVolume(dev_t device) :
+-        VolumeBase(Type::kPublic), mDevice(device), mFusePid(0) {
++PublicVolume::PublicVolume(dev_t device, const std::string& fstype /* = "" */,
++                const std::string& mntopts /* = "" */) :
++        VolumeBase(Type::kPublic), mDevice(device), mFusePid(0),
++        mFsType(fstype), mMntOpts(mntopts) {
+     setId(StringPrintf("public:%u,%u", major(device), minor(device)));
+     mDevPath = StringPrintf("/dev/block/vold/%s", getId().c_str());
+ }
+@@ -150,7 +152,7 @@ status_t PublicVolume::doMount() {
+     if (mFsType == "exfat") {
+         ret = exfat::Mount(mDevPath, mRawPath, AID_MEDIA_RW, AID_MEDIA_RW, 0007);
+     } else if (mFsType == "ext4") {
+-        ret = ext4::Mount(mDevPath, mRawPath, false, false, true);
++         ret = ext4::Mount(mDevPath, mRawPath, false, false, true, mMntOpts);
+     } else if (mFsType == "f2fs") {
+         ret = f2fs::Mount(mDevPath, mRawPath);
+     } else if (mFsType == "ntfs") {
+diff --git a/model/PublicVolume.h b/model/PublicVolume.h
+index 3aa7a73..7b7186c 100644
+--- a/model/PublicVolume.h
++++ b/model/PublicVolume.h
+@@ -39,7 +39,8 @@ namespace vold {
+  */
+ class PublicVolume : public VolumeBase {
+ public:
+-    explicit PublicVolume(dev_t device);
++    PublicVolume(dev_t device, const std::string& mntopts = "",
++                    const std::string& fstype = "");
+     virtual ~PublicVolume();
+ 
+ protected:
+@@ -73,6 +74,8 @@ private:
+     std::string mFsUuid;
+     /* User-visible filesystem label */
+     std::string mFsLabel;
++    /* Mount options */
++    std::string mMntOpts;
+ 
+     DISALLOW_COPY_AND_ASSIGN(PublicVolume);
+ };
+-- 
+2.17.1
+

@@ -1,0 +1,282 @@
+From b2d35fbeffbc1a8841ef0291c12147075a28e4c6 Mon Sep 17 00:00:00 2001
+From: Ethan Chen <intervigil@gmail.com>
+Date: Sat, 16 Sep 2017 22:14:36 -0700
+Subject: [PATCH 7/7] lineage/interfaces: Add basic USB HAL that reports no
+ status change
+
+Change-Id: I38bfe869f9b1b66db0e13249f65e438878d06eff
+---
+ usb/1.0-basic/Android.bp                      | 32 ++++++++
+ usb/1.0-basic/Usb.cpp                         | 81 +++++++++++++++++++
+ usb/1.0-basic/Usb.h                           | 65 +++++++++++++++
+ .../android.hardware.usb@1.0-service.basic.rc |  4 +
+ usb/1.0-basic/service.cpp                     | 47 +++++++++++
+ 5 files changed, 229 insertions(+)
+ create mode 100644 usb/1.0-basic/Android.bp
+ create mode 100644 usb/1.0-basic/Usb.cpp
+ create mode 100644 usb/1.0-basic/Usb.h
+ create mode 100644 usb/1.0-basic/android.hardware.usb@1.0-service.basic.rc
+ create mode 100644 usb/1.0-basic/service.cpp
+
+diff --git a/usb/1.0-basic/Android.bp b/usb/1.0-basic/Android.bp
+new file mode 100644
+index 0000000..4f390d0
+--- /dev/null
++++ b/usb/1.0-basic/Android.bp
+@@ -0,0 +1,32 @@
++//
++// Copyright (C) 2017-2018 The LineageOS Project
++//
++// Licensed under the Apache License, Version 2.0 (the "License");
++// you may not use this file except in compliance with the License.
++// You may obtain a copy of the License at
++//
++//      http://www.apache.org/licenses/LICENSE-2.0
++//
++// Unless required by applicable law or agreed to in writing, software
++// distributed under the License is distributed on an "AS IS" BASIS,
++// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++// See the License for the specific language governing permissions and
++// limitations under the License.
++
++cc_binary {
++    name: "android.hardware.usb@1.0-service.basic",
++    relative_install_path: "hw",
++    init_rc: ["android.hardware.usb@1.0-service.basic.rc"],
++    srcs: ["service.cpp", "Usb.cpp"],
++    shared_libs: [
++        "libbase",
++        "libcutils",
++        "libhidlbase",
++        "libhidltransport",
++        "libhwbinder",
++        "libutils",
++        "libhardware",
++        "android.hardware.usb@1.0",
++    ],
++    proprietary: true,
++}
+diff --git a/usb/1.0-basic/Usb.cpp b/usb/1.0-basic/Usb.cpp
+new file mode 100644
+index 0000000..f42452f
+--- /dev/null
++++ b/usb/1.0-basic/Usb.cpp
+@@ -0,0 +1,81 @@
++/*
++ * Copyright (C) 2017-2018 The LineageOS Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++#include <pthread.h>
++#include <stdio.h>
++#include <sys/types.h>
++#include <unistd.h>
++
++#include <android-base/logging.h>
++#include <utils/Errors.h>
++#include <utils/StrongPointer.h>
++
++#include "Usb.h"
++
++namespace android {
++namespace hardware {
++namespace usb {
++namespace V1_0 {
++namespace implementation {
++
++Return<void> Usb::switchRole(const hidl_string &portName __unused,
++                             const PortRole &newRole __unused) {
++    LOG(ERROR) << __func__ << ": Not supported";
++    return Void();
++}
++
++Return<void> Usb::queryPortStatus() {
++    hidl_vec<PortStatus> currentPortStatus;
++    currentPortStatus.resize(1);
++
++    currentPortStatus[0].portName = "otg_default";
++    currentPortStatus[0].currentDataRole = PortDataRole::DEVICE;
++    currentPortStatus[0].currentPowerRole = PortPowerRole::SINK;
++    currentPortStatus[0].currentMode = PortMode::UFP;
++    currentPortStatus[0].canChangeMode = false;
++    currentPortStatus[0].canChangeDataRole = false;
++    currentPortStatus[0].canChangePowerRole = false;
++    currentPortStatus[0].supportedModes = PortMode::UFP;
++
++    pthread_mutex_lock(&mLock);
++    if (mCallback != NULL) {
++        Return<void> ret =
++                mCallback->notifyPortStatusChange(currentPortStatus, Status::SUCCESS);
++        if (!ret.isOk()) {
++            LOG(ERROR) << "queryPortStatus error " << ret.description();
++        }
++    } else {
++        LOG(INFO) << "Notifying userspace skipped. Callback is NULL";
++    }
++    pthread_mutex_unlock(&mLock);
++
++    return Void();
++}
++
++Return<void> Usb::setCallback(const sp<IUsbCallback> &callback) {
++    pthread_mutex_lock(&mLock);
++
++    mCallback = callback;
++    LOG(INFO) << "registering callback";
++
++    pthread_mutex_unlock(&mLock);
++    return Void();
++}
++
++}  // namespace implementation
++}  // namespace V1_0
++}  // namespace usb
++}  // namespace hardware
++}  // namespace android
+diff --git a/usb/1.0-basic/Usb.h b/usb/1.0-basic/Usb.h
+new file mode 100644
+index 0000000..1f7abd6
+--- /dev/null
++++ b/usb/1.0-basic/Usb.h
+@@ -0,0 +1,65 @@
++/*
++ * Copyright (C) 2017-2018 The LineageOS Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#ifndef ANDROID_HARDWARE_USB_V1_0_USB_H
++#define ANDROID_HARDWARE_USB_V1_0_USB_H
++
++#include <android/hardware/usb/1.0/IUsb.h>
++#include <hidl/MQDescriptor.h>
++#include <hidl/Status.h>
++#include <utils/Log.h>
++
++#ifdef LOG_TAG
++#undef LOG_TAG
++#endif
++
++#define LOG_TAG "android.hardware.usb@1.0-service-basic"
++#define UEVENT_MSG_LEN 2048
++
++namespace android {
++namespace hardware {
++namespace usb {
++namespace V1_0 {
++namespace implementation {
++
++using ::android::hardware::usb::V1_0::IUsb;
++using ::android::hardware::usb::V1_0::IUsbCallback;
++using ::android::hardware::usb::V1_0::PortRole;
++using ::android::hidl::base::V1_0::IBase;
++using ::android::hardware::hidl_array;
++using ::android::hardware::hidl_memory;
++using ::android::hardware::hidl_string;
++using ::android::hardware::hidl_vec;
++using ::android::hardware::Return;
++using ::android::hardware::Void;
++using ::android::sp;
++
++struct Usb : public IUsb {
++    Return<void> switchRole(const hidl_string& portName, const PortRole& role) override;
++    Return<void> setCallback(const sp<IUsbCallback>& callback) override;
++    Return<void> queryPortStatus() override;
++
++    sp<IUsbCallback> mCallback;
++    pthread_mutex_t mLock = PTHREAD_MUTEX_INITIALIZER;
++};
++
++}  // namespace implementation
++}  // namespace V1_0
++}  // namespace usb
++}  // namespace hardware
++}  // namespace android
++
++#endif  // ANDROID_HARDWARE_USB_V1_0_USB_H
+diff --git a/usb/1.0-basic/android.hardware.usb@1.0-service.basic.rc b/usb/1.0-basic/android.hardware.usb@1.0-service.basic.rc
+new file mode 100644
+index 0000000..0665b02
+--- /dev/null
++++ b/usb/1.0-basic/android.hardware.usb@1.0-service.basic.rc
+@@ -0,0 +1,4 @@
++service usb-hal-1-0 /vendor/bin/hw/android.hardware.usb@1.0-service.basic
++    class hal
++    user system
++    group system
+diff --git a/usb/1.0-basic/service.cpp b/usb/1.0-basic/service.cpp
+new file mode 100644
+index 0000000..8193012
+--- /dev/null
++++ b/usb/1.0-basic/service.cpp
+@@ -0,0 +1,47 @@
++/*
++ * Copyright (C) 2017-2018 The LineageOS Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#include <android-base/logging.h>
++#include <hidl/HidlTransportSupport.h>
++#include "Usb.h"
++
++using android::sp;
++
++// libhwbinder:
++using android::hardware::configureRpcThreadpool;
++using android::hardware::joinRpcThreadpool;
++
++// Generated HIDL files
++using android::hardware::usb::V1_0::IUsb;
++using android::hardware::usb::V1_0::implementation::Usb;
++
++int main() {
++    android::sp<IUsb> service = new Usb();
++
++    configureRpcThreadpool(1, true /*callerWillJoin*/);
++    android::status_t status = service->registerAsService();
++
++    if (status != android::OK) {
++        LOG(ERROR) << "Cannot register USB HAL service";
++        return 1;
++    }
++
++    LOG(INFO) << "USB HAL Ready.";
++    joinRpcThreadpool();
++    // Under normal cases, execution will not reach this line.
++    LOG(ERROR) << "USB HAL failed to join thread pool.";
++    return 1;
++}
+-- 
+2.17.1
+

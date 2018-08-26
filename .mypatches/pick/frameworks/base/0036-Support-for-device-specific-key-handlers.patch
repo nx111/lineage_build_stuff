@@ -1,0 +1,235 @@
+From b9292c4918ca709fe47d51e809c8346e8b6b5d8f Mon Sep 17 00:00:00 2001
+From: Bruno Martins <bgcngm@gmail.com>
+Date: Wed, 11 Oct 2017 21:11:49 +0100
+Subject: [PATCH 36/80] Support for device specific key handlers
+
+This is a squash commit of the following changes,
+only modified for the new SDK.
+
+  Author: Alexander Hofbauer <alex@derhofbauer.at>
+  Date:   Thu Apr 12 01:24:24 2012 +0200
+
+      Dispatch keys to a device specific key handler
+
+      Injects a device key handler into the input path to handle additional
+      keys (as found on some docks with a hardware keyboard).
+
+      Configurable via overlay settings config_deviceKeyHandlerLib and
+      config_deviceKeyHandlerClass.
+
+      Change-Id: I6678c89c7530fdb1d4d516ba4f1d2c9e30ce79a4
+
+  Author: Jorge Ruesga <jorge@ruesga.com>
+  Date:   Thu Jan 24 02:34:49 2013 +0100
+
+      DeviceKeyHandle: The device should consume only known keys
+
+      When the device receive the key, only should consume it if the device
+      know about the key. Otherwise, the key must be handle by the active app.
+      Also make mDeviceKeyHandler private (is not useful outside this class)
+
+      Change-Id: I4b9ea57b802e8c8c88c8b93a63d510f5952b0700
+      Signed-off-by: Jorge Ruesga <jorge@ruesga.com>
+
+  Author: Danesh Mondegarian <daneshm90@gmail.com>
+  Date:   Sun Oct 20 00:34:48 2013 -0700
+
+      DeviceKeyHandler : Allow handling keyevents while screen off
+
+      Some devices require the keyevents to be processed while the screen
+      is off, this patchset addresses that by moving the filter up in the call
+      hierarchy.
+
+      Change-Id: If71beecc81aa5e453dcd08aba72b7bea5c210590
+
+  Author: Steve Kondik <steve@cyngn.com>
+  Date:   Sun Sep 11 00:49:41 2016 -0700
+
+      policy: Use PathClassLoader for loading the keyhandler
+
+       * Fix crash on start due to getCacheDir throwing an exception.
+       * We can't do this anymore due to the new storage/crypto in N.
+
+      Change-Id: I28426a5df824460ebc74aa19068192adb00d4f7c
+
+  Author: Zhao Wei Liew <zhaoweiliew@gmail.com>
+  Date:   Sun Nov 20 08:20:15 2016 +0800
+
+      PhoneWindowManager: Support multiple key handlers
+
+      Convert the string overlay to a string-array overlay
+      to allow devices to specify an array of key handlers.
+
+      Note that the keyhandlers towards the start of the
+      array take precedence when loading.
+
+      Change-Id: Iaaab737f1501a97d7016d8d519ccf127ca059218
+
+  Author: Paul Keith <javelinanddart@gmail.com>
+  Date:   Thu Nov 23 21:47:51 2017 +0100
+
+      fw/b: Return a KeyEvent instead of a boolean in KeyHandler
+
+      * Allows handlers to modify the event before sending it off
+        to another KeyHandler class, to handle things like rotation
+
+      Change-Id: I481107e050f6323c5897260a5d241e64b4e031ac
+
+Change-Id: Ie65a89cd7efd645622d99d47699df847bc3ad96b
+---
+ .../android/internal/os/DeviceKeyHandler.java | 31 ++++++++++
+ .../server/policy/PhoneWindowManager.java     | 56 +++++++++++++++++++
+ 2 files changed, 87 insertions(+)
+ create mode 100644 core/java/com/android/internal/os/DeviceKeyHandler.java
+
+diff --git a/core/java/com/android/internal/os/DeviceKeyHandler.java b/core/java/com/android/internal/os/DeviceKeyHandler.java
+new file mode 100644
+index 00000000000..8902337f3eb
+--- /dev/null
++++ b/core/java/com/android/internal/os/DeviceKeyHandler.java
+@@ -0,0 +1,31 @@
++/*
++ * Copyright (C) 2012 The CyanogenMod Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++package com.android.internal.os;
++
++import android.view.KeyEvent;
++
++public interface DeviceKeyHandler {
++
++    /**
++     * Invoked when an unknown key was detected by the system, letting the device handle
++     * this special keys prior to pass the key to the active app.
++     *
++     * @param event The key event to be handled
++     * @return null if event is consumed, KeyEvent to be handled otherwise
++     */
++    public KeyEvent handleKeyEvent(KeyEvent event);
++}
+diff --git a/services/core/java/com/android/server/policy/PhoneWindowManager.java b/services/core/java/com/android/server/policy/PhoneWindowManager.java
+index 3931244ff8d..56170a55e89 100644
+--- a/services/core/java/com/android/server/policy/PhoneWindowManager.java
++++ b/services/core/java/com/android/server/policy/PhoneWindowManager.java
+@@ -267,6 +267,7 @@ import com.android.internal.annotations.GuardedBy;
+ import com.android.internal.annotations.VisibleForTesting;
+ import com.android.internal.logging.MetricsLogger;
+ import com.android.internal.logging.nano.MetricsProto;
++import com.android.internal.os.DeviceKeyHandler;
+ import com.android.internal.policy.IKeyguardDismissCallback;
+ import com.android.internal.policy.IShortcutService;
+ import com.android.internal.policy.KeyguardDismissCallback;
+@@ -296,8 +297,12 @@ import java.io.File;
+ import java.io.FileReader;
+ import java.io.IOException;
+ import java.io.PrintWriter;
++import java.lang.reflect.Constructor;
++import java.util.ArrayList;
+ import java.util.List;
+ 
++import dalvik.system.PathClassLoader;
++
+ /**
+  * WindowManagerPolicy implementation for the Android phone UI.  This
+  * introduces a new method suffix, Lp, for an internal lock of the
+@@ -823,6 +828,8 @@ public class PhoneWindowManager implements WindowManagerPolicy {
+ 
+     private boolean mAodShowing;
+ 
++    private final List<DeviceKeyHandler> mDeviceKeyHandlers = new ArrayList<>();
++
+     private static final int MSG_ENABLE_POINTER_LOCATION = 1;
+     private static final int MSG_DISABLE_POINTER_LOCATION = 2;
+     private static final int MSG_DISPATCH_MEDIA_KEY_WITH_WAKE_LOCK = 3;
+@@ -2311,6 +2318,28 @@ public class PhoneWindowManager implements WindowManagerPolicy {
+                     }
+                 });
+         mScreenshotHelper = new ScreenshotHelper(mContext);
++
++        final Resources res = mContext.getResources();
++        final String[] deviceKeyHandlerLibs = res.getStringArray(
++                org.lineageos.platform.internal.R.array.config_deviceKeyHandlerLibs);
++        final String[] deviceKeyHandlerClasses = res.getStringArray(
++                org.lineageos.platform.internal.R.array.config_deviceKeyHandlerClasses);
++
++        for (int i = 0;
++                i < deviceKeyHandlerLibs.length && i < deviceKeyHandlerClasses.length; i++) {
++            try {
++                PathClassLoader loader = new PathClassLoader(
++                        deviceKeyHandlerLibs[i], getClass().getClassLoader());
++                Class<?> klass = loader.loadClass(deviceKeyHandlerClasses[i]);
++                Constructor<?> constructor = klass.getConstructor(Context.class);
++                mDeviceKeyHandlers.add((DeviceKeyHandler) constructor.newInstance(mContext));
++            } catch (Exception e) {
++                Slog.w(TAG, "Could not instantiate device key handler "
++                        + deviceKeyHandlerLibs[i] + " from class "
++                        + deviceKeyHandlerClasses[i], e);
++            }
++        }
++        if (DEBUG) Slog.d(TAG, "" + mDeviceKeyHandlers.size() + " device key handlers loaded");
+     }
+ 
+     /**
+@@ -4050,6 +4079,11 @@ public class PhoneWindowManager implements WindowManagerPolicy {
+             return -1;
+         }
+ 
++        // Specific device key handling
++        if (dispatchKeyToKeyHandlers(event)) {
++            return -1;
++        }
++
+         if (down) {
+             long shortcutCode = keyCode;
+             if (event.isCtrlPressed()) {
+@@ -4155,6 +4189,23 @@ public class PhoneWindowManager implements WindowManagerPolicy {
+         }
+     }
+ 
++    private boolean dispatchKeyToKeyHandlers(KeyEvent event) {
++        for (DeviceKeyHandler handler : mDeviceKeyHandlers) {
++            try {
++                if (DEBUG_INPUT) {
++                    Log.d(TAG, "Dispatching key event " + event + " to handler " + handler);
++                }
++                event = handler.handleKeyEvent(event);
++                if (event == null) {
++                    return true;
++                }
++            } catch (Exception e) {
++                Slog.w(TAG, "Could not dispatch event to device key handler", e);
++            }
++        }
++        return false;
++    }
++
+     /** {@inheritDoc} */
+     @Override
+     public KeyEvent dispatchUnhandledKey(WindowState win, KeyEvent event, int policyFlags) {
+@@ -6123,6 +6174,11 @@ public class PhoneWindowManager implements WindowManagerPolicy {
+                 && (!isNavBarVirtKey || mNavBarVirtualKeyHapticFeedbackEnabled)
+                 && event.getRepeatCount() == 0;
+ 
++        // Specific device key handling
++        if (dispatchKeyToKeyHandlers(event)) {
++            return 0;
++        }
++
+         // Handle special keys.
+         switch (keyCode) {
+             case KeyEvent.KEYCODE_BACK: {
+-- 
+2.17.1
+

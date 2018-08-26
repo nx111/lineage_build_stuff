@@ -1,0 +1,67 @@
+From caebbd4ab4e0fcb3ef8bc69e95bfa720d729f5a9 Mon Sep 17 00:00:00 2001
+From: Corinna Vinschen <xda@vinschen.de>
+Date: Sat, 12 Aug 2017 21:22:57 +0200
+Subject: [PATCH 8/9] InputDispatcher: On keypress, deliver keycode to
+ pokeUserActivity
+
+Change-Id: I8f64a6fa9b4b2e4520e25731f55e89f5087c70da
+Signed-off-by: Corinna Vinschen <xda@vinschen.de>
+---
+ services/inputflinger/InputDispatcher.cpp | 20 +++++++++++++++++++-
+ services/inputflinger/InputDispatcher.h   |  2 +-
+ 2 files changed, 20 insertions(+), 2 deletions(-)
+
+diff --git a/services/inputflinger/InputDispatcher.cpp b/services/inputflinger/InputDispatcher.cpp
+index 9a449fa6d..0047d06f1 100644
+--- a/services/inputflinger/InputDispatcher.cpp
++++ b/services/inputflinger/InputDispatcher.cpp
+@@ -1832,6 +1832,11 @@ void InputDispatcher::pokeUserActivityLocked(const EventEntry* eventEntry) {
+             & InputDispatcher::doPokeUserActivityLockedInterruptible);
+     commandEntry->eventTime = eventEntry->eventTime;
+     commandEntry->userActivityEventType = eventType;
++    if (eventType == USER_ACTIVITY_EVENT_BUTTON) {
++        const KeyEntry* keyEntry = static_cast<const KeyEntry*>(eventEntry);
++        commandEntry->keyEntry = const_cast<KeyEntry*>(keyEntry);
++        keyEntry->refCount += 1;
++    }
+ }
+ 
+ void InputDispatcher::prepareDispatchCycleLocked(nsecs_t currentTime,
+@@ -3849,7 +3854,20 @@ bool InputDispatcher::afterMotionEventLockedInterruptible(const sp<Connection>&
+ void InputDispatcher::doPokeUserActivityLockedInterruptible(CommandEntry* commandEntry) {
+     mLock.unlock();
+ 
+-    mPolicy->pokeUserActivity(commandEntry->eventTime, commandEntry->userActivityEventType);
++    int32_t keyCode = AKEYCODE_UNKNOWN;
++
++    if (commandEntry->userActivityEventType == USER_ACTIVITY_EVENT_BUTTON &&
++            commandEntry->keyEntry) {
++        keyCode = commandEntry->keyEntry->keyCode;
++    }
++
++    mPolicy->pokeUserActivity(commandEntry->eventTime, commandEntry->userActivityEventType,
++            keyCode);
++
++    if (commandEntry->userActivityEventType == USER_ACTIVITY_EVENT_BUTTON &&
++            commandEntry->keyEntry) {
++        commandEntry->keyEntry->release();
++    }
+ 
+     mLock.lock();
+ }
+diff --git a/services/inputflinger/InputDispatcher.h b/services/inputflinger/InputDispatcher.h
+index 8da845038..705692df6 100644
+--- a/services/inputflinger/InputDispatcher.h
++++ b/services/inputflinger/InputDispatcher.h
+@@ -256,7 +256,7 @@ public:
+             uint32_t switchValues, uint32_t switchMask, uint32_t policyFlags) = 0;
+ 
+     /* Poke user activity for an event dispatched to a window. */
+-    virtual void pokeUserActivity(nsecs_t eventTime, int32_t eventType) = 0;
++    virtual void pokeUserActivity(nsecs_t eventTime, int32_t eventType, int32_t keyCode) = 0;
+ 
+     /* Checks whether a given application pid/uid has permission to inject input events
+      * into other applications.
+-- 
+2.17.1
+

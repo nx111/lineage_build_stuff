@@ -1,0 +1,91 @@
+From 1a339376916ffe3450229d72aa4e43e84634f2d7 Mon Sep 17 00:00:00 2001
+From: Adnan Begovic <adnan@cyngn.com>
+Date: Tue, 27 Oct 2015 14:43:27 -0700
+Subject: [PATCH 16/80] admin: Restore requireSecureKeyguard interface.
+
+Change-Id: I3c0533bafdae77df953d5bff457a4efdb94167e7
+---
+ .../app/admin/DevicePolicyManager.java        | 20 +++++++++++++++
+ .../app/admin/IDevicePolicyManager.aidl       |  2 ++
+ .../DevicePolicyManagerService.java           | 25 +++++++++++++++++++
+ 3 files changed, 47 insertions(+)
+
+diff --git a/core/java/android/app/admin/DevicePolicyManager.java b/core/java/android/app/admin/DevicePolicyManager.java
+index 22367b21221..18fadce1923 100644
+--- a/core/java/android/app/admin/DevicePolicyManager.java
++++ b/core/java/android/app/admin/DevicePolicyManager.java
+@@ -9575,4 +9575,24 @@ public class DevicePolicyManager {
+             throw re.rethrowFromSystemServer();
+         }
+     }
++
++    /**
++     * Lineage: check if secure keyguard is required
++     * @hide
++     */
++    public boolean requireSecureKeyguard() {
++        return requireSecureKeyguard(UserHandle.myUserId());
++    }
++
++    /** @hide */
++    public boolean requireSecureKeyguard(int userHandle) {
++        if (mService != null) {
++            try {
++                return mService.requireSecureKeyguard(userHandle);
++            } catch (RemoteException e) {
++                Log.w(TAG, "Failed to get secure keyguard requirement");
++            }
++        }
++        return true;
++    }
+ }
+diff --git a/core/java/android/app/admin/IDevicePolicyManager.aidl b/core/java/android/app/admin/IDevicePolicyManager.aidl
+index 37508cdc111..09642745166 100644
+--- a/core/java/android/app/admin/IDevicePolicyManager.aidl
++++ b/core/java/android/app/admin/IDevicePolicyManager.aidl
+@@ -411,4 +411,6 @@ interface IDevicePolicyManager {
+     boolean isOverrideApnEnabled(in ComponentName admin);
+ 
+     boolean isMeteredDataDisabledPackageForUser(in ComponentName admin, String packageName, int userId);
++
++    boolean requireSecureKeyguard(int userHandle);
+ }
+diff --git a/services/devicepolicy/java/com/android/server/devicepolicy/DevicePolicyManagerService.java b/services/devicepolicy/java/com/android/server/devicepolicy/DevicePolicyManagerService.java
+index deaa5b4589e..2853e4f5078 100644
+--- a/services/devicepolicy/java/com/android/server/devicepolicy/DevicePolicyManagerService.java
++++ b/services/devicepolicy/java/com/android/server/devicepolicy/DevicePolicyManagerService.java
+@@ -7078,6 +7078,31 @@ public class DevicePolicyManagerService extends BaseIDevicePolicyManager {
+         }
+     }
+ 
++    /**
++     * @hide
++     */
++    @Override
++    public boolean requireSecureKeyguard(int userHandle) {
++        if (!mHasFeature) {
++            return false;
++        }
++
++        int passwordQuality = getPasswordQuality(null, userHandle, false);
++        if (passwordQuality > DevicePolicyManager.PASSWORD_QUALITY_UNSPECIFIED) {
++            return true;
++        }
++
++        int encryptionStatus = getStorageEncryptionStatus(null, userHandle);
++        if (encryptionStatus == DevicePolicyManager.ENCRYPTION_STATUS_ACTIVE
++                || encryptionStatus == DevicePolicyManager.ENCRYPTION_STATUS_ACTIVATING) {
++            return true;
++        }
++
++        final int keyguardDisabledFeatures = getKeyguardDisabledFeatures(null, userHandle, false);
++        return (keyguardDisabledFeatures & DevicePolicyManager.KEYGUARD_DISABLE_TRUST_AGENTS) != 0;
++    }
++
++
+     /**
+      * Gets the disabled state for features in keyguard for the given admin,
+      * or the aggregate of all active admins if who is null.
+-- 
+2.17.1
+

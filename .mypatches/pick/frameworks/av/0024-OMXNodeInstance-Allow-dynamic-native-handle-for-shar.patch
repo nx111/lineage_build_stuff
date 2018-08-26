@@ -1,0 +1,53 @@
+From ad71c2842cfd0d5eb4afc1bf1796bf0c8dce834d Mon Sep 17 00:00:00 2001
+From: "Kevin F. Haggerty" <haggertk@lineageos.org>
+Date: Mon, 13 Aug 2018 03:42:17 -0600
+Subject: [PATCH 24/25] OMXNodeInstance: Allow dynamic native handle for shared
+ mem buffer
+
+* Change Ief2d2d4d0445074c0ecdc723b1b25997a7631389, part of Aug 2018
+  ASB, authored to mitigate CVE-2018-9427, restricted useBuffer()
+  based on buffer type and port mode.
+* Follow-up change I1e4eb72e070f4e60ff4df94f9b9d161361828477 allowed
+  dynamic handles for input buffers, but not a *native* handle for
+  this specific buffer type.
+* Some of our devices using legacy HAL1 recording require this
+  combination of buffer type and port mode, so allow when explicitly
+  requested.
+
+Change-Id: I15f8cbb3956773e2ba97032203f5e9254505d8ac
+---
+ media/libstagefright/omx/Android.bp          | 3 +++
+ media/libstagefright/omx/OMXNodeInstance.cpp | 3 +++
+ 2 files changed, 6 insertions(+)
+
+diff --git a/media/libstagefright/omx/Android.bp b/media/libstagefright/omx/Android.bp
+index 139f37919..4b585e6e4 100644
+--- a/media/libstagefright/omx/Android.bp
++++ b/media/libstagefright/omx/Android.bp
+@@ -74,6 +74,9 @@ cc_library_shared {
+ 
+     product_variables: {
+         lineage: {
++            needs_legacy_camera_hal1_dyn_native_handle: {
++                cppflags: ["-DNEEDS_LEGACY_CAMERA_HAL1_DYN_NATIVE_HANDLE"],
++            },
+             uses_qcom_bsp_legacy: {
+                 cppflags: ["-DQCOM_BSP_LEGACY"],
+             },
+diff --git a/media/libstagefright/omx/OMXNodeInstance.cpp b/media/libstagefright/omx/OMXNodeInstance.cpp
+index b8b9011f1..a0e6dfe23 100644
+--- a/media/libstagefright/omx/OMXNodeInstance.cpp
++++ b/media/libstagefright/omx/OMXNodeInstance.cpp
+@@ -1081,6 +1081,9 @@ status_t OMXNodeInstance::useBuffer(
+ 
+         case OMXBuffer::kBufferTypeSharedMem: {
+             if (mPortMode[portIndex] != IOMX::kPortModePresetByteBuffer
++#ifdef NEEDS_LEGACY_CAMERA_HAL1_DYN_NATIVE_HANDLE
++                    && mPortMode[portIndex] != IOMX::kPortModeDynamicNativeHandle
++#endif
+                     && mPortMode[portIndex] != IOMX::kPortModeDynamicANWBuffer) {
+                 break;
+             }
+-- 
+2.17.1
+

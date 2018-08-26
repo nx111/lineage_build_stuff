@@ -1,0 +1,144 @@
+From 33e19f431e07b668437daaa50bb6a07ce7977266 Mon Sep 17 00:00:00 2001
+From: Simon Shields <simon@lineageos.org>
+Date: Thu, 9 Aug 2018 01:20:40 +1000
+Subject: [PATCH 2/8] Revert "otautil: Delete dirUnlinkHierarchy()."
+
+changes for P:
+ - Fix missing PATH_MAX macro from limits.h
+
+This reverts commit 7934985e0cac4a3849418af3b8c9671f4d61078a.
+
+Change-Id: I67ce71a1644b58a393dce45a6c3dee97830b9ee4
+---
+ otautil/DirUtil.cpp               | 56 +++++++++++++++++++++++++++++++
+ otautil/include/otautil/DirUtil.h |  4 +++
+ tests/unit/dirutil_test.cpp       | 32 ++++++++++++++++++
+ 3 files changed, 92 insertions(+)
+
+diff --git a/otautil/DirUtil.cpp b/otautil/DirUtil.cpp
+index 61c83281..81f778af 100644
+--- a/otautil/DirUtil.cpp
++++ b/otautil/DirUtil.cpp
+@@ -114,3 +114,59 @@ int mkdir_recursively(const std::string& input_path, mode_t mode, bool strip_fil
+   }
+   return 0;
+ }
++
++int
++dirUnlinkHierarchy(const char *path)
++{
++    struct stat st;
++    DIR *dir;
++    struct dirent *de;
++    int fail = 0;
++
++    /* is it a file or directory? */
++    if (lstat(path, &st) < 0) {
++        return -1;
++    }
++
++    /* a file, so unlink it */
++    if (!S_ISDIR(st.st_mode)) {
++        return unlink(path);
++    }
++
++    /* a directory, so open handle */
++    dir = opendir(path);
++    if (dir == NULL) {
++        return -1;
++    }
++
++    /* recurse over components */
++    errno = 0;
++    while ((de = readdir(dir)) != NULL) {
++        //TODO: don't blow the stack
++        char dn[PATH_MAX];
++        if (!strcmp(de->d_name, "..") || !strcmp(de->d_name, ".")) {
++            continue;
++        }
++        snprintf(dn, sizeof(dn), "%s/%s", path, de->d_name);
++        if (dirUnlinkHierarchy(dn) < 0) {
++            fail = 1;
++            break;
++        }
++        errno = 0;
++    }
++    /* in case readdir or unlink_recursive failed */
++    if (fail || errno < 0) {
++        int save = errno;
++        closedir(dir);
++        errno = save;
++        return -1;
++    }
++
++    /* close directory handle */
++    if (closedir(dir) < 0) {
++        return -1;
++    }
++
++    /* delete target directory */
++    return rmdir(path);
++}
+diff --git a/otautil/include/otautil/DirUtil.h b/otautil/include/otautil/DirUtil.h
+index 85d6c16d..75650f61 100644
+--- a/otautil/include/otautil/DirUtil.h
++++ b/otautil/include/otautil/DirUtil.h
+@@ -17,6 +17,7 @@
+ #ifndef OTAUTIL_DIRUTIL_H_
+ #define OTAUTIL_DIRUTIL_H_
+ 
++#include <limits.h> // PATH_MAX
+ #include <sys/stat.h>  // mode_t
+ 
+ #include <string>
+@@ -36,4 +37,7 @@ struct selabel_handle;
+ int mkdir_recursively(const std::string& path, mode_t mode, bool strip_filename,
+                       const struct selabel_handle* sehnd);
+ 
++// rm -rf <path>
++int dirUnlinkHierarchy(const char *path);
++
+ #endif  // OTAUTIL_DIRUTIL_H_
+diff --git a/tests/unit/dirutil_test.cpp b/tests/unit/dirutil_test.cpp
+index 7f85d13e..8a1eba69 100644
+--- a/tests/unit/dirutil_test.cpp
++++ b/tests/unit/dirutil_test.cpp
+@@ -106,3 +106,35 @@ TEST(DirUtilTest, create_mode) {
+   ASSERT_EQ(0, rmdir((prefix + "/a/b").c_str()));
+   ASSERT_EQ(0, rmdir((prefix + "/a").c_str()));
+ }
++
++TEST(DirUtilTest, unlink_invalid) {
++  // File doesn't exist.
++  ASSERT_EQ(-1, dirUnlinkHierarchy("doesntexist"));
++
++  // Nonexistent directory.
++  TemporaryDir td;
++  std::string path(td.path);
++  ASSERT_EQ(-1, dirUnlinkHierarchy((path + "/a").c_str()));
++  ASSERT_EQ(ENOENT, errno);
++}
++
++TEST(DirUtilTest, unlink_smoke) {
++  // Unlink a file.
++  TemporaryFile tf;
++  ASSERT_EQ(0, dirUnlinkHierarchy(tf.path));
++  ASSERT_EQ(-1, access(tf.path, F_OK));
++
++  TemporaryDir td;
++  std::string path(td.path);
++  constexpr mode_t mode = 0700;
++  ASSERT_EQ(0, mkdir((path + "/a").c_str(), mode));
++  ASSERT_EQ(0, mkdir((path + "/a/b").c_str(), mode));
++  ASSERT_EQ(0, mkdir((path + "/a/b/c").c_str(), mode));
++  ASSERT_EQ(0, mkdir((path + "/a/d").c_str(), mode));
++
++  // Remove "../a" recursively.
++  ASSERT_EQ(0, dirUnlinkHierarchy((path + "/a").c_str()));
++
++  // Verify it's gone.
++  ASSERT_EQ(-1, access((path + "/a").c_str(), F_OK));
++}
+-- 
+2.17.1
+

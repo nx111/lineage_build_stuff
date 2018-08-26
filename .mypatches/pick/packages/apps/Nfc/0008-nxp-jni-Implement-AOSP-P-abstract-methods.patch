@@ -1,0 +1,128 @@
+From 2dfeff7d0d61c97552dd329554e14536dcd1ab59 Mon Sep 17 00:00:00 2001
+From: Adrian DC <radian.dc@gmail.com>
+Date: Sat, 11 Aug 2018 15:16:21 +0200
+Subject: [PATCH 8/8] nxp: jni: Implement AOSP P abstract methods
+
+ * Implement inative doFactoryReset and doShutdown
+
+ * Update NativeNfcTag.end(boolean)
+ * Add NativeNfcTag.stopPresenceChecking
+
+Change-Id: I545a7d8446e6c8c10254abd8fa22111f7ea7ac2f
+---
+ nxp/jni/com_android_nfc_NativeNfcManager.cpp    | 14 +++++++++++++-
+ .../android/nfc/dhimpl/NativeNfcManager.java    | 14 ++++++++++++++
+ .../com/android/nfc/dhimpl/NativeNfcTag.java    | 17 ++++++++++++++---
+ 3 files changed, 41 insertions(+), 4 deletions(-)
+
+diff --git a/nxp/jni/com_android_nfc_NativeNfcManager.cpp b/nxp/jni/com_android_nfc_NativeNfcManager.cpp
+index fc5de458..8abb03f5 100644
+--- a/nxp/jni/com_android_nfc_NativeNfcManager.cpp
++++ b/nxp/jni/com_android_nfc_NativeNfcManager.cpp
+@@ -2346,6 +2346,14 @@ static void com_android_nfc_NfcManager_doDisableDtaMode(JNIEnv*, jobject)
+ {
+ }
+ 
++static void com_android_nfc_NfcManager_doFactoryReset(JNIEnv*, jobject)
++{
++}
++
++static void com_android_nfc_NfcManager_doShutdown(JNIEnv*, jobject)
++{
++}
++
+ /*
+  * JNI registration.
+  */
+@@ -2416,7 +2424,11 @@ static JNINativeMethod gMethods[] =
+    {"doEnableDtaMode", "()V",
+       (void *)com_android_nfc_NfcManager_doEnableDtaMode},
+    {"doDisableDtaMode", "()V",
+-      (void *)com_android_nfc_NfcManager_doDisableDtaMode}
++      (void *)com_android_nfc_NfcManager_doDisableDtaMode},
++   {"doFactoryReset", "()V",
++      (void *)com_android_nfc_NfcManager_doFactoryReset},
++   {"doShutdown", "()V",
++      (void *)com_android_nfc_NfcManager_doShutdown}
+ };
+ 
+ 
+diff --git a/nxp/src/com/android/nfc/dhimpl/NativeNfcManager.java b/nxp/src/com/android/nfc/dhimpl/NativeNfcManager.java
+index 4bd73991..f0fccdbc 100755
+--- a/nxp/src/com/android/nfc/dhimpl/NativeNfcManager.java
++++ b/nxp/src/com/android/nfc/dhimpl/NativeNfcManager.java
+@@ -138,6 +138,20 @@ public class NativeNfcManager implements DeviceHost {
+         doDisableDtaMode();
+     }
+ 
++    private native void doFactoryReset();
++
++    @Override
++    public void factoryReset() {
++        doFactoryReset();
++    }
++
++    private native void doShutdown();
++
++    @Override
++    public void shutdown() {
++        doShutdown();
++    }
++
+     private native boolean doDeinitialize();
+ 
+     @Override
+diff --git a/nxp/src/com/android/nfc/dhimpl/NativeNfcTag.java b/nxp/src/com/android/nfc/dhimpl/NativeNfcTag.java
+index 66d6fb72..bade1f40 100755
+--- a/nxp/src/com/android/nfc/dhimpl/NativeNfcTag.java
++++ b/nxp/src/com/android/nfc/dhimpl/NativeNfcTag.java
+@@ -70,7 +70,7 @@ public class NativeNfcTag implements TagEndpoint {
+     private PresenceCheckWatchdog mWatchdog;
+     class PresenceCheckWatchdog extends Thread {
+ 
+-        private final DeviceHost.TagDisconnectedCallback tagDisconnectedCallback;
++        private DeviceHost.TagDisconnectedCallback tagDisconnectedCallback;
+         private int watchdogTimeout;
+ 
+         private boolean isPresent = true;
+@@ -97,9 +97,12 @@ public class NativeNfcTag implements TagEndpoint {
+             this.notifyAll();
+         }
+ 
+-        public synchronized void end() {
++        public synchronized void end(boolean disableCallback) {
+             isStopped = true;
+             doCheck = false;
++            if (disableCallback) {
++                tagDisconnectedCallback = null;
++            }
+             this.notifyAll();
+         }
+ 
+@@ -213,6 +216,14 @@ public class NativeNfcTag implements TagEndpoint {
+         return connectWithStatus(technology) == 0;
+     }
+ 
++    @Override
++    public synchronized void stopPresenceChecking() {
++        mIsPresent = false;
++        if (mWatchdog != null) {
++            mWatchdog.end(true);
++        }
++    }
++
+     @Override
+     public synchronized void startPresenceChecking(int presenceCheckDelay,
+                                                    DeviceHost.TagDisconnectedCallback callback) {
+@@ -242,7 +253,7 @@ public class NativeNfcTag implements TagEndpoint {
+         mIsPresent = false;
+         if (mWatchdog != null) {
+             // Watchdog has already disconnected or will do it
+-            mWatchdog.end();
++            mWatchdog.end(false);
+             try {
+                 mWatchdog.join();
+             } catch (InterruptedException e) {
+-- 
+2.17.1
+

@@ -1,0 +1,150 @@
+From 47a9dfe07b44bf6e96b4a06635319997a330d9db Mon Sep 17 00:00:00 2001
+From: Nathan Harold <nharold@google.com>
+Date: Mon, 31 Jul 2017 19:44:46 -0700
+Subject: [PATCH 07/16] msm8974-common: libril: Fix Const-Correctness for
+ RIL_RadioFunctions
+
+Re-add constant for function pointer table to
+RIL_RadioFunctions. Const was accidentally removed
+during a warnings cleanup.
+
+Bug: 64231560
+Test: compilation
+Change-Id: I93675980c51d9162f624495d12fe3c97f1da8031
+---
+ ril/libril/RilSapSocket.cpp | 8 ++++----
+ ril/libril/RilSapSocket.h   | 8 ++++----
+ ril/libril/ril.cpp          | 4 ++--
+ ril/libril/sap_service.cpp  | 2 +-
+ ril/libril/sap_service.h    | 4 ++--
+ 5 files changed, 13 insertions(+), 13 deletions(-)
+
+diff --git a/ril/libril/RilSapSocket.cpp b/ril/libril/RilSapSocket.cpp
+index cf99773..664e6a9 100644
+--- a/ril/libril/RilSapSocket.cpp
++++ b/ril/libril/RilSapSocket.cpp
+@@ -112,7 +112,7 @@ RilSapSocket *RilSapSocket::getSocketById(RIL_SOCKET_ID socketId) {
+ }
+ 
+ void RilSapSocket::initSapSocket(const char *socketName,
+-        RIL_RadioFunctions *uimFuncs) {
++        const RIL_RadioFunctions *uimFuncs) {
+ 
+     if (strcmp(socketName, RIL1_SERVICE_NAME) == 0) {
+         if(!SocketExists(socketName)) {
+@@ -146,7 +146,7 @@ void RilSapSocket::initSapSocket(const char *socketName,
+ }
+ 
+ void RilSapSocket::addSocketToList(const char *socketName, RIL_SOCKET_ID socketid,
+-        RIL_RadioFunctions *uimFuncs) {
++        const RIL_RadioFunctions *uimFuncs) {
+     RilSapSocket* socket = NULL;
+     RilSapSocketList *current;
+ 
+@@ -191,7 +191,7 @@ bool RilSapSocket::SocketExists(const char *socketName) {
+ 
+ RilSapSocket::RilSapSocket(const char *socketName,
+         RIL_SOCKET_ID socketId,
+-        RIL_RadioFunctions *inputUimFuncs):
++        const RIL_RadioFunctions *inputUimFuncs):
+         RilSocket(socketName, socketId) {
+     if (inputUimFuncs) {
+         uimFuncs = inputUimFuncs;
+@@ -287,4 +287,4 @@ void RilSapSocket::onUnsolicitedResponse(int unsolResponse, void *data, size_t d
+         sap::processUnsolResponse(&rsp, this);
+         free(payload);
+     }
+-}
+\ No newline at end of file
++}
+diff --git a/ril/libril/RilSapSocket.h b/ril/libril/RilSapSocket.h
+index 8c8c4bc..1a816c5 100644
+--- a/ril/libril/RilSapSocket.h
++++ b/ril/libril/RilSapSocket.h
+@@ -39,7 +39,7 @@ class RilSapSocket : public RilSocket {
+      * Place holder for the radio functions returned by the initialization
+      * function. Currenty only onRequest handler is being used.
+      */
+-    RIL_RadioFunctions* uimFuncs;
++    const RIL_RadioFunctions* uimFuncs;
+ 
+     /**
+      * Wrapper struct for handling the requests in the queue.
+@@ -69,7 +69,7 @@ class RilSapSocket : public RilSocket {
+          * @param Radio functions to be used by the socket.
+          */
+         static void initSapSocket(const char *socketName,
+-        RIL_RadioFunctions *uimFuncs);
++        const RIL_RadioFunctions *uimFuncs);
+ 
+         /**
+          * Ril envoronment variable that holds the request and
+@@ -137,7 +137,7 @@ class RilSapSocket : public RilSocket {
+          * and add socket to the socket list.
+          */
+         static void addSocketToList(const char *socketName, RIL_SOCKET_ID socketid,
+-        RIL_RadioFunctions *uimFuncs);
++        const RIL_RadioFunctions *uimFuncs);
+ 
+         /**
+          * Check if a socket of the given name exists in the socket list.
+@@ -157,7 +157,7 @@ class RilSapSocket : public RilSocket {
+          */
+         RilSapSocket(const char *socketName,
+         RIL_SOCKET_ID socketId,
+-        RIL_RadioFunctions *inputUimFuncs);
++        const RIL_RadioFunctions *inputUimFuncs);
+ 
+         /**
+          * Class method that selects the socket on which the onRequestComplete
+diff --git a/ril/libril/ril.cpp b/ril/libril/ril.cpp
+index 3abe559..f4e1494 100644
+--- a/ril/libril/ril.cpp
++++ b/ril/libril/ril.cpp
+@@ -461,10 +461,10 @@ RIL_register (const RIL_RadioFunctions *callbacks) {
+ }
+ 
+ extern "C" void
+-RIL_register_socket (RIL_RadioFunctions *(*Init)(const struct RIL_Env *, int, char **),
++RIL_register_socket (const RIL_RadioFunctions *(*Init)(const struct RIL_Env *, int, char **),
+         RIL_SOCKET_TYPE socketType, int argc, char **argv) {
+ 
+-    RIL_RadioFunctions* UimFuncs = NULL;
++    const RIL_RadioFunctions* UimFuncs = NULL;
+ 
+     if(Init) {
+         UimFuncs = Init(&RilSapSocket::uimRilEnv, argc, argv);
+diff --git a/ril/libril/sap_service.cpp b/ril/libril/sap_service.cpp
+index 52ebd6c..b4f1dbe 100644
+--- a/ril/libril/sap_service.cpp
++++ b/ril/libril/sap_service.cpp
+@@ -922,7 +922,7 @@ void sap::processUnsolResponse(MsgHeader *rsp, RilSapSocket *sapSocket) {
+     processResponse(rsp, sapSocket, MsgType_UNSOL_RESPONSE);
+ }
+ 
+-void sap::registerService(RIL_RadioFunctions *callbacks) {
++void sap::registerService(const RIL_RadioFunctions *callbacks) {
+     using namespace android::hardware;
+     int simCount = 1;
+     const char *serviceNames[] = {
+diff --git a/ril/libril/sap_service.h b/ril/libril/sap_service.h
+index afed612..cb5ae10 100644
+--- a/ril/libril/sap_service.h
++++ b/ril/libril/sap_service.h
+@@ -24,10 +24,10 @@
+ 
+ namespace sap {
+ 
+-void registerService(RIL_RadioFunctions *callbacks);
++void registerService(const RIL_RadioFunctions *callbacks);
+ void processResponse(MsgHeader *rsp, RilSapSocket *sapSocket);
+ void processUnsolResponse(MsgHeader *rsp, RilSapSocket *sapSocket);
+ 
+ }   // namespace android
+ 
+-#endif  // RIL_SERVICE_H
+\ No newline at end of file
++#endif  // RIL_SERVICE_H
+-- 
+2.17.1
+

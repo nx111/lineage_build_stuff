@@ -1,0 +1,63 @@
+From 8e5d907b8f073cee5b7eaa6ca8b930c4ec0da106 Mon Sep 17 00:00:00 2001
+From: Adnan Begovic <adnan@cyngn.com>
+Date: Tue, 26 Apr 2016 16:56:49 -0700
+Subject: [PATCH 05/80] services: Kick off to LineageSystemServer for external
+ service init.
+
+Change-Id: I2dfe51a4cadfe02f0295be36fb30a304219047ff
+---
+ .../java/com/android/server/SystemServer.java | 24 +++++++++++++++++++
+ 1 file changed, 24 insertions(+)
+
+diff --git a/services/java/com/android/server/SystemServer.java b/services/java/com/android/server/SystemServer.java
+index 1880e9fa362..9b8b88f3ba4 100644
+--- a/services/java/com/android/server/SystemServer.java
++++ b/services/java/com/android/server/SystemServer.java
+@@ -125,6 +125,9 @@ import dalvik.system.VMRuntime;
+ 
+ import java.io.File;
+ import java.io.IOException;
++import java.lang.reflect.Constructor;
++import java.lang.reflect.InvocationTargetException;
++import java.lang.reflect.Method;
+ import java.util.Locale;
+ import java.util.Timer;
+ import java.util.concurrent.CountDownLatch;
+@@ -758,6 +761,9 @@ public final class SystemServer {
+             throw new RuntimeException();
+         }
+ 
++        String externalServer = context.getResources().getString(
++                org.lineageos.platform.internal.R.string.config_externalSystemServer);
++
+         try {
+             final String SECONDARY_ZYGOTE_PRELOAD = "SecondaryZygotePreload";
+             // We start the preload ~1s before the webview factory preparation, to
+@@ -1625,6 +1631,24 @@ public final class SystemServer {
+             traceEnd();
+         }
+ 
++        final Class<?> serverClazz;
++        try {
++            serverClazz = Class.forName(externalServer);
++            final Constructor<?> constructor = serverClazz.getDeclaredConstructor(Context.class);
++            constructor.setAccessible(true);
++            final Object baseObject = constructor.newInstance(mSystemContext);
++            final Method method = baseObject.getClass().getDeclaredMethod("run");
++            method.setAccessible(true);
++            method.invoke(baseObject);
++        } catch (ClassNotFoundException
++                | IllegalAccessException
++                | InvocationTargetException
++                | InstantiationException
++                | NoSuchMethodException e) {
++            Slog.wtf(TAG, "Unable to start  " + externalServer);
++            Slog.wtf(TAG, e);
++        }
++
+         // It is now time to start up the app processes...
+ 
+         traceBeginAndSlog("MakeVibratorServiceReady");
+-- 
+2.17.1
+

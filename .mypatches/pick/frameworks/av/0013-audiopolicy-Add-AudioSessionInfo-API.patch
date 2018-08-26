@@ -1,0 +1,952 @@
+From 39f44c3d7799675a6364ebb4f5b80b0786d2aba3 Mon Sep 17 00:00:00 2001
+From: Steve Kondik <steve@cyngn.com>
+Date: Fri, 22 Apr 2016 18:32:39 -0700
+Subject: [PATCH 13/25] audiopolicy: Add AudioSessionInfo API
+
+ * This patch introduces a new API which allows applications to
+   query the state of the audio effects system, and receive
+   callbacks with the necessary information to attach effects
+   to any stream.
+ * In the future, this may come as part of the AudioPort system,
+   but since that's an active area of development by Google, we
+   will dodge it for now.
+ * The policy now simply keeps a refcounted list of objects which
+   hold various bits of stream metadata. Callbacks are sent on
+   stream open/close to applications which might be listening
+   for them.
+
+Change-Id: I2d554d36e1378f4eb7b276010a3bfe8345c22ecd
+
+audiopolicy: Constrain session events to music streams
+
+ * We're really only interested in music streams right now, but
+   events are being generated for all streams (system sounds, etc).
+ * Constrain for now, in the future we will filter based on client
+   registrations.
+
+Change-Id: Ic445052028c454eed146addebcdb28c4b26c4f20
+
+Author: Zhao Wei Liew <zhaoweiliew@gmail.com>
+audiopolicy: Use audio_session_t consistently for AudioSessionInfo
+
+In N, the usage of audio_session_t was made more consistent in the
+commit d848eb48c121c119e8ba7583efc75415fe102570.
+
+Do the same for the AudioSessionInfo API.
+
+Change-Id: I8732225ec6788777e7be9ed42f2ca4002af47c3b
+
+[mikeioannina]: Update for Oreo
+[bgcngm]: Update for Pie
+
+Change-Id: I2d554d36e1378f4eb7b276010a3bfe8345c22ecd
+---
+ include/media/AudioSession.h                  |   1 +
+ media/libaudioclient/AudioSystem.cpp          |  38 ++++++
+ media/libaudioclient/IAudioPolicyService.cpp  |  43 ++++++-
+ .../IAudioPolicyServiceClient.cpp             |  30 ++++-
+ .../include/media/AudioPolicy.h               |   2 +
+ .../include/media/AudioSession.h              |  71 +++++++++++
+ .../include/media/AudioSystem.h               |   8 ++
+ .../include/media/IAudioPolicyService.h       |   3 +
+ .../include/media/IAudioPolicyServiceClient.h |   3 +
+ services/audiopolicy/AudioPolicyInterface.h   |   2 +
+ .../service/AudioPolicyClientImpl.cpp         |   7 ++
+ .../service/AudioPolicyEffects.cpp            | 116 +++++++++++++++++-
+ .../audiopolicy/service/AudioPolicyEffects.h  |  21 +++-
+ .../service/AudioPolicyInterfaceImpl.cpp      |  68 +++++++---
+ .../service/AudioPolicyService.cpp            |  54 +++++++-
+ .../audiopolicy/service/AudioPolicyService.h  |  21 +++-
+ 16 files changed, 467 insertions(+), 21 deletions(-)
+ create mode 120000 include/media/AudioSession.h
+ create mode 100644 media/libaudioclient/include/media/AudioSession.h
+
+diff --git a/include/media/AudioSession.h b/include/media/AudioSession.h
+new file mode 120000
+index 000000000..005e48e7e
+--- /dev/null
++++ b/include/media/AudioSession.h
+@@ -0,0 +1 @@
++../../media/libaudioclient/include/media/AudioSession.h
+\ No newline at end of file
+diff --git a/media/libaudioclient/AudioSystem.cpp b/media/libaudioclient/AudioSystem.cpp
+index c072901a4..fc0f9f31d 100644
+--- a/media/libaudioclient/AudioSystem.cpp
++++ b/media/libaudioclient/AudioSystem.cpp
+@@ -39,6 +39,7 @@ Mutex AudioSystem::gLockAPS;
+ sp<IAudioFlinger> AudioSystem::gAudioFlinger;
+ sp<AudioSystem::AudioFlingerClient> AudioSystem::gAudioFlingerClient;
+ audio_error_callback AudioSystem::gAudioErrorCallback = NULL;
++audio_session_callback AudioSystem::gAudioSessionCallback = NULL;
+ dynamic_policy_callback AudioSystem::gDynPolicyCallback = NULL;
+ record_config_callback AudioSystem::gRecordConfigCallback = NULL;
+ 
+@@ -734,6 +735,17 @@ status_t AudioSystem::AudioFlingerClient::removeAudioDeviceCallback(
+     gRecordConfigCallback = cb;
+ }
+ 
++/*static*/ status_t AudioSystem::setAudioSessionCallback(audio_session_callback cb)
++{
++    const sp<IAudioPolicyService>& aps = AudioSystem::get_audio_policy_service();
++    if (aps == 0) return PERMISSION_DENIED;
++
++    Mutex::Autolock _l(gLock);
++    gAudioSessionCallback = cb;
++
++    return NO_ERROR;
++}
++
+ // client singleton for AudioPolicyService binder interface
+ // protected by gLockAPS
+ sp<IAudioPolicyService> AudioSystem::gAudioPolicyService;
+@@ -1383,6 +1395,32 @@ void AudioSystem::AudioPolicyServiceClient::onRecordingConfigurationUpdate(
+     }
+ }
+ 
++// ---------------------------------------------------------------------------
++
++status_t AudioSystem::listAudioSessions(audio_stream_type_t stream,
++                                        Vector< sp<AudioSessionInfo>> &sessions)
++{
++    const sp<IAudioPolicyService>& aps = AudioSystem::get_audio_policy_service();
++    if (aps == 0) return PERMISSION_DENIED;
++    return aps->listAudioSessions(stream, sessions);
++}
++
++void AudioSystem::AudioPolicyServiceClient::onOutputSessionEffectsUpdate(
++        sp<AudioSessionInfo>& info, bool added)
++{
++    ALOGV("AudioPolicyServiceClient::onOutputSessionEffectsUpdate(%d, %d, %d)",
++            info->mStream, info->mSessionId, added);
++    audio_session_callback cb = NULL;
++    {
++        Mutex::Autolock _l(AudioSystem::gLock);
++        cb = gAudioSessionCallback;
++    }
++
++    if (cb != NULL) {
++        cb(AUDIO_OUTPUT_SESSION_EFFECTS_UPDATE, info, added);
++    }
++}
++
+ void AudioSystem::AudioPolicyServiceClient::binderDied(const wp<IBinder>& who __unused)
+ {
+     {
+diff --git a/media/libaudioclient/IAudioPolicyService.cpp b/media/libaudioclient/IAudioPolicyService.cpp
+index a1236e738..3bc06ef67 100644
+--- a/media/libaudioclient/IAudioPolicyService.cpp
++++ b/media/libaudioclient/IAudioPolicyService.cpp
+@@ -82,7 +82,8 @@ enum {
+     GET_MASTER_MONO,
+     GET_STREAM_VOLUME_DB,
+     GET_SURROUND_FORMATS,
+-    SET_SURROUND_FORMAT_ENABLED
++    SET_SURROUND_FORMAT_ENABLED,
++    LIST_AUDIO_SESSIONS
+ };
+ 
+ #define MAX_ITEMS_PER_LIST 1024
+@@ -879,6 +880,29 @@ public:
+         }
+         return reply.readInt32();
+     }
++
++    virtual status_t listAudioSessions(audio_stream_type_t streams,
++                                       Vector< sp<AudioSessionInfo>> &sessions)
++    {
++        Parcel data, reply;
++        data.writeInterfaceToken(IAudioPolicyService::getInterfaceDescriptor());
++        data.writeInt32(streams);
++        status_t status = remote()->transact(LIST_AUDIO_SESSIONS, data, &reply);
++        if (status != NO_ERROR) {
++            return status;
++        }
++
++        status = reply.readInt32();
++        if (status == NO_ERROR) {
++            size_t size = (size_t)reply.readUint32();
++            for (size_t i = 0; i < size && reply.dataAvail() > 0; i++) {
++                sp<AudioSessionInfo> info = new AudioSessionInfo();
++                info->readFromParcel(reply);
++                sessions.push_back(info);
++            }
++        }
++        return status;
++    }
+ };
+ 
+ IMPLEMENT_META_INTERFACE(AudioPolicyService, "android.media.IAudioPolicyService");
+@@ -1436,6 +1460,23 @@ status_t BnAudioPolicyService::onTransact(
+             return NO_ERROR;
+         } break;
+ 
++        case LIST_AUDIO_SESSIONS: {
++            CHECK_INTERFACE(IAudioPolicyService, data, reply);
++            audio_stream_type_t streams = (audio_stream_type_t)data.readInt32();
++
++            Vector< sp<AudioSessionInfo>> sessions;
++            status_t status = listAudioSessions(streams, sessions);
++
++            reply->writeInt32(status);
++            if (status == NO_ERROR) {
++                reply->writeUint32(static_cast<uint32_t>(sessions.size()));
++                for (size_t i = 0; i < sessions.size(); i++) {
++                    sessions[i]->writeToParcel(reply);
++                }
++            }
++            return NO_ERROR;
++        }
++
+         case ACQUIRE_SOUNDTRIGGER_SESSION: {
+             CHECK_INTERFACE(IAudioPolicyService, data, reply);
+             sp<IAudioPolicyServiceClient> client = interface_cast<IAudioPolicyServiceClient>(
+diff --git a/media/libaudioclient/IAudioPolicyServiceClient.cpp b/media/libaudioclient/IAudioPolicyServiceClient.cpp
+index ad7f1dea5..2f7026f0a 100644
+--- a/media/libaudioclient/IAudioPolicyServiceClient.cpp
++++ b/media/libaudioclient/IAudioPolicyServiceClient.cpp
+@@ -31,7 +31,8 @@ enum {
+     PORT_LIST_UPDATE = IBinder::FIRST_CALL_TRANSACTION,
+     PATCH_LIST_UPDATE,
+     MIX_STATE_UPDATE,
+-    RECORDING_CONFIGURATION_UPDATE
++    RECORDING_CONFIGURATION_UPDATE,
++    OUTPUT_SESSION_EFFECTS_UPDATE
+ };
+ 
+ // ----------------------------------------------------------------------
+@@ -104,6 +105,19 @@ public:
+         data.writeInt32(patchHandle);
+         remote()->transact(RECORDING_CONFIGURATION_UPDATE, data, &reply, IBinder::FLAG_ONEWAY);
+     }
++
++    void onOutputSessionEffectsUpdate(sp<AudioSessionInfo>& info, bool added)
++    {
++        Parcel data, reply;
++        data.writeInterfaceToken(IAudioPolicyServiceClient::getInterfaceDescriptor());
++        data.writeInt32(info->mStream);
++        data.writeInt32(info->mSessionId);
++        data.writeInt32(info->mFlags);
++        data.writeInt32(info->mChannelMask);
++        data.writeInt32(info->mUid);
++        data.writeInt32(added ? 1 : 0);
++        remote()->transact(OUTPUT_SESSION_EFFECTS_UPDATE, data, &reply, IBinder::FLAG_ONEWAY);
++    }
+ };
+ 
+ IMPLEMENT_META_INTERFACE(AudioPolicyServiceClient, "android.media.IAudioPolicyServiceClient");
+@@ -145,6 +159,20 @@ status_t BnAudioPolicyServiceClient::onTransact(
+                     patchHandle);
+             return NO_ERROR;
+         } break;
++    case OUTPUT_SESSION_EFFECTS_UPDATE: {
++            CHECK_INTERFACE(IAudioPolicyServiceClient, data, reply);
++            audio_stream_type_t stream = static_cast<audio_stream_type_t>(data.readInt32());
++            audio_session_t sessionId = static_cast<audio_session_t>(data.readInt32());
++            audio_output_flags_t flags = static_cast<audio_output_flags_t>(data.readInt32());
++            audio_channel_mask_t channelMask = static_cast<audio_channel_mask_t>(data.readInt32());
++            uid_t uid = static_cast<uid_t>(data.readInt32());
++            bool added = data.readInt32() > 0;
++
++            sp<AudioSessionInfo> info = new AudioSessionInfo(
++                    sessionId, stream, flags, channelMask, uid);
++            onOutputSessionEffectsUpdate(info, added);
++            return NO_ERROR;
++        } break;
+     default:
+         return BBinder::onTransact(code, data, reply, flags);
+     }
+diff --git a/media/libaudioclient/include/media/AudioPolicy.h b/media/libaudioclient/include/media/AudioPolicy.h
+index 8da0069cc..ba814a31d 100644
+--- a/media/libaudioclient/include/media/AudioPolicy.h
++++ b/media/libaudioclient/include/media/AudioPolicy.h
+@@ -23,6 +23,7 @@
+ #include <binder/Parcel.h>
+ #include <utils/String8.h>
+ #include <utils/Vector.h>
++#include <media/AudioSession.h>
+ 
+ namespace android {
+ 
+@@ -44,6 +45,7 @@ namespace android {
+ //   AudioSystem's implementation of the AudioPolicyClient interface
+ // keep in sync with AudioSystem.java
+ #define DYNAMIC_POLICY_EVENT_MIX_STATE_UPDATE 0
++#define AUDIO_OUTPUT_SESSION_EFFECTS_UPDATE 10
+ 
+ #define MIX_STATE_DISABLED (-1)
+ #define MIX_STATE_IDLE 0
+diff --git a/media/libaudioclient/include/media/AudioSession.h b/media/libaudioclient/include/media/AudioSession.h
+new file mode 100644
+index 000000000..2bae5212c
+--- /dev/null
++++ b/media/libaudioclient/include/media/AudioSession.h
+@@ -0,0 +1,71 @@
++/*
++ * Copyright (C) 2016 The CyanogenMod Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#ifndef ANDROID_AUDIOSESSION_H
++#define ANDROID_AUDIOSESSION_H
++
++#include <stdint.h>
++#include <sys/types.h>
++
++#include <system/audio.h>
++
++#include <utils/RefBase.h>
++#include <utils/Errors.h>
++#include <binder/Parcel.h>
++
++namespace android {
++
++// class to store streaminfo
++class AudioSessionInfo : public RefBase {
++public:
++    AudioSessionInfo(audio_session_t session, audio_stream_type_t stream, audio_output_flags_t flags,
++            audio_channel_mask_t channelMask, uid_t uid) :
++        mSessionId(session), mStream(stream), mFlags(flags), mChannelMask(channelMask),
++        mUid(uid), mRefCount(0) {}
++
++    AudioSessionInfo() : mSessionId((audio_session_t) 0), mStream(AUDIO_STREAM_DEFAULT), mFlags(AUDIO_OUTPUT_FLAG_NONE), mChannelMask(AUDIO_CHANNEL_NONE), mUid(0) {}
++
++    /*virtual*/ ~AudioSessionInfo() {}
++
++    audio_session_t mSessionId;
++    audio_stream_type_t mStream;
++    audio_output_flags_t mFlags;
++    audio_channel_mask_t mChannelMask;
++    uid_t mUid;
++
++    // AudioPolicyManager keeps mLock, no need for lock on reference count here
++    int mRefCount;
++
++    void readFromParcel(const Parcel &parcel)  {
++        mSessionId = (audio_session_t) parcel.readInt32();
++        mStream = static_cast<audio_stream_type_t>(parcel.readInt32());
++        mFlags = static_cast<audio_output_flags_t>(parcel.readInt32());
++        mChannelMask = static_cast<audio_channel_mask_t>(parcel.readInt32());
++        mUid = static_cast<uid_t>(parcel.readInt32());
++    }
++
++    void writeToParcel(Parcel *parcel) const {
++        parcel->writeInt32(mSessionId);
++        parcel->writeInt32(mStream);
++        parcel->writeInt32(mFlags);
++        parcel->writeInt32(mChannelMask);
++        parcel->writeInt32(mUid);
++    }
++};
++
++}; // namespace android
++
++#endif // ANDROID_AUDIOSESSION_H
+diff --git a/media/libaudioclient/include/media/AudioSystem.h b/media/libaudioclient/include/media/AudioSystem.h
+index 4c0f796f5..b7be5abce 100644
+--- a/media/libaudioclient/include/media/AudioSystem.h
++++ b/media/libaudioclient/include/media/AudioSystem.h
+@@ -38,6 +38,8 @@ typedef void (*dynamic_policy_callback)(int event, String8 regId, int val);
+ typedef void (*record_config_callback)(int event, const record_client_info_t *clientInfo,
+                 const audio_config_base_t *clientConfig, const audio_config_base_t *deviceConfig,
+                 audio_patch_handle_t patchHandle);
++typedef void (*audio_session_callback)(int event,
++        sp<AudioSessionInfo>& session, bool added);
+ 
+ class IAudioFlinger;
+ class IAudioPolicyService;
+@@ -102,6 +104,7 @@ public:
+     static void setErrorCallback(audio_error_callback cb);
+     static void setDynPolicyCallback(dynamic_policy_callback cb);
+     static void setRecordConfigCallback(record_config_callback);
++    static status_t setAudioSessionCallback(audio_session_callback cb);
+ 
+     // helper function to obtain AudioFlinger service handle
+     static const sp<IAudioFlinger> get_audio_flinger();
+@@ -349,6 +352,9 @@ public:
+                                        bool reported);
+     static status_t setSurroundFormatEnabled(audio_format_t audioFormat, bool enabled);
+ 
++    static status_t listAudioSessions(audio_stream_type_t streams,
++                                      Vector< sp<AudioSessionInfo>> &sessions);
++
+     // ----------------------------------------------------------------------------
+ 
+     class AudioPortCallback : public RefBase
+@@ -453,6 +459,7 @@ private:
+                         const record_client_info_t *clientInfo,
+                         const audio_config_base_t *clientConfig,
+                         const audio_config_base_t *deviceConfig, audio_patch_handle_t patchHandle);
++        virtual void onOutputSessionEffectsUpdate(sp<AudioSessionInfo>& info, bool added);
+ 
+     private:
+         Mutex                               mLock;
+@@ -474,6 +481,7 @@ private:
+     static audio_error_callback gAudioErrorCallback;
+     static dynamic_policy_callback gDynPolicyCallback;
+     static record_config_callback gRecordConfigCallback;
++    static audio_session_callback gAudioSessionCallback;
+ 
+     static size_t gInBuffSize;
+     // previous parameters for recording buffer size queries
+diff --git a/media/libaudioclient/include/media/IAudioPolicyService.h b/media/libaudioclient/include/media/IAudioPolicyService.h
+index c3876afc4..5b58db3e5 100644
+--- a/media/libaudioclient/include/media/IAudioPolicyService.h
++++ b/media/libaudioclient/include/media/IAudioPolicyService.h
+@@ -172,6 +172,9 @@ public:
+                                         bool *surroundFormatsEnabled,
+                                         bool reported) = 0;
+     virtual status_t setSurroundFormatEnabled(audio_format_t audioFormat, bool enabled) = 0;
++
++    virtual status_t listAudioSessions(audio_stream_type_t streams,
++                                       Vector< sp<AudioSessionInfo>> &sessions) = 0;
+ };
+ 
+ 
+diff --git a/media/libaudioclient/include/media/IAudioPolicyServiceClient.h b/media/libaudioclient/include/media/IAudioPolicyServiceClient.h
+index e0d2495fa..fb7d7be2a 100644
+--- a/media/libaudioclient/include/media/IAudioPolicyServiceClient.h
++++ b/media/libaudioclient/include/media/IAudioPolicyServiceClient.h
+@@ -21,6 +21,7 @@
+ #include <utils/RefBase.h>
+ #include <binder/IInterface.h>
+ #include <system/audio.h>
++#include <media/AudioSession.h>
+ 
+ namespace android {
+ 
+@@ -53,6 +54,8 @@ public:
+             const audio_config_base_t *clientConfig,
+             const audio_config_base_t *deviceConfig,
+             audio_patch_handle_t patchHandle) = 0;
++    // Notifies when a default effect set is attached to a session/stream
++    virtual void onOutputSessionEffectsUpdate(sp<AudioSessionInfo>& info, bool added) = 0;
+ };
+ 
+ 
+diff --git a/services/audiopolicy/AudioPolicyInterface.h b/services/audiopolicy/AudioPolicyInterface.h
+index 4812b1fe7..dbaf97ca7 100644
+--- a/services/audiopolicy/AudioPolicyInterface.h
++++ b/services/audiopolicy/AudioPolicyInterface.h
+@@ -362,6 +362,8 @@ public:
+                     const struct audio_config_base *clientConfig,
+                     const struct audio_config_base *deviceConfig,
+                     audio_patch_handle_t patchHandle) = 0;
++    virtual void onOutputSessionEffectsUpdate(sp<AudioSessionInfo>& streamInfo, bool added) = 0;
++
+ };
+ 
+ extern "C" AudioPolicyInterface* createAudioPolicyManager(AudioPolicyClientInterface *clientInterface);
+diff --git a/services/audiopolicy/service/AudioPolicyClientImpl.cpp b/services/audiopolicy/service/AudioPolicyClientImpl.cpp
+index b064f8cb0..0416d501f 100644
+--- a/services/audiopolicy/service/AudioPolicyClientImpl.cpp
++++ b/services/audiopolicy/service/AudioPolicyClientImpl.cpp
+@@ -228,6 +228,13 @@ void AudioPolicyService::AudioPolicyClient::onRecordingConfigurationUpdate(
+             clientConfig, deviceConfig, patchHandle);
+ }
+ 
++void AudioPolicyService::AudioPolicyClient::onOutputSessionEffectsUpdate(
++        sp<AudioSessionInfo>& info, bool added)
++{
++    mAudioPolicyService->onOutputSessionEffectsUpdate(info, added);
++}
++
++
+ audio_unique_id_t AudioPolicyService::AudioPolicyClient::newAudioUniqueId(audio_unique_id_use_t use)
+ {
+     return AudioSystem::newAudioUniqueId(use);
+diff --git a/services/audiopolicy/service/AudioPolicyEffects.cpp b/services/audiopolicy/service/AudioPolicyEffects.cpp
+index c7dfe0f3b..9e5801ed5 100644
+--- a/services/audiopolicy/service/AudioPolicyEffects.cpp
++++ b/services/audiopolicy/service/AudioPolicyEffects.cpp
+@@ -30,6 +30,7 @@
+ #include <utils/SortedVector.h>
+ #include <cutils/config_utils.h>
+ #include <binder/IPCThreadState.h>
++#include "AudioPolicyService.h"
+ #include "AudioPolicyEffects.h"
+ #include "ServiceUtilities.h"
+ 
+@@ -39,7 +40,8 @@ namespace android {
+ // AudioPolicyEffects Implementation
+ // ----------------------------------------------------------------------------
+ 
+-AudioPolicyEffects::AudioPolicyEffects()
++AudioPolicyEffects::AudioPolicyEffects(AudioPolicyService *audioPolicyService) :
++    mAudioPolicyService(audioPolicyService)
+ {
+     status_t loadResult = loadAudioEffectXmlConfig();
+     if (loadResult < 0) {
+@@ -235,6 +237,8 @@ status_t AudioPolicyEffects::addOutputSessionEffects(audio_io_handle_t output,
+ {
+     status_t status = NO_ERROR;
+ 
++    ALOGV("addOutputSessionEffects %d", audioSession);
++
+     Mutex::Autolock _l(mLock);
+     // create audio processors according to stream
+     // FIXME: should we have specific post processing settings for internal streams?
+@@ -242,6 +246,22 @@ status_t AudioPolicyEffects::addOutputSessionEffects(audio_io_handle_t output,
+     if (stream >= AUDIO_STREAM_PUBLIC_CNT) {
+         stream = AUDIO_STREAM_MUSIC;
+     }
++
++    // send the streaminfo notification only once
++    ssize_t sidx = mOutputAudioSessionInfo.indexOfKey(audioSession);
++    if (sidx >= 0) {
++        // AudioSessionInfo is existing and we just need to increase ref count
++        sp<AudioSessionInfo> info = mOutputAudioSessionInfo.valueAt(sidx);
++        info->mRefCount++;
++
++        if (info->mRefCount == 1) {
++            mAudioPolicyService->onOutputSessionEffectsUpdate(info, true);
++        }
++        ALOGV("addOutputSessionEffects(): session info %d refCount=%d", audioSession, info->mRefCount);
++    } else {
++        ALOGV("addOutputSessionEffects(): no output stream info found for stream");
++    }
++
+     ssize_t index = mOutputStreams.indexOfKey(stream);
+     if (index < 0) {
+         ALOGV("addOutputSessionEffects(): no output processing needed for this stream");
+@@ -287,6 +307,86 @@ status_t AudioPolicyEffects::addOutputSessionEffects(audio_io_handle_t output,
+     return status;
+ }
+ 
++status_t AudioPolicyEffects::releaseOutputAudioSessionInfo(audio_io_handle_t /* output */,
++                                           audio_stream_type_t stream,
++                                           audio_session_t session)
++{
++    if (uint32_t(stream) >= AUDIO_STREAM_CNT) {
++        return BAD_VALUE;
++    }
++
++    Mutex::Autolock _l(mLock);
++
++    ssize_t idx = mOutputAudioSessionInfo.indexOfKey(session);
++    if (idx >= 0) {
++        sp<AudioSessionInfo> info = mOutputAudioSessionInfo.valueAt(idx);
++        if (info->mRefCount == 0) {
++            mOutputAudioSessionInfo.removeItemsAt(idx);
++        }
++        ALOGV("releaseOutputAudioSessionInfo() sessionId=%d refcount=%d",
++                session, info->mRefCount);
++    } else {
++        ALOGV("releaseOutputAudioSessionInfo() no session info found");
++    }
++    return NO_ERROR;
++}
++
++status_t AudioPolicyEffects::updateOutputAudioSessionInfo(audio_io_handle_t /* output */,
++                                           audio_stream_type_t stream,
++                                           audio_session_t session,
++                                           audio_output_flags_t flags,
++                                           const audio_config_t *config, uid_t uid)
++{
++    if (uint32_t(stream) >= AUDIO_STREAM_CNT) {
++        return BAD_VALUE;
++    }
++
++    Mutex::Autolock _l(mLock);
++
++    // TODO: Handle other stream types based on client registration
++    if (stream != AUDIO_STREAM_MUSIC) {
++        return NO_ERROR;
++    }
++
++    // update AudioSessionInfo. This is used in the stream open/close path
++    // to notify userspace applications about session creation and
++    // teardown, allowing the app to make decisions about effects for
++    // a particular stream. This is independent of the current
++    // output_session_processing feature which forcibly attaches a
++    // static list of effects to a stream.
++    ssize_t idx = mOutputAudioSessionInfo.indexOfKey(session);
++    sp<AudioSessionInfo> info;
++    if (idx < 0) {
++        info = new AudioSessionInfo(session, stream, flags, config->channel_mask, uid);
++        mOutputAudioSessionInfo.add(session, info);
++    } else {
++        // the streaminfo may actually change
++        info = mOutputAudioSessionInfo.valueAt(idx);
++        info->mFlags = flags;
++        info->mChannelMask = config->channel_mask;
++    }
++
++    ALOGV("updateOutputAudioSessionInfo() sessionId=%d, flags=0x%x, channel_mask=0x%x uid=%d refCount=%d",
++            info->mSessionId, info->mFlags, info->mChannelMask, info->mUid, info->mRefCount);
++
++    return NO_ERROR;
++}
++
++status_t AudioPolicyEffects::listAudioSessions(audio_stream_type_t streams,
++                                               Vector< sp<AudioSessionInfo>> &sessions)
++{
++    ALOGV("listAudioSessions() streams %d", streams);
++
++    for (unsigned int i = 0; i < mOutputAudioSessionInfo.size(); i++) {
++        sp<AudioSessionInfo> info = mOutputAudioSessionInfo.valueAt(i);
++        if (streams == -1 || info->mStream == streams) {
++            sessions.push_back(info);
++        }
++    }
++
++    return NO_ERROR;
++}
++
+ status_t AudioPolicyEffects::releaseOutputSessionEffects(audio_io_handle_t output,
+                          audio_stream_type_t stream,
+                          audio_session_t audioSession)
+@@ -296,7 +396,19 @@ status_t AudioPolicyEffects::releaseOutputSessionEffects(audio_io_handle_t outpu
+     (void) stream; // argument not used for now
+ 
+     Mutex::Autolock _l(mLock);
+-    ssize_t index = mOutputSessions.indexOfKey(audioSession);
++    ssize_t index = mOutputAudioSessionInfo.indexOfKey(audioSession);
++    if (index >= 0) {
++        sp<AudioSessionInfo> info = mOutputAudioSessionInfo.valueAt(index);
++        info->mRefCount--;
++        if (info->mRefCount == 0) {
++            mAudioPolicyService->onOutputSessionEffectsUpdate(info, false);
++        }
++        ALOGV("releaseOutputSessionEffects(): session=%d refCount=%d", info->mSessionId, info->mRefCount);
++    } else {
++        ALOGV("releaseOutputSessionEffects: no stream info was attached to this stream");
++    }
++
++    index = mOutputSessions.indexOfKey(audioSession);
+     if (index < 0) {
+         ALOGV("releaseOutputSessionEffects: no output processing was attached to this stream");
+         return NO_ERROR;
+diff --git a/services/audiopolicy/service/AudioPolicyEffects.h b/services/audiopolicy/service/AudioPolicyEffects.h
+index 623180ea2..8f75d80cc 100644
+--- a/services/audiopolicy/service/AudioPolicyEffects.h
++++ b/services/audiopolicy/service/AudioPolicyEffects.h
+@@ -28,6 +28,8 @@
+ 
+ namespace android {
+ 
++class AudioPolicyService;
++
+ // ----------------------------------------------------------------------------
+ 
+ // AudioPolicyEffects class
+@@ -41,7 +43,7 @@ public:
+     // The constructor will parse audio_effects.conf
+     // First it will look whether vendor specific file exists,
+     // otherwise it will parse the system default file.
+-	         AudioPolicyEffects();
++            AudioPolicyEffects(AudioPolicyService *audioPolicyService);
+     virtual ~AudioPolicyEffects();
+ 
+     // NOTE: methods on AudioPolicyEffects should never be called with the AudioPolicyService
+@@ -82,6 +84,19 @@ public:
+                              audio_stream_type_t stream,
+                              audio_session_t audioSession);
+ 
++    status_t updateOutputAudioSessionInfo(audio_io_handle_t output,
++                             audio_stream_type_t stream,
++                             audio_session_t audioSession,
++                             audio_output_flags_t flags,
++                             const audio_config_t *config, uid_t uid);
++
++    status_t releaseOutputAudioSessionInfo(audio_io_handle_t output,
++                             audio_stream_type_t stream,
++                             audio_session_t audioSession);
++
++    status_t listAudioSessions(audio_stream_type_t streams,
++                             Vector< sp<AudioSessionInfo>> &sessions);
++
+ private:
+ 
+     // class to store the description of an effects and its parameters
+@@ -190,6 +205,10 @@ private:
+     KeyedVector< audio_stream_type_t, EffectDescVector* > mOutputStreams;
+     // Automatic output effects are unique for audiosession ID
+     KeyedVector< audio_session_t, EffectVector* > mOutputSessions;
++    // Stream info for session events
++    KeyedVector< audio_session_t, sp<AudioSessionInfo> > mOutputAudioSessionInfo;
++
++    AudioPolicyService *mAudioPolicyService;
+ };
+ 
+ } // namespace android
+diff --git a/services/audiopolicy/service/AudioPolicyInterfaceImpl.cpp b/services/audiopolicy/service/AudioPolicyInterfaceImpl.cpp
+index 7337f0412..0edec708f 100644
+--- a/services/audiopolicy/service/AudioPolicyInterfaceImpl.cpp
++++ b/services/audiopolicy/service/AudioPolicyInterfaceImpl.cpp
+@@ -180,19 +180,25 @@ status_t AudioPolicyService::getOutputForAttr(const audio_attributes_t *attr,
+         return NO_INIT;
+     }
+     ALOGV("getOutputForAttr()");
+-    Mutex::Autolock _l(mLock);
++    audio_output_flags_t originalFlags = flags;
++    status_t result = NO_ERROR;
++    sp<AudioPolicyEffects> audioPolicyEffects;
++    {
++        Mutex::Autolock _l(mLock);
+ 
+-    const uid_t callingUid = IPCThreadState::self()->getCallingUid();
+-    if (!isTrustedCallingUid(callingUid) || uid == (uid_t)-1) {
+-        ALOGW_IF(uid != (uid_t)-1 && uid != callingUid,
+-                "%s uid %d tried to pass itself off as %d", __FUNCTION__, callingUid, uid);
+-        uid = callingUid;
++        const uid_t callingUid = IPCThreadState::self()->getCallingUid();
++        if (!isTrustedCallingUid(callingUid) || uid == (uid_t)-1) {
++            ALOGW_IF(uid != (uid_t)-1 && uid != callingUid,
++                    "%s uid %d tried to pass itself off as %d", __FUNCTION__, callingUid, uid);
++            uid = callingUid;
++        }
++        AutoCallerClear acc;
++        result = mAudioPolicyManager->getOutputForAttr(attr, output, session, stream, uid,
++                                                       config,
++                                                       &flags, selectedDeviceId, portId);
++
++        audioPolicyEffects = mAudioPolicyEffects;
+     }
+-    audio_output_flags_t originalFlags = flags;
+-    AutoCallerClear acc;
+-    status_t result = mAudioPolicyManager->getOutputForAttr(attr, output, session, stream, uid,
+-                                                 config,
+-                                                 &flags, selectedDeviceId, portId);
+ 
+     // FIXME: Introduce a way to check for the the telephony device before opening the output
+     if ((result == NO_ERROR) &&
+@@ -208,6 +214,12 @@ status_t AudioPolicyService::getOutputForAttr(const audio_attributes_t *attr,
+                                                  config,
+                                                  &flags, selectedDeviceId, portId);
+     }
++
++    if (result == NO_ERROR && audioPolicyEffects != 0) {
++        audioPolicyEffects->updateOutputAudioSessionInfo(*output, *stream,
++                session, flags, config, uid);
++    }
++
+     return result;
+ }
+ 
+@@ -292,9 +304,17 @@ void AudioPolicyService::doReleaseOutput(audio_io_handle_t output,
+                                          audio_session_t session)
+ {
+     ALOGV("doReleaseOutput from tid %d", gettid());
+-    Mutex::Autolock _l(mLock);
+-    // called from internal thread: no need to clear caller identity
+-    mAudioPolicyManager->releaseOutput(output, stream, session);
++    sp<AudioPolicyEffects>audioPolicyEffects;
++    {
++        Mutex::Autolock _l(mLock);
++        audioPolicyEffects = mAudioPolicyEffects;
++        // called from internal thread: no need to clear caller identity
++        mAudioPolicyManager->releaseOutput(output, stream, session);
++    }
++    if (audioPolicyEffects != 0) {
++        audioPolicyEffects->releaseOutputAudioSessionInfo(output,
++                stream, session);
++    }
+ }
+ 
+ status_t AudioPolicyService::getInputForAttr(const audio_attributes_t *attr,
+@@ -1036,4 +1056,24 @@ status_t AudioPolicyService::setSurroundFormatEnabled(audio_format_t audioFormat
+     return mAudioPolicyManager->setSurroundFormatEnabled(audioFormat, enabled);
+ }
+ 
++status_t AudioPolicyService::listAudioSessions(audio_stream_type_t streams,
++                                               Vector< sp<AudioSessionInfo>> &sessions)
++{
++    sp<AudioPolicyEffects> audioPolicyEffects;
++    {
++        Mutex::Autolock _l(mLock);
++        if (mAudioPolicyManager == NULL) {
++            return NO_INIT;
++        }
++        audioPolicyEffects = mAudioPolicyEffects;
++    }
++
++    if (audioPolicyEffects != 0) {
++        return audioPolicyEffects->listAudioSessions(streams, sessions);
++    }
++
++    // no errors here if effects are not available
++    return NO_ERROR;
++}
++
+ } // namespace android
+diff --git a/services/audiopolicy/service/AudioPolicyService.cpp b/services/audiopolicy/service/AudioPolicyService.cpp
+index f3cddc33d..6c54a5a29 100644
+--- a/services/audiopolicy/service/AudioPolicyService.cpp
++++ b/services/audiopolicy/service/AudioPolicyService.cpp
+@@ -81,7 +81,7 @@ void AudioPolicyService::onFirstRef()
+         mAudioPolicyManager = createAudioPolicyManager(mAudioPolicyClient);
+     }
+     // load audio processing modules
+-    sp<AudioPolicyEffects>audioPolicyEffects = new AudioPolicyEffects();
++    sp<AudioPolicyEffects>audioPolicyEffects = new AudioPolicyEffects(this);
+     {
+         Mutex::Autolock _l(mLock);
+         mAudioPolicyEffects = audioPolicyEffects;
+@@ -237,6 +237,21 @@ status_t AudioPolicyService::clientSetAudioPortConfig(const struct audio_port_co
+     return mAudioCommandThread->setAudioPortConfigCommand(config, delayMs);
+ }
+ 
++void AudioPolicyService::onOutputSessionEffectsUpdate(sp<AudioSessionInfo>& info, bool added)
++{
++    ALOGV("AudioPolicyService::onOutputSessionEffectsUpdate(%d, %d, %d)",
++            info->mStream, info->mSessionId, added);
++    mOutputCommandThread->effectSessionUpdateCommand(info, added);
++}
++
++void AudioPolicyService::doOnOutputSessionEffectsUpdate(sp<AudioSessionInfo>& info, bool added)
++{
++    Mutex::Autolock _l(mNotificationClientsLock);
++    for (size_t i = 0; i < mNotificationClients.size(); i++) {
++        mNotificationClients.valueAt(i)->onOutputSessionEffectsUpdate(info, added);
++    }
++}
++
+ AudioPolicyService::NotificationClient::NotificationClient(const sp<AudioPolicyService>& service,
+                                                      const sp<IAudioPolicyServiceClient>& client,
+                                                      uid_t uid)
+@@ -272,6 +287,14 @@ void AudioPolicyService::NotificationClient::onAudioPatchListUpdate()
+     }
+ }
+ 
++void AudioPolicyService::NotificationClient::onOutputSessionEffectsUpdate(
++        sp<AudioSessionInfo>& info, bool added)
++{
++    if (mAudioPolicyServiceClient != 0) {
++        mAudioPolicyServiceClient->onOutputSessionEffectsUpdate(info, added);
++    }
++}
++
+ void AudioPolicyService::NotificationClient::onDynamicPolicyMixStateUpdate(
+         const String8& regId, int32_t state)
+ {
+@@ -815,6 +838,21 @@ bool AudioPolicyService::AudioCommandThread::threadLoop()
+                             data->mPatchHandle);
+                     mLock.lock();
+                     } break;
++                case EFFECT_SESSION_UPDATE: {
++                    EffectSessionUpdateData *data =
++                            (EffectSessionUpdateData *)command->mParam.get();
++                    ALOGV("AudioCommandThread() processing effect session update %d %d %d",
++                            data->mAudioSessionInfo->mStream, data->mAudioSessionInfo->mSessionId,
++                            data->mAdded);
++                    svc = mService.promote();
++                    if (svc == 0) {
++                        break;
++                    }
++                    mLock.unlock();
++                    svc->doOnOutputSessionEffectsUpdate(data->mAudioSessionInfo, data->mAdded);
++                    mLock.lock();
++                    } break;
++
+                 default:
+                     ALOGW("AudioCommandThread() unknown command %d", command->mCommand);
+                 }
+@@ -1094,6 +1132,20 @@ void AudioPolicyService::AudioCommandThread::recordingConfigurationUpdateCommand
+     sendCommand(command);
+ }
+ 
++void AudioPolicyService::AudioCommandThread::effectSessionUpdateCommand(
++        sp<AudioSessionInfo>& streamInfo, bool added)
++{
++    sp<AudioCommand> command = new AudioCommand();
++    command->mCommand = EFFECT_SESSION_UPDATE;
++    EffectSessionUpdateData *data = new EffectSessionUpdateData();
++    data->mAudioSessionInfo = streamInfo;
++    data->mAdded = added;
++    command->mParam = data;
++    ALOGV("AudioCommandThread() sending effect session update (id=%d) for stream %d (added=%d)",
++            streamInfo->mStream, streamInfo->mSessionId, added);
++    sendCommand(command);
++}
++
+ status_t AudioPolicyService::AudioCommandThread::sendCommand(sp<AudioCommand>& command, int delayMs)
+ {
+     {
+diff --git a/services/audiopolicy/service/AudioPolicyService.h b/services/audiopolicy/service/AudioPolicyService.h
+index 407d7a5cd..4841b7800 100644
+--- a/services/audiopolicy/service/AudioPolicyService.h
++++ b/services/audiopolicy/service/AudioPolicyService.h
+@@ -209,6 +209,9 @@ public:
+                                         bool reported);
+     virtual status_t setSurroundFormatEnabled(audio_format_t audioFormat, bool enabled);
+ 
++    virtual status_t listAudioSessions(audio_stream_type_t stream,
++                                       Vector< sp<AudioSessionInfo>>& sessions);
++
+             status_t doStopOutput(audio_io_handle_t output,
+                                   audio_stream_type_t stream,
+                                   audio_session_t session);
+@@ -239,6 +242,9 @@ public:
+                     const audio_config_base_t *clientConfig,
+                     const audio_config_base_t *deviceConfig, audio_patch_handle_t patchHandle);
+ 
++            void onOutputSessionEffectsUpdate(sp<AudioSessionInfo>& info, bool added);
++            void doOnOutputSessionEffectsUpdate(sp<AudioSessionInfo>& info, bool added);
++
+ private:
+                         AudioPolicyService() ANDROID_API;
+     virtual             ~AudioPolicyService();
+@@ -332,7 +338,8 @@ private:
+             UPDATE_AUDIOPATCH_LIST,
+             SET_AUDIOPORT_CONFIG,
+             DYN_POLICY_MIX_STATE_UPDATE,
+-            RECORDING_CONFIGURATION_UPDATE
++            RECORDING_CONFIGURATION_UPDATE,
++            EFFECT_SESSION_UPDATE,
+         };
+ 
+         AudioCommandThread (String8 name, const wp<AudioPolicyService>& service);
+@@ -378,6 +385,8 @@ private:
+                                                         const audio_config_base_t *deviceConfig,
+                                                         audio_patch_handle_t patchHandle);
+                     void        insertCommand_l(AudioCommand *command, int delayMs = 0);
++                    void        effectSessionUpdateCommand(sp<AudioSessionInfo>& info, bool added);
++
+     private:
+         class AudioCommandData;
+ 
+@@ -475,6 +484,12 @@ private:
+             audio_patch_handle_t mPatchHandle;
+         };
+ 
++        class EffectSessionUpdateData : public AudioCommandData {
++        public:
++            sp<AudioSessionInfo> mAudioSessionInfo;
++            bool mAdded;
++        };
++
+         Mutex   mLock;
+         Condition mWaitWorkCV;
+         Vector < sp<AudioCommand> > mAudioCommands; // list of pending commands
+@@ -588,6 +603,8 @@ private:
+ 
+         virtual audio_unique_id_t newAudioUniqueId(audio_unique_id_use_t use);
+ 
++        virtual void onOutputSessionEffectsUpdate(sp<AudioSessionInfo>& info, bool added);
++
+      private:
+         AudioPolicyService *mAudioPolicyService;
+     };
+@@ -609,6 +626,8 @@ private:
+                                         const audio_config_base_t *deviceConfig,
+                                         audio_patch_handle_t patchHandle);
+                             void      setAudioPortCallbacksEnabled(bool enabled);
++                            void      onOutputSessionEffectsUpdate(sp<AudioSessionInfo>& info,
++                                                                   bool added);
+ 
+                 // IBinder::DeathRecipient
+                 virtual     void        binderDied(const wp<IBinder>& who);
+-- 
+2.17.1
+

@@ -1,0 +1,43 @@
+From 4b603287dfa426cd30d96f4e7a1bcdeb9d87da94 Mon Sep 17 00:00:00 2001
+From: Danny Baumann <dannybaumann@web.de>
+Date: Tue, 28 Feb 2017 09:16:24 +0100
+Subject: [PATCH 15/20] Fix cut off notification sounds.
+
+When posting a notification without sound, NotificationManagerService
+now stops playing the sound of the previous notification. As we post an
+update to the notification ~2s after we originally posted it, this leads
+to cut off notification sounds.
+
+Solution: If we only posted an update and didn't notify of new messages,
+keep the sound URI set and instruct the notification manager to play the
+sound only once.
+
+JIRA: BUGBASH-199
+Change-Id: I3aefa62ce1583839ef991380b2be6c39864509a1
+---
+ src/com/android/mail/utils/NotificationUtils.java | 6 ++++--
+ 1 file changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/src/com/android/mail/utils/NotificationUtils.java b/src/com/android/mail/utils/NotificationUtils.java
+index caaa32e96..d6fe953b6 100644
+--- a/src/com/android/mail/utils/NotificationUtils.java
++++ b/src/com/android/mail/utils/NotificationUtils.java
+@@ -771,11 +771,13 @@ public class NotificationUtils {
+              * We do not want to notify if this is coming back from an Undo notification, hence the
+              * oldWhen check.
+              */
+-            if (getAttention && oldWhen == 0 && hasNewConversationNotification) {
++            if (getAttention && oldWhen == 0) {
+                 final AccountPreferences accountPreferences =
+                         new AccountPreferences(context, account.getAccountId());
+                 if (accountPreferences.areNotificationsEnabled()) {
+-                    if (vibrate) {
++                    if (!hasNewConversationNotification) {
++                        notification.setOnlyAlertOnce(true);
++                    } else if (vibrate) {
+                         defaults |= Notification.DEFAULT_VIBRATE;
+                     }
+ 
+-- 
+2.17.1
+

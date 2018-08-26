@@ -1,0 +1,158 @@
+From ff9edff48ef3e9bcea60f968af809fc5887e60d3 Mon Sep 17 00:00:00 2001
+From: Roman Birg <roman@cyngn.com>
+Date: Sun, 9 Nov 2014 19:52:34 -0800
+Subject: [PATCH 23/80] SystemUI: add quick settings pull down with one finger
+
+Logic is currently set to use 1/3 of right hand side of the statusbar to
+trigger a quick settings quick pull down, quickly.
+
+Change-Id: I3f536496f724f07d2419a5b2db5fa8f8261609e7
+Signed-off-by: Roman Birg <roman@cyngn.com>
+
+SystemUI: fix right hand side gestures on lockscreen
+
+two finger quick pulldown was not accounting for being in the keyguard
+adn was eating touch events when it shouldn't be.
+
+Change-Id: I625d48a4002aaaf2d55d7efaed65d892ab7aa13c
+Signed-off-by: Roman Birg <roman@cyngn.com>
+
+SystemUI: add Settings.System toggle for quick-quick settings pulldown
+
+Change-Id: I3c5dcfc23f39bf8be6c402e25f61e6f57a8add2c
+Signed-off-by: Roman Birg <roman@cyngn.com>
+
+From: Zhao Wei Liew <zhaoweiliew@gmail.com>
+SystemUI: statusbar: Fix QS quick pulldown feature
+
+Bring in the fixes from CM 13.
+
+This commit squashes the following patches from CM 13.0:
+68c40f32470d66e0f8973d33a4124a2181754fb0 SystemUI: fix QS quick pull down
+477f58dc1413943926f2b4428f5873c0bb04dab8 SystemUI: hook up settings observer in notificationpanel
+d2bec52c76a3bb2c9a7fa3533e40f782fa592826 SystemUI: Fix quick-quick settings pulldown settings
+eb10bc20db37978413362250c8546ae7ed865077 Add left QS quick pulldown (1/3)
+
+Change-Id: Ie122477261d96499c80640cf274d22fba6642a01
+
+From: Zhao Wei Liew <zhaoweiliew@gmail.com>
+(partial) SystemUI: Use Tuner API for CM settings
+Get rid of all the excess code by implementing TunerService.Tunable
+and observing any changes made to the settings through it.
+
+Remove UserContentObserver as the Tuner API handles user switches.
+
+Also remove some unused imports that were introduced in earlier
+CM commits, but were never removed since.
+
+Change-Id: I3c5dcfc23f39bf8be6c402e25f61e6f57a8add2c
+---
+ .../phone/NotificationPanelView.java          | 44 ++++++++++++++++++-
+ 1 file changed, 42 insertions(+), 2 deletions(-)
+
+diff --git a/packages/SystemUI/src/com/android/systemui/statusbar/phone/NotificationPanelView.java b/packages/SystemUI/src/com/android/systemui/statusbar/phone/NotificationPanelView.java
+index e015c3e2813..b2c6ff98db6 100644
+--- a/packages/SystemUI/src/com/android/systemui/statusbar/phone/NotificationPanelView.java
++++ b/packages/SystemUI/src/com/android/systemui/statusbar/phone/NotificationPanelView.java
+@@ -53,6 +53,7 @@ import com.android.internal.logging.MetricsLogger;
+ import com.android.internal.logging.nano.MetricsProto.MetricsEvent;
+ import com.android.keyguard.KeyguardStatusView;
+ import com.android.systemui.DejankUtils;
++import com.android.systemui.Dependency;
+ import com.android.systemui.Interpolators;
+ import com.android.systemui.R;
+ import com.android.systemui.classifier.FalsingManager;
+@@ -76,6 +77,10 @@ import com.android.systemui.statusbar.policy.OnHeadsUpChangedListener;
+ import com.android.systemui.statusbar.stack.AnimationProperties;
+ import com.android.systemui.statusbar.stack.NotificationStackScrollLayout;
+ import com.android.systemui.statusbar.stack.StackStateAnimator;
++import com.android.systemui.tuner.TunerService;
++import com.android.systemui.tuner.TunerServiceImpl;
++
++import lineageos.providers.LineageSettings;
+ 
+ import java.util.ArrayList;
+ import java.util.List;
+@@ -85,7 +90,7 @@ public class NotificationPanelView extends PanelView implements
+         ExpandableView.OnHeightChangedListener,
+         View.OnClickListener, NotificationStackScrollLayout.OnOverscrollTopChangedListener,
+         KeyguardAffordanceHelper.Callback, NotificationStackScrollLayout.OnEmptySpaceClickListener,
+-        OnHeadsUpChangedListener, QS.HeightListener {
++        OnHeadsUpChangedListener, QS.HeightListener, TunerService.Tunable {
+ 
+     private static final boolean DEBUG = false;
+ 
+@@ -100,6 +105,9 @@ public class NotificationPanelView extends PanelView implements
+     static final String COUNTER_PANEL_OPEN_QS = "panel_open_qs";
+     private static final String COUNTER_PANEL_OPEN_PEEK = "panel_open_peek";
+ 
++    private static final String STATUS_BAR_QUICK_QS_PULLDOWN =
++            "lineagesystem:" + LineageSettings.System.STATUS_BAR_QUICK_QS_PULLDOWN;
++
+     private static final Rect mDummyDirtyRect = new Rect(0, 0, 1, 1);
+ 
+     public static final long DOZE_ANIMATION_DURATION = 700;
+@@ -279,6 +287,8 @@ public class NotificationPanelView extends PanelView implements
+             .setAnimationFinishListener(mAnimatorListenerAdapter)
+             .setCustomInterpolator(PANEL_ALPHA.getProperty(), Interpolators.ALPHA_IN);
+ 
++    private int mOneFingerQuickSettingsIntercept;
++
+     public NotificationPanelView(Context context, AttributeSet attrs) {
+         super(context, attrs);
+         setWillNotDraw(!DEBUG);
+@@ -320,12 +330,27 @@ public class NotificationPanelView extends PanelView implements
+     protected void onAttachedToWindow() {
+         super.onAttachedToWindow();
+         FragmentHostManager.get(this).addTagListener(QS.TAG, mFragmentListener);
++        Dependency.get(TunerService.class).addTunable(this,
++                STATUS_BAR_QUICK_QS_PULLDOWN);
+     }
+ 
+     @Override
+     protected void onDetachedFromWindow() {
+         super.onDetachedFromWindow();
+         FragmentHostManager.get(this).removeTagListener(QS.TAG, mFragmentListener);
++        Dependency.get(TunerService.class).removeTunable(this);
++    }
++
++    @Override
++    public void onTuningChanged(String key, String newValue) {
++        switch (key) {
++            case STATUS_BAR_QUICK_QS_PULLDOWN:
++                mOneFingerQuickSettingsIntercept =
++                        newValue == null ? 1 : Integer.parseInt(newValue);
++                break;
++            default:
++                break;
++        }
+     }
+ 
+     @Override
+@@ -957,7 +982,22 @@ public class NotificationPanelView extends PanelView implements
+                 && (event.isButtonPressed(MotionEvent.BUTTON_SECONDARY)
+                         || event.isButtonPressed(MotionEvent.BUTTON_TERTIARY));
+ 
+-        return twoFingerDrag || stylusButtonClickDrag || mouseButtonClickDrag;
++        final float w = getMeasuredWidth();
++        final float x = event.getX();
++        float region = w * 1.f / 4.f; // TODO overlay region fraction?
++        boolean showQsOverride = false;
++
++        switch (mOneFingerQuickSettingsIntercept) {
++            case 1: // Right side pulldown
++                showQsOverride = isLayoutRtl() ? x < region : w - region < x;
++                break;
++            case 2: // Left side pulldown
++                showQsOverride = isLayoutRtl() ? w - region < x : x < region;
++                break;
++        }
++        showQsOverride &= mStatusBarState == StatusBarState.SHADE;
++
++        return twoFingerDrag || showQsOverride || stylusButtonClickDrag || mouseButtonClickDrag;
+     }
+ 
+     private void handleQsDown(MotionEvent event) {
+-- 
+2.17.1
+

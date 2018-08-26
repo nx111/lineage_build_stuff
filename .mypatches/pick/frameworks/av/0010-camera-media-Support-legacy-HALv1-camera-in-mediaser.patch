@@ -1,0 +1,186 @@
+From 3af380e41aab79a1a8b5697cb050c82a49545fa3 Mon Sep 17 00:00:00 2001
+From: Simon Shields <keepcalm444@gmail.com>
+Date: Thu, 6 Oct 2016 20:25:32 +1100
+Subject: [PATCH 10/25] camera/media: Support legacy HALv1 camera in
+ mediaserver
+
+Pre 7.0 camera HALv1 can not share its video buffers
+across different processes, which requires us to
+disable this security feature.
+
+This change allows devices to re-integrate cameraserver
+and mediaserver which is the first step to support older
+prebuilt camera HALs. A follow-up change will add back
+support for legacy buffer handling.
+
+To enable:
+TARGET_HAS_LEGACY_CAMERA_HAL1 := true
+media.stagefright.legacyencoder=true
+media.stagefright.less-secure=true
+
+Change-Id: I4fcc8907ea235b7e83af26122b4da97ca5117816
+
+mediaserver: Update HALv1 dependencies for 8.1.0
+
+ * Add libcameraservice shared library dependency
+ * Add new libgui, android.hardware.camera.common@1.0
+    and android.hardware.camera.provider@2.4 shared
+    libraries and exported headers HAL dependencies
+
+ * Match cameraserver HIDL additions and dependencies
+
+ * When TARGET_HAS_LEGACY_CAMERA_HAL1 is set, the mediaserver
+    includes CameraService.h but exported headers are missing
+
+ * Error upon build due to missing libcameraservice linkage:
+    fatal error: 'android/hardware/BnCameraService.h' file not found
+
+mediaserver: Update HALv1 dependencies for 9.0.0
+
+ * Disable active state UID validation for HAL1 devices
+
+Change-Id: Ib6bb8a4e9ef18606c64e2dff13504d2eeaac13b1
+Signed-off-by: Adrian DC <radian.dc@gmail.com>
+---
+ camera/cameraserver/Android.mk                     |  4 ++++
+ media/mediaserver/Android.mk                       | 11 +++++++++++
+ media/mediaserver/main_mediaserver.cpp             | 12 ++++++++++++
+ services/camera/libcameraservice/Android.mk        |  4 ++++
+ services/camera/libcameraservice/CameraService.cpp |  8 ++++++++
+ 5 files changed, 39 insertions(+)
+
+diff --git a/camera/cameraserver/Android.mk b/camera/cameraserver/Android.mk
+index b8c94e64e..de4b2dff6 100644
+--- a/camera/cameraserver/Android.mk
++++ b/camera/cameraserver/Android.mk
+@@ -14,6 +14,9 @@
+ 
+ LOCAL_PATH:= $(call my-dir)
+ 
++ifeq ($(TARGET_HAS_LEGACY_CAMERA_HAL1),true)
++$(warning Target has integrated cameraserver into mediaserver. This is weakening security measures introduced in 7.0)
++else
+ include $(CLEAR_VARS)
+ 
+ LOCAL_SRC_FILES:= \
+@@ -40,3 +43,4 @@ LOCAL_CFLAGS += -Wall -Wextra -Werror -Wno-unused-parameter
+ LOCAL_INIT_RC := cameraserver.rc
+ 
+ include $(BUILD_EXECUTABLE)
++endif
+diff --git a/media/mediaserver/Android.mk b/media/mediaserver/Android.mk
+index f7597db81..72fd88749 100644
+--- a/media/mediaserver/Android.mk
++++ b/media/mediaserver/Android.mk
+@@ -38,4 +38,15 @@ LOCAL_INIT_RC := mediaserver.rc
+ 
+ LOCAL_CFLAGS := -Werror -Wall
+ 
++ifeq ($(TARGET_HAS_LEGACY_CAMERA_HAL1),true)
++    LOCAL_CFLAGS += -DNO_CAMERA_SERVER
++
++    LOCAL_SHARED_LIBRARIES += \
++        libcameraservice \
++        libgui \
++        libhidltransport \
++        android.hardware.camera.common@1.0 \
++        android.hardware.camera.provider@2.4
++endif
++
+ include $(BUILD_EXECUTABLE)
+diff --git a/media/mediaserver/main_mediaserver.cpp b/media/mediaserver/main_mediaserver.cpp
+index ecddc4827..53b589350 100644
+--- a/media/mediaserver/main_mediaserver.cpp
++++ b/media/mediaserver/main_mediaserver.cpp
+@@ -25,6 +25,10 @@
+ #include "RegisterExtensions.h"
+ 
+ // from LOCAL_C_INCLUDES
++#ifdef NO_CAMERA_SERVER
++#include "CameraService.h"
++#include <hidl/HidlTransportSupport.h>
++#endif
+ #include "IcuUtils.h"
+ #include "MediaPlayerService.h"
+ #include "ResourceManagerService.h"
+@@ -35,12 +39,20 @@ int main(int argc __unused, char **argv __unused)
+ {
+     signal(SIGPIPE, SIG_IGN);
+ 
++#ifdef NO_CAMERA_SERVER
++    // Set 3 threads for HIDL calls
++    hardware::configureRpcThreadpool(3, /*willjoin*/ false);
++#endif
++
+     sp<ProcessState> proc(ProcessState::self());
+     sp<IServiceManager> sm(defaultServiceManager());
+     ALOGI("ServiceManager: %p", sm.get());
+     InitializeIcuOrDie();
+     MediaPlayerService::instantiate();
+     ResourceManagerService::instantiate();
++#ifdef NO_CAMERA_SERVER
++    CameraService::instantiate();
++#endif
+     registerExtensions();
+     ProcessState::self()->startThreadPool();
+     IPCThreadState::self()->joinThreadPool();
+diff --git a/services/camera/libcameraservice/Android.mk b/services/camera/libcameraservice/Android.mk
+index 96261ab0e..636cae32c 100644
+--- a/services/camera/libcameraservice/Android.mk
++++ b/services/camera/libcameraservice/Android.mk
+@@ -94,6 +94,10 @@ LOCAL_EXPORT_C_INCLUDE_DIRS := \
+ 
+ LOCAL_CFLAGS += -Wall -Wextra -Werror
+ 
++ifeq ($(TARGET_HAS_LEGACY_CAMERA_HAL1),true)
++    LOCAL_CFLAGS += -DNO_CAMERA_SERVER
++endif
++
+ LOCAL_MODULE:= libcameraservice
+ 
+ include $(BUILD_SHARED_LIBRARY)
+diff --git a/services/camera/libcameraservice/CameraService.cpp b/services/camera/libcameraservice/CameraService.cpp
+index c41de8286..de0fac5db 100644
+--- a/services/camera/libcameraservice/CameraService.cpp
++++ b/services/camera/libcameraservice/CameraService.cpp
+@@ -727,7 +727,11 @@ int32_t CameraService::mapToInterface(StatusInternal status) {
+ Status CameraService::initializeShimMetadata(int cameraId) {
+     int uid = getCallingUid();
+ 
++#ifdef NO_CAMERA_SERVER
++    String16 internalPackageName("media");
++#else
+     String16 internalPackageName("cameraserver");
++#endif
+     String8 id = String8::format("%d", cameraId);
+     Status ret = Status::ok();
+     sp<Client> tmp = nullptr;
+@@ -809,7 +813,9 @@ Status CameraService::getLegacyParametersLazy(int cameraId,
+ static bool isTrustedCallingUid(uid_t uid) {
+     switch (uid) {
+         case AID_MEDIA:        // mediaserver
++#ifndef NO_CAMERA_SERVER
+         case AID_CAMERASERVER: // cameraserver
++#endif
+         case AID_RADIO:        // telephony
+             return true;
+         default:
+@@ -906,6 +912,7 @@ Status CameraService::validateClientPermissionsLocked(const String8& cameraId,
+                 clientName8.string(), clientUid, clientPid, cameraId.string());
+     }
+ 
++#ifndef NO_CAMERA_SERVER
+     // Make sure the UID is in an active state to use the camera
+     if (!mUidPolicy->isUidActive(callingUid, String16(clientName8))) {
+         ALOGE("Access Denial: can't use the camera from an idle UID pid=%d, uid=%d",
+@@ -914,6 +921,7 @@ Status CameraService::validateClientPermissionsLocked(const String8& cameraId,
+                 "Caller \"%s\" (PID %d, UID %d) cannot open camera \"%s\" from background",
+                 clientName8.string(), clientUid, clientPid, cameraId.string());
+     }
++#endif
+ 
+     // Only use passed in clientPid to check permission. Use calling PID as the client PID that's
+     // connected to camera service directly.
+-- 
+2.17.1
+

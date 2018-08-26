@@ -1,0 +1,132 @@
+From ca8d296315e18c864b2569c57f42ed527d26da45 Mon Sep 17 00:00:00 2001
+From: Amit Mahajan <amitmahajan@google.com>
+Date: Fri, 23 Feb 2018 17:12:15 -0800
+Subject: [PATCH 08/12] libril: Store the system time when NITZ is  received.
+
+If cached value for NITZ is used, the time at which it was
+received needs to be cached too.
+
+Test: Basic telephony sanity
+Bug: 72283604
+Change-Id: I8f443171c4583e3eab9be7973d7714ae6c7ab6af
+---
+ ril/libril/ril.cpp         | 23 +++++++++++++++++++++--
+ ril/libril/ril_service.cpp | 13 ++++++++++---
+ ril/libril/ril_service.h   |  2 ++
+ 3 files changed, 33 insertions(+), 5 deletions(-)
+
+diff --git a/ril/libril/ril.cpp b/ril/libril/ril.cpp
+index 2ed3ad0..ae41e48 100644
+--- a/ril/libril/ril.cpp
++++ b/ril/libril/ril.cpp
+@@ -303,6 +303,13 @@ static void processWakeupCallback(int fd, short flags, void *param) {
+ }
+ 
+ static void resendLastNITZTimeData(RIL_SOCKET_ID socket_id) {
++        // acquire read lock for the service before calling nitzTimeReceivedInd() since it reads
++        // nitzTimeReceived in ril_service
++        pthread_rwlock_t *radioServiceRwlockPtr = radio::getRadioServiceRwlock(
++                (int) socket_id);
++        int rwlockRet = pthread_rwlock_rdlock(radioServiceRwlockPtr);
++        assert(rwlockRet == 0);
++
+     if (s_lastNITZTimeData != NULL) {
+         int responseType = (s_callbacks.version >= 13)
+                            ? RESPONSE_UNSOLICITED_ACK_EXP
+@@ -314,6 +321,9 @@ static void resendLastNITZTimeData(RIL_SOCKET_ID socket_id) {
+             free(s_lastNITZTimeData);
+             s_lastNITZTimeData = NULL;
+         }
++
++        rwlockRet = pthread_rwlock_unlock(radioServiceRwlockPtr);
++        assert(rwlockRet == 0);
+     }
+ }
+ 
+@@ -833,8 +843,17 @@ void RIL_onUnsolicitedResponse(int unsolResponse, const void *data,
+     }
+ 
+     pthread_rwlock_t *radioServiceRwlockPtr = radio::getRadioServiceRwlock((int) soc_id);
+-    int rwlockRet = pthread_rwlock_rdlock(radioServiceRwlockPtr);
+-    assert(rwlockRet == 0);
++    int rwlockRet;
++
++    if (unsolResponse == RIL_UNSOL_NITZ_TIME_RECEIVED) {
++        // get a write lock in caes of NITZ since setNitzTimeReceived() is called
++        rwlockRet = pthread_rwlock_wrlock(radioServiceRwlockPtr);
++        assert(rwlockRet == 0);
++        radio::setNitzTimeReceived((int) soc_id, android::elapsedRealtime());
++    } else {
++        rwlockRet = pthread_rwlock_rdlock(radioServiceRwlockPtr);
++        assert(rwlockRet == 0);
++    }
+ 
+     ret = pRI->responseFunction(
+             (int) soc_id, responseType, 0, RIL_E_SUCCESS, const_cast<void*>(data),
+diff --git a/ril/libril/ril_service.cpp b/ril/libril/ril_service.cpp
+index f2b7714..dd4b364 100644
+--- a/ril/libril/ril_service.cpp
++++ b/ril/libril/ril_service.cpp
+@@ -68,12 +68,14 @@ struct OemHookImpl;
+ #if (SIM_COUNT >= 2)
+ sp<RadioImpl> radioService[SIM_COUNT];
+ sp<OemHookImpl> oemHookService[SIM_COUNT];
++int64_t nitzTimeReceived[SIM_COUNT];
+ // counter used for synchronization. It is incremented every time response callbacks are updated.
+ volatile int32_t mCounterRadio[SIM_COUNT];
+ volatile int32_t mCounterOemHook[SIM_COUNT];
+ #else
+ sp<RadioImpl> radioService[1];
+ sp<OemHookImpl> oemHookService[1];
++int64_t nitzTimeReceived[1];
+ // counter used for synchronization. It is incremented every time response callbacks are updated.
+ volatile int32_t mCounterRadio[1];
+ volatile int32_t mCounterOemHook[1];
+@@ -6678,7 +6680,6 @@ int radio::nitzTimeReceivedInd(int slotId,
+             return 0;
+         }
+         hidl_string nitzTime;
+-        int64_t timeReceived = android::elapsedRealtime();
+         char *resp = strndup((char *) response, responseLen);
+         char *tmp = resp;
+ 
+@@ -6698,10 +6699,11 @@ int radio::nitzTimeReceivedInd(int slotId,
+         free(resp);
+ #if VDBG
+         RLOGD("nitzTimeReceivedInd: nitzTime %s receivedTime %" PRId64, nitzTime.c_str(),
+-                timeReceived);
++                nitzTimeReceived[slotId]);
+ #endif
+         Return<void> retStatus = radioService[slotId]->mRadioIndication->nitzTimeReceived(
+-                convertIntToRadioIndicationType(indicationType), nitzTime, timeReceived);
++                convertIntToRadioIndicationType(indicationType), nitzTime,
++                nitzTimeReceived[slotId]);
+         radioService[slotId]->checkReturnStatus(retStatus);
+     } else {
+         RLOGE("nitzTimeReceivedInd: radioService[%d]->mRadioIndication == NULL", slotId);
+@@ -8502,3 +8504,8 @@ pthread_rwlock_t * radio::getRadioServiceRwlock(int slotId) {
+ 
+     return radioServiceRwlockPtr;
+ }
++
++// should acquire write lock for the corresponding service before calling this
++void radio::setNitzTimeReceived(int slotId, long timeReceived) {
++    nitzTimeReceived[slotId] = timeReceived;
++}
+diff --git a/ril/libril/ril_service.h b/ril/libril/ril_service.h
+index 441b587..80e9beb 100644
+--- a/ril/libril/ril_service.h
++++ b/ril/libril/ril_service.h
+@@ -711,6 +711,8 @@ int sendRequestStringsResponse(int slotId,
+ 
+ pthread_rwlock_t * getRadioServiceRwlock(int slotId);
+ 
++void setNitzTimeReceived(int slotId, long timeReceived);
++
+ }   // namespace radio
+ 
+ #endif  // RIL_SERVICE_H
+\ No newline at end of file
+-- 
+2.17.1
+

@@ -1,0 +1,190 @@
+From 9fe2b3880d7c0e0be20e01a683fb9784c0a8563d Mon Sep 17 00:00:00 2001
+From: Paul Keith <javelinanddart@gmail.com>
+Date: Tue, 20 Feb 2018 16:40:17 +0100
+Subject: [PATCH 19/20] vold: Make exfat driver support generic
+
+Author: Paul Keith <javelinanddart@gmail.com>
+Date: Wed 21 Feb 2018 01:56:45 +0100
+
+    vold: Make exfat driver support generic
+
+    * Samsung moved to a new driver in their recent devices,
+      and inevitably there will be more in the future
+    * Make our support generic with the flag TARGET_EXFAT_DRIVER=foo,
+      where foo is the -t arg the fs needs to be mounted with
+
+    Change-Id: I984481972bf79bf195321e69906cc5994fb19f2d
+
+Author: Paul Keith <javelinanddart@gmail.com>
+Date: Tue Feb 20 16:40:17 2018 +0100
+
+    vold: Only include exfat support for devices that specify a driver
+
+    * Exfat fuse is truly awful, and it breaks licensing to use
+      it on devices that were not licensed for it
+    * Include exfat only on devices with proper kernel support
+    * Cleanup mounting code to be inline with Vfat code
+
+    Change-Id: I9f00cb6417f6366ea3736589fc1862d6505bffbd
+
+Author: Luca Stefani <luca.stefani.ge1@gmail.com>
+Date: Sun 25 Feb 2018 18:36:36 +0100
+
+    Add exfat to supported FSs if exfat is enabled
+
+    * Remove fuse exfat while we're at it
+
+    Change-Id: Id6b9ff5d480f7eb1cd7fe6f93db8678aabf83f44
+
+Change-Id: I2d84c14e901b78758f1b04d1aafe930b51c033b6
+---
+ Android.bp             |  7 ++++++-
+ Utils.cpp              |  5 +++++
+ fs/Exfat.cpp           |  6 ++++--
+ model/PublicVolume.cpp | 45 ++++++++++++++++++++++++++++++++++++++----
+ 4 files changed, 56 insertions(+), 7 deletions(-)
+
+diff --git a/Android.bp b/Android.bp
+index cb8f31d..e074fbf 100644
+--- a/Android.bp
++++ b/Android.bp
+@@ -116,7 +116,6 @@ cc_library_static {
+         "VoldUtil.cpp",
+         "VolumeManager.cpp",
+         "cryptfs.cpp",
+-        "fs/Exfat.cpp",
+         "fs/Ext4.cpp",
+         "fs/F2fs.cpp",
+         "fs/Ntfs.cpp",
+@@ -141,6 +140,12 @@ cc_library_static {
+                 "libarcobbvolume",
+             ],
+         },
++        target_exfat_driver : {
++            cflags: ["-DCONFIG_EXFAT_DRIVER=\"%s\""],
++            srcs: [
++                "fs/Exfat.cpp",
++            ],
++        },
+     },
+ }
+ 
+diff --git a/Utils.cpp b/Utils.cpp
+index 4a14250..5e7e0af 100644
+--- a/Utils.cpp
++++ b/Utils.cpp
+@@ -563,6 +563,11 @@ bool IsFilesystemSupported(const std::string& fsType) {
+ 
+     /* fuse filesystems */
+     supported.append("fuse\tntfs\n");
++#ifdef CONFIG_EXFAT_DRIVER
++    /* Add exfat if an exfat driver is present */
++    if (supported.find(CONFIG_EXFAT_DRIVER + "\n") != std::string::npos)
++        supported.append("nodev\texfat\n");
++#endif
+ 
+     return supported.find(fsType + "\n") != std::string::npos;
+ }
+diff --git a/fs/Exfat.cpp b/fs/Exfat.cpp
+index 5c15075..4b1413b 100644
+--- a/fs/Exfat.cpp
++++ b/fs/Exfat.cpp
+@@ -60,13 +60,15 @@ status_t Mount(const std::string& source, const std::string& target, int ownerUi
+     auto mountData = android::base::StringPrintf("uid=%d,gid=%d,fmask=%o,dmask=%o", ownerUid,
+                                                  ownerGid, permMask, permMask);
+ 
+-    if (mount(source.c_str(), target.c_str(), "exfat", mountFlags, mountData.c_str()) == 0) {
++    if (mount(source.c_str(), target.c_str(), CONFIG_EXFAT_DRIVER, mountFlags,
++            mountData.c_str()) == 0) {
+         return 0;
+     }
+ 
+     PLOG(ERROR) << "Mount failed; attempting read-only";
+     mountFlags |= MS_RDONLY;
+-    if (mount(source.c_str(), target.c_str(), "exfat", mountFlags, mountData.c_str()) == 0) {
++    if (mount(source.c_str(), target.c_str(), CONFIG_EXFAT_DRIVER, mountFlags,
++            mountData.c_str()) == 0) {
+         return 0;
+     }
+ 
+diff --git a/model/PublicVolume.cpp b/model/PublicVolume.cpp
+index b19ab8a..5075546 100644
+--- a/model/PublicVolume.cpp
++++ b/model/PublicVolume.cpp
+@@ -17,7 +17,9 @@
+ #include "PublicVolume.h"
+ #include "Utils.h"
+ #include "VolumeManager.h"
++#ifdef CONFIG_EXFAT_DRIVER
+ #include "fs/Exfat.h"
++#endif
+ #include "fs/Ext4.h"
+ #include "fs/F2fs.h"
+ #include "fs/Ntfs.h"
+@@ -101,7 +103,19 @@ status_t PublicVolume::doDestroy() {
+ status_t PublicVolume::doMount() {
+     readMetadata();
+ 
+-    if (!IsFilesystemSupported(mFsType)) {
++    if (mFsType == "vfat" && vfat::IsSupported()) {
++        if (vfat::Check(mDevPath)) {
++            LOG(ERROR) << getId() << " failed filesystem check";
++            return -EIO;
++        }
++#ifdef CONFIG_EXFAT_DRIVER
++    } else if (mFsType == "exfat" && exfat::IsSupported()) {
++        if (exfat::Check(mDevPath)) {
++            LOG(ERROR) << getId() << " failed filesystem check";
++            return -EIO;
++        }
++#endif
++    } else if (!IsFilesystemSupported(mFsType)) { {
+         LOG(ERROR) << getId() << " unsupported filesystem " << mFsType;
+         return -EIO;
+     }
+@@ -162,6 +176,13 @@ status_t PublicVolume::doMount() {
+     } else if (mFsType == "vfat") {
+         ret = vfat::Mount(mDevPath, mRawPath, false, false, false,
+                 AID_MEDIA_RW, AID_MEDIA_RW, 0007, true);
++#ifdef CONFIG_EXFAT_DRIVER
++    } else if (mFsType == "exfat") {
++        if (exfat::Mount(mDevPath, mRawPath, AID_MEDIA_RW, AID_MEDIA_RW, 0007)) {
++            PLOG(ERROR) << getId() << " failed to mount " << mDevPath;
++            return -EIO;
++        }
++#endif
+     } else {
+         ret = ::mount(mDevPath.c_str(), mRawPath.c_str(), mFsType.c_str(), 0, NULL);
+     }
+@@ -273,9 +294,25 @@ status_t PublicVolume::doUnmount() {
+ }
+ 
+ status_t PublicVolume::doFormat(const std::string& fsType) {
+-    // "auto" is used for newly partitioned disks (see Disk::partition*)
+-    // and thus is restricted to external/removable storage.
+-    if (!(IsFilesystemSupported(fsType) || fsType == "auto")) {
++    if ((fsType == "vfat" || fsType == "auto") && vfat::IsSupported()) {
++        if (WipeBlockDevice(mDevPath) != OK) {
++            LOG(WARNING) << getId() << " failed to wipe";
++        }
++        if (vfat::Format(mDevPath, 0)) {
++            LOG(ERROR) << getId() << " failed to format";
++            return -errno;
++        }
++#ifdef CONFIG_EXFAT_DRIVER
++    } else if ((fsType == "exfat" || fsType == "auto") && exfat::IsSupported()) {
++        if (WipeBlockDevice(mDevPath) != OK) {
++            LOG(WARNING) << getId() << " failed to wipe";
++        }
++        if (exfat::Format(mDevPath)) {
++            LOG(ERROR) << getId() << " failed to format";
++            return -errno;
++        }
++#endif
++    } else if (!(IsFilesystemSupported(fsType) || fsType == "auto")) {
+         LOG(ERROR) << "Unsupported filesystem " << fsType;
+         return -EINVAL;
+     }
+-- 
+2.17.1
+

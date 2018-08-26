@@ -1,0 +1,264 @@
+From dfb415da192c8269b9fb9ac01409d941f3279506 Mon Sep 17 00:00:00 2001
+From: Rashed Abdel-Tawab <rashed@linux.com>
+Date: Tue, 3 Oct 2017 17:17:37 -0400
+Subject: [PATCH 24/80] SystemUI: add double tap to sleep gesture
+
+Author: Roman Birg <roman@cyngn.com>
+Date:   Sun Nov 23 06:54:06 2014 -0800
+
+    SystemUI: double tap to sleep improvements
+
+    * Make it more reliable
+    * Add it to keyguard
+    * Add a content observer to not always query Settings.System on every
+    touch event
+
+    Change-Id: I292c4d9d9f810843590b7a9ec6e15b99ac44009d
+    Signed-off-by: Roman Birg <roman@cyngn.com>
+
+Author: Adnan Begovic <adnan@cyngn.com>
+Date:   Wed Nov 11 12:05:59 2015 -0800
+
+    fw: Move DOUBLE_TAP_SLEEP_GESTURE to CMSettings.
+
+    Change-Id: I8274b7c241cef6835a1114a702e68c95b6d2e036
+
+Author: Zhao Wei Liew <zhaoweiliew@gmail.com>
+Date:   Fri Oct 7 08:56:25 2016 +0800
+
+    SystemUI: Use Tuner API for CM settings
+
+    Get rid of all the excess code by implementing TunerService.Tunable
+    and observing any changes made to the settings through it.
+
+    Remove UserContentObserver as the Tuner API handles user switches.
+
+    Also remove some unused imports that were introduced in earlier
+    CM commits, but were never removed since.
+
+    Change-Id: Iecafafabdaec82b3b3c72293bea865de48f0e90a
+
+Author: Altaf-Mahdi <altaf.mahdi@gmail.com>
+Date:   Wed Nov 11 16:07:49 2015 -0500
+
+    Double tap to sleep anywhere on the lock screen [1/3]
+
+    Change-Id: I7dd46f3fafeb2e629974c0f32083d4d9774fb1de
+    [neo: Using Tuner API.]
+    Signed-off-by: Pranav Vashi <neobuddy89@gmail.com>
+
+Change-Id: Ic1a40d4340890905de2631c666270e81c390d261
+---
+ .../phone/NotificationPanelView.java          | 28 ++++++++++-
+ .../statusbar/phone/StatusBarWindowView.java  | 50 ++++++++++++++++++-
+ 2 files changed, 75 insertions(+), 3 deletions(-)
+
+diff --git a/packages/SystemUI/src/com/android/systemui/statusbar/phone/NotificationPanelView.java b/packages/SystemUI/src/com/android/systemui/statusbar/phone/NotificationPanelView.java
+index b2c6ff98db6..e864d811a9b 100644
+--- a/packages/SystemUI/src/com/android/systemui/statusbar/phone/NotificationPanelView.java
++++ b/packages/SystemUI/src/com/android/systemui/statusbar/phone/NotificationPanelView.java
+@@ -40,6 +40,7 @@ import android.util.AttributeSet;
+ import android.util.FloatProperty;
+ import android.util.Log;
+ import android.util.MathUtils;
++import android.view.GestureDetector;
+ import android.view.LayoutInflater;
+ import android.view.MotionEvent;
+ import android.view.VelocityTracker;
+@@ -107,6 +108,8 @@ public class NotificationPanelView extends PanelView implements
+ 
+     private static final String STATUS_BAR_QUICK_QS_PULLDOWN =
+             "lineagesystem:" + LineageSettings.System.STATUS_BAR_QUICK_QS_PULLDOWN;
++    private static final String DOUBLE_TAP_SLEEP_GESTURE =
++            "lineagesystem:" + LineageSettings.System.DOUBLE_TAP_SLEEP_GESTURE;
+ 
+     private static final Rect mDummyDirtyRect = new Rect(0, 0, 1, 1);
+ 
+@@ -288,6 +291,9 @@ public class NotificationPanelView extends PanelView implements
+             .setCustomInterpolator(PANEL_ALPHA.getProperty(), Interpolators.ALPHA_IN);
+ 
+     private int mOneFingerQuickSettingsIntercept;
++    private boolean mDoubleTapToSleepEnabled;
++    private int mQuickQsTotalHeight;
++    private GestureDetector mDoubleTapGesture;
+ 
+     public NotificationPanelView(Context context, AttributeSet attrs) {
+         super(context, attrs);
+@@ -298,6 +304,16 @@ public class NotificationPanelView extends PanelView implements
+         setAccessibilityPaneTitle(determineAccessibilityPaneTitle());
+         mAlphaPaint.setXfermode(new PorterDuffXfermode(PorterDuff.Mode.MULTIPLY));
+         setPanelAlpha(255, false /* animate */);
++        mDoubleTapGesture = new GestureDetector(mContext,
++                new GestureDetector.SimpleOnGestureListener() {
++            @Override
++            public boolean onDoubleTap(MotionEvent e) {
++                if (mPowerManager != null) {
++                    mPowerManager.goToSleep(e.getEventTime());
++                }
++                return true;
++            }
++        });
+     }
+ 
+     public void setStatusBar(StatusBar bar) {
+@@ -331,7 +347,8 @@ public class NotificationPanelView extends PanelView implements
+         super.onAttachedToWindow();
+         FragmentHostManager.get(this).addTagListener(QS.TAG, mFragmentListener);
+         Dependency.get(TunerService.class).addTunable(this,
+-                STATUS_BAR_QUICK_QS_PULLDOWN);
++                STATUS_BAR_QUICK_QS_PULLDOWN,
++                DOUBLE_TAP_SLEEP_GESTURE);
+     }
+ 
+     @Override
+@@ -348,6 +365,9 @@ public class NotificationPanelView extends PanelView implements
+                 mOneFingerQuickSettingsIntercept =
+                         newValue == null ? 1 : Integer.parseInt(newValue);
+                 break;
++            case DOUBLE_TAP_SLEEP_GESTURE:
++                mDoubleTapToSleepEnabled = newValue == null || Integer.parseInt(newValue) == 1;
++                break;
+             default:
+                 break;
+         }
+@@ -374,6 +394,8 @@ public class NotificationPanelView extends PanelView implements
+                 R.dimen.keyguard_indication_bottom_padding);
+         mQsNotificationTopPadding = getResources().getDimensionPixelSize(
+                 R.dimen.qs_notification_padding);
++        mQuickQsTotalHeight = getResources().getDimensionPixelSize(
++                com.android.internal.R.dimen.quick_qs_total_height);
+     }
+ 
+     public void updateResources() {
+@@ -886,6 +908,10 @@ public class NotificationPanelView extends PanelView implements
+         if (mBlockTouches || (mQs != null && mQs.isCustomizing())) {
+             return false;
+         }
++        if (mDoubleTapToSleepEnabled
++                && mStatusBarState == StatusBarState.KEYGUARD) {
++            mDoubleTapGesture.onTouchEvent(event);
++        }
+         initDownStates(event);
+         if (mListenForHeadsUp && !mHeadsUpTouchHelper.isTrackingHeadsUp()
+                 && mHeadsUpTouchHelper.onInterceptTouchEvent(event)) {
+diff --git a/packages/SystemUI/src/com/android/systemui/statusbar/phone/StatusBarWindowView.java b/packages/SystemUI/src/com/android/systemui/statusbar/phone/StatusBarWindowView.java
+index a79a41b0779..633c1449cab 100644
+--- a/packages/SystemUI/src/com/android/systemui/statusbar/phone/StatusBarWindowView.java
++++ b/packages/SystemUI/src/com/android/systemui/statusbar/phone/StatusBarWindowView.java
+@@ -34,9 +34,11 @@ import android.media.session.MediaSessionLegacyHelper;
+ import android.net.Uri;
+ import android.os.Bundle;
+ import android.os.IBinder;
++import android.os.PowerManager;
+ import android.os.SystemClock;
+ import android.util.AttributeSet;
+ import android.view.ActionMode;
++import android.view.GestureDetector;
+ import android.view.InputDevice;
+ import android.view.InputQueue;
+ import android.view.KeyEvent;
+@@ -56,20 +58,27 @@ import android.widget.FrameLayout;
+ import com.android.internal.annotations.VisibleForTesting;
+ import com.android.internal.view.FloatingActionMode;
+ import com.android.internal.widget.FloatingToolbar;
++import com.android.systemui.Dependency;
+ import com.android.systemui.R;
+ import com.android.systemui.classifier.FalsingManager;
+ import com.android.systemui.statusbar.DragDownHelper;
+ import com.android.systemui.statusbar.StatusBarState;
+ import com.android.systemui.statusbar.stack.NotificationStackScrollLayout;
++import com.android.systemui.tuner.TunerService;
++import com.android.systemui.tuner.TunerServiceImpl;
++
++import lineageos.providers.LineageSettings;
+ 
+ import java.io.FileDescriptor;
+ import java.io.PrintWriter;
+ 
+-
+-public class StatusBarWindowView extends FrameLayout {
++public class StatusBarWindowView extends FrameLayout implements TunerService.Tunable {
+     public static final String TAG = "StatusBarWindowView";
+     public static final boolean DEBUG = StatusBar.DEBUG;
+ 
++    private static final String DOUBLE_TAP_SLEEP_GESTURE =
++            "lineagesystem:" + LineageSettings.System.DOUBLE_TAP_SLEEP_GESTURE;
++
+     private DragDownHelper mDragDownHelper;
+     private DoubleTapHelper mDoubleTapHelper;
+     private NotificationStackScrollLayout mStackScrollLayout;
+@@ -83,6 +92,10 @@ public class StatusBarWindowView extends FrameLayout {
+     private final Paint mTransparentSrcPaint = new Paint();
+     private FalsingManager mFalsingManager;
+ 
++    private boolean mDoubleTapToSleepEnabled;
++    private int mQuickQsTotalHeight;
++    private GestureDetector mDoubleTapGesture;
++
+     // Implements the floating action mode for TextView's Cut/Copy/Past menu. Normally provided by
+     // DecorView, but since this is a special window we have to roll our own.
+     private View mFloatingActionModeOriginatingView;
+@@ -104,6 +117,8 @@ public class StatusBarWindowView extends FrameLayout {
+             mService.wakeUpIfDozing(SystemClock.uptimeMillis(), this);
+             return true;
+         }, null, null);
++        mQuickQsTotalHeight = getResources().getDimensionPixelSize(
++                com.android.internal.R.dimen.quick_qs_total_height);
+     }
+ 
+     @Override
+@@ -200,6 +215,19 @@ public class StatusBarWindowView extends FrameLayout {
+     protected void onAttachedToWindow () {
+         super.onAttachedToWindow();
+ 
++        Dependency.get(TunerService.class).addTunable(this, DOUBLE_TAP_SLEEP_GESTURE);
++        mDoubleTapGesture = new GestureDetector(mContext,
++                new GestureDetector.SimpleOnGestureListener() {
++            @Override
++            public boolean onDoubleTap(MotionEvent e) {
++                PowerManager pm = mContext.getSystemService(PowerManager.class);
++                if (pm != null) {
++                    pm.goToSleep(e.getEventTime());
++                }
++                return true;
++            }
++        });
++
+         // We need to ensure that our window doesn't suffer from overdraw which would normally
+         // occur if our window is translucent. Since we are drawing the whole window anyway with
+         // the scrim, we don't need the window to be cleared in the beginning.
+@@ -215,6 +243,20 @@ public class StatusBarWindowView extends FrameLayout {
+         }
+     }
+ 
++    @Override
++    protected void onDetachedFromWindow() {
++        super.onDetachedFromWindow();
++        Dependency.get(TunerService.class).removeTunable(this);
++    }
++
++    @Override
++    public void onTuningChanged(String key, String newValue) {
++        if (!DOUBLE_TAP_SLEEP_GESTURE.equals(key)) {
++            return;
++        }
++        mDoubleTapToSleepEnabled = newValue == null || Integer.parseInt(newValue) == 1;
++    }
++
+     @Override
+     public boolean dispatchKeyEvent(KeyEvent event) {
+         if (mService.interceptMediaKey(event)) {
+@@ -301,6 +343,10 @@ public class StatusBarWindowView extends FrameLayout {
+             return true;
+         }
+         boolean intercept = false;
++        if (mDoubleTapToSleepEnabled
++                && ev.getY() < mQuickQsTotalHeight) {
++            mDoubleTapGesture.onTouchEvent(ev);
++        }
+         if (mNotificationPanel.isFullyExpanded()
+                 && mStackScrollLayout.getVisibility() == View.VISIBLE
+                 && mService.getBarState() == StatusBarState.KEYGUARD
+-- 
+2.17.1
+

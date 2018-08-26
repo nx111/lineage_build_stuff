@@ -1,0 +1,236 @@
+From 22a0e5dbb1fc3aa9f5f7814480e206a95307169b Mon Sep 17 00:00:00 2001
+From: Bruno Martins <bgcngm@gmail.com>
+Date: Wed, 6 Sep 2017 11:06:09 +0100
+Subject: [PATCH] telephony: Squashed support for simactivation feature
+
+ * This is a squash of the "OldRilFeatures" implementation plus
+   the following changes, forward-ported to P.
+
+   Author: Danny Baumann <dannybaumann@web.de>
+   Date:   Mon Dec 7 16:37:45 2015 +0100
+
+       Also activate default UICC apps once after SIM presence.
+
+       Some devices apparently need this, and it shouldn't hurt on other
+       devices either.
+
+       Change-Id: I7feb27cceeffc30081e682a6f6b0e2bdb6ad5087
+
+   Author: Danny Baumann <dannybaumann@web.de>
+   Date:   Thu Nov 5 11:06:09 2015 +0100
+
+       Activate default UICC application if not done automatically.
+
+       Provides compatibility to the pre-M behaviour.
+
+       Change-Id: Ie87e40cf1da3b19fd37e2c07ff50845f0842216a
+
+Change-Id: I785a91dadd79713f57641a3c20a94a0220a723e9
+---
+ .../internal/telephony/BaseCommands.java      |  3 +-
+ .../internal/telephony/CommandsInterface.java | 11 ++--
+ .../com/android/internal/telephony/RIL.java   | 20 +++++---
+ .../test/SimulatedCommandsVerifier.java       |  3 +-
+ .../internal/telephony/uicc/UiccProfile.java  | 51 +++++++++++++++++++
+ 5 files changed, 69 insertions(+), 19 deletions(-)
+
+diff --git a/src/java/com/android/internal/telephony/BaseCommands.java b/src/java/com/android/internal/telephony/BaseCommands.java
+index c8cea5a9b..7b6136470 100644
+--- a/src/java/com/android/internal/telephony/BaseCommands.java
++++ b/src/java/com/android/internal/telephony/BaseCommands.java
+@@ -879,8 +879,7 @@ public abstract class BaseCommands implements CommandsInterface {
+         return mRilVersion;
+     }
+ 
+-    public void setUiccSubscription(int slotId, int appIndex, int subId, int subStatus,
+-            Message response) {
++    public void setUiccSubscription(int appIndex, boolean activate, Message response) {
+     }
+ 
+     public void setDataAllowed(boolean allowed, Message response) {
+diff --git a/src/java/com/android/internal/telephony/CommandsInterface.java b/src/java/com/android/internal/telephony/CommandsInterface.java
+index 9f6ce5e00..c9ce5b47c 100644
+--- a/src/java/com/android/internal/telephony/CommandsInterface.java
++++ b/src/java/com/android/internal/telephony/CommandsInterface.java
+@@ -1952,20 +1952,15 @@ public interface CommandsInterface {
+    /**
+      * Sets user selected subscription at Modem.
+      *
+-     * @param slotId
+-     *          Slot.
+      * @param appIndex
+      *          Application index in the card.
+-     * @param subId
+-     *          Indicates subscription 0 or subscription 1.
+-     * @param subStatus
+-     *          Activation status, 1 = activate and 0 = deactivate.
++     * @param activate
++     *          Whether to activate or deactivate the subscription.
+      * @param result
+      *          Callback message contains the information of SUCCESS/FAILURE.
+      */
+     // FIXME Update the doc and consider modifying the request to make more generic.
+-    public void setUiccSubscription(int slotId, int appIndex, int subId, int subStatus,
+-            Message result);
++    public void setUiccSubscription(int appIndex, boolean activate, Message result);
+ 
+     /**
+      * Tells the modem if data is allowed or not.
+diff --git a/src/java/com/android/internal/telephony/RIL.java b/src/java/com/android/internal/telephony/RIL.java
+index 9e74ee23d..f8329630f 100644
+--- a/src/java/com/android/internal/telephony/RIL.java
++++ b/src/java/com/android/internal/telephony/RIL.java
+@@ -174,6 +174,7 @@ public class RIL extends BaseCommands implements CommandsInterface {
+     AtomicBoolean mTestingEmergencyCall = new AtomicBoolean(false);
+ 
+     final Integer mPhoneId;
++    private List<String> mOldRilFeatures;
+ 
+     /* default work source which will blame phone process */
+     private WorkSource mRILDefaultWorkSource;
+@@ -456,6 +457,9 @@ public class RIL extends BaseCommands implements CommandsInterface {
+         mPhoneType = RILConstants.NO_PHONE;
+         mPhoneId = instanceId;
+ 
++        final String oldRilFeatures = SystemProperties.get("ro.telephony.ril.config", "");
++        mOldRilFeatures = Arrays.asList(oldRilFeatures.split(","));
++
+         ConnectivityManager cm = (ConnectivityManager)context.getSystemService(
+                 Context.CONNECTIVITY_SERVICE);
+         mIsMobileNetworkSupported = cm.isNetworkSupported(ConnectivityManager.TYPE_MOBILE);
+@@ -3315,8 +3319,7 @@ public class RIL extends BaseCommands implements CommandsInterface {
+     }
+ 
+     @Override
+-    public void setUiccSubscription(int slotId, int appIndex, int subId,
+-                                    int subStatus, Message result) {
++    public void setUiccSubscription(int appIndex, boolean activate, Message result) {
+         IRadio radioProxy = getRadioProxy(result);
+         if (radioProxy != null) {
+             RILRequest rr = obtainRequest(RIL_REQUEST_SET_UICC_SUBSCRIPTION, result,
+@@ -3324,15 +3327,14 @@ public class RIL extends BaseCommands implements CommandsInterface {
+ 
+             if (RILJ_LOGD) {
+                 riljLog(rr.serialString() + "> " + requestToString(rr.mRequest)
+-                        + " slot = " + slotId + " appIndex = " + appIndex
+-                        + " subId = " + subId + " subStatus = " + subStatus);
++                        + " appIndex: " + appIndex + " activate: " + activate);
+             }
+ 
+             SelectUiccSub info = new SelectUiccSub();
+-            info.slot = slotId;
++            info.slot = mPhoneId;
+             info.appIndex = appIndex;
+-            info.subType = subId;
+-            info.actStatus = subStatus;
++            info.subType = mPhoneId;
++            info.actStatus = activate ? 1 : 0;
+ 
+             try {
+                 radioProxy.setUiccSubscription(rr.mSerial, info);
+@@ -5552,4 +5554,8 @@ public class RIL extends BaseCommands implements CommandsInterface {
+                 signalStrength.wcdma.base.signalStrength,
+                 signalStrength.wcdma.rscp);
+     }
++
++    public boolean needsOldRilFeature(String feature) {
++        return mOldRilFeatures.contains(feature);
++    }
+ }
+diff --git a/src/java/com/android/internal/telephony/test/SimulatedCommandsVerifier.java b/src/java/com/android/internal/telephony/test/SimulatedCommandsVerifier.java
+index f43cee03f..2d7e81498 100644
+--- a/src/java/com/android/internal/telephony/test/SimulatedCommandsVerifier.java
++++ b/src/java/com/android/internal/telephony/test/SimulatedCommandsVerifier.java
+@@ -1308,8 +1308,7 @@ public class SimulatedCommandsVerifier implements CommandsInterface {
+     }
+ 
+     @Override
+-    public void setUiccSubscription(int slotId, int appIndex, int subId, int subStatus,
+-                                    Message result) {
++    public void setUiccSubscription(int appIndex, boolean activate, Message result) {
+ 
+     }
+ 
+diff --git a/src/java/com/android/internal/telephony/uicc/UiccProfile.java b/src/java/com/android/internal/telephony/uicc/UiccProfile.java
+index 8d0417483..3907a90c0 100644
+--- a/src/java/com/android/internal/telephony/uicc/UiccProfile.java
++++ b/src/java/com/android/internal/telephony/uicc/UiccProfile.java
+@@ -55,6 +55,7 @@ import com.android.internal.telephony.MccTable;
+ import com.android.internal.telephony.Phone;
+ import com.android.internal.telephony.PhoneConstants;
+ import com.android.internal.telephony.PhoneFactory;
++import com.android.internal.telephony.RIL;
+ import com.android.internal.telephony.SubscriptionController;
+ import com.android.internal.telephony.cat.CatService;
+ import com.android.internal.telephony.uicc.IccCardApplicationStatus.AppType;
+@@ -103,6 +104,7 @@ public class UiccProfile extends IccCard {
+     private final UiccCard mUiccCard; //parent
+     private CatService mCatService;
+     private UiccCarrierPrivilegeRules mCarrierPrivilegeRules;
++    private boolean mDefaultAppsActivated;
+     private boolean mDisposed = false;
+ 
+     private RegistrantList mCarrierPrivilegeRegistrants = new RegistrantList();
+@@ -920,10 +922,59 @@ public class UiccProfile extends IccCard {
+             }
+ 
+             sanitizeApplicationIndexesLocked();
++
++            if (needsSimActivation()) {
++                if (ics.mCardState == CardState.CARDSTATE_PRESENT) {
++                    if (!mDefaultAppsActivated) {
++                        activateDefaultApps();
++                        mDefaultAppsActivated = true;
++                    }
++                } else {
++                    // SIM removed, reset activation flag to make sure
++                    // to re-run the activation at the next insertion
++                    mDefaultAppsActivated = false;
++                }
++            }
++
+             updateIccAvailability(true);
+         }
+     }
+ 
++    private boolean needsSimActivation() {
++        if (mCi instanceof RIL) {
++            return ((RIL) mCi).needsOldRilFeature("simactivation");
++        }
++        return false;
++    }
++
++    private void activateDefaultApps() {
++        int gsmIndex = mGsmUmtsSubscriptionAppIndex;
++        int cdmaIndex = mCdmaSubscriptionAppIndex;
++
++        if (gsmIndex < 0 || cdmaIndex < 0) {
++            for (int i = 0; i < mUiccApplications.length; i++) {
++                if (mUiccApplications[i] == null) {
++                    continue;
++                }
++
++                AppType appType = mUiccApplications[i].getType();
++                if (gsmIndex < 0 &&
++                        (appType == AppType.APPTYPE_USIM || appType == AppType.APPTYPE_SIM)) {
++                    gsmIndex = i;
++                } else if (cdmaIndex < 0 &&
++                        (appType == AppType.APPTYPE_CSIM || appType == AppType.APPTYPE_RUIM)) {
++                    cdmaIndex = i;
++                }
++            }
++        }
++        if (gsmIndex >= 0) {
++            mCi.setUiccSubscription(gsmIndex, true, null);
++        }
++        if (cdmaIndex >= 0) {
++            mCi.setUiccSubscription(cdmaIndex, true, null);
++        }
++    }
++
+     private void createAndUpdateCatServiceLocked() {
+         if (mUiccApplications.length > 0 && mUiccApplications[0] != null) {
+             // Initialize or Reinitialize CatService
+-- 
+2.17.1
+

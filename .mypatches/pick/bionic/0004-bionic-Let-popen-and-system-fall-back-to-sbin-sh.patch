@@ -1,0 +1,55 @@
+From 9077339adcb2e2dcfb6bddf5d3c9ef6c467cca48 Mon Sep 17 00:00:00 2001
+From: Tom Marshall <tdm@cyngn.com>
+Date: Tue, 3 Nov 2015 11:12:23 -0800
+Subject: [PATCH 04/11] bionic: Let popen and system fall back to /sbin/sh
+
+This allows recovery utilities such as minivold to work.
+
+Change-Id: I2136b0ca4188b7b44416f5d79492fc006382d4ad
+---
+ libc/include/paths.h                           | 1 +
+ libc/upstream-netbsd/lib/libc/gen/popen.c      | 2 ++
+ libc/upstream-openbsd/lib/libc/stdlib/system.c | 2 ++
+ 3 files changed, 5 insertions(+)
+
+diff --git a/libc/include/paths.h b/libc/include/paths.h
+index 922d1ceeb..e9c99f637 100644
+--- a/libc/include/paths.h
++++ b/libc/include/paths.h
+@@ -37,6 +37,7 @@
+ #ifndef _PATH_BSHELL
+ #define	_PATH_BSHELL	"/system/bin/sh"
+ #endif
++#define	_PATH_BSHELL2	"/sbin/sh"
+ #define	_PATH_CONSOLE	"/dev/console"
+ #define	_PATH_DEFPATH	"/sbin:/system/sbin:/system/bin:/system/xbin:/odm/bin:/vendor/bin:/vendor/xbin"
+ #define	_PATH_DEV	"/dev/"
+diff --git a/libc/upstream-netbsd/lib/libc/gen/popen.c b/libc/upstream-netbsd/lib/libc/gen/popen.c
+index 593e34631..b6ce47c5d 100644
+--- a/libc/upstream-netbsd/lib/libc/gen/popen.c
++++ b/libc/upstream-netbsd/lib/libc/gen/popen.c
+@@ -152,6 +152,8 @@ popen(const char *command, const char *type)
+ 		}
+ 
+ 		execl(_PATH_BSHELL, "sh", "-c", command, NULL);
++		if (errno == ENOENT)
++			execl(_PATH_BSHELL2, "sh", "-c", command, NULL);
+ 		_exit(127);
+ 		/* NOTREACHED */
+ 	}
+diff --git a/libc/upstream-openbsd/lib/libc/stdlib/system.c b/libc/upstream-openbsd/lib/libc/stdlib/system.c
+index de32d4328..b609554db 100644
+--- a/libc/upstream-openbsd/lib/libc/stdlib/system.c
++++ b/libc/upstream-openbsd/lib/libc/stdlib/system.c
+@@ -62,6 +62,8 @@ system(const char *command)
+ 	case 0:				/* child */
+ 		sigprocmask(SIG_SETMASK, &omask, NULL);
+ 		execve(_PATH_BSHELL, argp, environ);
++		if (errno == ENOENT)
++			execve(_PATH_BSHELL2, argp, environ);
+ 		_exit(127);
+ 	}
+ 
+-- 
+2.17.1
+

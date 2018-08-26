@@ -1,0 +1,122 @@
+From d534cf23a0ee29070e0c448f386d19c761c92639 Mon Sep 17 00:00:00 2001
+From: dhacker29 <dhackerdvm@gmail.com>
+Date: Tue, 24 Nov 2015 01:53:47 -0500
+Subject: [PATCH 68/80] Core: Use ro.build.date to signal mIsUpgrade
+
+M: We use a static fingerprint that is only changed when a new OEM build is released, so every flash shows Android is starting instead of upgrading.  This will fix that.
+
+N: even though we dont have the dexopt sceen on N, this is still needed to delete the correct caches, and grant/deny specific runtime permissions like a true oem update would do
+
+Updated for Nougat By: BeansTown106
+
+Change-Id: I0e3ed5c8f0351e48944432ae6a0c5194ddeff1fa
+---
+ core/java/android/os/Build.java                        |  6 ++++++
+ .../com/android/server/pm/PackageManagerService.java   |  8 ++++----
+ services/core/java/com/android/server/pm/Settings.java | 10 +++++-----
+ 3 files changed, 15 insertions(+), 9 deletions(-)
+
+diff --git a/core/java/android/os/Build.java b/core/java/android/os/Build.java
+index 2de07b5bb40..dfdeb346bef 100644
+--- a/core/java/android/os/Build.java
++++ b/core/java/android/os/Build.java
+@@ -56,6 +56,12 @@ public class Build {
+     /** The name of the underlying board, like "goldfish". */
+     public static final String BOARD = getString("ro.product.board");
+ 
++    /**
++     * The build date
++     * @hide
++     */
++    public static final String DATE = getString("ro.build.date");
++
+     /**
+      * The name of the instruction set (CPU type + ABI convention) of native code.
+      *
+diff --git a/services/core/java/com/android/server/pm/PackageManagerService.java b/services/core/java/com/android/server/pm/PackageManagerService.java
+index 9ed2b9c1854..b4146a4c018 100644
+--- a/services/core/java/com/android/server/pm/PackageManagerService.java
++++ b/services/core/java/com/android/server/pm/PackageManagerService.java
+@@ -2565,10 +2565,10 @@ public class PackageManagerService extends IPackageManager.Stub
+             File frameworkDir = new File(Environment.getRootDirectory(), "framework");
+ 
+             final VersionInfo ver = mSettings.getInternalVersion();
+-            mIsUpgrade = !Build.FINGERPRINT.equals(ver.fingerprint);
++            mIsUpgrade = !Build.DATE.equals(ver.fingerprint);
+             if (mIsUpgrade) {
+                 logCriticalInfo(Log.INFO,
+-                        "Upgrading from " + ver.fingerprint + " to " + Build.FINGERPRINT);
++                        "Upgrading from " + ver.fingerprint + " to " + Build.DATE);
+             }
+ 
+             // when upgrading from pre-M, promote system app permissions from install to runtime
+@@ -3165,7 +3165,7 @@ public class PackageManagerService extends IPackageManager.Stub
+                                         | Installer.FLAG_CLEAR_CODE_CACHE_ONLY);
+                     }
+                 }
+-                ver.fingerprint = Build.FINGERPRINT;
++                ver.fingerprint = Build.DATE;
+             }
+ 
+             checkDefaultBrowser();
+@@ -22152,7 +22152,7 @@ Slog.v(TAG, ":: stepped forward, applying functor at tag " + parser.getName());
+                     Slog.w(TAG, "Failed to scan " + ps.codePath + ": " + e.getMessage());
+                 }
+ 
+-                if (!Build.FINGERPRINT.equals(ver.fingerprint)) {
++                if (!Build.DATE.equals(ver.fingerprint)) {
+                     clearAppDataLIF(ps.pkg, UserHandle.USER_ALL,
+                             StorageManager.FLAG_STORAGE_DE | StorageManager.FLAG_STORAGE_CE
+                                     | Installer.FLAG_CLEAR_CODE_CACHE_ONLY);
+diff --git a/services/core/java/com/android/server/pm/Settings.java b/services/core/java/com/android/server/pm/Settings.java
+index 5177995a835..a1031f1ce8a 100644
+--- a/services/core/java/com/android/server/pm/Settings.java
++++ b/services/core/java/com/android/server/pm/Settings.java
+@@ -350,7 +350,7 @@ public final class Settings {
+         public void forceCurrent() {
+             sdkVersion = Build.VERSION.SDK_INT;
+             databaseVersion = CURRENT_DATABASE_VERSION;
+-            fingerprint = Build.FINGERPRINT;
++            fingerprint = Build.DATE;
+         }
+     }
+ 
+@@ -3160,7 +3160,7 @@ public final class Settings {
+         // on update drop the files before loading them.
+         if (PackageManagerService.CLEAR_RUNTIME_PERMISSIONS_ON_UPGRADE) {
+             final VersionInfo internal = getInternalVersion();
+-            if (!Build.FINGERPRINT.equals(internal.fingerprint)) {
++            if (!Build.DATE.equals(internal.fingerprint)) {
+                 for (UserInfo user : users) {
+                     mRuntimePermissionsPersistence.deleteUserRuntimePermissionsFile(user.id);
+                 }
+@@ -5147,7 +5147,7 @@ public final class Settings {
+         }
+ 
+         public void onDefaultRuntimePermissionsGrantedLPr(int userId) {
+-            mFingerprints.put(userId, Build.FINGERPRINT);
++            mFingerprints.put(userId, Build.DATE);
+             writePermissionsForUserAsyncLPr(userId);
+         }
+ 
+@@ -5311,7 +5311,7 @@ public final class Settings {
+                 serializer.endDocument();
+                 destination.finishWrite(out);
+ 
+-                if (Build.FINGERPRINT.equals(fingerprint)) {
++                if (Build.DATE.equals(fingerprint)) {
+                     mDefaultPermissionsGranted.put(userId, true);
+                 }
+             // Any error while writing is fatal.
+@@ -5423,7 +5423,7 @@ public final class Settings {
+                     case TAG_RUNTIME_PERMISSIONS: {
+                         String fingerprint = parser.getAttributeValue(null, ATTR_FINGERPRINT);
+                         mFingerprints.put(userId, fingerprint);
+-                        final boolean defaultsGranted = Build.FINGERPRINT.equals(fingerprint);
++                        final boolean defaultsGranted = Build.DATE.equals(fingerprint);
+                         mDefaultPermissionsGranted.put(userId, defaultsGranted);
+                     } break;
+ 
+-- 
+2.17.1
+

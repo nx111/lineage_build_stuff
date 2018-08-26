@@ -1,0 +1,58 @@
+From 752e68d47125774367d9f1ff321b315d3c217551 Mon Sep 17 00:00:00 2001
+From: Scott Warner <Tortel1210@gmail.com>
+Date: Tue, 15 May 2018 11:07:11 -0400
+Subject: [PATCH 3/3] CallLogDatabase: Bump the version and try to re-run the
+ version 5 upgrade path
+
+In Lineage 14.1, we changed the version of the database to 5. Because of that, anyone who
+upgraded from 14.1 to 15.x missed this upgrade path.
+The missing column causes crashes in some apps
+
+Change-Id: I696a45dde08e2457335c7ed51806abeb27f85705
+---
+ .../providers/contacts/CallLogDatabaseHelper.java | 15 ++++++++++++---
+ 1 file changed, 12 insertions(+), 3 deletions(-)
+
+diff --git a/src/com/android/providers/contacts/CallLogDatabaseHelper.java b/src/com/android/providers/contacts/CallLogDatabaseHelper.java
+index 736d6657..a3fb9aaa 100644
+--- a/src/com/android/providers/contacts/CallLogDatabaseHelper.java
++++ b/src/com/android/providers/contacts/CallLogDatabaseHelper.java
+@@ -21,6 +21,7 @@ import android.content.Context;
+ import android.database.Cursor;
+ import android.database.DatabaseUtils;
+ import android.database.sqlite.SQLiteDatabase;
++import android.database.sqlite.SQLiteException;
+ import android.database.sqlite.SQLiteOpenHelper;
+ import android.provider.CallLog.Calls;
+ import android.provider.VoicemailContract;
+@@ -39,7 +40,7 @@ import com.android.providers.contacts.util.PropertyUtils;
+ public class CallLogDatabaseHelper {
+     private static final String TAG = "CallLogDatabaseHelper";
+ 
+-    private static final int DATABASE_VERSION = 5;
++    private static final int DATABASE_VERSION = 6;
+ 
+     private static final boolean DEBUG = false; // DON'T SUBMIT WITH TRUE
+ 
+@@ -201,8 +202,16 @@ public class CallLogDatabaseHelper {
+                 upgradeToVersion4(db);
+             }
+ 
+-            if (oldVersion < 5) {
+-                upgradeToVersion5(db);
++            // In Lineage 14.1, we changed the version to 5 so the AOSP version 5 upgrade was skipped
++            if (oldVersion < 6) {
++                try {
++                    upgradeToVersion5(db);
++                } catch (SQLiteException e) {
++                    // For the case of not upgrading from 14.1, the column already exists. Ignore duplicate column exceptions
++                    if (!e.getMessage().contains("duplicate")) {
++                        throw e;
++                    }
++                }
+             }
+         }
+     }
+-- 
+2.17.1
+
