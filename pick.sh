@@ -371,7 +371,7 @@ function get_active_rrcache()
             if [ "$key" = "$md5num" ]; then
                rrid=$(basename $(dirname $rrf))
                [ -d $topdir/.mypatches/rr-cache ] || mkdir -p $topdir/.mypatches/rr-cache
-               [ "$script_file" == "bash" ] && rr_cache_list="rr-cache.list"
+               [ "$script_file" == "bash" -a ! -f $topdir/.mypatches/rr-cache/rr_cache_list ] && rr_cache_list="rr-cache.list"
                 
                [ -f $topdir/.mypatches/rr-cache/$rr_cache_list ] || touch $topdir/.mypatches/rr-cache/$rr_cache_list
                if ! grep -q "$rrid $project" $topdir/.mypatches/rr-cache/$rr_cache_list; then
@@ -389,7 +389,7 @@ function kpick()
     topdir=$(gettop)
     conflict_resolved=0
     op_force_pick=0
-    logfile=/tmp/__repopick_tmp.log
+    logfile=$topdir/.pick_tmp.log
     errfile=$(echo $logfile | sed -e "s/\.log$/\.err/")
 
     rm -f $errfile $logfile
@@ -1001,6 +1001,8 @@ kpick 225828 # Disable notification channel warnings by default
 kpick 225859 # storage: Do not notify for volumes on non-removable disks
 kpick 225861 # [2/3] NetworkManagement : Add ability to restrict app data/wifi usage
 kpick 225878 # Download: Add support to manually pause/resume download
+kpick 225915 # UpdateEngine: Add perf mode binder interface
+kpick 225919 # PackageManager: allow build-time disabling of components
 
 # frameworks/native
 kpick 224443 # libbinder: Don't log call trace when waiting for vendor service on non-eng builds
@@ -1074,8 +1076,8 @@ kpick 225034 # msm8974: Add -Wno-error to compile with global -Werror.
 kpick 223441 # Add -Wno-error to compile with global -Werror.
 
 # hardware/qcom/power
-#kpick 223892 # power: Add power hint to set profile
 kpick 223890 # Revert "power: Depend on vendor lineage power HAL"
+#kpick 223892 # power: Add power hint to set profile
 
 # hardware/ril-caf
 kpick 225736 # libril: allow board to provide libril
@@ -1244,11 +1246,16 @@ kpick 225819 # Settings: Add a RemotePreference for device-specific doze setting
 kpick 225857 # Settings: adaptive icon
 kpick 225858 # storage: Do not allow eject for volumes on non-removable disks
 kpick 225860 # [1/3] Settings: per-app cellular data and wifi restrictions
+kpick 225970 # DevelopmentSettings: Hide OEM unlock by default
+kpick 225979 # Settings: Add package name to installed app details
 
 # packages/apps/SetupWizard
 
 # packages/apps/Stk
 kpick 225342 # Stk: adaptive icon
+
+# packages/apps/Trebuchet
+kpick 222333 # Settings: Hide Notification Dots on low RAM devices
 
 # packages/apps/UnifiedEmail
 kpick 225343 # unified email: prefer account display name to sender name
@@ -1386,17 +1393,29 @@ kpick 225450 # vold: Make sure block device exists before formatting it
 kpick 225451 # vold: Also wait for dm device when mounting private volume
 kpick 225452 # secdiscard: should pin_file to avoid moving blocks in F2FS
 kpick 225881 # vold: Make exfat driver support generic
+kpick 225948 # Support Samsung's implementation of exfat, called sdfat
 
 # vendor/lineage
+kpick 223460 # envsetup: Add githubremote function
+kpick 223773 # Add IPv6 for Oister and 3. The 3.dk and oister.dk carriers now support IPv6 ...
+kpick 223944 # [DNM]: use aosp wifi until CAF bringup
 kpick 224828 # vendor/lineage: Add support for java source overlays
-kpick 225646 # privapp-permissions: Add FlipFlap permissions
 kpick 224758 # lineage: Always show option for swipe gesture nav bar
-kpick 225801 # lineage: Move qcom board variables earlier
-kpick 225550 # soong_config: Add TARGET_NEEDS_LEGACY_CAMERA_HAL1_DYN_NATIVE_HANDLE
-kpick 225758 # qcom: Declare PRODUCT_SOONG_NAMESPACES for HALs
-kpick 225495 # config: Use standard inherit-product-if-exists for vendor/extra
-kpick 225865 # soong_config: Allow extension of valid gralloc 1.0 buffer usage bits
 kpick 225882 # soong_config: Add TARGET_EXFAT_DRIVER variable
+kpick 225921 # overlay: Update list of GSF/GMS activities
+kpick 225922 # overlay: Hide "System update" in settings
+kpick 225938 # roomservice.py: document the hell out of the current behavior of the script
+kpick 225646 # privapp-permissions: Add FlipFlap permissions
+kpick 225495 # config: Use standard inherit-product-if-exists for vendor/extra
+kpick 225550 # soong_config: Add TARGET_NEEDS_LEGACY_CAMERA_HAL1_DYN_NATIVE_HANDLE
+kpick 225801 # lineage: Move qcom board variables earlier
+kpick 225758 # qcom: Declare PRODUCT_SOONG_NAMESPACES for HALs
+kpick 225865 # soong_config: Allow extension of valid gralloc 1.0 buffer usage bits
+kpick 225942 # soong_config: Allow whitelisted processes to use destroyed mutex
+#kpick 225978 # soong_config: Remove extra spacing
+kpick 225939 # roomservice.py: non-depsonly: bootstrap first device repo from Hudson
+#kpick 225981 # roomservice.py: depsonly: do not look up device repo by name in the manifest
+#kpick 225982 # roomservice.py: Strip cm.{mk,dependencies} support
 
 # vendor/qcom/opensource/audio
 

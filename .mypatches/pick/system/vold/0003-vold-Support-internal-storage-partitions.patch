@@ -1,4 +1,4 @@
-From 3e37b09de74f91468892fa82a0edffce141beaa4 Mon Sep 17 00:00:00 2001
+From 5b743df69dda983f8adde59f25eba4153a9d3802 Mon Sep 17 00:00:00 2001
 From: Tom Marshall <tdm@cyngn.com>
 Date: Wed, 4 Nov 2015 15:44:44 -0800
 Subject: [PATCH 03/20] vold: Support internal storage partitions
@@ -32,9 +32,9 @@ Change-Id: Id7ec3ea409b5c96e691730604e4b1e9cc3aa9d33
  VolumeManager.h         |  7 +++-
  main.cpp                | 11 +++--
  model/Disk.h            | 18 +++++----
- model/DiskPartition.cpp | 89 +++++++++++++++++++++++++++++++++++++++++
+ model/DiskPartition.cpp | 90 +++++++++++++++++++++++++++++++++++++++++
  model/DiskPartition.h   | 53 ++++++++++++++++++++++++
- 7 files changed, 169 insertions(+), 18 deletions(-)
+ 7 files changed, 170 insertions(+), 18 deletions(-)
  create mode 100644 model/DiskPartition.cpp
  create mode 100644 model/DiskPartition.h
 
@@ -107,7 +107,7 @@ index fb455d8..02eaddd 100644
      };
  
 diff --git a/main.cpp b/main.cpp
-index 0c1b90b..0ca1d26 100644
+index 0c1b90b..7c3b5ed 100644
 --- a/main.cpp
 +++ b/main.cpp
 @@ -237,13 +237,9 @@ static int process_config(VolumeManager* vm, bool* has_adoptable, bool* has_quot
@@ -129,7 +129,7 @@ index 0c1b90b..0ca1d26 100644
                      || android::base::GetBoolProperty("vold.debug.default_primary", false)) {
                  flags |= android::vold::Disk::Flags::kDefaultPrimary;
              }
-+            if (fs_mgr_is_nonremovable(rec) {
++            if (fs_mgr_is_nonremovable(rec)) {
 +                flags |= android::vold::Disk::Flags::kNonRemovable;
 +            }
  
@@ -182,10 +182,10 @@ index 63acf6a..fda4566 100644
      /* Original event path */
 diff --git a/model/DiskPartition.cpp b/model/DiskPartition.cpp
 new file mode 100644
-index 0000000..e0a606a
+index 0000000..1cbcfbb
 --- /dev/null
 +++ b/model/DiskPartition.cpp
-@@ -0,0 +1,89 @@
+@@ -0,0 +1,90 @@
 +/*
 + * Copyright (C) 2015 Cyanogen, Inc.
 + *
@@ -208,7 +208,6 @@ index 0000000..e0a606a
 +#include "Utils.h"
 +#include "VolumeBase.h"
 +#include "VolumeManager.h"
-+#include "ResponseCode.h"
 +
 +#include <android-base/file.h>
 +#include <android-base/stringprintf.h>
@@ -246,7 +245,8 @@ index 0000000..e0a606a
 +status_t DiskPartition::create() {
 +    CHECK(!mCreated);
 +    mCreated = true;
-+    notifyEvent(ResponseCode::DiskCreated, StringPrintf("%d", mFlags));
++    auto listener = VolumeManager::Instance()->getListener();
++    if (listener) listener->onDiskCreated(getId(), mFlags);
 +    dev_t partDevice = makedev(major(mDevice), minor(mDevice) + mPartNum);
 +    createPublicVolume(partDevice);
 +    return OK;
@@ -256,7 +256,8 @@ index 0000000..e0a606a
 +    CHECK(mCreated);
 +    destroyAllVolumes();
 +    mCreated = false;
-+    notifyEvent(ResponseCode::DiskDestroyed);
++    auto listener = VolumeManager::Instance()->getListener();
++    if (listener) listener->onDiskDestroyed(getId());
 +    return OK;
 +}
 +
