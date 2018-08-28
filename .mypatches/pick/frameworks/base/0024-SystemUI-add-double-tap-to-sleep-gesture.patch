@@ -1,7 +1,7 @@
-From dfb415da192c8269b9fb9ac01409d941f3279506 Mon Sep 17 00:00:00 2001
+From cf6c5820d7157bdc813f4ae8a6fc2a87f7ed2419 Mon Sep 17 00:00:00 2001
 From: Rashed Abdel-Tawab <rashed@linux.com>
 Date: Tue, 3 Oct 2017 17:17:37 -0400
-Subject: [PATCH 24/80] SystemUI: add double tap to sleep gesture
+Subject: [PATCH 24/81] SystemUI: add double tap to sleep gesture
 
 Author: Roman Birg <roman@cyngn.com>
 Date:   Sun Nov 23 06:54:06 2014 -0800
@@ -49,12 +49,12 @@ Date:   Wed Nov 11 16:07:49 2015 -0500
 
 Change-Id: Ic1a40d4340890905de2631c666270e81c390d261
 ---
- .../phone/NotificationPanelView.java          | 28 ++++++++++-
- .../statusbar/phone/StatusBarWindowView.java  | 50 ++++++++++++++++++-
- 2 files changed, 75 insertions(+), 3 deletions(-)
+ .../phone/NotificationPanelView.java          | 25 ++++++++++
+ .../statusbar/phone/StatusBarWindowView.java  | 49 ++++++++++++++++++-
+ 2 files changed, 72 insertions(+), 2 deletions(-)
 
 diff --git a/packages/SystemUI/src/com/android/systemui/statusbar/phone/NotificationPanelView.java b/packages/SystemUI/src/com/android/systemui/statusbar/phone/NotificationPanelView.java
-index b2c6ff98db6..e864d811a9b 100644
+index 3de0d300895..88c2ddb7b03 100644
 --- a/packages/SystemUI/src/com/android/systemui/statusbar/phone/NotificationPanelView.java
 +++ b/packages/SystemUI/src/com/android/systemui/statusbar/phone/NotificationPanelView.java
 @@ -40,6 +40,7 @@ import android.util.AttributeSet;
@@ -65,7 +65,7 @@ index b2c6ff98db6..e864d811a9b 100644
  import android.view.LayoutInflater;
  import android.view.MotionEvent;
  import android.view.VelocityTracker;
-@@ -107,6 +108,8 @@ public class NotificationPanelView extends PanelView implements
+@@ -106,6 +107,8 @@ public class NotificationPanelView extends PanelView implements
  
      private static final String STATUS_BAR_QUICK_QS_PULLDOWN =
              "lineagesystem:" + LineageSettings.System.STATUS_BAR_QUICK_QS_PULLDOWN;
@@ -74,7 +74,7 @@ index b2c6ff98db6..e864d811a9b 100644
  
      private static final Rect mDummyDirtyRect = new Rect(0, 0, 1, 1);
  
-@@ -288,6 +291,9 @@ public class NotificationPanelView extends PanelView implements
+@@ -287,6 +290,9 @@ public class NotificationPanelView extends PanelView implements
              .setCustomInterpolator(PANEL_ALPHA.getProperty(), Interpolators.ALPHA_IN);
  
      private int mOneFingerQuickSettingsIntercept;
@@ -84,7 +84,7 @@ index b2c6ff98db6..e864d811a9b 100644
  
      public NotificationPanelView(Context context, AttributeSet attrs) {
          super(context, attrs);
-@@ -298,6 +304,16 @@ public class NotificationPanelView extends PanelView implements
+@@ -297,6 +303,16 @@ public class NotificationPanelView extends PanelView implements
          setAccessibilityPaneTitle(determineAccessibilityPaneTitle());
          mAlphaPaint.setXfermode(new PorterDuffXfermode(PorterDuff.Mode.MULTIPLY));
          setPanelAlpha(255, false /* animate */);
@@ -101,27 +101,24 @@ index b2c6ff98db6..e864d811a9b 100644
      }
  
      public void setStatusBar(StatusBar bar) {
-@@ -331,7 +347,8 @@ public class NotificationPanelView extends PanelView implements
-         super.onAttachedToWindow();
+@@ -331,6 +347,7 @@ public class NotificationPanelView extends PanelView implements
          FragmentHostManager.get(this).addTagListener(QS.TAG, mFragmentListener);
-         Dependency.get(TunerService.class).addTunable(this,
--                STATUS_BAR_QUICK_QS_PULLDOWN);
-+                STATUS_BAR_QUICK_QS_PULLDOWN,
-+                DOUBLE_TAP_SLEEP_GESTURE);
+         final TunerService tunerService = Dependency.get(TunerService.class);
+         tunerService.addTunable(this, STATUS_BAR_QUICK_QS_PULLDOWN);
++        tunerService.addTunable(this, DOUBLE_TAP_SLEEP_GESTURE);
      }
  
      @Override
-@@ -348,6 +365,9 @@ public class NotificationPanelView extends PanelView implements
-                 mOneFingerQuickSettingsIntercept =
-                         newValue == null ? 1 : Integer.parseInt(newValue);
-                 break;
-+            case DOUBLE_TAP_SLEEP_GESTURE:
-+                mDoubleTapToSleepEnabled = newValue == null || Integer.parseInt(newValue) == 1;
-+                break;
-             default:
-                 break;
+@@ -344,6 +361,8 @@ public class NotificationPanelView extends PanelView implements
+     public void onTuningChanged(String key, String newValue) {
+         if (STATUS_BAR_QUICK_QS_PULLDOWN.equals(key)) {
+             mOneFingerQuickSettingsIntercept = newValue == null ? 1 : Integer.parseInt(newValue);
++        } else if (DOUBLE_TAP_SLEEP_GESTURE.equals(key)) {
++            mDoubleTapToSleepEnabled = newValue == null || Integer.parseInt(newValue) == 1;
          }
-@@ -374,6 +394,8 @@ public class NotificationPanelView extends PanelView implements
+     }
+ 
+@@ -368,6 +387,8 @@ public class NotificationPanelView extends PanelView implements
                  R.dimen.keyguard_indication_bottom_padding);
          mQsNotificationTopPadding = getResources().getDimensionPixelSize(
                  R.dimen.qs_notification_padding);
@@ -130,7 +127,7 @@ index b2c6ff98db6..e864d811a9b 100644
      }
  
      public void updateResources() {
-@@ -886,6 +908,10 @@ public class NotificationPanelView extends PanelView implements
+@@ -880,6 +901,10 @@ public class NotificationPanelView extends PanelView implements
          if (mBlockTouches || (mQs != null && mQs.isCustomizing())) {
              return false;
          }
@@ -142,7 +139,7 @@ index b2c6ff98db6..e864d811a9b 100644
          if (mListenForHeadsUp && !mHeadsUpTouchHelper.isTrackingHeadsUp()
                  && mHeadsUpTouchHelper.onInterceptTouchEvent(event)) {
 diff --git a/packages/SystemUI/src/com/android/systemui/statusbar/phone/StatusBarWindowView.java b/packages/SystemUI/src/com/android/systemui/statusbar/phone/StatusBarWindowView.java
-index a79a41b0779..633c1449cab 100644
+index a79a41b0779..f4c6a7b1d7d 100644
 --- a/packages/SystemUI/src/com/android/systemui/statusbar/phone/StatusBarWindowView.java
 +++ b/packages/SystemUI/src/com/android/systemui/statusbar/phone/StatusBarWindowView.java
 @@ -34,9 +34,11 @@ import android.media.session.MediaSessionLegacyHelper;
@@ -157,7 +154,7 @@ index a79a41b0779..633c1449cab 100644
  import android.view.InputDevice;
  import android.view.InputQueue;
  import android.view.KeyEvent;
-@@ -56,20 +58,27 @@ import android.widget.FrameLayout;
+@@ -56,20 +58,26 @@ import android.widget.FrameLayout;
  import com.android.internal.annotations.VisibleForTesting;
  import com.android.internal.view.FloatingActionMode;
  import com.android.internal.widget.FloatingToolbar;
@@ -168,7 +165,6 @@ index a79a41b0779..633c1449cab 100644
  import com.android.systemui.statusbar.StatusBarState;
  import com.android.systemui.statusbar.stack.NotificationStackScrollLayout;
 +import com.android.systemui.tuner.TunerService;
-+import com.android.systemui.tuner.TunerServiceImpl;
 +
 +import lineageos.providers.LineageSettings;
  
@@ -187,7 +183,7 @@ index a79a41b0779..633c1449cab 100644
      private DragDownHelper mDragDownHelper;
      private DoubleTapHelper mDoubleTapHelper;
      private NotificationStackScrollLayout mStackScrollLayout;
-@@ -83,6 +92,10 @@ public class StatusBarWindowView extends FrameLayout {
+@@ -83,6 +91,10 @@ public class StatusBarWindowView extends FrameLayout {
      private final Paint mTransparentSrcPaint = new Paint();
      private FalsingManager mFalsingManager;
  
@@ -198,7 +194,7 @@ index a79a41b0779..633c1449cab 100644
      // Implements the floating action mode for TextView's Cut/Copy/Past menu. Normally provided by
      // DecorView, but since this is a special window we have to roll our own.
      private View mFloatingActionModeOriginatingView;
-@@ -104,6 +117,8 @@ public class StatusBarWindowView extends FrameLayout {
+@@ -104,6 +116,8 @@ public class StatusBarWindowView extends FrameLayout {
              mService.wakeUpIfDozing(SystemClock.uptimeMillis(), this);
              return true;
          }, null, null);
@@ -207,7 +203,7 @@ index a79a41b0779..633c1449cab 100644
      }
  
      @Override
-@@ -200,6 +215,19 @@ public class StatusBarWindowView extends FrameLayout {
+@@ -200,6 +214,19 @@ public class StatusBarWindowView extends FrameLayout {
      protected void onAttachedToWindow () {
          super.onAttachedToWindow();
  
@@ -227,7 +223,7 @@ index a79a41b0779..633c1449cab 100644
          // We need to ensure that our window doesn't suffer from overdraw which would normally
          // occur if our window is translucent. Since we are drawing the whole window anyway with
          // the scrim, we don't need the window to be cleared in the beginning.
-@@ -215,6 +243,20 @@ public class StatusBarWindowView extends FrameLayout {
+@@ -215,6 +242,20 @@ public class StatusBarWindowView extends FrameLayout {
          }
      }
  
@@ -248,7 +244,7 @@ index a79a41b0779..633c1449cab 100644
      @Override
      public boolean dispatchKeyEvent(KeyEvent event) {
          if (mService.interceptMediaKey(event)) {
-@@ -301,6 +343,10 @@ public class StatusBarWindowView extends FrameLayout {
+@@ -301,6 +342,10 @@ public class StatusBarWindowView extends FrameLayout {
              return true;
          }
          boolean intercept = false;

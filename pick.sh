@@ -955,7 +955,7 @@ kpick 225598 # PowerManagerService: Allow to light up buttons only when pressed
 kpick 225599 # PowerManager: Allow to distinguish different keypresses
 kpick 225600 # PowerManagerService: Wake on plug (1/2)
 kpick 225594 # SystemUI: Bringup tuner navbar and statusbar changes
-kpick 225595 # Runtime toggle of navbar
+kpick 225983 # Runtime toggle of navbar
 kpick 225606 # Forward port 'Swap volume buttons' (1/3)
 kpick 225643 # Support for device specific key handlers
 kpick 225650 # Configurable 0, 90, 180 and 270 degree rotation

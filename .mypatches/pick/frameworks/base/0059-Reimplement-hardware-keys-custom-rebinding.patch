@@ -1,7 +1,7 @@
-From 5c35a6f747a6f15421e9577ae1a3e10f80282626 Mon Sep 17 00:00:00 2001
+From 59941f6294d295a807e25247ce733422a9dd6f39 Mon Sep 17 00:00:00 2001
 From: Phil Tunstall <ptunstall@gmail.com>
 Date: Fri, 14 Nov 2014 09:44:49 -0800
-Subject: [PATCH 59/80] Reimplement hardware keys custom rebinding
+Subject: [PATCH 59/81] Reimplement hardware keys custom rebinding
 
 This is a squash of the following commits:
 
@@ -88,7 +88,7 @@ index 9acac22c9e9..0201c95fafd 100644
      }
  
 diff --git a/services/core/java/com/android/server/policy/PhoneWindowManager.java b/services/core/java/com/android/server/policy/PhoneWindowManager.java
-index 887e468670f..f68e1688663 100644
+index 22bd5624ecd..6da0b1d1f64 100644
 --- a/services/core/java/com/android/server/policy/PhoneWindowManager.java
 +++ b/services/core/java/com/android/server/policy/PhoneWindowManager.java
 @@ -298,6 +298,9 @@ import com.android.server.wm.WindowManagerInternal.AppTransitionListener;
@@ -121,7 +121,7 @@ index 887e468670f..f68e1688663 100644
      Intent mDeskDockIntent;
 @@ -738,6 +745,16 @@ public class PhoneWindowManager implements WindowManagerPolicy {
  
-     boolean mDevForceNavbar;
+     int mDevForceNavbar = -1;
  
 +    // Tracks user-customisable behavior for certain key events
 +    private Action mHomeLongPressAction;
@@ -304,7 +304,7 @@ index 887e468670f..f68e1688663 100644
 -        if (mLongPressOnHomeBehavior < LONG_PRESS_HOME_NOTHING ||
 -                mLongPressOnHomeBehavior > LAST_LONG_PRESS_HOME_BEHAVIOR) {
 -            mLongPressOnHomeBehavior = LONG_PRESS_HOME_NOTHING;
-+        if (mDevForceNavbar) {
++        if (mDevForceNavbar == 1) {
 +            activeHardwareKeys = 0;
          }
  
@@ -381,7 +381,7 @@ index 887e468670f..f68e1688663 100644
          }
  
          mShortPressOnWindowBehavior = SHORT_PRESS_WINDOW_NOTHING;
-@@ -2618,6 +2736,8 @@ public class PhoneWindowManager implements WindowManagerPolicy {
+@@ -2619,6 +2737,8 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                  }
              }
  
@@ -390,7 +390,7 @@ index 887e468670f..f68e1688663 100644
              // Configure rotation lock.
              int userRotation = Settings.System.getIntForUser(resolver,
                      Settings.System.USER_ROTATION, Surface.ROTATION_0,
-@@ -2990,7 +3110,6 @@ public class PhoneWindowManager implements WindowManagerPolicy {
+@@ -2991,7 +3111,6 @@ public class PhoneWindowManager implements WindowManagerPolicy {
              int navigationPresence) {
          mHaveBuiltInKeyboard = (keyboardPresence & PRESENCE_INTERNAL) != 0;
  
@@ -398,7 +398,7 @@ index 887e468670f..f68e1688663 100644
          readLidState();
  
          if (config.keyboard == Configuration.KEYBOARD_NOKEYS
-@@ -3710,6 +3829,8 @@ public class PhoneWindowManager implements WindowManagerPolicy {
+@@ -3711,6 +3830,8 @@ public class PhoneWindowManager implements WindowManagerPolicy {
          final int flags = event.getFlags();
          final boolean down = event.getAction() == KeyEvent.ACTION_DOWN;
          final boolean canceled = event.isCanceled();
@@ -407,7 +407,7 @@ index 887e468670f..f68e1688663 100644
  
          if (DEBUG_INPUT) {
              Log.d(TAG, "interceptKeyTi keyCode=" + keyCode + " down=" + down + " repeatCount="
-@@ -3803,7 +3924,9 @@ public class PhoneWindowManager implements WindowManagerPolicy {
+@@ -3804,7 +3925,9 @@ public class PhoneWindowManager implements WindowManagerPolicy {
              // If we have released the home key, and didn't do anything else
              // while it was pressed, then it is time to go home!
              if (!down) {
@@ -418,7 +418,7 @@ index 887e468670f..f68e1688663 100644
  
                  mHomePressed = false;
                  if (mHomeConsumed) {
-@@ -3817,7 +3940,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
+@@ -3818,7 +3941,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                  }
  
                  // Delay handling home if a double-tap is possible.
@@ -427,7 +427,7 @@ index 887e468670f..f68e1688663 100644
                      mHandler.removeCallbacks(mHomeDoubleTapTimeoutRunnable); // just in case
                      mHomeDoubleTapPending = true;
                      mHandler.postDelayed(mHomeDoubleTapTimeoutRunnable,
-@@ -3854,28 +3977,73 @@ public class PhoneWindowManager implements WindowManagerPolicy {
+@@ -3855,28 +3978,73 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                  if (mHomeDoubleTapPending) {
                      mHomeDoubleTapPending = false;
                      mHandler.removeCallbacks(mHomeDoubleTapTimeoutRunnable);
@@ -512,7 +512,7 @@ index 887e468670f..f68e1688663 100644
          } else if (keyCode == KeyEvent.KEYCODE_SEARCH) {
              if (down) {
                  if (repeatCount == 0) {
-@@ -3892,10 +4060,34 @@ public class PhoneWindowManager implements WindowManagerPolicy {
+@@ -3893,10 +4061,34 @@ public class PhoneWindowManager implements WindowManagerPolicy {
              return 0;
          } else if (keyCode == KeyEvent.KEYCODE_APP_SWITCH) {
              if (!keyguardOn) {
@@ -551,7 +551,7 @@ index 887e468670f..f68e1688663 100644
                  }
              }
              return -1;
-@@ -4504,6 +4696,13 @@ public class PhoneWindowManager implements WindowManagerPolicy {
+@@ -4505,6 +4697,13 @@ public class PhoneWindowManager implements WindowManagerPolicy {
          }
      }
  
@@ -565,7 +565,7 @@ index 887e468670f..f68e1688663 100644
      @Override
      public void showRecentApps() {
          mHandler.removeMessages(MSG_DISPATCH_SHOW_RECENTS);
-@@ -6535,16 +6734,26 @@ public class PhoneWindowManager implements WindowManagerPolicy {
+@@ -6536,16 +6735,26 @@ public class PhoneWindowManager implements WindowManagerPolicy {
              }
              case KeyEvent.KEYCODE_ASSIST: {
                  final boolean longPressed = event.getRepeatCount() > 0;
@@ -599,7 +599,7 @@ index 887e468670f..f68e1688663 100644
                  }
                  result &= ~ACTION_PASS_TO_USER;
                  break;
-@@ -8901,12 +9110,6 @@ public class PhoneWindowManager implements WindowManagerPolicy {
+@@ -8902,12 +9111,6 @@ public class PhoneWindowManager implements WindowManagerPolicy {
          pw.print(prefix);
                  pw.print("mLongPressOnBackBehavior=");
                  pw.println(longPressOnBackBehaviorToString(mLongPressOnBackBehavior));
