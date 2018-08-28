@@ -1,0 +1,171 @@
+From b5e5808f41606e0a94ee93b62f24d0b3d233a136 Mon Sep 17 00:00:00 2001
+From: Toha <tohenk@yahoo.com>
+Date: Tue, 13 Feb 2018 12:58:31 +0700
+Subject: [PATCH 1/5] Contacts: Enable support for device contact.
+
+Change-Id: I8f2e907deadced5316be5a418dab2538476a4033
+Signed-off-by: Toha <tohenk@yahoo.com>
+
+Contacts: Ignore device null account.
+
+As of commit 2cb5e0752a8def94c386a02213c54bb1be4b6344 which adds device contact,
+the behavior is correct if there is a google account already setup, otherwise
+there are two device contacts shown. So, always ignore null account.
+
+Change-Id: I9f18a45efcaa93b8583013beb5995bf85ae58dcd
+Signed-off-by: Toha <tohenk@yahoo.com>
+---
+ .../contacts/drawer/DrawerAdapter.java        |  3 ++-
+ .../contacts/model/AccountTypeManager.java    | 19 +++++++++++++-----
+ .../model/DeviceLocalAccountLocator.java      | 20 ++-----------------
+ .../model/account/AccountTypeProvider.java    |  3 +++
+ .../contacts/util/AccountSelectionUtil.java   |  2 ++
+ .../contacts/util/AccountsListAdapter.java    |  2 ++
+ 6 files changed, 25 insertions(+), 24 deletions(-)
+
+diff --git a/src/com/android/contacts/drawer/DrawerAdapter.java b/src/com/android/contacts/drawer/DrawerAdapter.java
+index 9ff21398a..1f15d86c9 100644
+--- a/src/com/android/contacts/drawer/DrawerAdapter.java
++++ b/src/com/android/contacts/drawer/DrawerAdapter.java
+@@ -272,7 +272,8 @@ public class DrawerAdapter extends BaseAdapter {
+         }
+         final ContactListFilter account = item.account;
+         final TextView textView = ((TextView) result.findViewById(R.id.title));
+-        textView.setText(account.accountName);
++        textView.setText(mActivity.getPackageName().equals(account.accountType) ?
++                mActivity.getString(R.string.account_phone) : account.accountName);
+         final boolean activated = account.equals(mSelectedAccount)
+                 && mSelectedView == ContactsView.ACCOUNT_VIEW;
+         textView.setTextAppearance(mActivity, activated
+diff --git a/src/com/android/contacts/model/AccountTypeManager.java b/src/com/android/contacts/model/AccountTypeManager.java
+index 993869509..8468f33bb 100644
+--- a/src/com/android/contacts/model/AccountTypeManager.java
++++ b/src/com/android/contacts/model/AccountTypeManager.java
+@@ -80,6 +80,7 @@ public abstract class AccountTypeManager {
+ 
+     public static final String BROADCAST_ACCOUNTS_CHANGED = AccountTypeManager.class.getName() +
+             ".AccountsChanged";
++    public static final String DEVICE_ACCOUNT_NAME = "DEVICE";
+ 
+     public enum AccountFilter implements Predicate<AccountInfo> {
+         ALL {
+@@ -590,16 +591,24 @@ class AccountTypeManagerImpl extends AccountTypeManager
+     private List<AccountWithDataSet> getAccountsWithDataSets(Account[] accounts,
+             AccountTypeProvider typeProvider) {
+         List<AccountWithDataSet> result = new ArrayList<>();
++        // add local device account
++        populateAccountsDataSet(typeProvider, new Account(DEVICE_ACCOUNT_NAME,
++                mContext.getPackageName()), result);
+         for (Account account : accounts) {
+-            final List<AccountType> types = typeProvider.getAccountTypes(account.type);
+-            for (AccountType type : types) {
+-                result.add(new AccountWithDataSet(
+-                        account.name, account.type, type.dataSet));
+-            }
++            populateAccountsDataSet(typeProvider, account, result);
+         }
+         return result;
+     }
+ 
++    private void populateAccountsDataSet(AccountTypeProvider typeProvider, Account account,
++            List<AccountWithDataSet> result) {
++        final List<AccountType> types = typeProvider.getAccountTypes(account.type);
++        for (AccountType type : types) {
++            result.add(new AccountWithDataSet(
++                    account.name, account.type, type.dataSet));
++        }
++    }
++
+     /**
+      * Returns the default google account specified in preferences, the first google account
+      * if it is not specified in preferences or is no longer on the device, and null otherwise.
+diff --git a/src/com/android/contacts/model/DeviceLocalAccountLocator.java b/src/com/android/contacts/model/DeviceLocalAccountLocator.java
+index 4281de978..2ce927540 100644
+--- a/src/com/android/contacts/model/DeviceLocalAccountLocator.java
++++ b/src/com/android/contacts/model/DeviceLocalAccountLocator.java
+@@ -21,7 +21,6 @@ import android.content.Context;
+ 
+ import com.android.contacts.Experiments;
+ import com.android.contacts.model.account.AccountWithDataSet;
+-import com.android.contacts.model.account.GoogleAccountType;
+ import com.android.contactsbind.ObjectFactory;
+ import com.android.contactsbind.experiments.Flags;
+ 
+@@ -69,7 +68,7 @@ public abstract class DeviceLocalAccountLocator {
+             return new Cp2DeviceLocalAccountLocator(context.getContentResolver(),
+                     ObjectFactory.getDeviceLocalAccountTypeFactory(context), knownTypes);
+         } else {
+-            return new NexusDeviceAccountLocator(accountManager);
++            return new NexusDeviceAccountLocator();
+         }
+     }
+ 
+@@ -82,24 +81,9 @@ public abstract class DeviceLocalAccountLocator {
+      * </p>
+      */
+     public static class NexusDeviceAccountLocator extends DeviceLocalAccountLocator {
+-
+-        private final AccountManager mAccountManager;
+-
+-        public NexusDeviceAccountLocator(AccountManager accountManager) {
+-            mAccountManager = accountManager;
+-        }
+-
+         @Override
+         public List<AccountWithDataSet> getDeviceLocalAccounts() {
+-            @SuppressWarnings("MissingPermission")
+-            final Account[] accounts = mAccountManager
+-                    .getAccountsByType(GoogleAccountType.ACCOUNT_TYPE);
+-
+-            if (accounts.length > 0) {
+-                return Collections.emptyList();
+-            } else {
+-                return Collections.singletonList(AccountWithDataSet.getNullAccount());
+-            }
++            return Collections.emptyList();
+         }
+     }
+ }
+diff --git a/src/com/android/contacts/model/account/AccountTypeProvider.java b/src/com/android/contacts/model/account/AccountTypeProvider.java
+index 4f83ec62d..a6ec93c4f 100644
+--- a/src/com/android/contacts/model/account/AccountTypeProvider.java
++++ b/src/com/android/contacts/model/account/AccountTypeProvider.java
+@@ -82,6 +82,9 @@ public class AccountTypeProvider {
+      * </p>
+      */
+     public List<AccountType> getAccountTypes(String accountType) {
++        if (mContext.getPackageName().equals(accountType)) {
++            accountType = null;
++        }
+         // ConcurrentHashMap doesn't support null keys
+         if (accountType == null) {
+             AccountType type = mLocalAccountTypeFactory.getAccountType(accountType);
+diff --git a/src/com/android/contacts/util/AccountSelectionUtil.java b/src/com/android/contacts/util/AccountSelectionUtil.java
+index bfe8a08b3..2b226d0a1 100644
+--- a/src/com/android/contacts/util/AccountSelectionUtil.java
++++ b/src/com/android/contacts/util/AccountSelectionUtil.java
+@@ -126,6 +126,8 @@ public class AccountSelectionUtil {
+ 
+                 text1.setText(accountType.getDisplayLabel(context));
+                 text2.setText(account.name);
++                text2.setVisibility(context.getPackageName().equals(account.type) ?
++                        View.GONE : View.VISIBLE);
+                 icon.setImageDrawable(accountType.getDisplayIcon(getContext()));
+ 
+                 return convertView;
+diff --git a/src/com/android/contacts/util/AccountsListAdapter.java b/src/com/android/contacts/util/AccountsListAdapter.java
+index 2bcc68b84..cc80b7985 100644
+--- a/src/com/android/contacts/util/AccountsListAdapter.java
++++ b/src/com/android/contacts/util/AccountsListAdapter.java
+@@ -95,6 +95,8 @@ public final class AccountsListAdapter extends BaseAdapter {
+ 
+         text1.setText(mAccounts.get(position).getTypeLabel());
+         text2.setText(mAccounts.get(position).getNameLabel());
++        text2.setVisibility(mAccounts.get(position).getNameLabel().equals(
++                mAccounts.get(position).getTypeLabel()) ? View.GONE : View.VISIBLE);
+ 
+         icon.setImageDrawable(mAccounts.get(position).getIcon());
+ 
+-- 
+2.17.1
+

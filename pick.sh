@@ -803,7 +803,7 @@ kpick 225475 # dexdeps: Add option for --include-lineage-classes.
 kpick 225476 # dexdeps: Ignore static initializers on analysis.
 
 # device/lineage/sepolicy
-kpick 225945 # sepolicy: Update to match new qcom sepolicy
+#kpick 225945 # sepolicy: Update to match new qcom sepolicy
 
 # device/qcom/sepolicy
 kpick 224767 # sepol: Remove duplicated hal_vehicle attribute
@@ -1132,11 +1132,9 @@ kpick 225802 # LineageNotificationLights: Don't create KeyguardManager in constr
 kpick 225807 # AudioFX: Build with AAPT2
 
 # packages/apps/Calender
-kpick 225253 # Calendar: adaptive icon
 
 # packages/apps/Camera2
 kpick 224752 # Use mCameraAgentNg for getting camera info when available
-kpick 225254 # Camera2: adaptive icon
 kpick 225255 # Camera2: Target API 27
 kpick 225256 # Don't attempt to convert degree to orientation enum twice
 kpick 225257 # Camera2: Only autofocus before a snap if we are actually in "auto" mode.
@@ -1156,8 +1154,6 @@ kpick 225268 # Disable OTA for U.S. Cellular since there is no need for it
 kpick 225269 # CarrierConfig: HoT and tele.ring (232 07) may roam on T-Mobile (232 03)
 
 # packages/apps/Contacts
-kpick 225270 # Contacts: define app category
-kpick 225271 # Contacts: adaptive icon
 kpick 225272 # Contacts: Enable support for device contact.
 kpick 225273 # Place MyInfo shortcut on drawer
 kpick 225274 # Place EmergencyInfo shortcut on drawer
@@ -1171,9 +1167,7 @@ kpick 225279 # DeskClock : update alarm if it is handled in min framework
 kpick 225280 # Make new menu entry to link to cLock widget settings.
 kpick 225281 # DeskClock: Add back flip and shake actions
 kpick 225282 # DeskClock: Use accelerometer instead of orientation sensor
-kpick 225283 # Deskclock: define app category
 kpick 225284 # Provide upgrade path for cm-14.1 -> lineage-15.1
-kpick 225285 # DeskClock: adaptive icon
 kpick 225286 # Revert "Fix alarm not firing in memory-pressure situations"
 
 # packages/apps/Dialer
@@ -1182,13 +1176,10 @@ kpick 225706 # Dialer: define app category
 kpick 225707 # Dialer: adaptive icon
  
 # packages/apps/DocumentsUI
-kpick 225287 # DocumentsUI: define appcategory
-kpick 225288 # DocumentsUI: adaptive icon
 kpick 225289 # DocumentsUI: support night mode
 
 # packages/apps/Email
 kpick 225292 # Email: handle databases from cm-14.1
-kpick 225293 # Email: adaptive icon
 kpick 225294 # Allow account deletion.
 kpick 225295 # email: support for auto-sync multiple IMAP folders
 kpick 225296 # email: Add an ActionBar to the mail app's PreferenceActivity
@@ -1210,8 +1201,6 @@ kpick 225311 # Remove max aspect ratio.
 kpick 225312 # Update strings for crowdin
 
 # packages/apps/ExactCalculator
-kpick 225315 # Calculator: define app category
-kpick 225316 # Calculator: adaptive icon
 
 # packages/apps/FlipFlap
 
@@ -1243,8 +1232,6 @@ kpick 225334 # Messaging: Switch to mipmap launcher icons
 kpick 225335 # Messaging: show snackbar instead of toast when deleting conversation
 kpick 225336 # Messaging: make some more elements use accent instead of primary
 kpick 225337 # Messaging: Don't crash on unsupported shared content type
-kpick 225338 # Messaging: define app category
-kpick 225339 # Messaging: adaptive icon
 
 # packages/apps/Nfc
 kpick 223706 # NFC: Restore legacy NXP stack
@@ -1290,7 +1277,6 @@ kpick 225979 # Settings: Add package name to installed app details
 # packages/apps/SetupWizard
 
 # packages/apps/Stk
-kpick 225342 # Stk: adaptive icon
 
 # packages/apps/Trebuchet
 
@@ -1318,7 +1304,6 @@ kpick 225362 # Don't re-show search bar on query click.
 
 # packages/apps/WallpaperPicker
 kpick 225363 # WallpaperPicker: bump gradle
-kpick 225364 # WallpaperPicker: add adaptive icon
 kpick 225365 # WallpaperPicker: materialize delete icon
 kpick 225367 # WallpaperPicker: Update for wallpaper API changes
 kpick 225370 # WallpaperPicker: add a "No Wallpaper" option
@@ -1332,19 +1317,14 @@ kpick -t pie-keyboard
 # packages/overlays/Lineage
 
 # packages/providers/BlockedNumberProvider
-kpick 225403 # BlockedNumberProvider: adaptive icon
 
 # packages/providers/BookmarkProvider
-kpick 225404 # BookmarkProvider: adaptive icon
 
 # packages/providers/CalendarProvider
-kpick 225405 # CalendarProvider: adaptive icon
 
 # packages/providers/CallLogProvider
-kpick 225406 # CallLogBackup: adaptive icon
 
 # packages/provider/ContackProvider
-kpick 225407 # ContactsProvider: adaptive icon
 kpick 225408 # ContactsProvider: Prevent device contact being deleted.
 kpick 225409 # CallLogDatabase: Bump the version and try to re-run the version 5 upgrade path
 
@@ -1354,29 +1334,19 @@ kpick 225411 # DownloadProvider: Add support for manual pause/resume
 
 # packages/providers/MediaProvider
 kpick 225412 # Fix mounting of non-FAT formatted SD cards (2/2)
-kpick 225413 # MediaProvider: adaptive-icon
 
 # packages/providers/TelephonyProvider
-kpick 225414 # TelephonyProvider: adaptive icon
 
 # packages/services/Mms
-kpick 225415 # Add app label
-kpick 225416 # Mms: adaptive icon
 
 # packages/services/Telecomm
 kpick 223099 # Telecomm: Squashed phone_type switch support
-kpick 225417 # Telecomm: adaptive icon
 kpick 225708 # Add back increasing ring feature (3/3).
-kpick 225862 # (1/2) Make sensitive phone numbers not to be shown in call log history.
-kpick 225863 # SensitivePhoneNumbers: Handle lists of MCC codes
-kpick 225864 # SensitivePhoneNumbers: Fix number comparison
 
 # packages/services/Telephony
-kpick 225419 # Telephony: adaptive icon
 kpick 225420 # Use proper summary for network select list preference on dsds/dsda/tsts
 
 # packages/wallpapers/LivePicker
-kpick 225421 # LivePicker: adaptive icon
 
 # prebuilts/misc
 
@@ -1388,7 +1358,6 @@ kpick 225423 # Add support to force disable enhanced sco commands
 
 # system/core
 kpick 223085 # adbd: Disable "adb root" by system property (2/3)
-kpick 223147 # init: don't skip starting a service with no domain if permissive
 kpick 224264 # debuggerd: Resolve tombstoned missing O_CREAT mode
 
 # system/extras
