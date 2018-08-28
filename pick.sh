@@ -730,12 +730,14 @@ if [ $0 != "bash" -a ! -f $0.tmp ]; then    # continue pick or not
 apply_force_changes
 
 # android
-repo sync android >/dev/null 2>/dev/null
+repo sync android  >/dev/null 2>/dev/null
 cd .repo/manifests
-git reset
+git reset >/dev/null
 git stash >/dev/null
 git fetch --all >/dev/null 2>/dev/null
-git reset --hard $(git branch -a | grep "/m/" | cut -d'>' -f 2 | sed -e "s/ //g")
+
+default_branch=$(grep "^[[:space:]]*<default revision=" $topdir/.repo/manifests/default.xml | sed -e 's:[^"]*"\(.*\)":\1:' | sed -e "s:refs/heads/::g")
+git reset --hard $(git branch -a | grep "remotes/m/$default_branch" | cut -d'>' -f 2 | sed -e "s/ //g") >/dev/null
 cd $topdir
 
 kpick 225583 # manifest: Enable lineage styles overlays
@@ -746,7 +748,7 @@ kpick 225832 # android: Enable qcom sepolicy
 
 android_head=$(cd android;git log -n 1 | sed -n 1p | cut -d' ' -f2;cd $topdir)
 repo sync
-cd android;git reset --hard $android_head >/dev/null 2>/dev/null;cd $topdir
+cd android;git reset --hard $android_head >/dev/null;cd $topdir
 
 apply_force_changes
 
@@ -800,6 +802,9 @@ kpick 224827 # soong: Add java sources overlay support
 kpick 225475 # dexdeps: Add option for --include-lineage-classes.
 kpick 225476 # dexdeps: Ignore static initializers on analysis.
 
+# device/lineage/sepolicy
+kpick 225945 # sepolicy: Update to match new qcom sepolicy
+
 # device/qcom/sepolicy
 kpick 224767 # sepol: Remove duplicated hal_vehicle attribute
 kpick 224768 # sepol: hostapd is now hal_wifi_hostapd
@@ -819,7 +824,6 @@ kpick 225192 # klte-common: Align ril.h to samsung_msm8974-common P libril chang
 kpick 225761 # klte-common: Update prefixes for audio system properties
 
 # device/samsung/msm8974-common
-kpick 224851 # msm8974-common: config.fs: Add 'VENDOR' prefix to AIDs
 kpick 224916 # DO NOT MERGE: msm8974-common: sepolicy: Just make it build
 kpick 225249 # msm8974-common: Uprev Wi-Fi HAL to 1.2
 kpick 225250 # msm8974-common: Uprev to supplicant 1.1
@@ -835,16 +839,20 @@ kpick 225473 # msm8974-common: libril: Add SIM_ABSENT error
 kpick 225620 # msm8974-common: Switch to common basic USB HAL
 kpick 225759 # msm8974-common: libril: Replace strncpy with strlcpy.
 kpick 225760 # msm8974-common: libril: FR51015: Tuning of Binder buffer for rild.
+kpick 226070 # msm8974-common: Allow additional gralloc 1.0 buffer usage bits
 
 # device/samsung/qcom-common
 
 # kernel/samsung/msm8974
 
-# device/lineage/sepolicy
 
 
 # external/bash
 kpick 224023 # bash: don't spam errors on warnings
+
+# external/f2fs-tools
+kpick 225223 # Merge remote-tracking branch 'aosp/master' into lineage-16.0
+kpick 225224 # Android.mk: update strings to reflect v1.11.0 release
 
 # external/htop
 
@@ -991,7 +999,6 @@ kpick 225754 # SystemUI: Berry styles
 kpick 225766 # Add an option to force pre-O apps to use full screen aspect ratio
 kpick 225773 # Core: Use ro.build.date to signal mIsUpgrade
 kpick 225776 # SystemUI: disable tuner
-kpick 225777 # Screenshot: append app name to filename
 kpick 225778 # SystemUI: Port brightness slider changes
 kpick 225779 # SystemUI: Port statusbar brightness control
 kpick 225789 # SystemUI: Add visualizer feature
@@ -1003,6 +1010,7 @@ kpick 225861 # [2/3] NetworkManagement : Add ability to restrict app data/wifi u
 kpick 225878 # Download: Add support to manually pause/resume download
 kpick 225915 # UpdateEngine: Add perf mode binder interface
 kpick 225919 # PackageManager: allow build-time disabling of components
+kpick 226068 # Fix mounting of non-FAT formatted SD cards (1/2)
 
 # frameworks/native
 kpick 224443 # libbinder: Don't log call trace when waiting for vendor service on non-eng builds
@@ -1018,6 +1026,14 @@ kpick 225827 # libui: Allow extension of valid gralloc 1.0 buffer usage bits
 
 # frameworks/opt/telephony
 kpick 223774 # telephony: Squashed support for simactivation feature
+
+# hardware/boardcom/libbt
+kpick 225146 # libbt: Only allow upio_start_stop_timer on 32bit arm
+kpick 225147 # libbt: Add btlock support
+kpick 225148 # libbt: Add prepatch support
+kpick 225149 # libbt: Add support for using two stop bits
+kpick 225155 # Broadcom BT: Add support fm/bt via v4l2.
+kpick 225816 # libbt-vendor: add support for samsung bluetooth
 
 # hardware/interfaces
 kpick 224064 # Revert "Bluetooth: Remove random MAC addresses"
@@ -1050,7 +1066,6 @@ kpick 223436 # Add -Wno-error to compile with global -Werror.
 kpick 225193 # hal: Update prefixes for audio system properties
 
 # hardware/qcom/display-caf/msm8974
-kpick 223433 # Use libhwui.so instead of libskia.so
 kpick 223434 # Include what we use.
 kpick 223435 # Add -Wno-error to compile with global -Werror.
 
@@ -1080,8 +1095,6 @@ kpick 223890 # Revert "power: Depend on vendor lineage power HAL"
 #kpick 223892 # power: Add power hint to set profile
 
 # hardware/ril-caf
-kpick 225736 # libril: allow board to provide libril
-kpick 225737 # ril-caf: Add guard makefile
 kpick 225738 # librilutils: Relocate pb-generated objects to their expected path
 kpick 225739 # libril: Restore support for RIL v6, v8 and v9 stacks
 kpick 225740 # libril: Bounds check s_commands
@@ -1090,8 +1103,6 @@ kpick 225742 # libril: Protect against NULL unsolicited response function
 kpick 225743 # Revert "Disable rild from starting at power up"
 
 # hardware/samsung
-kpick 223882 # resolve compiling warnings/errors
-kpick 223982 # DNM: exclude AdvancedDisplay
 kpick 225628 # Sending empty strings instead of NULL for some RIL requests
 kpick 225629 # libril: Remove LOCAL_CLANG
 kpick 225630 # libril: Fix Const-Correctness for RIL_RadioFunctions
@@ -1100,8 +1111,12 @@ kpick 225632 # libril: Fix double freeing of memory in SAP service and add null-
 kpick 225633 # libril: Store the system time when NITZ is received.
 kpick 225634 # libril: Add DISABLE_RILD_OEM_HOOK.
 kpick 225635 # libril: Change rild initial sequence to guarantee non-null function pointer before rild register its hidl service
-kpick 225771 # AdvancedDisplay: Set LOCAL_PRIVATE_PLATFORM_APIS
-kpick 225772 # AdvancedDisplay: Migrate to AAPT2
+kpick 226072 # liblights: remove unused variable
+kpick 226073 # power: remove unused variable/mark unused parameter
+kpick 226074 # wifiloader: remove unused variable
+kpick 226075 # libril: remove unused variables/functions
+kpick 226076 # libsecril-client-sap: remove unused variables
+kpick 226077 # libsecril-client: remove unused variables/functions
 
 # lineage-sdk
 kpick 223137 # lineage-sdk: Comment out LineageAudioService
@@ -1206,6 +1221,31 @@ kpick 225316 # Calculator: adaptive icon
 kpick 223153 # LineageParts: Comment out unbuildable code
 kpick 225767 # LineageParts: Make ApplicationsState.Session lifecycle-aware
 
+# packages/apps/Message
+kpick 225317 # Messaging: Implement option for swipe to delete.
+kpick 225318 # Messaging: change Avatar fontFamily to sans-serif-medium
+kpick 225319 # MessageQueue: Process pending messages per subscription
+kpick 225320 # Messaging: Swipe right to delete conversation
+kpick 225321 # Messaging: Toggable keyboard emoticons access
+kpick 225322 # Improve swipe to delete strings
+kpick 225323 # Fix menu item highlight color.
+kpick 225324 # Messaging App is crashing when storage memory is full
+kpick 225325 # Messaging: bring back accent color
+kpick 225326 # Messaging: Implement saved video attachments in MMS
+kpick 225327 # Play an audible notification on receiving a class zero message. Changes ported from http://review.cyanogenmod.org/#/c/125457/
+kpick 225328 # Added support for video and audio mms attachments
+kpick 225329 # Fixed storage permission issue for attachments
+kpick 225330 # Messaging app crashes after a few MMS
+kpick 225331 # Use app settings for conversation settings if no custom set
+kpick 225332 # Messaging: fix bad recycle on sending two mms in a row
+kpick 225333 # MediaPicker: Check for NPE
+kpick 225334 # Messaging: Switch to mipmap launcher icons
+kpick 225335 # Messaging: show snackbar instead of toast when deleting conversation
+kpick 225336 # Messaging: make some more elements use accent instead of primary
+kpick 225337 # Messaging: Don't crash on unsupported shared content type
+kpick 225338 # Messaging: define app category
+kpick 225339 # Messaging: adaptive icon
+
 # packages/apps/Nfc
 kpick 223706 # NFC: Restore legacy NXP stack
 kpick 223707 # nxp: jni: Forward-port the stack sources
@@ -1217,8 +1257,6 @@ kpick 223701 # NFC: Clean duplicated and unknown permissions
 kpick 223703 # nxp: jni: Implement AOSP P abstract methods
 
 # packages/apps/Recorder
-kpick 223673 # Recorder: Upgrade to AOSP P common libraries and AAPT2
-kpick 223674 # Recorder: Request FOREGROUND_SERVICE permission
 
 # packages/apps/Settings
 kpick 223151 # Settings: Add back battery and notification lights settings
@@ -1236,7 +1274,7 @@ kpick 225642 # Expose option to change the device hostname.
 kpick 225678 # Settings: Add option to scramble pin layout when unlocking (1/2).
 kpick 225686 # Settings: Add advanced restart switch
 kpick 225730 # Settings: Add kill app back button toggle
-kpick 225755 # Settings: hide aosp ThemePreferenceController
+kpick 225755 # Settings: Hide AOSP theme-related controllers
 kpick 225756 # Settings: fix dark style issues
 kpick 225768 # Settings: Add an option to force pre-O apps to use full screen aspect ratio
 kpick 225787 # Settings: Add lockscreen visualizer toggle
@@ -1255,7 +1293,6 @@ kpick 225979 # Settings: Add package name to installed app details
 kpick 225342 # Stk: adaptive icon
 
 # packages/apps/Trebuchet
-kpick 222333 # Settings: Hide Notification Dots on low RAM devices
 
 # packages/apps/UnifiedEmail
 kpick 225343 # unified email: prefer account display name to sender name
@@ -1293,7 +1330,6 @@ kpick 225372 # WallpaperPicker: 15.1 wallpapers
 kpick -t pie-keyboard
 
 # packages/overlays/Lineage
-kpick 225578 # overlays/Lineage: Set LOCAL_PRIVATE_PLATFORM_APIS := true
 
 # packages/providers/BlockedNumberProvider
 kpick 225403 # BlockedNumberProvider: adaptive icon
@@ -1355,10 +1391,25 @@ kpick 223085 # adbd: Disable "adb root" by system property (2/3)
 kpick 223147 # init: don't skip starting a service with no domain if permissive
 kpick 224264 # debuggerd: Resolve tombstoned missing O_CREAT mode
 
-# system/extra
+# system/extras
 kpick 225426 # f2fs_utils: Add a static libf2fs_sparseblock for minvold
 kpick 225427 # ext4_utils: Fix FS creation for filesystems with exactly 32768 blocks.
 kpick 225428 # extras: remove su
+
+# system/extras/su
+kpick 226017 # su: Fully rebrand
+kpick 225718 # su: Fix warnings from PVS Studio Analyzer
+kpick 225873 # su: strlcpy is always a friend
+kpick 225875 # su: Enable Clang Tidy
+kpick 225879 # su: Run clang format
+kpick 225880 # su: Move to cutils/properties.h
+kpick 225885 # su: Remove Sammy hacks
+kpick 225888 # su: Fix a clang tidy warning
+kpick 225889 # su: Cleanup includes
+kpick 225890 # su: Use shared libraries
+kpick 225935 # su: Remove useless casts
+kpick 225936 # su: Remove mount of emulated storage
+kpick 225937 # su: Initialize windows size
 
 # system/netd
 kpick 225429 # [3/3] NetD : Allow passing in interface names for wifi/data app restriction
@@ -1397,7 +1448,7 @@ kpick 225948 # Support Samsung's implementation of exfat, called sdfat
 
 # vendor/lineage
 kpick 223460 # envsetup: Add githubremote function
-kpick 223773 # Add IPv6 for Oister and 3. The 3.dk and oister.dk carriers now support IPv6 ...
+kpick 223773 # Add IPv6 for Oister and 3. The 3.dk and oister.dk carriers now support IPv6 with the APN ”data.tre.dk”.
 kpick 223944 # [DNM]: use aosp wifi until CAF bringup
 kpick 224828 # vendor/lineage: Add support for java source overlays
 kpick 224758 # lineage: Always show option for swipe gesture nav bar
@@ -1405,10 +1456,8 @@ kpick 225882 # soong_config: Add TARGET_EXFAT_DRIVER variable
 kpick 225921 # overlay: Update list of GSF/GMS activities
 kpick 225922 # overlay: Hide "System update" in settings
 kpick 225938 # roomservice.py: document the hell out of the current behavior of the script
-kpick 225646 # privapp-permissions: Add FlipFlap permissions
-kpick 225495 # config: Use standard inherit-product-if-exists for vendor/extra
 kpick 225550 # soong_config: Add TARGET_NEEDS_LEGACY_CAMERA_HAL1_DYN_NATIVE_HANDLE
-kpick 225801 # lineage: Move qcom board variables earlier
+kpick 225801 # lineage: Move QC board variables earlier
 kpick 225758 # qcom: Declare PRODUCT_SOONG_NAMESPACES for HALs
 kpick 225865 # soong_config: Allow extension of valid gralloc 1.0 buffer usage bits
 kpick 225942 # soong_config: Allow whitelisted processes to use destroyed mutex

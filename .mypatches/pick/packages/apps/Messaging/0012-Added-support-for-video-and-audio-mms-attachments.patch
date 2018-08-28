@@ -1,0 +1,1746 @@
+From d9b43e598c31ccd2fe7e1add95c50215acdb7269 Mon Sep 17 00:00:00 2001
+From: Gary Kipnis <gkipnis@cyngn.com>
+Date: Fri, 20 May 2016 15:25:59 -0700
+Subject: [PATCH 12/23] Added support for video and audio mms attachments
+
+Change-Id: I690f941ac80a861e57494028f676a7db658bdce1
+Ticket-Id: FEIJ-128, FEIJ-143
+---
+ res/drawable/ic_library_music_black_24px.xml  |  15 +
+ res/drawable/ic_library_music_white_24px.xml  |  15 +
+ .../ic_play_circle_filled_white_24px.xml      |  14 +
+ res/layout/audio_list_item_view.xml           |  56 ++++
+ res/layout/gallery_grid_item_view.xml         |   2 +-
+ res/layout/mediapicker_audio_list_chooser.xml |  39 +++
+ res/values/cm_strings.xml                     |   9 +
+ res/values/lineage_dimens.xml                 |  23 ++
+ .../datamodel/AudioBoundCursorLoader.java     |  49 +++
+ .../messaging/datamodel/DataModel.java        |   3 +
+ .../messaging/datamodel/DataModelImpl.java    |   6 +
+ .../datamodel/GalleryBoundCursorLoader.java   |   3 +-
+ .../datamodel/data/AudioListItemData.java     |  90 +++++
+ .../datamodel/data/GalleryGridItemData.java   |  28 ++
+ .../datamodel/data/MediaPickerData.java       |  32 +-
+ .../datamodel/data/MessagePartData.java       |  14 +-
+ .../ui/mediapicker/AudioListAdapter.java      |  61 ++++
+ .../ui/mediapicker/AudioListChooser.java      | 216 ++++++++++++
+ .../ui/mediapicker/AudioListItemView.java     | 111 +++++++
+ .../ui/mediapicker/AudioListView.java         | 311 ++++++++++++++++++
+ .../ui/mediapicker/GalleryGridItemView.java   |  71 +++-
+ .../ui/mediapicker/GalleryGridView.java       |  20 ++
+ .../ui/mediapicker/GalleryMediaChooser.java   |  10 +-
+ .../messaging/ui/mediapicker/MediaPicker.java |   1 +
+ .../ui/mediapicker/MediaPickerListView.java   |  45 +++
+ .../messaging/datamodel/FakeDataModel.java    |   6 +
+ 26 files changed, 1238 insertions(+), 12 deletions(-)
+ create mode 100644 res/drawable/ic_library_music_black_24px.xml
+ create mode 100644 res/drawable/ic_library_music_white_24px.xml
+ create mode 100644 res/drawable/ic_play_circle_filled_white_24px.xml
+ create mode 100644 res/layout/audio_list_item_view.xml
+ create mode 100644 res/layout/mediapicker_audio_list_chooser.xml
+ create mode 100644 res/values/lineage_dimens.xml
+ create mode 100644 src/com/android/messaging/datamodel/AudioBoundCursorLoader.java
+ create mode 100644 src/com/android/messaging/datamodel/data/AudioListItemData.java
+ create mode 100644 src/com/android/messaging/ui/mediapicker/AudioListAdapter.java
+ create mode 100644 src/com/android/messaging/ui/mediapicker/AudioListChooser.java
+ create mode 100644 src/com/android/messaging/ui/mediapicker/AudioListItemView.java
+ create mode 100644 src/com/android/messaging/ui/mediapicker/AudioListView.java
+ create mode 100644 src/com/android/messaging/ui/mediapicker/MediaPickerListView.java
+
+diff --git a/res/drawable/ic_library_music_black_24px.xml b/res/drawable/ic_library_music_black_24px.xml
+new file mode 100644
+index 0000000..761d839
+--- /dev/null
++++ b/res/drawable/ic_library_music_black_24px.xml
+@@ -0,0 +1,15 @@
++<?xml version="1.0" encoding="utf-8"?>
++<vector xmlns:android="http://schemas.android.com/apk/res/android"
++    android:width="24dp"
++    android:height="24dp"
++    android:viewportWidth="24"
++    android:viewportHeight="24">
++
++    <path
++        android:pathData="M0 0h24v24H0z" />
++    <path
++        android:fillColor="#000000"
++        android:pathData="M20 2H8c-1.1 0-2 .9-2 2v12c0 1.1 .9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2
++5h-3v5.5c0 1.38-1.12 2.5-2.5 2.5S10 13.88 10 12.5s1.12-2.5 2.5-2.5c.57 0 1.08
++.19 1.5 .51 V5h4v2zM4 6H2v14c0 1.1 .9 2 2 2h14v-2H4V6z" />
++</vector>
+\ No newline at end of file
+diff --git a/res/drawable/ic_library_music_white_24px.xml b/res/drawable/ic_library_music_white_24px.xml
+new file mode 100644
+index 0000000..28ac927
+--- /dev/null
++++ b/res/drawable/ic_library_music_white_24px.xml
+@@ -0,0 +1,15 @@
++<?xml version="1.0" encoding="utf-8"?>
++<vector xmlns:android="http://schemas.android.com/apk/res/android"
++    android:width="24dp"
++    android:height="24dp"
++    android:viewportWidth="24"
++    android:viewportHeight="24">
++
++    <path
++        android:pathData="M0 0h24v24H0z" />
++    <path
++        android:fillColor="#FFFFFF"
++        android:pathData="M20 2H8c-1.1 0-2 .9-2 2v12c0 1.1 .9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2
++5h-3v5.5c0 1.38-1.12 2.5-2.5 2.5S10 13.88 10 12.5s1.12-2.5 2.5-2.5c.57 0 1.08
++.19 1.5 .51 V5h4v2zM4 6H2v14c0 1.1 .9 2 2 2h14v-2H4V6z" />
++</vector>
+\ No newline at end of file
+diff --git a/res/drawable/ic_play_circle_filled_white_24px.xml b/res/drawable/ic_play_circle_filled_white_24px.xml
+new file mode 100644
+index 0000000..2f3b1b9
+--- /dev/null
++++ b/res/drawable/ic_play_circle_filled_white_24px.xml
+@@ -0,0 +1,14 @@
++<?xml version="1.0" encoding="utf-8"?>
++<vector xmlns:android="http://schemas.android.com/apk/res/android"
++    android:width="24dp"
++    android:height="24dp"
++    android:viewportWidth="24"
++    android:viewportHeight="24">
++
++    <path
++        android:pathData="M0 0h24v24H0z" />
++    <path
++        android:fillColor="#FFFFFF"
++        android:pathData="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6
++4.5-6 4.5z" />
++</vector>
+\ No newline at end of file
+diff --git a/res/layout/audio_list_item_view.xml b/res/layout/audio_list_item_view.xml
+new file mode 100644
+index 0000000..e22acc1
+--- /dev/null
++++ b/res/layout/audio_list_item_view.xml
+@@ -0,0 +1,56 @@
++<?xml version="1.0" encoding="utf-8"?>
++<!--
++    Copyright (C) 2016 The Android Open Source Project
++
++    Licensed under the Apache License, Version 2.0 (the "License");
++    you may not use this file except in compliance with the License.
++    You may obtain a copy of the License at
++
++         http://www.apache.org/licenses/LICENSE-2.0
++
++    Unless required by applicable law or agreed to in writing, software
++    distributed under the License is distributed on an "AS IS" BASIS,
++    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++    See the License for the specific language governing permissions and
++    limitations under the License.
++-->
++<com.android.messaging.ui.mediapicker.AudioListItemView
++    xmlns:android="http://schemas.android.com/apk/res/android"
++    android:layout_width="match_parent"
++    android:layout_height="@dimen/audio_list_item_height"
++    android:background="@color/gallery_image_default_background"
++    android:clickable="true">
++
++    <FrameLayout
++            android:layout_gravity="center_vertical"
++            android:layout_marginLeft="@dimen/audio_list_item_icon_margin"
++            android:layout_width="@dimen/audio_list_item_icon_size"
++            android:layout_height="@dimen/audio_list_item_icon_size">
++
++        <CheckBox
++                android:id="@+id/audio_checkbox"
++                style="@style/GalleryGridItemViewCheckBoxStyle"
++                android:button="@drawable/gallery_checkbox_selector"
++                android:layout_width="match_parent"
++                android:layout_height="match_parent"/>
++
++        <ImageView
++                android:id="@+id/audio_button"
++                android:layout_width="match_parent"
++                android:layout_height="match_parent"
++                android:background="@drawable/transparent_button_background"
++                android:scaleType="fitCenter"
++                android:src="@drawable/ic_library_music_black_24px"
++                android:contentDescription="@string/video_thumbnail_view_play_button_content_description"/>
++
++    </FrameLayout>
++
++    <TextView
++           android:id="@+id/audio_filename"
++           android:layout_width="match_parent"
++           android:layout_height="@dimen/audio_list_item_text_height"
++           android:layout_marginLeft="@dimen/audio_list_item_text_margin"
++           android:layout_gravity="center_vertical"
++           android:textColor="@color/button_text"/>
++
++</com.android.messaging.ui.mediapicker.AudioListItemView>
+diff --git a/res/layout/gallery_grid_item_view.xml b/res/layout/gallery_grid_item_view.xml
+index 88e4a1b..c5e32df 100644
+--- a/res/layout/gallery_grid_item_view.xml
++++ b/res/layout/gallery_grid_item_view.xml
+@@ -39,7 +39,7 @@
+             android:layout_gravity="center"
+             android:background="@drawable/transparent_button_background"
+             android:scaleType="fitCenter"
+-            android:src="@drawable/ic_video_play_light"
++            android:src="@drawable/ic_play_circle_filled_white_24px"
+             android:contentDescription="@string/video_thumbnail_view_play_button_content_description"/>
+     </FrameLayout>
+ 
+diff --git a/res/layout/mediapicker_audio_list_chooser.xml b/res/layout/mediapicker_audio_list_chooser.xml
+new file mode 100644
+index 0000000..fbab0bc
+--- /dev/null
++++ b/res/layout/mediapicker_audio_list_chooser.xml
+@@ -0,0 +1,39 @@
++<?xml version="1.0" encoding="utf-8"?>
++<!--
++    Copyright (C) 2016 The Android Open Source Project
++
++    Licensed under the Apache License, Version 2.0 (the "License");
++    you may not use this file except in compliance with the License.
++    You may obtain a copy of the License at
++
++         http://www.apache.org/licenses/LICENSE-2.0
++
++    Unless required by applicable law or agreed to in writing, software
++    distributed under the License is distributed on an "AS IS" BASIS,
++    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++    See the License for the specific language governing permissions and
++    limitations under the License.
++-->
++<FrameLayout
++        xmlns:android="http://schemas.android.com/apk/res/android"
++        android:layout_width="match_parent"
++        android:layout_height="match_parent">
++
++    <com.android.messaging.ui.mediapicker.AudioListView
++        android:id="@+id/audio_list_view"
++        android:layout_width="match_parent"
++        android:layout_height="match_parent"
++        android:padding="6dp"
++        android:background="@android:color/white" />
++
++    <!-- This view will hide all other views if the required permission is not granted -->
++    <TextView
++        android:id="@+id/missing_permission_view"
++        android:layout_width="match_parent"
++        android:layout_height="match_parent"
++        android:text="@string/enable_permission_procedure"
++        android:contentDescription="@string/enable_permission_procedure_description"
++        android:background="@android:color/white"
++        android:gravity="center"
++        android:visibility="gone" />
++</FrameLayout>
+\ No newline at end of file
+diff --git a/res/values/cm_strings.xml b/res/values/cm_strings.xml
+index 15110df..260979a 100644
+--- a/res/values/cm_strings.xml
++++ b/res/values/cm_strings.xml
+@@ -22,4 +22,13 @@
+     <!-- Show emoticons -->
+     <string name="show_emoticons_pref_title">Emoticons access</string>
+     <string name="show_emoticons_pref_summary">Show the emoticons key on the keyboard</string>
++
++    <!-- Audio Library Tab for MMS attachments -->
++    <string name="mediapicker_galleryChooserDescription_cm">Choose images or videos from this device</string>
++    <string name="mediapicker_audioListChooserDescription">Choose audio files from this device</string>
++    <string name="mediapicker_gallery_image_item_attachment_too_large">Can\'t attach video. Max message size exceeded.</string>
++    <string name="mediapicker_audio_list_title">Choose audio</string>
++    <string name="mediapicker_audio_list_item_selected_content_description">Selected audio</string>
++    <string name="mediapicker_audio_list_item_unselected_content_description">Tap to select</string>
++    <string name="mediapicker_audio_list_title_selection"><xliff:g id="count">%d</xliff:g> selected</string>
+ </resources>
+diff --git a/res/values/lineage_dimens.xml b/res/values/lineage_dimens.xml
+new file mode 100644
+index 0000000..fd11d7d
+--- /dev/null
++++ b/res/values/lineage_dimens.xml
+@@ -0,0 +1,23 @@
++<?xml version="1.0" encoding="utf-8"?>
++<!--
++    Copyright (C) 2016 The CyanogenMod Project
++
++    Licensed under the Apache License, Version 2.0 (the "License");
++    you may not use this file except in compliance with the License.
++    You may obtain a copy of the License at
++
++         http://www.apache.org/licenses/LICENSE-2.0
++
++    Unless required by applicable law or agreed to in writing, software
++    distributed under the License is distributed on an "AS IS" BASIS,
++    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++    See the License for the specific language governing permissions and
++    limitations under the License.
++-->
++<resources>
++    <dimen name="audio_list_item_height">48dp</dimen>
++    <dimen name="audio_list_item_icon_size">20dp</dimen>
++    <dimen name="audio_list_item_icon_margin">26dp</dimen>
++    <dimen name="audio_list_item_text_margin">26dp</dimen>
++    <dimen name="audio_list_item_text_height">24dp</dimen>
++</resources>
+diff --git a/src/com/android/messaging/datamodel/AudioBoundCursorLoader.java b/src/com/android/messaging/datamodel/AudioBoundCursorLoader.java
+new file mode 100644
+index 0000000..406432b
+--- /dev/null
++++ b/src/com/android/messaging/datamodel/AudioBoundCursorLoader.java
+@@ -0,0 +1,49 @@
++/*
++ * Copyright (C) 2016 The Android Open Source Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++package com.android.messaging.datamodel;
++
++import android.content.Context;
++import android.net.Uri;
++import android.provider.MediaStore.Files;
++import android.provider.MediaStore.Files.FileColumns;
++import android.provider.MediaStore.Images.Media;
++import com.android.messaging.datamodel.data.AudioListItemData;
++import com.android.messaging.datamodel.data.MessagePartData;
++import com.google.common.base.Joiner;
++
++/**
++ * A BoundCursorLoader that reads local media on the device.
++ */
++public class AudioBoundCursorLoader extends BoundCursorLoader {
++    public static final String MEDIA_SCANNER_VOLUME_EXTERNAL = "external";
++    private static final Uri STORAGE_URI = Files.getContentUri(MEDIA_SCANNER_VOLUME_EXTERNAL);
++    private static final String SORT_ORDER = Media.DATE_MODIFIED + " DESC";
++    private static final String TAG = AudioBoundCursorLoader.class.getSimpleName();
++    private static final String AUDIO_SELECTION = createSelection(
++            MessagePartData.ACCEPTABLE_AUDIO_TYPES,
++            new Integer[] {FileColumns.MEDIA_TYPE_AUDIO});
++
++    public AudioBoundCursorLoader(final String bindingId, final Context context) {
++        super(bindingId, context, STORAGE_URI, AudioListItemData.AUDIO_PROJECTION,
++                AUDIO_SELECTION, null, SORT_ORDER);
++    }
++
++    private static String createSelection(final String[] mimeTypes, Integer[] mediaTypes) {
++        return Media.MIME_TYPE + " IN ('" + Joiner.on("','").join(mimeTypes) + "') AND "
++                + FileColumns.MEDIA_TYPE + " IN (" + Joiner.on(',').join(mediaTypes) + ")";
++    }
++}
+diff --git a/src/com/android/messaging/datamodel/DataModel.java b/src/com/android/messaging/datamodel/DataModel.java
+index 936b51c..b53a217 100644
+--- a/src/com/android/messaging/datamodel/DataModel.java
++++ b/src/com/android/messaging/datamodel/DataModel.java
+@@ -25,6 +25,7 @@ import com.android.messaging.Factory;
+ import com.android.messaging.datamodel.action.Action;
+ import com.android.messaging.datamodel.action.ActionService;
+ import com.android.messaging.datamodel.action.BackgroundWorker;
++import com.android.messaging.datamodel.data.AudioListItemData;
+ import com.android.messaging.datamodel.data.BlockedParticipantsData;
+ import com.android.messaging.datamodel.data.BlockedParticipantsData.BlockedParticipantsDataListener;
+ import com.android.messaging.datamodel.data.ContactListItemData;
+@@ -84,6 +85,8 @@ public abstract class DataModel {
+ 
+     public abstract GalleryGridItemData createGalleryGridItemData();
+ 
++    public abstract AudioListItemData createAudioListItemData();
++
+     public abstract LaunchConversationData createLaunchConversationData(
+             LaunchConversationDataListener listener);
+ 
+diff --git a/src/com/android/messaging/datamodel/DataModelImpl.java b/src/com/android/messaging/datamodel/DataModelImpl.java
+index 6ab3f00..2f5b377 100644
+--- a/src/com/android/messaging/datamodel/DataModelImpl.java
++++ b/src/com/android/messaging/datamodel/DataModelImpl.java
+@@ -25,6 +25,7 @@ import com.android.messaging.datamodel.action.ActionService;
+ import com.android.messaging.datamodel.action.BackgroundWorker;
+ import com.android.messaging.datamodel.action.FixupMessageStatusOnStartupAction;
+ import com.android.messaging.datamodel.action.ProcessPendingMessagesAction;
++import com.android.messaging.datamodel.data.AudioListItemData;
+ import com.android.messaging.datamodel.data.BlockedParticipantsData;
+ import com.android.messaging.datamodel.data.BlockedParticipantsData.BlockedParticipantsDataListener;
+ import com.android.messaging.datamodel.data.ContactListItemData;
+@@ -114,6 +115,11 @@ public class DataModelImpl extends DataModel {
+         return new GalleryGridItemData();
+     }
+ 
++    @Override
++    public AudioListItemData createAudioListItemData() {
++        return new AudioListItemData();
++    }
++
+     @Override
+     public LaunchConversationData createLaunchConversationData(
+             final LaunchConversationDataListener listener) {
+diff --git a/src/com/android/messaging/datamodel/GalleryBoundCursorLoader.java b/src/com/android/messaging/datamodel/GalleryBoundCursorLoader.java
+index edcb150..2816bab 100644
+--- a/src/com/android/messaging/datamodel/GalleryBoundCursorLoader.java
++++ b/src/com/android/messaging/datamodel/GalleryBoundCursorLoader.java
+@@ -33,9 +33,10 @@ public class GalleryBoundCursorLoader extends BoundCursorLoader {
+     public static final String MEDIA_SCANNER_VOLUME_EXTERNAL = "external";
+     private static final Uri STORAGE_URI = Files.getContentUri(MEDIA_SCANNER_VOLUME_EXTERNAL);
+     private static final String SORT_ORDER = Media.DATE_MODIFIED + " DESC";
++    private static final String TAG = GalleryBoundCursorLoader.class.getSimpleName();
+     private static final String IMAGE_SELECTION = createSelection(
+             MessagePartData.ACCEPTABLE_IMAGE_TYPES,
+-            new Integer[] { FileColumns.MEDIA_TYPE_IMAGE, FileColumns.MEDIA_TYPE_VIDEO });
++            new Integer[] { FileColumns.MEDIA_TYPE_IMAGE, FileColumns.MEDIA_TYPE_VIDEO});
+ 
+     public GalleryBoundCursorLoader(final String bindingId, final Context context) {
+         super(bindingId, context, STORAGE_URI, GalleryGridItemData.IMAGE_PROJECTION,
+diff --git a/src/com/android/messaging/datamodel/data/AudioListItemData.java b/src/com/android/messaging/datamodel/data/AudioListItemData.java
+new file mode 100644
+index 0000000..e069c80
+--- /dev/null
++++ b/src/com/android/messaging/datamodel/data/AudioListItemData.java
+@@ -0,0 +1,90 @@
++/*
++ * Copyright (C) 2016 The Android Open Source Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++package com.android.messaging.datamodel.data;
++
++import android.database.Cursor;
++import android.graphics.Rect;
++import android.net.Uri;
++import android.provider.BaseColumns;
++import android.provider.MediaStore.Images.Media;
++import android.text.TextUtils;
++import com.android.messaging.util.UriUtil;
++
++/**
++ * Provides data for GalleryGridItemView
++ */
++public class AudioListItemData {
++    private static final String TAG = AudioListItemData.class.getSimpleName();
++    public static final String[] AUDIO_PROJECTION = new String[] {
++        Media._ID,
++        Media.DATA,
++        Media.MIME_TYPE,
++        Media.DATE_MODIFIED};
++
++    public static final String[] SPECIAL_ITEM_COLUMNS = new String[] {
++        BaseColumns._ID
++    };
++
++    private static final int INDEX_ID = 0;
++
++    // For local image gallery.
++    private static final int INDEX_DATA_PATH = 1;
++    private static final int INDEX_MIME_TYPE = 2;
++    private static final int INDEX_DATE_MODIFIED = 3;
++
++    private Uri mAudioUri;
++    private String mContentType;
++    private long mDateSeconds;
++
++    public AudioListItemData() {
++    }
++
++    public void bind(final Cursor cursor) {
++        mContentType = cursor.getString(INDEX_MIME_TYPE);
++        final String dateModified = cursor.getString(INDEX_DATE_MODIFIED);
++        mDateSeconds = !TextUtils.isEmpty(dateModified) ? Long.parseLong(dateModified) : -1;
++        mAudioUri = UriUtil.getUriForResourceFile(cursor.getString(INDEX_DATA_PATH));
++    }
++
++    public Uri getAudioUri() {
++        return mAudioUri;
++    }
++
++    public String getAudioFilename() {
++        if (mAudioUri != null) {
++            return mAudioUri.getLastPathSegment();
++        } else {
++            return "";
++        }
++    }
++
++    public MessagePartData constructMessagePartData(final Rect startRect) {
++        return new MediaPickerMessagePartData(startRect, mContentType,
++                mAudioUri, 0, 0);
++    }
++
++    /**
++     * @return The date in seconds. This can be negative if we could not retreive date info
++     */
++    public long getDateSeconds() {
++        return mDateSeconds;
++    }
++
++    public String getContentType() {
++        return mContentType;
++    }
++}
+diff --git a/src/com/android/messaging/datamodel/data/GalleryGridItemData.java b/src/com/android/messaging/datamodel/data/GalleryGridItemData.java
+index cb6fc98..646d477 100644
+--- a/src/com/android/messaging/datamodel/data/GalleryGridItemData.java
++++ b/src/com/android/messaging/datamodel/data/GalleryGridItemData.java
+@@ -19,6 +19,8 @@ package com.android.messaging.datamodel.data;
+ import android.database.Cursor;
+ import android.graphics.Rect;
+ import android.net.Uri;
++import android.os.AsyncTask;
++import android.os.Handler;
+ import android.provider.BaseColumns;
+ import android.provider.MediaStore.Images.Media;
+ import android.text.TextUtils;
+@@ -28,6 +30,7 @@ import com.android.messaging.datamodel.media.ImageRequest;
+ import com.android.messaging.datamodel.media.UriImageRequestDescriptor;
+ import com.android.messaging.datamodel.media.VideoThumbnailRequestDescriptor;
+ import com.android.messaging.util.Assert;
++import com.android.messaging.util.UriUtil;
+ 
+ /**
+  * Provides data for GalleryGridItemView
+@@ -62,6 +65,7 @@ public class GalleryGridItemData {
+     private boolean mIsDocumentPickerItem;
+     private boolean mIsVideoItem;
+     private long mDateSeconds;
++    private long mContentSize = 0;
+ 
+     public GalleryGridItemData() {
+     }
+@@ -110,9 +114,33 @@ public class GalleryGridItemData {
+                         true /* allowCompression */,
+                         true /* isStatic */);
+             }
++
++            // the the size of the image in the background, needed for selection size checking
++            // preload here in the background, so that it's ready when the thumb is clicked on
++            // TODO - remove when video compression is added, as no size check will be performed
++            // TODO - at selection time
++            if (mIsVideoItem) {
++                new AsyncTask<Void, Void, Long>() {
++                    @Override
++                    protected Long doInBackground(Void... params) {
++                        Long size = UriUtil.getContentSize(getImageUri());
++                        return size;
++                    }
++
++                    @Override
++                    protected void onPostExecute(Long result) {
++                        mContentSize = result;
++                    }
++                }.execute();
++            }
++
+         }
+     }
+ 
++    public long getContentSize() {
++        return mContentSize;
++    }
++
+     public boolean isDocumentPickerItem() {
+         return mIsDocumentPickerItem;
+     }
+diff --git a/src/com/android/messaging/datamodel/data/MediaPickerData.java b/src/com/android/messaging/datamodel/data/MediaPickerData.java
+index b0c8bf7..8de663a 100644
+--- a/src/com/android/messaging/datamodel/data/MediaPickerData.java
++++ b/src/com/android/messaging/datamodel/data/MediaPickerData.java
+@@ -23,10 +23,12 @@ import android.database.Cursor;
+ import android.os.Bundle;
+ import android.support.annotation.Nullable;
+ 
++import com.android.messaging.datamodel.AudioBoundCursorLoader;
+ import com.android.messaging.datamodel.BoundCursorLoader;
+ import com.android.messaging.datamodel.GalleryBoundCursorLoader;
+ import com.android.messaging.datamodel.binding.BindableData;
+ import com.android.messaging.datamodel.binding.BindingBase;
++import com.android.messaging.ui.mediapicker.MediaPicker;
+ import com.android.messaging.util.Assert;
+ import com.android.messaging.util.BuglePrefs;
+ import com.android.messaging.util.BuglePrefsKeys;
+@@ -44,7 +46,9 @@ public class MediaPickerData extends BindableData {
+     private final Context mContext;
+     private LoaderManager mLoaderManager;
+     private final GalleryLoaderCallbacks mGalleryLoaderCallbacks;
+-    private MediaPickerDataListener mListener;
++    private MediaPickerDataListener mImageListener;
++    private MediaPickerDataListener mAudioListener;
++    private static final String TAG = MediaPickerData.class.getSimpleName();
+ 
+     public MediaPickerData(final Context context) {
+         mContext = context;
+@@ -52,6 +56,7 @@ public class MediaPickerData extends BindableData {
+     }
+ 
+     public static final int GALLERY_IMAGE_LOADER = 1;
++    public static final int GALLERY_AUDIO_LOADER = 2;
+ 
+     /**
+      * A trampoline class so that we can inherit from LoaderManager.LoaderCallbacks multiple times.
+@@ -66,6 +71,9 @@ public class MediaPickerData extends BindableData {
+                     case GALLERY_IMAGE_LOADER:
+                         return new GalleryBoundCursorLoader(bindingId, mContext);
+ 
++                    case GALLERY_AUDIO_LOADER:
++                        return new AudioBoundCursorLoader(bindingId, mContext);
++
+                     default:
+                         Assert.fail("Unknown loader id for gallery picker!");
+                         break;
+@@ -85,10 +93,15 @@ public class MediaPickerData extends BindableData {
+             if (isBound(cursorLoader.getBindingId())) {
+                 switch (loader.getId()) {
+                     case GALLERY_IMAGE_LOADER:
+-                        mListener.onMediaPickerDataUpdated(MediaPickerData.this, data,
++                        mImageListener.onMediaPickerDataUpdated(MediaPickerData.this, data,
+                                 GALLERY_IMAGE_LOADER);
+                         break;
+ 
++                    case GALLERY_AUDIO_LOADER:
++                        mAudioListener.onMediaPickerDataUpdated(MediaPickerData.this, data,
++                                GALLERY_AUDIO_LOADER);
++                        break;
++
+                     default:
+                         Assert.fail("Unknown loader id for gallery picker!");
+                         break;
+@@ -107,10 +120,15 @@ public class MediaPickerData extends BindableData {
+             if (isBound(cursorLoader.getBindingId())) {
+                 switch (loader.getId()) {
+                     case GALLERY_IMAGE_LOADER:
+-                        mListener.onMediaPickerDataUpdated(MediaPickerData.this, null,
++                        mImageListener.onMediaPickerDataUpdated(MediaPickerData.this, null,
+                                 GALLERY_IMAGE_LOADER);
+                         break;
+ 
++                    case GALLERY_AUDIO_LOADER:
++                        mAudioListener.onMediaPickerDataUpdated(MediaPickerData.this, null,
++                                GALLERY_AUDIO_LOADER);
++                        break;
++
+                     default:
+                         Assert.fail("Unknown loader id for media picker!");
+                         break;
+@@ -131,10 +149,13 @@ public class MediaPickerData extends BindableData {
+         args.putString(BINDING_ID, binding.getBindingId());
+         if (loaderId == GALLERY_IMAGE_LOADER) {
+             mLoaderManager.initLoader(loaderId, args, mGalleryLoaderCallbacks).forceLoad();
+-        } else {
++            mImageListener = listener;
++        } else if (loaderId == GALLERY_AUDIO_LOADER) {
++            mLoaderManager.initLoader(loaderId, args, mGalleryLoaderCallbacks).forceLoad();
++            mAudioListener = listener;
++        }else {
+             Assert.fail("Unsupported loader id for media picker!");
+         }
+-        mListener = listener;
+     }
+ 
+     public void destroyLoader(final int loaderId) {
+@@ -150,6 +171,7 @@ public class MediaPickerData extends BindableData {
+         // This could be null if we bind but the caller doesn't init the BindableData
+         if (mLoaderManager != null) {
+             mLoaderManager.destroyLoader(GALLERY_IMAGE_LOADER);
++            mLoaderManager.destroyLoader(GALLERY_AUDIO_LOADER);
+             mLoaderManager = null;
+         }
+     }
+diff --git a/src/com/android/messaging/datamodel/data/MessagePartData.java b/src/com/android/messaging/datamodel/data/MessagePartData.java
+index a41eb3d..b4b74f8 100644
+--- a/src/com/android/messaging/datamodel/data/MessagePartData.java
++++ b/src/com/android/messaging/datamodel/data/MessagePartData.java
+@@ -66,7 +66,19 @@ public class MessagePartData implements Parcelable {
+                     ContentType.VIDEO_MPEG4,
+                     ContentType.VIDEO_3GP,
+                     ContentType.VIDEO_3GPP,
+-                    ContentType.VIDEO_WEBM,
++                    ContentType.VIDEO_WEBM
++            };
++
++    public static final String[] ACCEPTABLE_AUDIO_TYPES =
++            new String[] {
++                    // Audio
++                    ContentType.AUDIO_AMR,
++                    ContentType.AUDIO_3GPP,
++                    ContentType.AUDIO_AAC,
++                    ContentType.AUDIO_MP3,
++                    ContentType.AUDIO_MP4,
++                    ContentType.AUDIO_MPEG,
++                    ContentType.AUDIO_MPEG3
+             };
+ 
+     private static final String[] sProjection = {
+diff --git a/src/com/android/messaging/ui/mediapicker/AudioListAdapter.java b/src/com/android/messaging/ui/mediapicker/AudioListAdapter.java
+new file mode 100644
+index 0000000..2520d6b
+--- /dev/null
++++ b/src/com/android/messaging/ui/mediapicker/AudioListAdapter.java
+@@ -0,0 +1,61 @@
++/*
++ * Copyright (C) 2016 The Android Open Source Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++package com.android.messaging.ui.mediapicker;
++
++import android.content.Context;
++import android.database.Cursor;
++import android.view.LayoutInflater;
++import android.view.View;
++import android.view.ViewGroup;
++import android.widget.CursorAdapter;
++import com.android.messaging.R;
++import com.android.messaging.ui.mediapicker.AudioListItemView.HostInterface;
++import com.android.messaging.util.Assert;
++
++/**
++ * Bridges between the image cursor loaded by GalleryBoundCursorLoader and the GalleryGridView.
++ */
++public class AudioListAdapter extends CursorAdapter {
++    private HostInterface mGgivHostInterface;
++
++    public AudioListAdapter(final Context context, final Cursor cursor) {
++        super(context, cursor, 0);
++    }
++
++    public void setHostInterface(final HostInterface ggivHostInterface) {
++        mGgivHostInterface = ggivHostInterface;
++    }
++
++    /**
++     * {@inheritDoc}
++     */
++    @Override
++    public void bindView(final View view, final Context context, final Cursor cursor) {
++        Assert.isTrue(view instanceof AudioListItemView);
++        final AudioListItemView audioListItemView = (AudioListItemView) view;
++        audioListItemView.bind(cursor, mGgivHostInterface);
++    }
++
++    /**
++     * {@inheritDoc}
++     */
++    @Override
++    public View newView(final Context context, final Cursor cursor, final ViewGroup parent) {
++        final LayoutInflater layoutInflater = LayoutInflater.from(context);
++        return layoutInflater.inflate(R.layout.audio_list_item_view, parent, false);
++    }
++}
+diff --git a/src/com/android/messaging/ui/mediapicker/AudioListChooser.java b/src/com/android/messaging/ui/mediapicker/AudioListChooser.java
+new file mode 100644
+index 0000000..2ce42b3
+--- /dev/null
++++ b/src/com/android/messaging/ui/mediapicker/AudioListChooser.java
+@@ -0,0 +1,216 @@
++/*
++ * Copyright (C) 2016 The Android Open Source Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++package com.android.messaging.ui.mediapicker;
++
++import android.Manifest;
++import android.content.pm.PackageManager;
++import android.database.Cursor;
++import android.support.v7.app.ActionBar;
++import android.view.LayoutInflater;
++import android.view.Menu;
++import android.view.MenuInflater;
++import android.view.MenuItem;
++import android.view.View;
++import android.view.ViewGroup;
++import com.android.messaging.Factory;
++import com.android.messaging.R;
++import com.android.messaging.datamodel.data.MediaPickerData;
++import com.android.messaging.datamodel.data.MediaPickerData.MediaPickerDataListener;
++import com.android.messaging.datamodel.data.MessagePartData;
++import com.android.messaging.util.Assert;
++import com.android.messaging.util.OsUtil;
++
++/**
++ * Chooser which allows the user to select one or more existing audios
++ */
++class AudioListChooser extends MediaChooser implements
++        AudioListView.AudioListViewListener, MediaPickerDataListener {
++    private final AudioListAdapter mAdapter;
++    private AudioListView mAudioListView;
++    private View mMissingPermissionView;
++    private static final String TAG = AudioListChooser.class.getSimpleName();
++
++    AudioListChooser(final MediaPicker mediaPicker) {
++        super(mediaPicker);
++        mAdapter = new AudioListAdapter(Factory.get().getApplicationContext(), null);
++    }
++
++    @Override
++    public int getSupportedMediaTypes() {
++        return MediaPicker.MEDIA_TYPE_AUDIO;
++    }
++
++    @Override
++    public View destroyView() {
++        mAudioListView.setAdapter(null);
++        mAdapter.setHostInterface(null);
++        // The loader is started only if startMediaPickerDataLoader() is called
++        if (OsUtil.hasStoragePermission()) {
++            mBindingRef.getData().destroyLoader(MediaPickerData.GALLERY_AUDIO_LOADER);
++        }
++        return super.destroyView();
++    }
++
++    @Override
++    public int getIconResource() {
++        return R.drawable.ic_library_music_white_24px;
++    }
++
++    @Override
++    public int getIconDescriptionResource() {
++        return R.string.mediapicker_audioChooserDescription;
++    }
++
++    @Override
++    public boolean canSwipeDown() {
++        return mAudioListView.canSwipeDown();
++    }
++
++    @Override
++    public void onItemSelected(final MessagePartData item) {
++        mMediaPicker.dispatchItemsSelected(item, !mAudioListView.isMultiSelectEnabled());
++    }
++
++    @Override
++    public void onItemUnselected(final MessagePartData item) {
++        mMediaPicker.dispatchItemUnselected(item);
++    }
++
++    @Override
++    public void onConfirmSelection() {
++        // The user may only confirm if multiselect is enabled.
++        Assert.isTrue(mAudioListView.isMultiSelectEnabled());
++        mMediaPicker.dispatchConfirmItemSelection();
++    }
++
++    @Override
++    public void onUpdate() {
++        mMediaPicker.invalidateOptionsMenu();
++    }
++
++    @Override
++    public void onCreateOptionsMenu(final MenuInflater inflater, final Menu menu) {
++        if (mView != null) {
++            mAudioListView.onCreateOptionsMenu(inflater, menu);
++        }
++    }
++
++    @Override
++    public boolean onOptionsItemSelected(final MenuItem item) {
++        return (mView != null) ? mAudioListView.onOptionsItemSelected(item) : false;
++    }
++
++    @Override
++    protected View createView(final ViewGroup container) {
++        final LayoutInflater inflater = getLayoutInflater();
++        final View view = inflater.inflate(
++                R.layout.mediapicker_audio_list_chooser,
++                container /* root */,
++                false /* attachToRoot */);
++
++        mAudioListView = (AudioListView) view.findViewById(R.id.audio_list_view);
++        mAdapter.setHostInterface(mAudioListView);
++        mAudioListView.setAdapter(mAdapter);
++        mAudioListView.setHostInterface(this);
++        mAudioListView.setDraftMessageDataModel(mMediaPicker.getDraftMessageDataModel());
++        if (OsUtil.hasStoragePermission()) {
++            startMediaPickerDataLoader();
++        }
++
++        mMissingPermissionView = view.findViewById(R.id.missing_permission_view);
++        updateForPermissionState(OsUtil.hasStoragePermission());
++        return view;
++    }
++
++    @Override
++    int getActionBarTitleResId() {
++        return R.string.mediapicker_audio_list_title;
++    }
++
++    @Override
++    void updateActionBar(final ActionBar actionBar) {
++        super.updateActionBar(actionBar);
++        if (mAudioListView == null) {
++            return;
++        }
++        final int selectionCount = mAudioListView.getSelectionCount();
++        if (selectionCount > 0 && mAudioListView.isMultiSelectEnabled()) {
++            actionBar.setTitle(getContext().getResources().getString(
++                    R.string.mediapicker_audio_list_title_selection,
++                    selectionCount));
++        }
++    }
++
++    @Override
++    public void onMediaPickerDataUpdated(final MediaPickerData mediaPickerData, final Object data,
++            final int loaderId) {
++        mBindingRef.ensureBound(mediaPickerData);
++        Assert.equals(MediaPickerData.GALLERY_AUDIO_LOADER, loaderId);
++        Cursor rawCursor = null;
++        if (data instanceof Cursor) {
++            rawCursor = (Cursor) data;
++        }
++
++        mAdapter.swapCursor(rawCursor);
++    }
++
++    @Override
++    public void onResume() {
++        if (OsUtil.hasStoragePermission()) {
++            // Work around a bug in MediaStore where cursors querying the Files provider don't get
++            // updated for changes to Images.Media or Video.Media.
++            startMediaPickerDataLoader();
++        }
++    }
++
++    @Override
++    protected void setSelected(final boolean selected) {
++        super.setSelected(selected);
++        if (selected && !OsUtil.hasStoragePermission()) {
++            mMediaPicker.requestPermissions(
++                    new String[] { Manifest.permission.READ_EXTERNAL_STORAGE },
++                    MediaPicker.GALLERY_PERMISSION_REQUEST_CODE);
++        }
++    }
++
++    private void startMediaPickerDataLoader() {
++        mBindingRef.getData().startLoader(MediaPickerData.GALLERY_AUDIO_LOADER, mBindingRef, null,
++                this);
++    }
++
++    @Override
++    protected void onRequestPermissionsResult(
++            final int requestCode, final String permissions[], final int[] grantResults) {
++        if (requestCode == MediaPicker.GALLERY_PERMISSION_REQUEST_CODE) {
++            final boolean permissionGranted = grantResults[0] == PackageManager.PERMISSION_GRANTED;
++            if (permissionGranted) {
++                startMediaPickerDataLoader();
++            }
++            updateForPermissionState(permissionGranted);
++        }
++    }
++
++    private void updateForPermissionState(final boolean granted) {
++        // onRequestPermissionsResult can sometimes get called before createView().
++        if (mAudioListView == null) {
++            return;
++        }
++
++        mAudioListView.setVisibility(granted ? View.VISIBLE : View.GONE);
++        mMissingPermissionView.setVisibility(granted ? View.GONE : View.VISIBLE);
++    }
++}
+diff --git a/src/com/android/messaging/ui/mediapicker/AudioListItemView.java b/src/com/android/messaging/ui/mediapicker/AudioListItemView.java
+new file mode 100644
+index 0000000..d95f1fd
+--- /dev/null
++++ b/src/com/android/messaging/ui/mediapicker/AudioListItemView.java
+@@ -0,0 +1,111 @@
++/*
++ * Copyright (C) 2016 The Android Open Source Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++package com.android.messaging.ui.mediapicker;
++
++import android.content.Context;
++import android.database.Cursor;
++import android.util.AttributeSet;
++import android.view.View;
++import android.widget.CheckBox;
++import android.widget.ImageView;
++import android.widget.LinearLayout;
++import android.widget.TextView;
++import com.android.messaging.R;
++import com.android.messaging.datamodel.DataModel;
++import com.android.messaging.datamodel.data.AudioListItemData;
++import com.google.common.annotations.VisibleForTesting;
++
++/**
++ * Shows an item in the audio picker list view. Hosts an FileImageView with a checkbox.
++ */
++public class AudioListItemView extends LinearLayout {
++    private static final String TAG = AudioListItemView.class.getSimpleName();
++    /**
++     * Implemented by the owner of this ListItemView instance to communicate on media
++     * picking and selection events.
++     */
++    public interface HostInterface {
++        void onItemClicked(View view, AudioListItemData data, boolean longClick);
++        boolean isItemSelected(AudioListItemData data);
++        boolean isMultiSelectEnabled();
++    }
++
++    @VisibleForTesting
++    AudioListItemData mData;
++    TextView mAudioFilename;
++    CheckBox mCheckBox;
++    ImageView mImageIcon;
++
++    private HostInterface mHostInterface;
++    private final OnClickListener mOnClickListener = new OnClickListener() {
++        @Override
++        public void onClick(final View v) {
++            mHostInterface.onItemClicked(AudioListItemView.this, mData, false /*longClick*/);
++        }
++    };
++
++    public AudioListItemView(final Context context, final AttributeSet attrs) {
++        super(context, attrs);
++        mData = DataModel.get().createAudioListItemData();
++    }
++
++    @Override
++    protected void onFinishInflate() {
++        super.onFinishInflate();
++        mAudioFilename = (TextView)findViewById(R.id.audio_filename);
++        mImageIcon = (ImageView) findViewById(R.id.audio_button);
++
++        mCheckBox = (CheckBox)findViewById(R.id.audio_checkbox);
++        mCheckBox.setOnClickListener(mOnClickListener);
++        setOnClickListener(mOnClickListener);
++
++        final OnLongClickListener longClickListener = new OnLongClickListener() {
++            @Override
++            public boolean onLongClick(final View v) {
++                mHostInterface.onItemClicked(v, mData, true /* longClick */);
++                return true;
++            }
++        };
++        setOnLongClickListener(longClickListener);
++        mCheckBox.setOnLongClickListener(longClickListener);
++    }
++
++
++    public void bind(final Cursor cursor, final HostInterface hostInterface) {
++        mData.bind(cursor);
++        mHostInterface = hostInterface;
++        updateViewState();
++    }
++
++    private void updateViewState() {
++        updateListItemView();
++        if (mHostInterface.isMultiSelectEnabled()) {
++            mCheckBox.setVisibility(VISIBLE);
++            mCheckBox.setClickable(true);
++            mCheckBox.setChecked(mHostInterface.isItemSelected(mData));
++            mImageIcon.setVisibility(GONE);
++        } else {
++            mCheckBox.setVisibility(GONE);
++            mCheckBox.setClickable(false);
++            mImageIcon.setVisibility(VISIBLE);
++        }
++    }
++
++    private void updateListItemView() {
++        mAudioFilename.setText(mData.getAudioFilename());
++    }
++
++}
+diff --git a/src/com/android/messaging/ui/mediapicker/AudioListView.java b/src/com/android/messaging/ui/mediapicker/AudioListView.java
+new file mode 100644
+index 0000000..e097b9e
+--- /dev/null
++++ b/src/com/android/messaging/ui/mediapicker/AudioListView.java
+@@ -0,0 +1,311 @@
++/*
++ * Copyright (C) 2016 The Android Open Source Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++package com.android.messaging.ui.mediapicker;
++
++import android.content.Context;
++import android.graphics.Rect;
++import android.net.Uri;
++import android.os.Parcel;
++import android.os.Parcelable;
++import android.support.v4.util.ArrayMap;
++import android.util.AttributeSet;
++import android.view.Menu;
++import android.view.MenuInflater;
++import android.view.MenuItem;
++import android.view.View;
++import com.android.messaging.R;
++import com.android.messaging.datamodel.binding.BindingBase;
++import com.android.messaging.datamodel.binding.ImmutableBindingRef;
++import com.android.messaging.datamodel.data.AudioListItemData;
++import com.android.messaging.datamodel.data.DraftMessageData;
++import com.android.messaging.datamodel.data.DraftMessageData.DraftMessageDataListener;
++import com.android.messaging.datamodel.data.MessagePartData;
++import com.android.messaging.ui.PersistentInstanceState;
++import com.android.messaging.util.Assert;
++import com.android.messaging.util.ContentType;
++import com.android.messaging.util.LogUtil;
++
++import java.util.Iterator;
++import java.util.Map;
++
++/**
++ * Shows a list of audio filenames from external storage in a ListView with multi-select
++ * capabilities
++ */
++public class AudioListView extends MediaPickerListView implements
++        AudioListItemView.HostInterface,
++        PersistentInstanceState,
++        DraftMessageDataListener {
++    /**
++     * Implemented by the owner of this GalleryGridView instance to communicate on image
++     * picking and multi-image selection events.
++     */
++    public interface AudioListViewListener {
++        void onItemSelected(MessagePartData item);
++        void onItemUnselected(MessagePartData item);
++        void onConfirmSelection();
++        void onUpdate();
++    }
++
++    private AudioListViewListener mListener;
++
++    // TODO: Consider putting this into the data model object if we add more states.
++    private final ArrayMap<Uri, MessagePartData> mSelectedAudios;
++    private boolean mIsMultiSelectMode = false;
++    private ImmutableBindingRef<DraftMessageData> mDraftMessageDataModel;
++
++    public AudioListView(final Context context, final AttributeSet attrs) {
++        super(context, attrs);
++        mSelectedAudios = new ArrayMap<Uri, MessagePartData>();
++    }
++
++    public void setHostInterface(final AudioListViewListener hostInterface) {
++        mListener = hostInterface;
++    }
++
++    public void setDraftMessageDataModel(final BindingBase<DraftMessageData> dataModel) {
++        mDraftMessageDataModel = BindingBase.createBindingReference(dataModel);
++        mDraftMessageDataModel.getData().addListener(this);
++    }
++
++    @Override
++    public void onItemClicked(final View view, final AudioListItemData data,
++            final boolean longClick) {
++        if (ContentType.isMediaType(data.getContentType())) {
++            if (longClick) {
++                // Turn on multi-select mode when an item is long-pressed.
++                setMultiSelectEnabled(true);
++            }
++
++            final Rect startRect = new Rect();
++            view.getGlobalVisibleRect(startRect);
++            if (isMultiSelectEnabled()) {
++                toggleItemSelection(startRect, data);
++            } else {
++                mListener.onItemSelected(data.constructMessagePartData(startRect));
++            }
++        } else {
++            LogUtil.w(LogUtil.BUGLE_TAG,
++                    "Selected item has invalid contentType " + data.getContentType());
++        }
++    }
++
++    @Override
++    public boolean isItemSelected(final AudioListItemData data) {
++        return mSelectedAudios.containsKey(data.getAudioUri());
++    }
++
++    int getSelectionCount() {
++        return mSelectedAudios.size();
++    }
++
++    @Override
++    public boolean isMultiSelectEnabled() {
++        return mIsMultiSelectMode;
++    }
++
++    private void toggleItemSelection(final Rect startRect, final AudioListItemData data) {
++        Assert.isTrue(isMultiSelectEnabled());
++        if (isItemSelected(data)) {
++            final MessagePartData item = mSelectedAudios.remove(data.getAudioUri());
++            mListener.onItemUnselected(item);
++            if (mSelectedAudios.size() == 0) {
++                // No image is selected any more, turn off multi-select mode.
++                setMultiSelectEnabled(false);
++            }
++        } else {
++            final MessagePartData item = data.constructMessagePartData(startRect);
++            mSelectedAudios.put(data.getAudioUri(), item);
++            mListener.onItemSelected(item);
++        }
++        invalidateViews();
++    }
++
++    private void toggleMultiSelect() {
++        mIsMultiSelectMode = !mIsMultiSelectMode;
++        invalidateViews();
++    }
++
++    private void setMultiSelectEnabled(final boolean enabled) {
++        if (mIsMultiSelectMode != enabled) {
++            toggleMultiSelect();
++        }
++    }
++
++    private boolean canToggleMultiSelect() {
++        // We allow the user to toggle multi-select mode only when nothing has selected. If
++        // something has been selected, we show a confirm button instead.
++        return mSelectedAudios.size() == 0;
++    }
++
++    public void onCreateOptionsMenu(final MenuInflater inflater, final Menu menu) {
++        inflater.inflate(R.menu.gallery_picker_menu, menu);
++        final MenuItem toggleMultiSelect = menu.findItem(R.id.action_multiselect);
++        final MenuItem confirmMultiSelect = menu.findItem(R.id.action_confirm_multiselect);
++        final boolean canToggleMultiSelect = canToggleMultiSelect();
++        toggleMultiSelect.setVisible(canToggleMultiSelect);
++        confirmMultiSelect.setVisible(!canToggleMultiSelect);
++    }
++
++    public boolean onOptionsItemSelected(final MenuItem item) {
++        switch (item.getItemId()) {
++            case R.id.action_multiselect:
++                Assert.isTrue(canToggleMultiSelect());
++                toggleMultiSelect();
++                return true;
++
++            case R.id.action_confirm_multiselect:
++                Assert.isTrue(!canToggleMultiSelect());
++                mListener.onConfirmSelection();
++                return true;
++        }
++        return false;
++    }
++
++
++    @Override
++    public void onDraftChanged(final DraftMessageData data, final int changeFlags) {
++        mDraftMessageDataModel.ensureBound(data);
++        // Whenever attachment changed, refresh selection state to remove those that are not
++        // selected.
++        if ((changeFlags & DraftMessageData.ATTACHMENTS_CHANGED) ==
++                DraftMessageData.ATTACHMENTS_CHANGED) {
++            refreshImageSelectionStateOnAttachmentChange();
++        }
++    }
++
++    @Override
++    public void onDraftAttachmentLimitReached(final DraftMessageData data) {
++        mDraftMessageDataModel.ensureBound(data);
++        // Whenever draft attachment limit is reach, refresh selection state to remove those
++        // not actually added to draft.
++        refreshImageSelectionStateOnAttachmentChange();
++    }
++
++    @Override
++    public void onDraftAttachmentLoadFailed() {
++        // Nothing to do since the failed attachment gets removed automatically.
++    }
++
++    private void refreshImageSelectionStateOnAttachmentChange() {
++        boolean changed = false;
++        final Iterator<Map.Entry<Uri, MessagePartData>> iterator =
++                mSelectedAudios.entrySet().iterator();
++        while (iterator.hasNext()) {
++            Map.Entry<Uri, MessagePartData> entry = iterator.next();
++            if (!mDraftMessageDataModel.getData().containsAttachment(entry.getKey())) {
++                iterator.remove();
++                changed = true;
++            }
++        }
++
++        if (changed) {
++            mListener.onUpdate();
++            invalidateViews();
++        }
++    }
++
++    @Override   // PersistentInstanceState
++    public Parcelable saveState() {
++        return onSaveInstanceState();
++    }
++
++    @Override   // PersistentInstanceState
++    public void restoreState(final Parcelable restoredState) {
++        onRestoreInstanceState(restoredState);
++        invalidateViews();
++    }
++
++    @Override
++    public Parcelable onSaveInstanceState() {
++        final Parcelable superState = super.onSaveInstanceState();
++        final SavedState savedState = new SavedState(superState);
++        savedState.isMultiSelectMode = mIsMultiSelectMode;
++        savedState.selectedAudios = mSelectedAudios.values()
++                .toArray(new MessagePartData[mSelectedAudios.size()]);
++        return savedState;
++    }
++
++    @Override
++    public void onRestoreInstanceState(final Parcelable state) {
++        if (!(state instanceof SavedState)) {
++            super.onRestoreInstanceState(state);
++            return;
++        }
++
++        final SavedState savedState = (SavedState) state;
++        super.onRestoreInstanceState(savedState.getSuperState());
++        mIsMultiSelectMode = savedState.isMultiSelectMode;
++        mSelectedAudios.clear();
++        for (int i = 0; i < savedState.selectedAudios.length; i++) {
++            final MessagePartData selectedAudio = savedState.selectedAudios[i];
++            mSelectedAudios.put(selectedAudio.getContentUri(), selectedAudio);
++        }
++    }
++
++    @Override   // PersistentInstanceState
++    public void resetState() {
++        mSelectedAudios.clear();
++        mIsMultiSelectMode = false;
++        invalidateViews();
++    }
++
++    public static class SavedState extends BaseSavedState {
++        boolean isMultiSelectMode;
++        MessagePartData[] selectedAudios;
++
++        SavedState(final Parcelable superState) {
++            super(superState);
++        }
++
++        private SavedState(final Parcel in) {
++            super(in);
++            isMultiSelectMode = in.readInt() == 1 ? true : false;
++
++            // Read parts
++            final int partCount = in.readInt();
++            selectedAudios = new MessagePartData[partCount];
++            for (int i = 0; i < partCount; i++) {
++                selectedAudios[i] = ((MessagePartData) in.readParcelable(
++                        MessagePartData.class.getClassLoader()));
++            }
++        }
++
++        @Override
++        public void writeToParcel(final Parcel out, final int flags) {
++            super.writeToParcel(out, flags);
++            out.writeInt(isMultiSelectMode ? 1 : 0);
++
++            // Write parts
++            out.writeInt(selectedAudios.length);
++            for (final MessagePartData image : selectedAudios) {
++                out.writeParcelable(image, flags);
++            }
++        }
++
++        public static final Creator<SavedState> CREATOR =
++                new Creator<SavedState>() {
++            @Override
++            public SavedState createFromParcel(final Parcel in) {
++                return new SavedState(in);
++            }
++            @Override
++            public SavedState[] newArray(final int size) {
++                return new SavedState[size];
++            }
++        };
++    }
++}
+diff --git a/src/com/android/messaging/ui/mediapicker/GalleryGridItemView.java b/src/com/android/messaging/ui/mediapicker/GalleryGridItemView.java
+index 2006f57..034ca8b 100644
+--- a/src/com/android/messaging/ui/mediapicker/GalleryGridItemView.java
++++ b/src/com/android/messaging/ui/mediapicker/GalleryGridItemView.java
+@@ -18,7 +18,9 @@ package com.android.messaging.ui.mediapicker;
+ import android.content.Context;
+ import android.database.Cursor;
+ import android.graphics.Rect;
++import android.support.v7.mms.CarrierConfigValuesLoader;
+ import android.util.AttributeSet;
++import android.util.Log;
+ import android.view.MotionEvent;
+ import android.view.TouchDelegate;
+ import android.view.View;
+@@ -26,11 +28,16 @@ import android.widget.CheckBox;
+ import android.widget.FrameLayout;
+ import android.widget.ImageView.ScaleType;
+ 
++import android.widget.Toast;
+ import com.android.messaging.R;
+ import com.android.messaging.datamodel.DataModel;
++import com.android.messaging.datamodel.data.DraftMessageData;
+ import com.android.messaging.datamodel.data.GalleryGridItemData;
++import com.android.messaging.datamodel.data.ParticipantData;
++import com.android.messaging.sms.MmsConfig;
+ import com.android.messaging.ui.AsyncImageView;
+ import com.android.messaging.ui.ConversationDrawables;
++import com.android.messaging.util.UriUtil;
+ import com.google.common.annotations.VisibleForTesting;
+ 
+ import java.util.concurrent.TimeUnit;
+@@ -39,6 +46,7 @@ import java.util.concurrent.TimeUnit;
+  * Shows an item in the gallery picker grid view. Hosts an FileImageView with a checkbox.
+  */
+ public class GalleryGridItemView extends FrameLayout {
++    private static final String TAG = GalleryGridItemView.class.getSimpleName();
+     /**
+      * Implemented by the owner of this GalleryGridItemView instance to communicate on media
+      * picking and selection events.
+@@ -47,6 +55,7 @@ public class GalleryGridItemView extends FrameLayout {
+         void onItemClicked(View view, GalleryGridItemData data, boolean longClick);
+         boolean isItemSelected(GalleryGridItemData data);
+         boolean isMultiSelectEnabled();
++        int getSubscriptionProviderSubId();
+     }
+ 
+     @VisibleForTesting
+@@ -55,10 +64,65 @@ public class GalleryGridItemView extends FrameLayout {
+     private AsyncImageView mImageView;
+     private CheckBox mCheckBox;
+     private HostInterface mHostInterface;
++    private static long mTotalContentSize = 0;
++    private static long mMaxMessageSize = 0;
++
++    private boolean checkSize() {
++        if (mData.isDocumentPickerItem()) {
++            return true;
++        }
++        // only perform the check for videos, since they are not being compressed
++        // images will be compressed, so exclude them from this check
++
++        // determine the maximum message size, this will be computed only once per this class
++        if (mMaxMessageSize == 0) {
++            int subId = mHostInterface.getSubscriptionProviderSubId();
++            mMaxMessageSize = MmsConfig.get(subId).getMaxMessageSize();
++        }
++
++        long contentSize = mData.getContentSize();
++        if (mHostInterface.isMultiSelectEnabled()) {
++            if (mData.isVideoItem()) {
++                if (mHostInterface.isItemSelected(mData)) {
++                    // un-selecting
++                    mTotalContentSize -= contentSize;
++                    if (mTotalContentSize < 0) {
++                        mTotalContentSize = 0;
++                    }
++                } else {
++                    // selecting
++                    mTotalContentSize += contentSize;
++                }
++            }
++        } else {
++            // short click or first long click
++            if (mData.isVideoItem()) {
++                mTotalContentSize = contentSize;
++            } else {
++                mTotalContentSize = 0;
++            }
++        }
++
++        if (mTotalContentSize > mMaxMessageSize) {
++            mTotalContentSize -= contentSize;
++            if (mTotalContentSize < 0) {
++                mTotalContentSize = 0;
++            }
++
++            Toast.makeText(getContext(), getContext().
++                    getString(R.string.mediapicker_gallery_image_item_attachment_too_large),
++                    Toast.LENGTH_LONG).show();
++            return false;
++        }
++
++        return true;
++    }
+     private final OnClickListener mOnClickListener = new OnClickListener() {
+         @Override
+         public void onClick(final View v) {
+-            mHostInterface.onItemClicked(GalleryGridItemView.this, mData, false /*longClick*/);
++            if (checkSize()) {
++                mHostInterface.onItemClicked(GalleryGridItemView.this, mData, false /*longClick*/);
++            }
+         }
+     };
+ 
+@@ -78,7 +142,9 @@ public class GalleryGridItemView extends FrameLayout {
+         final OnLongClickListener longClickListener = new OnLongClickListener() {
+             @Override
+             public boolean onLongClick(final View v) {
+-                mHostInterface.onItemClicked(v, mData, true /* longClick */);
++                if (checkSize()) {
++                    mHostInterface.onItemClicked(v, mData, true /* longClick */);
++                }
+                 return true;
+             }
+         };
+@@ -159,7 +225,6 @@ public class GalleryGridItemView extends FrameLayout {
+                     dateSeconds * TimeUnit.SECONDS.toMillis(1));
+             mImageView.setContentDescription(contentDescription);
+         } else {
+-            hideVideoPlayButtonOverlay();
+             mImageView.setScaleType(ScaleType.CENTER_CROP);
+             setBackgroundColor(getResources().getColor(R.color.gallery_image_default_background));
+             mImageView.setImageResourceId(mData.getImageRequestDescriptor());
+diff --git a/src/com/android/messaging/ui/mediapicker/GalleryGridView.java b/src/com/android/messaging/ui/mediapicker/GalleryGridView.java
+index a5a7dad..62f7f6f 100644
+--- a/src/com/android/messaging/ui/mediapicker/GalleryGridView.java
++++ b/src/com/android/messaging/ui/mediapicker/GalleryGridView.java
+@@ -34,6 +34,7 @@ import com.android.messaging.datamodel.data.DraftMessageData;
+ import com.android.messaging.datamodel.data.GalleryGridItemData;
+ import com.android.messaging.datamodel.data.MessagePartData;
+ import com.android.messaging.datamodel.data.DraftMessageData.DraftMessageDataListener;
++import com.android.messaging.datamodel.data.ParticipantData;
+ import com.android.messaging.ui.PersistentInstanceState;
+ import com.android.messaging.util.Assert;
+ import com.android.messaging.util.ContentType;
+@@ -69,11 +70,20 @@ public class GalleryGridView extends MediaPickerGridView implements
+     private boolean mIsMultiSelectMode = false;
+     private ImmutableBindingRef<DraftMessageData> mDraftMessageDataModel;
+ 
++    /** Provides subscription-related data to access per-subscription configurations. */
++    private DraftMessageData.DraftMessageSubscriptionDataProvider mSubscriptionDataProvider;
++
++
+     public GalleryGridView(final Context context, final AttributeSet attrs) {
+         super(context, attrs);
+         mSelectedImages = new ArrayMap<Uri, MessagePartData>();
+     }
+ 
++    public void setSubscriptionProvider(DraftMessageData.DraftMessageSubscriptionDataProvider
++                                                provider) {
++        mSubscriptionDataProvider = provider;
++    }
++
+     public void setHostInterface(final GalleryGridViewListener hostInterface) {
+         mListener = hostInterface;
+     }
+@@ -121,6 +131,16 @@ public class GalleryGridView extends MediaPickerGridView implements
+         return mIsMultiSelectMode;
+     }
+ 
++    @Override
++    public int getSubscriptionProviderSubId() {
++        if (mSubscriptionDataProvider != null) {
++            return mSubscriptionDataProvider.getConversationSelfSubId();
++        } else {
++            return ParticipantData.DEFAULT_SELF_SUB_ID;
++        }
++    }
++
++
+     private void toggleItemSelection(final Rect startRect, final GalleryGridItemData data) {
+         Assert.isTrue(isMultiSelectEnabled());
+         if (isItemSelected(data)) {
+diff --git a/src/com/android/messaging/ui/mediapicker/GalleryMediaChooser.java b/src/com/android/messaging/ui/mediapicker/GalleryMediaChooser.java
+index 9422386..eae03eb 100644
+--- a/src/com/android/messaging/ui/mediapicker/GalleryMediaChooser.java
++++ b/src/com/android/messaging/ui/mediapicker/GalleryMediaChooser.java
+@@ -21,7 +21,10 @@ import android.content.pm.PackageManager;
+ import android.database.Cursor;
+ import android.database.MatrixCursor;
+ import android.database.MergeCursor;
++import android.provider.Telephony;
+ import android.support.v7.app.ActionBar;
++import android.support.v7.mms.CarrierConfigValuesLoader;
++import android.util.Log;
+ import android.view.LayoutInflater;
+ import android.view.Menu;
+ import android.view.MenuInflater;
+@@ -29,6 +32,7 @@ import android.view.MenuItem;
+ import android.view.View;
+ import android.view.ViewGroup;
+ 
++import android.widget.Toast;
+ import com.android.messaging.Factory;
+ import com.android.messaging.R;
+ import com.android.messaging.datamodel.data.GalleryGridItemData;
+@@ -37,6 +41,7 @@ import com.android.messaging.datamodel.data.MessagePartData;
+ import com.android.messaging.datamodel.data.MediaPickerData.MediaPickerDataListener;
+ import com.android.messaging.util.Assert;
+ import com.android.messaging.util.OsUtil;
++import com.android.messaging.util.UriUtil;
+ 
+ /**
+  * Chooser which allows the user to select one or more existing images or videos
+@@ -46,6 +51,7 @@ class GalleryMediaChooser extends MediaChooser implements
+     private final GalleryGridAdapter mAdapter;
+     private GalleryGridView mGalleryGridView;
+     private View mMissingPermissionView;
++    private static final String TAG = GalleryMediaChooser.class.getSimpleName();
+ 
+     GalleryMediaChooser(final MediaPicker mediaPicker) {
+         super(mediaPicker);
+@@ -75,7 +81,7 @@ class GalleryMediaChooser extends MediaChooser implements
+ 
+     @Override
+     public int getIconDescriptionResource() {
+-        return R.string.mediapicker_galleryChooserDescription;
++        return R.string.mediapicker_galleryChooserDescription_cm;
+     }
+ 
+     @Override
+@@ -127,6 +133,7 @@ class GalleryMediaChooser extends MediaChooser implements
+ 
+         mGalleryGridView = (GalleryGridView) view.findViewById(R.id.gallery_grid_view);
+         mAdapter.setHostInterface(mGalleryGridView);
++        mGalleryGridView.setSubscriptionProvider(this);
+         mGalleryGridView.setAdapter(mAdapter);
+         mGalleryGridView.setHostInterface(this);
+         mGalleryGridView.setDraftMessageDataModel(mMediaPicker.getDraftMessageDataModel());
+@@ -172,6 +179,7 @@ class GalleryMediaChooser extends MediaChooser implements
+         if (data instanceof Cursor) {
+             rawCursor = (Cursor) data;
+         }
++
+         // Before delivering the cursor, wrap around the local gallery cursor
+         // with an extra item for document picker integration in the front.
+         final MatrixCursor specialItemsCursor =
+diff --git a/src/com/android/messaging/ui/mediapicker/MediaPicker.java b/src/com/android/messaging/ui/mediapicker/MediaPicker.java
+index f441d09..7842e3b 100644
+--- a/src/com/android/messaging/ui/mediapicker/MediaPicker.java
++++ b/src/com/android/messaging/ui/mediapicker/MediaPicker.java
+@@ -178,6 +178,7 @@ public class MediaPicker extends Fragment implements DraftMessageSubscriptionDat
+         mChoosers = new MediaChooser[] {
+             new CameraMediaChooser(this),
+             new GalleryMediaChooser(this),
++            new AudioListChooser(this),
+             new AudioMediaChooser(this),
+         };
+ 
+diff --git a/src/com/android/messaging/ui/mediapicker/MediaPickerListView.java b/src/com/android/messaging/ui/mediapicker/MediaPickerListView.java
+new file mode 100644
+index 0000000..f448b87
+--- /dev/null
++++ b/src/com/android/messaging/ui/mediapicker/MediaPickerListView.java
+@@ -0,0 +1,45 @@
++/*
++ * Copyright (C) 2015 The Android Open Source Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++package com.android.messaging.ui.mediapicker;
++
++import android.content.Context;
++import android.util.AttributeSet;
++import android.widget.GridView;
++import android.widget.ListView;
++
++public class MediaPickerListView extends ListView {
++
++    public MediaPickerListView(final Context context, final AttributeSet attrs) {
++        super(context, attrs);
++    }
++
++    /**
++     * Returns if the list view can be swiped down further. It cannot be swiped down
++     * if there's no item or if we are already at the top.
++     */
++    public boolean canSwipeDown() {
++        if (getAdapter() == null || getAdapter().getCount() == 0 || getChildCount() == 0) {
++            return false;
++        }
++
++        final int firstVisiblePosition = getFirstVisiblePosition();
++        if (firstVisiblePosition == 0 && getChildAt(0).getTop() >= 0) {
++            return false;
++        }
++        return true;
++    }
++}
+diff --git a/tests/src/com/android/messaging/datamodel/FakeDataModel.java b/tests/src/com/android/messaging/datamodel/FakeDataModel.java
+index 5e80eab..c411fb2 100644
+--- a/tests/src/com/android/messaging/datamodel/FakeDataModel.java
++++ b/tests/src/com/android/messaging/datamodel/FakeDataModel.java
+@@ -23,6 +23,7 @@ import android.test.RenamingDelegatingContext;
+ 
+ import com.android.messaging.datamodel.action.ActionService;
+ import com.android.messaging.datamodel.action.BackgroundWorker;
++import com.android.messaging.datamodel.data.AudioListItemData;
+ import com.android.messaging.datamodel.data.BlockedParticipantsData;
+ import com.android.messaging.datamodel.data.BlockedParticipantsData.BlockedParticipantsDataListener;
+ import com.android.messaging.datamodel.data.ContactListItemData;
+@@ -164,6 +165,11 @@ public class FakeDataModel extends DataModel {
+         return new GalleryGridItemData();
+     }
+ 
++    @Override
++    public AudioListItemData createAudioListItemData() {
++        return new AudioListItemData();
++    }
++
+     @Override
+     public LaunchConversationData createLaunchConversationData(
+             final LaunchConversationDataListener listener) {
+-- 
+2.17.1
+

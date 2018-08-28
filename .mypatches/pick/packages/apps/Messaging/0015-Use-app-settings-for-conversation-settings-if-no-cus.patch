@@ -1,0 +1,156 @@
+From b4fd2742be4881dbff8203b231b6e53bc758c0f2 Mon Sep 17 00:00:00 2001
+From: Artem Shvadskiy <ashvadskiy@cyngn.com>
+Date: Mon, 25 Jul 2016 14:38:33 -0700
+Subject: [PATCH 15/23] Use app settings for conversation settings if no custom
+ set
+
+Change-Id: I07adfd75c465ae40e477470d66587df21d560c4d
+issue-id: FEIJ-1291
+---
+ .../messaging/datamodel/DatabaseHelper.java   |  4 +-
+ .../data/ConversationListItemData.java        |  7 ++-
+ .../datamodel/data/PeopleOptionsItemData.java |  7 ++-
+ .../messaging/util/NotificationUtil.java      | 57 +++++++++++++++++++
+ 4 files changed, 69 insertions(+), 6 deletions(-)
+ create mode 100644 src/com/android/messaging/util/NotificationUtil.java
+
+diff --git a/src/com/android/messaging/datamodel/DatabaseHelper.java b/src/com/android/messaging/datamodel/DatabaseHelper.java
+index 2025e2c..5bfca06 100644
+--- a/src/com/android/messaging/datamodel/DatabaseHelper.java
++++ b/src/com/android/messaging/datamodel/DatabaseHelper.java
+@@ -181,9 +181,9 @@ public class DatabaseHelper extends SQLiteOpenHelper {
+                     + ConversationColumns.OTHER_PARTICIPANT_NORMALIZED_DESTINATION + " TEXT, "
+                     + ConversationColumns.CURRENT_SELF_ID + " TEXT, "
+                     + ConversationColumns.PARTICIPANT_COUNT + " INT DEFAULT(0), "
+-                    + ConversationColumns.NOTIFICATION_ENABLED + " INT DEFAULT(1), "
++                    + ConversationColumns.NOTIFICATION_ENABLED + " INT DEFAULT(-1), "
+                     + ConversationColumns.NOTIFICATION_SOUND_URI + " TEXT, "
+-                    + ConversationColumns.NOTIFICATION_VIBRATION + " INT DEFAULT(1), "
++                    + ConversationColumns.NOTIFICATION_VIBRATION + " INT DEFAULT(-1), "
+                     + ConversationColumns.INCLUDE_EMAIL_ADDRESS + " INT DEFAULT(0), "
+                     + ConversationColumns.SMS_SERVICE_CENTER + " TEXT ,"
+                     + ConversationColumns.IS_ENTERPRISE + " INT DEFAULT(0)"
+diff --git a/src/com/android/messaging/datamodel/data/ConversationListItemData.java b/src/com/android/messaging/datamodel/data/ConversationListItemData.java
+index f627a09..13cfc74 100644
+--- a/src/com/android/messaging/datamodel/data/ConversationListItemData.java
++++ b/src/com/android/messaging/datamodel/data/ConversationListItemData.java
+@@ -30,6 +30,7 @@ import com.android.messaging.datamodel.action.DeleteConversationAction;
+ import com.android.messaging.util.Assert;
+ import com.android.messaging.util.ContactUtil;
+ import com.android.messaging.util.Dates;
++import com.android.messaging.util.NotificationUtil;
+ import com.google.common.base.Joiner;
+ 
+ import java.util.ArrayList;
+@@ -92,9 +93,11 @@ public class ConversationListItemData {
+                 INDEX_OTHER_PARTICIPANT_NORMALIZED_DESTINATION);
+         mSelfId = cursor.getString(INDEX_SELF_ID);
+         mParticipantCount = cursor.getInt(INDEX_PARTICIPANT_COUNT);
+-        mNotificationEnabled = cursor.getInt(INDEX_NOTIFICATION_ENABLED) == 1;
++        mNotificationEnabled = NotificationUtil.getConversationNotificationEnabled
++                (cursor.getInt(INDEX_NOTIFICATION_ENABLED));
+         mNotificationSoundUri = cursor.getString(INDEX_NOTIFICATION_SOUND_URI);
+-        mNotificationVibrate = cursor.getInt(INDEX_NOTIFICATION_VIBRATION) == 1;
++        mNotificationVibrate = NotificationUtil.getConversationNotificationVibrateEnabled(
++                cursor.getInt(INDEX_NOTIFICATION_VIBRATION));
+         mIncludeEmailAddress = cursor.getInt(INDEX_INCLUDE_EMAIL_ADDRESS) == 1;
+         mMessageStatus = cursor.getInt(INDEX_MESSAGE_STATUS);
+         mMessageRawTelephonyStatus = cursor.getInt(INDEX_MESSAGE_RAW_TELEPHONY_STATUS);
+diff --git a/src/com/android/messaging/datamodel/data/PeopleOptionsItemData.java b/src/com/android/messaging/datamodel/data/PeopleOptionsItemData.java
+index 5af6a30..b24ca55 100644
+--- a/src/com/android/messaging/datamodel/data/PeopleOptionsItemData.java
++++ b/src/com/android/messaging/datamodel/data/PeopleOptionsItemData.java
+@@ -24,6 +24,7 @@ import android.net.Uri;
+ import com.android.messaging.R;
+ import com.android.messaging.datamodel.data.ConversationListItemData.ConversationListViewColumns;
+ import com.android.messaging.util.Assert;
++import com.android.messaging.util.NotificationUtil;
+ import com.android.messaging.util.RingtoneUtil;
+ 
+ public class PeopleOptionsItemData {
+@@ -78,7 +79,8 @@ public class PeopleOptionsItemData {
+         mItemId = settingType;
+         mOtherParticipant = otherParticipant;
+ 
+-        final boolean notificationEnabled = cursor.getInt(INDEX_NOTIFICATION_ENABLED) == 1;
++        final boolean notificationEnabled = NotificationUtil
++                .getConversationNotificationEnabled(cursor.getInt(INDEX_NOTIFICATION_ENABLED));
+         switch (settingType) {
+             case SETTING_NOTIFICATION_ENABLED:
+                 mTitle = mContext.getString(R.string.notifications_enabled_conversation_pref_title);
+@@ -104,7 +106,8 @@ public class PeopleOptionsItemData {
+ 
+             case SETTING_NOTIFICATION_VIBRATION:
+                 mTitle = mContext.getString(R.string.notification_vibrate_pref_title);
+-                mChecked = cursor.getInt(INDEX_NOTIFICATION_VIBRATION) == 1;
++                mChecked = NotificationUtil.getConversationNotificationVibrateEnabled(
++                        cursor.getInt(INDEX_NOTIFICATION_VIBRATION));
+                 mEnabled = notificationEnabled;
+                 break;
+ 
+diff --git a/src/com/android/messaging/util/NotificationUtil.java b/src/com/android/messaging/util/NotificationUtil.java
+new file mode 100644
+index 0000000..6afa961
+--- /dev/null
++++ b/src/com/android/messaging/util/NotificationUtil.java
+@@ -0,0 +1,57 @@
++/*
++ * Copyright (C) 2016 The CyanogenMod Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ * http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++package com.android.messaging.util;
++
++import android.content.Context;
++
++import com.android.messaging.Factory;
++import com.android.messaging.R;
++
++public class NotificationUtil {
++    /**
++     * Get the final enabled status for notifications in this conversation, based on the given
++     * value, and the default (application-wide) value.
++     *
++     * @param conversationVal the custom value for this conversation, or -1 if it does not exist.
++     * @return whether notifications should be enabled for this conversation.
++     */
++    public static boolean getConversationNotificationEnabled(int conversationVal) {
++        return getEnabledCustomOrDefault(conversationVal, R.string.notifications_enabled_pref_key);
++    }
++
++    /**
++     * Get the final enabled status for notification vibration in this conversation, based on the
++     * given value and the default (application-wide) value.
++     *
++     * @param conversationVal the custom value for this conversation, or -1 if it does not exist.
++     * @return whether notification vibration should be enabled for this conversation.
++     */
++    public static boolean getConversationNotificationVibrateEnabled(int conversationVal) {
++        return getEnabledCustomOrDefault(conversationVal, R.string.notification_vibration_pref_key);
++    }
++
++    private static boolean getEnabledCustomOrDefault(int customVal, int keyRes) {
++        // Load default if we do not have a custom value set.
++        if (customVal == -1) {
++            final BuglePrefs prefs = BuglePrefs.getApplicationPrefs();
++            final Context context = Factory.get().getApplicationContext();
++            final String prefKey = context.getString(keyRes);
++            return prefs.getBoolean(prefKey, true);
++        } else {
++            return customVal == 1;
++        }
++    }
++}
+-- 
+2.17.1
+
