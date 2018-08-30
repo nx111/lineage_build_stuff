@@ -1,0 +1,269 @@
+From 5af443a2db2e65614c2c827021fd2a5e4c8134ad Mon Sep 17 00:00:00 2001
+From: Tanguy Pruvot <tanguy.pruvot@gmail.com>
+Date: Sun, 15 Oct 2017 13:26:02 +0200
+Subject: [PATCH 68/70] Port ADB over network and ability to hide the
+ notification
+
+Port "Option to hide Adb notification icon (2/2)"
+
+From: Ricardo Cerqueira <cyanogenmod@cerqueira.org>
+Framework: Forward port ADB over network (Part 2 of 2)
+
+Includes:
+- ADB Over Network, integration of the adb-host mode (already present)
+  The feature can be used/tested without the Settings part:
+
+    setprop service.adb.tcp.port 5555
+
+  Note: This ADB setting is not persistent (for security purpose) and
+  require init.rc implementation event like this : http://bit.ly/AdbTcpIP
+
+  Author: Tanguy Pruvot
+  Id: I5c61a53948349c785356cb5aae165110d75e3074
+
+  Author: sssemil <suleymanovemil8@gmail.com>
+  Show notification on adb over network too
+
+  Screenshots - http://goo.gl/TgsRI6
+  Id: I9ddc0aa9a4f330a06ab5d97a8645d1b31bb6f299
+
+From: Ethan Chen <intervigil@gmail.com>
+Use custom ADB over wifi property
+
+* Use a custom system property to trigger the real one, so we avoid
+  running afoul of any SELinux CTS requirements.
+
+Change-Id: If23636cb5b51eb8fbdc76e9fa49ac474fbd6bf33
+---
+ core/res/res/values/cm_strings.xml            | 28 ++++++++++
+ core/res/res/values/lineage_symbols.xml       |  5 ++
+ .../java/com/android/server/SystemServer.java | 27 ++++++++++
+ services/usb/Android.bp                       |  1 +
+ .../android/server/usb/UsbDeviceManager.java  | 54 ++++++++++++++-----
+ 5 files changed, 103 insertions(+), 12 deletions(-)
+ create mode 100644 core/res/res/values/cm_strings.xml
+
+diff --git a/core/res/res/values/cm_strings.xml b/core/res/res/values/cm_strings.xml
+new file mode 100644
+index 00000000000..a5a33bc633d
+--- /dev/null
++++ b/core/res/res/values/cm_strings.xml
+@@ -0,0 +1,28 @@
++<?xml version="1.0" encoding="utf-8"?>
++<!--
++     Copyright (C) 2017 The LineageOS Project
++     Copyright (C) 2012-2014 The CyanogenMod Project
++     Copyright (c) 2013, The Linux Foundation. All rights reserved.
++
++     Licensed under the Apache License, Version 2.0 (the "License");
++     you may not use this file except in compliance with the License.
++     You may obtain a copy of the License at
++
++           http://www.apache.org/licenses/LICENSE-2.0
++
++     Unless required by applicable law or agreed to in writing, software
++     distributed under the License is distributed on an "AS IS" BASIS,
++     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++     See the License for the specific language governing permissions and
++     limitations under the License.
++-->
++<resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
++
++    <!-- ADB over network notification -->
++    <string name="adb_net_active_notification_title">ADB over network enabled</string>
++    <!-- ADB over USB and network notification -->
++    <string name="adb_both_active_notification_title">ADB over USB &amp; network enabled</string>
++    <!-- ADB notification message-->
++    <string name="adb_active_generic_notification_message">Touch to disable debugging.</string>
++
++ </resources>
+diff --git a/core/res/res/values/lineage_symbols.xml b/core/res/res/values/lineage_symbols.xml
+index 14a19ec00e9..710479fc6a0 100644
+--- a/core/res/res/values/lineage_symbols.xml
++++ b/core/res/res/values/lineage_symbols.xml
+@@ -14,6 +14,11 @@
+      limitations under the License.
+ -->
+ <resources>
++    <!-- ADB notification -->
++    <java-symbol type="string" name="adb_net_active_notification_title" />
++    <java-symbol type="string" name="adb_both_active_notification_title" />
++    <java-symbol type="string" name="adb_active_generic_notification_message" />
++
+     <!-- Button backlight -->
+     <java-symbol type="integer" name="config_buttonBrightnessSettingDefault" />
+     <java-symbol type="bool" name="config_deviceHasVariableButtonBrightness" />
+diff --git a/services/java/com/android/server/SystemServer.java b/services/java/com/android/server/SystemServer.java
+index 9b8b88f3ba4..057dd7bf2fc 100644
+--- a/services/java/com/android/server/SystemServer.java
++++ b/services/java/com/android/server/SystemServer.java
+@@ -27,6 +27,8 @@ import android.content.pm.PackageItemInfo;
+ import android.content.pm.PackageManager;
+ import android.content.res.Configuration;
+ import android.content.res.Resources.Theme;
++import android.database.ContentObserver;
++import android.database.Cursor;
+ import android.database.sqlite.SQLiteCompatibilityWalFlags;
+ import android.os.BaseBundle;
+ import android.os.Binder;
+@@ -133,6 +135,8 @@ import java.util.Timer;
+ import java.util.concurrent.CountDownLatch;
+ import java.util.concurrent.Future;
+ 
++import lineageos.providers.LineageSettings;
++
+ import static android.os.IServiceManager.DUMP_FLAG_PRIORITY_CRITICAL;
+ import static android.os.IServiceManager.DUMP_FLAG_PRIORITY_HIGH;
+ import static android.os.IServiceManager.DUMP_FLAG_PRIORITY_NORMAL;
+@@ -307,6 +311,20 @@ public final class SystemServer {
+         mRuntimeStartUptime = SystemClock.uptimeMillis();
+     }
+ 
++    private class AdbPortObserver extends ContentObserver {
++        public AdbPortObserver() {
++            super(null);
++        }
++
++        @Override
++        public void onChange(boolean selfChange) {
++            int adbPort = LineageSettings.Secure.getInt(mContentResolver,
++                    LineageSettings.Secure.ADB_PORT, 0);
++            // Setting this will control whether ADB runs on TCP/IP or USB
++            SystemProperties.set("adb.network.port", Integer.toString(adbPort));
++        }
++    }
++
+     private void run() {
+         try {
+             traceBeginAndSlog("InitBeforeStartServices");
+@@ -1604,6 +1622,15 @@ public final class SystemServer {
+         mSystemServiceManager.startService(StatsCompanionService.Lifecycle.class);
+         traceEnd();
+ 
++        // Make sure the ADB_ENABLED setting value matches the secure property value
++        LineageSettings.Secure.putInt(mContentResolver, LineageSettings.Secure.ADB_PORT,
++                SystemProperties.getInt("service.adb.tcp.port", -1));
++
++        // Register observer to listen for settings changes
++        mContentResolver.registerContentObserver(
++                LineageSettings.Secure.getUriFor(LineageSettings.Secure.ADB_PORT),
++                false, new AdbPortObserver());
++
+         // Before things start rolling, be sure we have decided whether
+         // we are in safe mode.
+         final boolean safeMode = wm.detectSafeMode();
+diff --git a/services/usb/Android.bp b/services/usb/Android.bp
+index feb7b76ae11..8126e25b70f 100644
+--- a/services/usb/Android.bp
++++ b/services/usb/Android.bp
+@@ -5,6 +5,7 @@ java_library_static {
+     libs: [
+         "services.core",
+         "android.hidl.manager-V1.0-java",
++        "org.lineageos.platform.internal",
+     ],
+ 
+     static_libs: [
+diff --git a/services/usb/java/com/android/server/usb/UsbDeviceManager.java b/services/usb/java/com/android/server/usb/UsbDeviceManager.java
+index 9f8042c844d..34a3277a42d 100644
+--- a/services/usb/java/com/android/server/usb/UsbDeviceManager.java
++++ b/services/usb/java/com/android/server/usb/UsbDeviceManager.java
+@@ -95,6 +95,8 @@ import java.util.NoSuchElementException;
+ import java.util.Scanner;
+ import java.util.Set;
+ 
++import lineageos.providers.LineageSettings;
++
+ /**
+  * UsbDeviceManager manages USB state in device mode.
+  */
+@@ -360,6 +362,20 @@ public class UsbDeviceManager implements ActivityManagerInternal.ScreenObserver
+         mContext.registerReceiver(languageChangedReceiver,
+                 new IntentFilter(Intent.ACTION_LOCALE_CHANGED));
+ 
++        ContentObserver adbNotificationObserver = new ContentObserver(null) {
++            @Override
++            public void onChange(boolean selfChange) {
++                mHandler.updateAdbNotification(false);
++            }
++        };
++
++        mContentResolver.registerContentObserver(
++                LineageSettings.Secure.getUriFor(LineageSettings.Secure.ADB_NOTIFY),
++                false, adbNotificationObserver);
++        mContentResolver.registerContentObserver(
++                LineageSettings.Secure.getUriFor(LineageSettings.Secure.ADB_PORT),
++                false, adbNotificationObserver);
++
+         // Watch for USB configuration changes
+         mUEventObserver = new UsbUEventObserver();
+         mUEventObserver.startObserving(USB_STATE_MATCH);
+@@ -468,7 +484,7 @@ public class UsbDeviceManager implements ActivityManagerInternal.ScreenObserver
+ 
+         private UsbAccessory mCurrentAccessory;
+         private int mUsbNotificationId;
+-        private boolean mAdbNotificationShown;
++        private int mAdbNotificationId;
+         private boolean mUsbCharging;
+         private boolean mHideUsbNotification;
+         private boolean mSupportsAllCombinations;
+@@ -1181,17 +1197,33 @@ public class UsbDeviceManager implements ActivityManagerInternal.ScreenObserver
+         protected void updateAdbNotification(boolean force) {
+             if (mNotificationManager == null) return;
+             final int id = SystemMessage.NOTE_ADB_ACTIVE;
+-            final int titleRes = com.android.internal.R.string.adb_active_notification_title;
+-
+-            if (mAdbEnabled && mConnected) {
+-                if ("0".equals(getSystemProperty("persist.adb.notify", ""))) return;
++            final int titleRes;
++            boolean usbAdbActive = mAdbEnabled && mConnected;
++            boolean netAdbActive = mAdbEnabled &&
++                    LineageSettings.Secure.getInt(mContentResolver,
++                            LineageSettings.Secure.ADB_PORT, -1) > 0;
++            boolean hideNotification = SystemProperties.getInt("persist.adb.notify", -1) == 0
++                    || LineageSettings.Secure.getInt(mContext.getContentResolver(),
++                            LineageSettings.Secure.ADB_NOTIFY, 1) == 0;
++
++            if (hideNotification) {
++                titleRes = 0;
++            } else if (usbAdbActive && netAdbActive) {
++                titleRes = com.android.internal.R.string.adb_both_active_notification_title;
++            } else if (usbAdbActive) {
++                titleRes = com.android.internal.R.string.adb_active_notification_title;
++            } else if (netAdbActive) {
++                titleRes = com.android.internal.R.string.adb_net_active_notification_title;
++            } else {
++                titleRes = 0;
++            }
+ 
+-                if (force && mAdbNotificationShown) {
+-                    mAdbNotificationShown = false;
++            if (titleRes != mAdbNotificationId) {
++                if (mAdbNotificationId != 0) {
+                     mNotificationManager.cancelAsUser(null, id, UserHandle.ALL);
+                 }
+ 
+-                if (!mAdbNotificationShown) {
++                if (titleRes != 0) {
+                     Resources r = mContext.getResources();
+                     CharSequence title = r.getText(titleRes);
+                     CharSequence message = r.getText(
+@@ -1220,13 +1252,11 @@ public class UsbDeviceManager implements ActivityManagerInternal.ScreenObserver
+                                     .extend(new Notification.TvExtender()
+                                             .setChannelId(ADB_NOTIFICATION_CHANNEL_ID_TV))
+                                     .build();
+-                    mAdbNotificationShown = true;
+                     mNotificationManager.notifyAsUser(null, id, notification,
+                             UserHandle.ALL);
+                 }
+-            } else if (mAdbNotificationShown) {
+-                mAdbNotificationShown = false;
+-                mNotificationManager.cancelAsUser(null, id, UserHandle.ALL);
++
++                mAdbNotificationId = titleRes;
+             }
+         }
+ 
+-- 
+2.17.1
+
