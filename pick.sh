@@ -766,6 +766,8 @@ kpick 225697 # Revert "libc: kryo300 specific memory routine"
 kpick 225698 # libc: Add fortify support for kryo memcpy.
 kpick 225699 # libc: Add fortify support for kryo300 memcpy.
 kpick 225764 # Add inaddr.h header file.
+kpick 225940 # Allow whitelisted processes to use destroyed mutex
+kpick 226183 # Implement per-process target SDK version override.
 
 # boot/recovery
 kpick 222993 # Revert "updater: Remove dead make_parents()."
@@ -1010,7 +1012,11 @@ kpick 225861 # [2/3] NetworkManagement : Add ability to restrict app data/wifi u
 kpick 225878 # Download: Add support to manually pause/resume download
 kpick 225915 # UpdateEngine: Add perf mode binder interface
 kpick 225919 # PackageManager: allow build-time disabling of components
+kpick 225980 # Screenshot: append app name to filename
 kpick 226068 # Fix mounting of non-FAT formatted SD cards (1/2)
+kpick 226081 # fingerprint: notify client when cancelling succeeded
+kpick 226083 # Keyguard: Allow disabling fingerprint wake-and-unlock
+kpick 226084 # fingerprint: handle PerformanceStats NULL pointers
 
 # frameworks/native
 kpick 224443 # libbinder: Don't log call trace when waiting for vendor service on non-eng builds
@@ -1119,7 +1125,7 @@ kpick 226076 # libsecril-client-sap: remove unused variables
 kpick 226077 # libsecril-client: remove unused variables/functions
 
 # lineage-sdk
-kpick 223137 # lineage-sdk: Comment out LineageAudioService
+#kpick 223137 # lineage-sdk: Comment out LineageAudioService
 kpick 223200 # lineage-sdk: Use PreferenceDataStore for lineage-sdk preferences
 kpick 224047 # lineage-sdk: Android.mk -> Android.bp
 kpick 224608 # LineageSettingsProvider: Don't access system settings during startup
@@ -1127,8 +1133,14 @@ kpick 225581 # lineage-sdk: Make styles init at system services ready
 kpick 225638 # lineage-sdk: Don't rely on EXTRA_WIFI_INFO when getting current SSID
 kpick 225687 # PowerMenuConstants: Add user logout as new global action
 kpick 225802 # LineageNotificationLights: Don't create KeyguardManager in constructor
+kpick 225914 # lineage-sdk: Rewrite Lineage preference classes used in about phone view
+kpick 226087 # lineage-sdk: Default config_deviceHardware{Wake}Keys to 64
+kpick 226141 # LineageSettingsProvider: Cleanup after LINEAGE_SETUP_WIZARD_COMPLETED ...
+kpick 226177 # ActionUtils: Rework for removed getRecentTasksForUser
 
 # packages/apps/AudioFX
+kpick 224891 # AudioFX: Set LOCAL_PRIVATE_PLATFORM_APIS
+kpick 224892 # AudioFX: Properly depend on Lineage SDK
 kpick 225807 # AudioFX: Build with AAPT2
 
 # packages/apps/Calender
@@ -1164,8 +1176,8 @@ kpick 225276 # Allow calling contacts via specific phone accounts.
 kpick 225277 # DeskClock : Add set and cancel power off alarm actions
 kpick 225278 # DeskClock : Improve the priority of power off alarm broadcast
 kpick 225279 # DeskClock : update alarm if it is handled in min framework
-kpick 225280 # Make new menu entry to link to cLock widget settings.
 kpick 225281 # DeskClock: Add back flip and shake actions
+kpick 225280 # Make new menu entry to link to cLock widget settings.
 kpick 225282 # DeskClock: Use accelerometer instead of orientation sensor
 kpick 225284 # Provide upgrade path for cm-14.1 -> lineage-15.1
 kpick 225286 # Revert "Fix alarm not firing in memory-pressure situations"
@@ -1174,7 +1186,17 @@ kpick 225286 # Revert "Fix alarm not firing in memory-pressure situations"
 kpick 224712 # Dialer: disable anti-falsing for call answer screen
 kpick 225706 # Dialer: define app category
 kpick 225707 # Dialer: adaptive icon
- 
+kpick 226094 # Revert "Remove dialer sounds and vibrations settings fragments and redirect ...
+kpick 226095 # Add back in-call vibration features 
+kpick 226096 # Allow using private framework API.
+kpick 226097 # Re-add dialer lookup.
+kpick 226098 # Dialer: comply with EU's GDPR
+kpick 226099 # Generalize the in-call vibration settings category
+kpick 226100 # Add setting to enable Do Not Disturb during calls
+kpick 226101 # Re-add call recording.
+kpick 226102 # Allow per-call account selection.
+kpick 226103 # Re-add call statistics.
+
 # packages/apps/DocumentsUI
 kpick 225289 # DocumentsUI: support night mode
 
@@ -1273,6 +1295,16 @@ kpick 225858 # storage: Do not allow eject for volumes on non-removable disks
 kpick 225860 # [1/3] Settings: per-app cellular data and wifi restrictions
 kpick 225970 # DevelopmentSettings: Hide OEM unlock by default
 kpick 225979 # Settings: Add package name to installed app details
+kpick 226134 # Settings: Implement ADB notification and ADB over network
+kpick 226142 # Settings: Add developer setting for root access
+kpick 226146 # Settings: battery: Add LineageParts perf profiles
+kpick 226148 # Settings: "Security & location" -> "Security & privacy"
+kpick 226149 # Settings: Add LineageOS legal info
+kpick 226150 # Settings: add Trust interface hook
+kpick 226151 # Settings: show Trust brading in confirm_lock_password UI
+kpick 226152 # Improve app info screen
+kpick 226153 # Allow sorting Applications by size
+kpick 226154 # fingerprint: Allow devices to configure sensor location
 
 # packages/apps/SetupWizard
 
@@ -1363,7 +1395,11 @@ kpick 224264 # debuggerd: Resolve tombstoned missing O_CREAT mode
 # system/extras
 kpick 225426 # f2fs_utils: Add a static libf2fs_sparseblock for minvold
 kpick 225427 # ext4_utils: Fix FS creation for filesystems with exactly 32768 blocks.
+cd system/extras/
+git stash;git clean -xdf
+cd $topdir
 kpick 225428 # extras: remove su
+repo sync system/extras/su
 
 # system/extras/su
 kpick 226017 # su: Fully rebrand
@@ -1434,6 +1470,7 @@ kpick 225942 # soong_config: Allow whitelisted processes to use destroyed mutex
 kpick 225939 # roomservice.py: non-depsonly: bootstrap first device repo from Hudson
 #kpick 225981 # roomservice.py: depsonly: do not look up device repo by name in the manifest
 #kpick 225982 # roomservice.py: Strip cm.{mk,dependencies} support
+kpick 226184 # 	soong_config: Allow process-specific override of target SDK version
 
 # vendor/qcom/opensource/audio
 

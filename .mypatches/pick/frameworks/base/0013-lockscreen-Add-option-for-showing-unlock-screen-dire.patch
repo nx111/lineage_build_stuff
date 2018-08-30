@@ -1,0 +1,301 @@
+From e467e8a93b8fe4b7c6dd576189371396e394900f Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?eray=20or=C3=A7unus?= <erayorcunus@gmail.com>
+Date: Wed, 17 Jun 2015 16:12:19 +0300
+Subject: [PATCH 13/77] lockscreen: Add option for showing unlock screen
+ directly
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Squash of the following changes, updated for the new SDK:
+
+  From: eray orçunus <erayorcunus@gmail.com>
+  Date: Wed, 17 Jun 2015 16:12:19 +0300
+
+      lockscreen: Add option for showing unlock screen directly
+
+       * Option appears on PIN, pattern and password methods
+       * User can press back button to see swipe-up-to-unlock screen
+       * Instantly hide keyguard if Smart Lock has unlocked phone
+
+      Change-Id: I2ceeed348d7e61632b8344f35431f30cba62ca4f
+      Ticket-Id: CYNGNOS-1873
+      Signed-off-by: eray orçunus <erayorcunus@gmail.com>
+
+  From: Danesh M <daneshm90@gmail.com>
+  Date: Tue, 17 Nov 2015 20:09:38 -0800
+
+      SettingsProvider: Add missing platform sdk dependency
+
+      Change-Id: I4844eaa0a989bf634a2251e95dc84a505037c012
+
+Change-Id: I0cfb43bfb631fce532dfacdf56455309a04ddfa2
+---
+ packages/SettingsProvider/Android.mk          |  4 +-
+ .../providers/settings/DatabaseHelper.java    |  3 +
+ .../statusbar/phone/KeyguardBouncer.java      | 38 ++++++++---
+ .../phone/StatusBarKeyguardViewManager.java   | 64 ++++++++++++++-----
+ .../locksettings/LockSettingsService.java     |  5 +-
+ 5 files changed, 87 insertions(+), 27 deletions(-)
+
+diff --git a/packages/SettingsProvider/Android.mk b/packages/SettingsProvider/Android.mk
+index db57fd16236..f4914a29767 100644
+--- a/packages/SettingsProvider/Android.mk
++++ b/packages/SettingsProvider/Android.mk
+@@ -7,7 +7,9 @@ LOCAL_SRC_FILES := $(call all-java-files-under, src) \
+     src/com/android/providers/settings/EventLogTags.logtags
+ 
+ LOCAL_JAVA_LIBRARIES := telephony-common ims-common
+-LOCAL_STATIC_JAVA_LIBRARIES := junit
++LOCAL_STATIC_JAVA_LIBRARIES := junit \
++    android-support-v7-preference \
++    org.lineageos.platform.internal
+ 
+ LOCAL_PACKAGE_NAME := SettingsProvider
+ LOCAL_PRIVATE_PLATFORM_APIS := true
+diff --git a/packages/SettingsProvider/src/com/android/providers/settings/DatabaseHelper.java b/packages/SettingsProvider/src/com/android/providers/settings/DatabaseHelper.java
+index e853399133a..1a047c1b4e8 100644
+--- a/packages/SettingsProvider/src/com/android/providers/settings/DatabaseHelper.java
++++ b/packages/SettingsProvider/src/com/android/providers/settings/DatabaseHelper.java
+@@ -51,6 +51,8 @@ import com.android.internal.util.XmlUtils;
+ import com.android.internal.widget.LockPatternUtils;
+ import com.android.internal.widget.LockPatternView;
+ 
++import lineageos.providers.LineageSettings;
++
+ import org.xmlpull.v1.XmlPullParser;
+ import org.xmlpull.v1.XmlPullParserException;
+ 
+@@ -715,6 +717,7 @@ class DatabaseHelper extends SQLiteOpenHelper {
+                    Secure.LOCK_PATTERN_ENABLED,
+                    Secure.LOCK_PATTERN_VISIBLE,
+                    Secure.LOCK_PATTERN_TACTILE_FEEDBACK_ENABLED,
++                   LineageSettings.Secure.LOCK_PASS_TO_SECURITY_VIEW,
+                    "lockscreen.password_type",
+                    "lockscreen.lockoutattemptdeadline",
+                    "lockscreen.patterneverchosen",
+diff --git a/packages/SystemUI/src/com/android/systemui/statusbar/phone/KeyguardBouncer.java b/packages/SystemUI/src/com/android/systemui/statusbar/phone/KeyguardBouncer.java
+index c74d09d93fc..a32d394ddeb 100644
+--- a/packages/SystemUI/src/com/android/systemui/statusbar/phone/KeyguardBouncer.java
++++ b/packages/SystemUI/src/com/android/systemui/statusbar/phone/KeyguardBouncer.java
+@@ -45,6 +45,8 @@ import com.android.systemui.DejankUtils;
+ import com.android.systemui.classifier.FalsingManager;
+ import com.android.systemui.keyguard.DismissCallbackRegistry;
+ 
++import org.lineageos.internal.util.LineageLockPatternUtils;
++
+ import java.io.PrintWriter;
+ 
+ /**
+@@ -60,11 +62,17 @@ public class KeyguardBouncer {
+     protected final Context mContext;
+     protected final ViewMediatorCallback mCallback;
+     protected final LockPatternUtils mLockPatternUtils;
++    private final LineageLockPatternUtils mLineageLockPatternUtils;
+     protected final ViewGroup mContainer;
+     private final FalsingManager mFalsingManager;
+     private final DismissCallbackRegistry mDismissCallbackRegistry;
+     private final Handler mHandler;
+     private final BouncerExpansionCallback mExpansionCallback;
++
++    public static final int UNLOCK_SEQUENCE_DEFAULT = 0;
++    public static final int UNLOCK_SEQUENCE_BOUNCER_FIRST = 1;
++    public static final int UNLOCK_SEQUENCE_FORCE_BOUNCER = 2;
++
+     private final KeyguardUpdateMonitorCallback mUpdateMonitorCallback =
+             new KeyguardUpdateMonitorCallback() {
+                 @Override
+@@ -101,6 +109,7 @@ public class KeyguardBouncer {
+         mDismissCallbackRegistry = dismissCallbackRegistry;
+         mExpansionCallback = expansionCallback;
+         mHandler = new Handler();
++        mLineageLockPatternUtils = new LineageLockPatternUtils(mContext);
+     }
+ 
+     public void show(boolean resetSecuritySelection) {
+@@ -427,11 +436,7 @@ public class KeyguardBouncer {
+      */
+     public boolean needsFullscreenBouncer() {
+         ensureView();
+-        if (mKeyguardView != null) {
+-            SecurityMode mode = mKeyguardView.getSecurityMode();
+-            return mode == SecurityMode.SimPin || mode == SecurityMode.SimPuk;
+-        }
+-        return false;
++        return (getFullscreenBouncer(false) == UNLOCK_SEQUENCE_FORCE_BOUNCER);
+     }
+ 
+     /**
+@@ -439,11 +444,28 @@ public class KeyguardBouncer {
+      * makes this method much faster.
+      */
+     public boolean isFullscreenBouncer() {
++        return (getFullscreenBouncer(true) == UNLOCK_SEQUENCE_FORCE_BOUNCER);
++    }
++
++    /**
++     * @return Whether the bouncer should be shown first, this could be because of SIM PIN/PUK
++     * or it just could be chosen to be shown first.
++     */
++    public int getFullscreenBouncer(boolean useCurrentSecMode) {
+         if (mKeyguardView != null) {
+-            SecurityMode mode = mKeyguardView.getCurrentSecurityMode();
+-            return mode == SecurityMode.SimPin || mode == SecurityMode.SimPuk;
++            SecurityMode mode = useCurrentSecMode ?
++                    mKeyguardView.getCurrentSecurityMode() : mKeyguardView.getSecurityMode();
++            if (mode == SecurityMode.SimPin || mode == SecurityMode.SimPuk) {
++                return UNLOCK_SEQUENCE_FORCE_BOUNCER;
++            } else if ((mode == SecurityMode.Pattern || mode == SecurityMode.Password
++                    || mode == SecurityMode.PIN) && (mLockPatternUtils != null
++                    && mLineageLockPatternUtils.shouldPassToSecurityView(
++                            KeyguardUpdateMonitor.getCurrentUser()))) {
++                // "Bouncer first" mode is only available to some security methods
++                return UNLOCK_SEQUENCE_BOUNCER_FIRST;
++            }
+         }
+-        return false;
++        return UNLOCK_SEQUENCE_DEFAULT;
+     }
+ 
+     /**
+diff --git a/packages/SystemUI/src/com/android/systemui/statusbar/phone/StatusBarKeyguardViewManager.java b/packages/SystemUI/src/com/android/systemui/statusbar/phone/StatusBarKeyguardViewManager.java
+index 5001d4ffa13..16a6e0e4135 100644
+--- a/packages/SystemUI/src/com/android/systemui/statusbar/phone/StatusBarKeyguardViewManager.java
++++ b/packages/SystemUI/src/com/android/systemui/statusbar/phone/StatusBarKeyguardViewManager.java
+@@ -200,17 +200,37 @@ public class StatusBarKeyguardViewManager implements RemoteInputController.Callb
+      * Shows the notification keyguard or the bouncer depending on
+      * {@link KeyguardBouncer#needsFullscreenBouncer()}.
+      */
+-    protected void showBouncerOrKeyguard(boolean hideBouncerWhenShowing) {
+-        if (mBouncer.needsFullscreenBouncer() && !mDozing) {
+-            // The keyguard might be showing (already). So we need to hide it.
+-            mStatusBar.hideKeyguard();
+-            mBouncer.show(true /* resetSecuritySelection */);
+-        } else {
+-            mStatusBar.showKeyguard();
+-            if (hideBouncerWhenShowing) {
+-                hideBouncer(shouldDestroyViewOnReset() /* destroyView */);
+-                mBouncer.prepare();
+-            }
++    protected void showBouncerOrKeyguard(boolean hideBouncerWhenShowing, boolean isBackPressed) {
++        switch (mBouncer.getFullscreenBouncer(false)) {
++            case KeyguardBouncer.UNLOCK_SEQUENCE_FORCE_BOUNCER:
++                // SIM PIN/PUK
++                // The keyguard might be showing (already). So we need to hide it.
++                mStatusBar.hideKeyguard();
++                mBouncer.show(true /* resetSecuritySelection */);
++                break;
++            case KeyguardBouncer.UNLOCK_SEQUENCE_BOUNCER_FIRST:
++                // Pattern / PIN / password with "Directly show " enabled
++                if (isBackPressed) {
++                    mStatusBar.showKeyguard();
++                    if (hideBouncerWhenShowing) {
++                        mBouncer.hide(false /* destroyView */);
++                        mBouncer.prepare();
++                    }
++                } else {
++                    // The keyguard might be showing (already). So we need to hide it.
++                    mStatusBar.hideKeyguard();
++                    mBouncer.show(true /* resetSecuritySelection */);
++                }
++                break;
++            case KeyguardBouncer.UNLOCK_SEQUENCE_DEFAULT:
++                mStatusBar.showKeyguard();
++                if (hideBouncerWhenShowing) {
++                    mBouncer.hide(false /* destroyView */);
++                    mBouncer.prepare();
++                }
++                break;
++            default:
++                break;
+         }
+         updateStates();
+     }
+@@ -273,21 +293,29 @@ public class StatusBarKeyguardViewManager implements RemoteInputController.Callb
+     /**
+      * Reset the state of the view.
+      */
+-    public void reset(boolean hideBouncerWhenShowing) {
++    public void reset(boolean hideBouncerWhenShowing, boolean isBackPressed) {
+         if (mShowing) {
+             if (mOccluded && !mDozing) {
+                 mStatusBar.hideKeyguard();
+-                if (hideBouncerWhenShowing || mBouncer.needsFullscreenBouncer()) {
++                if (hideBouncerWhenShowing ||
++                        (mBouncer.getFullscreenBouncer(false) == mBouncer.UNLOCK_SEQUENCE_DEFAULT)) {
+                     hideBouncer(false /* destroyView */);
+                 }
+             } else {
+-                showBouncerOrKeyguard(hideBouncerWhenShowing);
++                showBouncerOrKeyguard(hideBouncerWhenShowing, isBackPressed);
+             }
+             KeyguardUpdateMonitor.getInstance(mContext).sendKeyguardReset();
+             updateStates();
+         }
+     }
+ 
++    /**
++     * Reset the state of the view; not caused by back press
++     */
++    public void reset(boolean hideBouncerWhenShowing) {
++        reset(hideBouncerWhenShowing, false);
++    }
++
+     public boolean isGoingToSleepVisibleNotOccluded() {
+         return mGoingToSleepVisibleNotOccluded;
+     }
+@@ -322,7 +350,8 @@ public class StatusBarKeyguardViewManager implements RemoteInputController.Callb
+     public void setDozing(boolean dozing) {
+         if (mDozing != dozing) {
+             mDozing = dozing;
+-            if (dozing || mBouncer.needsFullscreenBouncer() || mOccluded) {
++            if (dozing || mOccluded ||
++                    (mBouncer.getFullscreenBouncer(false) == mBouncer.UNLOCK_SEQUENCE_DEFAULT)) {
+                 reset(dozing /* hideBouncerWhenShowing */);
+             }
+             updateStates();
+@@ -542,7 +571,7 @@ public class StatusBarKeyguardViewManager implements RemoteInputController.Callb
+     public boolean onBackPressed(boolean hideImmediately) {
+         if (mBouncer.isShowing()) {
+             mStatusBar.endAffordanceLaunch();
+-            reset(hideImmediately);
++            reset(hideImmediately, true /* isBackPressed */);
+             return true;
+         }
+         return false;
+@@ -579,7 +608,8 @@ public class StatusBarKeyguardViewManager implements RemoteInputController.Callb
+         boolean showing = mShowing;
+         boolean occluded = mOccluded;
+         boolean bouncerShowing = mBouncer.isShowing();
+-        boolean bouncerDismissible = !mBouncer.isFullscreenBouncer();
++        boolean bouncerDismissible =
++                mBouncer.getFullscreenBouncer(true) != KeyguardBouncer.UNLOCK_SEQUENCE_FORCE_BOUNCER;
+         boolean remoteInputActive = mRemoteInputActive;
+ 
+         if ((bouncerDismissible || !showing || remoteInputActive) !=
+diff --git a/services/core/java/com/android/server/locksettings/LockSettingsService.java b/services/core/java/com/android/server/locksettings/LockSettingsService.java
+index 36b04fcd610..52ded5034a1 100644
+--- a/services/core/java/com/android/server/locksettings/LockSettingsService.java
++++ b/services/core/java/com/android/server/locksettings/LockSettingsService.java
+@@ -113,6 +113,8 @@ import com.android.server.locksettings.recoverablekeystore.RecoverableKeyStoreMa
+ import com.android.server.locksettings.SyntheticPasswordManager.AuthenticationResult;
+ import com.android.server.locksettings.SyntheticPasswordManager.AuthenticationToken;
+ 
++import lineageos.providers.LineageSettings;
++
+ import libcore.util.HexEncoding;
+ 
+ import java.io.ByteArrayOutputStream;
+@@ -2119,7 +2121,8 @@ public class LockSettingsService extends ILockSettings.Stub {
+             Secure.LOCK_PATTERN_ENABLED,
+             Secure.LOCK_BIOMETRIC_WEAK_FLAGS,
+             Secure.LOCK_PATTERN_VISIBLE,
+-            Secure.LOCK_PATTERN_TACTILE_FEEDBACK_ENABLED
++            Secure.LOCK_PATTERN_TACTILE_FEEDBACK_ENABLED,
++            LineageSettings.Secure.LOCK_PASS_TO_SECURITY_VIEW
+     };
+ 
+     // Reading these settings needs the contacts permission
+-- 
+2.17.1
+

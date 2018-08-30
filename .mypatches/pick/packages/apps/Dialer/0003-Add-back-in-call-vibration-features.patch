@@ -1,0 +1,311 @@
+From 91537438b4e58e4bb67e8a0d85b0dcbc9d92939f Mon Sep 17 00:00:00 2001
+From: Danny Baumann <dannybaumann@web.de>
+Date: Fri, 9 Sep 2016 10:01:27 +0200
+Subject: [PATCH 03/11] Add back in-call vibration features
+
+Change-Id: Ia30a3c46e9c37d7d73288ec605af8efc3a46a323
+---
+ .../dialer/app/res/values/cm_strings.xml      |  25 +++
+ .../dialer/app/res/xml/sound_settings.xml     |  23 +++
+ .../app/settings/SoundSettingsFragment.java   |   6 +-
+ .../com/android/incallui/InCallPresenter.java |   9 ++
+ .../incallui/InCallVibrationHandler.java      | 142 ++++++++++++++++++
+ .../com/android/incallui/call/DialerCall.java |   7 +
+ 6 files changed, 211 insertions(+), 1 deletion(-)
+ create mode 100644 java/com/android/dialer/app/res/values/cm_strings.xml
+ create mode 100644 java/com/android/incallui/InCallVibrationHandler.java
+
+diff --git a/java/com/android/dialer/app/res/values/cm_strings.xml b/java/com/android/dialer/app/res/values/cm_strings.xml
+new file mode 100644
+index 000000000..90e648014
+--- /dev/null
++++ b/java/com/android/dialer/app/res/values/cm_strings.xml
+@@ -0,0 +1,25 @@
++<?xml version="1.0" encoding="utf-8"?>
++<!--
++     Copyright (C) 2013-2014 The CyanogenMod Project
++
++     Licensed under the Apache License, Version 2.0 (the "License");
++     you may not use this file except in compliance with the License.
++     You may obtain a copy of the License at
++
++          http://www.apache.org/licenses/LICENSE-2.0
++
++     Unless required by applicable law or agreed to in writing, software
++     distributed under the License is distributed on an "AS IS" BASIS,
++     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++     See the License for the specific language governing permissions and
++     limitations under the License.
++-->
++<resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
++    <string name="incall_vibration_category_key" translatable="false">dialer_general_incall_vibration_category_key</string>
++    <string name="incall_vibration_category_title">In-call vibration</string>
++    <string name="incall_vibrate_outgoing_title">Vibrate on answer</string>
++    <string name="incall_vibrate_call_waiting_title">Vibrate on call waiting</string>
++    <string name="incall_vibrate_hangup_title">Vibrate on hang up</string>
++    <string name="incall_vibrate_45_title">Vibrate every minute</string>
++    <string name="incall_vibrate_45_summary">Vibrates at the 45 second mark of every minute during outgoing calls</string>
++</resources>
+diff --git a/java/com/android/dialer/app/res/xml/sound_settings.xml b/java/com/android/dialer/app/res/xml/sound_settings.xml
+index d9afb7411..c0e78c208 100644
+--- a/java/com/android/dialer/app/res/xml/sound_settings.xml
++++ b/java/com/android/dialer/app/res/xml/sound_settings.xml
+@@ -43,4 +43,27 @@
+     android:key="@string/dtmf_tone_length_preference_key"
+     android:title="@string/dtmf_tone_length_title"/>
+ 
++  <PreferenceCategory
++    android:key="@string/incall_vibration_category_key"
++    android:title="@string/incall_vibration_category_title">
++
++    <CheckBoxPreference
++      android:key="incall_vibrate_outgoing"
++      android:title="@string/incall_vibrate_outgoing_title" />
++
++    <CheckBoxPreference
++      android:key="incall_vibrate_call_waiting"
++      android:title="@string/incall_vibrate_call_waiting_title" />
++
++    <CheckBoxPreference
++      android:key="incall_vibrate_hangup"
++      android:title="@string/incall_vibrate_hangup_title" />
++
++    <CheckBoxPreference
++      android:key="incall_vibrate_45secs"
++      android:title="@string/incall_vibrate_45_title"
++     android:summary="@string/incall_vibrate_45_summary" />
++
++  </PreferenceCategory>
++
+ </PreferenceScreen>
+diff --git a/java/com/android/dialer/app/settings/SoundSettingsFragment.java b/java/com/android/dialer/app/settings/SoundSettingsFragment.java
+index 19cddbc4f..e253044d7 100644
+--- a/java/com/android/dialer/app/settings/SoundSettingsFragment.java
++++ b/java/com/android/dialer/app/settings/SoundSettingsFragment.java
+@@ -97,7 +97,11 @@ public class SoundSettingsFragment extends PreferenceFragment
+     if (hasVibrator()) {
+       vibrateWhenRinging.setOnPreferenceChangeListener(this);
+     } else {
+-      getPreferenceScreen().removePreference(vibrateWhenRinging);
++      PreferenceScreen ps = getPreferenceScreen();
++      Preference inCallVibration = findPreference(
++          context.getString(R.string.incall_vibration_category_key));
++      ps.removePreference(vibrateWhenRinging);
++      ps.removePreference(inCallVibration);
+       vibrateWhenRinging = null;
+     }
+ 
+diff --git a/java/com/android/incallui/InCallPresenter.java b/java/com/android/incallui/InCallPresenter.java
+index 558ca33fc..ddff05969 100644
+--- a/java/com/android/incallui/InCallPresenter.java
++++ b/java/com/android/incallui/InCallPresenter.java
+@@ -117,6 +117,7 @@ public class InCallPresenter implements CallList.Listener, AudioModeProvider.Aud
+ 
+   private StatusBarNotifier statusBarNotifier;
+   private ExternalCallNotifier externalCallNotifier;
++  private InCallVibrationHandler vibrationHandler;
+   private ContactInfoCache contactInfoCache;
+   private Context context;
+   private final OnCheckBlockedListener onCheckBlockedListener =
+@@ -349,6 +350,9 @@ public class InCallPresenter implements CallList.Listener, AudioModeProvider.Aud
+         .getEnrichedCallManager()
+         .registerStateChangedListener(this.statusBarNotifier);
+ 
++    vibrationHandler = new InCallVibrationHandler(context);
++    addListener(vibrationHandler);
++
+     this.proximitySensor = proximitySensor;
+     addListener(this.proximitySensor);
+ 
+@@ -1467,6 +1471,11 @@ public class InCallPresenter implements CallList.Listener, AudioModeProvider.Aud
+       }
+       statusBarNotifier = null;
+ 
++      if (vibrationHandler != null) {
++        removeListener(vibrationHandler);
++      }
++      vibrationHandler = null;
++
+       if (callList != null) {
+         callList.removeListener(this);
+         callList.removeListener(spamCallListListener);
+diff --git a/java/com/android/incallui/InCallVibrationHandler.java b/java/com/android/incallui/InCallVibrationHandler.java
+new file mode 100644
+index 000000000..16361e2cd
+--- /dev/null
++++ b/java/com/android/incallui/InCallVibrationHandler.java
+@@ -0,0 +1,142 @@
++/*
++ * Copyright (C) 2014 The CyanogenMod Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++package com.android.incallui;
++
++import android.content.Context;
++import android.content.SharedPreferences;
++import android.os.Handler;
++import android.os.Message;
++import android.os.Vibrator;
++import android.preference.PreferenceManager;
++import android.telecom.DisconnectCause;
++
++import com.android.incallui.call.CallList;
++import com.android.incallui.call.DialerCall;
++import com.android.incallui.InCallPresenter.InCallState;
++
++public class InCallVibrationHandler extends Handler implements
++    InCallPresenter.InCallStateListener {
++
++  private static final int MSG_VIBRATE_45_SEC = 1;
++
++  private static final String KEY_VIBRATE_CALL_WAITING = "incall_vibrate_call_waiting";
++  private static final String KEY_VIBRATE_OUTGOING = "incall_vibrate_outgoing";
++  private static final String KEY_VIBRATE_45SECS = "incall_vibrate_45secs";
++  private static final String KEY_VIBRATE_HANGUP = "incall_vibrate_hangup";
++
++  private SharedPreferences prefs;
++  private Vibrator vibrator;
++  private DialerCall activeCall;
++
++  public InCallVibrationHandler(Context context) {
++    prefs = PreferenceManager.getDefaultSharedPreferences(context);
++    vibrator = (Vibrator) context.getSystemService(Context.VIBRATOR_SERVICE);
++  }
++
++  @Override
++  public void handleMessage(Message msg) {
++    switch (msg.what) {
++      case MSG_VIBRATE_45_SEC:
++        vibrate(70, 0, 0);
++        sendEmptyMessageDelayed(MSG_VIBRATE_45_SEC, 60000);
++        break;
++    }
++  }
++
++  @Override
++  public void onStateChange(InCallState oldState, InCallState newState, CallList callList) {
++    DialerCall activeCall = callList.getActiveCall();
++
++    if (activeCall != null && this.activeCall == null) {
++      Log.d(this, "Transition to active call " + activeCall);
++      if (activeCall.isOutgoing()) {
++        handleOutgoingCallVibration(activeCall);
++      }
++      this.activeCall = activeCall;
++    } else if (activeCall != null && callList.getIncomingCall() != null
++        && !callList.getIncomingCall().equals(activeCall)) {
++      Log.d(this, "New incoming call" + callList.getIncomingCall());
++      handleCallWaitingVibration(activeCall);
++    } else if (activeCall == null && this.activeCall != null) {
++      Log.d(this, "Transition from active call " + this.activeCall);
++      handleCallEnd(this.activeCall);
++      this.activeCall = null;
++    }
++  }
++
++  private void handleOutgoingCallVibration(DialerCall call) {
++    long durationMillis = System.currentTimeMillis() - call.getConnectTimeMillis();
++    Log.d(this, "Start outgoing call: duration = " + durationMillis);
++
++    if (prefs.getBoolean(KEY_VIBRATE_OUTGOING, false) && durationMillis < 200) {
++      vibrate(100, 200, 0);
++    }
++    if (prefs.getBoolean(KEY_VIBRATE_45SECS, false)) {
++      start45SecondVibration(durationMillis);
++    }
++  }
++
++  private void handleCallWaitingVibration(DialerCall call) {
++    Log.d(this, "Start call waiting vibration");
++    if (prefs.getBoolean(KEY_VIBRATE_CALL_WAITING, false)) {
++      vibrate(200, 300, 500);
++    }
++  }
++
++  private void handleCallEnd(DialerCall call) {
++    long durationMillis = System.currentTimeMillis() - call.getConnectTimeMillis();
++    DisconnectCause cause = call.getDisconnectCause();
++    boolean localDisconnect =
++        // Disconnection not yet processed
++        call.getState() == DialerCall.State.DISCONNECTING ||
++        // Disconnection already processed
++        (cause != null && cause.getCode() == DisconnectCause.LOCAL);
++
++    Log.d(this, "Ending active call: duration = " + durationMillis
++        + ", locally disconnected = " + localDisconnect);
++
++    if (prefs.getBoolean(KEY_VIBRATE_HANGUP, false)
++        && !localDisconnect && durationMillis > 500) {
++      vibrate(50, 100, 50);
++    }
++    // Stop 45-second vibration
++    removeMessages(MSG_VIBRATE_45_SEC);
++  }
++
++  private void start45SecondVibration(long callDurationMillis) {
++    callDurationMillis = callDurationMillis % 60000;
++    Log.d(this, "vibrate start @" + callDurationMillis);
++    removeMessages(MSG_VIBRATE_45_SEC);
++
++    long timer;
++    if (callDurationMillis > 45000) {
++        // Schedule the alarm at the next minute + 45 secs
++        timer = 45000 + 60000 - callDurationMillis;
++    } else {
++        // Schedule the alarm at the first 45 second mark
++        timer = 45000 - callDurationMillis;
++    }
++    sendEmptyMessageDelayed(MSG_VIBRATE_45_SEC, timer);
++  }
++
++  private void vibrate(int v1, int p1, int v2) {
++    long[] pattern = new long[] {
++      0, v1, p1, v2
++    };
++    vibrator.vibrate(pattern, -1);
++  }
++}
+diff --git a/java/com/android/incallui/call/DialerCall.java b/java/com/android/incallui/call/DialerCall.java
+index d36b00d91..04a8f717e 100644
+--- a/java/com/android/incallui/call/DialerCall.java
++++ b/java/com/android/incallui/call/DialerCall.java
+@@ -147,6 +147,7 @@ public class DialerCall implements VideoTechListener, StateChangedListener, Capa
+   private String callSubject;
+   private PhoneAccountHandle phoneAccountHandle;
+   @CallHistoryStatus private int callHistoryStatus = CALL_HISTORY_STATUS_UNKNOWN;
++  private boolean isOutgoing;
+   private boolean isSpam;
+   private boolean isBlocked;
+ 
+@@ -790,10 +791,16 @@ public class DialerCall implements VideoTechListener, StateChangedListener, Capa
+             logState.duration,
+             newDuration);
+       }
++    } else if (state == State.DIALING || state == State.CONNECTING) {
++      isOutgoing = true;
+     }
+     this.state = state;
+   }
+ 
++  public boolean isOutgoing() {
++    return isOutgoing;
++  }
++
+   public int getNumberPresentation() {
+     return telecomCall == null ? -1 : telecomCall.getDetails().getHandlePresentation();
+   }
+-- 
+2.17.1
+
