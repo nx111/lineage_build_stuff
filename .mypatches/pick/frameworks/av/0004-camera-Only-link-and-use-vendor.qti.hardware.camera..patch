@@ -1,0 +1,119 @@
+From 405dbd3feb42fbc821ed43050270c676be708faf Mon Sep 17 00:00:00 2001
+From: Rashed Abdel-Tawab <rashed@linux.com>
+Date: Sun, 28 Jan 2018 11:41:17 -0800
+Subject: [PATCH 04/11] camera: Only link and use
+ vendor.qti.hardware.camera.device if specified
+
+Set TARGET_USES_QTI_CAMERA_DEVICE to link and use
+
+Change-Id: I3a82412190b8918248bdd7a1d823777debd67173
+---
+ camera/cameraserver/Android.mk                            | 7 ++++++-
+ services/camera/libcameraservice/Android.mk               | 7 ++++++-
+ .../libcameraservice/device1/CameraHardwareInterface.cpp  | 2 ++
+ .../libcameraservice/device1/CameraHardwareInterface.h    | 8 ++++++++
+ 4 files changed, 22 insertions(+), 2 deletions(-)
+
+diff --git a/camera/cameraserver/Android.mk b/camera/cameraserver/Android.mk
+index f626c28d8..b41656f01 100644
+--- a/camera/cameraserver/Android.mk
++++ b/camera/cameraserver/Android.mk
+@@ -33,8 +33,13 @@ LOCAL_SHARED_LIBRARIES := \
+ 	android.hardware.camera.common@1.0 \
+ 	android.hardware.camera.provider@2.4 \
+ 	android.hardware.camera.device@1.0 \
+-	android.hardware.camera.device@3.2 \
++	android.hardware.camera.device@3.2
++
++ifeq ($(TARGET_USES_QTI_CAMERA_DEVICE), true)
++LOCAL_CFLAGS += -DQTI_CAMERA_DEVICE
++LOCAL_SHARED_LIBRARIES += \
+ 	vendor.qti.hardware.camera.device@1.0
++endif
+ 
+ LOCAL_MODULE:= cameraserver
+ LOCAL_32_BIT_ONLY := true
+diff --git a/services/camera/libcameraservice/Android.mk b/services/camera/libcameraservice/Android.mk
+index ead18919f..b279c660f 100644
+--- a/services/camera/libcameraservice/Android.mk
++++ b/services/camera/libcameraservice/Android.mk
+@@ -79,11 +79,16 @@ LOCAL_SHARED_LIBRARIES:= \
+     android.hardware.camera.common@1.0 \
+     android.hardware.camera.provider@2.4 \
+     android.hardware.camera.device@1.0 \
+-    vendor.qti.hardware.camera.device@1.0 \
+     android.hardware.camera.device@3.2 \
+     android.hardware.camera.device@3.3 \
+     android.hardware.camera.device@3.4
+ 
++ifeq ($(TARGET_USES_QTI_CAMERA_DEVICE), true)
++LOCAL_CFLAGS += -DQTI_CAMERA_DEVICE
++LOCAL_SHARED_LIBRARIES += \
++    vendor.qti.hardware.camera.device@1.0
++endif
++
+ LOCAL_EXPORT_SHARED_LIBRARY_HEADERS := libbinder libcamera_client libfmq
+ 
+ LOCAL_C_INCLUDES += \
+diff --git a/services/camera/libcameraservice/device1/CameraHardwareInterface.cpp b/services/camera/libcameraservice/device1/CameraHardwareInterface.cpp
+index aec18c5b4..8edcca345 100644
+--- a/services/camera/libcameraservice/device1/CameraHardwareInterface.cpp
++++ b/services/camera/libcameraservice/device1/CameraHardwareInterface.cpp
+@@ -136,6 +136,7 @@ hardware::Return<void> CameraHardwareInterface::dataCallback(
+     return hardware::Void();
+ }
+ 
++#ifdef QTI_CAMERA_DEVICE
+ hardware::Return<void> CameraHardwareInterface::QDataCallback(
+         DataCallbackMsg msgType, uint32_t data, uint32_t bufferIndex,
+         const vendor::qti::hardware::camera::device::V1_0::QCameraFrameMetadata& metadata) {
+@@ -149,6 +150,7 @@ hardware::Return<void> CameraHardwareInterface::QDataCallback(
+     sDataCb((int32_t) msgType, mHidlMemPoolMap.at(data), bufferIndex, &md, this);
+     return hardware::Void();
+ }
++#endif
+ 
+ hardware::Return<void> CameraHardwareInterface::dataCallbackTimestamp(
+         DataCallbackMsg msgType, uint32_t data,
+diff --git a/services/camera/libcameraservice/device1/CameraHardwareInterface.h b/services/camera/libcameraservice/device1/CameraHardwareInterface.h
+index 1d58e9ba1..4a20b6a59 100644
+--- a/services/camera/libcameraservice/device1/CameraHardwareInterface.h
++++ b/services/camera/libcameraservice/device1/CameraHardwareInterface.h
+@@ -29,7 +29,9 @@
+ #include <hardware/camera.h>
+ 
+ #include <common/CameraProviderManager.h>
++#ifdef QTI_CAMERA_DEVICE
+ #include <vendor/qti/hardware/camera/device/1.0/IQCameraDeviceCallback.h>
++#endif
+ 
+ namespace android {
+ 
+@@ -86,7 +88,11 @@ typedef void (*data_callback_timestamp_batch)(
+ 
+ class CameraHardwareInterface :
+         public virtual RefBase,
++#ifdef QTI_CAMERA_DEVICE
+         public virtual vendor::qti::hardware::camera::device::V1_0::IQCameraDeviceCallback,
++#else
++        public virtual hardware::camera::device::V1_0::ICameraDeviceCallback,
++#endif
+         public virtual hardware::camera::device::V1_0::ICameraDevicePreviewCallback {
+ 
+ public:
+@@ -396,10 +402,12 @@ private:
+             hardware::camera::device::V1_0::DataCallbackMsg msgType,
+             const hardware::hidl_vec<
+                     hardware::camera::device::V1_0::HandleTimestampMessage>&) override;
++#ifdef QTI_CAMERA_DEVICE
+     hardware::Return<void> QDataCallback(
+             hardware::camera::device::V1_0::DataCallbackMsg msgType,
+             uint32_t data, uint32_t bufferIndex,
+             const vendor::qti::hardware::camera::device::V1_0::QCameraFrameMetadata& metadata) override;
++#endif
+ 
+     /**
+      * Implementation of android::hardware::camera::device::V1_0::ICameraDevicePreviewCallback
+-- 
+2.17.1
+

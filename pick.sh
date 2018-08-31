@@ -739,7 +739,7 @@ repo sync android  >/dev/null
 cd .repo/manifests
 git reset >/dev/null
 git stash >/dev/null
-git fetch --all >/dev/null 2>/dev/null
+git fetch --all >/dev/null
 
 default_branch=$(grep "^[[:space:]]*<default revision=" $topdir/.repo/manifests/default.xml | sed -e 's:[^"]*"\(.*\)":\1:' | sed -e "s:refs/heads/::g")
 git reset --hard $(git branch -a | grep "remotes/m/$default_branch" | cut -d'>' -f 2 | sed -e "s/ //g") >/dev/null
@@ -775,27 +775,19 @@ kpick 225940 # Allow whitelisted processes to use destroyed mutex
 kpick 226183 # Implement per-process target SDK version override.
 
 # boot/recovery
-kpick 222993 # Revert "updater: Remove dead make_parents()."
-kpick 222994 # Revert "otautil: Delete dirUnlinkHierarchy()."
-kpick 222995 # Revert "kill package_extract_dir"
-kpick 222996 # Revert "Remove the obsolete package_extract_dir() test"
-kpick 222997 # Revert "updater: Remove some obsoleted functions for file-based OTA."
-kpick 222998 # Revert "Format formattable partitions if mount fails"
 kpick 225588 # recovery: updater: Fix SymlinkFn args
+kpick 226282 # Revert "f2fs: support f2fs by setting unmovable bit for package file"
+kpick 226283 # f2fs: support f2fs by setting unmovable bit for package file
+kpick 226284 # uncrypt: fix f2fs ioctl argument for pin_file
 
 # build/make
 kpick 222733 # core: Disable vendor restrictions
 kpick 222742 # build: Use project pathmap for recovery
-kpick 222750 # edify: bring back SetPermissionsRecursive
 kpick 222760 # Add LOCAL_AIDL_FLAGS
-kpick 222762 # Revert "Remove the obsolete UnpackPackageDir() in edify generator"
-kpick 222809 # DO NOT MERGE: disable inclusion of Lineage sepol
-kpick 225116 # Revert "releasetools: Replace key values in permission files during re-signing"
 kpick 226248 # Do not call sort when setting ALL_DEPS.MODULES.
 
 # build/soong
 kpick 222648 # Allow providing flex and bison binaries
-kpick 224204 # soong: Add function to return camera parameters library name
 kpick 223431 # soong: Enforce absolute path if OUT_DIR is set
 kpick 224613 # soong: Add LOCAL_AIDL_FLAGS handling
 kpick 224827 # soong: Add java sources overlay support
@@ -886,7 +878,6 @@ kpick 225762 # tinycompress: enable libtinycompress_vendor
 kpick 225763 # tinycompress: Use sanitized headers generated from kernel source
 kpick 223008 # tinycompress: tinycompress fixes
 kpick 223011 # tinycompress: Fix compilation on old targets
-kpick 223010 # tinycompress: Generate vendor specifc tinycompress
 
 # external/toybox
 
@@ -905,7 +896,6 @@ kpick 225238 # minizip: Clean up the code
 kpick 225239 # zlib: crc optimization for arm64
 
 # frameworks/av
-kpick 224203 # camera: Allow devices to load custom CameraParameter code
 kpick 225530 # camera: Workaround for GCC-compiled HAL3 drivers
 kpick 225531 # soundtrigger: fill in default extras from dsp
 kpick 225532 # Camera: CameraHardwareInterface changes to support Extended FD
@@ -917,19 +907,13 @@ kpick 225537 # libstagefright: Add more sample rates for FLAC
 kpick 225539 # Camera:CameraService: Added lock on mHIDLMemPoolId in QDataCallback..
 kpick 225540 # Camera: CameraHardwareInterface: Releasing mHIDLMemoryMapLock in QdataCallback
 kpick 225746 # Camera: Handle duplicate camera Id due to openLegacy support
-kpick 225798 # libcameraservice: Disable external provider for legacy HAL1
 
 # frameworks/base
-kpick 222955 # frameworks/base: Battery and Notification Lights
-kpick 222956 # frameworks/base: Lights notifications brightness support
 kpick 224266 # SystemUI: Add Lineage statusbar item holder
 kpick 224267 # SystemUI: Network Traffic [1/3]
 kpick 224446 # SystemUI: Make tablets great again
 kpick 224513 # SystemUI: Disable config_keyguardUserSwitcher on sw600dp
 kpick 224844 # lockscreen: Add option for showing unlock screen directly
-kpick 225572 # SystemUI: Allow using tuner API for LineageSettings
-kpick 225573 # SystemUI: add quick settings pull down with one finger
-kpick 225574 # SystemUI: add double tap to sleep gesture
 kpick 225582 # [TEMP]: Revert "OMS: harden permission checks"
 kpick 225590 # Reintroduce button-backlight (and respective inactivity timeout)
 kpick 225591 # power: Disable keyboard/button lights while dozing/dreaming
@@ -980,9 +964,7 @@ kpick 225790 # base: Allow to disable Lockscreen Media Art [1/3]
 kpick 225799 # SystemUI: fix toggling lockscreen rotation [1/3]
 kpick 225859 # storage: Do not notify for volumes on non-removable disks
 kpick 225861 # [2/3] NetworkManagement : Add ability to restrict app data/wifi usage
-kpick 225878 # Download: Add support to manually pause/resume download
 kpick 225919 # PackageManager: allow build-time disabling of components
-kpick 225980 # Screenshot: append app name to filename
 kpick 226068 # Fix mounting of non-FAT formatted SD cards (1/2)
 kpick 226081 # fingerprint: notify client when cancelling succeeded
 kpick 226083 # Keyguard: Allow disabling fingerprint wake-and-unlock
@@ -990,6 +972,8 @@ kpick 226084 # fingerprint: handle PerformanceStats NULL pointers
 kpick 226133 # Port ADB over network and ability to hide the notification
 kpick 226236 # SystemUI: add navbar button layout inversion tuning
 kpick 226249 # fw/b: Allow customisation of navbar app switch long press action
+kpick 226276 # power: Re-introduce custom charging sounds
+kpick 226285 # Revert "ActivityManager: Restore getRecentTasksForUser method"
 
 # frameworks/native
 kpick 224443 # libbinder: Don't log call trace when waiting for vendor service on non-eng builds
@@ -1101,6 +1085,7 @@ kpick 225687 # PowerMenuConstants: Add user logout as new global action
 kpick 225914 # lineage-sdk: Rewrite Lineage preference classes used in about phone view
 kpick 226087 # lineage-sdk: Default config_deviceHardware{Wake}Keys to 64
 kpick 226141 # LineageSettingsProvider: Cleanup after LINEAGE_SETUP_WIZARD_COMPLETED deprecation
+kpick 226286 # Switch getLastTask to IActivityManager
 
 # packages/apps/AudioFX
 
@@ -1182,6 +1167,11 @@ kpick 225311 # Remove max aspect ratio.
 # packages/apps/Gallery2
 
 # packages/apps/LineageParts
+kpick 226145 # LineageParts: Reenable buttons related settings
+
+# packages/apps/LockClock
+kpick 226319 # LockClock: Declare private API dependency
+kpick 226320 # LockClock: Build with AAPT2
 
 # packages/apps/Message
 kpick 225317 # Messaging: Implement option for swipe right to delete.
@@ -1211,13 +1201,15 @@ kpick 223700 # NFC: Adding new vendor specific interface to NFC Service
 kpick 223701 # NFC: Clean duplicated and unknown permissions
 kpick 223703 # nxp: jni: Implement AOSP P abstract methods
 
+# packages/apps/Profiles
+kpick 226315 # Profiles: Set LOCAL_PRIVATE_PLATFORM_APIS
+kpick 226316 # Profiles: Build with AAPT2
+
 # packages/apps/Recorder
 
 # packages/apps/Settings
-kpick 223151 # Settings: Add back battery and notification lights settings
 kpick 224615 # deviceInfo: Fix imei dialog fc when only 1 sim is inserted
 kpick 225570 # Settings: Add LineageParts charging sound settings preference
-kpick 225571 # Settings: Add double tap to sleep preference
 kpick 224973 # Settings: gesture: Add LineageParts touchscreen gesture settings
 kpick 225596 # Settings: Add proximity check on wake preference
 kpick 225601 # Settings: display: Add wake on plug switch
@@ -1240,13 +1232,14 @@ kpick 225979 # Settings: Add package name to installed app details
 kpick 226134 # Settings: Implement ADB notification and ADB over network
 kpick 226142 # Settings: Add developer setting for root access
 kpick 226146 # Settings: battery: Add LineageParts perf profiles
-kpick 226148 # Settings: "Security & location" -> "Security & privacy"
+kpick 226148 # Settings: "Security kpick 226148 # Settings: "Security & location" -> "Security & privacy" location" -> "Security kpick 226148 # Settings: "Security & location" -> "Security & privacy" privacy"
 kpick 226149 # Settings: Add LineageOS legal info
 kpick 226150 # Settings: add Trust interface hook
 kpick 226151 # Settings: show Trust brading in confirm_lock_password UI
 kpick 226152 # Improve app info screen
 kpick 226153 # Allow sorting Applications by size
 kpick 226154 # fingerprint: Allow devices to configure sensor location
+kpick 226278 # Settings: Add LineageOS entries into device info
 
 # packages/apps/SetupWizard
 
@@ -1307,19 +1300,20 @@ kpick 225408 # ContactsProvider: Prevent device contact being deleted.
 kpick 225409 # CallLogDatabase: Bump the version and try to re-run the version 5 upgrade path
 
 # packages/providers/DownloadProvider
-kpick 225410 # DownloadProvider: Display download speed in notification
-kpick 225411 # DownloadProvider: Add support for manual pause/resume
 
 # packages/providers/MediaProvider
 kpick 225412 # Fix mounting of non-FAT formatted SD cards (2/2)
 
 # packages/providers/TelephonyProvider
 
+# packages/providers/WeatherProvier
+
 # packages/services/Mms
 
 # packages/services/Telecomm
 kpick 223099 # Telecomm: Squashed phone_type switch support
 kpick 225708 # Add back increasing ring feature (3/3).
+kpick 226093 # Telecomm: Make sensitive phone numbers not to be shown in call log history.
 
 # packages/services/Telephony
 kpick 225420 # Use proper summary for network select list preference on dsds/dsda/tsts
@@ -1349,7 +1343,7 @@ cd system/extras/
 git stash;git clean -xdf
 cd $topdir
 kpick 225428 # extras: remove su
-repo sync system/extras/su
+repo sync --force-sync system/extras/su
 
 # system/extras/su
 kpick 226017 # su: Fully rebrand
@@ -1400,14 +1394,12 @@ kpick 225881 # vold: Make exfat driver support generic
 kpick 225948 # Support Samsung's implementation of exfat, called sdfat
 
 # vendor/lineage
-kpick 223460 # envsetup: Add githubremote function
 kpick 223773 # Add IPv6 for Oister and 3. The 3.dk and oister.dk carriers now support IPv6 with the APN ”data.tre.dk”.
 kpick 223944 # [DNM]: use aosp wifi until CAF bringup
 kpick 224828 # vendor/lineage: Add support for java source overlays
 kpick 224758 # lineage: Always show option for swipe gesture nav bar
 kpick 225882 # soong_config: Add TARGET_EXFAT_DRIVER variable
 kpick 225921 # overlay: Update list of GSF/GMS activities
-kpick 225922 # overlay: Hide "System update" in settings
 kpick 225938 # roomservice.py: document the hell out of the current behavior of the script
 kpick 225801 # lineage: Move QC board variables earlier
 kpick 225758 # qcom: Declare PRODUCT_SOONG_NAMESPACES for HALs
@@ -1418,6 +1410,7 @@ kpick 225939 # roomservice.py: non-depsonly: bootstrap first device repo from Hu
 #kpick 225981 # roomservice.py: depsonly: do not look up device repo by name in the manifest
 #kpick 225982 # roomservice.py: Strip cm.{mk,dependencies} support
 kpick 226184 # soong_config: Allow process-specific override of target SDK version
+kpick 226317 # repopick: Warn about empty commits instead of failing
 
 # vendor/qcom/opensource/audio
 

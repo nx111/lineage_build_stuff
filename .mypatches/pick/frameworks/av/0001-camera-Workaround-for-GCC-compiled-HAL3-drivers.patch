@@ -1,0 +1,36 @@
+From 81cc54ae7d96ee1570db691d5b46bb20d8eb0b01 Mon Sep 17 00:00:00 2001
+From: Steve Kondik <steve@cyngn.com>
+Date: Tue, 4 Oct 2016 04:55:30 -0700
+Subject: [PATCH 01/11] camera: Workaround for GCC-compiled HAL3 drivers
+
+ * When starting HAL3 using an older camera library (blob),
+   the internal structure is aligned differently when compiled
+   with GCC vs. LLVM. This could cause the "mLocked" field to
+   be overwritten unintentionally, resulting in all update()
+   calls from the HAL failing with "CameraMetadata is locked"
+   even though nothing actually locked it! This would cause
+   the service to kick out the HAL, and nobody gets a camera.
+ * Cheap fix is to add a padding byte between mBuffer and
+   mLocked, and we are back in business.
+
+Change-Id: I3306e14867007a90885aca13e238dee5b49d8da2
+Signed-off-by: Corey Edwards <ensabahnur16@gmail.com>
+---
+ camera/include/camera/CameraMetadata.h | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/camera/include/camera/CameraMetadata.h b/camera/include/camera/CameraMetadata.h
+index d28447784..e2b743db5 100644
+--- a/camera/include/camera/CameraMetadata.h
++++ b/camera/include/camera/CameraMetadata.h
+@@ -222,6 +222,7 @@ class CameraMetadata: public Parcelable {
+ 
+   private:
+     camera_metadata_t *mBuffer;
++    volatile char      mReserved[3] __attribute__ ((unused));
+     mutable bool       mLocked;
+ 
+     /**
+-- 
+2.17.1
+

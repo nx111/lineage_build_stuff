@@ -1,0 +1,213 @@
+From d35b09b75ceabd27bf3e61f23735c0ec7ebdde59 Mon Sep 17 00:00:00 2001
+From: Sam Mortimer <sam@mortimer.me.uk>
+Date: Fri, 17 Aug 2018 11:25:08 -0700
+Subject: [PATCH 4/4] soong: Add java sources overlay support
+
+Change-Id: I94143febb0a8afa6a165364d36a40d5120a4e7bc
+---
+ android/config.go |  10 ++++
+ android/paths.go  | 137 ++++++++++++++++++++++++++++++++++++++++++++++
+ java/java.go      |   4 ++
+ 3 files changed, 151 insertions(+)
+
+diff --git a/android/config.go b/android/config.go
+index 6313b88e..0731d95f 100644
+--- a/android/config.go
++++ b/android/config.go
+@@ -27,6 +27,8 @@ import (
+ 
+ 	"github.com/google/blueprint/bootstrap"
+ 	"github.com/google/blueprint/proptools"
++
++	"lineage/soong/android"
+ )
+ 
+ var Bool = proptools.Bool
+@@ -468,6 +470,14 @@ func (c *config) ResourceOverlays() []string {
+ 	return *c.productVariables.ResourceOverlays
+ }
+ 
++func (c *config) JavaSourceOverlays() string {
++	return String(c.productVariables.Lineage.Java_Source_Overlays)
++}
++
++func (c *config) JavaSourceOverlayModuleWhitelist() []string {
++	return android.LineageConfig.JavaSourcesOverlayModuleWhitelist
++}
++
+ func (c *config) PlatformVersionName() string {
+ 	return String(c.productVariables.Platform_version_name)
+ }
+diff --git a/android/paths.go b/android/paths.go
+index 91dd9a6d..5ceef34c 100644
+--- a/android/paths.go
++++ b/android/paths.go
+@@ -535,6 +535,31 @@ func pathForSource(ctx PathContext, pathComponents ...string) (SourcePath, error
+ 	return ret, nil
+ }
+ 
++// pathForSourceRelaxed creates a SourcePath from pathComponents, but does not check that it exists.
++// It differs from pathForSource in that the path is allowed to exist outside of the PathContext.
++func pathForSourceRelaxed(ctx PathContext, pathComponents ...string) (SourcePath, error) {
++	p := filepath.Join(pathComponents...)
++	ret := SourcePath{basePath{p, ctx.Config(), ""}}
++
++	abs, err := filepath.Abs(ret.String())
++	if err != nil {
++		return ret, err
++	}
++	buildroot, err := filepath.Abs(ctx.Config().buildDir)
++	if err != nil {
++		return ret, err
++	}
++	if strings.HasPrefix(abs, buildroot) {
++		return ret, fmt.Errorf("source path %s is in output", abs)
++	}
++
++	if pathtools.IsGlob(ret.String()) {
++		return ret, fmt.Errorf("path may not contain a glob: %s", ret.String())
++	}
++
++	return ret, nil
++}
++
+ // existsWithDependencies returns true if the path exists, and adds appropriate dependencies to rerun if the
+ // path does not exist.
+ func existsWithDependencies(ctx PathContext, path SourcePath) (exists bool, err error) {
+@@ -584,6 +609,118 @@ func PathForSource(ctx PathContext, pathComponents ...string) SourcePath {
+ 	return path
+ }
+ 
++// PathForSourceRelaxed joins the provided path components.  Unlike PathForSource,
++// the result is allowed to exist outside of the source dir.
++// On error, it will return a usable, but invalid SourcePath, and report a ModuleError.
++func PathForSourceRelaxed(ctx PathContext, pathComponents ...string) SourcePath {
++	path, err := pathForSourceRelaxed(ctx, pathComponents...)
++	if err != nil {
++		reportPathError(ctx, err)
++	}
++
++	if modCtx, ok := ctx.(ModuleContext); ok && ctx.Config().AllowMissingDependencies() {
++		exists, err := existsWithDependencies(ctx, path)
++		if err != nil {
++			reportPathError(ctx, err)
++		}
++		if !exists {
++			modCtx.AddMissingDependencies([]string{path.String()})
++		}
++	} else if exists, _, err := ctx.Fs().Exists(path.String()); err != nil {
++		reportPathErrorf(ctx, "%s: %s", path, err.Error())
++	} else if !exists {
++		reportPathErrorf(ctx, "source path %s does not exist", path)
++	}
++	return path
++}
++
++func ApplySourceOverlays(ctx ModuleContext, directives string, allowedModules []string, srcFiles []Path) []Path {
++	// Multiple overlay directives should be white space separated
++	// Individual directive format is:
++	// modulename|overlaydir|globwithinoverlaydir
++	// Example:
++	// org.lineageos.hardware|device/oneplus/msm8998-common/lineagehw|**/*.java
++
++	// Create map of expanded glob paths (globwithinoverlaydir component only)
++	// to full android.Path mappings
++	overlayMap := make(map[string]Path)
++
++	// Parse directives string and populate overlayMap
++	for _, directive := range strings.Fields(directives) {
++		// Spit directives string into whitespace fields
++		fields := strings.SplitN(directive, "|", 3)
++		if len(fields) != 3 {
++			ctx.ModuleErrorf("could not parse source overlay directive %s", directive)
++			continue
++		}
++
++		// Name the per-directive fields
++		module, dir, glob := fields[0], fields[1], fields[2]
++
++		// Skip overlay directives that don't apply to this module
++		if module != ctx.ModuleName() {
++			continue
++		}
++
++		// Apply sources overlay whitelist
++		allowed := false
++		for _, allowedModule := range allowedModules {
++			if allowedModule == module {
++				allowed = true
++				break
++			}
++		}
++		if !allowed {
++			// Source overlays for this module are not
++			// allowed, skip.
++			ctx.ModuleErrorf("not allowed to sources overlay module %s", module)
++			return srcFiles
++		}
++
++		// Glob dir/glob to establish what overlay files exist
++		toGlobPath := filepath.Join(dir, glob)
++		paths, err := ctx.GlobWithDeps(toGlobPath, nil)
++		if err != nil {
++			ctx.ModuleErrorf("unable to glob %s: %s", toGlobPath, err.Error())
++			continue
++		}
++		// Add globbed paths to overlayMap
++		for _, path := range paths {
++			// Skip directories
++			if strings.HasSuffix(path, "/") {
++				continue
++			}
++			// Ensure that the globbed match has the expected prefix and
++			// has at least dir + '/' as a prefix.
++			if !strings.HasPrefix(path, dir+"/") {
++				continue
++			}
++			pathWithinModule := path[len(dir)+1:] // Account for trailing slash
++			if _, found := overlayMap[pathWithinModule]; !found {
++				overlayMap[pathWithinModule] = PathForSourceRelaxed(ctx, path)
++			}
++		}
++	}
++
++	// Calculate module path length including trailing slash
++	modulePathLen := len(ctx.ModuleDir()) + 1
++
++	// Replace entries in srcFiles that match overlapMap
++	for i := range srcFiles {
++		if len(srcFiles[i].String()) < modulePathLen {
++			continue
++		}
++		srcFileSuffix := srcFiles[i].String()[modulePathLen:]
++		if overlayFile, found := overlayMap[srcFileSuffix]; found {
++			srcFiles[i] = overlayFile
++		}
++	}
++
++	// Return srcFiles so that we can later do more than just substitution.
++	// eg append new entries.
++	return srcFiles
++}
++
+ // ExistentPathForSource returns an OptionalPath with the SourcePath if the
+ // path exists, or an empty OptionalPath if it doesn't exist. Dependencies are added
+ // so that the ninja file will be regenerated if the state of the path changes.
+diff --git a/java/java.go b/java/java.go
+index efa6a7af..51801225 100644
+--- a/java/java.go
++++ b/java/java.go
+@@ -777,6 +777,10 @@ func (j *Module) compile(ctx android.ModuleContext, extraSrcJars ...android.Path
+ 
+ 	srcFiles = j.genSources(ctx, srcFiles, flags)
+ 
++	// Apply any java source overlays
++	srcFiles = android.ApplySourceOverlays(ctx, ctx.Config().JavaSourceOverlays(),
++		ctx.Config().JavaSourceOverlayModuleWhitelist(), srcFiles)
++
+ 	srcJars := srcFiles.FilterByExt(".srcjar")
+ 	srcJars = append(srcJars, deps.srcJars...)
+ 	srcJars = append(srcJars, extraSrcJars...)
+-- 
+2.17.1
+
