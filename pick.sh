@@ -423,6 +423,7 @@ function kpick()
                echo ">>> Picking $nops ..."
          fi
          repopick $nops || exit -1
+         return 0
     fi
     echo ">>> Picking change $changeNumber ..."
     LANG=en_US repopick -c $checkcount $nops >$logfile 2>$errfile
@@ -607,7 +608,7 @@ function kpick()
              cd $topdir
         fi
  
-        if [ -f $logfile -a "$script_file" != "bash" ]; then
+        if [ -f $logfile -a "$script_file" != "bash" -a ! -z $changeNumber ]; then
             if grep -q -E "Change status is MERGED.|nothing to commit" $logfile; then
                [ -f $script_file.tmp ] || cp $script_file $script_file.tmp
                eval  sed -e \"/[[:space:]]*kpick $changeNumber[[:space:]]*.*/d\" -i $script_file.tmp
@@ -731,10 +732,11 @@ fi
 ###################################
 
 if [ $0 != "bash" -a ! -f $0.tmp ]; then    # continue pick or not
-
+repo sync vendor/lineage >/dev/null
 apply_force_changes
 
 # android
+
 repo sync android  >/dev/null
 cd .repo/manifests
 git reset >/dev/null
@@ -752,6 +754,7 @@ kpick 225832 # android: Enable qcom sepolicy
 kpick 226105 # manifest: Enable dataservices and ril-caf
 
 android_head=$(cd android;git log -n 1 | sed -n 1p | cut -d' ' -f2;cd $topdir)
+
 repo sync --force-sync
 cd android;git reset --hard $android_head >/dev/null;cd $topdir
 
@@ -839,8 +842,6 @@ kpick 226070 # msm8974-common: Allow additional gralloc 1.0 buffer usage bits
 
 # kernel/samsung/msm8974
 
-
-
 # external/bash
 kpick 224023 # bash: don't spam errors on warnings
 
@@ -915,6 +916,7 @@ kpick 224446 # SystemUI: Make tablets great again
 kpick 224513 # SystemUI: Disable config_keyguardUserSwitcher on sw600dp
 kpick 224844 # lockscreen: Add option for showing unlock screen directly
 kpick 225582 # [TEMP]: Revert "OMS: harden permission checks"
+kpick 225685 # frameworks: Power menu customizations
 kpick 225590 # Reintroduce button-backlight (and respective inactivity timeout)
 kpick 225591 # power: Disable keyboard/button lights while dozing/dreaming
 kpick 225592 # PowerManager: Re-integrate button brightness
@@ -942,7 +944,6 @@ kpick 225680 # SystemUI: Allow overlaying max notification icons
 kpick 225682 # Framework: Volume key cursor control
 kpick 225683 # PhoneWindowManager: add LineageButtons volumekey hook
 kpick 225684 # Long-press power while display is off for torch
-kpick 225685 # frameworks: Power menu customizations
 kpick 225690 # sensors: Create bool to select what timestamp to use
 kpick 225691 # SystemUI: Don't vibrate on touchscreen camera gesture
 kpick 225692 # framework: move device key handler logic, fix gesture camera launch
@@ -974,6 +975,10 @@ kpick 226236 # SystemUI: add navbar button layout inversion tuning
 kpick 226249 # fw/b: Allow customisation of navbar app switch long press action
 kpick 226276 # power: Re-introduce custom charging sounds
 kpick 226285 # Revert "ActivityManager: Restore getRecentTasksForUser method"
+kpick 226332 # CacheQuotaStrategy: Fix resource leak when reading cache quotas
+kpick 226342 # Stop initializing app ops in Camera default constructor.
+kpick 226343 # CameraServiceProxy: Loosen UID check
+kpick 226354 # Camera: Add feature extensions
 
 # frameworks/native
 kpick 224443 # libbinder: Don't log call trace when waiting for vendor service on non-eng builds
@@ -1010,7 +1015,6 @@ kpick 223681 # power: Add new power hints
  
 # hardware/libhardware_legacy
 kpick 225716 # Add wifi_add_or_remove_virtual_intf() to the legacy wifi hal
-kpick 223521 # Wifi: Add Qpower interface to libhardware_legacy
 
 # hardware/lineage/interfaces
 kpick 223374 # interfaces: Add 2.0 livedisplay interfaces
@@ -1057,8 +1061,6 @@ kpick 223890 # Revert "power: Depend on vendor lineage power HAL"
 #kpick 223892 # power: Add power hint to set profile
 
 # hardware/ril-caf
-kpick 225738 # librilutils: Relocate pb-generated objects to their expected path
-kpick 225739 # libril: Restore support for RIL v6, v8 and v9 stacks
 
 # hardware/samsung
 kpick 225628 # Sending empty strings instead of NULL for some RIL requests
@@ -1232,7 +1234,7 @@ kpick 225979 # Settings: Add package name to installed app details
 kpick 226134 # Settings: Implement ADB notification and ADB over network
 kpick 226142 # Settings: Add developer setting for root access
 kpick 226146 # Settings: battery: Add LineageParts perf profiles
-kpick 226148 # Settings: "Security kpick 226148 # Settings: "Security & location" -> "Security & privacy" location" -> "Security kpick 226148 # Settings: "Security & location" -> "Security & privacy" privacy"
+kpick 226148 # Settings: "Security & privacy" privacy"
 kpick 226149 # Settings: Add LineageOS legal info
 kpick 226150 # Settings: add Trust interface hook
 kpick 226151 # Settings: show Trust brading in confirm_lock_password UI
@@ -1285,14 +1287,6 @@ kpick 225372 # WallpaperPicker: 15.1 wallpapers
 # packages/inputmethods/LatinIME
 kpick -t pie-keyboard
 
-# packages/overlays/Lineage
-
-# packages/providers/BlockedNumberProvider
-
-# packages/providers/BookmarkProvider
-
-# packages/providers/CalendarProvider
-
 # packages/providers/CallLogProvider
 
 # packages/provider/ContackProvider
@@ -1304,12 +1298,6 @@ kpick 225409 # CallLogDatabase: Bump the version and try to re-run the version 5
 # packages/providers/MediaProvider
 kpick 225412 # Fix mounting of non-FAT formatted SD cards (2/2)
 
-# packages/providers/TelephonyProvider
-
-# packages/providers/WeatherProvier
-
-# packages/services/Mms
-
 # packages/services/Telecomm
 kpick 223099 # Telecomm: Squashed phone_type switch support
 kpick 225708 # Add back increasing ring feature (3/3).
@@ -1317,10 +1305,6 @@ kpick 226093 # Telecomm: Make sensitive phone numbers not to be shown in call lo
 
 # packages/services/Telephony
 kpick 225420 # Use proper summary for network select list preference on dsds/dsda/tsts
-
-# packages/wallpapers/LivePicker
-
-# prebuilts/misc
 
 # system/bt
 kpick 223945 # Prevent abort in case of command timeout
@@ -1340,9 +1324,14 @@ kpick 226193 # Show bootanimation after decrypt
 kpick 225426 # f2fs_utils: Add a static libf2fs_sparseblock for minvold
 kpick 225427 # ext4_utils: Fix FS creation for filesystems with exactly 32768 blocks.
 cd system/extras/
-git stash;git clean -xdf
+git stash >/dev/null
+git clean -xdf >/dev/null
 cd $topdir
 kpick 225428 # extras: remove su
+if [ -d $topdir/system/extras/su ]; then
+   cd $topdir/system/extras/su
+   git stash >/dev/null
+fi
 repo sync --force-sync system/extras/su
 
 # system/extras/su

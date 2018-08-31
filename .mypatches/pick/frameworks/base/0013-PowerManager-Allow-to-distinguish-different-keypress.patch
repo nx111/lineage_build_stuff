@@ -1,0 +1,135 @@
+From 91978ed5a84065e6451fe4ae02aed6e16ebc2be8 Mon Sep 17 00:00:00 2001
+From: Corinna Vinschen <xda@vinschen.de>
+Date: Sat, 12 Aug 2017 13:42:58 +0200
+Subject: [PATCH 13/68] PowerManager: Allow to distinguish different keypresses
+
+* Use keypress info to exclude pressing volume keys from
+  illuminating HW buttons in config_buttonLightOnKeypressOnly
+  mode.
+
+Change-Id: I6bfc7ddd075e12e1ad10c3663a63e80c8d7f983d
+Signed-off-by: Corinna Vinschen <xda@vinschen.de>
+---
+ core/java/android/os/PowerManager.java                |  8 ++++++++
+ .../com/android/server/power/PowerManagerService.java |  6 ++++--
+ .../com_android_server_input_InputManagerService.cpp  |  6 +++---
+ .../com_android_server_power_PowerManagerService.cpp  | 11 +++++++++--
+ .../com_android_server_power_PowerManagerService.h    |  3 ++-
+ 5 files changed, 26 insertions(+), 8 deletions(-)
+
+diff --git a/core/java/android/os/PowerManager.java b/core/java/android/os/PowerManager.java
+index 161f4a3e380..a7bb1c23422 100644
+--- a/core/java/android/os/PowerManager.java
++++ b/core/java/android/os/PowerManager.java
+@@ -347,6 +347,14 @@ public final class PowerManager {
+     @SystemApi
+     public static final int USER_ACTIVITY_FLAG_INDIRECT = 1 << 1;
+ 
++    /**
++     * User activity flag: Certain hardware buttons are not supposed to
++     * activate hardware button illumination.  This flag indicates a
++     * button event from one of those buttons.
++     * @hide
++     */
++    public static final int USER_ACTIVITY_FLAG_NO_BUTTON_LIGHTS = 1 << 2;
++
+     /**
+      * Go to sleep reason code: Going to sleep due by application request.
+      * @hide
+diff --git a/services/core/java/com/android/server/power/PowerManagerService.java b/services/core/java/com/android/server/power/PowerManagerService.java
+index d714805926e..79765ec70c0 100644
+--- a/services/core/java/com/android/server/power/PowerManagerService.java
++++ b/services/core/java/com/android/server/power/PowerManagerService.java
+@@ -1388,8 +1388,10 @@ public final class PowerManagerService extends SystemService
+             } else {
+                 if (eventTime > mLastUserActivityTime) {
+                     mButtonPressed = event == PowerManager.USER_ACTIVITY_EVENT_BUTTON;
+-                    if ((mButtonLightOnKeypressOnly && mButtonPressed)
+-                            || eventTime == mLastWakeTime) {
++                    if (eventTime == mLastWakeTime ||
++                            (mButtonLightOnKeypressOnly && mButtonPressed &&
++                                    (flags & PowerManager.USER_ACTIVITY_FLAG_NO_BUTTON_LIGHTS)
++                                            == 0)) {
+                         mButtonPressed = true;
+                         mLastButtonActivityTime = eventTime;
+                     }
+diff --git a/services/core/jni/com_android_server_input_InputManagerService.cpp b/services/core/jni/com_android_server_input_InputManagerService.cpp
+index 27c2faca9d3..86d2e748809 100644
+--- a/services/core/jni/com_android_server_input_InputManagerService.cpp
++++ b/services/core/jni/com_android_server_input_InputManagerService.cpp
+@@ -254,7 +254,7 @@ public:
+             const KeyEvent* keyEvent, uint32_t policyFlags);
+     virtual bool dispatchUnhandledKey(const sp<InputWindowHandle>& inputWindowHandle,
+             const KeyEvent* keyEvent, uint32_t policyFlags, KeyEvent* outFallbackKeyEvent);
+-    virtual void pokeUserActivity(nsecs_t eventTime, int32_t eventType);
++    virtual void pokeUserActivity(nsecs_t eventTime, int32_t eventType, int32_t keyCode);
+     virtual bool checkInjectEventsPermissionNonReentrant(
+             int32_t injectorPid, int32_t injectorUid);
+ 
+@@ -1143,9 +1143,9 @@ bool NativeInputManager::dispatchUnhandledKey(const sp<InputWindowHandle>& input
+     return result;
+ }
+ 
+-void NativeInputManager::pokeUserActivity(nsecs_t eventTime, int32_t eventType) {
++void NativeInputManager::pokeUserActivity(nsecs_t eventTime, int32_t eventType, int32_t keyCode) {
+     ATRACE_CALL();
+-    android_server_PowerManagerService_userActivity(eventTime, eventType);
++    android_server_PowerManagerService_userActivity(eventTime, eventType, keyCode);
+ }
+ 
+ 
+diff --git a/services/core/jni/com_android_server_power_PowerManagerService.cpp b/services/core/jni/com_android_server_power_PowerManagerService.cpp
+index b3c0636841d..0c5ac113fc4 100644
+--- a/services/core/jni/com_android_server_power_PowerManagerService.cpp
++++ b/services/core/jni/com_android_server_power_PowerManagerService.cpp
+@@ -37,6 +37,7 @@
+ #include <hardware/power.h>
+ #include <hardware_legacy/power.h>
+ #include <suspend/autosuspend.h>
++#include <android/keycodes.h>
+ 
+ #include "com_android_server_power_PowerManagerService.h"
+ 
+@@ -168,7 +169,8 @@ static void sendPowerHint(PowerHint hintId, uint32_t data) {
+     }
+ }
+ 
+-void android_server_PowerManagerService_userActivity(nsecs_t eventTime, int32_t eventType) {
++void android_server_PowerManagerService_userActivity(nsecs_t eventTime, int32_t eventType,
++        int32_t keyCode) {
+     if (gPowerManagerServiceObj) {
+         // Throttle calls into user activity by event type.
+         // We're a little conservative about argument checking here in case the caller
+@@ -190,9 +192,14 @@ void android_server_PowerManagerService_userActivity(nsecs_t eventTime, int32_t
+ 
+         JNIEnv* env = AndroidRuntime::getJNIEnv();
+ 
++        int flags = 0;
++        if (keyCode == AKEYCODE_VOLUME_UP || keyCode == AKEYCODE_VOLUME_DOWN) {
++            flags |= USER_ACTIVITY_FLAG_NO_BUTTON_LIGHTS;
++        }
++
+         env->CallVoidMethod(gPowerManagerServiceObj,
+                 gPowerManagerServiceClassInfo.userActivityFromNative,
+-                nanoseconds_to_milliseconds(eventTime), eventType, 0);
++                nanoseconds_to_milliseconds(eventTime), eventType, flags);
+         checkAndClearExceptionFromCallback(env, "userActivityFromNative");
+     }
+ }
+diff --git a/services/core/jni/com_android_server_power_PowerManagerService.h b/services/core/jni/com_android_server_power_PowerManagerService.h
+index a17fd650522..1dfd7bbca0e 100644
+--- a/services/core/jni/com_android_server_power_PowerManagerService.h
++++ b/services/core/jni/com_android_server_power_PowerManagerService.h
+@@ -24,7 +24,8 @@
+ 
+ namespace android {
+ 
+-extern void android_server_PowerManagerService_userActivity(nsecs_t eventTime, int32_t eventType);
++extern void android_server_PowerManagerService_userActivity(nsecs_t eventTime, int32_t eventType,
++        int32_t keyCode);
+ 
+ } // namespace android
+ 
+-- 
+2.17.1
+

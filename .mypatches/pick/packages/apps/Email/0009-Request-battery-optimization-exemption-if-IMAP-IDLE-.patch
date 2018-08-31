@@ -1,4 +1,4 @@
-From 7dbb27812d7617be947724e4a0b6060f5cdfcf1c Mon Sep 17 00:00:00 2001
+From 99bcb2e819959bcca0ea179aa1389c63e11eb860 Mon Sep 17 00:00:00 2001
 From: Danny Baumann <dannybaumann@web.de>
 Date: Thu, 5 Jul 2018 10:14:11 +0200
 Subject: [PATCH 09/19] Request battery optimization exemption if IMAP IDLE is
@@ -8,11 +8,11 @@ Change-Id: I585b791ff44c5dbc4b2503b9bcc1a132d18d4856
 ---
  AndroidManifest.xml                           |  6 +++
  .../android/email/NotificationController.java |  3 ++
- .../android/email/service/ImapService.java    | 34 ++++++++++--
+ .../android/email/service/ImapService.java    | 37 +++++++++++--
  res/values/cm_strings.xml                     |  3 ++
  .../email/EmailNotificationController.java    | 29 ++++++++++
  ...ryOptimizationsExemptionProxyActivity.java | 53 +++++++++++++++++++
- 6 files changed, 123 insertions(+), 5 deletions(-)
+ 6 files changed, 126 insertions(+), 5 deletions(-)
  create mode 100644 src/com/android/email/activity/BatteryOptimizationsExemptionProxyActivity.java
 
 diff --git a/AndroidManifest.xml b/AndroidManifest.xml
@@ -52,7 +52,7 @@ index 0bd25a8be..61ca0c744 100644
 +    void cancelIgnoreBatteryOptimizationsNotification();
  }
 diff --git a/provider_src/com/android/email/service/ImapService.java b/provider_src/com/android/email/service/ImapService.java
-index cfda45052..02c35e94b 100644
+index cfda45052..22f449790 100644
 --- a/provider_src/com/android/email/service/ImapService.java
 +++ b/provider_src/com/android/email/service/ImapService.java
 @@ -26,7 +26,6 @@ import android.content.Context;
@@ -97,18 +97,28 @@ index cfda45052..02c35e94b 100644
              am.cancel(getKickIdleConnectionPendingIntent());
          }
  
-@@ -786,6 +790,10 @@ public class ImapService extends Service {
-             // been changes while we lost connectivity. At the end of the sync
-             // the IDLE connection will be re-established.
- 
-+            if (!checkBatteryOptimizationsExemption(this)) {
-+                return START_STICKY;
-+            }
-+
-             mIdleRefreshWakeLock.acquire();
- 
-             sExecutor.execute(new Runnable() {
-@@ -892,6 +900,22 @@ public class ImapService extends Service {
+@@ -792,6 +796,7 @@ public class ImapService extends Service {
+                 @Override
+                 public void run() {
+                     ContentResolver cr = context.getContentResolver();
++                    List<Account> syncAccounts = new ArrayList<>();
+                     Cursor c = null;
+                     try {
+                         c = cr.query(Account.CONTENT_URI, Account.CONTENT_PROJECTION,
+@@ -806,6 +811,12 @@ public class ImapService extends Service {
+                             // Only imap push accounts
+                             if (account.getSyncInterval() == Account.CHECK_INTERVAL_PUSH
+                                     && isLegacyImapProtocol(context, account)) {
++                                syncAccounts.add(account);
++                            }
++                        }
++                        if (!syncAccounts.isEmpty()
++                                && checkBatteryOptimizationsExemption(context)) {
++                            for (Account account : syncAccounts) {
+                                 requestSyncForAccountMailboxesIfNotIdled(account);
+                             }
+                         }
+@@ -892,6 +903,22 @@ public class ImapService extends Service {
          return Service.START_STICKY;
      }
  
