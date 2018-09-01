@@ -1,7 +1,7 @@
-From d5bb6e36decb7e9496a4fd1147b9f13074b0be67 Mon Sep 17 00:00:00 2001
+From 4c3c1bc8fa4417b76c9f1bc8f7a2ced8793eb477 Mon Sep 17 00:00:00 2001
 From: Michael Bestas <mkbestas@lineageos.org>
 Date: Wed, 20 Dec 2017 19:12:59 +0200
-Subject: [PATCH 1/4] cryptfs_hw: Add compatibility for pre-O hw crypto
+Subject: [PATCH 1/5] cryptfs_hw: Add compatibility for pre-O hw crypto
 
 * Restore compatibility for pre-O way of hw crypto
   interaction with qsee as the new way is not
@@ -18,9 +18,9 @@ Subject: [PATCH 1/4] cryptfs_hw: Add compatibility for pre-O hw crypto
 
 Change-Id: I9a5db406c16c3610237a1b85fbfab5c0d63e4960
 ---
- Android.bp   |   8 +++++
- cryptfs_hw.c | 100 +++++++++++++++++++++++++++++++++++++++++++++++++++
- 2 files changed, 108 insertions(+)
+ Android.bp   |   8 ++++
+ cryptfs_hw.c | 102 ++++++++++++++++++++++++++++++++++++++++++++++++++-
+ 2 files changed, 109 insertions(+), 1 deletion(-)
 
 diff --git a/Android.bp b/Android.bp
 index 5698fb3..ad5b0eb 100644
@@ -42,7 +42,7 @@ index 5698fb3..ad5b0eb 100644
  }
  
 diff --git a/cryptfs_hw.c b/cryptfs_hw.c
-index 65618df..d25a3d2 100644
+index 65618df..e231759 100644
 --- a/cryptfs_hw.c
 +++ b/cryptfs_hw.c
 @@ -43,6 +43,10 @@
@@ -70,64 +70,12 @@ index 65618df..d25a3d2 100644
  #define CRYPTFS_HW_KMS_CLEAR_KEY			0
  #define CRYPTFS_HW_KMS_WIPE_KEY				1
  #define CRYPTFS_HW_UP_CHECK_COUNT			10
-@@ -83,6 +94,33 @@ static inline void* secure_memset(void* v, int c , size_t n)
+@@ -83,6 +94,77 @@ static inline void* secure_memset(void* v, int c , size_t n)
  	return v;
  }
  
-+#ifdef LEGACY_HW_DISK_ENCRYPTION
-+static int cryptfs_hw_create_key(enum cryptfs_hw_key_management_usage_type usage,
-+					unsigned char *hash32)
-+{
-+	if (load_qseecom_library())
-+		return qseecom_create_key(usage, hash32);
++static int is_qseecom_up();
 +
-+	return CRYPTFS_HW_CREATE_KEY_FAILED;
-+}
-+
-+static int cryptfs_hw_wipe_key(enum cryptfs_hw_key_management_usage_type usage)
-+{
-+	if (load_qseecom_library())
-+		return qseecom_wipe_key(usage);
-+
-+	return CRYPTFS_HW_WIPE_KEY_FAILED;
-+}
-+
-+static int cryptfs_hw_update_key(enum cryptfs_hw_key_management_usage_type usage,
-+			unsigned char *current_hash32, unsigned char *new_hash32)
-+{
-+	if (load_qseecom_library())
-+		return qseecom_update_key(usage, current_hash32, new_hash32);
-+
-+	return CRYPTFS_HW_UPDATE_KEY_FAILED;
-+}
-+#else
- static size_t memscpy(void *dst, size_t dst_size, const void *src, size_t src_size)
- {
- 	size_t min_size = (dst_size < src_size) ? dst_size : src_size;
-@@ -256,6 +294,7 @@ static int cryptfs_hw_update_key(enum cryptfs_hw_key_management_usage_type usage
- 	close(qseecom_fd);
- 	return ret;
- }
-+#endif
- 
- static int map_usage(int usage)
- {
-@@ -296,7 +335,11 @@ static int is_qseecom_up()
-     char value[PROPERTY_VALUE_MAX] = {0};
- 
-     for (; i<CRYPTFS_HW_UP_CHECK_COUNT; i++) {
-+#ifdef LEGACY_HW_DISK_ENCRYPTION
-+        property_get("sys.keymaster.loaded", value, "");
-+#else
-         property_get("vendor.sys.keymaster.loaded", value, "");
-+#endif
-         if (!strncmp(value, "true", PROPERTY_VALUE_MAX))
-             return 1;
-         usleep(100000);
-@@ -304,6 +347,50 @@ static int is_qseecom_up()
-     return 0;
- }
- 
 +#ifdef LEGACY_HW_DISK_ENCRYPTION
 +static int load_qseecom_library()
 +{
@@ -170,11 +118,63 @@ index 65618df..d25a3d2 100644
 +
 +    return loaded_library;
 +}
-+#endif
 +
- /*
-  * For NON-ICE targets, it would return 0 on success. On ICE based targets,
-  * it would return key index in the ICE Key LUT
++static int cryptfs_hw_create_key(enum cryptfs_hw_key_management_usage_type usage,
++					unsigned char *hash32)
++{
++	if (load_qseecom_library())
++		return qseecom_create_key(usage, hash32);
++
++	return CRYPTFS_HW_CREATE_KEY_FAILED;
++}
++
++static int cryptfs_hw_wipe_key(enum cryptfs_hw_key_management_usage_type usage)
++{
++	if (load_qseecom_library())
++		return qseecom_wipe_key(usage);
++
++	return CRYPTFS_HW_WIPE_KEY_FAILED;
++}
++
++static int cryptfs_hw_update_key(enum cryptfs_hw_key_management_usage_type usage,
++			unsigned char *current_hash32, unsigned char *new_hash32)
++{
++	if (load_qseecom_library())
++		return qseecom_update_key(usage, current_hash32, new_hash32);
++
++	return CRYPTFS_HW_UPDATE_KEY_FAILED;
++}
++#else
+ static size_t memscpy(void *dst, size_t dst_size, const void *src, size_t src_size)
+ {
+ 	size_t min_size = (dst_size < src_size) ? dst_size : src_size;
+@@ -256,6 +338,7 @@ static int cryptfs_hw_update_key(enum cryptfs_hw_key_management_usage_type usage
+ 	close(qseecom_fd);
+ 	return ret;
+ }
++#endif
+ 
+ static int map_usage(int usage)
+ {
+@@ -290,13 +373,17 @@ static unsigned char* get_tmp_passwd(const char* passwd)
+     return tmp_passwd;
+ }
+ 
+-static int is_qseecom_up()
++int is_qseecom_up()
+ {
+     int i = 0;
+     char value[PROPERTY_VALUE_MAX] = {0};
+ 
+     for (; i<CRYPTFS_HW_UP_CHECK_COUNT; i++) {
++#ifdef LEGACY_HW_DISK_ENCRYPTION
++        property_get("sys.keymaster.loaded", value, "");
++#else
+         property_get("vendor.sys.keymaster.loaded", value, "");
++#endif
+         if (!strncmp(value, "true", PROPERTY_VALUE_MAX))
+             return 1;
+         usleep(100000);
 @@ -397,8 +484,21 @@ static int get_keymaster_version()
  
  int should_use_keymaster()

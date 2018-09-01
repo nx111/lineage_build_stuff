@@ -980,13 +980,17 @@ kpick 226343 # CameraServiceProxy: Loosen UID check
 kpick 226354 # Camera: Add feature extensions
 kpick 226358 # settings: Allow accessing LineageSettings via settings command
 kpick 226367 # SystemUI: Add tuner interface to StatusBarSignalPolicy
+kpick 226398 # frameworks: base: Port password retention feature
+kpick 226399 # Use fdeCheckPassword error code to indicate pw failure
+kpick 226400 # LockSettingsService: Support for separate clear key api
+kpick 226401 # AppOps: track op persistence by name instead of id
 
 # frameworks/native
 kpick 224443 # libbinder: Don't log call trace when waiting for vendor service on non-eng builds
 kpick 224530 # Triple the available egl function pointers available to a process for certain Nvidia devices.
 kpick 225542 # sensorservice: Register orientation sensor if HAL doesn't provide it
 kpick 225543 # sensorservice: customize sensor fusion mag filter via prop
-#kpick 225544 # input: Adjust priority
+kpick 225544 # input: Adjust priority
 kpick 225545 # Forward port 'Swap volume buttons' (2/3)
 kpick 225546 # AppOpsManager: Update with the new ops
 kpick 225547 # PowerManager.h: Define USER_ACTIVITY_FLAG values
@@ -1008,6 +1012,7 @@ kpick 225816 # libbt-vendor: add support for samsung bluetooth
 kpick 224064 # Revert "Bluetooth: Remove random MAC addresses"
 kpick 225506 # Camed HAL extension: Added support in HIDL for Extended FD.
 kpick 225507 # camera: Only link and use vendor.qti.hardware.camera.device if specified
+kpick 226402 # keymasterV4_0: Tags support for FBE wrapped key.
 
 # hardware/libhardware
 kpick 223097 # hardware/libhw: Add display_defs.h to declare custom enums/flags
@@ -1023,6 +1028,7 @@ kpick 223906 # biometrics: fingerprint: add locking to default impl
 kpick 223907 # Use -Werror in hardware/interfaces/biometrics/fingerprint
 kpick 223908 # fpc: keep fpc in system-background
 kpick 224525 # lineage/interfaces: Add basic USB HAL that reports no status change
+kpick 226240 # lineage: Prepend vendor. to all HAL services
 
 # hardware/lineage/lineagehw
 
@@ -1070,6 +1076,7 @@ kpick 225632 # libril: Fix double freeing of memory in SAP service and add null-
 kpick 225633 # libril: Store the system time when NITZ is received.
 kpick 225634 # libril: Add DISABLE_RILD_OEM_HOOK.
 kpick 225635 # libril: Change rild initial sequence to guarantee non-null function pointer before rild register its hidl service
+kpick 225876 # libril: add missing return statement
 kpick 226072 # liblights: remove unused variable
 kpick 226073 # power: remove unused variable/mark unused parameter
 kpick 226074 # wifiloader: remove unused variable
@@ -1136,6 +1143,7 @@ kpick 226100 # Add setting to enable Do Not Disturb during calls
 kpick 226101 # Re-add call recording.
 kpick 226102 # Allow per-call account selection.
 kpick 226103 # Re-add call statistics.
+kpick 226395 # Dialer: handle database upgrade from cm-14.1
 
 # packages/apps/DocumentsUI
 kpick 225289 # DocumentsUI: support night mode
@@ -1310,6 +1318,9 @@ kpick 225409 # CallLogDatabase: Bump the version and try to re-run the version 5
 # packages/providers/MediaProvider
 kpick 225412 # Fix mounting of non-FAT formatted SD cards (2/2)
 
+# packages/providers/TelephonyProvider
+kpick 226394 # TelephonyProvider: add upgrade support from cm-14.1
+
 # packages/services/Telecomm
 kpick 223099 # Telecomm: Squashed phone_type switch support
 kpick 225708 # Add back increasing ring feature (3/3).
@@ -1381,10 +1392,10 @@ kpick 225451 # vold: Also wait for dm device when mounting private volume
 kpick 225452 # secdiscard: should pin_file to avoid moving blocks in F2FS
 kpick 225881 # vold: Make exfat driver support generic
 kpick 225948 # Support Samsung's implementation of exfat, called sdfat
-#kpick 226109 # vold: Add Hardware FDE feature
-#kpick 226110 # system: vold: Remove crypto block device creation
-#kpick 226127 # vold: Move QCOM HW FDE inclusion under lineage namespace
-#kpick 226111 # vold: Wrapped key support for FBE
+kpick 226109 # vold: Add Hardware FDE feature
+kpick 226110 # system: vold: Remove crypto block device creation
+kpick 226127 # vold: Move QCOM HW FDE inclusion under lineage namespace
+kpick 226111 # vold: Wrapped key support for FBE
 
 # vendor/lineage
 kpick 223773 # Add IPv6 for Oister and 3. The 3.dk and oister.dk carriers now support IPv6 with the APN ”data.tre.dk”.
@@ -1405,6 +1416,7 @@ kpick 225939 # roomservice.py: non-depsonly: bootstrap first device repo from Hu
 kpick 226123 # soong_config: Add new flags for HW FDE
 kpick 226125 # soong_config: Add flag for legacy HW FDE
 kpick 226126 # soong_config: Add flag for crypto waiting on QSEE to start
+kpick 226155 # soong_config: Add add_json_str_omitempty function
 kpick 226184 # soong_config: Allow process-specific override of target SDK version
 kpick 226317 # repopick: Warn about empty commits instead of failing
 
@@ -1414,6 +1426,8 @@ kpick 226317 # repopick: Warn about empty commits instead of failing
 kpick 226128 # cryptfs_hw: Add compatibility for pre-O hw crypto
 kpick 226129 # cryptfs_hw: Featureize support for waiting on QSEE to start
 kpick 226130 # cryptfs_hw: add missing logging tag
+kpick 226403 # cryptfs_hw: Remove unused variable
+kpick 226404 # [TEMP]: Header hack to compile for 8974
 
 #-----------------------
 # translations

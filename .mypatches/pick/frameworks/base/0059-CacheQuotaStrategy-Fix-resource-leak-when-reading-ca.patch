@@ -1,0 +1,47 @@
+From 31aa902b0c373e1b90835665f042d31cdf858746 Mon Sep 17 00:00:00 2001
+From: Han Wang <416810799@qq.com>
+Date: Fri, 31 Aug 2018 10:27:28 +0200
+Subject: [PATCH 59/67] CacheQuotaStrategy: Fix resource leak when reading
+ cache quotas
+
+The following stacktrace was seen on bootup:
+
+W System  : A resource was acquired at attached stack trace but never released. See java.io.Closeable for information on avoiding resource leaks.
+W System  : java.lang.Throwable: Explicit termination method 'close' not called
+W System  : 	at dalvik.system.CloseGuard.open(CloseGuard.java:221)
+W System  : 	at java.io.FileInputStream.<init>(FileInputStream.java:168)
+W System  : 	at com.android.internal.os.AtomicFile.openRead(AtomicFile.java:147)
+W System  : 	at com.android.server.storage.CacheQuotaStrategy.setupQuotasFromFile(CacheQuotaStrategy.java:301)
+W System  : 	at com.android.server.usage.StorageStatsService$H.handleMessage(StorageStatsService.java:508)
+W System  : 	at android.os.Handler.dispatchMessage(Handler.java:106)
+W System  : 	at android.os.Looper.loop(Looper.java:193)
+W System  : 	at android.os.HandlerThread.run(HandlerThread.java:65)
+W System  : 	at com.android.server.ServiceThread.run(ServiceThread.java:44)
+
+Close FileInputStream properly to handle this warning.
+
+Change-Id: I56953ee49528190ad4210715c8f5ae3446896828
+---
+ .../java/com/android/server/storage/CacheQuotaStrategy.java | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/services/core/java/com/android/server/storage/CacheQuotaStrategy.java b/services/core/java/com/android/server/storage/CacheQuotaStrategy.java
+index 7a35bf7bba1..69462f2b744 100644
+--- a/services/core/java/com/android/server/storage/CacheQuotaStrategy.java
++++ b/services/core/java/com/android/server/storage/CacheQuotaStrategy.java
+@@ -309,6 +309,12 @@ public class CacheQuotaStrategy implements RemoteCallback.OnResultListener {
+             cachedValues = readFromXml(stream);
+         } catch (XmlPullParserException e) {
+             throw new IllegalStateException(e.getMessage());
++        } finally {
++            try {
++                stream.close();
++            } catch (IOException e) {
++                // Ignore exception.
++            }
+         }
+ 
+         if (cachedValues == null) {
+-- 
+2.17.1
+
