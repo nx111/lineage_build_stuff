@@ -1,0 +1,872 @@
+From efe8834be2c59c0396050c21d890f722f1075b4c Mon Sep 17 00:00:00 2001
+From: Corinna Vinschen <xda@vinschen.de>
+Date: Sun, 26 Aug 2018 22:11:49 +0200
+Subject: [PATCH 2/2] power: set_power_profile: handle errors
+
+* Make sure current_power_profile reflects actual setting.
+* Propagate error condition up to caller.
+* Handle error from set_power_profile in power_hint_override.
+
+Change-Id: I8518d921a94c912c75f59fbf993a8f44116bdca9
+Signed-off-by: Corinna Vinschen <xda@vinschen.de>
+---
+ power-8084.c | 40 ++++++++++++++++++++++++++--------------
+ power-8226.c | 31 ++++++++++++++++++++++---------
+ power-8610.c | 31 ++++++++++++++++++++++---------
+ power-8916.c | 49 +++++++++++++++++++++++++++++--------------------
+ power-8952.c | 40 ++++++++++++++++++++++++++--------------
+ power-8953.c | 40 ++++++++++++++++++++++++++--------------
+ power-8974.c | 40 ++++++++++++++++++++++++++--------------
+ power-8992.c | 40 ++++++++++++++++++++++++++--------------
+ power-8994.c | 40 ++++++++++++++++++++++++++--------------
+ power-8996.c | 40 ++++++++++++++++++++++++++--------------
+ power-8998.c | 40 ++++++++++++++++++++++++++--------------
+ 11 files changed, 281 insertions(+), 150 deletions(-)
+
+diff --git a/power-8084.c b/power-8084.c
+index 9fc1342..d7c53f8 100644
+--- a/power-8084.c
++++ b/power-8084.c
+@@ -99,40 +99,51 @@ int get_number_of_profiles()
+ }
+ #endif
+ 
+-static void set_power_profile(int profile)
++static int set_power_profile(int profile)
+ {
++    int ret = -EINVAL;
++    const char *profile_name = NULL;
++
+     if (profile == current_power_profile)
+-        return;
++        return 0;
+ 
+     ALOGV("%s: Profile=%d", __func__, profile);
+ 
+     if (current_power_profile != PROFILE_BALANCED) {
+         undo_hint_action(DEFAULT_PROFILE_HINT_ID);
+         ALOGV("%s: Hint undone", __func__);
++        current_power_profile = PROFILE_BALANCED;
+     }
+ 
+     if (profile == PROFILE_POWER_SAVE) {
+-        perform_hint_action(DEFAULT_PROFILE_HINT_ID, profile_power_save,
++        ret = perform_hint_action(DEFAULT_PROFILE_HINT_ID, profile_power_save,
+                 ARRAY_SIZE(profile_power_save));
+-        ALOGD("%s: Set powersave mode", __func__);
++        profile_name = "powersave";
+ 
+     } else if (profile == PROFILE_HIGH_PERFORMANCE) {
+-        perform_hint_action(DEFAULT_PROFILE_HINT_ID, profile_high_performance,
+-                ARRAY_SIZE(profile_high_performance));
+-        ALOGD("%s: Set performance mode", __func__);
++        ret = perform_hint_action(DEFAULT_PROFILE_HINT_ID,
++                profile_high_performance, ARRAY_SIZE(profile_high_performance));
++        profile_name = "performance";
+ 
+     } else if (profile == PROFILE_BIAS_POWER) {
+-        perform_hint_action(DEFAULT_PROFILE_HINT_ID, profile_bias_power,
++        ret = perform_hint_action(DEFAULT_PROFILE_HINT_ID, profile_bias_power,
+                 ARRAY_SIZE(profile_bias_power));
+-        ALOGD("%s: Set bias power mode", __func__);
++        profile_name = "bias power";
+ 
+     } else if (profile == PROFILE_BIAS_PERFORMANCE) {
+-        perform_hint_action(DEFAULT_PROFILE_HINT_ID, profile_bias_performance,
+-                ARRAY_SIZE(profile_bias_performance));
+-        ALOGD("%s: Set bias perf mode", __func__);
++        ret = perform_hint_action(DEFAULT_PROFILE_HINT_ID,
++                profile_bias_performance, ARRAY_SIZE(profile_bias_performance));
++        profile_name = "bias perf";
++    } else if (profile == PROFILE_BALANCED) {
++        ret = 0;
++        profile_name = "balanced";
+     }
+ 
+-    current_power_profile = profile;
++    if (ret == 0) {
++        current_power_profile = profile;
++        ALOGD("%s: Set %s mode", __func__, profile_name);
++    }
++    return ret;
+ }
+ 
+ /* fling boost: min 3 CPUs, min 1.1 GHz */
+@@ -166,7 +177,8 @@ int power_hint_override(power_hint_t hint, void *data)
+     int duration;
+ 
+     if (hint == POWER_HINT_SET_PROFILE) {
+-        set_power_profile(*(int32_t *)data);
++        if (set_power_profile(*(int32_t *)data) < 0)
++            ALOGE("Setting power profile failed. mpdecision not started?");
+         return HINT_HANDLED;
+     }
+ 
+diff --git a/power-8226.c b/power-8226.c
+index 5339fe5..83b7886 100644
+--- a/power-8226.c
++++ b/power-8226.c
+@@ -74,30 +74,42 @@ int get_number_of_profiles()
+ }
+ #endif
+ 
+-static void set_power_profile(int profile)
++static int set_power_profile(int profile)
+ {
++    int ret = -EINVAL;
++    const char *profile_name = NULL;
++
+     if (profile == current_power_profile)
+-        return;
++        return 0;
+ 
+     ALOGV("%s: Profile=%d", __func__, profile);
+ 
+     if (current_power_profile != PROFILE_BALANCED) {
+         undo_hint_action(DEFAULT_PROFILE_HINT_ID);
+         ALOGV("%s: Hint undone", __func__);
++        current_power_profile = PROFILE_BALANCED;
+     }
+ 
+     if (profile == PROFILE_POWER_SAVE) {
+-        perform_hint_action(DEFAULT_PROFILE_HINT_ID, profile_power_save,
++        ret = perform_hint_action(DEFAULT_PROFILE_HINT_ID, profile_power_save,
+                 ARRAY_SIZE(profile_power_save));
+-        ALOGD("%s: Set powersave mode", __func__);
++        profile_name = "powersave";
+ 
+     } else if (profile == PROFILE_HIGH_PERFORMANCE) {
+-        perform_hint_action(DEFAULT_PROFILE_HINT_ID, profile_high_performance,
+-                ARRAY_SIZE(profile_high_performance));
+-        ALOGD("%s: Set performance mode", __func__);
++        ret = perform_hint_action(DEFAULT_PROFILE_HINT_ID,
++                profile_high_performance, ARRAY_SIZE(profile_high_performance));
++        profile_name = "performance";
++
++    } else if (profile == PROFILE_BALANCED) {
++        ret = 0;
++        profile_name = "balanced";
+     }
+ 
+-    current_power_profile = profile;
++    if (ret == 0) {
++        current_power_profile = profile;
++        ALOGD("%s: Set %s mode", __func__, profile_name);
++    }
++    return ret;
+ }
+ 
+ static int resources_interaction_boost[] = {
+@@ -115,7 +127,8 @@ int power_hint_override(power_hint_t hint, void *data)
+     int duration;
+ 
+     if (hint == POWER_HINT_SET_PROFILE) {
+-        set_power_profile(*(int32_t *)data);
++        if (set_power_profile(*(int32_t *)data) < 0)
++            ALOGE("Setting power profile failed. mpdecision not started?");
+         return HINT_HANDLED;
+     }
+ 
+diff --git a/power-8610.c b/power-8610.c
+index 10f002b..656e8a3 100644
+--- a/power-8610.c
++++ b/power-8610.c
+@@ -69,30 +69,42 @@ int get_number_of_profiles()
+ }
+ #endif
+ 
+-static void set_power_profile(int profile)
++static int set_power_profile(int profile)
+ {
++    int ret = -EINVAL;
++    const char *profile_name = NULL;
++
+     if (profile == current_power_profile)
+-        return;
++        return 0;
+ 
+     ALOGV("%s: Profile=%d", __func__, profile);
+ 
+     if (current_power_profile != PROFILE_BALANCED) {
+         undo_hint_action(DEFAULT_PROFILE_HINT_ID);
+         ALOGV("%s: Hint undone", __func__);
++        current_power_profile = PROFILE_BALANCED;
+     }
+ 
+     if (profile == PROFILE_POWER_SAVE) {
+-        perform_hint_action(DEFAULT_PROFILE_HINT_ID, profile_power_save,
++        ret = perform_hint_action(DEFAULT_PROFILE_HINT_ID, profile_power_save,
+                 ARRAY_SIZE(profile_power_save));
+-        ALOGD("%s: Set powersave mode", __func__);
++        profile_name = "powersave";
+ 
+     } else if (profile == PROFILE_HIGH_PERFORMANCE) {
+-        perform_hint_action(DEFAULT_PROFILE_HINT_ID, profile_high_performance,
+-                ARRAY_SIZE(profile_high_performance));
+-        ALOGD("%s: Set performance mode", __func__);
++        ret = perform_hint_action(DEFAULT_PROFILE_HINT_ID,
++                profile_high_performance, ARRAY_SIZE(profile_high_performance));
++        profile_name = "performance";
++
++    } else if (profile == PROFILE_BALANCED) {
++        ret = 0;
++        profile_name = "balanced";
+     }
+ 
+-    current_power_profile = profile;
++    if (ret == 0) {
++        current_power_profile = profile;
++        ALOGD("%s: Set %s mode", __func__, profile_name);
++    }
++    return ret;
+ }
+ 
+ static int resources_interaction_boost[] = {
+@@ -110,7 +122,8 @@ int power_hint_override(power_hint_t hint, void *data)
+     int duration;
+ 
+     if (hint == POWER_HINT_SET_PROFILE) {
+-        set_power_profile(*(int32_t *)data);
++        if (set_power_profile(*(int32_t *)data) < 0)
++            ALOGE("Setting power profile failed. mpdecision not started?");
+         return HINT_HANDLED;
+     }
+ 
+diff --git a/power-8916.c b/power-8916.c
+index 027c780..55f8525 100644
+--- a/power-8916.c
++++ b/power-8916.c
+@@ -108,40 +108,48 @@ int get_number_of_profiles()
+ }
+ #endif
+ 
+-static void set_power_profile(int profile)
++static int set_power_profile(int profile)
+ {
++    int ret = -EINVAL;
++    const char *profile_name = NULL;
++
+     if (profile == current_power_profile)
+-        return;
++        return 0;
+ 
+     ALOGV("%s: Profile=%d", __func__, profile);
+ 
+     if (current_power_profile != PROFILE_BALANCED) {
+         undo_hint_action(DEFAULT_PROFILE_HINT_ID);
+         ALOGV("%s: Hint undone", __func__);
++        current_power_profile = PROFILE_BALANCED;
+     }
+ 
+     if (profile == PROFILE_POWER_SAVE) {
+-        if (is_target_8916()) {
+-            perform_hint_action(DEFAULT_PROFILE_HINT_ID, profile_power_save_8916,
+-                    ARRAY_SIZE(profile_power_save_8916));
+-        } else {
+-            perform_hint_action(DEFAULT_PROFILE_HINT_ID, profile_power_save_8939,
+-                    ARRAY_SIZE(profile_power_save_8939));
+-        }
+-        ALOGD("%s: Set powersave mode", __func__);
++        ret = perform_hint_action(DEFAULT_PROFILE_HINT_ID,
++                is_target_8916() ? profile_power_save_8916 :
++                                   profile_power_save_8939,
++                is_target_8916() ? ARRAY_SIZE(profile_power_save_8916) :
++                                   ARRAY_SIZE(profile_power_save_8939));
++        profile_name = "powersave";
+ 
+     } else if (profile == PROFILE_HIGH_PERFORMANCE) {
+-        if (is_target_8916()) {
+-            perform_hint_action(DEFAULT_PROFILE_HINT_ID, profile_high_performance_8916,
+-                    ARRAY_SIZE(profile_high_performance_8916));
+-        } else {
+-            perform_hint_action(DEFAULT_PROFILE_HINT_ID, profile_high_performance_8939,
+-                    ARRAY_SIZE(profile_high_performance_8939));
+-        }
+-        ALOGD("%s: Set performance mode", __func__);
++        ret = perform_hint_action(DEFAULT_PROFILE_HINT_ID,
++                is_target_8916() ? profile_high_performance_8916 :
++                                   profile_high_performance_8939,
++		is_target_8916() ? ARRAY_SIZE(profile_high_performance_8916) :
++                                   ARRAY_SIZE(profile_high_performance_8939));
++        profile_name = "performance";
++
++    } else if (profile == PROFILE_BALANCED) {
++        ret = 0;
++        profile_name = "balanced";
+     }
+ 
+-    current_power_profile = profile;
++    if (ret == 0) {
++        current_power_profile = profile;
++        ALOGD("%s: Set %s mode", __func__, profile_name);
++    }
++    return ret;
+ }
+ 
+ static int resources_interaction_fling_boost[] = {
+@@ -177,7 +185,8 @@ int power_hint_override(power_hint_t hint, void *data)
+     int duration;
+ 
+     if (hint == POWER_HINT_SET_PROFILE) {
+-        set_power_profile(*(int32_t *)data);
++        if (set_power_profile(*(int32_t *)data) < 0)
++            ALOGE("Setting power profile failed. perfd not started?");
+         return HINT_HANDLED;
+     }
+ 
+diff --git a/power-8952.c b/power-8952.c
+index acac98d..e72526b 100644
+--- a/power-8952.c
++++ b/power-8952.c
+@@ -83,40 +83,51 @@ int get_number_of_profiles()
+ }
+ #endif
+ 
+-static void set_power_profile(int profile)
++static int set_power_profile(int profile)
+ {
++    int ret = -EINVAL;
++    const char *profile_name = NULL;
++
+     if (profile == current_power_profile)
+-        return;
++        return 0;
+ 
+     ALOGV("%s: Profile=%d", __func__, profile);
+ 
+     if (current_power_profile != PROFILE_BALANCED) {
+         undo_hint_action(DEFAULT_PROFILE_HINT_ID);
+         ALOGV("%s: Hint undone", __func__);
++        current_power_profile = PROFILE_BALANCED;
+     }
+ 
+     if (profile == PROFILE_POWER_SAVE) {
+-        perform_hint_action(DEFAULT_PROFILE_HINT_ID, profile_power_save,
++        ret = perform_hint_action(DEFAULT_PROFILE_HINT_ID, profile_power_save,
+                 ARRAY_SIZE(profile_power_save));
+-        ALOGD("%s: Set powersave mode", __func__);
++        profile_name = "powersave";
+ 
+     } else if (profile == PROFILE_HIGH_PERFORMANCE) {
+-        perform_hint_action(DEFAULT_PROFILE_HINT_ID, profile_high_performance,
+-                ARRAY_SIZE(profile_high_performance));
+-        ALOGD("%s: Set performance mode", __func__);
++        ret = perform_hint_action(DEFAULT_PROFILE_HINT_ID,
++                profile_high_performance, ARRAY_SIZE(profile_high_performance));
++        profile_name = "performance";
+ 
+     } else if (profile == PROFILE_BIAS_POWER) {
+-        perform_hint_action(DEFAULT_PROFILE_HINT_ID, profile_bias_power,
++        ret = perform_hint_action(DEFAULT_PROFILE_HINT_ID, profile_bias_power,
+                 ARRAY_SIZE(profile_bias_power));
+-        ALOGD("%s: Set bias power mode", __func__);
++        profile_name = "bias power";
+ 
+     } else if (profile == PROFILE_BIAS_PERFORMANCE) {
+-        perform_hint_action(DEFAULT_PROFILE_HINT_ID, profile_bias_performance,
+-                ARRAY_SIZE(profile_bias_performance));
+-        ALOGD("%s: Set bias perf mode", __func__);
++        ret = perform_hint_action(DEFAULT_PROFILE_HINT_ID,
++                profile_bias_performance, ARRAY_SIZE(profile_bias_performance));
++        profile_name = "bias perf";
++    } else if (profile == PROFILE_BALANCED) {
++        ret = 0;
++        profile_name = "balanced";
+     }
+ 
+-    current_power_profile = profile;
++    if (ret == 0) {
++        current_power_profile = profile;
++        ALOGD("%s: Set %s mode", __func__, profile_name);
++    }
++    return ret;
+ }
+ 
+ static void process_video_encode_hint(void *metadata)
+@@ -177,7 +188,8 @@ static void process_video_encode_hint(void *metadata)
+ int power_hint_override(power_hint_t hint, void *data)
+ {
+     if (hint == POWER_HINT_SET_PROFILE) {
+-        set_power_profile(*(int32_t *)data);
++        if (set_power_profile(*(int32_t *)data) < 0)
++            ALOGE("Setting power profile failed. perfd not started?");
+         return HINT_HANDLED;
+     }
+ 
+diff --git a/power-8953.c b/power-8953.c
+index 64c9638..d272a23 100644
+--- a/power-8953.c
++++ b/power-8953.c
+@@ -90,40 +90,51 @@ int get_number_of_profiles()
+ }
+ #endif
+ 
+-static void set_power_profile(int profile)
++static int set_power_profile(int profile)
+ {
++    int ret = -EINVAL;
++    const char *profile_name = NULL;
++
+     if (profile == current_power_profile)
+-        return;
++        return 0;
+ 
+     ALOGV("%s: Profile=%d", __func__, profile);
+ 
+     if (current_power_profile != PROFILE_BALANCED) {
+         undo_hint_action(DEFAULT_PROFILE_HINT_ID);
+         ALOGV("%s: Hint undone", __func__);
++        current_power_profile = PROFILE_BALANCED;
+     }
+ 
+     if (profile == PROFILE_POWER_SAVE) {
+-        perform_hint_action(DEFAULT_PROFILE_HINT_ID, profile_power_save,
++        ret = perform_hint_action(DEFAULT_PROFILE_HINT_ID, profile_power_save,
+                 ARRAY_SIZE(profile_power_save));
+-        ALOGD("%s: Set powersave mode", __func__);
++        profile_name = "powersave";
+ 
+     } else if (profile == PROFILE_HIGH_PERFORMANCE) {
+-        perform_hint_action(DEFAULT_PROFILE_HINT_ID, profile_high_performance,
+-                ARRAY_SIZE(profile_high_performance));
+-        ALOGD("%s: Set performance mode", __func__);
++        ret = perform_hint_action(DEFAULT_PROFILE_HINT_ID,
++                profile_high_performance, ARRAY_SIZE(profile_high_performance));
++        profile_name = "performance";
+ 
+     } else if (profile == PROFILE_BIAS_POWER) {
+-        perform_hint_action(DEFAULT_PROFILE_HINT_ID, profile_bias_power,
++        ret = perform_hint_action(DEFAULT_PROFILE_HINT_ID, profile_bias_power,
+                 ARRAY_SIZE(profile_bias_power));
+-        ALOGD("%s: Set bias power mode", __func__);
++        profile_name = "bias power";
+ 
+     } else if (profile == PROFILE_BIAS_PERFORMANCE) {
+-        perform_hint_action(DEFAULT_PROFILE_HINT_ID, profile_bias_performance,
+-                ARRAY_SIZE(profile_bias_performance));
+-        ALOGD("%s: Set bias perf mode", __func__);
++        ret = perform_hint_action(DEFAULT_PROFILE_HINT_ID,
++                profile_bias_performance, ARRAY_SIZE(profile_bias_performance));
++        profile_name = "bias perf";
++    } else if (profile == PROFILE_BALANCED) {
++        ret = 0;
++        profile_name = "balanced";
+     }
+ 
+-    current_power_profile = profile;
++    if (ret == 0) {
++        current_power_profile = profile;
++        ALOGD("%s: Set %s mode", __func__, profile_name);
++    }
++    return ret;
+ }
+ 
+ typedef enum {
+@@ -268,7 +279,8 @@ int power_hint_override(power_hint_t hint, void *data)
+     int ret_val = HINT_NONE;
+ 
+     if (hint == POWER_HINT_SET_PROFILE) {
+-        set_power_profile(*(int32_t *)data);
++        if (set_power_profile(*(int32_t *)data) < 0)
++            ALOGE("Setting power profile failed. perf HAL not started?");
+         return HINT_HANDLED;
+     }
+ 
+diff --git a/power-8974.c b/power-8974.c
+index 52ef9c9..adad79e 100644
+--- a/power-8974.c
++++ b/power-8974.c
+@@ -112,40 +112,51 @@ int get_number_of_profiles()
+ }
+ #endif
+ 
+-static void set_power_profile(int profile)
++static int set_power_profile(int profile)
+ {
++    int ret = -EINVAL;
++    const char *profile_name = NULL;
++
+     if (profile == current_power_profile)
+-        return;
++        return 0;
+ 
+     ALOGV("%s: Profile=%d", __func__, profile);
+ 
+     if (current_power_profile != PROFILE_BALANCED) {
+         undo_hint_action(DEFAULT_PROFILE_HINT_ID);
+         ALOGV("%s: Hint undone", __func__);
++        current_power_profile = PROFILE_BALANCED;
+     }
+ 
+     if (profile == PROFILE_POWER_SAVE) {
+-        perform_hint_action(DEFAULT_PROFILE_HINT_ID, profile_power_save,
++        ret = perform_hint_action(DEFAULT_PROFILE_HINT_ID, profile_power_save,
+                 ARRAY_SIZE(profile_power_save));
+-        ALOGD("%s: Set powersave mode", __func__);
++        profile_name = "powersave";
+ 
+     } else if (profile == PROFILE_HIGH_PERFORMANCE) {
+-        perform_hint_action(DEFAULT_PROFILE_HINT_ID, profile_high_performance,
+-                ARRAY_SIZE(profile_high_performance));
+-        ALOGD("%s: Set performance mode", __func__);
++        ret = perform_hint_action(DEFAULT_PROFILE_HINT_ID,
++                profile_high_performance, ARRAY_SIZE(profile_high_performance));
++        profile_name = "performance";
+ 
+     } else if (profile == PROFILE_BIAS_POWER) {
+-        perform_hint_action(DEFAULT_PROFILE_HINT_ID, profile_bias_power,
++        ret = perform_hint_action(DEFAULT_PROFILE_HINT_ID, profile_bias_power,
+                 ARRAY_SIZE(profile_bias_power));
+-        ALOGD("%s: Set bias power mode", __func__);
++        profile_name = "bias power";
+ 
+     } else if (profile == PROFILE_BIAS_PERFORMANCE) {
+-        perform_hint_action(DEFAULT_PROFILE_HINT_ID, profile_bias_performance,
+-                ARRAY_SIZE(profile_bias_performance));
+-        ALOGD("%s: Set bias perf mode", __func__);
++        ret = perform_hint_action(DEFAULT_PROFILE_HINT_ID,
++                profile_bias_performance, ARRAY_SIZE(profile_bias_performance));
++        profile_name = "bias perf";
++    } else if (profile == PROFILE_BALANCED) {
++        ret = 0;
++        profile_name = "balanced";
+     }
+ 
+-    current_power_profile = profile;
++    if (ret == 0) {
++        current_power_profile = profile;
++        ALOGD("%s: Set %s mode", __func__, profile_name);
++    }
++    return ret;
+ }
+ 
+ static int resources_interaction_fling_boost[] = {
+@@ -181,7 +192,8 @@ int power_hint_override(power_hint_t hint, void *data)
+     int duration;
+ 
+     if (hint == POWER_HINT_SET_PROFILE) {
+-        set_power_profile(*(int32_t *)data);
++        if (set_power_profile(*(int32_t *)data) < 0)
++            ALOGE("Setting power profile failed. mpdecision not started?");
+         return HINT_HANDLED;
+     }
+ 
+diff --git a/power-8992.c b/power-8992.c
+index f2b8c91..9bbb15f 100644
+--- a/power-8992.c
++++ b/power-8992.c
+@@ -95,40 +95,51 @@ int get_number_of_profiles()
+ }
+ #endif
+ 
+-static void set_power_profile(int profile)
++static int set_power_profile(int profile)
+ {
++    int ret = -EINVAL;
++    const char *profile_name = NULL;
++
+     if (profile == current_power_profile)
+-        return;
++        return 0;
+ 
+     ALOGV("%s: Profile=%d", __func__, profile);
+ 
+     if (current_power_profile != PROFILE_BALANCED) {
+         undo_hint_action(DEFAULT_PROFILE_HINT_ID);
+         ALOGV("%s: Hint undone", __func__);
++        current_power_profile = PROFILE_BALANCED;
+     }
+ 
+     if (profile == PROFILE_POWER_SAVE) {
+-        perform_hint_action(DEFAULT_PROFILE_HINT_ID, profile_power_save,
++        ret = perform_hint_action(DEFAULT_PROFILE_HINT_ID, profile_power_save,
+                 ARRAY_SIZE(profile_power_save));
+-        ALOGD("%s: Set powersave mode", __func__);
++        profile_name = "powersave";
+ 
+     } else if (profile == PROFILE_HIGH_PERFORMANCE) {
+-        perform_hint_action(DEFAULT_PROFILE_HINT_ID, profile_high_performance,
+-                ARRAY_SIZE(profile_high_performance));
+-        ALOGD("%s: Set performance mode", __func__);
++        ret = perform_hint_action(DEFAULT_PROFILE_HINT_ID,
++                profile_high_performance, ARRAY_SIZE(profile_high_performance));
++        profile_name = "performance";
+ 
+     } else if (profile == PROFILE_BIAS_POWER) {
+-        perform_hint_action(DEFAULT_PROFILE_HINT_ID, profile_bias_power,
++        ret = perform_hint_action(DEFAULT_PROFILE_HINT_ID, profile_bias_power,
+                 ARRAY_SIZE(profile_bias_power));
+-        ALOGD("%s: Set bias power mode", __func__);
++        profile_name = "bias power";
+ 
+     } else if (profile == PROFILE_BIAS_PERFORMANCE) {
+-        perform_hint_action(DEFAULT_PROFILE_HINT_ID, profile_bias_performance,
+-                ARRAY_SIZE(profile_bias_performance));
+-        ALOGD("%s: Set bias perf mode", __func__);
++        ret = perform_hint_action(DEFAULT_PROFILE_HINT_ID,
++                profile_bias_performance, ARRAY_SIZE(profile_bias_performance));
++        profile_name = "bias perf";
++    } else if (profile == PROFILE_BALANCED) {
++        ret = 0;
++        profile_name = "balanced";
+     }
+ 
+-    current_power_profile = profile;
++    if (ret == 0) {
++        current_power_profile = profile;
++        ALOGD("%s: Set %s mode", __func__, profile_name);
++    }
++    return ret;
+ }
+ 
+ static void process_video_encode_hint(void *metadata)
+@@ -202,7 +213,8 @@ int power_hint_override(power_hint_t hint, void *data)
+     int duration;
+ 
+     if (hint == POWER_HINT_SET_PROFILE) {
+-        set_power_profile(*(int32_t *)data);
++        if (set_power_profile(*(int32_t *)data) < 0)
++            ALOGE("Setting power profile failed. perfd not started?");
+         return HINT_HANDLED;
+     }
+ 
+diff --git a/power-8994.c b/power-8994.c
+index 7dc5465..15f2ab5 100644
+--- a/power-8994.c
++++ b/power-8994.c
+@@ -103,40 +103,51 @@ int get_number_of_profiles()
+ }
+ #endif
+ 
+-static void set_power_profile(int profile)
++static int set_power_profile(int profile)
+ {
++    int ret = -EINVAL;
++    const char *profile_name = NULL;
++
+     if (profile == current_power_profile)
+-        return;
++        return 0;
+ 
+     ALOGV("%s: Profile=%d", __func__, profile);
+ 
+     if (current_power_profile != PROFILE_BALANCED) {
+         undo_hint_action(DEFAULT_PROFILE_HINT_ID);
+         ALOGV("%s: Hint undone", __func__);
++        current_power_profile = PROFILE_BALANCED;
+     }
+ 
+     if (profile == PROFILE_POWER_SAVE) {
+-        perform_hint_action(DEFAULT_PROFILE_HINT_ID, profile_power_save,
++        ret = perform_hint_action(DEFAULT_PROFILE_HINT_ID, profile_power_save,
+                 ARRAY_SIZE(profile_power_save));
+-        ALOGD("%s: Set powersave mode", __func__);
++        profile_name = "powersave";
+ 
+     } else if (profile == PROFILE_HIGH_PERFORMANCE) {
+-        perform_hint_action(DEFAULT_PROFILE_HINT_ID, profile_high_performance,
+-                ARRAY_SIZE(profile_high_performance));
+-        ALOGD("%s: Set performance mode", __func__);
++        ret = perform_hint_action(DEFAULT_PROFILE_HINT_ID,
++                profile_high_performance, ARRAY_SIZE(profile_high_performance));
++        profile_name = "performance";
+ 
+     } else if (profile == PROFILE_BIAS_POWER) {
+-        perform_hint_action(DEFAULT_PROFILE_HINT_ID, profile_bias_power,
++        ret = perform_hint_action(DEFAULT_PROFILE_HINT_ID, profile_bias_power,
+                 ARRAY_SIZE(profile_bias_power));
+-        ALOGD("%s: Set bias power mode", __func__);
++        profile_name = "bias power";
+ 
+     } else if (profile == PROFILE_BIAS_PERFORMANCE) {
+-        perform_hint_action(DEFAULT_PROFILE_HINT_ID, profile_bias_performance,
+-                ARRAY_SIZE(profile_bias_performance));
+-        ALOGD("%s: Set bias perf mode", __func__);
++        ret = perform_hint_action(DEFAULT_PROFILE_HINT_ID,
++                profile_bias_performance, ARRAY_SIZE(profile_bias_performance));
++        profile_name = "bias perf";
++    } else if (profile == PROFILE_BALANCED) {
++        ret = 0;
++        profile_name = "balanced";
+     }
+ 
+-    current_power_profile = profile;
++    if (ret == 0) {
++        current_power_profile = profile;
++        ALOGD("%s: Set %s mode", __func__, profile_name);
++    }
++    return ret;
+ }
+ 
+ static void process_video_encode_hint(void *metadata)
+@@ -210,7 +221,8 @@ int power_hint_override(power_hint_t hint, void *data)
+     int duration;
+ 
+     if (hint == POWER_HINT_SET_PROFILE) {
+-        set_power_profile(*(int32_t *)data);
++        if (set_power_profile(*(int32_t *)data) < 0)
++            ALOGE("Setting power profile failed. perfd not started?");
+         return HINT_HANDLED;
+     }
+ 
+diff --git a/power-8996.c b/power-8996.c
+index 4bd1a58..4ad56ea 100644
+--- a/power-8996.c
++++ b/power-8996.c
+@@ -87,40 +87,51 @@ int get_number_of_profiles()
+ }
+ #endif
+ 
+-static void set_power_profile(int profile)
++static int set_power_profile(int profile)
+ {
++    int ret = -EINVAL;
++    const char *profile_name = NULL;
++
+     if (profile == current_power_profile)
+-        return;
++        return 0;
+ 
+     ALOGV("%s: Profile=%d", __func__, profile);
+ 
+     if (current_power_profile != PROFILE_BALANCED) {
+         undo_hint_action(DEFAULT_PROFILE_HINT_ID);
+         ALOGV("%s: Hint undone", __func__);
++        current_power_profile = PROFILE_BALANCED;
+     }
+ 
+     if (profile == PROFILE_POWER_SAVE) {
+-        perform_hint_action(DEFAULT_PROFILE_HINT_ID, profile_power_save,
++        ret = perform_hint_action(DEFAULT_PROFILE_HINT_ID, profile_power_save,
+                 ARRAY_SIZE(profile_power_save));
+-        ALOGD("%s: Set powersave mode", __func__);
++        profile_name = "powersave";
+ 
+     } else if (profile == PROFILE_HIGH_PERFORMANCE) {
+-        perform_hint_action(DEFAULT_PROFILE_HINT_ID, profile_high_performance,
+-                ARRAY_SIZE(profile_high_performance));
+-        ALOGD("%s: Set performance mode", __func__);
++        ret = perform_hint_action(DEFAULT_PROFILE_HINT_ID,
++                profile_high_performance, ARRAY_SIZE(profile_high_performance));
++        profile_name = "performance";
+ 
+     } else if (profile == PROFILE_BIAS_POWER) {
+-        perform_hint_action(DEFAULT_PROFILE_HINT_ID, profile_bias_power,
++        ret = perform_hint_action(DEFAULT_PROFILE_HINT_ID, profile_bias_power,
+                 ARRAY_SIZE(profile_bias_power));
+-        ALOGD("%s: Set bias power mode", __func__);
++        profile_name = "bias power";
+ 
+     } else if (profile == PROFILE_BIAS_PERFORMANCE) {
+-        perform_hint_action(DEFAULT_PROFILE_HINT_ID, profile_bias_performance,
+-                ARRAY_SIZE(profile_bias_performance));
+-        ALOGD("%s: Set bias perf mode", __func__);
++        ret = perform_hint_action(DEFAULT_PROFILE_HINT_ID,
++                profile_bias_performance, ARRAY_SIZE(profile_bias_performance));
++        profile_name = "bias perf";
++    } else if (profile == PROFILE_BALANCED) {
++        ret = 0;
++        profile_name = "balanced";
+     }
+ 
+-    current_power_profile = profile;
++    if (ret == 0) {
++        current_power_profile = profile;
++        ALOGD("%s: Set %s mode", __func__, profile_name);
++    }
++    return ret;
+ }
+ 
+ typedef enum {
+@@ -259,7 +270,8 @@ int power_hint_override(power_hint_t hint, void *data)
+     int ret_val = HINT_NONE;
+ 
+     if (hint == POWER_HINT_SET_PROFILE) {
+-        set_power_profile(*(int32_t *)data);
++        if (set_power_profile(*(int32_t *)data) < 0)
++            ALOGE("Setting power profile failed. perf HAL not started?");
+         return HINT_HANDLED;
+     }
+ 
+diff --git a/power-8998.c b/power-8998.c
+index 356b68d..af14e67 100644
+--- a/power-8998.c
++++ b/power-8998.c
+@@ -83,40 +83,51 @@ int get_number_of_profiles()
+ }
+ #endif
+ 
+-static void set_power_profile(int profile)
++static int set_power_profile(int profile)
+ {
++    int ret = -EINVAL;
++    const char *profile_name = NULL;
++
+     if (profile == current_power_profile)
+-        return;
++        return 0;
+ 
+     ALOGV("%s: Profile=%d", __func__, profile);
+ 
+     if (current_power_profile != PROFILE_BALANCED) {
+         undo_hint_action(DEFAULT_PROFILE_HINT_ID);
+         ALOGV("%s: Hint undone", __func__);
++        current_power_profile = PROFILE_BALANCED;
+     }
+ 
+     if (profile == PROFILE_POWER_SAVE) {
+-        perform_hint_action(DEFAULT_PROFILE_HINT_ID, profile_power_save,
++        ret = perform_hint_action(DEFAULT_PROFILE_HINT_ID, profile_power_save,
+                 ARRAY_SIZE(profile_power_save));
+-        ALOGD("%s: Set powersave mode", __func__);
++        profile_name = "powersave";
+ 
+     } else if (profile == PROFILE_HIGH_PERFORMANCE) {
+-        perform_hint_action(DEFAULT_PROFILE_HINT_ID, profile_high_performance,
+-                ARRAY_SIZE(profile_high_performance));
+-        ALOGD("%s: Set performance mode", __func__);
++        ret = perform_hint_action(DEFAULT_PROFILE_HINT_ID,
++                profile_high_performance, ARRAY_SIZE(profile_high_performance));
++        profile_name = "performance";
+ 
+     } else if (profile == PROFILE_BIAS_POWER) {
+-        perform_hint_action(DEFAULT_PROFILE_HINT_ID, profile_bias_power,
++        ret = perform_hint_action(DEFAULT_PROFILE_HINT_ID, profile_bias_power,
+                 ARRAY_SIZE(profile_bias_power));
+-        ALOGD("%s: Set bias power mode", __func__);
++        profile_name = "bias power";
+ 
+     } else if (profile == PROFILE_BIAS_PERFORMANCE) {
+-        perform_hint_action(DEFAULT_PROFILE_HINT_ID, profile_bias_performance,
+-                ARRAY_SIZE(profile_bias_performance));
+-        ALOGD("%s: Set bias perf mode", __func__);
++        ret = perform_hint_action(DEFAULT_PROFILE_HINT_ID,
++                profile_bias_performance, ARRAY_SIZE(profile_bias_performance));
++        profile_name = "bias perf";
++    } else if (profile == PROFILE_BALANCED) {
++        ret = 0;
++        profile_name = "balanced";
+     }
+ 
+-    current_power_profile = profile;
++    if (ret == 0) {
++        current_power_profile = profile;
++        ALOGD("%s: Set %s mode", __func__, profile_name);
++    }
++    return ret;
+ }
+ 
+ typedef enum {
+@@ -255,7 +266,8 @@ int power_hint_override(power_hint_t hint, void *data)
+     int ret_val = HINT_NONE;
+ 
+     if (hint == POWER_HINT_SET_PROFILE) {
+-        set_power_profile(*(int32_t *)data);
++        if (set_power_profile(*(int32_t *)data) < 0)
++            ALOGE("Setting power profile failed. perf HAL not started?");
+         return HINT_HANDLED;
+     }
+ 
+-- 
+2.17.1
+

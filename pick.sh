@@ -12,6 +12,7 @@ op_base_pick=0
 default_remote="github"
 script_file=$0
 conflict_resolved=0
+checkcount=200
 
 ##### apply patch saved first ########
 function get_defaul_remote()
@@ -355,6 +356,7 @@ function get_active_rrcache()
     [ -d $topdir/$project ] || return -1
 
     local md5file=$2
+    local rr_cache_list="rr-cache.tmp"
     [ -f "$md5file" ] || return -1
     rrtmp=/tmp/$(echo $project | sed -e "s:/:_:g")_rr.tmp
     while read line; do
@@ -362,7 +364,7 @@ function get_active_rrcache()
         fil=$(echo $line | sed -e "s: \{2,\}: :g" | cut -d' ' -f2)
         #typ=$(echo $line | sed -e "s: \{2,\}: :g" | cut -d' ' -f3)
         key=$(md5sum $topdir/$project/$fil | sed -e "s/ .*//g")
-        [ -d $topdir/.mypatches/rr-cache ] && \
+        [ -d $topdir/$project/.git/rr-cache ] && \
         find $topdir/$project/.git/rr-cache/ -mindepth 2 -maxdepth 2 -type f -name "postimage*" > $rrtmp
         [ -f "$rrtmp" ] && while read rrf; do
             md5num=$(md5sum $rrf|cut -d' ' -f1)
@@ -370,9 +372,11 @@ function get_active_rrcache()
             if [ "$key" = "$md5num" ]; then
                rrid=$(basename $(dirname $rrf))
                [ -d $topdir/.mypatches/rr-cache ] || mkdir -p $topdir/.mypatches/rr-cache
-               [ -f $topdir/.mypatches/rr-cache/rr-cache.tmp ] || touch $topdir/.mypatches/rr-cache/rr-cache.tmp
-               if ! grep -q "$rrid $project" $topdir/.mypatches/rr-cache/rr-cache.tmp; then
-                    echo "$rrid $project" >> $topdir/.mypatches/rr-cache/rr-cache.tmp
+               [ "$script_file" == "bash" -a ! -f $topdir/.mypatches/rr-cache/rr_cache_list ] && rr_cache_list="rr-cache.list"
+                
+               [ -f $topdir/.mypatches/rr-cache/$rr_cache_list ] || touch $topdir/.mypatches/rr-cache/$rr_cache_list
+               if ! grep -q "$rrid $project" $topdir/.mypatches/rr-cache/$rr_cache_list; then
+                    echo "$rrid $project" >> $topdir/.mypatches/rr-cache/$rr_cache_list
                fi
             fi
         done < $rrtmp
@@ -386,10 +390,10 @@ function kpick()
     topdir=$(gettop)
     conflict_resolved=0
     op_force_pick=0
-    logfile=/tmp/__repopick_tmp.log
+    logfile=$topdir/.pick_tmp.log
     errfile=$(echo $logfile | sed -e "s/\.log$/\.err/")
 
-    rm -f $errfile
+    rm -f $errfile $logfile
     echo ""
     local changeNumber=""
     local op_is_m_parent=0
@@ -420,10 +424,16 @@ function kpick()
          fi
          repopick $nops || exit -1
     fi
-
     echo ">>> Picking change $changeNumber ..."
-    LANG=en_US repopick -c 50 $nops >$logfile 2>$errfile
+    LANG=en_US repopick -c $checkcount $nops >$logfile 2>$errfile
     rc=$?
+    local subject=$(grep -Ri -- '--> Subject:' $logfile | sed 's/--> Subject:[[:space:]]*//g')
+    if [ "${subject:0:1}" = '"' ]; then
+          subject=$(echo $subject | sed 's/^"//' | sed 's/"$//' | sed "s/\"/\\\\\"/g" | sed "s/'/\\\\\'/g" | sed "s/\&/\\\&/g")
+    else
+          subject=$(echo $subject | sed "s/\"/\\\\\"/g" | sed "s/'/\\\\\'/g")
+    fi
+    #echo " ---subject=$subject"
     fix_repopick_output $logfile
     cat $logfile | sed -e "/ERROR: git command failed/d" | sed "/Force-picking a closed change/d"
     project=$(cat $logfile | grep "Project path" | cut -d: -f2 | sed "s/ //g")
@@ -477,7 +487,7 @@ function kpick()
               echo ""
               sleep 2
               [ $tries -ge 2 ] && https_proxy=""
-              LANG=en_US https_proxy="$https_proxy" repopick -c 50 $nops >$logfile 2>$errfile
+              LANG=en_US https_proxy="$https_proxy" repopick -c $checkcount $nops >$logfile 2>$errfile
               rc=$?
               if [ $rc -ne 0 ]; then
                   #cat $logfile | sed -e "/ERROR: git command failed/d"
@@ -511,7 +521,6 @@ function kpick()
                           breakout=0
                           conflict_resolved=1
                           get_active_rrcache $project $md5file
-                          rm -f $errfile
                           cd $topdir
                           break
                        fi
@@ -544,7 +553,7 @@ function kpick()
                     cd $topdir
               else
                     cd $topdir
-                    LANG=en_US repopick -c 50 $nops >$logfile 2>$errfile
+                    LANG=en_US repopick -c $checkcount $nops >$logfile 2>$errfile
                     rc=$?
               fi
               if [ $rc -eq 0 ]; then
@@ -574,7 +583,6 @@ function kpick()
 
     if [ $breakout -lt 0 ]; then
         [ -f $errfile ] && cat $errfile
-        rm -f $errfile
         if [ $0 = "bash" ]; then
            return $breakout
         else
@@ -598,6 +606,7 @@ function kpick()
              rm -f /tmp/change_$changeNumber.patch /tmp/change_$changeNumber.err /tmp/manifest_changeids.txt
              cd $topdir
         fi
+ 
         if [ -f $logfile -a "$script_file" != "bash" ]; then
             if grep -q -E "Change status is MERGED.|nothing to commit" $logfile; then
                [ -f $script_file.tmp ] || cp $script_file $script_file.tmp
@@ -611,10 +620,18 @@ function kpick()
             elif grep -q "could not determine the project path for" $errfile; then
                [ -f $script_file.tmp ] || cp $script_file $script_file.tmp
                eval  sed -e \"/[[:space:]]*kpick $changeNumber[[:space:]]*.*/d\" -i $script_file.tmp
+            elif [ "$changeNumber" != "" -a "$subject" != "" ]; then
+               [ -f $script_file.tmp ] || cp $script_file $script_file.tmp
+               eval  "sed -e \"s|^[[:space:]]*kpick $changeNumber[[:space:]]*.*|kpick $changeNumber \# $subject|g\" -i $script_file.tmp"
             fi
          fi
     fi
     rm -f $errfile $logfile
+}
+
+function privpick() {
+  git -C $1 fetch github $2
+  git -C $1 cherry-pick FETCH_HEAD
 }
 
 function apply_force_changes(){
@@ -701,7 +718,7 @@ if [ $op_base_pick -eq 1 ]; then
    repo sync 
    apply_force_changes
 
-   kpick 209019 # toybox: Use ISO C/clang compatible __typeof__ in minof/maxof macros
+kpick 209019 # toybox: Use ISO C/clang compatible __typeof__ in minof/maxof macros
 
    echo 
    echo "Apply I hate the safty net..."
@@ -713,29 +730,33 @@ fi
 #---------------------------------#
 ###################################
 
+if [ 1 -eq 0 ]; then
 apply_force_changes
 
 # android
 repo sync android
 cd .repo/manifests;
 git fetch --all >/dev/null
-git reset --hard $(git branch -a | grep "/m/" | cut -d'>' -f 2 | sed -e "s/ //g")
+default_branch=$(grep "^[[:space:]]*<default revision=" $topdir/.repo/manifests/default.xml | sed -e 's:[^"]*"\(.*\)":\1:' | sed -e "s:refs/heads/::g")
+git reset --hard $(git branch -a | grep "remotes/m/$default_branch" | cut -d'>' -f 2 | sed -e "s/ //g") >/dev/null
 cd $topdir
 
-kpick 213705 # 	Build Exchange
+kpick 213705 # Build Exchange
 #android_head=$(cd android;git log -n 1 | sed -n 1p | cut -d' ' -f2;cd $topdir)
 #repo sync
 #cd android;git reset --hard $android_head >/dev/null;cd $topdir
 repo sync packages/apps/Exchange
+fi
 
 # bionic
 kpick 217311 # linker: add support for odm partition
 kpick 217312 # libc: add /odm/bin to the DEFPATH
 kpick 221709 # libc: Add generated copyrights
+exit
 
 # bootable/recovery
 kpick 219194 # minui: drm: ARGB8888 support
-kpick 219195 # minui: drm: wait for page flip event before next flip	
+kpick 219195 # minui: drm: wait for page flip event before next flip
 kpick 222457 # backup: Fix compiler warnings
 
 # build/make
@@ -746,7 +767,7 @@ kpick 209024 # Generate extra userdata partition if needed
 kpick 209025 # Strip out unused extra image generation
 kpick 210238 # releasetools: Store the build.prop file in the OTA zip
 kpick 212820 # build: Implement prebuilt caching
-kpick 213515 # build: Use minimial compression when zipping targetfiles
+kpick 213515 # build: Use minimal compression when zipping targetfiles
 kpick 213572 # Allow to exclude imgs from target-files zip
 kpick 218985 # releasetools: Fix the rebuilding of vbmeta.img.
 kpick 218986 # releasetools: Allow building AVB-enabled recovery.img.
@@ -761,10 +782,8 @@ kpick 222017 # core: Add bootimage only cmdline flag
 kpick 222034 # build: Allow using prebuilt vbmeta images in signed builds
 
 # build/soong
-kpick 223432 # soong: Enforce absolute path if OUT_DIR is set
 
 # device/lineage/sepolicy
-kpick 212927 # selinux: add domain for snap
 kpick 219022 # sepolicy: Fix neverallow for user builds
 
 # device/qcom/sepolicy
@@ -772,7 +791,7 @@ kpick 211273 # qcom/sepol: Fix timeservice app context
 
 # device/samsung/klte-common
 #kpick 212648 # klte-common: Enable AOD
-kpick 220435 # Add HFR/HSR support
+kpick 220435 # klte-common: Add HFR/HSR support
 
 # device/samsung/kltechnduo
 
@@ -806,18 +825,17 @@ kpick 209908 # Camera2Client: Add support for non-HDR frame along with HDR
 kpick 209909 # Camera2Client: Add support for enabling QTI DIS feature
 kpick 209910 # Camera2Client: Add support for enabling QTI Video/Sensor HDR feature
 kpick 209911 # Camera2Client: Add support for QTI specific AutoHDR and Histogram feature
-kpick 209912 # Camera: Skip stream size check for whitelisted apps
+kpick 209912 # Camera: Skip stream size check for whitelisted apps.
 kpick 213115 # camera: Disable extra HDR frame on QCOM_HARDWARE
 kpick 220018 # Camera2Client: Add support for Raw snapshot in Camera2Client
 kpick 220019 # Camera2Client: Integrate O-MR1 changes for QTI camera2client
 kpick 220020 # Camera2Client: Disable ZSL by default in QTI camera2client
-kpick 220021 # Camera: Skip stream size check for whitelisted apps.
-kpick 220022 # Camera2Client: Use Max YUV Resolution instead of active array size.
+kpick 220021 # Camera2Client: Use Max YUV Resolution instead of active array size.
+kpick 220022 # Camera2Client: Use StreamConfiguration to find available raw sizes.
 kpick 220023 # Camera2Client: Fix issue with supported scene modes.
 kpick 220024 # Camera2Client: Update vendor tag only if it is present
 kpick 220025 # Camera2Client: Fix issue with AE Bracketing mode.
 kpick 223145 # av: camera: Allow disabling shutter sound for specific packages
-kpick 225508 # effects: fix volume burst on pause/resume with AudioFX
 
 # frameworks/base
 kpick -f 206054 # SystemUI: use vector drawables for navbar icons
@@ -828,7 +846,7 @@ kpick -f 206058 # opalayout/home: Fix icons and darkintensity
 kpick -f 206059 # OpaLayout: misc code fixes
 kpick 206568 # base: audioservice: Set BT_SCO status
 kpick 207583 # BatteryService: Add support for oem fast charger detection
-kpick 209031 # TelephonyManager: Prevent NPE when registering phone state listener
+kpick 209031 # TelephonyManager: Prevent NPE when registering phone state listener.
 kpick 206940 # Avoid crash when the actionbar is disabled in settings
 kpick 214262 # Bind app name to menu row when notification updated
 kpick 214263 # Fix intercepting touch events for guts
@@ -844,9 +862,8 @@ kpick 218430 # SystemUI: Require unlock to toggle airplane mode
 kpick 218431 # SystemUI: Require unlock to toggle location
 kpick 218437 # SystemUI: Add activity alias for LockscreenFragment
 kpick 219930 # Telephony: Stop using rssnr, it falsly shows wrong signal bars Pixel and other devices drop this
-kpick 221518 # 	[1/2] base: allow disable of screenshot shutter sound
-kpick 221557 # Make volume steps adjustable for the alarm and ringtone streams
-kpick 221654 # 	Disable restrictions on swipe to dismiss and action bars
+kpick 221518 # [1/2] base: allow disable of screenshot shutter sound
+kpick 221654 # Disable restrictions on swipe to dismiss and action bars
 kpick 221716 # Where's my circle battery, dude?
 kpick 221805 # System Profiles in QS Tiles
 kpick 222226 # [1/3] SystemUI: add burnIn protection setting
@@ -859,9 +876,10 @@ kpick 223333 # Set windowElevation to 0 on watch dialogs.
 kpick 223334 # Update device default colors for darker UI
 kpick 224392 # VibratorService: Apply vibrator intensity setting.
 kpick 224757 # webkit: Add AOSP WebView provider by default
+kpick 226009 # Make volume steps and defaults adjustable for all audio streams
 
 # frameworks/native
-kpick 213549 # SurfaceFlinger: Support get/set ActiveConfigs
+kpick 213549 # SurfaceFlinger: Support get/set ActiveConfigs.
 
 # frameworks/opt/chips
 
@@ -894,7 +912,7 @@ kpick 223909 # biometrics: fingerprint: add locking to default impl
 kpick 224208 # camera: 1.0-legacy: Build with BOARD_VNDK_VERSION=current
 
 # hardware/lineage/lineagehw
-kpick 222510 # Remove deprecated VibratorHW
+#kpick 222510 # Remove deprecated VibratorHW
 
 # hardware/lineage/telephony
 
@@ -924,6 +942,8 @@ kpick 220877 # gps: use TARGET_BOARD_AUTO to override qcom hals
 # hardware/qcom/keymaster
 
 # hardware/qcom/power
+kpick 225949 # power: perform_hint_action: return an error code
+kpick 225950 # power: set_power_profile: handle errors
 
 # hardware/qcom/thermal
 kpick 218360 # thermal: use log/log.h header
@@ -938,7 +958,7 @@ kpick 220853 # dtbhtool: Add new DTBH_MODEL entry
 
 # lineage/charter
 kpick 213574 # charter: Add some new USB rules
-kpick 213836 # charter: add vendor patch level requirement 
+kpick 213836 # charter: add vendor patch level requirement
 kpick 215665 # Add hardware codecs section and exempt some tegra chipsets
 kpick 218728 # charter: Add recovery requirement
 kpick 218835 # verity: change wording, as this is required for a/b builds
@@ -956,15 +976,12 @@ kpick 219543 # wiki: add workaround for booting into TWRP recovery
 
 # lineage-sdk
 kpick 213367 # NetworkTraffic: Include tethering traffic statistics
-kpick 214854 # [3/3] lineagesdk: single hand for hw keys
 kpick 216978 # sdk: add torch accent
 #kpick 218679 # lineage-sdk: Use ILight.getSupportedTypes for lights capabilities
 kpick 220407 # lineagesdk: Refactor battery icon options
 kpick 220417 # TelephonyExtUtils: Add possible error codes, and return with them
-kpick 222035 # sdk: Add migration for /missing/ custom button actions
 kpick 222512 # Fix inconsistent disabled state color for LiveDisplay tile
 kpick 222513 # Remove deprecated VibratorHW
-kpick 223458 # Regen lineage_current
 
 # lineage-sdk/samples/weatherproviderservice/YahooWeatherProvider
 kpick 207864 # Updated Gradle to 3.0.1; The Lineage-SDK jar is now contained in the project files
@@ -983,17 +1000,15 @@ kpick 211135 # Show proper call duration
 #kpick 222240 # Dialer: add to support multi-language smart search
 
 # packages/apps/DeskClock
-#kpick 213051 # Deskclock: set targetSdk to 27
 kpick 222493 # Overlay layouts for round-watch
 
 # packages/apps/Eleven
-kpick 221891 # Eleven: bump to api26
 
 # packages/apps/Email
 
 # packages/apps/Exchange
 kpick 211382 # Exchange: request permissions
-kpick 221488 # Failure in testAllSystemAppsUsingRuntimePermissionsTargetMncAndAboveSdk	
+kpick 221488 # Failure in testAllSystemAppsUsingRuntimePermissionsTargetMncAndAboveSdk
 kpick 221489 # Automatic translation import
 
 # packages/apps/Flipflap
@@ -1006,18 +1021,17 @@ kpick 222465 # Gallery2: Fix wrong string for empty albums
 # packages/apps/LineageParts
 kpick 217171 # Trust: enforce vendor security patch level check
 kpick 217642 # Align learn more and got it horizontally
-kpick 217644 # LineageParts: Set proper PreferenceTheme parent	
+kpick 217644 # LineageParts: Set proper PreferenceTheme parent
 kpick 218315 # LineageParts: Fix brightness section
 kpick 219527 # LiveDisplay: Remove advanced settings category if empty
-kpick 220533 # Trust: String changes for accuracy of language
 kpick 220422 # LineageParts: Bring back and refactor battery icon options
 kpick 221359 # Remove actionbar calls
 kpick 221756 # StatusBarSettings: Hide battery preference category based on icon visibility
 kpick 222323 # LineageParts: (Not-so-)Small cleanup
-kpick 222572 # Remove icons and center layouts
+kpick 222572 # DNM: Remove icons and center layouts
 
 # packages/apps/lockClock
-kpick 208127 # Update LockClock to use Job APIs 
+kpick 208127 # WIP: Update LockClock to use Job APIs
 
 # packages/apps/Nfc
 
@@ -1025,7 +1039,7 @@ kpick 208127 # Update LockClock to use Job APIs
 
 # packages/apps/Settings
 #kpick 209583 # [2/2] Settings: battery styles
-kpick 215672 # SimSettings: Fix dialog in dark mode
+kpick 215672 # SimSettings: Fix dark mode issues
 kpick 216687 # settings: wifi: Default to numeric keyboard for static IP items
 kpick 216822 # Settings: Allow setting device phone number
 kpick 216871 # Utils: Always show SIM Settings menu
@@ -1042,20 +1056,16 @@ kpick 221840 # Fixed translation
 kpick 217580 # Add original-package to AndroidManifest
 
 # packages/apps/Snap
-kpick 206595 # Use transparent navigation bar
-kpick 218826 # CameraSettings:Do not crash if zoom ratios are not exposed.
+kpick 206595 # Use transparent navigation bar.
 kpick 222005 # Snap: Add Denoise to video menu
-kpick 225516 # Snap: use platform cert
 
 # packages/apps/Trebuchet
-kpick 214336 # Trebuchet: initial protected apps implementation
+kpick 214336 # [WIP] Trebuchet: initial protected apps implementation
 
 # packages/apps/UnifiedEmail
 
 # packages/apps/Updater
 kpick 219924 # Updater: Allow to suspend A/B updates
-kpick 220536 # Updater: Clarify A/B Performance mode string
-kpick 221499 # Updater: Use SharedPreference listener to get perf mode setting
 
 # packages/overlays/Lineage
 kpick 215846 # dark: Add Theme.DeviceDefault.Settings.Dialog.NoActionBar style
@@ -1064,7 +1074,6 @@ kpick 216979 # overlays: add torch accent
 # packages/providers/ContactsProvider
 
 # packages/providers/DownloadProvider
-kpick 222467 # Fix plural translatability for download speed
 
 # packages/resources/devicesettings
 
@@ -1073,9 +1082,14 @@ kpick 222467 # Fix plural translatability for download speed
 # packages/service/Telephony
 kpick 209045 # Telephony: Fallback gracefully for emergency calls if suitable app isn't found
 
+# prebuilts/build-tools
+
+# prebuilts/misc
+
 # system/bt
 
 # system/core
+privpick system/core refs/changes/19/206119/2 # init: I hate safety net
 kpick 206029 # init: Add command to disable verity
 kpick 213876 # healthd: charger: Add tricolor led to indicate battery capacity
 kpick 215626 # Add vendor hook to handle_control_message
@@ -1084,12 +1098,24 @@ kpick 217314 # Allow firmware loading from ODM partition
 kpick 218837 # libsuspend: Add property support for timeout of autosuspend
 kpick 219304 # init: Allow devices to opt-out of fsck'ing on power off
 kpick 221647 # healthd: BatteryMonitor: Fix compiler warning
-kpick 222237 # Add back atomic symbols
+kpick 222237 # DO NOT MERGE: Add back atomic symbols
 
 # system/extras
 kpick 211210 # ext4: Add /data/stache/ to encryption exclusion list
 
 # system/extras/su
+kpick 226017 # su: Fully rebrand
+kpick 225718 # su: Fix warnings from PVS Studio Analyzer
+kpick 225873 # su: strlcpy is always a friend
+kpick 225875 # su: Enable Clang Tidy
+kpick 225879 # su: Run clang format
+kpick 225880 # su: Move to cutils/properties.h
+kpick 225885 # su: Remove Sammy hacks
+kpick 225888 # su: Fix a clang tidy warning
+kpick 225889 # su: Cleanup includes
+kpick 225890 # su: Use shared libraries
+kpick 225936 # su: Remove mount of emulated storage
+kpick 225937 # su: Initialize windows size
 
 # system/libhidl
 
@@ -1122,16 +1148,14 @@ kpick 217629 # kernel: Add TARGET_KERNEL_ADDITIONAL_FLAGS to allow setting extra
 kpick 217630 # kernel: Add kernelversion recipe to generate MAJOR.MINOR kernel version
 kpick 218717 # verity_tool: Implement status getter
 kpick 218801 # libbfqio: Open bfqio once
-kpick 218817 # kernel: Do not attempt to build modules if there aren't
+kpick 218817 # kernel: Do not attempt to build modules if there aren't any
 kpick 218832 # lineage: Add prebuilt patchelf binaries and patch_blob function
 kpick 219388 # config: Add more GMS client base ID props
 kpick 219389 # lineage: Always disable google SystemUpdateService
-kpick 220398 # extract_utils: Skip unneeded md5sum	
+kpick 220398 # extract_utils: Skip unneeded md5sum
 kpick 220399 # extract_utils: Extract files from brotli compressed images
-kpick 221505 # config/common: Clean up debug packages
 #kpick 222564 # extract-utils: initial support for brotli packaged images.
 kpick 222612 # build: Update vdexExtractor
-kpick 225195 # lineage: enable roundIcons by default
 
 # vendor/nxp/opensource/packages/apps/Nfc
 

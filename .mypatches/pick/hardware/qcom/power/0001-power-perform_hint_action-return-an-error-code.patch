@@ -1,0 +1,128 @@
+From d138cf63bd597831bfd710c7857255875a9c3587 Mon Sep 17 00:00:00 2001
+From: Corinna Vinschen <xda@vinschen.de>
+Date: Sun, 26 Aug 2018 21:16:23 +0200
+Subject: [PATCH 1/2] power: perform_hint_action: return an error code
+
+So far the caller never knows if setting the hint actually worked.
+This leads to a potential disconnect between the actual setting and the
+UI because set_power_profile simply assumes perform_hint_action worked.
+
+Return an error code or 0, so the callers can check for success.
+
+Change-Id: I180a367e9d8581a63dfa703046b37bc5cae8c6cb
+Signed-off-by: Corinna Vinschen <xda@vinschen.de>
+---
+ utils.c | 78 ++++++++++++++++++++++++++++-----------------------------
+ utils.h |  3 +--
+ 2 files changed, 40 insertions(+), 41 deletions(-)
+
+diff --git a/utils.c b/utils.c
+index f9b2773..ffa3e34 100644
+--- a/utils.c
++++ b/utils.c
+@@ -279,49 +279,49 @@ void release_request(int lock_handle) {
+         perf_lock_rel(lock_handle);
+ }
+ 
+-void perform_hint_action(int hint_id, int resource_values[], int num_resources)
++int perform_hint_action(int hint_id, int resource_values[], int num_resources)
+ {
+-    if (qcopt_handle) {
+-        if (perf_lock_acq) {
+-            /* Acquire an indefinite lock for the requested resources. */
+-            int lock_handle = perf_lock_acq(0, 0, resource_values,
+-                    num_resources);
++    if (qcopt_handle && perf_lock_acq) {
++        /* Acquire an indefinite lock for the requested resources. */
++        int lock_handle = perf_lock_acq(0, 0, resource_values,
++                num_resources);
++
++        if (lock_handle == -1) {
++            ALOGE("Failed to acquire lock.");
++            return -EINVAL;
++        }
+ 
+-            if (lock_handle == -1) {
+-                ALOGE("Failed to acquire lock.");
+-            } else {
+-                /* Add this handle to our internal hint-list. */
+-                struct hint_data *new_hint =
+-                    (struct hint_data *)malloc(sizeof(struct hint_data));
+-
+-                if (new_hint) {
+-                    if (!active_hint_list_head.compare) {
+-                        active_hint_list_head.compare =
+-                            (int (*)(void *, void *))hint_compare;
+-                        active_hint_list_head.dump = (void (*)(void *))hint_dump;
+-                    }
+-
+-                    new_hint->hint_id = hint_id;
+-                    new_hint->perflock_handle = lock_handle;
+-
+-                    if (add_list_node(&active_hint_list_head, new_hint) == NULL) {
+-                        free(new_hint);
+-                        /* Can't keep track of this lock. Release it. */
+-                        if (perf_lock_rel)
+-                            perf_lock_rel(lock_handle);
+-
+-                        ALOGE("Failed to process hint.");
+-                    }
+-                } else {
+-                    /* Can't keep track of this lock. Release it. */
+-                    if (perf_lock_rel)
+-                        perf_lock_rel(lock_handle);
+-
+-                    ALOGE("Failed to process hint.");
+-                }
+-            }
++        /* Add this handle to our internal hint-list. */
++        struct hint_data *new_hint =
++            (struct hint_data *)malloc(sizeof(struct hint_data));
++
++        if (!new_hint) {
++            /* Can't keep track of this lock. Release it. */
++            if (perf_lock_rel)
++                perf_lock_rel(lock_handle);
++            ALOGE("Failed to process hint.");
++            return -ENOMEM;
++        }
++
++        if (!active_hint_list_head.compare) {
++            active_hint_list_head.compare =
++                (int (*)(void *, void *))hint_compare;
++            active_hint_list_head.dump = (void (*)(void *))hint_dump;
++        }
++
++        new_hint->hint_id = hint_id;
++        new_hint->perflock_handle = lock_handle;
++
++        if (add_list_node(&active_hint_list_head, new_hint) == NULL) {
++            free(new_hint);
++            /* Can't keep track of this lock. Release it. */
++            if (perf_lock_rel)
++                perf_lock_rel(lock_handle);
++            ALOGE("Failed to process hint.");
++            return -ENOMEM;
+         }
+     }
++    return 0;
+ }
+ 
+ void undo_hint_action(int hint_id)
+diff --git a/utils.h b/utils.h
+index 83f815e..79ebd33 100644
+--- a/utils.h
++++ b/utils.h
+@@ -36,8 +36,7 @@ int get_scaling_governor_check_cores(char governor[], int size,int core_num);
+ int is_interactive_governor(char*);
+ int is_ondemand_governor(char*);
+ 
+-void perform_hint_action(int hint_id, int resource_values[],
+-    int num_resources);
++int perform_hint_action(int hint_id, int resource_values[], int num_resources);
+ void undo_hint_action(int hint_id);
+ void undo_initial_hint_action();
+ void release_request(int lock_handle);
+-- 
+2.17.1
+

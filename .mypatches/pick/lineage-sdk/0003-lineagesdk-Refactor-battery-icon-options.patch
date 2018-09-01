@@ -1,0 +1,114 @@
+From 686f0711e0a3b8c9773b6a79b1d991f59ca27fff Mon Sep 17 00:00:00 2001
+From: Hendrik Hagendorn <finnq@lineageos.org>
+Date: Sun, 15 Jan 2017 08:45:51 +0100
+Subject: [PATCH 3/7] lineagesdk: Refactor battery icon options
+
+* Use the icon blacklist for hiding
+* Combine options for hiding status bar icons in system tuner settings
+
+Change-Id: Ie41d71c774a34abe225e2c0a6a0a9fd4316189cd
+---
+ host/migration/src/LineageSettings.java       |  5 ++-
+ .../LineageDatabaseHelper.java                | 36 ++++++++++++++++++-
+ .../lineageos/providers/LineageSettings.java  |  7 ++--
+ 3 files changed, 40 insertions(+), 8 deletions(-)
+
+diff --git a/host/migration/src/LineageSettings.java b/host/migration/src/LineageSettings.java
+index 0005fb3..60ac6ce 100644
+--- a/host/migration/src/LineageSettings.java
++++ b/host/migration/src/LineageSettings.java
+@@ -80,10 +80,9 @@ public final class LineageSettings {
+         /**
+          * Display style of the status bar battery information
+          * 0: Display the battery an icon in portrait mode
++         * 1: Display the battery an icon in landscape mode
+          * 2: Display the battery as a circle
+-         * 4: Hide the battery status information
+-         * 5: Display the battery an icon in landscape mode
+-         * 6: Display the battery as plain text
++         * 3: Display the battery as plain text
+          * default: 0
+          * @hide
+          */
+diff --git a/packages/LineageSettingsProvider/src/org/lineageos/lineagesettings/LineageDatabaseHelper.java b/packages/LineageSettingsProvider/src/org/lineageos/lineagesettings/LineageDatabaseHelper.java
+index bc99cfa..c41430c 100644
+--- a/packages/LineageSettingsProvider/src/org/lineageos/lineagesettings/LineageDatabaseHelper.java
++++ b/packages/LineageSettingsProvider/src/org/lineageos/lineagesettings/LineageDatabaseHelper.java
+@@ -51,7 +51,7 @@ public class LineageDatabaseHelper extends SQLiteOpenHelper{
+     private static final boolean LOCAL_LOGV = false;
+ 
+     private static final String DATABASE_NAME = "lineagesettings.db";
+-    private static final int DATABASE_VERSION = 9;
++    private static final int DATABASE_VERSION = 10;
+ 
+     private static final String DATABASE_NAME_OLD = "cmsettings.db";
+ 
+@@ -336,6 +336,40 @@ public class LineageDatabaseHelper extends SQLiteOpenHelper{
+             }
+             upgradeVersion = 9;
+         }
++
++        if (upgradeVersion < 10) {
++            if (mUserHandle == UserHandle.USER_OWNER) {
++                db.beginTransaction();
++                SQLiteStatement stmt = null;
++                try {
++                    stmt = db.compileStatement("SELECT value FROM system WHERE name=?");
++                    stmt.bindString(1, LineageSettings.System.STATUS_BAR_BATTERY_STYLE);
++                    long value = stmt.simpleQueryForLong();
++
++                    long newValue = 0;
++                    switch ((int) value) {
++                        case 5:
++                            newValue = 1;
++                            break;
++                        case 6:
++                            newValue = 3;
++                            break;
++                    }
++
++                    stmt = db.compileStatement("UPDATE system SET value=? WHERE name=?");
++                    stmt.bindLong(1, newValue);
++                    stmt.bindString(2, LineageSettings.System.STATUS_BAR_BATTERY_STYLE);
++                    stmt.execute();
++                    db.setTransactionSuccessful();
++                } catch (SQLiteDoneException ex) {
++                    // LineageSettings.System.STATUS_BAR_BATTERY_STYLE is not set
++                } finally {
++                    if (stmt != null) stmt.close();
++                    db.endTransaction();
++                }
++            }
++            upgradeVersion = 10;
++        }
+         // *** Remember to update DATABASE_VERSION above!
+ 
+         if (upgradeVersion < newVersion) {
+diff --git a/sdk/src/java/lineageos/providers/LineageSettings.java b/sdk/src/java/lineageos/providers/LineageSettings.java
+index ec1eeaa..37ed178 100644
+--- a/sdk/src/java/lineageos/providers/LineageSettings.java
++++ b/sdk/src/java/lineageos/providers/LineageSettings.java
+@@ -924,17 +924,16 @@ public final class LineageSettings {
+         /**
+          * Display style of the status bar battery information
+          * 0: Display the battery an icon in portrait mode
++         * 1: Display the battery an icon in landscape mode
+          * 2: Display the battery as a circle
+-         * 4: Hide the battery status information
+-         * 5: Display the battery an icon in landscape mode
+-         * 6: Display the battery as plain text
++         * 3: Display the battery as plain text
+          * default: 0
+          */
+         public static final String STATUS_BAR_BATTERY_STYLE = "status_bar_battery_style";
+ 
+         /** @hide */
+         public static final Validator STATUS_BAR_BATTERY_STYLE_VALIDATOR =
+-                new DiscreteValueValidator(new String[] {"0", "2", "4", "5", "6"});
++                new InclusiveIntegerRangeValidator(0, 3);
+ 
+         /**
+          * Status bar battery %
+-- 
+2.17.1
+
