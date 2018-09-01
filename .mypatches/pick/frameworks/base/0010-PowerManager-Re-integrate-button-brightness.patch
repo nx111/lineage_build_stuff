@@ -1,7 +1,7 @@
-From b0579c06d2f8e74886ccae14a003cfa117abdc16 Mon Sep 17 00:00:00 2001
+From b63482323348a32787a4ad79cf521c8c848f72a3 Mon Sep 17 00:00:00 2001
 From: Danny Baumann <dannybaumann@web.de>
 Date: Thu, 22 Aug 2013 08:53:24 +0200
-Subject: [PATCH 10/68] PowerManager: Re-integrate button brightness
+Subject: [PATCH 10/71] PowerManager: Re-integrate button brightness
 
 This is a squash of the following commits:
 
@@ -50,8 +50,8 @@ Change-Id: I53f031fa2da394e95a2b29a01eb3c6a8f8132507
  core/res/res/values/lineage_config.xml        | 21 +++++
  core/res/res/values/lineage_symbols.xml       | 21 +++++
  .../server/power/PowerManagerService.java     | 79 +++++++++++++++++--
- .../server/wm/RootWindowContainer.java        | 20 ++++-
- 6 files changed, 149 insertions(+), 11 deletions(-)
+ .../server/wm/RootWindowContainer.java        | 18 ++++-
+ 6 files changed, 148 insertions(+), 10 deletions(-)
  create mode 100644 core/res/res/values/lineage_config.xml
  create mode 100644 core/res/res/values/lineage_symbols.xml
 
@@ -312,73 +312,72 @@ index 054ccf6b5fb..cfae4bf06ba 100644
          public void setDozeOverrideFromDreamManager(int screenState, int screenBrightness) {
              switch (screenState) {
 diff --git a/services/core/java/com/android/server/wm/RootWindowContainer.java b/services/core/java/com/android/server/wm/RootWindowContainer.java
-index a709c55bbd3..7200ea6616d 100644
+index a709c55bbd3..bc32d3ca832 100644
 --- a/services/core/java/com/android/server/wm/RootWindowContainer.java
 +++ b/services/core/java/com/android/server/wm/RootWindowContainer.java
-@@ -93,12 +93,14 @@ class RootWindowContainer extends WindowContainer<DisplayContent> {
+@@ -92,12 +92,14 @@ import static com.android.server.wm.RootWindowContainerProto.WINDOW_CONTAINER;
+ class RootWindowContainer extends WindowContainer<DisplayContent> {
      private static final String TAG = TAG_WITH_CLASS_NAME ? "RootWindowContainer" : TAG_WM;
  
++    private static final int SET_BUTTON_BRIGHTNESS_OVERRIDE = 0;
      private static final int SET_SCREEN_BRIGHTNESS_OVERRIDE = 1;
--    private static final int SET_USER_ACTIVITY_TIMEOUT = 2;
-+    private static final int SET_BUTTON_BRIGHTNESS_OVERRIDE = 2;
-+    private static final int SET_USER_ACTIVITY_TIMEOUT = 3;
+     private static final int SET_USER_ACTIVITY_TIMEOUT = 2;
  
      private boolean mWallpaperForceHidingChanged = false;
      private Object mLastWindowFreezeSource = null;
      private Session mHoldScreen = null;
-     private float mScreenBrightness = -1;
 +    private float mButtonBrightness = -1;
+     private float mScreenBrightness = -1;
      private long mUserActivityTimeout = -1;
      private boolean mUpdateRotation = false;
-     // Following variables are for debugging screen wakelock only.
-@@ -578,6 +580,7 @@ class RootWindowContainer extends WindowContainer<DisplayContent> {
+@@ -577,6 +579,7 @@ class RootWindowContainer extends WindowContainer<DisplayContent> {
+         }
  
          mHoldScreen = null;
-         mScreenBrightness = -1;
 +        mButtonBrightness = -1;
+         mScreenBrightness = -1;
          mUserActivityTimeout = -1;
          mObscureApplicationContentOnSecondaryDisplays = false;
-         mSustainedPerformanceModeCurrent = false;
 @@ -728,12 +731,16 @@ class RootWindowContainer extends WindowContainer<DisplayContent> {
  
          mService.setHoldScreenLocked(mHoldScreen);
          if (!mService.mDisplayFrozen) {
 -            final int brightness = mScreenBrightness < 0 || mScreenBrightness > 1.0f
-+            final int screenBrightness = mScreenBrightness < 0 || mScreenBrightness > 1.0f
-                     ? -1 : toBrightnessOverride(mScreenBrightness);
- 
 +            final int buttonBrightness = mButtonBrightness < 0 || mButtonBrightness > 1.0f
 +                    ? -1 : toBrightnessOverride(mButtonBrightness);
 +
++            final int screenBrightness = mScreenBrightness < 0 || mScreenBrightness > 1.0f
+                     ? -1 : toBrightnessOverride(mScreenBrightness);
+ 
              // Post these on a handler such that we don't call into power manager service while
              // holding the window manager lock to avoid lock contention with power manager lock.
 -            mHandler.obtainMessage(SET_SCREEN_BRIGHTNESS_OVERRIDE, brightness, 0).sendToTarget();
-+            mHandler.obtainMessage(SET_SCREEN_BRIGHTNESS_OVERRIDE, screenBrightness, 0).sendToTarget();
 +            mHandler.obtainMessage(SET_BUTTON_BRIGHTNESS_OVERRIDE, buttonBrightness, 0).sendToTarget();
++            mHandler.obtainMessage(SET_SCREEN_BRIGHTNESS_OVERRIDE, screenBrightness, 0).sendToTarget();
              mHandler.obtainMessage(SET_USER_ACTIVITY_TIMEOUT, mUserActivityTimeout).sendToTarget();
          }
  
-@@ -931,6 +938,9 @@ class RootWindowContainer extends WindowContainer<DisplayContent> {
-             if (!syswin && w.mAttrs.screenBrightness >= 0 && mScreenBrightness < 0) {
-                 mScreenBrightness = w.mAttrs.screenBrightness;
+@@ -928,6 +935,9 @@ class RootWindowContainer extends WindowContainer<DisplayContent> {
+                         + "screen wakelock but no longer has FLAG_KEEP_SCREEN_ON!!! called by"
+                         + Debug.getCallers(10));
              }
 +            if (!syswin && w.mAttrs.buttonBrightness >= 0 && mButtonBrightness < 0) {
 +                mButtonBrightness = w.mAttrs.buttonBrightness;
 +            }
- 
-             final int type = attrs.type;
-             // This function assumes that the contents of the default display are processed first
-@@ -1008,6 +1018,10 @@ class RootWindowContainer extends WindowContainer<DisplayContent> {
-                     mService.mPowerManagerInternal.setScreenBrightnessOverrideFromWindowManager(
-                             msg.arg1);
-                     break;
+             if (!syswin && w.mAttrs.screenBrightness >= 0 && mScreenBrightness < 0) {
+                 mScreenBrightness = w.mAttrs.screenBrightness;
+             }
+@@ -1004,6 +1014,10 @@ class RootWindowContainer extends WindowContainer<DisplayContent> {
+         @Override
+         public void handleMessage(Message msg) {
+             switch (msg.what) {
 +                case SET_BUTTON_BRIGHTNESS_OVERRIDE:
 +                    mService.mPowerManagerInternal.setButtonBrightnessOverrideFromWindowManager(
 +                            msg.arg1);
 +                    break;
-                 case SET_USER_ACTIVITY_TIMEOUT:
-                     mService.mPowerManagerInternal.setUserActivityTimeoutOverrideFromWindowManager(
-                             (Long) msg.obj);
+                 case SET_SCREEN_BRIGHTNESS_OVERRIDE:
+                     mService.mPowerManagerInternal.setScreenBrightnessOverrideFromWindowManager(
+                             msg.arg1);
 -- 
 2.17.1
 

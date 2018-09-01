@@ -10,7 +10,7 @@ op_snap_project=""
 op_patches_dir=""
 op_base_pick=0
 default_remote="github"
-script_file=$0
+script_file=$(realpath $0)
 conflict_resolved=0
 checkcount=200
 
@@ -432,7 +432,7 @@ function kpick()
     if [ "${subject:0:1}" = '"' ]; then
           subject=$(echo $subject | sed 's/^"//' | sed 's/"$//' | sed "s/\"/\\\\\"/g" | sed "s/'/\\\\\'/g" | sed "s/\&/\\\&/g")
     else
-          subject=$(echo $subject | sed "s/\"/\\\\\"/g" | sed "s/'/\\\\\'/g")
+          subject=$(echo $subject | sed "s/\"/\\\\\"/g" | sed "s/'/\\\\\'/g" | sed "s/\&/\\\&/g")
     fi
     #echo " ---subject=$subject"
     fix_repopick_output $logfile
@@ -787,11 +787,9 @@ kpick 226284 # uncrypt: fix f2fs ioctl argument for pin_file
 kpick 222733 # core: Disable vendor restrictions
 kpick 222742 # build: Use project pathmap for recovery
 kpick 222760 # Add LOCAL_AIDL_FLAGS
-kpick 226248 # Do not call sort when setting ALL_DEPS.MODULES.
 
 # build/soong
 kpick 222648 # Allow providing flex and bison binaries
-kpick 223431 # soong: Enforce absolute path if OUT_DIR is set
 kpick 224613 # soong: Add LOCAL_AIDL_FLAGS handling
 kpick 224827 # soong: Add java sources overlay support
 
@@ -850,6 +848,7 @@ kpick 225223 # Merge remote-tracking branch 'aosp/master' into lineage-16.0
 kpick 225224 # Android.mk: update strings to reflect v1.11.0 release
 
 # external/htop
+kpick 225161 # htop: disable warnings that cause errors
 
 # external/libncurse
 kpick 224022 # libncurses: don't spam warnings as errors
@@ -979,6 +978,8 @@ kpick 226332 # CacheQuotaStrategy: Fix resource leak when reading cache quotas
 kpick 226342 # Stop initializing app ops in Camera default constructor.
 kpick 226343 # CameraServiceProxy: Loosen UID check
 kpick 226354 # Camera: Add feature extensions
+kpick 226358 # settings: Allow accessing LineageSettings via settings command
+kpick 226367 # SystemUI: Add tuner interface to StatusBarSignalPolicy
 
 # frameworks/native
 kpick 224443 # libbinder: Don't log call trace when waiting for vendor service on non-eng builds
@@ -1009,12 +1010,10 @@ kpick 225506 # Camed HAL extension: Added support in HIDL for Extended FD.
 kpick 225507 # camera: Only link and use vendor.qti.hardware.camera.device if specified
 
 # hardware/libhardware
-kpick 223096 # audio: Add audio amplifier HAL
 kpick 223097 # hardware/libhw: Add display_defs.h to declare custom enums/flags
 kpick 223681 # power: Add new power hints
  
 # hardware/libhardware_legacy
-kpick 225716 # Add wifi_add_or_remove_virtual_intf() to the legacy wifi hal
 
 # hardware/lineage/interfaces
 kpick 223374 # interfaces: Add 2.0 livedisplay interfaces
@@ -1170,6 +1169,8 @@ kpick 225311 # Remove max aspect ratio.
 
 # packages/apps/LineageParts
 kpick 226145 # LineageParts: Reenable buttons related settings
+kpick 226390 # PowerMenuActions: Make to sure to enable setting lockdown setting	
+kpick 226392 # LineageParts: Set proper default value for charging sounds
 
 # packages/apps/LockClock
 kpick 226319 # LockClock: Declare private API dependency
@@ -1234,7 +1235,7 @@ kpick 225979 # Settings: Add package name to installed app details
 kpick 226134 # Settings: Implement ADB notification and ADB over network
 kpick 226142 # Settings: Add developer setting for root access
 kpick 226146 # Settings: battery: Add LineageParts perf profiles
-kpick 226148 # Settings: "Security & privacy" privacy"
+kpick 226148 # Settings: "Security & location" -> "Security & privacy"
 kpick 226149 # Settings: Add LineageOS legal info
 kpick 226150 # Settings: add Trust interface hook
 kpick 226151 # Settings: show Trust brading in confirm_lock_password UI
@@ -1242,10 +1243,21 @@ kpick 226152 # Improve app info screen
 kpick 226153 # Allow sorting Applications by size
 kpick 226154 # fingerprint: Allow devices to configure sensor location
 kpick 226278 # Settings: Add LineageOS entries into device info
+kpick 226391 # Settings: Hide lockdown in lockscreen settings
 
 # packages/apps/SetupWizard
 
 # packages/apps/Stk
+
+# packages/apps/Terminal
+kpick 226269 # TerminalKeys: Disable debug
+kpick 226270 # Allow terminal app to show in LeanBack (1/2)
+kpick 226271 # Terminal: Fix keyboard Ctrl- and ALT-key input.
+kpick 226272 # Add settings for fullscreen, orientation, font size, color
+kpick 226273 # Allow access to external storage
+kpick 226274 # Term: materialize
+kpick 226275 # Terminal: volume keys as up/down
+
 
 # packages/apps/Trebuchet
 kpick 223666 # Settings: Hide Notification Dots on low RAM devices
@@ -1335,18 +1347,6 @@ fi
 repo sync --force-sync system/extras/su
 
 # system/extras/su
-kpick 226017 # su: Fully rebrand
-kpick 225718 # su: Fix warnings from PVS Studio Analyzer
-kpick 225873 # su: strlcpy is always a friend
-kpick 225879 # su: Run clang format
-kpick 225880 # su: Move to cutils/properties.h
-kpick 225875 # su: Enable Clang Tidy
-kpick 225885 # su: Remove Sammy hacks
-kpick 225888 # su: Fix a clang tidy warning
-kpick 225889 # su: Cleanup includes
-kpick 225890 # su: Use shared libraries
-kpick 225936 # su: Remove mount of emulated storage
-kpick 225937 # su: Initialize windows size
 
 # system/netd
 kpick 225429 # [3/3] NetD : Allow passing in interface names for wifi/data app restriction
@@ -1381,6 +1381,10 @@ kpick 225451 # vold: Also wait for dm device when mounting private volume
 kpick 225452 # secdiscard: should pin_file to avoid moving blocks in F2FS
 kpick 225881 # vold: Make exfat driver support generic
 kpick 225948 # Support Samsung's implementation of exfat, called sdfat
+#kpick 226109 # vold: Add Hardware FDE feature
+#kpick 226110 # system: vold: Remove crypto block device creation
+#kpick 226127 # vold: Move QCOM HW FDE inclusion under lineage namespace
+#kpick 226111 # vold: Wrapped key support for FBE
 
 # vendor/lineage
 kpick 223773 # Add IPv6 for Oister and 3. The 3.dk and oister.dk carriers now support IPv6 with the APN ”data.tre.dk”.
@@ -1398,10 +1402,18 @@ kpick 225942 # soong_config: Allow whitelisted processes to use destroyed mutex
 kpick 225939 # roomservice.py: non-depsonly: bootstrap first device repo from Hudson
 #kpick 225981 # roomservice.py: depsonly: do not look up device repo by name in the manifest
 #kpick 225982 # roomservice.py: Strip cm.{mk,dependencies} support
+kpick 226123 # soong_config: Add new flags for HW FDE
+kpick 226125 # soong_config: Add flag for legacy HW FDE
+kpick 226126 # soong_config: Add flag for crypto waiting on QSEE to start
 kpick 226184 # soong_config: Allow process-specific override of target SDK version
 kpick 226317 # repopick: Warn about empty commits instead of failing
 
 # vendor/qcom/opensource/audio
+
+# vendor/qcom/opensource/cryptfs/hw
+kpick 226128 # cryptfs_hw: Add compatibility for pre-O hw crypto
+kpick 226129 # cryptfs_hw: Featureize support for waiting on QSEE to start
+kpick 226130 # cryptfs_hw: add missing logging tag
 
 #-----------------------
 # translations
