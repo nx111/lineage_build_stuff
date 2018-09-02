@@ -768,10 +768,6 @@ kpick 223943 # bionic: meh
 kpick 225463 # bionic: Let popen and system fall back to /sbin/sh
 kpick 225464 # bionic: Sort and cache hosts file data for fast lookup
 kpick 225465 # libc: Mark libstdc++ as vendor available
-kpick 225696 # Revert "libc: Remove duplicate __memcpy_chk in kryo routines"
-kpick 225697 # Revert "libc: kryo300 specific memory routine"
-kpick 225698 # libc: Add fortify support for kryo memcpy.
-kpick 225699 # libc: Add fortify support for kryo300 memcpy.
 kpick 225764 # Add inaddr.h header file.
 kpick 225940 # Allow whitelisted processes to use destroyed mutex
 kpick 226183 # Implement per-process target SDK version override.
@@ -786,6 +782,7 @@ kpick 226284 # uncrypt: fix f2fs ioctl argument for pin_file
 kpick 222733 # core: Disable vendor restrictions
 kpick 222742 # build: Use project pathmap for recovery
 kpick 222760 # Add LOCAL_AIDL_FLAGS
+kpick 226471 # Also check if BOARD_KERNEL_SEPARATED_DTBO is set
 
 # build/soong
 kpick 222648 # Allow providing flex and bison binaries
@@ -922,10 +919,8 @@ kpick 225593 # PowerManager: Add proximity check on wake
 kpick 225598 # PowerManagerService: Allow to light up buttons only when pressed
 kpick 225599 # PowerManager: Allow to distinguish different keypresses
 kpick 225600 # PowerManagerService: Wake on plug (1/2)
-kpick 225594 # SystemUI: Bringup tuner navbar and statusbar changes
 kpick 225983 # Runtime toggle of navbar
 kpick 225606 # Forward port 'Swap volume buttons' (1/3)
-kpick 225643 # Support for device specific key handlers
 kpick 225650 # Configurable 0, 90, 180 and 270 degree rotation
 kpick 225651 # SystemUI: enable NFC tile
 kpick 225652 # SystemUI: add caffeine qs tile
@@ -956,10 +951,6 @@ kpick 225729 # Framework: Forward port Long press back to kill app (2/2)
 kpick 225734 # Allow screen unpinning on devices without navbar
 kpick 225754 # SystemUI: Berry styles
 kpick 225766 # Add an option to force pre-O apps to use full screen aspect ratio
-kpick 225778 # SystemUI: Port brightness slider changes
-kpick 225779 # SystemUI: Port statusbar brightness control
-kpick 225789 # SystemUI: Add visualizer feature
-kpick 225790 # base: Allow to disable Lockscreen Media Art [1/3]
 kpick 225799 # SystemUI: fix toggling lockscreen rotation [1/3]
 kpick 225859 # storage: Do not notify for volumes on non-removable disks
 kpick 225861 # [2/3] NetworkManagement : Add ability to restrict app data/wifi usage
@@ -972,13 +963,11 @@ kpick 226133 # Port ADB over network and ability to hide the notification
 kpick 226236 # SystemUI: add navbar button layout inversion tuning
 kpick 226249 # fw/b: Allow customisation of navbar app switch long press action
 kpick 226276 # power: Re-introduce custom charging sounds
-kpick 226285 # Revert "ActivityManager: Restore getRecentTasksForUser method"
 kpick 226332 # CacheQuotaStrategy: Fix resource leak when reading cache quotas
 kpick 226342 # Stop initializing app ops in Camera default constructor.
 kpick 226343 # CameraServiceProxy: Loosen UID check
 kpick 226354 # Camera: Add feature extensions
 kpick 226358 # settings: Allow accessing LineageSettings via settings command
-kpick 226367 # SystemUI: Add tuner interface to StatusBarSignalPolicy
 kpick 226398 # frameworks: base: Port password retention feature
 kpick 226399 # Use fdeCheckPassword error code to indicate pw failure
 kpick 226400 # LockSettingsService: Support for separate clear key api
@@ -1009,7 +998,7 @@ kpick 225816 # libbt-vendor: add support for samsung bluetooth
 kpick 226447 # libbt: Make sure that we don't load pre-patch when looking for patch
 
 # hardware/boardcomm/wlan
-kpick 225241 # 	net: wireless: bcmdhd: Update bcm4339 FW (6.37.34.43) [DO NOT MERGE]
+kpick 225241 # net: wireless: bcmdhd: Update bcm4339 FW (6.37.34.43) [DO NOT MERGE]
 
 # hardware/interfaces
 kpick 224064 # Revert "Bluetooth: Remove random MAC addresses"
@@ -1048,7 +1037,6 @@ kpick 225193 # hal: Update prefixes for audio system properties
 kpick 223340 # Revert "msm8974: deprecate msm8974"
 kpick 223341 # display: Always assume kernel source is present
 kpick 223342 # display: add TARGET_PROVIDES_LIBLIGHT
-kpick 226688 # display: Don't use gnu-oldstyle field designators
 kpick 223343 # msm8974: Move QCOM HALs to vendor partition
 kpick 223344 # msm8974: hwcomposer: Fix regression in hwc_sync
 kpick 223345 # msm8974: libgralloc: Fix adding offset to the mapped base address
@@ -1060,6 +1048,8 @@ kpick 226419 # msm8960/74/94: Move GRALLOC_USAGE_PRIVATE_UNCACHED
 kpick 223434 # Include what we use.
 kpick 223435 # Add -Wno-error to compile with global -Werror.
 kpick 226422 # gralloc: Move GRALLOC_USAGE_PRIVATE_UNCACHED
+kpick 226481 # display: remove compile time warnings
+kpick 226482 # display: Enable clang for all display modules
 
 # hardware/qcom/display-caf/msm8998
 kpick 225757 # display: Define soong namespace
@@ -1097,7 +1087,6 @@ kpick 225632 # libril: Fix double freeing of memory in SAP service and add null-
 kpick 225633 # libril: Store the system time when NITZ is received.
 kpick 225634 # libril: Add DISABLE_RILD_OEM_HOOK.
 kpick 225635 # libril: Change rild initial sequence to guarantee non-null function pointer before rild register its hidl service
-kpick 225876 # libril: add missing return statement
 kpick 226072 # liblights: remove unused variable
 kpick 226073 # power: remove unused variable/mark unused parameter
 kpick 226074 # wifiloader: remove unused variable
@@ -1114,7 +1103,6 @@ kpick 225687 # PowerMenuConstants: Add user logout as new global action
 kpick 225914 # lineage-sdk: Rewrite Lineage preference classes used in about phone view
 kpick 226087 # lineage-sdk: Default config_deviceHardware{Wake}Keys to 64
 kpick 226141 # LineageSettingsProvider: Cleanup after LINEAGE_SETUP_WIZARD_COMPLETED deprecation
-kpick 226286 # Switch getLastTask to IActivityManager
 
 # packages/apps/AudioFX
 
@@ -1198,7 +1186,7 @@ kpick 225311 # Remove max aspect ratio.
 
 # packages/apps/LineageParts
 kpick 226145 # LineageParts: Reenable buttons related settings
-kpick 226390 # PowerMenuActions: Make to sure to enable setting lockdown setting	
+kpick 226390 # PowerMenuActions: Make to sure to enable setting lockdown setting
 kpick 226392 # LineageParts: Set proper default value for charging sounds
 
 # packages/apps/LockClock
@@ -1246,21 +1234,16 @@ kpick 224973 # Settings: gesture: Add LineageParts touchscreen gesture settings
 kpick 225596 # Settings: Add proximity check on wake preference
 kpick 225601 # Settings: display: Add wake on plug switch
 kpick 224974 # Settings: Allow devices to provide remote gesture preferences
-kpick 225642 # Expose option to change the device hostname.
 kpick 225678 # Settings: Add option to scramble pin layout when unlocking (1/2).
 kpick 225686 # Settings: Add advanced restart switch
 kpick 225730 # Settings: Add kill app back button toggle
 kpick 225755 # Settings: Hide AOSP theme-related controllers
 kpick 225756 # Settings: fix dark style issues
 kpick 225768 # Settings: Add an option to force pre-O apps to use full screen aspect ratio
-kpick 225787 # Settings: Add lockscreen visualizer toggle
-kpick 225788 # Settings: Add toggle for Lockscreen Media Art [2/3]
 kpick 225800 # Settings: Add rotation settings
-kpick 225819 # Settings: Add a RemotePreference for device-specific doze settings
 kpick 225858 # storage: Do not allow eject for volumes on non-removable disks
 kpick 225860 # [1/3] Settings: per-app cellular data and wifi restrictions
 kpick 225970 # DevelopmentSettings: Hide OEM unlock by default
-kpick 225979 # Settings: Add package name to installed app details
 kpick 226134 # Settings: Implement ADB notification and ADB over network
 kpick 226142 # Settings: Add developer setting for root access
 kpick 226146 # Settings: battery: Add LineageParts perf profiles
@@ -1268,8 +1251,6 @@ kpick 226148 # Settings: "Security & location" -> "Security & privacy"
 kpick 226149 # Settings: Add LineageOS legal info
 kpick 226150 # Settings: add Trust interface hook
 kpick 226151 # Settings: show Trust brading in confirm_lock_password UI
-kpick 226152 # Improve app info screen
-kpick 226153 # Allow sorting Applications by size
 kpick 226154 # fingerprint: Allow devices to configure sensor location
 kpick 226278 # Settings: Add LineageOS entries into device info
 kpick 226391 # Settings: Hide lockdown in lockscreen settings
@@ -1314,7 +1295,6 @@ kpick 225361 # Disable animations for translucent activities.
 kpick 225362 # Don't re-show search bar on query click.
 
 # packages/apps/Updater
-kpick 226079 # Updater: Clarify A/B Performance mode string
 
 # packages/apps/WallpaperPicker
 kpick 225363 # WallpaperPicker: bump gradle
@@ -1442,6 +1422,7 @@ kpick 226184 # soong_config: Allow process-specific override of target SDK versi
 kpick 226317 # repopick: Warn about empty commits instead of failing
 kpick 226443 # soong: Add additional_deps attribute for libraries and binaries
 kpick 226444 # soong: Add generated_headers module alias
+kpick 226470 # build: Add dtbo task
 
 # vendor/qcom/opensource/audio
 
