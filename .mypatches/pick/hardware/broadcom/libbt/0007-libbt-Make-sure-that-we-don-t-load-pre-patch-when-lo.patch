@@ -1,0 +1,105 @@
+From 5c3e17e299a16343f833b7be4a098746438a65d0 Mon Sep 17 00:00:00 2001
+From: Alessandro Astone <alessandro.astone@hotmail.com>
+Date: Sun, 2 Sep 2018 02:07:53 +0200
+Subject: [PATCH 7/7] libbt: Make sure that we don't load pre-patch when
+ looking for patch
+
+ * hw_config_findpatch logic allowed for pre-patch files
+   to be loaded in place of patch files.
+   Check that the filename is not of the type "[CHIP_ID]_pre",
+   which we'll consider to be a pre-patch instead, that will be
+   taken care of by I2d2ec59094a1ae2cb39e1f41d4853ac4a45d1902
+
+Change-Id: I19cdf10af21d7d741dcbea42e5a4966d94349d95
+---
+ src/hardware.c | 54 ++++++++++++++++++++++++++++++--------------------
+ 1 file changed, 33 insertions(+), 21 deletions(-)
+
+diff --git a/src/hardware.c b/src/hardware.c
+index 1e748be..94b594f 100644
+--- a/src/hardware.c
++++ b/src/hardware.c
+@@ -67,6 +67,8 @@
+ #define BTHWDBG(param, ...) {}
+ #endif
+ 
++#define FW_PREPATCH_IDENTIFIER      "_pre"
++#define FW_PREPATCH_IDENTIFIER_LEN  4
+ #define FW_PATCHFILE_EXTENSION      ".hcd"
+ #define FW_PATCHFILE_EXTENSION_LEN  4
+ #define FW_PATCHFILE_PATH_MAXLEN    248 /* Local_Name length of return of
+@@ -527,9 +529,10 @@ static uint8_t hw_config_findpatch(char *p_chip_id_str)
+         while ((dp = readdir(dirp)) != NULL)
+         {
+             /* Check if filename starts with chip-id name */
+-            int cmp;
++            int cmp, chip_id_len;
+ 
+-            cmp = hw_strncmp(dp->d_name, p_chip_id_str, strlen(p_chip_id_str));
++            chip_id_len = strlen(p_chip_id_str);
++            cmp = hw_strncmp(dp->d_name, p_chip_id_str, chip_id_len);
+             if (cmp == 0)
+             {
+ #ifdef SAMSUNG_BLUETOOTH
+@@ -558,30 +561,39 @@ static uint8_t hw_config_findpatch(char *p_chip_id_str)
+                           FW_PATCHFILE_EXTENSION_LEN) \
+                      ) == 0))
+                 {
+-                    ALOGI("Found patchfile: %s/%s", \
+-                        fw_patchfile_path, dp->d_name);
+ 
+-                    /* Make sure length does not exceed maximum */
+-                    if ((filenamelen + strlen(fw_patchfile_path)) > \
+-                         FW_PATCHFILE_PATH_MAXLEN)
++                    /* Make sure it's not a prepatch */
++                    if((filenamelen < chip_id_len + FW_PREPATCH_IDENTIFIER_LEN) ||
++                        (filenamelen >= chip_id_len + FW_PREPATCH_IDENTIFIER_LEN &&
++                        hw_strncmp(&dp->d_name[chip_id_len], \
++                            FW_PREPATCH_IDENTIFIER, \
++                            FW_PREPATCH_IDENTIFIER_LEN) != 0))
+                     {
+-                        ALOGE("Invalid patchfile name (too long)");
+-                    }
+-                    else
+-                    {
+-                        memset(p_chip_id_str, 0, FW_PATCHFILE_PATH_MAXLEN);
+-                        /* Found patchfile. Store location and name */
+-                        strcpy(p_chip_id_str, fw_patchfile_path);
+-                        if (fw_patchfile_path[ \
+-                            strlen(fw_patchfile_path)- 1 \
+-                            ] != '/')
++                        ALOGI("Found patchfile: %s/%s", \
++                            fw_patchfile_path, dp->d_name);
++
++                        /* Make sure length does not exceed maximum */
++                        if ((filenamelen + strlen(fw_patchfile_path)) > \
++                             FW_PATCHFILE_PATH_MAXLEN)
+                         {
+-                            strcat(p_chip_id_str, "/");
++                            ALOGE("Invalid patchfile name (too long)");
+                         }
+-                        strcat(p_chip_id_str, dp->d_name);
+-                        retval = TRUE;
++                        else
++                        {
++                            memset(p_chip_id_str, 0, FW_PATCHFILE_PATH_MAXLEN);
++                            /* Found patchfile. Store location and name */
++                            strcpy(p_chip_id_str, fw_patchfile_path);
++                            if (fw_patchfile_path[ \
++                                strlen(fw_patchfile_path)- 1 \
++                                ] != '/')
++                            {
++                                strcat(p_chip_id_str, "/");
++                            }
++                            strcat(p_chip_id_str, dp->d_name);
++                            retval = TRUE;
++                        }
++                        break;
+                     }
+-                    break;
+                 }
+             }
+         }
+-- 
+2.17.1
+

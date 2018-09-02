@@ -723,8 +723,7 @@ if [ $op_base_pick -eq 1 ]; then
 
    echo 
    echo "Apply I hate the safty net..."
-   cd $topdir/system/core;find  $topdir/.mypatches/local/system/core/ -name "*I-hate-the-safty-net*.patch" | xargs cat \
-         | git am -3   --keep-cr --committer-date-is-author-date; cd $topdir
+   privpick system/core refs/changes/19/206119/2 # init: I hate safety net
    touch $topdir/.pick_base
    exit 0
 fi
@@ -1007,6 +1006,10 @@ kpick 225148 # libbt: Add prepatch support
 kpick 225149 # libbt: Add support for using two stop bits
 kpick 225155 # Broadcom BT: Add support fm/bt via v4l2.
 kpick 225816 # libbt-vendor: add support for samsung bluetooth
+kpick 226447 # libbt: Make sure that we don't load pre-patch when looking for patch
+
+# hardware/boardcomm/wlan
+kpick 225241 # 	net: wireless: bcmdhd: Update bcm4339 FW (6.37.34.43) [DO NOT MERGE]
 
 # hardware/interfaces
 kpick 224064 # Revert "Bluetooth: Remove random MAC addresses"
@@ -1032,13 +1035,31 @@ kpick 226240 # lineage: Prepend vendor. to all HAL services
 
 # hardware/lineage/lineagehw
 
+# hardware/nxp/nfc
+kpick 223192 # nfc: Restore pn548 support to 1.1 HAL
+kpick 223193 # nxp: Rename HAL to @1.1-service-nxp
+kpick 223194 # nxp: Begin restoring pn547
+
 # hardware/qcom/audio-caf/msm8974
 kpick 223436 # Add -Wno-error to compile with global -Werror.
 kpick 225193 # hal: Update prefixes for audio system properties
 
+# hardware/qcom/display
+kpick 223340 # Revert "msm8974: deprecate msm8974"
+kpick 223341 # display: Always assume kernel source is present
+kpick 223342 # display: add TARGET_PROVIDES_LIBLIGHT
+kpick 226688 # display: Don't use gnu-oldstyle field designators
+kpick 223343 # msm8974: Move QCOM HALs to vendor partition
+kpick 223344 # msm8974: hwcomposer: Fix regression in hwc_sync
+kpick 223345 # msm8974: libgralloc: Fix adding offset to the mapped base address
+kpick 223346 # msm8974: libexternal should depend on libmedia
+kpick 224958 # msm8960/8974: Include string.h where it is necessary
+kpick 226419 # msm8960/74/94: Move GRALLOC_USAGE_PRIVATE_UNCACHED
+
 # hardware/qcom/display-caf/msm8974
 kpick 223434 # Include what we use.
 kpick 223435 # Add -Wno-error to compile with global -Werror.
+kpick 226422 # gralloc: Move GRALLOC_USAGE_PRIVATE_UNCACHED
 
 # hardware/qcom/display-caf/msm8998
 kpick 225757 # display: Define soong namespace
@@ -1419,6 +1440,8 @@ kpick 226126 # soong_config: Add flag for crypto waiting on QSEE to start
 kpick 226155 # soong_config: Add add_json_str_omitempty function
 kpick 226184 # soong_config: Allow process-specific override of target SDK version
 kpick 226317 # repopick: Warn about empty commits instead of failing
+kpick 226443 # soong: Add additional_deps attribute for libraries and binaries
+kpick 226444 # soong: Add generated_headers module alias
 
 # vendor/qcom/opensource/audio
 
