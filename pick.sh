@@ -10,9 +10,11 @@ op_snap_project=""
 op_patches_dir=""
 op_base_pick=0
 default_remote="github"
-script_file=$(realpath $0)
+script_file=$0
 conflict_resolved=0
 checkcount=200
+
+[ "$script_file" != "bash" ] && script_file=$(realpath $0)
 
 ##### apply patch saved first ########
 function get_defaul_remote()
@@ -945,14 +947,10 @@ kpick 225734 # Allow screen unpinning on devices without navbar
 kpick 225754 # SystemUI: Berry styles
 kpick 225799 # SystemUI: fix toggling lockscreen rotation [1/3]
 kpick 225859 # storage: Do not notify for volumes on non-removable disks
-kpick 225919 # PackageManager: allow build-time disabling of components
 kpick 226068 # Fix mounting of non-FAT formatted SD cards (1/2)
-kpick 226081 # fingerprint: notify client when cancelling succeeded
-kpick 226084 # fingerprint: handle PerformanceStats NULL pointers
 kpick 226236 # SystemUI: add navbar button layout inversion tuning
 kpick 226249 # fw/b: Allow customisation of navbar app switch long press action
 kpick 226276 # power: Re-introduce custom charging sounds
-kpick 226332 # CacheQuotaStrategy: Fix resource leak when reading cache quotas
 kpick 226342 # Stop initializing app ops in Camera default constructor.
 kpick 226343 # CameraServiceProxy: Loosen UID check
 kpick 226354 # Camera: Add feature extensions
@@ -961,6 +959,9 @@ kpick 226398 # frameworks: base: Port password retention feature
 kpick 226399 # Use fdeCheckPassword error code to indicate pw failure
 kpick 226400 # LockSettingsService: Support for separate clear key api
 kpick 226401 # AppOps: track op persistence by name instead of id
+kpick 226599 # SystemUI: Set proper NFCTile state
+kpick 226600 # PhoneWindowManager: Check if proposed rotation is in range
+kpick 226615 # NavigationBarView: Avoid NPE before mPanelView is created
 
 # frameworks/native
 kpick 224443 # libbinder: Don't log call trace when waiting for vendor service on non-eng builds
@@ -1019,6 +1020,7 @@ kpick 223194 # nxp: Begin restoring pn547
 # hardware/qcom/audio-caf/msm8974
 kpick 223436 # Add -Wno-error to compile with global -Werror.
 kpick 225193 # hal: Update prefixes for audio system properties
+kpick 226619 # hal: Require feature flags to be explicitly enabled
 
 # hardware/qcom/display
 kpick 223340 # Revert "msm8974: deprecate msm8974"
@@ -1176,8 +1178,6 @@ kpick 226390 # PowerMenuActions: Make to sure to enable setting lockdown setting
 kpick 226392 # LineageParts: Set proper default value for charging sounds
 
 # packages/apps/LockClock
-kpick 226319 # LockClock: Declare private API dependency
-kpick 226320 # LockClock: Build with AAPT2
 
 # packages/apps/Message
 kpick 225317 # Messaging: Implement option for swipe right to delete.
@@ -1208,8 +1208,6 @@ kpick 223701 # NFC: Clean duplicated and unknown permissions
 kpick 223703 # nxp: jni: Implement AOSP P abstract methods
 
 # packages/apps/Profiles
-kpick 226315 # Profiles: Set LOCAL_PRIVATE_PLATFORM_APIS
-kpick 226316 # Profiles: Build with AAPT2
 
 # packages/apps/Recorder
 
@@ -1301,7 +1299,6 @@ kpick 225412 # Fix mounting of non-FAT formatted SD cards (2/2)
 kpick 226394 # TelephonyProvider: add upgrade support from cm-14.1
 
 # packages/services/Telecomm
-kpick 225708 # Add back increasing ring feature (3/3).
 kpick 226093 # Telecomm: Make sensitive phone numbers not to be shown in call log history.
 
 # packages/services/Telephony
@@ -1393,7 +1390,6 @@ kpick 225939 # roomservice.py: non-depsonly: bootstrap first device repo from Hu
 kpick 226123 # soong_config: Add new flags for HW FDE
 kpick 226125 # soong_config: Add flag for legacy HW FDE
 kpick 226126 # soong_config: Add flag for crypto waiting on QSEE to start
-kpick 226155 # soong_config: Add add_json_str_omitempty function
 kpick 226184 # soong_config: Allow process-specific override of target SDK version
 kpick 226317 # repopick: Warn about empty commits instead of failing
 kpick 226443 # soong: Add additional_deps attribute for libraries and binaries

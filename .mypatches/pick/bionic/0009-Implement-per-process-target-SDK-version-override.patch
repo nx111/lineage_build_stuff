@@ -1,4 +1,4 @@
-From 75a1a4f2de9117f9e6268131a9dac3bc594cb29e Mon Sep 17 00:00:00 2001
+From 906c2c0fbb53b520511ce6ea15e3da6716494969 Mon Sep 17 00:00:00 2001
 From: Danny Baumann <dannybaumann@web.de>
 Date: Wed, 29 Aug 2018 11:21:52 +0200
 Subject: [PATCH 9/9] Implement per-process target SDK version override.
@@ -6,8 +6,8 @@ Subject: [PATCH 9/9] Implement per-process target SDK version override.
 Change-Id: I65bbdbe96541d8aacdd4de125cdb9c1435129413
 ---
  linker/Android.bp |  3 +++
- linker/linker.cpp | 33 ++++++++++++++++++++++++++++++++-
- 2 files changed, 35 insertions(+), 1 deletion(-)
+ linker/linker.cpp | 13 ++++++++++++-
+ 2 files changed, 15 insertions(+), 1 deletion(-)
 
 diff --git a/linker/Android.bp b/linker/Android.bp
 index 5b7972a5a..238ac2f8f 100644
@@ -24,44 +24,24 @@ index 5b7972a5a..238ac2f8f 100644
      },
  
 diff --git a/linker/linker.cpp b/linker/linker.cpp
-index 6ba879765..d392ff185 100644
+index 6ba879765..0427e3f04 100644
 --- a/linker/linker.cpp
 +++ b/linker/linker.cpp
-@@ -3927,7 +3927,38 @@ std::vector<android_namespace_t*> init_default_namespaces(const char* executable
+@@ -3927,7 +3927,18 @@ std::vector<android_namespace_t*> init_default_namespaces(const char* executable
      // somain and ld_preloads are added to these namespaces after LD_PRELOAD libs are linked
    }
  
 -  set_application_target_sdk_version(config->target_sdk_version());
 +  uint32_t target_sdk = config->target_sdk_version();
 +#ifdef SDK_VERSION_OVERRIDES
-+  std::string sdk_overrides(SDK_VERSION_OVERRIDES);
-+
-+  size_t start_pos = 0, delimiter_pos = sdk_overrides.find_first_of(' ');
-+  while (true) {
-+    std::string token = delimiter_pos == std::string::npos
-+      ? sdk_overrides.substr(start_pos)
-+      : sdk_overrides.substr(start_pos, delimiter_pos - start_pos);
-+    if (token.empty()) {
++  for (const auto& entry : android::base::Split(SDK_VERSION_OVERRIDES, " ")) {
++    auto splitted = android::base::Split(entry, "=");
++    if (splitted.size() == 2 && splitted[0] == executable_path) {
++      target_sdk = static_cast<uint32_t>(std::stoul(splitted[1]));
 +      break;
 +    }
-+
-+    size_t separator_pos = token.find_first_of('=');
-+    if (separator_pos != std::string::npos && token.substr(0, separator_pos) == executable_path) {
-+      char *endptr = nullptr;
-+      unsigned long version = strtoul(token.substr(separator_pos + 1).c_str(), &endptr, 0);
-+      if (!*endptr) {
-+        PRINT("Read version %ld for %s", version, executable_path);
-+        target_sdk = static_cast<uint32_t>(version);
-+        break;
-+      }
-+    }
-+    if (delimiter_pos == std::string::npos) {
-+      break;
-+    }
-+    start_pos = delimiter_pos + 1;
-+    delimiter_pos = sdk_overrides.find_first_of(' ', start_pos);
 +  }
-+  PRINT("Target SDK for %s = %d", executable_path, target_sdk);
++  DEBUG("Target SDK for %s = %d", executable_path, target_sdk);
 +#endif
 +  set_application_target_sdk_version(target_sdk);
  
