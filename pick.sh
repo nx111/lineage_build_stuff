@@ -782,12 +782,12 @@ kpick 226284 # uncrypt: fix f2fs ioctl argument for pin_file
 kpick 222733 # core: Disable vendor restrictions
 kpick 222742 # build: Use project pathmap for recovery
 kpick 222760 # Add LOCAL_AIDL_FLAGS
-kpick 226471 # Also check if BOARD_KERNEL_SEPARATED_DTBO is set
 
 # build/soong
 kpick 222648 # Allow providing flex and bison binaries
 kpick 224613 # soong: Add LOCAL_AIDL_FLAGS handling
 kpick 224827 # soong: Add java sources overlay support
+kpick 226593 # soong: Add function to return targer specific header path
 
 # dalvik
 kpick 225475 # dexdeps: Add option for --include-lineage-classes.
@@ -903,6 +903,7 @@ kpick 225537 # libstagefright: Add more sample rates for FLAC
 kpick 225539 # Camera:CameraService: Added lock on mHIDLMemPoolId in QDataCallback..
 kpick 225540 # Camera: CameraHardwareInterface: Releasing mHIDLMemoryMapLock in QdataCallback
 kpick 225746 # Camera: Handle duplicate camera Id due to openLegacy support
+kpick 226592 # camera/parameters: Take device specific headers into account
 
 # frameworks/base
 kpick 224266 # SystemUI: Add Lineage statusbar item holder
@@ -912,13 +913,6 @@ kpick 224513 # SystemUI: Disable config_keyguardUserSwitcher on sw600dp
 kpick 224844 # lockscreen: Add option for showing unlock screen directly
 kpick 225582 # [TEMP]: Revert "OMS: harden permission checks"
 kpick 225685 # frameworks: Power menu customizations
-kpick 225590 # Reintroduce button-backlight (and respective inactivity timeout)
-kpick 225591 # power: Disable keyboard/button lights while dozing/dreaming
-kpick 225592 # PowerManager: Re-integrate button brightness
-kpick 225593 # PowerManager: Add proximity check on wake
-kpick 225598 # PowerManagerService: Allow to light up buttons only when pressed
-kpick 225599 # PowerManager: Allow to distinguish different keypresses
-kpick 225600 # PowerManagerService: Wake on plug (1/2)
 kpick 225983 # Runtime toggle of navbar
 kpick 225606 # Forward port 'Swap volume buttons' (1/3)
 kpick 225650 # Configurable 0, 90, 180 and 270 degree rotation
@@ -932,12 +926,11 @@ kpick 225657 # SystemUI: AmbientDisplay tile
 kpick 225658 # SystemUI: USB Tether tile
 kpick 225659 # SystemUI: LiveDisplay tile
 kpick 225661 # SystemUI: Reading mode tile
-kpick 225679 # Keyguard: Add option to scramble pin layout when unlocking (2/2).
+kpick 226083 # Keyguard: Allow disabling fingerprint wake-and-unlock
 kpick 225680 # SystemUI: Allow overlaying max notification icons
 kpick 225682 # Framework: Volume key cursor control
 kpick 225683 # PhoneWindowManager: add LineageButtons volumekey hook
 kpick 225684 # Long-press power while display is off for torch
-kpick 225690 # sensors: Create bool to select what timestamp to use
 kpick 225691 # SystemUI: Don't vibrate on touchscreen camera gesture
 kpick 225692 # framework: move device key handler logic, fix gesture camera launch
 kpick 225693 # SystemUI: add left and right virtual buttons while typing
@@ -950,16 +943,12 @@ kpick 225728 # Camera button support
 kpick 225729 # Framework: Forward port Long press back to kill app (2/2)
 kpick 225734 # Allow screen unpinning on devices without navbar
 kpick 225754 # SystemUI: Berry styles
-kpick 225766 # Add an option to force pre-O apps to use full screen aspect ratio
 kpick 225799 # SystemUI: fix toggling lockscreen rotation [1/3]
 kpick 225859 # storage: Do not notify for volumes on non-removable disks
-kpick 225861 # [2/3] NetworkManagement : Add ability to restrict app data/wifi usage
 kpick 225919 # PackageManager: allow build-time disabling of components
 kpick 226068 # Fix mounting of non-FAT formatted SD cards (1/2)
 kpick 226081 # fingerprint: notify client when cancelling succeeded
-kpick 226083 # Keyguard: Allow disabling fingerprint wake-and-unlock
 kpick 226084 # fingerprint: handle PerformanceStats NULL pointers
-kpick 226133 # Port ADB over network and ability to hide the notification
 kpick 226236 # SystemUI: add navbar button layout inversion tuning
 kpick 226249 # fw/b: Allow customisation of navbar app switch long press action
 kpick 226276 # power: Re-introduce custom charging sounds
@@ -981,8 +970,6 @@ kpick 225543 # sensorservice: customize sensor fusion mag filter via prop
 kpick 225544 # input: Adjust priority
 kpick 225545 # Forward port 'Swap volume buttons' (2/3)
 kpick 225546 # AppOpsManager: Update with the new ops
-kpick 225547 # PowerManager.h: Define USER_ACTIVITY_FLAG values
-kpick 225548 # InputDispatcher: On keypress, deliver keycode to pokeUserActivity
 kpick 225827 # libui: Allow extension of valid gralloc 1.0 buffer usage bits
 
 # frameworks/opt/telephony
@@ -1100,7 +1087,6 @@ kpick 226077 # libsecril-client: remove unused variables/functions
 #kpick 223137 # lineage-sdk: Comment out LineageAudioService
 kpick 225581 # lineage-sdk: Make styles init at system services ready
 kpick 225687 # PowerMenuConstants: Add user logout as new global action
-kpick 225914 # lineage-sdk: Rewrite Lineage preference classes used in about phone view
 kpick 226087 # lineage-sdk: Default config_deviceHardware{Wake}Keys to 64
 kpick 226141 # LineageSettingsProvider: Cleanup after LINEAGE_SETUP_WIZARD_COMPLETED deprecation
 
@@ -1231,28 +1217,20 @@ kpick 226316 # Profiles: Build with AAPT2
 kpick 224615 # deviceInfo: Fix imei dialog fc when only 1 sim is inserted
 kpick 225570 # Settings: Add LineageParts charging sound settings preference
 kpick 224973 # Settings: gesture: Add LineageParts touchscreen gesture settings
-kpick 225596 # Settings: Add proximity check on wake preference
-kpick 225601 # Settings: display: Add wake on plug switch
 kpick 224974 # Settings: Allow devices to provide remote gesture preferences
-kpick 225678 # Settings: Add option to scramble pin layout when unlocking (1/2).
 kpick 225686 # Settings: Add advanced restart switch
 kpick 225730 # Settings: Add kill app back button toggle
 kpick 225755 # Settings: Hide AOSP theme-related controllers
 kpick 225756 # Settings: fix dark style issues
-kpick 225768 # Settings: Add an option to force pre-O apps to use full screen aspect ratio
 kpick 225800 # Settings: Add rotation settings
 kpick 225858 # storage: Do not allow eject for volumes on non-removable disks
-kpick 225860 # [1/3] Settings: per-app cellular data and wifi restrictions
 kpick 225970 # DevelopmentSettings: Hide OEM unlock by default
-kpick 226134 # Settings: Implement ADB notification and ADB over network
 kpick 226142 # Settings: Add developer setting for root access
 kpick 226146 # Settings: battery: Add LineageParts perf profiles
 kpick 226148 # Settings: "Security & location" -> "Security & privacy"
-kpick 226149 # Settings: Add LineageOS legal info
 kpick 226150 # Settings: add Trust interface hook
 kpick 226151 # Settings: show Trust brading in confirm_lock_password UI
 kpick 226154 # fingerprint: Allow devices to configure sensor location
-kpick 226278 # Settings: Add LineageOS entries into device info
 kpick 226391 # Settings: Hide lockdown in lockscreen settings
 
 # packages/apps/SetupWizard
@@ -1323,7 +1301,6 @@ kpick 225412 # Fix mounting of non-FAT formatted SD cards (2/2)
 kpick 226394 # TelephonyProvider: add upgrade support from cm-14.1
 
 # packages/services/Telecomm
-kpick 223099 # Telecomm: Squashed phone_type switch support
 kpick 225708 # Add back increasing ring feature (3/3).
 kpick 226093 # Telecomm: Make sensitive phone numbers not to be shown in call log history.
 
@@ -1361,7 +1338,6 @@ repo sync --force-sync system/extras/su
 # system/extras/su
 
 # system/netd
-kpick 225429 # [3/3] NetD : Allow passing in interface names for wifi/data app restriction
 
 # system/sepolicy
 kpick 223746 # Add rules required for TARGET_HAS_LEGACY_CAMERA_HAL1
@@ -1422,7 +1398,7 @@ kpick 226184 # soong_config: Allow process-specific override of target SDK versi
 kpick 226317 # repopick: Warn about empty commits instead of failing
 kpick 226443 # soong: Add additional_deps attribute for libraries and binaries
 kpick 226444 # soong: Add generated_headers module alias
-kpick 226470 # build: Add dtbo task
+kpick 226591 # soong: Add support for target specific headers
 
 # vendor/qcom/opensource/audio
 

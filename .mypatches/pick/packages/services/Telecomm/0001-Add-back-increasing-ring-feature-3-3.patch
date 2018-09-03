@@ -1,0 +1,159 @@
+From 3800b68a640b2c37dc52d4c88cf8ac7ab32be52d Mon Sep 17 00:00:00 2001
+From: Danny Baumann <dannybaumann@web.de>
+Date: Tue, 11 Nov 2014 14:51:11 +0100
+Subject: [PATCH 1/2] Add back increasing ring feature (3/3).
+
+Change-Id: I6c0582ff92fea06ee18df6d084790b420b1b58f6
+---
+ Android.mk                                    |  2 ++
+ .../server/telecom/AsyncRingtonePlayer.java   | 32 ++++++++++++++++++-
+ src/com/android/server/telecom/Ringer.java    | 18 ++++++++++-
+ 3 files changed, 50 insertions(+), 2 deletions(-)
+
+diff --git a/Android.mk b/Android.mk
+index 4e5eeff5..207103d0 100644
+--- a/Android.mk
++++ b/Android.mk
+@@ -5,6 +5,8 @@ include $(CLEAR_VARS)
+ 
+ LOCAL_JAVA_LIBRARIES := telephony-common
+ 
++LOCAL_STATIC_JAVA_LIBRARIES := org.lineageos.platform.internal
++
+ LOCAL_SRC_FILES := $(call all-java-files-under, src) $(call all-proto-files-under, proto)
+ LOCAL_RESOURCE_DIR := $(LOCAL_PATH)/res
+ LOCAL_USE_AAPT2 := true
+diff --git a/src/com/android/server/telecom/AsyncRingtonePlayer.java b/src/com/android/server/telecom/AsyncRingtonePlayer.java
+index 8a7be4dd..26ad7691 100644
+--- a/src/com/android/server/telecom/AsyncRingtonePlayer.java
++++ b/src/com/android/server/telecom/AsyncRingtonePlayer.java
+@@ -37,6 +37,7 @@ public class AsyncRingtonePlayer {
+     private static final int EVENT_PLAY = 1;
+     private static final int EVENT_STOP = 2;
+     private static final int EVENT_REPEAT = 3;
++    private static final int EVENT_INCREASE_VOLUME = 4;
+ 
+     // The interval in which to restart the ringer.
+     private static final int RESTART_RINGER_MILLIS = 3000;
+@@ -46,13 +47,18 @@ public class AsyncRingtonePlayer {
+ 
+     /** The current ringtone. Only used by the ringtone thread. */
+     private Ringtone mRingtone;
++    private float mIncrementAmount;
++    private float mCurrentIncrementVolume;
+ 
+     /** Plays the ringtone. */
+-    public void play(RingtoneFactory factory, Call incomingCall) {
++    public void play(RingtoneFactory factory, Call incomingCall,
++            float incStartVolume, int incRampUpTime) {
+         Log.d(this, "Posting play.");
+         SomeArgs args = SomeArgs.obtain();
+         args.arg1 = factory;
+         args.arg2 = incomingCall;
++        args.argi1 = Math.round(incStartVolume * 100F);
++        args.argi2 = incRampUpTime;
+         postMessage(EVENT_PLAY, true /* shouldCreateHandler */, args);
+     }
+ 
+@@ -105,6 +111,15 @@ public class AsyncRingtonePlayer {
+                     case EVENT_STOP:
+                         handleStop();
+                         break;
++                    case EVENT_INCREASE_VOLUME:
++                        mCurrentIncrementVolume += mIncrementAmount;
++                        Log.d(AsyncRingtonePlayer.this, "Increasing ringtone volume to "
++                                + Math.round(mCurrentIncrementVolume * 100F) + "%");
++                        mRingtone.setVolume(mCurrentIncrementVolume);
++                        if (mCurrentIncrementVolume < 1F) {
++                            sendEmptyMessageDelayed(EVENT_INCREASE_VOLUME, 1000);
++                        }
++                        break;
+                 }
+             }
+         };
+@@ -116,6 +131,8 @@ public class AsyncRingtonePlayer {
+     private void handlePlay(SomeArgs args) {
+         RingtoneFactory factory = (RingtoneFactory) args.arg1;
+         Call incomingCall = (Call) args.arg2;
++        float incStartVolume = (float) args.argi1 / 100F;
++        int incRampUpTime = args.argi2;
+         args.recycle();
+         // don't bother with any of this if there is an EVENT_STOP waiting.
+         if (mHandler.hasMessages(EVENT_STOP)) {
+@@ -144,6 +161,18 @@ public class AsyncRingtonePlayer {
+             }
+         }
+ 
++        if (incRampUpTime > 0) {
++            Log.d(this, "Starting ringtone volume at " + Math.round(incStartVolume * 100F) + "%");
++            mRingtone.setVolume(incStartVolume);
++
++            mIncrementAmount = (1F - incStartVolume) / (float) incRampUpTime;
++            mCurrentIncrementVolume = incStartVolume;
++
++            mHandler.sendEmptyMessageDelayed(EVENT_INCREASE_VOLUME, 1000);
++        } else {
++            mRingtone.setVolume(1F);
++        }
++
+         handleRepeat();
+     }
+ 
+@@ -184,6 +213,7 @@ public class AsyncRingtonePlayer {
+             // At the time that STOP is handled, there should be no need for repeat messages in the
+             // queue.
+             mHandler.removeMessages(EVENT_REPEAT);
++            mHandler.removeMessages(EVENT_INCREASE_VOLUME);
+ 
+             if (mHandler.hasMessages(EVENT_PLAY)) {
+                 Log.v(this, "Keeping alive ringtone thread for subsequent play request.");
+diff --git a/src/com/android/server/telecom/Ringer.java b/src/com/android/server/telecom/Ringer.java
+index 1d27f452..fe74dc76 100644
+--- a/src/com/android/server/telecom/Ringer.java
++++ b/src/com/android/server/telecom/Ringer.java
+@@ -19,6 +19,7 @@ package com.android.server.telecom;
+ import android.app.Notification;
+ import android.app.NotificationManager;
+ import android.app.Person;
++import android.content.ContentResolver;
+ import android.content.Context;
+ import android.os.VibrationEffect;
+ import android.telecom.Log;
+@@ -32,6 +33,8 @@ import android.os.Vibrator;
+ 
+ import com.android.internal.annotations.VisibleForTesting;
+ 
++import lineageos.providers.LineageSettings;
++
+ import java.util.ArrayList;
+ 
+ /**
+@@ -181,11 +184,24 @@ public class Ringer {
+         if (isRingerAudible) {
+             mRingingCall = foregroundCall;
+             Log.addEvent(foregroundCall, LogUtils.Events.START_RINGER);
++
++            float startVolume = 0;
++            int rampUpTime = 0;
++
++            final ContentResolver cr = mContext.getContentResolver();
++            if (LineageSettings.System.getInt(cr,
++                    LineageSettings.System.INCREASING_RING, 0) != 0) {
++                startVolume = LineageSettings.System.getFloat(cr,
++                        LineageSettings.System.INCREASING_RING_START_VOLUME, 0.1f);
++                rampUpTime = LineageSettings.System.getInt(cr,
++                        LineageSettings.System.INCREASING_RING_RAMP_UP_TIME, 20);
++            }
++
+             // Because we wait until a contact info query to complete before processing a
+             // call (for the purposes of direct-to-voicemail), the information about custom
+             // ringtones should be available by the time this code executes. We can safely
+             // request the custom ringtone from the call and expect it to be current.
+-            mRingtonePlayer.play(mRingtoneFactory, foregroundCall);
++            mRingtonePlayer.play(mRingtoneFactory, foregroundCall, startVolume, rampUpTime);
+             effect = getVibrationEffectForCall(mRingtoneFactory, foregroundCall);
+         } else {
+             Log.i(this, "startRinging: skipping because ringer would not be audible. " +
+-- 
+2.17.1
+
