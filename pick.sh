@@ -918,16 +918,16 @@ kpick 225582 # [TEMP]: Revert "OMS: harden permission checks"
 kpick 225983 # Runtime toggle of navbar
 kpick 225606 # Forward port 'Swap volume buttons' (1/3)
 kpick 225650 # Configurable 0, 90, 180 and 270 degree rotation
-kpick 225651 # SystemUI: enable NFC tile
-kpick 225652 # SystemUI: add caffeine qs tile
+kpick 225651 # SystemUI: Enable NFC tile
+kpick 225652 # SystemUI: Add caffeine qs tile
 kpick 225653 # SystemUI: Add heads up tile
-kpick 225654 # QS: add Sync tile
-kpick 225655 # Added show volume panel tile to QS
-kpick 225656 # SystemUI: ADB over network tile
-kpick 225657 # SystemUI: AmbientDisplay tile
-kpick 225658 # SystemUI: USB Tether tile
-kpick 225659 # SystemUI: LiveDisplay tile
-kpick 225661 # SystemUI: Reading mode tile
+kpick 225654 # SystemUI: Add Sync tile
+kpick 225655 # SystemUI: Add tile to show volume panel
+kpick 225656 # SystemUI: Add ADB over network tile
+kpick 225657 # SystemUI: Add AmbientDisplay tile
+kpick 225658 # SystemUI: Add USB Tether tile
+kpick 225659 # SystemUI: Add LiveDisplay tile
+kpick 225661 # SystemUI: Add reading mode tile
 kpick 226083 # Keyguard: Allow disabling fingerprint wake-and-unlock
 kpick 225685 # frameworks: Power menu customizations
 kpick 225680 # SystemUI: Allow overlaying max notification icons
@@ -960,12 +960,13 @@ kpick 226398 # frameworks: base: Port password retention feature
 kpick 226399 # Use fdeCheckPassword error code to indicate pw failure
 kpick 226400 # LockSettingsService: Support for separate clear key api
 kpick 226401 # AppOps: track op persistence by name instead of id
-kpick 226587 # Camera: Expose Aux camera to apps present in the whitelist	
+kpick 226587 # Camera: Expose Aux camera to apps present in the whitelist
 kpick 226588 # camera: Check if aux camera whitelist is set before restricting cameras
-kpick 226599 # SystemUI: Set proper NFCTile state
+kpick 226599 # SystemUI: Update NFCTile to match P style
 kpick 226600 # PhoneWindowManager: Check if proposed rotation is in range
 kpick 226615 # NavigationBarView: Avoid NPE before mPanelView is created
 kpick 226634 # SystemUI: Update automatic brightness drawables
+kpick 226869 # SystemUI: Allow user to add/remove QS with one click
 
 # frameworks/native
 kpick 224443 # libbinder: Don't log call trace when waiting for vendor service on non-eng builds
@@ -1012,7 +1013,6 @@ kpick 223906 # biometrics: fingerprint: add locking to default impl
 kpick 223907 # Use -Werror in hardware/interfaces/biometrics/fingerprint
 kpick 223908 # fpc: keep fpc in system-background
 kpick 224525 # lineage/interfaces: Add basic USB HAL that reports no status change
-kpick 226240 # lineage: Prepend vendor. to all HAL services
 
 # hardware/lineage/lineagehw
 
@@ -1070,17 +1070,6 @@ kpick 223890 # Revert "power: Depend on vendor lineage power HAL"
 #kpick 223892 # power: Add power hint to set profile
 
 # hardware/qcom/wlan-caf
-kpick 226635 # wlan-caf: Add guard makefile
-kpick 226636 # wcnss-service: Additional format support
-kpick 226637 # wcnss: Build and dlopen wcnss_qmi_client as a shared library
-kpick 226638 # wcnss_qmi: Generate a fixed random mac address if the NV doesn't provide one
-kpick 226639 # wcnss_service: Deal with mdm-detect too
-kpick 226640 # wifi-hal: Only try LOWI once
-kpick 226641 # wifi-hal: stop the UMAC logspam
-kpick 226642 # Wifi: Quiet some excessive debug output
-kpick 226643 # wcnss_service: Read serial number from custom property
-kpick 226644 # Add LOCAL_ADDITIONAL_DEPENDENCIES to sanitized kernel headers.
-kpick 226645 # Make wcnss_service build with the VNDK.
 
 # hardware/ril-caf
 
@@ -1108,6 +1097,8 @@ kpick 225581 # lineage-sdk: Make styles init at system services ready
 kpick 225687 # PowerMenuConstants: Add user logout as new global action
 kpick 226087 # lineage-sdk: Default config_deviceHardware{Wake}Keys to 64
 kpick 226141 # LineageSettingsProvider: Cleanup after LINEAGE_SETUP_WIZARD_COMPLETED deprecation
+kpick 226864 # Fix LiveDisplay drawable off color
+kpick 226906 # Make livedisplay off drawable look-alike day
 
 # packages/apps/AudioFX
 
@@ -1194,6 +1185,7 @@ kpick 226141 # LineageSettingsProvider: Cleanup after LINEAGE_SETUP_WIZARD_COMPL
 kpick 226145 # LineageParts: Reenable buttons related settings
 kpick 226390 # PowerMenuActions: Make to sure to enable setting lockdown setting
 kpick 226392 # LineageParts: Set proper default value for charging sounds
+kpick 226863 # LineageParts: Drop  setting
 
 # packages/apps/LockClock
 

@@ -1,0 +1,377 @@
+From c9472f88e2b6d70742fe3c4ec4e5bbeb72994d0c Mon Sep 17 00:00:00 2001
+From: Keith Mok <kmok@cyngn.com>
+Date: Thu, 4 Feb 2016 11:10:22 -0800
+Subject: [PATCH 11/58] SystemUI: Add caffeine qs tile
+
+Change-Id: I5d4aa97ae63fc0bcc40f0fa7d9305efbba091029
+---
+ packages/SystemUI/LineageManifest.xml         |   4 +
+ .../SystemUI/res/drawable/ic_qs_caffeine.xml  |  27 +++
+ packages/SystemUI/res/values/cm_strings.xml   |  26 +++
+ packages/SystemUI/res/values/config.xml       |   2 +-
+ .../systemui/qs/tileimpl/QSFactoryImpl.java   |   7 +-
+ .../systemui/qs/tiles/CaffeineTile.java       | 218 ++++++++++++++++++
+ 6 files changed, 282 insertions(+), 2 deletions(-)
+ create mode 100644 packages/SystemUI/res/drawable/ic_qs_caffeine.xml
+ create mode 100644 packages/SystemUI/res/values/cm_strings.xml
+ create mode 100644 packages/SystemUI/src/com/android/systemui/qs/tiles/CaffeineTile.java
+
+diff --git a/packages/SystemUI/LineageManifest.xml b/packages/SystemUI/LineageManifest.xml
+index 91711569eb7..0eee641ff7b 100644
+--- a/packages/SystemUI/LineageManifest.xml
++++ b/packages/SystemUI/LineageManifest.xml
+@@ -19,6 +19,10 @@
+ <manifest xmlns:android="http://schemas.android.com/apk/res/android"
+         package="com.android.systemui">
+ 
++    <!-- QS Tiles -->
++    <uses-permission android:name="lineageos.permission.WRITE_SETTINGS" />
++    <uses-permission android:name="lineageos.permission.WRITE_SECURE_SETTINGS" />
++
+     <!-- Visualizer -->
+     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+     <uses-permission android:name="android.permission.RECORD_AUDIO" />
+diff --git a/packages/SystemUI/res/drawable/ic_qs_caffeine.xml b/packages/SystemUI/res/drawable/ic_qs_caffeine.xml
+new file mode 100644
+index 00000000000..2c3ba974a7e
+--- /dev/null
++++ b/packages/SystemUI/res/drawable/ic_qs_caffeine.xml
+@@ -0,0 +1,27 @@
++<?xml version="1.0" encoding="utf-8"?>
++<!--
++    Copyright (c) 2015 The CyanogenMod Project
++    Copyright (c) 2017 The LineageOS Project
++
++    Licensed under the Apache License, Version 2.0 (the "License");
++    you may not use this file except in compliance with the License.
++    You may obtain a copy of the License at
++
++        http://www.apache.org/licenses/LICENSE-2.0
++
++    Unless required by applicable law or agreed to in writing, software
++    distributed under the License is distributed on an "AS IS" BASIS,
++    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++    See the License for the specific language governing permissions and
++    limitations under the License.
++-->
++<vector xmlns:android="http://schemas.android.com/apk/res/android"
++        android:width="48dp"
++        android:height="48dp"
++        android:viewportWidth="24"
++        android:viewportHeight="24">
++
++    <path
++        android:fillColor="#FFFFFFFF"
++        android:pathData="M2,21H20V19H2M20,8H18V5H20M20,3H4V13A4,4 0 0,0 8,17H14A4,4 0 0,0 18,13V10H20A2,2 0 0,0 22,8V5C22,3.89 21.1,3 20,3Z" />
++</vector>
+diff --git a/packages/SystemUI/res/values/cm_strings.xml b/packages/SystemUI/res/values/cm_strings.xml
+new file mode 100644
+index 00000000000..c4234034b40
+--- /dev/null
++++ b/packages/SystemUI/res/values/cm_strings.xml
+@@ -0,0 +1,26 @@
++<?xml version="1.0" encoding="utf-8"?>
++<!--
++/**
++ * Copyright (c) 2015, The CyanogenMod Project
++ * Copyright (c) 2017-2018, The LineageOS Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *     http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++-->
++<resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
++    <!-- Custom QS tiles -->
++    <!-- Caffeine QS tile -->
++    <string name="quick_settings_caffeine_label">Caffeine</string>
++    <string name="accessibility_quick_settings_caffeine_off">Caffeine off.</string>
++    <string name="accessibility_quick_settings_caffeine_on">Caffeine on.</string>
++</resources>
+diff --git a/packages/SystemUI/res/values/config.xml b/packages/SystemUI/res/values/config.xml
+index 285a35b27db..d92d4076e68 100644
+--- a/packages/SystemUI/res/values/config.xml
++++ b/packages/SystemUI/res/values/config.xml
+@@ -123,7 +123,7 @@
+ 
+     <!-- Tiles native to System UI. Order should match "quick_settings_tiles_default" -->
+     <string name="quick_settings_tiles_stock" translatable="false">
+-        wifi,cell,battery,dnd,flashlight,rotation,bt,airplane,nfc,location,hotspot,inversion,saver,work,cast,night
++        wifi,cell,battery,dnd,flashlight,rotation,bt,airplane,nfc,location,hotspot,inversion,saver,work,cast,night,caffeine
+     </string>
+ 
+     <!-- The tiles to display in QuickSettings -->
+diff --git a/packages/SystemUI/src/com/android/systemui/qs/tileimpl/QSFactoryImpl.java b/packages/SystemUI/src/com/android/systemui/qs/tileimpl/QSFactoryImpl.java
+index ac7ef5dc308..29da80bde53 100644
+--- a/packages/SystemUI/src/com/android/systemui/qs/tileimpl/QSFactoryImpl.java
++++ b/packages/SystemUI/src/com/android/systemui/qs/tileimpl/QSFactoryImpl.java
+@@ -1,5 +1,6 @@
+ /*
+  * Copyright (C) 2017 The Android Open Source Project
++ * Copyright (C) 2017 The LineageOS Project
+  *
+  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use mHost file
+  * except in compliance with the License. You may obtain a copy of the License at
+@@ -26,6 +27,7 @@ import com.android.systemui.qs.external.CustomTile;
+ import com.android.systemui.qs.tiles.AirplaneModeTile;
+ import com.android.systemui.qs.tiles.BatterySaverTile;
+ import com.android.systemui.qs.tiles.BluetoothTile;
++import com.android.systemui.qs.tiles.CaffeineTile;
+ import com.android.systemui.qs.tiles.CastTile;
+ import com.android.systemui.qs.tiles.CellularTile;
+ import com.android.systemui.qs.tiles.ColorInversionTile;
+@@ -62,8 +64,8 @@ public class QSFactoryImpl implements QSFactory {
+     }
+ 
+     private QSTileImpl createTileInternal(String tileSpec) {
+-        // Stock tiles.
+         switch (tileSpec) {
++            // Stock tiles.
+             case "wifi":
+                 return new WifiTile(mHost);
+             case "bt":
+@@ -98,6 +100,9 @@ public class QSFactoryImpl implements QSFactory {
+                 return new NightDisplayTile(mHost);
+             case "nfc":
+                 return new NfcTile(mHost);
++            // Custom tiles.
++            case "caffeine":
++                return new CaffeineTile(mHost);
+         }
+ 
+         // Intent tiles.
+diff --git a/packages/SystemUI/src/com/android/systemui/qs/tiles/CaffeineTile.java b/packages/SystemUI/src/com/android/systemui/qs/tiles/CaffeineTile.java
+new file mode 100644
+index 00000000000..4f6ad8ff745
+--- /dev/null
++++ b/packages/SystemUI/src/com/android/systemui/qs/tiles/CaffeineTile.java
+@@ -0,0 +1,218 @@
++/*
++ * Copyright (C) 2016 The CyanogenMod Project
++ * Copyright (c) 2017 The LineageOS Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++package com.android.systemui.qs.tiles;
++
++import android.content.BroadcastReceiver;
++import android.content.Context;
++import android.content.Intent;
++import android.content.IntentFilter;
++import android.os.CountDownTimer;
++import android.os.PowerManager;
++import android.os.SystemClock;
++import android.service.quicksettings.Tile;
++
++import com.android.systemui.qs.QSHost;
++import com.android.systemui.qs.tileimpl.QSTileImpl;
++import com.android.systemui.plugins.qs.QSTile.BooleanState;
++import com.android.systemui.R;
++
++import org.lineageos.internal.logging.LineageMetricsLogger;
++
++/** Quick settings tile: Caffeine **/
++public class CaffeineTile extends QSTileImpl<BooleanState> {
++
++    private final Icon mIcon = ResourceIcon.get(R.drawable.ic_qs_caffeine);
++
++    private final PowerManager.WakeLock mWakeLock;
++    private int mSecondsRemaining;
++    private int mDuration;
++    private static int[] DURATIONS = new int[] {
++        5 * 60,   // 5 min
++        10 * 60,  // 10 min
++        30 * 60,  // 30 min
++        -1,       // infinity
++    };
++    private CountDownTimer mCountdownTimer = null;
++    public long mLastClickTime = -1;
++    private final Receiver mReceiver = new Receiver();
++
++    public CaffeineTile(QSHost host) {
++        super(host);
++        mWakeLock = mContext.getSystemService(PowerManager.class).newWakeLock(
++                PowerManager.FULL_WAKE_LOCK, "CaffeineTile");
++        mReceiver.init();
++    }
++
++    @Override
++    public BooleanState newTileState() {
++        return new BooleanState();
++    }
++
++    @Override
++    protected void handleDestroy() {
++        super.handleDestroy();
++        stopCountDown();
++        mReceiver.destroy();
++        if (mWakeLock.isHeld()) {
++            mWakeLock.release();
++        }
++    }
++
++    @Override
++    public void handleSetListening(boolean listening) {
++    }
++
++    @Override
++    public void handleClick() {
++        // If last user clicks < 5 seconds
++        // we cycle different duration
++        // otherwise toggle on/off
++        if (mWakeLock.isHeld() && (mLastClickTime != -1) &&
++                (SystemClock.elapsedRealtime() - mLastClickTime < 5000)) {
++            // cycle duration
++            mDuration++;
++            if (mDuration >= DURATIONS.length) {
++                // all durations cycled, turn if off
++                mDuration = -1;
++                stopCountDown();
++                if (mWakeLock.isHeld()) {
++                    mWakeLock.release();
++                }
++            } else {
++                // change duration
++                startCountDown(DURATIONS[mDuration]);
++                if (!mWakeLock.isHeld()) {
++                    mWakeLock.acquire();
++                }
++            }
++        } else {
++            // toggle
++            if (mWakeLock.isHeld()) {
++                mWakeLock.release();
++                stopCountDown();
++            } else {
++                mWakeLock.acquire();
++                mDuration = 0;
++                startCountDown(DURATIONS[mDuration]);
++            }
++        }
++        mLastClickTime = SystemClock.elapsedRealtime();
++        refreshState();
++    }
++
++    @Override
++    protected void handleLongClick() {
++    }
++
++    @Override
++    public Intent getLongClickIntent() {
++        return null;
++    }
++
++    @Override
++    public CharSequence getTileLabel() {
++        return mContext.getString(R.string.quick_settings_caffeine_label);
++    }
++
++    @Override
++    public int getMetricsCategory() {
++        return LineageMetricsLogger.TILE_CAFFEINE;
++    }
++
++    private void startCountDown(long duration) {
++        stopCountDown();
++        mSecondsRemaining = (int)duration;
++        if (duration == -1) {
++            // infinity timing, no need to start timer
++            return;
++        }
++        mCountdownTimer = new CountDownTimer(duration * 1000, 1000) {
++            @Override
++            public void onTick(long millisUntilFinished) {
++                mSecondsRemaining = (int) (millisUntilFinished / 1000);
++                refreshState();
++            }
++
++            @Override
++            public void onFinish() {
++                if (mWakeLock.isHeld())
++                    mWakeLock.release();
++                refreshState();
++            }
++
++        }.start();
++    }
++
++    private void stopCountDown() {
++        if (mCountdownTimer != null) {
++            mCountdownTimer.cancel();
++            mCountdownTimer = null;
++        }
++    }
++
++    private String formatValueWithRemainingTime() {
++        if (mSecondsRemaining == -1) {
++            return "\u221E"; // infinity
++        }
++        return String.format("%02d:%02d",
++                        mSecondsRemaining / 60 % 60, mSecondsRemaining % 60);
++    }
++
++    @Override
++    protected void handleUpdateState(BooleanState state, Object arg) {
++        state.value = mWakeLock.isHeld();
++        state.icon = mIcon;
++        state.label = mContext.getString(R.string.quick_settings_caffeine_label);
++        if (state.value) {
++            state.secondaryLabel = formatValueWithRemainingTime();
++            state.contentDescription =  mContext.getString(
++                    R.string.accessibility_quick_settings_caffeine_on);
++            state.state = Tile.STATE_ACTIVE;
++        } else {
++            state.secondaryLabel = null;
++            state.contentDescription =  mContext.getString(
++                    R.string.accessibility_quick_settings_caffeine_off);
++            state.state = Tile.STATE_INACTIVE;
++        }
++    }
++
++    private final class Receiver extends BroadcastReceiver {
++        public void init() {
++            // Register for Intent broadcasts for...
++            IntentFilter filter = new IntentFilter();
++            filter.addAction(Intent.ACTION_SCREEN_OFF);
++            mContext.registerReceiver(this, filter, null, mHandler);
++        }
++
++        public void destroy() {
++            mContext.unregisterReceiver(this);
++        }
++
++        @Override
++        public void onReceive(Context context, Intent intent) {
++            String action = intent.getAction();
++            if (Intent.ACTION_SCREEN_OFF.equals(action)) {
++                // disable caffeine if user force off (power button)
++                stopCountDown();
++                if (mWakeLock.isHeld())
++                    mWakeLock.release();
++                refreshState();
++            }
++        }
++    }
++}
+-- 
+2.17.1
+
