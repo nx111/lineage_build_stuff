@@ -1,0 +1,66 @@
+From 5a753276ca0fc273bad578531c2621709153daad Mon Sep 17 00:00:00 2001
+From: Steve Kondik <shade@chemlab.org>
+Date: Sun, 13 Apr 2014 14:46:10 -0700
+Subject: [PATCH 02/10] wcnss-service: Additional format support
+
+Change-Id: I4e5fea21135f7dd609b8cc0b1577265d29f58f71
+---
+ wcnss-service/Android.mk      |  3 +++
+ wcnss-service/wcnss_service.c | 13 +++++++++++++
+ 2 files changed, 16 insertions(+)
+
+diff --git a/wcnss-service/Android.mk b/wcnss-service/Android.mk
+index ef21dc5..e3b1ac6 100644
+--- a/wcnss-service/Android.mk
++++ b/wcnss-service/Android.mk
+@@ -10,6 +10,9 @@ LOCAL_MODULE := wcnss_service
+ LOCAL_C_INCLUDES += $(TARGET_OUT_HEADERS)/common/inc/
+ LOCAL_SRC_FILES := wcnss_service.c
+ ifeq ($(strip $(TARGET_USES_QCOM_WCNSS_QMI)),true)
++ifeq ($(TARGET_USES_WCNSS_MAC_ADDR_REV),true)
++LOCAL_CFLAGS += -DWCNSS_QMI_MAC_ADDR_REV
++endif
+ LOCAL_CFLAGS += -DWCNSS_QMI
+ LOCAL_C_INCLUDES += $(TARGET_OUT_HEADERS)/qmi-framework/inc
+ LOCAL_C_INCLUDES += $(TARGET_OUT_HEADERS)/qmi/services
+diff --git a/wcnss-service/wcnss_service.c b/wcnss-service/wcnss_service.c
+index 03ee3ec..cd9b36b 100644
+--- a/wcnss-service/wcnss_service.c
++++ b/wcnss-service/wcnss_service.c
+@@ -83,7 +83,11 @@ ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ #ifdef WCNSS_QMI
+ #define WLAN_ADDR_SIZE   6
+ unsigned char wlan_nv_mac_addr[WLAN_ADDR_SIZE];
++#ifdef WCNSS_QMI_MAC_ADDR_REV
++#define MAC_ADDR_ARRAY(a) (a)[5], (a)[4], (a)[3], (a)[2], (a)[1], (a)[0]
++#else
+ #define MAC_ADDR_ARRAY(a) (a)[0], (a)[1], (a)[2], (a)[3], (a)[4], (a)[5]
++#endif
+ #define MAC_ADDRESS_STR "%02x:%02x:%02x:%02x:%02x:%02x"
+ 
+ /* As we Want to write in 00:0a:f5:11:22:33 format in sysfs file
+@@ -432,12 +436,21 @@ void setup_wcnss_parameters(int *cal)
+ 		pos = 0;
+ 		msg[pos++] = WCNSS_USR_WLAN_MAC_ADDR >> BYTE_1;
+ 		msg[pos++] = WCNSS_USR_WLAN_MAC_ADDR >> BYTE_0;
++#ifdef WCNSS_QMI_MAC_ADDR_REV
++		msg[pos++] = wlan_nv_mac_addr[5];
++		msg[pos++] = wlan_nv_mac_addr[4];
++		msg[pos++] = wlan_nv_mac_addr[3];
++		msg[pos++] = wlan_nv_mac_addr[2];
++		msg[pos++] = wlan_nv_mac_addr[1];
++		msg[pos++] = wlan_nv_mac_addr[0];
++#else
+ 		msg[pos++] = wlan_nv_mac_addr[0];
+ 		msg[pos++] = wlan_nv_mac_addr[1];
+ 		msg[pos++] = wlan_nv_mac_addr[2];
+ 		msg[pos++] = wlan_nv_mac_addr[3];
+ 		msg[pos++] = wlan_nv_mac_addr[4];
+ 		msg[pos++] = wlan_nv_mac_addr[5];
++#endif
+ 
+ 		ALOGI("WLAN MAC Addr:" MAC_ADDRESS_STR,
+ 			MAC_ADDR_ARRAY(wlan_nv_mac_addr));
+-- 
+2.17.1
+

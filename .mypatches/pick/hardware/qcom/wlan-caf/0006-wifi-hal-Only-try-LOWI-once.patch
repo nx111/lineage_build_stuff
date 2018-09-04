@@ -1,0 +1,100 @@
+From 3932cc9610f3a7d7f61e8aba917d3f49492ae5f5 Mon Sep 17 00:00:00 2001
+From: Steve Kondik <steve@cyngn.com>
+Date: Tue, 28 Jun 2016 23:53:28 -0700
+Subject: [PATCH 06/10] wifi-hal: Only try LOWI once
+
+ * There is no need to keep trying to use LOWI, which nobody
+   is really deploying.
+
+Change-Id: Ia553196c6ae83992e5289b415f29fa3caacc4acd
+---
+ qcwcn/wifi_hal/common.cpp | 22 ++++++++++++++++++----
+ 1 file changed, 18 insertions(+), 4 deletions(-)
+
+diff --git a/qcwcn/wifi_hal/common.cpp b/qcwcn/wifi_hal/common.cpp
+index c54577c..50ac145 100644
+--- a/qcwcn/wifi_hal/common.cpp
++++ b/qcwcn/wifi_hal/common.cpp
+@@ -239,6 +239,7 @@ u8 get_rssi(u8 rssi_wo_noise_floor)
+ lowi_cb_table_t *LowiWifiHalApi = NULL;
+ /* LowiSupportedCapabilities read */
+ u32 lowiSupportedCapabilities = 0;
++bool lowiUnsupported = false;
+ 
+ int compareLowiVersion(u16 major, u16 minor, u16 micro)
+ {
+@@ -269,21 +270,27 @@ wifi_error fetchLowiCbTableAndCapabilities(lowi_cb_table_t **lowi_wifihal_api,
+     *lowi_wifihal_api = NULL;
+     *lowi_get_capa_supported = false;
+ 
++    if (lowiUnsupported) {
++        return WIFI_ERROR_NOT_SUPPORTED;
++    }
++
+ #if __WORDSIZE == 64
+     void* lowi_handle = dlopen("/vendor/lib64/liblowi_wifihal.so", RTLD_NOW);
+ #else
+     void* lowi_handle = dlopen("/vendor/lib/liblowi_wifihal.so", RTLD_NOW);
+ #endif
+     if (!lowi_handle) {
+-        ALOGE("%s: NULL lowi_handle, err: %s", __FUNCTION__, dlerror());
+-        return WIFI_ERROR_UNKNOWN;
++        ALOGV("%s: NULL lowi_handle, err: %s", __FUNCTION__, dlerror());
++        retVal = WIFI_ERROR_NOT_SUPPORTED;
++        goto cleanup;
+     }
+ 
+     lowiCbTable = (getCbTable_t*)dlsym(lowi_handle,
+                                        "lowi_wifihal_get_cb_table");
+     if (!lowiCbTable) {
+         ALOGE("%s: NULL lowi callback table", __FUNCTION__);
+-        return WIFI_ERROR_UNKNOWN;
++        retVal = WIFI_ERROR_NOT_SUPPORTED;
++        goto cleanup;
+     }
+ 
+     *lowi_wifihal_api = lowiCbTable();
+@@ -344,6 +351,7 @@ wifi_error fetchLowiCbTableAndCapabilities(lowi_cb_table_t **lowi_wifihal_api,
+ cleanup:
+     if (retVal) {
+         *lowi_wifihal_api = NULL;
++        lowiUnsupported = true;
+     }
+     return retVal;
+ }
+@@ -353,6 +361,10 @@ lowi_cb_table_t *getLowiCallbackTable(u32 requested_lowi_capabilities)
+     int ret = WIFI_SUCCESS;
+     bool lowi_get_capabilities_support = false;
+ 
++    if (lowiUnsupported) {
++        return NULL;
++    }
++
+     if (LowiWifiHalApi == NULL) {
+         ALOGV("%s: LowiWifiHalApi Null, Initialize Lowi",
+               __FUNCTION__);
+@@ -366,7 +378,7 @@ lowi_cb_table_t *getLowiCallbackTable(u32 requested_lowi_capabilities)
+         /* Initialize LOWI if it isn't up already. */
+         ret = LowiWifiHalApi->init();
+         if (ret) {
+-            ALOGE("%s: failed lowi initialization. "
++            ALOGW("%s: failed lowi initialization. "
+                 "Returned error:%d. Exit.", __FUNCTION__, ret);
+             goto cleanup;
+         }
+@@ -395,10 +407,12 @@ lowi_cb_table_t *getLowiCallbackTable(u32 requested_lowi_capabilities)
+ 
+ cleanup:
+     if (LowiWifiHalApi && LowiWifiHalApi->destroy) {
++        ALOGI("%s: Cleaning up Lowi due to failure. Return NULL", __FUNCTION__);
+         ret = LowiWifiHalApi->destroy();
+     }
+     LowiWifiHalApi = NULL;
+     lowiSupportedCapabilities = 0;
++    lowiUnsupported = true;
+     return LowiWifiHalApi;
+ }
+ 
+-- 
+2.17.1
+

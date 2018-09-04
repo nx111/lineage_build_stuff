@@ -749,10 +749,11 @@ git reset --hard $(git branch -a | grep "remotes/m/$default_branch" | cut -d'>' 
 cd $topdir
 
 kpick 223893 # manifest: Re-enable bash, nano and other cmdline tools
-kpick 224960 # lineage: Enable already working Lineage apps
 kpick 225583 # manifest: Enable lineage styles overlays
 kpick 225832 # android: Enable qcom sepolicy
 kpick 226105 # manifest: Enable dataservices and ril-caf
+#kpick 226754 # lineage: Enable bt-caf and wlan-caf
+kpick 226755 # lineage: Enable cryptfs_hw
 
 android_head=$(cd android;git log -n 1 | sed -n 1p | cut -d' ' -f2;cd $topdir)
 
@@ -771,7 +772,6 @@ kpick 225463 # bionic: Let popen and system fall back to /sbin/sh
 kpick 225464 # bionic: Sort and cache hosts file data for fast lookup
 kpick 225465 # libc: Mark libstdc++ as vendor available
 kpick 225764 # Add inaddr.h header file.
-kpick 225940 # Allow whitelisted processes to use destroyed mutex
 kpick 226183 # Implement per-process target SDK version override.
 
 # boot/recovery
@@ -906,6 +906,7 @@ kpick 225539 # Camera:CameraService: Added lock on mHIDLMemPoolId in QDataCallba
 kpick 225540 # Camera: CameraHardwareInterface: Releasing mHIDLMemoryMapLock in QdataCallback
 kpick 225746 # Camera: Handle duplicate camera Id due to openLegacy support
 kpick 226592 # camera/parameters: Take device specific headers into account
+kpick 226773 # stagefright: Move QCOM_BSP_LEGACY flag to correct blueprint file
 
 # frameworks/base
 kpick 224266 # SystemUI: Add Lineage statusbar item holder
@@ -914,7 +915,6 @@ kpick 224446 # SystemUI: Make tablets great again
 kpick 224513 # SystemUI: Disable config_keyguardUserSwitcher on sw600dp
 kpick 224844 # lockscreen: Add option for showing unlock screen directly
 kpick 225582 # [TEMP]: Revert "OMS: harden permission checks"
-kpick 225685 # frameworks: Power menu customizations
 kpick 225983 # Runtime toggle of navbar
 kpick 225606 # Forward port 'Swap volume buttons' (1/3)
 kpick 225650 # Configurable 0, 90, 180 and 270 degree rotation
@@ -929,6 +929,7 @@ kpick 225658 # SystemUI: USB Tether tile
 kpick 225659 # SystemUI: LiveDisplay tile
 kpick 225661 # SystemUI: Reading mode tile
 kpick 226083 # Keyguard: Allow disabling fingerprint wake-and-unlock
+kpick 225685 # frameworks: Power menu customizations
 kpick 225680 # SystemUI: Allow overlaying max notification icons
 kpick 225682 # Framework: Volume key cursor control
 kpick 225683 # PhoneWindowManager: add LineageButtons volumekey hook
@@ -959,9 +960,12 @@ kpick 226398 # frameworks: base: Port password retention feature
 kpick 226399 # Use fdeCheckPassword error code to indicate pw failure
 kpick 226400 # LockSettingsService: Support for separate clear key api
 kpick 226401 # AppOps: track op persistence by name instead of id
+kpick 226587 # Camera: Expose Aux camera to apps present in the whitelist	
+kpick 226588 # camera: Check if aux camera whitelist is set before restricting cameras
 kpick 226599 # SystemUI: Set proper NFCTile state
 kpick 226600 # PhoneWindowManager: Check if proposed rotation is in range
 kpick 226615 # NavigationBarView: Avoid NPE before mPanelView is created
+kpick 226634 # SystemUI: Update automatic brightness drawables
 
 # frameworks/native
 kpick 224443 # libbinder: Don't log call trace when waiting for vendor service on non-eng builds
@@ -1064,6 +1068,19 @@ kpick 223441 # Add -Wno-error to compile with global -Werror.
 # hardware/qcom/power
 kpick 223890 # Revert "power: Depend on vendor lineage power HAL"
 #kpick 223892 # power: Add power hint to set profile
+
+# hardware/qcom/wlan-caf
+kpick 226635 # wlan-caf: Add guard makefile
+kpick 226636 # wcnss-service: Additional format support
+kpick 226637 # wcnss: Build and dlopen wcnss_qmi_client as a shared library
+kpick 226638 # wcnss_qmi: Generate a fixed random mac address if the NV doesn't provide one
+kpick 226639 # wcnss_service: Deal with mdm-detect too
+kpick 226640 # wifi-hal: Only try LOWI once
+kpick 226641 # wifi-hal: stop the UMAC logspam
+kpick 226642 # Wifi: Quiet some excessive debug output
+kpick 226643 # wcnss_service: Read serial number from custom property
+kpick 226644 # Add LOCAL_ADDITIONAL_DEPENDENCIES to sanitized kernel headers.
+kpick 226645 # Make wcnss_service build with the VNDK.
 
 # hardware/ril-caf
 
@@ -1173,6 +1190,7 @@ kpick 225311 # Remove max aspect ratio.
 # packages/apps/Gallery2
 
 # packages/apps/LineageParts
+kpick 226141 # LineageSettingsProvider: Cleanup after LINEAGE_SETUP_WIZARD_COMPLETED deprecation
 kpick 226145 # LineageParts: Reenable buttons related settings
 kpick 226390 # PowerMenuActions: Make to sure to enable setting lockdown setting
 kpick 226392 # LineageParts: Set proper default value for charging sounds
@@ -1198,14 +1216,7 @@ kpick 225333 # MediaPicker: Check for NPE
 kpick 225337 # Messaging: Don't crash on unsupported shared content type
 
 # packages/apps/Nfc
-kpick 223706 # NFC: Restore legacy NXP stack
-kpick 223707 # nxp: jni: Forward-port the stack sources
-kpick 223697 # nxp: NativeNfcManager: Implement missing inherited abstract methods
-kpick 223698 # nxp: jni: use proper nativehelper headers
-kpick 223699 # nxp: jni: Remove unused variables and functions
 kpick 223700 # NFC: Adding new vendor specific interface to NFC Service
-kpick 223701 # NFC: Clean duplicated and unknown permissions
-kpick 223703 # nxp: jni: Implement AOSP P abstract methods
 
 # packages/apps/Profiles
 
@@ -1382,7 +1393,6 @@ kpick 225938 # roomservice.py: document the hell out of the current behavior of 
 kpick 225801 # lineage: Move QC board variables earlier
 kpick 225758 # qcom: Declare PRODUCT_SOONG_NAMESPACES for HALs
 kpick 225865 # soong_config: Allow extension of valid gralloc 1.0 buffer usage bits
-kpick 225942 # soong_config: Allow whitelisted processes to use destroyed mutex
 #kpick 225978 # soong_config: Remove extra spacing
 kpick 225939 # roomservice.py: non-depsonly: bootstrap first device repo from Hudson
 #kpick 225981 # roomservice.py: depsonly: do not look up device repo by name in the manifest
