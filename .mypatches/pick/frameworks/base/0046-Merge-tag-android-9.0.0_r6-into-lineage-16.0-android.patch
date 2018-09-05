@@ -1,0 +1,180 @@
+From de6c796a1628f0f86039542e71b24986f21be74c Mon Sep 17 00:00:00 2001
+From: Luca Stefani <luca.stefani.ge1@gmail.com>
+Date: Wed, 5 Sep 2018 09:02:57 +0200
+Subject: [PATCH 46/48] Merge tag 'android-9.0.0_r6' into
+ lineage-16.0-android-9.0.0_r6
+
+Android 9.0.0 Release 6 (PPR2.180905.005)
+
+* tag 'android-9.0.0_r6':
+  Fix TrackInfo parcel write
+  vpn: allow IPSec traffic through Always-on VPN
+  Resolve inconsistent parcel read in NanoAppFilter
+  Backport Prevent shortcut info package name spoofing
+
+Change-Id: I2bf06548618446de380ebd6aecfab1660ceb12c7
+---
+ .../hardware/location/NanoAppFilter.java      |  3 +--
+ media/java/android/media/MediaPlayer.java     |  2 +-
+ .../com/android/server/connectivity/Vpn.java  | 16 +++++++++++--
+ .../android/server/pm/ShortcutService.java    | 24 +++++++++++++++++++
+ 4 files changed, 40 insertions(+), 5 deletions(-)
+
+diff --git a/core/java/android/hardware/location/NanoAppFilter.java b/core/java/android/hardware/location/NanoAppFilter.java
+index 4d8e7344cd7..562065e2081 100644
+--- a/core/java/android/hardware/location/NanoAppFilter.java
++++ b/core/java/android/hardware/location/NanoAppFilter.java
+@@ -85,7 +85,7 @@ public class NanoAppFilter implements Parcelable {
+         mAppId = in.readLong();
+         mAppVersion = in.readInt();
+         mVersionRestrictionMask = in.readInt();
+-        mAppIdVendorMask = in.readInt();
++        mAppIdVendorMask = in.readLong();
+     }
+ 
+     public int describeContents() {
+@@ -93,7 +93,6 @@ public class NanoAppFilter implements Parcelable {
+     }
+ 
+     public void writeToParcel(Parcel out, int flags) {
+-
+         out.writeLong(mAppId);
+         out.writeInt(mAppVersion);
+         out.writeInt(mVersionRestrictionMask);
+diff --git a/media/java/android/media/MediaPlayer.java b/media/java/android/media/MediaPlayer.java
+index ada91be9ca4..d532e526f2f 100644
+--- a/media/java/android/media/MediaPlayer.java
++++ b/media/java/android/media/MediaPlayer.java
+@@ -2510,10 +2510,10 @@ public class MediaPlayer extends PlayerBase
+         @Override
+         public void writeToParcel(Parcel dest, int flags) {
+             dest.writeInt(mTrackType);
++            dest.writeString(mFormat.getString(MediaFormat.KEY_MIME));
+             dest.writeString(getLanguage());
+ 
+             if (mTrackType == MEDIA_TRACK_TYPE_SUBTITLE) {
+-                dest.writeString(mFormat.getString(MediaFormat.KEY_MIME));
+                 dest.writeInt(mFormat.getInteger(MediaFormat.KEY_IS_AUTOSELECT));
+                 dest.writeInt(mFormat.getInteger(MediaFormat.KEY_IS_DEFAULT));
+                 dest.writeInt(mFormat.getInteger(MediaFormat.KEY_IS_FORCED_SUBTITLE));
+diff --git a/services/core/java/com/android/server/connectivity/Vpn.java b/services/core/java/com/android/server/connectivity/Vpn.java
+index b77c1443e85..2a80f0e7c29 100644
+--- a/services/core/java/com/android/server/connectivity/Vpn.java
++++ b/services/core/java/com/android/server/connectivity/Vpn.java
+@@ -100,8 +100,6 @@ import com.android.server.DeviceIdleController;
+ import com.android.server.LocalServices;
+ import com.android.server.net.BaseNetworkObserver;
+ 
+-import libcore.io.IoUtils;
+-
+ import java.io.File;
+ import java.io.IOException;
+ import java.io.InputStream;
+@@ -123,6 +121,8 @@ import java.util.SortedSet;
+ import java.util.TreeSet;
+ import java.util.concurrent.atomic.AtomicInteger;
+ 
++import libcore.io.IoUtils;
++
+ /**
+  * @hide
+  */
+@@ -1327,6 +1327,18 @@ public class Vpn {
+                     /* allowedApplications */ null,
+                     /* disallowedApplications */ exemptedPackages);
+ 
++            // The UID range of the first user (0-99999) would block the IPSec traffic, which comes
++            // directly from the kernel and is marked as uid=0. So we adjust the range to allow
++            // it through (b/69873852).
++            for (UidRange range : addedRanges) {
++                if (range.start == 0) {
++                    addedRanges.remove(range);
++                    if (range.stop != 0) {
++                        addedRanges.add(new UidRange(1, range.stop));
++                    }
++                }
++            }
++
+             removedRanges.removeAll(addedRanges);
+             addedRanges.removeAll(mBlockedUsers);
+         }
+diff --git a/services/core/java/com/android/server/pm/ShortcutService.java b/services/core/java/com/android/server/pm/ShortcutService.java
+index 599e5a57343..b9c30489042 100644
+--- a/services/core/java/com/android/server/pm/ShortcutService.java
++++ b/services/core/java/com/android/server/pm/ShortcutService.java
+@@ -132,6 +132,7 @@ import java.nio.charset.StandardCharsets;
+ import java.util.ArrayList;
+ import java.util.Collections;
+ import java.util.List;
++import java.util.Objects;
+ import java.util.concurrent.atomic.AtomicBoolean;
+ import java.util.function.Consumer;
+ import java.util.function.Predicate;
+@@ -1573,6 +1574,24 @@ public class ShortcutService extends IShortcutService.Stub {
+                 "Ephemeral apps can't use ShortcutManager");
+     }
+ 
++    private void verifyShortcutInfoPackage(String callerPackage, ShortcutInfo si) {
++        if (si == null) {
++            return;
++        }
++        if (!Objects.equals(callerPackage, si.getPackage())) {
++            android.util.EventLog.writeEvent(0x534e4554, "109824443", -1, "");
++            throw new SecurityException("Shortcut package name mismatch");
++        }
++    }
++
++    private void verifyShortcutInfoPackages(
++            String callerPackage, List<ShortcutInfo> list) {
++        final int size = list.size();
++        for (int i = 0; i < size; i++) {
++            verifyShortcutInfoPackage(callerPackage, list.get(i));
++        }
++    }
++
+     // Overridden in unit tests to execute r synchronously.
+     void injectPostToHandler(Runnable r) {
+         mHandler.post(r);
+@@ -1720,6 +1739,7 @@ public class ShortcutService extends IShortcutService.Stub {
+         verifyCaller(packageName, userId);
+ 
+         final List<ShortcutInfo> newShortcuts = (List<ShortcutInfo>) shortcutInfoList.getList();
++        verifyShortcutInfoPackages(packageName, newShortcuts);
+         final int size = newShortcuts.size();
+ 
+         final boolean unlimited = injectHasUnlimitedShortcutsApiCallsPermission(
+@@ -1774,6 +1794,7 @@ public class ShortcutService extends IShortcutService.Stub {
+         verifyCaller(packageName, userId);
+ 
+         final List<ShortcutInfo> newShortcuts = (List<ShortcutInfo>) shortcutInfoList.getList();
++        verifyShortcutInfoPackages(packageName, newShortcuts);
+         final int size = newShortcuts.size();
+ 
+         final boolean unlimited = injectHasUnlimitedShortcutsApiCallsPermission(
+@@ -1859,6 +1880,7 @@ public class ShortcutService extends IShortcutService.Stub {
+         verifyCaller(packageName, userId);
+ 
+         final List<ShortcutInfo> newShortcuts = (List<ShortcutInfo>) shortcutInfoList.getList();
++        verifyShortcutInfoPackages(packageName, newShortcuts);
+         final int size = newShortcuts.size();
+ 
+         final boolean unlimited = injectHasUnlimitedShortcutsApiCallsPermission(
+@@ -1921,6 +1943,7 @@ public class ShortcutService extends IShortcutService.Stub {
+         Preconditions.checkNotNull(shortcut);
+         Preconditions.checkArgument(shortcut.isEnabled(), "Shortcut must be enabled");
+         verifyCaller(packageName, userId);
++        verifyShortcutInfoPackage(packageName, shortcut);
+ 
+         final Intent ret;
+         synchronized (mLock) {
+@@ -1942,6 +1965,7 @@ public class ShortcutService extends IShortcutService.Stub {
+     private boolean requestPinItem(String packageName, int userId, ShortcutInfo shortcut,
+             AppWidgetProviderInfo appWidget, Bundle extras, IntentSender resultIntent) {
+         verifyCaller(packageName, userId);
++        verifyShortcutInfoPackage(packageName, shortcut);
+ 
+         final boolean ret;
+         synchronized (mLock) {
+-- 
+2.17.1
+

@@ -1,0 +1,76 @@
+From 74fb0f8d6a58f1dead974d92b4d9a01ccda617e1 Mon Sep 17 00:00:00 2001
+From: dianlujitao <dianlujitao@lineageos.org>
+Date: Thu, 8 Feb 2018 21:48:44 +0800
+Subject: [PATCH 44/48] NtpTrustedTime: Refresh NTP server from resources
+ before requesting time
+
+ * NtpTrustedTime initialized before carrier/country specific resources
+   got loaded, so generally the default NTP server is always in use.
+ * Always fetch NTP server from resources unless secure NTP server is
+   set to ensure that carrier/country specific customization works.
+
+Change-Id: I9b09680ea5640c35660d1cd0b910af22af930144
+---
+ core/java/android/util/NtpTrustedTime.java | 14 +++++++++++---
+ 1 file changed, 11 insertions(+), 3 deletions(-)
+
+diff --git a/core/java/android/util/NtpTrustedTime.java b/core/java/android/util/NtpTrustedTime.java
+index 30d7b6c0786..9dfbe6a1a97 100644
+--- a/core/java/android/util/NtpTrustedTime.java
++++ b/core/java/android/util/NtpTrustedTime.java
+@@ -1,5 +1,6 @@
+ /*
+  * Copyright (C) 2011 The Android Open Source Project
++ * Copyright (C) 2018 The LineageOS Project
+  *
+  * Licensed under the Apache License, Version 2.0 (the "License");
+  * you may not use this file except in compliance with the License.
+@@ -40,20 +41,22 @@ public class NtpTrustedTime implements TrustedTime {
+     private static NtpTrustedTime sSingleton;
+     private static Context sContext;
+ 
+-    private final String mServer;
++    private String mServer;
+     private final long mTimeout;
+ 
+     private ConnectivityManager mCM;
+ 
+     private boolean mHasCache;
++    private final boolean mHasSecureServer;
+     private long mCachedNtpTime;
+     private long mCachedNtpElapsedRealtime;
+     private long mCachedNtpCertainty;
+ 
+-    private NtpTrustedTime(String server, long timeout) {
++    private NtpTrustedTime(String server, long timeout, boolean hasSecureServer) {
+         if (LOGD) Log.d(TAG, "creating NtpTrustedTime using " + server);
+         mServer = server;
+         mTimeout = timeout;
++        mHasSecureServer = hasSecureServer;
+     }
+ 
+     public static synchronized NtpTrustedTime getInstance(Context context) {
+@@ -72,7 +75,7 @@ public class NtpTrustedTime implements TrustedTime {
+                     resolver, Settings.Global.NTP_TIMEOUT, defaultTimeout);
+ 
+             final String server = secureServer != null ? secureServer : defaultServer;
+-            sSingleton = new NtpTrustedTime(server, timeout);
++            sSingleton = new NtpTrustedTime(server, timeout, secureServer != null);
+             sContext = context;
+         }
+ 
+@@ -114,6 +117,11 @@ public class NtpTrustedTime implements TrustedTime {
+ 
+         if (LOGD) Log.d(TAG, "forceRefresh() from cache miss");
+         final SntpClient client = new SntpClient();
++        if (!mHasSecureServer) {
++            mServer = sContext.getResources().getString(
++                com.android.internal.R.string.config_ntpServer);
++            if (LOGD) Log.d(TAG, "NTP server changed to " + mServer);
++        }
+         if (client.requestTime(mServer, (int) mTimeout, network)) {
+             mHasCache = true;
+             mCachedNtpTime = client.getNtpTime();
+-- 
+2.17.1
+

@@ -754,6 +754,7 @@ kpick 225832 # android: Enable qcom sepolicy
 kpick 226105 # manifest: Enable dataservices and ril-caf
 #kpick 226754 # lineage: Enable bt-caf and wlan-caf
 kpick 226755 # lineage: Enable cryptfs_hw
+kpick 227234 # manifest: android-9.0.0_r1 -> android-9.0.0_r6
 
 android_head=$(cd android;git log -n 1 | sed -n 1p | cut -d' ' -f2;cd $topdir)
 
@@ -789,6 +790,7 @@ kpick 222760 # Add LOCAL_AIDL_FLAGS
 #kpick 227213 # releasetools: Fix an issue in image size computation.
 #kpick 226920 # Support a first stage ramdisk via TARGET_RAMDISK_OUT
 #kpick 226939 # releasetools: Fix the path to the OTA keys in recovery image.
+kpick 227170 # Merge tag 'android-9.0.0_r6' into lineage-16.0-android-9.0.0_r6
 
 # build/soong
 kpick 222648 # Allow providing flex and bison binaries
@@ -796,6 +798,7 @@ kpick 224613 # soong: Add LOCAL_AIDL_FLAGS handling
 kpick 224827 # soong: Add java sources overlay support
 kpick 226593 # soong: Add function to return targer specific header path
 #kpick 226918 # Add /ramdisk to installclean
+kpick 227233 # [DNM]soong: Fix wpa_supplicant crashes
 
 # dalvik
 kpick 225475 # dexdeps: Add option for --include-lineage-classes.
@@ -807,7 +810,6 @@ kpick 225476 # dexdeps: Ignore static initializers on analysis.
 # device/qcom/sepolicy
 kpick 224767 # sepol: Remove duplicated hal_vehicle attribute
 kpick 224768 # sepol: hostapd is now hal_wifi_hostapd
-kpick 225036 # common: Remove duplicate definition of hostapd data files
 
 # device/samsung/kltechnduo
 
@@ -912,6 +914,7 @@ kpick 225539 # Camera:CameraService: Added lock on mHIDLMemPoolId in QDataCallba
 kpick 225540 # Camera: CameraHardwareInterface: Releasing mHIDLMemoryMapLock in QdataCallback
 kpick 225746 # Camera: Handle duplicate camera Id due to openLegacy support
 kpick 226592 # camera/parameters: Take device specific headers into account
+kpick 227176 # Merge tag 'android-9.0.0_r6' into lineage-16.0-android-9.0.0_r6
 
 # frameworks/base
 kpick 224266 # SystemUI: Add Lineage statusbar item holder
@@ -923,17 +926,6 @@ kpick 225582 # [TEMP]: Revert "OMS: harden permission checks"
 kpick 225983 # Runtime toggle of navbar
 kpick 225606 # Forward port 'Swap volume buttons' (1/3)
 kpick 225650 # Configurable 0, 90, 180 and 270 degree rotation
-kpick 225651 # SystemUI: Enable NFC tile
-kpick 225652 # SystemUI: Add caffeine qs tile
-kpick 225653 # SystemUI: Add heads up tile
-kpick 225654 # SystemUI: Add Sync tile
-kpick 225655 # SystemUI: Add tile to show volume panel
-kpick 225656 # SystemUI: Add ADB over network tile
-kpick 225657 # SystemUI: Add AmbientDisplay tile
-kpick 225658 # SystemUI: Add USB Tether tile
-kpick 225659 # SystemUI: Add LiveDisplay tile
-kpick 225661 # SystemUI: Add reading mode tile
-kpick 226083 # Keyguard: Allow disabling fingerprint wake-and-unlock
 kpick 225685 # frameworks: Power menu customizations
 kpick 225680 # SystemUI: Allow overlaying max notification icons
 kpick 225682 # Framework: Volume key cursor control
@@ -957,7 +949,6 @@ kpick 226068 # Fix mounting of non-FAT formatted SD cards (1/2)
 kpick 226236 # SystemUI: add navbar button layout inversion tuning
 kpick 226249 # fw/b: Allow customisation of navbar app switch long press action
 kpick 226276 # power: Re-introduce custom charging sounds
-kpick 226342 # Stop initializing app ops in Camera default constructor.
 kpick 226343 # CameraServiceProxy: Loosen UID check
 kpick 226354 # Camera: Add feature extensions
 kpick 226358 # settings: Allow accessing LineageSettings via settings command
@@ -967,15 +958,13 @@ kpick 226400 # LockSettingsService: Support for separate clear key api
 kpick 226401 # AppOps: track op persistence by name instead of id
 kpick 226587 # Camera: Expose Aux camera to apps present in the whitelist
 kpick 226588 # camera: Check if aux camera whitelist is set before restricting cameras
-kpick 226599 # SystemUI: Update NFCTile to match P style
 kpick 226600 # PhoneWindowManager: Check if proposed rotation is in range
 kpick 226615 # NavigationBarView: Avoid NPE before mPanelView is created
-kpick 226634 # SystemUI: Update automatic brightness drawables
-kpick 226869 # SystemUI: Allow user to add/remove QS with one click
 kpick 226916 # NtpTrustedTime: Refresh NTP server from resources before requesting time
-kpick 226921 # Remove "Avoid NPE during boot phase"
 kpick 227108 # SystemUI: Fix several issues in the ADB over Network tile
-kpick 227139 # Stop invoke initAppOps in Camera default constructor.
+kpick 227182 # Merge tag 'android-9.0.0_r6' into lineage-16.0-android-9.0.0_r6
+kpick 227290 # PowerProfile: allow overriding default power profile
+kpick 227291 # [DNM] Revert "Handle public volumes and otherwise invalid UUIDs."
 
 # frameworks/native
 kpick 224443 # libbinder: Don't log call trace when waiting for vendor service on non-eng builds
@@ -1018,10 +1007,6 @@ kpick 223681 # power: Add new power hints
 kpick 223374 # interfaces: Add 2.0 livedisplay interfaces
 kpick 223410 # interfaces: Add touch HIDL interface definitions
 kpick 223411 # interfaces: Add id HAL definition
-kpick 223906 # biometrics: fingerprint: add locking to default impl
-kpick 223907 # Use -Werror in hardware/interfaces/biometrics/fingerprint
-kpick 223908 # fpc: keep fpc in system-background
-kpick 224525 # lineage/interfaces: Add basic USB HAL that reports no status change
 
 # hardware/lineage/lineagehw
 
@@ -1045,6 +1030,7 @@ kpick 223345 # msm8974: libgralloc: Fix adding offset to the mapped base address
 kpick 223346 # msm8974: libexternal should depend on libmedia
 kpick 224958 # msm8960/8974: Include string.h where it is necessary
 kpick 226419 # msm8960/74/94: Move GRALLOC_USAGE_PRIVATE_UNCACHED
+kpick 227185 # Merge tag 'android-9.0.0_r6' into lineage-16.0-android-9.0.0_r6
 
 # hardware/qcom/display-caf/msm8974
 kpick 223434 # Include what we use.
@@ -1054,7 +1040,6 @@ kpick 226481 # display: remove compile time warnings
 kpick 226482 # display: Enable clang for all display modules
 
 # hardware/qcom/display-caf/msm8998
-kpick 225757 # display: Define soong namespace
 
 # hardware/qcom/fm
 
@@ -1070,6 +1055,17 @@ kpick 223358 # msm8974: Fix logging level and remove nmea log
 kpick 223359 # msm8974: Don't rely on transitively included headers
 kpick 223360 # msm8974: Return the correct length of nmea sentence
 kpick 225034 # msm8974: Add -Wno-error to compile with global -Werror.
+
+# hardware/qcom/media
+kpick 224289 # Add -Wno-error to compile with global -Werror.
+kpick 222695 # media: Add missing links
+kpick 224305 # media: Use kernel headers
+kpick 224955 # Revert "msm8974: remove from top level makefile"
+kpick 224956 # mm-video: venc: Correct a typo in variable name
+kpick 224957 # media: vdec: Include nativebase headers
+kpick 227186 # mm-video-v4l2: Squash below changes
+kpick 227187 # mm-video-v4l2: Protect buffer access and increase input buffer size
+kpick 227188 # mm-video-v4l2: Protect buffer access and increase input buffer size
 
 # hardware/qcom/media-caf/msm8974
 kpick 223441 # Add -Wno-error to compile with global -Werror.
@@ -1106,8 +1102,6 @@ kpick 225581 # lineage-sdk: Make styles init at system services ready
 kpick 225687 # PowerMenuConstants: Add user logout as new global action
 kpick 226087 # lineage-sdk: Default config_deviceHardware{Wake}Keys to 64
 kpick 226141 # LineageSettingsProvider: Cleanup after LINEAGE_SETUP_WIZARD_COMPLETED deprecation
-kpick 226864 # Fix LiveDisplay drawable off color
-kpick 226906 # Make livedisplay off drawable look-alike day
 
 # packages/apps/AudioFX
 
@@ -1304,6 +1298,7 @@ kpick 225408 # ContactsProvider: Prevent device contact being deleted.
 kpick 225409 # CallLogDatabase: Bump the version and try to re-run the version 5 upgrade path
 
 # packages/providers/DownloadProvider
+kpick 227193 # Merge tag 'android-9.0.0_r6' into lineage-16.0-android-9.0.0_r6
 
 # packages/providers/MediaProvider
 kpick 225412 # Fix mounting of non-FAT formatted SD cards (2/2)
@@ -1357,6 +1352,7 @@ kpick 226922 # System always contains root dir.
 # system/sepolicy
 kpick 223746 # Add rules required for TARGET_HAS_LEGACY_CAMERA_HAL1
 kpick 223748 # Build sepolicy tools with Android.bp.
+kpick 227206 # Merge tag 'android-9.0.0_r6' into lineage-16.0-android-9.0.0_r6
 
 # system/tool/aidl
 kpick 223133 # AIDL: Add option to generate No-Op methods
@@ -1391,14 +1387,11 @@ kpick 226111 # vold: Wrapped key support for FBE
 
 # vendor/lineage
 kpick 223773 # Add IPv6 for Oister and 3. The 3.dk and oister.dk carriers now support IPv6 with the APN ”data.tre.dk”.
-kpick 223944 # [DNM]: use aosp wifi until CAF bringup
 kpick 224828 # vendor/lineage: Add support for java source overlays
 kpick 224758 # lineage: Always show option for swipe gesture nav bar
 kpick 225882 # soong_config: Add TARGET_EXFAT_DRIVER variable
 kpick 225921 # overlay: Update list of GSF/GMS activities
 kpick 225938 # roomservice.py: document the hell out of the current behavior of the script
-kpick 225801 # lineage: Move QC board variables earlier
-kpick 225758 # qcom: Declare PRODUCT_SOONG_NAMESPACES for HALs
 kpick 225865 # soong_config: Allow extension of valid gralloc 1.0 buffer usage bits
 #kpick 225978 # soong_config: Remove extra spacing
 kpick 225939 # roomservice.py: non-depsonly: bootstrap first device repo from Hudson
