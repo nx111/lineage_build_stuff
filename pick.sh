@@ -784,12 +784,16 @@ kpick 226284 # uncrypt: fix f2fs ioctl argument for pin_file
 kpick 222733 # core: Disable vendor restrictions
 kpick 222742 # build: Use project pathmap for recovery
 kpick 222760 # Add LOCAL_AIDL_FLAGS
+kpick 226537 # releasetools: Rename the ramdisk_dir in prop dict to root_dir.
+kpick 226919 # Depend on the ramdisk/root files for BOARD_BUILD_SYSTEM_ROOT_IMAGE
+kpick 226920 # Support a first stage ramdisk via TARGET_RAMDISK_OUT
 
 # build/soong
 kpick 222648 # Allow providing flex and bison binaries
 kpick 224613 # soong: Add LOCAL_AIDL_FLAGS handling
 kpick 224827 # soong: Add java sources overlay support
 kpick 226593 # soong: Add function to return targer specific header path
+kpick 226918 # Add /ramdisk to installclean
 
 # dalvik
 kpick 225475 # dexdeps: Add option for --include-lineage-classes.
@@ -967,6 +971,7 @@ kpick 226600 # PhoneWindowManager: Check if proposed rotation is in range
 kpick 226615 # NavigationBarView: Avoid NPE before mPanelView is created
 kpick 226634 # SystemUI: Update automatic brightness drawables
 kpick 226869 # SystemUI: Allow user to add/remove QS with one click
+kpick 226921 # Remove "Avoid NPE during boot phase"
 
 # frameworks/native
 kpick 224443 # libbinder: Don't log call trace when waiting for vendor service on non-eng builds
@@ -1320,6 +1325,8 @@ kpick 224264 # debuggerd: Resolve tombstoned missing O_CREAT mode
 kpick 226119 # libion: save errno value
 kpick 226120 # fs_mgr: Wrapped key support for FBE
 kpick 226193 # Show bootanimation after decrypt
+kpick 226917 # Switch root to /system in first stage mount
+kpick 226923 # init: First Stage Mount observe nofail mount flag
 
 # system/extras
 kpick 225426 # f2fs_utils: Add a static libf2fs_sparseblock for minvold
@@ -1336,6 +1343,8 @@ fi
 repo sync --force-sync system/extras/su
 
 # system/extras/su
+
+# system/libvintf
 
 # system/netd
 
