@@ -748,12 +748,12 @@ default_branch=$(grep "^[[:space:]]*<default revision=" $topdir/.repo/manifests/
 git reset --hard $(git branch -a | grep "remotes/m/$default_branch" | cut -d'>' -f 2 | sed -e "s/ //g") >/dev/null
 cd $topdir
 
-kpick 223893 # manifest: Re-enable bash, nano and other cmdline tools
 kpick 225583 # manifest: Enable lineage styles overlays
-kpick 225832 # android: Enable qcom sepolicy
-kpick 226105 # manifest: Enable dataservices and ril-caf
-#kpick 226754 # lineage: Enable bt-caf and wlan-caf
 kpick 226755 # lineage: Enable cryptfs_hw
+#kpick 226754 # lineage: Enable bt-caf and wlan-caf
+kpick 223893 # manifest: Re-enable bash, nano and other cmdline tools
+kpick 225832 # android: Enable qcom sepolicy
+kpick 227374 # lineage: Enable Power HAL for QC devices
 
 android_head=$(cd android;git log -n 1 | sed -n 1p | cut -d' ' -f2;cd $topdir)
 
@@ -1060,7 +1060,7 @@ kpick 224957 # media: vdec: Include nativebase headers
 kpick 223441 # Add -Wno-error to compile with global -Werror.
 
 # hardware/qcom/power
-kpick 223890 # Revert "power: Depend on vendor lineage power HAL"
+kpick 223890 # power: Drop dependency of vendor lineage power HAL
 #kpick 223892 # power: Add power hint to set profile
 
 # hardware/qcom/wlan-caf
@@ -1375,7 +1375,7 @@ kpick 226111 # vold: Wrapped key support for FBE
 # vendor/lineage
 kpick 223773 # Add IPv6 for Oister and 3. The 3.dk and oister.dk carriers now support IPv6 with the APN ”data.tre.dk”.
 kpick 224828 # vendor/lineage: Add support for java source overlays
-kpick 224758 # lineage: Always show option for swipe gesture nav bar
+kpick 224758 # overlay/common: Unlock swipe gesture nav bar
 kpick 225882 # soong_config: Add TARGET_EXFAT_DRIVER variable
 kpick 225921 # overlay: Update list of GSF/GMS activities
 kpick 225938 # roomservice.py: document the hell out of the current behavior of the script
