@@ -1,4 +1,4 @@
-From b6b30c43682d27693e5b2df90d8b715bd717b911 Mon Sep 17 00:00:00 2001
+From a7b97c63558e50c5c34e15f21b5eb76e32d5fa19 Mon Sep 17 00:00:00 2001
 From: Yonghai Huang <yonghaih@codeaurora.org>
 Date: Tue, 13 Feb 2018 16:13:10 +0800
 Subject: [PATCH 07/10] libsuspend: Add property support for timeout of
@@ -20,25 +20,22 @@ property.
 
 Change-Id: I0ba1cf782f2915c51117bf592cfe43ca69f3b223
 ---
- libsuspend/autosuspend_wakeup_count.c | 15 ++++++++++++---
- 1 file changed, 12 insertions(+), 3 deletions(-)
+ libsuspend/autosuspend_wakeup_count.c | 11 ++++++++++-
+ 1 file changed, 10 insertions(+), 1 deletion(-)
 
 diff --git a/libsuspend/autosuspend_wakeup_count.c b/libsuspend/autosuspend_wakeup_count.c
-index 2da204ae0..89cc1648c 100644
+index 2da204ae0..5b30581c9 100644
 --- a/libsuspend/autosuspend_wakeup_count.c
 +++ b/libsuspend/autosuspend_wakeup_count.c
-@@ -28,15 +28,16 @@
- #include <sys/stat.h>
- #include <sys/types.h>
- #include <unistd.h>
--
-+#include <cutils/properties.h>
- #include <log/log.h>
--
-+#include <stdlib.h>
- #include "autosuspend_ops.h"
+@@ -17,6 +17,7 @@
+ #define LOG_TAG "libsuspend"
+ //#define LOG_NDEBUG 0
  
- #define SYS_POWER_STATE "/sys/power/state"
++#include <cutils/properties.h>
+ #include <errno.h>
+ #include <fcntl.h>
+ #include <pthread.h>
+@@ -37,6 +38,7 @@
  #define SYS_POWER_WAKEUP_COUNT "/sys/power/wakeup_count"
  
  #define BASE_SLEEP_TIME 100000
@@ -46,7 +43,7 @@ index 2da204ae0..89cc1648c 100644
  
  static int state_fd;
  static int wakeup_count_fd;
-@@ -45,6 +46,7 @@ static sem_t suspend_lockout;
+@@ -45,6 +47,7 @@ static sem_t suspend_lockout;
  static const char *sleep_state = "mem";
  static void (*wakeup_func)(bool success) = NULL;
  static int sleep_time = BASE_SLEEP_TIME;
@@ -54,7 +51,7 @@ index 2da204ae0..89cc1648c 100644
  
  static void update_sleep_time(bool success) {
      if (success) {
-@@ -52,7 +54,7 @@ static void update_sleep_time(bool success) {
+@@ -52,7 +55,7 @@ static void update_sleep_time(bool success) {
          return;
      }
      // double sleep time after each failure up to one minute
@@ -63,20 +60,19 @@ index 2da204ae0..89cc1648c 100644
  }
  
  static void *suspend_thread_func(void *arg __attribute__((unused)))
-@@ -173,6 +175,13 @@ struct autosuspend_ops *autosuspend_wakeup_count_init(void)
- {
+@@ -174,6 +177,12 @@ struct autosuspend_ops *autosuspend_wakeup_count_init(void)
      int ret;
      char buf[80];
-+    char timeout_str[PROPERTY_VALUE_MAX];
-+
-+    if (property_get("sys.autosuspend.timeout", timeout_str, NULL))
-+    {
-+        possible_max_sleep_time = atoi(timeout_str);
-+        ALOGI("autosuspend timeout is %d\n", possible_max_sleep_time);
-+    }
  
++    possible_max_sleep_time = property_get_int32(
++            "sys.autosuspend.timeout", POSSIBLE_MAX_SLEEP_TIME);
++    if (possible_max_sleep_time != POSSIBLE_MAX_SLEEP_TIME) {
++        ALOGD("autosuspend timeout is %d\n", possible_max_sleep_time);
++    }
++
      state_fd = TEMP_FAILURE_RETRY(open(SYS_POWER_STATE, O_RDWR));
      if (state_fd < 0) {
+         strerror_r(errno, buf, sizeof(buf));
 -- 
 2.17.1
 

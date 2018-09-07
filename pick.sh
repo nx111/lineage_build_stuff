@@ -423,6 +423,7 @@ function kpick()
                echo ">>> Picking $nops ..."
          fi
          repopick $nops || exit -1
+         return 0
     fi
     echo ">>> Picking change $changeNumber ..."
     LANG=en_US repopick -c $checkcount $nops >$logfile 2>$errfile
@@ -722,37 +723,45 @@ kpick 209019 # toybox: Use ISO C/clang compatible __typeof__ in minof/maxof macr
 
    echo 
    echo "Apply I hate the safty net..."
-   cd $topdir/system/core;find  $topdir/.mypatches/local/system/core/ -name "*I-hate-the-safty-net*.patch" | xargs cat \
-         | git am -3   --keep-cr --committer-date-is-author-date; cd $topdir
+   privpick system/core refs/changes/19/206119/2 # init: I hate safety net
    touch $topdir/.pick_base
    exit 0
 fi
 #---------------------------------#
 ###################################
 
-if [ 1 -eq 0 ]; then
+if [ $0 != "bash" -a ! -f $0.tmp ]; then    # continue pick or not
+repo sync vendor/lineage >/dev/null
 apply_force_changes
 
 # android
-repo sync android
-cd .repo/manifests;
+
+repo sync android  >/dev/null
+cd .repo/manifests
+git reset >/dev/null
+git stash >/dev/null
 git fetch --all >/dev/null
+
 default_branch=$(grep "^[[:space:]]*<default revision=" $topdir/.repo/manifests/default.xml | sed -e 's:[^"]*"\(.*\)":\1:' | sed -e "s:refs/heads/::g")
 git reset --hard $(git branch -a | grep "remotes/m/$default_branch" | cut -d'>' -f 2 | sed -e "s/ //g") >/dev/null
 cd $topdir
 
 kpick 213705 # Build Exchange
-#android_head=$(cd android;git log -n 1 | sed -n 1p | cut -d' ' -f2;cd $topdir)
-#repo sync
-#cd android;git reset --hard $android_head >/dev/null;cd $topdir
-repo sync packages/apps/Exchange
-fi
+kpick 227126 # manifest: android-8.1.0_r43 -> android-8.1.0_r46
+
+android_head=$(cd android;git log -n 1 | sed -n 1p | cut -d' ' -f2;cd $topdir)
+
+repo sync --force-sync
+cd android;git reset --hard $android_head >/dev/null;cd $topdir
+
+apply_force_changes
+
+fi       # continue pick or not
 
 # bionic
 kpick 217311 # linker: add support for odm partition
 kpick 217312 # libc: add /odm/bin to the DEFPATH
 kpick 221709 # libc: Add generated copyrights
-exit
 
 # bootable/recovery
 kpick 219194 # minui: drm: ARGB8888 support
@@ -780,6 +789,7 @@ kpick 219020 # build: Disable backuptool for A/B on -user
 kpick 222016 # releasetools: Add system-as-root handling for non-A/B backuptool
 kpick 222017 # core: Add bootimage only cmdline flag
 kpick 222034 # build: Allow using prebuilt vbmeta images in signed builds
+kpick 227127 # [SQUASH][DNM] Merge android-8.1.0_r46 into lineage-15.1
 
 # build/soong
 
@@ -836,6 +846,7 @@ kpick 220023 # Camera2Client: Fix issue with supported scene modes.
 kpick 220024 # Camera2Client: Update vendor tag only if it is present
 kpick 220025 # Camera2Client: Fix issue with AE Bracketing mode.
 kpick 223145 # av: camera: Allow disabling shutter sound for specific packages
+kpick 227128 # [SQUASH][DNM] Merge android-8.1.0_r46 into lineage-15.1
 
 # frameworks/base
 kpick -f 206054 # SystemUI: use vector drawables for navbar icons
@@ -877,6 +888,7 @@ kpick 223334 # Update device default colors for darker UI
 kpick 224392 # VibratorService: Apply vibrator intensity setting.
 kpick 224757 # webkit: Add AOSP WebView provider by default
 kpick 226009 # Make volume steps and defaults adjustable for all audio streams
+kpick 227129 # [SQUASH][DNM] Merge android-8.1.0_r46 into lineage-15.1
 
 # frameworks/native
 kpick 213549 # SurfaceFlinger: Support get/set ActiveConfigs.
@@ -895,6 +907,7 @@ kpick 220429 # telephony: Allow overriding getRadioProxy
 # hardware/broadcom/libbt
 
 # hardware/broadcom/wlan
+kpick 227130 # [SQUASH][DNM] Merge android-8.1.0_r46 into lineage-15.1
 
 # hardware/interfaces
 kpick 206140 # gps.default.so: fix crash on access to unset AGpsRilCallbacks::request_refloc
@@ -908,7 +921,6 @@ kpick 220841 # livedisplay: Query active state via native call.
 kpick 221642 # interfaces: Add vendor.lineage.stache@1.0::ISecureStorage
 kpick 221643 # interfaces: Do not add custom interfaces to VNDK
 kpick 221644 # stache: Add default ext4 crypto implementation
-kpick 223909 # biometrics: fingerprint: add locking to default impl
 kpick 224208 # camera: 1.0-legacy: Build with BOARD_VNDK_VERSION=current
 
 # hardware/lineage/lineagehw
@@ -929,6 +941,10 @@ kpick 220887 # bt: use TARGET_BOARD_AUTO to override qcom hals
 kpick 209093 # msm8974: hwc: Set ioprio for vsync thread
 kpick 220883 # hwc2: Do not treat color mode errors as fatal at init
 kpick 220885 # color_manager: Update display color api libname
+kpick 227131 # [SQUASH][DNM] Merge android-8.1.0_r46 into lineage-15.1
+kpick 227329 # Fix Buffer Overflow in Vendor Service display.qservice
+kpick 227331 # Fix Buffer Overflow in Vendor Service display.qservice
+kpick 227330 # Fix Buffer Overflow in Vendor Service display.qservice
 
 # hardware/qcom/display-caf/msm8974
 
@@ -936,14 +952,27 @@ kpick 220885 # color_manager: Update display color api libname
 kpick 220877 # gps: use TARGET_BOARD_AUTO to override qcom hals
 
 # hardware/qcom/media
+kpick 227132 # [SQUASH][DNM] Merge android-8.1.0_r46 into lineage-15.1
+
+# hardware/qcom/media-caf/apq8084
+kpick 227335 # mm-video-v4l2: Protect buffer access and increase input buffer size
+
+# hardware/qcom/media-caf/msm8960
+kpick 227337 # mm-video-v4l2: Protect buffer access and increase input buffer size
 
 # hardware/qcom/media-caf/msm8974
+kpick 227334 # mm-video-v4l2: Protect buffer access and increase input buffer size
+
+# hardware/qcom/media-caf/msm8994
+kpick 227339 # mm-video-v4l2: Protect buffer access and increase input buffer size
 
 # hardware/qcom/keymaster
 
 # hardware/qcom/power
 kpick 225949 # power: perform_hint_action: return an error code
 kpick 225950 # power: set_power_profile: handle errors
+#kpick 226912 # power: only start power HAL service after mpdecision running
+#kpick 227390 # power: Clean up hint IDs
 
 # hardware/qcom/thermal
 kpick 218360 # thermal: use log/log.h header
@@ -955,6 +984,7 @@ kpick 218360 # thermal: use log/log.h header
 # hardware/samsung
 kpick 218823 # audio: Add flag to opt in/out amplifier support
 kpick 220853 # dtbhtool: Add new DTBH_MODEL entry
+kpick 225876 # libril: add missing return statement
 
 # lineage/charter
 kpick 213574 # charter: Add some new USB rules
@@ -1017,6 +1047,9 @@ kpick 221489 # Automatic translation import
 kpick 222465 # Gallery2: Fix wrong string for empty albums
 
 # packages/apps/Jelly
+kpick 227086 # Jelly: update deps
+kpick 227087 # Jelly: update assets to use outline style
+kpick 227088 # Jelly: allow disabling clear text traffic at runtime
 
 # packages/apps/LineageParts
 kpick 217171 # Trust: enforce vendor security patch level check
@@ -1049,8 +1082,8 @@ kpick 218775 # Settings: Cleanup SimSettings additions
 kpick 219299 # Settings: Remove battery percentage switch
 kpick 221519 # [2/2] Settings: allow disable of screenshot shutter sound
 kpick 221840 # Fixed translation
-#kpick 222227 # [2/3] Settings: add burnIn protection setting
-#kpick 222306 # Settings: add HIDL vibration intensity preference
+kpick 227133 # [SQUASH][DNM] Merge android-8.1.0_r46 into lineage-15.1
+kpick 227220 # Development Settings: Add option to switch off captive portal
 
 # packages/apps/SetupWizard
 kpick 217580 # Add original-package to AndroidManifest
@@ -1074,6 +1107,7 @@ kpick 216979 # overlays: add torch accent
 # packages/providers/ContactsProvider
 
 # packages/providers/DownloadProvider
+kpick 227134 # [SQUASH][DNM] Merge android-8.1.0_r46 into lineage-15.1
 
 # packages/resources/devicesettings
 
@@ -1087,6 +1121,7 @@ kpick 209045 # Telephony: Fallback gracefully for emergency calls if suitable ap
 # prebuilts/misc
 
 # system/bt
+kpick 227135 # [SQUASH][DNM] Merge android-8.1.0_r46 into lineage-15.1
 
 # system/core
 privpick system/core refs/changes/19/206119/2 # init: I hate safety net
@@ -1118,6 +1153,7 @@ kpick 225936 # su: Remove mount of emulated storage
 kpick 225937 # su: Initialize windows size
 
 # system/libhidl
+kpick 227136 # [SQUASH][DNM] Merge android-8.1.0_r46 into lineage-15.1
 
 # system/netd
 
@@ -1130,6 +1166,8 @@ kpick 215122 # libQWiFiSoftApCfg: Replace deprecated kernel header path
 # system/security
 
 # system/sepolicy
+kpick 226871 # sepolicy: public: add TCSETSF to the list of unprivileged TTY ioctls
+kpick 227137 # [SQUASH][DNM] Merge android-8.1.0_r46 into lineage-15.1
 
 # system/update/engine
 
@@ -1156,6 +1194,10 @@ kpick 220398 # extract_utils: Skip unneeded md5sum
 kpick 220399 # extract_utils: Extract files from brotli compressed images
 #kpick 222564 # extract-utils: initial support for brotli packaged images.
 kpick 222612 # build: Update vdexExtractor
+kpick 226420 # [DNM] lineage-sdk: add ContainerManagerService
+kpick 226421 # [DNM] lineage-sdk: update-lineage-api with ContainerManager
+kpick 226423 # [DNM] lineage: enable the org.lineageos.containers feature
+kpick 226428 # [DNM] prebuilt: aarch64: add binaries for docker
 
 # vendor/nxp/opensource/packages/apps/Nfc
 

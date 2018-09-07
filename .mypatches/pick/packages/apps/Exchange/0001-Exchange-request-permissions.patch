@@ -1,4 +1,4 @@
-From b4bc26e67da5f5fcc9574a6735b9711d65ba39ee Mon Sep 17 00:00:00 2001
+From ea47c7ff35535931b093ee1cbf7fa06182fb628c Mon Sep 17 00:00:00 2001
 From: monojp <martin@herndl.org>
 Date: Fri, 6 Apr 2018 23:49:31 +0200
 Subject: [PATCH 1/3] Exchange: request permissions
@@ -8,17 +8,19 @@ Change-Id: I3fe87cc75d5152aa847b539cec7d5f60f7c5ed44
  Android.mk                                    |  3 +-
  AndroidManifest.xml                           |  2 +
  .../exchange/PermissionRequestActivity.java   | 91 +++++++++++++++++++
- .../android/exchange/eas/EasOperation.java    |  9 ++
- src/com/android/exchange/eas/EasSyncBase.java |  8 ++
+ .../android/exchange/eas/EasOperation.java    | 24 +++++
+ src/com/android/exchange/eas/EasSyncBase.java | 13 +++
  .../android/exchange/eas/EasSyncCalendar.java | 11 +++
  .../eas/EasSyncCollectionTypeBase.java        | 14 +++
  .../android/exchange/eas/EasSyncContacts.java | 11 +++
- .../service/AbstractSyncAdapterService.java   | 30 ++++++
+ .../service/AbstractPermissionService.java    | 61 +++++++++++++
+ .../service/AbstractSyncAdapterService.java   |  2 +-
  .../service/CalendarSyncAdapterService.java   |  9 ++
  .../service/ContactsSyncAdapterService.java   |  9 ++
- .../android/exchange/service/EasService.java  |  3 +
- 12 files changed, 199 insertions(+), 1 deletion(-)
+ .../android/exchange/service/EasService.java  | 17 +++-
+ 13 files changed, 264 insertions(+), 3 deletions(-)
  create mode 100644 src/com/android/exchange/PermissionRequestActivity.java
+ create mode 100644 src/com/android/exchange/service/AbstractPermissionService.java
 
 diff --git a/Android.mk b/Android.mk
 index a3a7d20b..26863abe 100644
@@ -42,7 +44,7 @@ index a3a7d20b..26863abe 100644
  LOCAL_JACK_COVERAGE_INCLUDE_FILTER += com.android.exchange.*
  
 diff --git a/AndroidManifest.xml b/AndroidManifest.xml
-index f401d650..de341fbb 100644
+index f401d650..b0998e55 100644
 --- a/AndroidManifest.xml
 +++ b/AndroidManifest.xml
 @@ -139,6 +139,8 @@
@@ -50,7 +52,7 @@ index f401d650..de341fbb 100644
              </intent-filter>
          </activity>
 +        <activity android:name=".PermissionRequestActivity"
-+                  android:theme="@android:style/Theme.NoDisplay" />
++                  android:theme="@android:style/Theme.Translucent.NoTitleBar" />
          <activity android:name=".SettingsRedirector">
              <intent-filter>
                  <action android:name="android.intent.action.MANAGE_NETWORK_USAGE" />
@@ -152,10 +154,29 @@ index 00000000..a6eb67a6
 +    }
 +}
 diff --git a/src/com/android/exchange/eas/EasOperation.java b/src/com/android/exchange/eas/EasOperation.java
-index c6330506..c15aad48 100644
+index c6330506..c64ef26d 100644
 --- a/src/com/android/exchange/eas/EasOperation.java
 +++ b/src/com/android/exchange/eas/EasOperation.java
-@@ -143,6 +143,8 @@ public abstract class EasOperation {
+@@ -20,6 +20,7 @@ import android.content.ContentResolver;
+ import android.content.ContentUris;
+ import android.content.ContentValues;
+ import android.content.Context;
++import android.content.pm.PackageManager;
+ import android.content.SyncResult;
+ import android.net.Uri;
+ import android.os.Build;
+@@ -108,6 +109,10 @@ public abstract class EasOperation {
+     /** Message MIME type for EAS version 14 and later. */
+     private static final String EAS_14_MIME_TYPE = "application/vnd.ms-sync.wbxml";
+ 
++    private static final String[] NEEDED_PERMISSIONS = {
++        android.Manifest.permission.READ_PHONE_STATE
++    };
++
+     /**
+      * EasOperation error codes below.  All subclasses should try to create error codes
+      * that do not overlap these codes or the codes of other subclasses. The error
+@@ -143,6 +148,8 @@ public abstract class EasOperation {
      /** Error code indicating that this operation failed, but we should not abort the sync */
      /** TODO: This is currently only used in EasOutboxSync, no other place handles it correctly */
      public static final int RESULT_NON_FATAL_ERROR = -12;
@@ -164,32 +185,55 @@ index c6330506..c15aad48 100644
      /** Error code indicating some other failure. */
      public static final int RESULT_OTHER_FAILURE = -99;
      /** Constant to delimit where op specific error codes begin. */
-@@ -204,6 +206,10 @@ public abstract class EasOperation {
+@@ -204,6 +211,10 @@ public abstract class EasOperation {
          return true;
      }
  
 +    public boolean hasRequiredPermissions() {
-+        return true;
++        return hasPermissions(NEEDED_PERMISSIONS);
 +    }
 +
      public final long getAccountId() {
          return mAccount.getId();
      }
-@@ -260,6 +266,9 @@ public abstract class EasOperation {
+@@ -260,6 +271,10 @@ public abstract class EasOperation {
                      getAccountId(), getCommand());
              return RESULT_INITIALIZATION_FAILURE;
          }
 +        if (!hasRequiredPermissions()) {
++            LogUtils.i(LOG_TAG, "No permissions in performOperation");
 +            return RESULT_NO_PERMISSIONS;
 +        }
          try {
              return performOperationInternal();
          } finally {
+@@ -743,4 +758,13 @@ public abstract class EasOperation {
+         }
+         return UIProvider.LastSyncResult.SUCCESS;
+     }
++
++    protected boolean hasPermissions(String[] permissions) {
++        for (String permission : permissions) {
++            if (mContext.checkSelfPermission(permission) != PackageManager.PERMISSION_GRANTED) {
++                return false;
++            }
++        }
++        return true;
++    }
+ }
 diff --git a/src/com/android/exchange/eas/EasSyncBase.java b/src/com/android/exchange/eas/EasSyncBase.java
-index 8e77e26d..65bbde76 100644
+index 8e77e26d..86ae211a 100644
 --- a/src/com/android/exchange/eas/EasSyncBase.java
 +++ b/src/com/android/exchange/eas/EasSyncBase.java
-@@ -76,6 +76,14 @@ public class EasSyncBase extends EasOperation {
+@@ -11,6 +11,7 @@ import com.android.emailcommon.provider.Mailbox;
+ import com.android.exchange.CommandStatusException;
+ import com.android.exchange.Eas;
+ import com.android.exchange.EasResponse;
++import com.android.exchange.eas.EasOperation;
+ import com.android.exchange.adapter.AbstractSyncParser;
+ import com.android.exchange.adapter.Parser;
+ import com.android.exchange.adapter.Serializer;
+@@ -76,6 +77,14 @@ public class EasSyncBase extends EasOperation {
          return true;
      }
  
@@ -204,6 +248,17 @@ index 8e77e26d..65bbde76 100644
      @Override
      protected HttpEntity getRequestEntity() throws IOException {
          final String className = Eas.getFolderClass(mMailbox.mType);
+@@ -103,6 +112,10 @@ public class EasSyncBase extends EasOperation {
+     @Override
+     protected int handleResponse(final EasResponse response)
+             throws IOException, CommandStatusException {
++        if (!hasRequiredPermissions()) {
++            LogUtils.i(TAG, "No permissions in handleResponse");
++            return EasOperation.RESULT_NO_PERMISSIONS;
++        }
+         try {
+             final AbstractSyncParser parser = mCollectionTypeHandler.getParser(mContext, mAccount,
+                     mMailbox, response.getInputStream());
 diff --git a/src/com/android/exchange/eas/EasSyncCalendar.java b/src/com/android/exchange/eas/EasSyncCalendar.java
 index 418d5912..d0f42e70 100644
 --- a/src/com/android/exchange/eas/EasSyncCalendar.java
@@ -311,42 +366,47 @@ index 0b9d9440..caddd057 100644
      @Override
      public int getTrafficFlag() {
          return TrafficFlags.DATA_CONTACTS;
-diff --git a/src/com/android/exchange/service/AbstractSyncAdapterService.java b/src/com/android/exchange/service/AbstractSyncAdapterService.java
-index 6e09de58..4ac1cdc5 100644
---- a/src/com/android/exchange/service/AbstractSyncAdapterService.java
-+++ b/src/com/android/exchange/service/AbstractSyncAdapterService.java
-@@ -26,8 +26,13 @@ import android.content.Context;
- import android.content.Intent;
- import android.content.ServiceConnection;
- import android.content.SyncResult;
+diff --git a/src/com/android/exchange/service/AbstractPermissionService.java b/src/com/android/exchange/service/AbstractPermissionService.java
+new file mode 100644
+index 00000000..0072a1bb
+--- /dev/null
++++ b/src/com/android/exchange/service/AbstractPermissionService.java
+@@ -0,0 +1,61 @@
++/*
++ * Copyright (C) 2018 The LineageOS Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++package com.android.exchange.service;
++
++import android.app.Service;
++import android.content.Intent;
 +import android.content.pm.PackageManager;
- import android.database.Cursor;
- import android.net.Uri;
 +import android.os.Handler;
-+import android.os.Looper;
++import android.os.HandlerThread;
 +import android.os.Message;
 +import android.os.Messenger;
- import android.os.IBinder;
- import android.text.format.DateUtils;
- 
-@@ -36,6 +41,7 @@ import com.android.emailcommon.provider.EmailContent;
- import com.android.emailcommon.service.EmailServiceStatus;
- import com.android.emailcommon.service.IEmailService;
- import com.android.emailcommon.utility.IntentUtilities;
 +import com.android.exchange.PermissionRequestActivity;
- import com.android.exchange.R;
- import com.android.mail.utils.LogUtils;
- 
-@@ -138,6 +144,30 @@ public abstract class AbstractSyncAdapterService extends Service {
-         nm.notify("AuthError", 0, notification);
-     }
- 
-+    protected boolean requestPermissions(String[] permissions) {
-+        Looper.prepare();
++import java.lang.InterruptedException;
 +
++public abstract class AbstractPermissionService extends Service {
++    protected boolean requestPermissions(String[] permissions) {
 +        boolean[] result = new boolean[1];
 +
-+        Handler handler = new Handler(Looper.myLooper()) {
++        HandlerThread handlerThread = new HandlerThread("PermissionThread");
++        handlerThread.start();
++
++        Handler handler = new Handler(handlerThread.getLooper()) {
 +            @Override
 +            public void handleMessage(Message msg) {
 +                int[] grantResults = (int[]) msg.obj;
@@ -354,20 +414,38 @@ index 6e09de58..4ac1cdc5 100644
 +                for (int i = 0; i < grantResults.length; i++) {
 +                    result[0] &= grantResults[i] == PackageManager.PERMISSION_GRANTED;
 +                }
-+                getLooper().quitSafely();
++                handlerThread.quit();
 +            }
 +        };
 +        Messenger messenger = new Messenger(handler);
 +
-+        startActivity(PermissionRequestActivity.createIntent(this, permissions, messenger));
-+        Looper.loop();
++        Intent intent = PermissionRequestActivity.createIntent(this, permissions, messenger);
++        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
++        startActivity(intent);
++
++        // Wait for handlerThread to finish
++        try {
++            handlerThread.join();
++        } catch(InterruptedException e) {
++            return false;
++        }
 +
 +        return result[0];
 +    }
-+
-     /**
-      * Interpret a result code from an {@link IEmailService.sync()} and, if it's an error, write
-      * it to the appropriate field in {@link android.content.SyncResult}.
++}
+diff --git a/src/com/android/exchange/service/AbstractSyncAdapterService.java b/src/com/android/exchange/service/AbstractSyncAdapterService.java
+index 6e09de58..c17539b5 100644
+--- a/src/com/android/exchange/service/AbstractSyncAdapterService.java
++++ b/src/com/android/exchange/service/AbstractSyncAdapterService.java
+@@ -44,7 +44,7 @@ import com.android.mail.utils.LogUtils;
+  * This class covers the boilerplate for using an {@link AbstractThreadedSyncAdapter}. Subclasses
+  * should just implement their sync adapter, and override {@link #getSyncAdapter}.
+  */
+-public abstract class AbstractSyncAdapterService extends Service {
++public abstract class AbstractSyncAdapterService extends AbstractPermissionService {
+     private static final String TAG = LogUtils.TAG;
+ 
+     // The call to ServiceConnection.onServiceConnected is asynchronous to bindService. It's
 diff --git a/src/com/android/exchange/service/CalendarSyncAdapterService.java b/src/com/android/exchange/service/CalendarSyncAdapterService.java
 index 06160643..c26bc63b 100644
 --- a/src/com/android/exchange/service/CalendarSyncAdapterService.java
@@ -423,19 +501,54 @@ index ce455bab..ab1a3c24 100644
              // If we've been asked to do an upload, make sure we've got work to do
              if (extras.getBoolean(ContentResolver.SYNC_EXTRAS_UPLOAD)) {
 diff --git a/src/com/android/exchange/service/EasService.java b/src/com/android/exchange/service/EasService.java
-index fe496ed8..9514e4e7 100644
+index fe496ed8..c6e4fac7 100644
 --- a/src/com/android/exchange/service/EasService.java
 +++ b/src/com/android/exchange/service/EasService.java
-@@ -135,6 +135,9 @@ public class EasService extends Service {
+@@ -67,7 +67,7 @@ import java.util.Set;
+  * from the sync adapters; sync adapters should make blocking calls on this service to actually
+  * perform any operations.
+  */
+-public class EasService extends Service {
++public class EasService extends AbstractPermissionService {
+ 
+     private static final String TAG = Eas.LOG_TAG;
+ 
+@@ -92,6 +92,10 @@ public class EasService extends Service {
+     private static boolean sProtocolLogging;
+     private static boolean sFileLogging;
+ 
++    private static final String[] NEEDED_PERMISSIONS = {
++        android.Manifest.permission.READ_PHONE_STATE
++    };
++
+     /**
+      * Implementation of the IEmailService interface.
+      * For the most part these calls should consist of creating the correct {@link EasOperation}
+@@ -135,6 +139,9 @@ public class EasService extends Service {
                  if (result == EasFullSyncOperation.RESULT_SECURITY_HOLD) {
                      LogUtils.i(LogUtils.TAG, "Security Hold trying to sync");
                      return EmailServiceStatus.INTERNAL_ERROR;
 +                } else if (result == EasFullSyncOperation.RESULT_NO_PERMISSIONS) {
-+                    LogUtils.i(LogUtils.TAG, "No permissions trying to sync");
++                    LogUtils.i(LogUtils.TAG, "No permissions in sync");
 +                    return EmailServiceStatus.INTERNAL_ERROR;
                  }
                  return convertToEmailServiceStatus(result);
              } else {
+@@ -408,6 +415,14 @@ public class EasService extends Service {
+ 
+     public int doOperation(final EasOperation operation, final String loggingName) {
+         LogUtils.d(TAG, "%s: %d", loggingName, operation.getAccountId());
++
++        // Basic permissions are needed for all sync operations
++        // because in EasOperation IMEI and phone number are queried
++        if (!requestPermissions(NEEDED_PERMISSIONS)) {
++            LogUtils.i(LogUtils.TAG, "No permissions in doOperation");
++            return EasOperation.RESULT_NO_PERMISSIONS;
++        }
++
+         mSynchronizer.syncStart(operation.getAccountId());
+         int result = EasOperation.RESULT_MIN_OK_RESULT;
+         // TODO: Do we need a wakelock here? For RPC coming from sync adapters, no -- the SA
 -- 
 2.17.1
 

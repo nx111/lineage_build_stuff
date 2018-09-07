@@ -1,0 +1,297 @@
+From 9923fad6282329be9f02586cff496a11081ecb6a Mon Sep 17 00:00:00 2001
+From: Joey <joey@lineageos.org>
+Date: Tue, 4 Sep 2018 20:18:36 +0200
+Subject: [PATCH 3/3] Jelly: allow disabling clear text traffic at runtime
+
+Change-Id: I6ea63aeb8f6264aec7fe5aea5fa90f167c886677
+Signed-off-by: Joey <joey@lineageos.org>
+---
+ app/src/main/AndroidManifest.xml              |  2 +
+ .../java/org/lineageos/jelly/JellyApp.java    | 42 +++++++++++++++++++
+ .../org/lineageos/jelly/SettingsActivity.java | 20 +++++++++
+ .../utils/NetworkSecurityPolicyUtils.java     | 33 +++++++++++++++
+ .../utils/NetworkSecurityPolicyUtils.java     | 31 ++++++++++++++
+ app/src/main/res/values/strings.xml           |  6 +++
+ .../main/res/xml/network_security_config.xml  | 25 +++++++++++
+ app/src/main/res/xml/settings.xml             | 11 ++++-
+ 8 files changed, 169 insertions(+), 1 deletion(-)
+ create mode 100644 app/src/main/java/org/lineageos/jelly/JellyApp.java
+ create mode 100644 app/src/main/java_lineage/org/lineageos/jelly/utils/NetworkSecurityPolicyUtils.java
+ create mode 100644 app/src/main/java_studio/org/lineageos/jelly/utils/NetworkSecurityPolicyUtils.java
+ create mode 100644 app/src/main/res/xml/network_security_config.xml
+
+diff --git a/app/src/main/AndroidManifest.xml b/app/src/main/AndroidManifest.xml
+index 1f697cc..e751774 100644
+--- a/app/src/main/AndroidManifest.xml
++++ b/app/src/main/AndroidManifest.xml
+@@ -23,11 +23,13 @@
+     <uses-permission android:name="com.android.launcher.permission.INSTALL_SHORTCUT" />
+ 
+     <application
++        android:name=".JellyApp"
+         android:allowBackup="true"
+         android:fullBackupContent="@xml/backup_descriptor"
+         android:icon="@mipmap/ic_launcher"
+         android:label="@string/app_name"
+         android:appCategory="productivity"
++        android:networkSecurityConfig="@xml/network_security_config"
+         android:supportsRtl="true"
+         android:theme="@style/AppTheme">
+ 
+diff --git a/app/src/main/java/org/lineageos/jelly/JellyApp.java b/app/src/main/java/org/lineageos/jelly/JellyApp.java
+new file mode 100644
+index 0000000..c4da7f7
+--- /dev/null
++++ b/app/src/main/java/org/lineageos/jelly/JellyApp.java
+@@ -0,0 +1,42 @@
++/*
++ * Copyright (C) 2018 The LineageOS Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++package org.lineageos.jelly;
++
++import android.app.Application;
++import android.content.SharedPreferences;
++import android.preference.PreferenceManager;
++
++import org.lineageos.jelly.utils.NetworkSecurityPolicyUtils;
++
++public class JellyApp extends Application {
++
++    @Override
++    public void onCreate() {
++        super.onCreate();
++
++        setClearTextTrafficConfig();
++    }
++
++    private void setClearTextTrafficConfig() {
++        if (!NetworkSecurityPolicyUtils.isSupported()) {
++            return;
++        }
++
++        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(this);
++        boolean isPermitted = prefs.getBoolean("key_clear_text_traffic", true);
++        NetworkSecurityPolicyUtils.setCleartextTrafficPermitted(isPermitted);
++    }
++}
+diff --git a/app/src/main/java/org/lineageos/jelly/SettingsActivity.java b/app/src/main/java/org/lineageos/jelly/SettingsActivity.java
+index d3c9b3c..633e026 100644
+--- a/app/src/main/java/org/lineageos/jelly/SettingsActivity.java
++++ b/app/src/main/java/org/lineageos/jelly/SettingsActivity.java
+@@ -19,6 +19,7 @@ import android.content.Context;
+ import android.content.Intent;
+ import android.os.Bundle;
+ import android.preference.Preference;
++import android.preference.PreferenceCategory;
+ import android.preference.PreferenceFragment;
+ import android.preference.SwitchPreference;
+ import android.support.v4.content.LocalBroadcastManager;
+@@ -33,6 +34,7 @@ import android.widget.LinearLayout;
+ import android.widget.Toast;
+ 
+ import org.lineageos.jelly.utils.IntentUtils;
++import org.lineageos.jelly.utils.NetworkSecurityPolicyUtils;
+ import org.lineageos.jelly.utils.PrefsUtils;
+ import org.lineageos.jelly.utils.UiUtils;
+ 
+@@ -57,6 +59,9 @@ public class SettingsActivity extends AppCompatActivity {
+             super.onCreate(savedInstance);
+             addPreferencesFromResource(R.xml.settings);
+ 
++            PreferenceCategory securityCategory = (PreferenceCategory)
++                    findPreference("category_security");
++
+             Preference homePage = findPreference("key_home_page");
+             homePage.setSummary(PrefsUtils.getHomePage(getContext()));
+             homePage.setOnPreferenceClickListener(preference -> {
+@@ -83,6 +88,21 @@ public class SettingsActivity extends AppCompatActivity {
+                     return true;
+                 });
+             }
++
++            SwitchPreference clearTextTraffic = (SwitchPreference)
++                    findPreference("key_clear_text_traffic");
++            if (NetworkSecurityPolicyUtils.isSupported()) {
++                clearTextTraffic.setOnPreferenceChangeListener((preference, value) -> {
++                    if (value instanceof Boolean) {
++                        NetworkSecurityPolicyUtils.setCleartextTrafficPermitted((Boolean) value);
++                        return true;
++                    }
++
++                    return false;
++                });
++            } else {
++                securityCategory.removePreference(clearTextTraffic);
++            }
+         }
+ 
+         private void editHomePage(Preference preference) {
+diff --git a/app/src/main/java_lineage/org/lineageos/jelly/utils/NetworkSecurityPolicyUtils.java b/app/src/main/java_lineage/org/lineageos/jelly/utils/NetworkSecurityPolicyUtils.java
+new file mode 100644
+index 0000000..d79fb42
+--- /dev/null
++++ b/app/src/main/java_lineage/org/lineageos/jelly/utils/NetworkSecurityPolicyUtils.java
+@@ -0,0 +1,33 @@
++/*
++ * Copyright (C) 2018 The LineageOS Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++package org.lineageos.jelly.utils;
++
++import android.security.NetworkSecurityPolicy;
++
++public final class NetworkSecurityPolicyUtils {
++
++    private NetworkSecurityPolicyUtils() {
++    }
++
++    public static boolean isSupported() {
++        return true;
++    }
++
++    public static void setCleartextTrafficPermitted(boolean permitted) {
++        NetworkSecurityPolicy policy = NetworkSecurityPolicy.getInstance();
++        policy.setCleartextTrafficPermitted(permitted);
++    }
++}
+diff --git a/app/src/main/java_studio/org/lineageos/jelly/utils/NetworkSecurityPolicyUtils.java b/app/src/main/java_studio/org/lineageos/jelly/utils/NetworkSecurityPolicyUtils.java
+new file mode 100644
+index 0000000..eaa791f
+--- /dev/null
++++ b/app/src/main/java_studio/org/lineageos/jelly/utils/NetworkSecurityPolicyUtils.java
+@@ -0,0 +1,31 @@
++/*
++ * Copyright (C) 2018 The LineageOS Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++package org.lineageos.jelly.utils;
++
++public final class NetworkSecurityPolicyUtils {
++
++    private NetworkSecurityPolicyUtils() {
++    }
++
++    @SuppressWarnings("SameReturnValue")
++    public static boolean isSupported() {
++        return false;
++    }
++
++    @SuppressWarnings("UnusedParameters")
++    public static void setCleartextTrafficPermitted(boolean permitted) {
++    }
++}
+diff --git a/app/src/main/res/values/strings.xml b/app/src/main/res/values/strings.xml
+index a665df1..6f30738 100644
+--- a/app/src/main/res/values/strings.xml
++++ b/app/src/main/res/values/strings.xml
+@@ -115,6 +115,12 @@
+     <string name="pref_reach_mode_title">Reach mode</string>
+     <!-- Settings: reach mode summary -->
+     <string name="pref_reach_mode_summary">Relocate interface elements for easier one-hand usage</string>
++    <!-- Settings: clear traffic title -->
++    <string name="pref_clear_text_traffic_title">Allow unsecure websites</string>
++    <!-- Settings: clear traffic summary on -->
++    <string name="pref_clear_text_traffic_summary_on">Clear text traffic (such as http) is allowed</string>
++    <!-- Settings: clear traffic summary off -->
++    <string name="pref_clear_text_traffic_summary_off">Clear text traffic (such as http) is not allowed</string>
+ 
+     <!-- History: title -->
+     <string name="history_title">History</string>
+diff --git a/app/src/main/res/xml/network_security_config.xml b/app/src/main/res/xml/network_security_config.xml
+new file mode 100644
+index 0000000..b8e1c0d
+--- /dev/null
++++ b/app/src/main/res/xml/network_security_config.xml
+@@ -0,0 +1,25 @@
++<?xml version="1.0" encoding="utf-8"?>
++<!-- Copyright (c) 2018 The LineageOS Project
++
++     Licensed under the Apache License, Version 2.0 (the "License");
++     you may not use this file except in compliance with the License.
++     You may obtain a copy of the License at
++
++         http://www.apache.org/licenses/LICENSE-2.0
++
++     Unless required by applicable law or agreed to in writing, software
++     distributed under the License is distributed on an "AS IS" BASIS,
++     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++     See the License for the specific language governing permissions and
++     limitations under the License.
++-->
++<network-security-config>
++
++    <!-- Allow http websites (matches 24 -> 27 targetSdk apps' behavior) -->
++    <base-config cleartextTrafficPermitted="true">
++        <trust-anchors>
++            <certificates src="system" />
++        </trust-anchors>
++    </base-config>
++
++</network-security-config>
+\ No newline at end of file
+diff --git a/app/src/main/res/xml/settings.xml b/app/src/main/res/xml/settings.xml
+index 86dcd31..95f7ffd 100644
+--- a/app/src/main/res/xml/settings.xml
++++ b/app/src/main/res/xml/settings.xml
+@@ -47,7 +47,9 @@
+         android:summary="@string/pref_reach_mode_summary"
+         android:title="@string/pref_reach_mode_title" />
+ 
+-    <PreferenceCategory android:title="@string/pref_privacy_security">
++    <PreferenceCategory
++        android:key="category_security"
++        android:title="@string/pref_privacy_security">
+ 
+         <SwitchPreference
+             android:defaultValue="0"
+@@ -73,6 +75,13 @@
+             android:summary="@string/pref_do_not_track_summary"
+             android:title="@string/pref_do_not_track_title" />
+ 
++        <SwitchPreference
++            android:defaultValue="1"
++            android:key="key_clear_text_traffic"
++            android:summaryOff="@string/pref_clear_text_traffic_summary_off"
++            android:summaryOn="@string/pref_clear_text_traffic_summary_on"
++            android:title="@string/pref_clear_text_traffic_title" />
++
+         <SwitchPreference
+             android:defaultValue="1"
+             android:key="key_cookie"
+-- 
+2.17.1
+
