@@ -1,4 +1,4 @@
-From 4c0cb15ea53c16b3671a14d28def83c071aad71f Mon Sep 17 00:00:00 2001
+From eda7f75545e249d5eeed7f616f8be74eab0f45ae Mon Sep 17 00:00:00 2001
 From: Sam Mortimer <sam@mortimer.me.uk>
 Date: Fri, 17 Aug 2018 11:25:08 -0700
 Subject: [PATCH 3/7] soong: Add java sources overlay support
@@ -6,9 +6,9 @@ Subject: [PATCH 3/7] soong: Add java sources overlay support
 Change-Id: I94143febb0a8afa6a165364d36a40d5120a4e7bc
 ---
  android/config.go |  10 ++++
- android/paths.go  | 137 ++++++++++++++++++++++++++++++++++++++++++++++
+ android/paths.go  | 141 ++++++++++++++++++++++++++++++++++++++++++++++
  java/java.go      |   4 ++
- 3 files changed, 151 insertions(+)
+ 3 files changed, 155 insertions(+)
 
 diff --git a/android/config.go b/android/config.go
 index 6313b88e..0731d95f 100644
@@ -39,7 +39,7 @@ index 6313b88e..0731d95f 100644
  	return String(c.productVariables.Platform_version_name)
  }
 diff --git a/android/paths.go b/android/paths.go
-index 91dd9a6d..5ceef34c 100644
+index 91dd9a6d..1d8fae42 100644
 --- a/android/paths.go
 +++ b/android/paths.go
 @@ -535,6 +535,31 @@ func pathForSource(ctx PathContext, pathComponents ...string) (SourcePath, error
@@ -74,7 +74,7 @@ index 91dd9a6d..5ceef34c 100644
  // existsWithDependencies returns true if the path exists, and adds appropriate dependencies to rerun if the
  // path does not exist.
  func existsWithDependencies(ctx PathContext, path SourcePath) (exists bool, err error) {
-@@ -584,6 +609,118 @@ func PathForSource(ctx PathContext, pathComponents ...string) SourcePath {
+@@ -584,6 +609,122 @@ func PathForSource(ctx PathContext, pathComponents ...string) SourcePath {
  	return path
  }
  
@@ -104,34 +104,35 @@ index 91dd9a6d..5ceef34c 100644
 +}
 +
 +func ApplySourceOverlays(ctx ModuleContext, directives string, allowedModules []string, srcFiles []Path) []Path {
-+	// Multiple overlay directives should be white space separated
++	// Multiple overlay directives should be white space separated.
 +	// Individual directive format is:
-+	// modulename|overlaydir|globwithinoverlaydir
++	// <modulename>|<overlaydir>|<globwithinoverlaydir>
 +	// Example:
 +	// org.lineageos.hardware|device/oneplus/msm8998-common/lineagehw|**/*.java
++	// If there is a file match by multiple directives, the first wins.
 +
 +	// Create map of expanded glob paths (globwithinoverlaydir component only)
-+	// to full android.Path mappings
++	// to full android.Path mappings.
 +	overlayMap := make(map[string]Path)
 +
-+	// Parse directives string and populate overlayMap
++	// Parse directives string and populate overlayMap.
 +	for _, directive := range strings.Fields(directives) {
-+		// Spit directives string into whitespace fields
++		// Split directives string into whitespace fields.
 +		fields := strings.SplitN(directive, "|", 3)
 +		if len(fields) != 3 {
 +			ctx.ModuleErrorf("could not parse source overlay directive %s", directive)
 +			continue
 +		}
 +
-+		// Name the per-directive fields
++		// Name the per-directive fields.
 +		module, dir, glob := fields[0], fields[1], fields[2]
 +
-+		// Skip overlay directives that don't apply to this module
++		// Skip overlay directives that don't apply to this module.
 +		if module != ctx.ModuleName() {
 +			continue
 +		}
 +
-+		// Apply sources overlay whitelist
++		// Check whether sources overlays are permitted for this module.
 +		allowed := false
 +		for _, allowedModule := range allowedModules {
 +			if allowedModule == module {
@@ -146,14 +147,14 @@ index 91dd9a6d..5ceef34c 100644
 +			return srcFiles
 +		}
 +
-+		// Glob dir/glob to establish what overlay files exist
++		// Glob dir/globpattern to establish which overlay files exist.
 +		toGlobPath := filepath.Join(dir, glob)
 +		paths, err := ctx.GlobWithDeps(toGlobPath, nil)
 +		if err != nil {
 +			ctx.ModuleErrorf("unable to glob %s: %s", toGlobPath, err.Error())
 +			continue
 +		}
-+		// Add globbed paths to overlayMap
++		// Add globbed paths to overlayMap.  First match wins.
 +		for _, path := range paths {
 +			// Skip directories
 +			if strings.HasSuffix(path, "/") {
@@ -164,17 +165,17 @@ index 91dd9a6d..5ceef34c 100644
 +			if !strings.HasPrefix(path, dir+"/") {
 +				continue
 +			}
-+			pathWithinModule := path[len(dir)+1:] // Account for trailing slash
++			pathWithinModule := path[len(dir)+1:] // Account for trailing slash.
 +			if _, found := overlayMap[pathWithinModule]; !found {
 +				overlayMap[pathWithinModule] = PathForSourceRelaxed(ctx, path)
 +			}
 +		}
 +	}
 +
-+	// Calculate module path length including trailing slash
++	// Calculate module path length including trailing slash.
 +	modulePathLen := len(ctx.ModuleDir()) + 1
 +
-+	// Replace entries in srcFiles that match overlapMap
++	// Replace entries in srcFiles that exist in overlayMap.
 +	for i := range srcFiles {
 +		if len(srcFiles[i].String()) < modulePathLen {
 +			continue
@@ -182,11 +183,14 @@ index 91dd9a6d..5ceef34c 100644
 +		srcFileSuffix := srcFiles[i].String()[modulePathLen:]
 +		if overlayFile, found := overlayMap[srcFileSuffix]; found {
 +			srcFiles[i] = overlayFile
++			delete(overlayMap, srcFileSuffix)
 +		}
 +	}
++	// and create new srcFiles entries for those that don't.
++	for _, path := range overlayMap {
++		srcFiles = append(srcFiles, path)
++	}
 +
-+	// Return srcFiles so that we can later do more than just substitution.
-+	// eg append new entries.
 +	return srcFiles
 +}
 +

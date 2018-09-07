@@ -753,7 +753,6 @@ kpick 226755 # lineage: Enable cryptfs_hw
 #kpick 226754 # lineage: Enable bt-caf and wlan-caf
 kpick 223893 # manifest: Re-enable bash, nano and other cmdline tools
 kpick 225832 # android: Enable qcom sepolicy
-kpick 227374 # lineage: Enable Power HAL for QC devices
 
 android_head=$(cd android;git log -n 1 | sed -n 1p | cut -d' ' -f2;cd $topdir)
 
@@ -909,6 +908,8 @@ kpick 225539 # Camera:CameraService: Added lock on mHIDLMemPoolId in QDataCallba
 kpick 225540 # Camera: CameraHardwareInterface: Releasing mHIDLMemoryMapLock in QdataCallback
 kpick 225746 # Camera: Handle duplicate camera Id due to openLegacy support
 kpick 226592 # camera/parameters: Take device specific headers into account
+kpick 227430 # Revert "libcameraservice: Disable external provider for legacy HAL1"
+kpick 227433 # Explicitly initialise base class in copy constructor
 
 # frameworks/base
 kpick 224266 # SystemUI: Add Lineage statusbar item holder
@@ -954,7 +955,6 @@ kpick 226587 # Camera: Expose Aux camera to apps present in the whitelist
 kpick 226588 # camera: Check if aux camera whitelist is set before restricting cameras
 kpick 226600 # PhoneWindowManager: Check if proposed rotation is in range
 kpick 226615 # NavigationBarView: Avoid NPE before mPanelView is created
-kpick 226916 # NtpTrustedTime: Refresh NTP server from resources before requesting time
 kpick 227108 # SystemUI: Fix several issues in the ADB over Network tile
 kpick 227290 # PowerProfile: allow overriding default power profile
 kpick 227291 # [DNM] Revert "Handle public volumes and otherwise invalid UUIDs."
@@ -992,7 +992,6 @@ kpick 226402 # keymasterV4_0: Tags support for FBE wrapped key.
 
 # hardware/libhardware
 kpick 223097 # hardware/libhw: Add display_defs.h to declare custom enums/flags
-kpick 223681 # power: Add new power hints
  
 # hardware/libhardware_legacy
 
@@ -1060,7 +1059,6 @@ kpick 224957 # media: vdec: Include nativebase headers
 kpick 223441 # Add -Wno-error to compile with global -Werror.
 
 # hardware/qcom/power
-kpick 223890 # power: Drop dependency of vendor lineage power HAL
 #kpick 223892 # power: Add power hint to set profile
 
 # hardware/qcom/wlan-caf
@@ -1219,7 +1217,6 @@ kpick 225800 # Settings: Add rotation settings
 kpick 225858 # storage: Do not allow eject for volumes on non-removable disks
 kpick 225970 # DevelopmentSettings: Hide OEM unlock by default
 kpick 226142 # Settings: Add developer setting for root access
-kpick 226146 # Settings: battery: Add LineageParts perf profiles
 kpick 226148 # Settings: "Security & location" -> "Security & privacy"
 kpick 226150 # Settings: add Trust interface hook
 kpick 226151 # Settings: show Trust brading in confirm_lock_password UI
