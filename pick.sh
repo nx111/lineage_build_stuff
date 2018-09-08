@@ -794,7 +794,6 @@ kpick 224613 # soong: Add LOCAL_AIDL_FLAGS handling
 kpick 224827 # soong: Add java sources overlay support
 kpick 226593 # soong: Add function to return targer specific header path
 #kpick 226918 # Add /ramdisk to installclean
-kpick 227233 # [DNM]soong: Fix wpa_supplicant crashes
 
 # dalvik
 kpick 225475 # dexdeps: Add option for --include-lineage-classes.
@@ -811,20 +810,12 @@ kpick 224768 # sepol: hostapd is now hal_wifi_hostapd
 
 # device/samsung/klte-common
 kpick 224917 # DO NOT MERGE: klte-common: Requisite bring-up BS change
-kpick 225186 # klte-common: wlan: Update supplicant services for new calling sequence
-kpick 225187 # klte-common: wifi_supplicant: deprecate entropy.bin
-kpick 225188 # klte-common: wpa_supplicant: Move control sockets to /data/vendor
-kpick 225189 # klte-common: Don't start supplicant with interfaces
-kpick 225190 # klte-common: wpa_supplicant(hidl): Add support for starting HAL lazily
-kpick 225191 # klte-common: Add p2p_no_group_iface=1 to p2p_supplicant_overlay
 kpick 225192 # klte-common: Align ril.h to samsung_msm8974-common P libril changes
-kpick 225761 # klte-common: Update prefixes for audio system properties
+kpick 227610 # klte-common: Remove irrelevant BOARD_HAVE_NEW_QCOM_CSDCLIENT flag
+kpick 227611 # klte-common: Renamed config_dozeAfterScreenOff
 
 # device/samsung/msm8974-common
 kpick 224916 # DO NOT MERGE: msm8974-common: sepolicy: Just make it build
-kpick 225249 # msm8974-common: Uprev Wi-Fi HAL to 1.2
-kpick 225250 # msm8974-common: Uprev to supplicant 1.1
-kpick 225251 # msm8974-common: Add hostapd HIDL interface
 kpick 225466 # msm8974-common: libril: Remove LOCAL_CLANG
 kpick 225467 # msm8974-common: libril: Fix Const-Correctness for RIL_RadioFunctions
 kpick 225468 # msm8974-common: libril: Remove unused code
@@ -1009,8 +1000,6 @@ kpick 223194 # nxp: Begin restoring pn547
 
 # hardware/qcom/audio-caf/msm8974
 kpick 223436 # Add -Wno-error to compile with global -Werror.
-kpick 225193 # hal: Update prefixes for audio system properties
-kpick 226619 # hal: Require feature flags to be explicitly enabled
 
 # hardware/qcom/display
 kpick 223340 # Revert "msm8974: deprecate msm8974"
@@ -1024,7 +1013,6 @@ kpick 224958 # msm8960/8974: Include string.h where it is necessary
 kpick 226419 # msm8960/74/94: Move GRALLOC_USAGE_PRIVATE_UNCACHED
 
 # hardware/qcom/display-caf/msm8974
-kpick 223434 # Include what we use.
 kpick 223435 # Add -Wno-error to compile with global -Werror.
 kpick 226422 # gralloc: Move GRALLOC_USAGE_PRIVATE_UNCACHED
 kpick 226481 # display: remove compile time warnings
@@ -1064,6 +1052,12 @@ kpick 223441 # Add -Wno-error to compile with global -Werror.
 # hardware/qcom/wlan-caf
 
 # hardware/ril-caf
+kpick 227612 # Merge 767770dcffb7a6553d25740d2975b6e201f592be on remote branch
+kpick 227613 # Merge a1dd1f0aaf0a52f479d307557cd1f594c7c45d8f on remote branch
+kpick 227614 # Disable IOemHook implemenation in rild.
+kpick 227615 # Snap for 4955954 from 08781f88bb6159d3ebb0d48b569204295129460a to p-keystone-qcom-release
+kpick 227616 # Merge 845f6b7eb0fe4a1a1883129dd341c7bf6fb469cd on remote branch
+kpick 227617 # Merge tag 'LA.UM.7.4.r1-03000-8x98.0' into lineage-16.0-caf
 
 # hardware/samsung
 kpick 225628 # Sending empty strings instead of NULL for some RIL requests
@@ -1080,6 +1074,10 @@ kpick 226074 # wifiloader: remove unused variable
 kpick 226075 # libril: remove unused variables/functions
 kpick 226076 # libsecril-client-sap: remove unused variables
 kpick 226077 # libsecril-client: remove unused variables/functions
+kpick 226080 # libril: Replace strncpy with strlcpy.
+kpick 227453 # power: remove getFeature functionality
+kpick 227454 # power: Add Lineage power hints
+
 
 # kernel/samsung/msm8974
 
