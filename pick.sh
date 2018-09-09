@@ -813,14 +813,14 @@ kpick 224768 # sepol: hostapd is now hal_wifi_hostapd
 # device/samsung/kltechnduo
 
 # device/samsung/klte-common
-kpick 224917 # DO NOT MERGE: klte-common: Requisite bring-up BS change
-kpick 225192 # klte-common: Align ril.h to samsung_msm8974-common P libril changes
-kpick 227610 # klte-common: Remove irrelevant BOARD_HAVE_NEW_QCOM_CSDCLIENT flag
-kpick 227611 # klte-common: Renamed config_dozeAfterScreenOff
 kpick 227732 # klte-common: Make the external camera provider ignore internal cameras
+kpick 225192 # klte-common: Align ril.h to samsung_msm8974-common P libril changes
+kpick 224917 # DO NOT MERGE: klte-common: Requisite bring-up BS change
 
 # device/samsung/msm8974-common
-kpick 224916 # DO NOT MERGE: msm8974-common: sepolicy: Just make it build
+kpick 226070 # msm8974-common: Allow additional gralloc 1.0 buffer usage bits
+kpick 227730 # msm8974-common: Disable USB host mode
+kpick 227731 # msm8974-common: Use Lineage overlays too
 kpick 225466 # msm8974-common: libril: Remove LOCAL_CLANG
 kpick 225467 # msm8974-common: libril: Fix Const-Correctness for RIL_RadioFunctions
 kpick 225468 # msm8974-common: libril: Remove unused code
@@ -831,9 +831,7 @@ kpick 225472 # msm8974-common: libril: Change rild initial sequence to guarantee
 kpick 225473 # msm8974-common: libril: Add SIM_ABSENT error
 kpick 225759 # msm8974-common: libril: Replace strncpy with strlcpy.
 kpick 225760 # msm8974-common: libril: FR51015: Tuning of Binder buffer for rild.
-kpick 226070 # msm8974-common: Allow additional gralloc 1.0 buffer usage bits
-kpick 227730 # msm8974-common: Disable USB host mode
-kpick 227731 # msm8974-common: Use Lineage overlays too
+kpick 224916 # DO NOT MERGE: msm8974-common: sepolicy: Just make it build
 
 # device/samsung/qcom-common
 
@@ -956,6 +954,9 @@ kpick 226615 # NavigationBarView: Avoid NPE before mPanelView is created
 kpick 227108 # SystemUI: Fix several issues in the ADB over Network tile
 kpick 227290 # PowerProfile: allow overriding default power profile
 kpick 227291 # [DNM] Revert "Handle public volumes and otherwise invalid UUIDs."
+kpick 227820 # PhoneWindowManager: Allow torch and track skip during ambient display
+kpick 227821 # GlobalScreenshot: Fix screenshot not saved when appending appname with some languages
+kpick 227839 # storage: Set all sdcards to visible
 
 # frameworks/native
 kpick 224443 # libbinder: Don't log call trace when waiting for vendor service on non-eng builds
@@ -1141,6 +1142,7 @@ kpick 224957 # media: vdec: Include nativebase headers
 
 # hardware/qcom/media-caf/msm8974
 kpick 223441 # Add -Wno-error to compile with global -Werror.
+kpick 227823 # mm-video-v4l2: Protect buffer access and increase input buffer size
 
 # hardware/qcom/power
 #kpick 223892 # power: Add power hint to set profile
@@ -1164,8 +1166,6 @@ kpick 225632 # libril: Fix double freeing of memory in SAP service and add null-
 kpick 225633 # libril: Store the system time when NITZ is received.
 kpick 225634 # libril: Add DISABLE_RILD_OEM_HOOK.
 kpick 225635 # libril: Change rild initial sequence to guarantee non-null function pointer before rild register its hidl service
-kpick 226073 # power: remove unused variable/mark unused parameter
-kpick 226074 # wifiloader: remove unused variable
 kpick 226075 # libril: remove unused variables/functions
 kpick 226076 # libsecril-client-sap: remove unused variables
 kpick 226077 # libsecril-client: remove unused variables/functions
@@ -1316,6 +1316,7 @@ kpick 226154 # fingerprint: Allow devices to configure sensor location
 kpick 226391 # Settings: Hide lockdown in lockscreen settings
 kpick 227120 # Settings: Check interfaces before enabling ADB over network
 kpick 227795 # Settings: Hide unsupported USB modes automatically
+kpick 227834 # FingerprintEnrollFindSensor: Don't overlay front for side sensors
 
 # packages/apps/SetupWizard
 
