@@ -1,0 +1,433 @@
+From 0891e11146f137fa49ffb99a0e77a9e3b99dbe1d Mon Sep 17 00:00:00 2001
+From: AdrianDC <radian.dc@gmail.com>
+Date: Wed, 30 Dec 2015 18:31:39 +0100
+Subject: [PATCH 07/74] libfm_jni: Improve and fix FM jni logs
+
+ * Log cur_fm_state as Debug instead of Error
+ * Log successful and state logs as Debug and Info instead of Error
+ * Log step by step firmware download as Info and Debug
+ * Fix logging of the is_rds_support
+ * Add __func__ name for the cur_fm_state logs
+ * Add a cur_fm_state log for Stop_Scan_Seek
+ * Add missing LOG_TAG for all sources using ALOG*
+ * Avoid double log on error in IsRdsSupport
+ * Fix typos, relevant warnings and cleanup related sources
+
+Change-Id: I2abe77c6f00c02ef106b569bef5db6b366e76df1
+---
+ libfm_jni/ConfFileParser.cpp      | 20 +++++++++--------
+ libfm_jni/ConfigFmThs.cpp         |  4 +++-
+ libfm_jni/FmIoctlsInterface.cpp   | 16 +++++++------
+ libfm_jni/FmPerformanceParams.cpp |  4 +++-
+ libfm_jni/FmRadioController.cpp   | 37 +++++++++++++++++--------------
+ libfm_jni/FmRadioController.h     |  2 +-
+ libfm_jni/LibfmJni.cpp            | 19 +++++++++-------
+ 7 files changed, 58 insertions(+), 44 deletions(-)
+
+diff --git a/libfm_jni/ConfFileParser.cpp b/libfm_jni/ConfFileParser.cpp
+index 1817ad7..602a337 100644
+--- a/libfm_jni/ConfFileParser.cpp
++++ b/libfm_jni/ConfFileParser.cpp
+@@ -27,6 +27,8 @@ OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
+ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+ 
++#define LOG_TAG "android_hardware_fm"
++
+ #include <stdio.h>
+ #include <stdlib.h>
+ #include <string.h>
+@@ -476,19 +478,19 @@ static char parse_load_frm_fhandler
+   unsigned int i;
+   bool has_carriage_rtn = false;
+ 
+-  while((bytes_read = fread(buf, 1, MAX_LINE_LEN, fp))) {
+-        for(i = 0; i < bytes_read; i++) {
+-            if(line_len == line_allocated) {
++  while (bytes_read = fread(buf, 1, MAX_LINE_LEN, fp)) {
++        for (i = 0; i < bytes_read; i++) {
++            if (line_len == line_allocated) {
+                 line_allocated += 25;
+                 new_line = realloc(line, line_allocated);
+-                if(new_line == NULL) {
++                if (new_line == NULL) {
+                    ret = FALSE;
+                    ALOGE("memory allocation failed for line\n");
+                    break;
+                 }
+                 line = (char *)new_line;
+             }
+-            if((buf[i] == '\n')) {
++            if (buf[i] == '\n') {
+                 has_carriage_rtn = false;
+                 line[line_len] = '\0';
+                 ret = parse_line(key_file, line, &cur_grp);
+@@ -497,15 +499,15 @@ static char parse_load_frm_fhandler
+                    ALOGE("could not parse the line, line not proper\n");
+                    break;
+                 }
+-            }else if(buf[i] == '\r') {
++            } else if (buf[i] == '\r') {
+                 ALOGE("File has carriage return\n");
+                 has_carriage_rtn = true;
+-            }else if(has_carriage_rtn) {
++            } else if (has_carriage_rtn) {
+                 ALOGE("File format is not proper, no line character\
+                         after carraige return\n");
+                 ret = FALSE;
+                 break;
+-            }else {
++            } else {
+                 line[line_len] = buf[i];
+                 line_len++;
+             }
+@@ -809,7 +811,7 @@ static char line_is_key_value_pair
+   }
+   while((str != equal_start) && isalnum(*str))
+         str++;
+-  if((str == equal_start)) {
++  if (str == equal_start) {
+       key = (char *)malloc(sizeof(char) * (key_len + 1));
+       if(key == NULL) {
+          ALOGE("could not alloc memory for new key\n");
+diff --git a/libfm_jni/ConfigFmThs.cpp b/libfm_jni/ConfigFmThs.cpp
+index dd6b283..c04ef8a 100644
+--- a/libfm_jni/ConfigFmThs.cpp
++++ b/libfm_jni/ConfigFmThs.cpp
+@@ -27,6 +27,8 @@ OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
+ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+ 
++#define LOG_TAG "android_hardware_fm"
++
+ #include <cstdlib>
+ #include <cstring>
+ #include <utils/Log.h>
+@@ -568,7 +570,7 @@ void  ConfigFmThs :: SetRxSearchAfThs
+ 
+     keyfile = get_key_file();
+ 
+-    ALOGE("file name is: %s\n", file);
++    ALOGD("%s: file name is: %s\n", __func__, file);
+     if(!parse_load_file(keyfile, file)) {
+        ALOGE("Error in loading threshold file\n");
+     }else {
+diff --git a/libfm_jni/FmIoctlsInterface.cpp b/libfm_jni/FmIoctlsInterface.cpp
+index d0e50f0..2f64602 100644
+--- a/libfm_jni/FmIoctlsInterface.cpp
++++ b/libfm_jni/FmIoctlsInterface.cpp
+@@ -27,6 +27,8 @@ OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
+ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+ 
++#define LOG_TAG "android_hardware_fm"
++
+ #include "FmIoctlsInterface.h"
+ #include <cstdio>
+ #include <cstdlib>
+@@ -50,24 +52,24 @@ int FmIoctlsInterface :: start_fm_patch_dl
+     struct v4l2_capability cap;
+ 
+ #ifndef QCOM_NO_FM_FIRMWARE
+-    ALOGE("start_fm_patch_dl = %d\n",fd);
++    ALOGI("%s: start_fm_patch_dl = %d\n", __func__, fd);
+     ret = ioctl(fd, VIDIOC_QUERYCAP, &cap);
+-    ALOGE("executed cmd\n");
++    ALOGD("%s: executed cmd\n", __func__);
+     if(ret == IOCTL_SUCC) {
+         ret = snprintf(versionStr, MAX_VER_STR_LEN, "%d", cap.version);
+         if(ret >= MAX_VER_STR_LEN) {
+             return FM_FAILURE;
+         }else {
+             ret = property_set(FM_VERSION_PROP, versionStr);
+-            ALOGE("set versionStr done");
++            ALOGD("set versionStr done");
+             if(ret != PROP_SET_SUCC)
+                return FM_FAILURE;
+             ret = property_set(FM_MODE_PROP, "normal");
+-            ALOGE("set FM_MODE_PROP done");
++            ALOGD("set FM_MODE_PROP done");
+             if(ret != PROP_SET_SUCC)
+                return FM_FAILURE;
+             ret = property_set(FM_INIT_PROP, "0");
+-            ALOGE("set FM_INIT_PROP done");
++            ALOGD("set FM_INIT_PROP done");
+             if(ret != PROP_SET_SUCC)
+                return FM_FAILURE;
+             ret = property_set(SCRIPT_START_PROP, SOC_PATCH_DL_SCRPT);
+@@ -306,7 +308,7 @@ int  FmIoctlsInterface :: get_upperband_limit
+         return FM_FAILURE;
+     }else {
+         freq = (tuner.rangehigh / TUNE_MULT);
+-        ALOGE("high freq: %d\n",freq);
++        ALOGI("high freq: %lu\n", freq);
+         return FM_SUCCESS;
+     }
+ }
+@@ -325,7 +327,7 @@ int  FmIoctlsInterface :: get_lowerband_limit
+         return FM_FAILURE;
+     }else {
+         freq = (tuner.rangelow / TUNE_MULT);
+-        ALOGE("low freq: %d\n",freq);
++        ALOGE("low freq: %lu\n",freq);
+         return FM_SUCCESS;
+     }
+ }
+diff --git a/libfm_jni/FmPerformanceParams.cpp b/libfm_jni/FmPerformanceParams.cpp
+index dc22432..c5cfe68 100644
+--- a/libfm_jni/FmPerformanceParams.cpp
++++ b/libfm_jni/FmPerformanceParams.cpp
+@@ -27,6 +27,8 @@ OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
+ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+ 
++#define LOG_TAG "android_hardware_fm"
++
+ #include <cstdio>
+ #include <utils/Log.h>
+ #include "FmPerformanceParams.h"
+@@ -54,7 +56,7 @@ signed char FmPerformanceParams :: SetBand
+                                76000, 90000);
+        break;
+    default:
+-       ALOGE("Band type: %ld is invalid\n", band);
++       ALOGE("Band type: %u is invalid\n", band);
+        ret = FM_FAILURE;
+        break;
+    }
+diff --git a/libfm_jni/FmRadioController.cpp b/libfm_jni/FmRadioController.cpp
+index ece88e7..ca524e7 100644
+--- a/libfm_jni/FmRadioController.cpp
++++ b/libfm_jni/FmRadioController.cpp
+@@ -27,6 +27,8 @@ OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
+ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+ 
++#define LOG_TAG "android_hardware_fm"
++
+ #include <cstdio>
+ #include <cstdlib>
+ #include <cstring>
+@@ -163,7 +165,7 @@ int FmRadioController ::Pwr_Up(int freq)
+ 
+     ALOGI("%s,[freq=%d]\n", __func__, freq);
+     property_get("qcom.bluetooth.soc", value, NULL);
+-    ALOGD("BT soc is %s\n", value);
++    ALOGD("BT soc is '%s'\n", value);
+     if (fd_driver < 0) {
+         ret = open_dev();
+         if (ret != FM_SUCCESS) {
+@@ -173,7 +175,7 @@ int FmRadioController ::Pwr_Up(int freq)
+     }
+ 
+     if (cur_fm_state == FM_OFF) {
+-        ALOGE("cur_fm_state = %d\n",cur_fm_state);
++        ALOGD("%s: cur_fm_state = %d\n", __func__, cur_fm_state);
+         if (strcmp(value, "rome") != 0) {
+             ret = FmIoctlsInterface::start_fm_patch_dl(fd_driver);
+             if (ret != FM_SUCCESS) {
+@@ -284,7 +286,7 @@ int FmRadioController ::Pwr_Down()
+                         V4L2_CID_PRV_STATE, FM_DEV_NONE);
+     }
+     if(event_listener_thread != 0) {
+-        ALOGD("%s, event_listener_thread canceeled\n", __func__);
++        ALOGD("%s, event_listener_thread cancelled\n", __func__);
+         event_listener_canceled = true;
+         pthread_join(event_listener_thread, NULL);
+     }
+@@ -333,7 +335,7 @@ int FmRadioController :: Seek(int dir)
+     struct timespec ts;
+ 
+     if (cur_fm_state != FM_ON) {
+-        ALOGE("%s error Fm state: %d\n", __func__,cur_fm_state);
++        ALOGE("%s error Fm state: %d\n", __func__, cur_fm_state);
+         return FM_FAILURE;
+     }
+ 
+@@ -383,7 +385,7 @@ bool FmRadioController ::IsRds_support
+ )
+ {
+    is_rds_support = true;
+-   ALOGI("is_rds_support: \n", is_rds_support);
++   ALOGI("is_rds_support: %d\n", is_rds_support);
+    return is_rds_support;
+ }
+ 
+@@ -392,12 +394,12 @@ int FmRadioController ::MuteOn()
+ {
+     int ret;
+ 
+-    ALOGE("cur_fm_state = %d\n", cur_fm_state);
++    ALOGD("%s: cur_fm_state = %d\n", __func__, cur_fm_state);
+     if((cur_fm_state != FM_OFF) &&
+        (cur_fm_state != FM_ON_IN_PROGRESS)) {
+        ret = FmIoctlsInterface::set_control(fd_driver,
+                        V4L2_CID_AUDIO_MUTE, MUTE_L_R_CHAN);
+-       ALOGE("CMD executed mute\n");
++       ALOGI("CMD executed mute\n");
+     }else {
+        ret = FM_FAILURE;
+     }
+@@ -409,12 +411,12 @@ int FmRadioController ::MuteOff()
+ {
+     int ret;
+ 
+-    ALOGE("cur_fm_state = %d\n", cur_fm_state);
++    ALOGD("%s: cur_fm_state = %d\n", __func__, cur_fm_state);
+     if((cur_fm_state != FM_OFF) &&
+        (cur_fm_state != FM_ON_IN_PROGRESS)) {
+         ret = FmIoctlsInterface::set_control(fd_driver,
+                       V4L2_CID_AUDIO_MUTE, UNMUTE_L_R_CHAN);
+-        ALOGE("CMD executed for unmute\n");
++        ALOGI("CMD executed for unmute\n");
+     }else {
+         ret = FM_FAILURE;
+     }
+@@ -456,8 +458,9 @@ int FmRadioController :: Stop_Scan_Seek
+ (
+ )
+ {
+-   int ret;
++    int ret;
+ 
++    ALOGD("%s: cur_fm_state = %d\n", __func__, cur_fm_state);
+     if((cur_fm_state == SEEK_IN_PROGRESS) ||
+        (cur_fm_state == SCAN_IN_PROGRESS)) {
+         ret = FmIoctlsInterface::set_control(fd_driver,
+@@ -616,7 +619,7 @@ int FmRadioController :: SetDeConstant
+ {
+     int ret;
+ 
+-     ALOGE("cur_fm_state: %d, emphasis: %d\n", cur_fm_state, emphasis);
++    ALOGD("cur_fm_state: %d, emphasis: %ld\n", cur_fm_state, emphasis);
+     if(cur_fm_state == FM_ON) {
+         switch(emphasis) {
+             case DE_EMP75:
+@@ -686,7 +689,7 @@ int FmRadioController :: GetStationList
+         freq |= tmpFreqByte2;
+         ALOGI(" freq: %d", freq);
+         real_freq  = (freq * FREQ_MULTIPLEX) + lowBand;
+-        ALOGI(" real_freq: %d", real_freq);
++        ALOGI("real_freq: %f", real_freq);
+         if ( (real_freq < lowBand ) || (real_freq > highBand) ) {
+               ALOGI("Frequency out of band limits");
+         } else {
+@@ -741,7 +744,7 @@ int FmRadioController ::ScanList
+             return FM_FAILURE;
+         }
+     } else {
+-        ALOGI("Scanlist: not proper state %d\n",cur_fm_state );
++        ALOGI("Scanlist: not proper state %d\n", cur_fm_state);
+         return FM_FAILURE;
+     }
+     return FM_SUCCESS;
+@@ -798,7 +801,7 @@ int FmRadioController :: EnableRDS
+ {
+     int ret = FM_FAILURE;
+ 
+-    ALOGE("%s:cur_fm_state = %d\n", __func__, cur_fm_state);
++    ALOGD("%s: cur_fm_state = %d\n", __func__, cur_fm_state);
+     if (cur_fm_state == FM_ON) {
+         ret = FmIoctlsInterface::set_control(fd_driver,
+                       V4L2_CID_PRV_RDSON, 1);
+@@ -818,7 +821,7 @@ int FmRadioController :: EnableRDS
+         rds_enabled = 1;
+         EnableAF();
+     } else {
+-        ALOGE("%s:not in proper state cur_fm_state = %d\n", cur_fm_state);
++        ALOGE("%s: not in proper state cur_fm_state = %d\n", __func__, cur_fm_state);
+         return ret;
+     }
+     return ret;
+@@ -833,7 +836,7 @@ int FmRadioController :: DisableRDS
+ {
+     int ret = FM_FAILURE;
+ 
+-    ALOGE("%s:cur_fm_state = %d\n", __func__, cur_fm_state);
++    ALOGD("%s: cur_fm_state = %d\n", __func__, cur_fm_state);
+     if (cur_fm_state == FM_ON) {
+         ret = FmIoctlsInterface::set_control(fd_driver,
+                       V4L2_CID_PRV_RDSON, 2);
+@@ -845,7 +848,7 @@ int FmRadioController :: DisableRDS
+         rds_enabled = 0;
+         DisableAF();
+     } else {
+-        ALOGE("%s:not in proper state cur_fm_state = %d\n", cur_fm_state);
++        ALOGE("%s: not in proper state cur_fm_state = %d\n", __func__, cur_fm_state);
+         ret = FM_FAILURE;
+     }
+     return ret;
+diff --git a/libfm_jni/FmRadioController.h b/libfm_jni/FmRadioController.h
+index 6ce906e..95758a1 100644
+--- a/libfm_jni/FmRadioController.h
++++ b/libfm_jni/FmRadioController.h
+@@ -28,7 +28,7 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+ 
+ #ifndef __FM_RADIO_CTRL_H__
+-#define __FM_RADIO_CTRL_H___
++#define __FM_RADIO_CTRL_H__
+ 
+ #include <pthread.h>
+ #include <ctime>
+diff --git a/libfm_jni/LibfmJni.cpp b/libfm_jni/LibfmJni.cpp
+index 52ad029..94a696f 100644
+--- a/libfm_jni/LibfmJni.cpp
++++ b/libfm_jni/LibfmJni.cpp
+@@ -27,6 +27,8 @@ OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
+ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+ 
++#define LOG_TAG "android_hardware_fm"
++
+ #include <jni.h>
+ #include "JNIHelp.h"
+ #include "android_runtime/AndroidRuntime.h"
+@@ -291,8 +293,9 @@ jint IsRdsSupport(JNIEnv *env, jobject thiz)
+         ret = JNI_FALSE;
+     if (!ret) {
+         ALOGE("%s, error, [ret=%d]\n", __func__, ret);
++    } else {
++        ALOGD("%s, [ret=%d]\n", __func__, ret);
+     }
+-    ALOGD("%s, [ret=%d]\n", __func__, ret);
+     return ret;
+ }
+ 
+@@ -318,7 +321,7 @@ jint SetAntenna(JNIEnv *env, jobject thiz, jint antenna)
+     } else if (1 == antenna) {
+         ana = FM_SHORT_ANA;
+     } else {
+-        ALOGE("%s:fail, para error\n", __func__);
++        ALOGE("%s: fail, para error\n", __func__);
+         jret = JNI_FALSE;
+         goto out;
+     }
+@@ -365,18 +368,18 @@ int register_android_hardware_fm(JNIEnv* env)
+ 
+ jint JNI_OnLoad(JavaVM *jvm, void *reserved)
+ {
+-  JNIEnv *e;
+-  int status;
+-   ALOGE("FM : loading FM-JNI\n");
++   JNIEnv *e;
++   int status;
++   ALOGI("FM: loading FM-JNI\n");
+ 
+-   if(jvm->GetEnv((void **)&e, JNI_VERSION_1_6)) {
++   if (jvm->GetEnv((void **)&e, JNI_VERSION_1_6)) {
+        ALOGE("JNI version mismatch error");
+-      return JNI_ERR;
++       return JNI_ERR;
+    }
+ 
+    if ((status = register_android_hardware_fm(e)) < 0) {
+        ALOGE("jni adapter service registration failure, status: %d", status);
+-      return JNI_ERR;
++       return JNI_ERR;
+    }
+    return JNI_VERSION_1_6;
+ }
+-- 
+2.17.1
+

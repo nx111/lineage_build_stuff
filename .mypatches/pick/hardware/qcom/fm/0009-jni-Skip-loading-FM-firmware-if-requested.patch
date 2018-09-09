@@ -1,0 +1,76 @@
+From df21497d33e2cd1b35471a6cdaa2e84de5569602 Mon Sep 17 00:00:00 2001
+From: Ricardo Cerqueira <ricardo@cyngn.com>
+Date: Tue, 4 Nov 2014 15:14:08 +0000
+Subject: [PATCH 09/74] jni: Skip loading FM firmware if requested
+
+Not all boards require a firmware download for FM. Set
+TARGET_QCOM_NO_FM_FIRMWARE if the device doesn't require
+a fw image to run FM
+
+This change mirrors the change done for libfm_jni:
+I31fee137a59256c2b2907b5ff7212327299a9646
+
+Change-Id: If18650af934f840a54f53fa9474a3341df0e3e68
+---
+ jni/Android.mk              | 4 ++++
+ jni/android_hardware_fm.cpp | 8 ++++++++
+ 2 files changed, 12 insertions(+)
+
+diff --git a/jni/Android.mk b/jni/Android.mk
+index 12c9607..2a1db4d 100644
+--- a/jni/Android.mk
++++ b/jni/Android.mk
+@@ -27,6 +27,10 @@ ifeq ($(TARGET_FM_LEGACY_PATCHLOADER),true)
+     LOCAL_CFLAGS += -DFM_LEGACY_PATCHLOADER
+ endif
+ 
++ifeq ($(TARGET_QCOM_NO_FM_FIRMWARE),true)
++    LOCAL_CFLAGS += -DQCOM_NO_FM_FIRMWARE
++endif
++
+ include $(BUILD_SHARED_LIBRARY)
+ 
+ 
+diff --git a/jni/android_hardware_fm.cpp b/jni/android_hardware_fm.cpp
+index 0dca4fa..efa8240 100644
+--- a/jni/android_hardware_fm.cpp
++++ b/jni/android_hardware_fm.cpp
+@@ -694,6 +694,7 @@ static jint android_hardware_fmradio_FmReceiverJNI_acquireFdNative
+        /*Set the mode for soc downloader*/
+        property_set("vendor.hw.fm.mode", "normal");
+        /* Need to clear the hw.fm.init firstly */
++#ifndef QCOM_NO_FM_FIRMWARE
+        property_set("vendor.hw.fm.init", "0");
+        property_set("ctl.start", "fm_dl");
+        sched_yield();
+@@ -713,6 +714,9 @@ static jint android_hardware_fmradio_FmReceiverJNI_acquireFdNative
+          close(fd);
+          return FM_JNI_FAILURE;
+        }
++#else
++       usleep(WAIT_TIMEOUT);
++#endif
+     }
+     return fd;
+ }
+@@ -1217,6 +1221,7 @@ static jint android_hardware_fmradio_FmReceiverJNI_setNotchFilterNative(JNIEnv *
+        else
+           property_set("vendor.hw.fm.mode", "wa_disable");
+ 
++#ifndef QCOM_NO_FM_FIRMWARE
+        property_set("ctl.start", "fm_dl");
+        sched_yield();
+        for(i=0; i<10; i++) {
+@@ -1229,6 +1234,9 @@ static jint android_hardware_fmradio_FmReceiverJNI_setNotchFilterNative(JNIEnv *
+           }
+        }
+        ALOGE("init_success:%d after %f seconds \n", init_success, 0.2*i);
++#else
++       usleep(WAIT_TIMEOUT);
++#endif
+ 
+        property_get("vendor.notch.value", notch, NULL);
+        ALOGE("Notch = %s",notch);
+-- 
+2.17.1
+

@@ -1,0 +1,65 @@
+From a0012017371b15cf20dcfbf6df12ed191d8ae2bf Mon Sep 17 00:00:00 2001
+From: Ricardo Cerqueira <ricardo@cyngn.com>
+Date: Tue, 26 Jan 2016 13:43:39 +0000
+Subject: [PATCH 10/74] jni: Confine the firmware-load skipping to the actual
+ loading
+
+Change If18650af934f840a54f53fa9474a3341df0e3e68 removed the
+property-setting steps from the initialization routine. Bring it
+back, as we may want to use those properties to trigger module
+state changes from init. The recommended flow for devices with
+the latest IRIS driver is the following:
+
+on property:vendor.hw.fm.init=0
+    write /sys/module/radio_iris_transport/parameters/fmsmd_set 0
+
+on property:vendor.hw.fm.init=1
+    write /sys/module/radio_iris_transport/parameters/fmsmd_set 1
+
+This change mirrors the change done for libfm_jni:
+Id1997a51d83b82425630f6975f4020d4a2a448c4
+
+Change-Id: Ifddf678398fec2e4bfa9688c044da7d75898e056
+---
+ jni/android_hardware_fm.cpp | 10 ++++++----
+ 1 file changed, 6 insertions(+), 4 deletions(-)
+
+diff --git a/jni/android_hardware_fm.cpp b/jni/android_hardware_fm.cpp
+index efa8240..786e9cd 100644
+--- a/jni/android_hardware_fm.cpp
++++ b/jni/android_hardware_fm.cpp
+@@ -694,8 +694,8 @@ static jint android_hardware_fmradio_FmReceiverJNI_acquireFdNative
+        /*Set the mode for soc downloader*/
+        property_set("vendor.hw.fm.mode", "normal");
+        /* Need to clear the hw.fm.init firstly */
+-#ifndef QCOM_NO_FM_FIRMWARE
+        property_set("vendor.hw.fm.init", "0");
++#ifndef QCOM_NO_FM_FIRMWARE
+        property_set("ctl.start", "fm_dl");
+        sched_yield();
+        for(i=0; i<45; i++) {
+@@ -707,6 +707,11 @@ static jint android_hardware_fmradio_FmReceiverJNI_acquireFdNative
+             usleep(WAIT_TIMEOUT);
+          }
+        }
++#else
++       property_set("vendor.hw.fm.init", "1");
++       usleep(WAIT_TIMEOUT);
++       init_success = 1;
++#endif
+        ALOGE("init_success:%d after %f seconds \n", init_success, 0.2*i);
+        if(!init_success) {
+          property_set("ctl.stop", "fm_dl");
+@@ -714,9 +719,6 @@ static jint android_hardware_fmradio_FmReceiverJNI_acquireFdNative
+          close(fd);
+          return FM_JNI_FAILURE;
+        }
+-#else
+-       usleep(WAIT_TIMEOUT);
+-#endif
+     }
+     return fd;
+ }
+-- 
+2.17.1
+

@@ -742,17 +742,21 @@ repo sync android  >/dev/null
 cd .repo/manifests
 git reset >/dev/null
 git stash >/dev/null
+git rebase --abort >/dev/null 2>/dev/null
 git fetch --all >/dev/null
 
 default_branch=$(grep "^[[:space:]]*<default revision=" $topdir/.repo/manifests/default.xml | sed -e 's:[^"]*"\(.*\)":\1:' | sed -e "s:refs/heads/::g")
 git reset --hard $(git branch -a | grep "remotes/m/$default_branch" | cut -d'>' -f 2 | sed -e "s/ //g") >/dev/null
 cd $topdir
 
-kpick 225583 # manifest: Enable lineage styles overlays
-kpick 226755 # lineage: Enable cryptfs_hw
-#kpick 226754 # lineage: Enable bt-caf and wlan-caf
 kpick 223893 # manifest: Re-enable bash, nano and other cmdline tools
-kpick 225832 # android: Enable qcom sepolicy
+kpick 225832 # lineage: Enable qcom sepolicy
+kpick 227745 # lineage: Enable FM apps
+kpick 225583 # manifest: Enable lineage styles overlays
+kpick 227747 # lineage: Enable weather apps
+#kpick 227748 # lineage: Enable qcom thermal/vr HALs
+kpick 226755 # lineage: Enable cryptfs_hw
+#kpick 227749 # lineage: Enable exfat/fuse/ntfs-3g repositories
 
 android_head=$(cd android;git log -n 1 | sed -n 1p | cut -d' ' -f2;cd $topdir)
 
@@ -813,6 +817,7 @@ kpick 224917 # DO NOT MERGE: klte-common: Requisite bring-up BS change
 kpick 225192 # klte-common: Align ril.h to samsung_msm8974-common P libril changes
 kpick 227610 # klte-common: Remove irrelevant BOARD_HAVE_NEW_QCOM_CSDCLIENT flag
 kpick 227611 # klte-common: Renamed config_dozeAfterScreenOff
+kpick 227732 # klte-common: Make the external camera provider ignore internal cameras
 
 # device/samsung/msm8974-common
 kpick 224916 # DO NOT MERGE: msm8974-common: sepolicy: Just make it build
@@ -827,6 +832,8 @@ kpick 225473 # msm8974-common: libril: Add SIM_ABSENT error
 kpick 225759 # msm8974-common: libril: Replace strncpy with strlcpy.
 kpick 225760 # msm8974-common: libril: FR51015: Tuning of Binder buffer for rild.
 kpick 226070 # msm8974-common: Allow additional gralloc 1.0 buffer usage bits
+kpick 227730 # msm8974-common: Disable USB host mode
+kpick 227731 # msm8974-common: Use Lineage overlays too
 
 # device/samsung/qcom-common
 
@@ -973,7 +980,6 @@ kpick 225816 # libbt-vendor: add support for samsung bluetooth
 kpick 226447 # libbt: Make sure that we don't load pre-patch when looking for patch
 
 # hardware/boardcomm/wlan
-kpick 225241 # net: wireless: bcmdhd: Update bcm4339 FW (6.37.34.43) [DO NOT MERGE]
 
 # hardware/interfaces
 kpick 224064 # Revert "Bluetooth: Remove random MAC addresses"
@@ -1001,6 +1007,22 @@ kpick 223194 # nxp: Begin restoring pn547
 # hardware/qcom/audio-caf/msm8974
 kpick 223436 # Add -Wno-error to compile with global -Werror.
 
+# hardware/qcom/bt-caf
+kpick 226647 # libbt-qcom: Allow building without proprietary bits
+kpick 226648 # libbt: Fix case where SoC type is not set
+kpick 226649 # Bluetooth: load btaddr from NV if QCOM_BT_USE_BTNV is set
+kpick 226650 # libbt-qcom: Allow reading BT address from property
+kpick 226651 # Add vendor-specific message types for FM.
+kpick 226652 # Remove hardcoded LOCAL_MODULE_PATHS from vendor components. (bt)
+kpick 226653 # BT: Moving chipset version parameters' initialization out of ALOG
+kpick 226654 # Apply the Cherokee's mechanism of stopping hci_filter to ROME
+kpick 226655 # Add missing headers to libbt-vendor
+kpick 226656 # Load bluetooth firmwares from /vendor
+kpick 226658 # Don't build libbt-hidlclient for OSS builds
+kpick 227449 # HIDL interface still uses ro.boot.btmacaddr, so stick to that
+kpick 227450 # CAF forgot to add vendor prefix to a bluetooth.status prop
+
+
 # hardware/qcom/display
 kpick 223340 # Revert "msm8974: deprecate msm8974"
 kpick 223341 # display: Always assume kernel source is present
@@ -1021,6 +1043,80 @@ kpick 226482 # display: Enable clang for all display modules
 # hardware/qcom/display-caf/msm8998
 
 # hardware/qcom/fm
+kpick 226683 # Partially revert "FM: QSSI changes"
+kpick 226684 # Drop BOARD_HAVE_QCOM_FM flag
+kpick 226685 # jni: fix calibration data path for legacy fm_qsoc_patches
+kpick 226686 # libfm_jni: Skip loading FM firmware if requested
+kpick 226687 # libfm_jni: Do not come here unless QCOM_HARDWARE is in use
+kpick 226688 # libfm_jni: Add support for internal antenna hardware
+kpick 226689 # libfm_jni: Improve and fix FM jni logs
+kpick 226690 # libfm_jni: Confine the firmware-load skipping to the actual loading
+kpick 226691 # jni: Skip loading FM firmware if requested
+kpick 226692 # jni: Confine the firmware-load skipping to the actual loading
+kpick 226693 # Allow library to be used by apps directly
+kpick 226694 # Break bootclasspath dependency
+kpick 226695 # fmapp2: new launcher icon by LeopardSurd
+kpick 226696 # FMRadio : Re-vamp UI
+kpick 226697 # Fm : Restore seek arrows
+kpick 226698 # Fm : Make default country an overlay
+kpick 226699 # FmRadio : Re-add RDS fields to UI
+kpick 226700 # Scanned frequencies are saved in ascending ordering
+kpick 226701 # FMRadio : Call unregister in onPause
+kpick 226702 # FMRadio : Switch file extension to aac
+kpick 226703 # FM: Add property to force use internal antenna
+kpick 226704 # FM: Cleanup resources
+kpick 226705 # FMRadio: add Indonesia
+kpick 226706 # New Material icon
+kpick 226707 # FM: fixup strings
+kpick 226708 # FM2: materialize
+kpick 226709 # FM: retune last frequency when resume after call
+kpick 226710 # FM: always use overlay default country
+kpick 226711 # FM: Store tag num/value in sequence
+kpick 226712 # FM: reenable radio text visibility after station info updated
+kpick 226713 # FMRadio : Launch station list automatically after scan
+kpick 226714 # FM: respect hw.fm.internal_antenna
+kpick 226715 # FM: fix mRadioTextScroller usage in transmitter activity
+kpick 226716 # Fix status text to reflect when FM is enabled.
+kpick 226717 # FM: The collect channel disappear when quit FM
+kpick 226718 # FMRadio : Ensure scan state is kept in sync
+kpick 226719 # FMRadio : Keep track of scanned frequencies in service
+kpick 226720 # FMRadio : Select band based on country
+kpick 226721 # FMRadio : cleaned up band selection code
+kpick 226722 # FMRadio : improved band selection
+kpick 226723 # FMRadio : Localization of band types
+kpick 226724 # FMRadio : Fix settings UI bugs
+kpick 226725 # FMRadio : Fix headphone icon
+kpick 226726 # Fm : Update India bands
+kpick 226727 # fmapp2: String improvements
+kpick 226728 # fmapp2: Allow value for the default fm recording duration to be overlayed.
+kpick 226729 # Convert regional band arrays to string references
+kpick 226730 # Revert "Disable libfm_jni"
+kpick 226731 # Use BOARD_HAVE_QCOM_FM flag
+kpick 226732 # FM: Use some sane colors
+kpick 226733 # FM: Fix helium hal build
+kpick 226734 # FM: Fix KHz->kHz
+kpick 226735 # FM2: Convert FM transmitter notifications to use NotificationChannel
+kpick 226736 # FM2: Revamp notifications
+kpick 226737 # libfm_jni: Fix strchr implicit char* typecast in ConfFileParser
+kpick 226738 # libfm_jni: Add jni core headers dependency
+kpick 226739 # Do not link to android.hidl.base@1.0
+kpick 226740 # FM: adaptive icon
+kpick 226741 # fm: Resolve required dependency qcom.fmradio.xml linkage
+kpick 226742 # libfm_jni: Remove unused variables
+kpick 226743 # libfm_jni: Resolve fread assignment to condition cast
+kpick 223685 # libfm_jni: Resolve FM_DEVICE_PATH R/O open flag
+kpick 226744 # libfm_jni: Ignore unused parameters from APIs
+kpick 226745 # fm_hci/helium: Exclude from OSS builds
+kpick 223678 # libfm_jni: use proper nativehelper headers
+kpick 223683 # jni: Remove unused variables
+kpick 223684 # jni: Resolve equality comparisons with extraneous parentheses
+kpick 226862 # jni: Resolve FM_DEVICE_PATH R/O open flag
+kpick 223686 # jni: Ignore unused parameters from APIs
+kpick 223687 # jni: Resolve V4L2_CID_AUDIO_MUTE redefinitions
+kpick 223692 # jni: Resolve -Wwritable-strings warnings in helium FW library variables
+kpick 223688 # fmapp2: Set LOCAL_PRIVATE_PLATFORM_APIS
+kpick 224246 # jni: Resolve unused and uninitialized variable errors
+kpick 224386 # libfm_jni: Resolve unused and uninitialized variable errors
 
 # hardware/qcom/gps
 kpick 223351 # Revert "msm8974: deprecate msm8974"
@@ -1068,7 +1164,6 @@ kpick 225632 # libril: Fix double freeing of memory in SAP service and add null-
 kpick 225633 # libril: Store the system time when NITZ is received.
 kpick 225634 # libril: Add DISABLE_RILD_OEM_HOOK.
 kpick 225635 # libril: Change rild initial sequence to guarantee non-null function pointer before rild register its hidl service
-kpick 226072 # liblights: remove unused variable
 kpick 226073 # power: remove unused variable/mark unused parameter
 kpick 226074 # wifiloader: remove unused variable
 kpick 226075 # libril: remove unused variables/functions
@@ -1213,7 +1308,6 @@ kpick 225755 # Settings: Hide AOSP theme-related controllers
 kpick 225756 # Settings: fix dark style issues
 kpick 225800 # Settings: Add rotation settings
 kpick 225858 # storage: Do not allow eject for volumes on non-removable disks
-kpick 225970 # DevelopmentSettings: Hide OEM unlock by default
 kpick 226142 # Settings: Add developer setting for root access
 kpick 226148 # Settings: "Security & location" -> "Security & privacy"
 kpick 226150 # Settings: add Trust interface hook
@@ -1221,6 +1315,7 @@ kpick 226151 # Settings: show Trust brading in confirm_lock_password UI
 kpick 226154 # fingerprint: Allow devices to configure sensor location
 kpick 226391 # Settings: Hide lockdown in lockscreen settings
 kpick 227120 # Settings: Check interfaces before enabling ADB over network
+kpick 227795 # Settings: Hide unsupported USB modes automatically
 
 # packages/apps/SetupWizard
 

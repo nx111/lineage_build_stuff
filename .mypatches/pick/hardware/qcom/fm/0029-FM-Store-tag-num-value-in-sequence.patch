@@ -1,0 +1,58 @@
+From 501cfae65733a1f22a810b19b34fac5368dfe6cf Mon Sep 17 00:00:00 2001
+From: Edward Wang <ewang@cyngn.com>
+Date: Fri, 10 Apr 2015 16:57:05 -0700
+Subject: [PATCH 29/74] FM: Store tag num/value in sequence
+
+Storing tag into mTag[] array should not depend on its index.
+If one tag num/value are invalid and it will create empty string in
+the tag array, which might return the empty string during query.
+
+Change-Id: I35287e5dd1e97c6a7196d02b0aa7c9efcea4d3a3
+(cherry picked from commit 2a2612f5a3125dadd4c804d4104ce996b91a4d9e)
+---
+ qcom/fmradio/FmReceiver.java | 20 +++++++++++++-------
+ 1 file changed, 13 insertions(+), 7 deletions(-)
+
+diff --git a/qcom/fmradio/FmReceiver.java b/qcom/fmradio/FmReceiver.java
+index b1a2521..78ee8c7 100644
+--- a/qcom/fmradio/FmReceiver.java
++++ b/qcom/fmradio/FmReceiver.java
+@@ -1657,7 +1657,7 @@ public class FmReceiver extends FmTransceiver
+       int bytes_read;
+       String rt = "";
+       int rt_len;
+-      int i, j = 2;
++      int i, count, avail_tag_num = 0;
+       byte tag_code, tag_len, tag_start_pos;
+       if (isCherokeeChip()) {
+           rt_plus = FmReceiverJNI.getPsBuffer(rt_plus);
+@@ -1675,14 +1675,20 @@ public class FmReceiver extends FmTransceiver
+           if ((rt != "") && (rt != null)) {
+               rt_len = rt.length();
+               mRdsData.setTagNums(0);
+-              for (i = 1; (i <= 2) && (j < rt_plus[LEN_IND]); i++) {
+-                  tag_code = rt_plus[j++];
+-                  tag_start_pos = rt_plus[j++];
+-                  tag_len = rt_plus[j++];
++              avail_tag_num = (rt_plus[LEN_IND] - 2)/3;
++              if (avail_tag_num > 2) {
++                avail_tag_num = 2;
++              }
++              count = 1;
++              for (i = 0; i < avail_tag_num; i++) {
++                  tag_code = rt_plus[2+3*i];
++                  tag_start_pos = rt_plus[3+3*i];
++                  tag_len = rt_plus[4+3*i];
+                   if (((tag_len + tag_start_pos) <= rt_len) && (tag_code > 0)) {
+                       mRdsData.setTagValue(rt.substring(tag_start_pos,
+-                                            (tag_len + tag_start_pos)), i);
+-                      mRdsData.setTagCode(tag_code, i);
++                                            (tag_len + tag_start_pos)), count);
++                      mRdsData.setTagCode(tag_code, count);
++                      count++;
+                   }
+               }
+           } else {
+-- 
+2.17.1
+
