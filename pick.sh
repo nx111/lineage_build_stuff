@@ -957,6 +957,7 @@ kpick 227291 # [DNM] Revert "Handle public volumes and otherwise invalid UUIDs."
 kpick 227820 # PhoneWindowManager: Allow torch and track skip during ambient display
 kpick 227821 # GlobalScreenshot: Fix screenshot not saved when appending appname with some languages
 kpick 227839 # storage: Set all sdcards to visible
+kpick 227896 # SystemUI: Add Profiles tile
 
 # frameworks/native
 kpick 224443 # libbinder: Don't log call trace when waiting for vendor service on non-eng builds
@@ -1148,6 +1149,13 @@ kpick 227823 # mm-video-v4l2: Protect buffer access and increase input buffer si
 #kpick 223892 # power: Add power hint to set profile
 
 # hardware/qcom/wlan-caf
+kpick 226638 # wcnss_qmi: Generate a fixed random mac address if the NV doesn't provide one
+kpick 226639 # wcnss_service: Deal with mdm-detect too
+kpick 226640 # wifi-hal: Only try LOWI once
+kpick 226641 # wifi-hal: stop the UMAC logspam
+kpick 226642 # Wifi: Quiet some excessive debug output
+kpick 226643 # wcnss_service: Read serial number from custom property
+kpick 226645 # Make wcnss_service build with the VNDK.
 
 # hardware/ril-caf
 kpick 227612 # Merge 767770dcffb7a6553d25740d2975b6e201f592be on remote branch
