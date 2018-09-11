@@ -6,6 +6,7 @@ op_patch_local=0
 op_project_snapshot=0
 op_restore_snapshot=0
 op_pick_remote_only=0
+op_pick_continue=0
 op_snap_project=""
 op_patches_dir=""
 op_base_pick=0
@@ -665,6 +666,8 @@ for op in $*; do
          op_pick_remote_only=1
     elif [ "$op" = "-rp" -o "$op" = "-pr" ]; then
          op_reset_projects=1
+    elif [ "$op" = "-c" -o "$op" = "--continue" ]; then
+         op_pick_continue=1
     elif [ "$op" = "--backup-rr-cache" ]; then
          rrCache -backup
          exit $?
@@ -732,7 +735,7 @@ fi
 #---------------------------------#
 ###################################
 
-if [ $0 != "bash" -a ! -f $0.tmp ]; then    # continue pick or not
+if [ $0 != "bash" -a ! -f $0.tmp -a $op_pick_continue -eq 0 ]; then    # continue pick or not
 repo sync vendor/lineage >/dev/null
 apply_force_changes
 
@@ -904,7 +907,6 @@ kpick 225539 # Camera:CameraService: Added lock on mHIDLMemPoolId in QDataCallba
 kpick 225540 # Camera: CameraHardwareInterface: Releasing mHIDLMemoryMapLock in QdataCallback
 kpick 225746 # Camera: Handle duplicate camera Id due to openLegacy support
 kpick 226592 # camera/parameters: Take device specific headers into account
-kpick 227430 # Revert "libcameraservice: Disable external provider for legacy HAL1"
 kpick 227433 # Explicitly initialise base class in copy constructor
 
 # frameworks/base
@@ -958,6 +960,7 @@ kpick 227820 # PhoneWindowManager: Allow torch and track skip during ambient dis
 kpick 227821 # GlobalScreenshot: Fix screenshot not saved when appending appname with some languages
 kpick 227839 # storage: Set all sdcards to visible
 kpick 227896 # SystemUI: Add Profiles tile
+kpick 221716 # Where's my circle battery, dude?
 
 # frameworks/native
 kpick 224443 # libbinder: Don't log call trace when waiting for vendor service on non-eng builds
@@ -967,10 +970,8 @@ kpick 225543 # sensorservice: customize sensor fusion mag filter via prop
 kpick 225544 # input: Adjust priority
 kpick 225545 # Forward port 'Swap volume buttons' (2/3)
 kpick 225546 # AppOpsManager: Update with the new ops
-kpick 225827 # libui: Allow extension of valid gralloc 1.0 buffer usage bits
 
 # frameworks/opt/telephony
-kpick 223774 # telephony: Squashed support for simactivation feature
 
 # hardware/boardcom/libbt
 kpick 225146 # libbt: Only allow upio_start_stop_timer on 32bit arm
@@ -1021,8 +1022,8 @@ kpick 226654 # Apply the Cherokee's mechanism of stopping hci_filter to ROME
 kpick 226655 # Add missing headers to libbt-vendor
 kpick 226656 # Load bluetooth firmwares from /vendor
 kpick 226658 # Don't build libbt-hidlclient for OSS builds
-kpick 227449 # HIDL interface still uses ro.boot.btmacaddr, so stick to that
-kpick 227450 # CAF forgot to add vendor prefix to a bluetooth.status prop
+kpick 227449 # libbt-vendor: Fix BLUETOOTH_MAC_ADDR_BOOT_PROPERTY definition
+kpick 227450 # libbt-vendor: Add missing vendor prefix to a bluetooth.status prop
 
 
 # hardware/qcom/display
@@ -1034,11 +1035,9 @@ kpick 223344 # msm8974: hwcomposer: Fix regression in hwc_sync
 kpick 223345 # msm8974: libgralloc: Fix adding offset to the mapped base address
 kpick 223346 # msm8974: libexternal should depend on libmedia
 kpick 224958 # msm8960/8974: Include string.h where it is necessary
-kpick 226419 # msm8960/74/94: Move GRALLOC_USAGE_PRIVATE_UNCACHED
 
 # hardware/qcom/display-caf/msm8974
 kpick 223435 # Add -Wno-error to compile with global -Werror.
-kpick 226422 # gralloc: Move GRALLOC_USAGE_PRIVATE_UNCACHED
 kpick 226481 # display: remove compile time warnings
 kpick 226482 # display: Enable clang for all display modules
 
@@ -1150,10 +1149,6 @@ kpick 227823 # mm-video-v4l2: Protect buffer access and increase input buffer si
 
 # hardware/qcom/wlan-caf
 kpick 226638 # wcnss_qmi: Generate a fixed random mac address if the NV doesn't provide one
-kpick 226639 # wcnss_service: Deal with mdm-detect too
-kpick 226640 # wifi-hal: Only try LOWI once
-kpick 226641 # wifi-hal: stop the UMAC logspam
-kpick 226642 # Wifi: Quiet some excessive debug output
 kpick 226643 # wcnss_service: Read serial number from custom property
 kpick 226645 # Make wcnss_service build with the VNDK.
 
@@ -1190,6 +1185,7 @@ kpick 225581 # lineage-sdk: Make styles init at system services ready
 kpick 225687 # PowerMenuConstants: Add user logout as new global action
 kpick 226087 # lineage-sdk: Default config_deviceHardware{Wake}Keys to 64
 kpick 226141 # LineageSettingsProvider: Cleanup after LINEAGE_SETUP_WIZARD_COMPLETED deprecation
+kpick 227931 # lineagesdk: Refactor battery icon options
 
 # packages/apps/AudioFX
 
@@ -1277,6 +1273,8 @@ kpick 226145 # LineageParts: Reenable buttons related settings
 kpick 226390 # PowerMenuActions: Make to sure to enable setting lockdown setting
 kpick 226392 # LineageParts: Set proper default value for charging sounds
 kpick 226863 # LineageParts: Drop  setting
+kpick 227930 # LineageParts: Bring back and refactor battery icon options
+kpick 221756 # StatusBarSettings: Hide battery preference category based on icon visibility
 
 # packages/apps/LockClock
 
@@ -1324,7 +1322,7 @@ kpick 226154 # fingerprint: Allow devices to configure sensor location
 kpick 226391 # Settings: Hide lockdown in lockscreen settings
 kpick 227120 # Settings: Check interfaces before enabling ADB over network
 kpick 227795 # Settings: Hide unsupported USB modes automatically
-kpick 227834 # FingerprintEnrollFindSensor: Don't overlay front for side sensors
+kpick 227929 # Settings: Remove battery percentage switch
 
 # packages/apps/SetupWizard
 
@@ -1474,11 +1472,9 @@ kpick 226111 # vold: Wrapped key support for FBE
 # vendor/lineage
 kpick 223773 # Add IPv6 for Oister and 3. The 3.dk and oister.dk carriers now support IPv6 with the APN ”data.tre.dk”.
 kpick 224828 # vendor/lineage: Add support for java source overlays
-kpick 224758 # overlay/common: Unlock swipe gesture nav bar
 kpick 225882 # soong_config: Add TARGET_EXFAT_DRIVER variable
 kpick 225921 # overlay: Update list of GSF/GMS activities
 kpick 225938 # roomservice.py: document the hell out of the current behavior of the script
-kpick 225865 # soong_config: Allow extension of valid gralloc 1.0 buffer usage bits
 #kpick 225978 # soong_config: Remove extra spacing
 kpick 225939 # roomservice.py: non-depsonly: bootstrap first device repo from Hudson
 #kpick 225981 # roomservice.py: depsonly: do not look up device repo by name in the manifest
