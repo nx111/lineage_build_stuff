@@ -736,6 +736,7 @@ fi
 ###################################
 
 if [ $0 != "bash" -a ! -f $0.tmp -a $op_pick_continue -eq 0 ]; then    # continue pick or not
+rm -f $topdir/.repo/local_manifests/su.xml
 repo sync vendor/lineage >/dev/null
 apply_force_changes
 
@@ -762,7 +763,15 @@ kpick 226755 # lineage: Enable cryptfs_hw
 
 android_head=$(cd android;git log -n 1 | sed -n 1p | cut -d' ' -f2;cd $topdir)
 
-repo sync --force-sync
+if [ -d $topdir/system/extras/su/.git ]; then
+    cd $topdir/system/extras/su
+    git stash >/dev/null
+    git reset >/dev/null
+    git clean -xdf >/dev/null
+    cd $topdir
+fi
+repo sync --force-sync  || exit $?
+
 cd android;git reset --hard $android_head >/dev/null;cd $topdir
 
 apply_force_changes
@@ -778,10 +787,6 @@ kpick 225465 # libc: Mark libstdc++ as vendor available
 kpick 226183 # Implement per-process target SDK version override.
 
 # boot/recovery
-kpick 225588 # recovery: updater: Fix SymlinkFn args
-kpick 226282 # Revert "f2fs: support f2fs by setting unmovable bit for package file"
-kpick 226283 # f2fs: support f2fs by setting unmovable bit for package file
-kpick 226284 # uncrypt: fix f2fs ioctl argument for pin_file
 
 # build/make
 kpick 222733 # core: Disable vendor restrictions
@@ -841,8 +846,6 @@ kpick 224916 # DO NOT MERGE: msm8974-common: sepolicy: Just make it build
 # external/bash
 
 # external/f2fs-tools
-kpick 225223 # Merge remote-tracking branch 'aosp/master' into lineage-16.0
-kpick 225224 # Android.mk: update strings to reflect v1.11.0 release
 
 # external/htop
 
@@ -890,7 +893,6 @@ kpick 225536 # Camera: Add support for preview frame fd
 kpick 225537 # libstagefright: Add more sample rates for FLAC
 kpick 225539 # Camera:CameraService: Added lock on mHIDLMemPoolId in QDataCallback..
 kpick 225540 # Camera: CameraHardwareInterface: Releasing mHIDLMemoryMapLock in QdataCallback
-kpick 225746 # Camera: Handle duplicate camera Id due to openLegacy support
 kpick 226592 # camera/parameters: Take device specific headers into account
 kpick 227433 # Explicitly initialise base class in copy constructor
 kpick 228236 # SoundTriggerHalLegacy.cpp: include errno.h
@@ -947,6 +949,7 @@ kpick 227821 # GlobalScreenshot: Fix screenshot not saved when appending appname
 kpick 227839 # storage: Set all sdcards to visible
 kpick 227896 # SystemUI: Add Profiles tile
 kpick 221716 # Where's my circle battery, dude?
+kpick 228405 # Forward port CM Screen Security settings (1/2)
 
 # frameworks/native
 kpick 224443 # libbinder: Don't log call trace when waiting for vendor service on non-eng builds
@@ -983,7 +986,6 @@ kpick 225507 # camera: Only link and use vendor.qti.hardware.camera.device if sp
 kpick 226402 # keymasterV4_0: Tags support for FBE wrapped key.
 
 # hardware/libhardware
-kpick 223097 # hardware/libhw: Add display_defs.h to declare custom enums/flags
  
 # hardware/libhardware_legacy
 
@@ -1205,11 +1207,6 @@ kpick 225268 # Disable OTA for U.S. Cellular since there is no need for it
 kpick 225269 # CarrierConfig: HoT and tele.ring (232 07) may roam on T-Mobile (232 03)
 
 # packages/apps/Contacts
-kpick 225272 # Contacts: Enable support for device contact.
-kpick 225273 # Place MyInfo shortcut on drawer
-kpick 225274 # Place EmergencyInfo shortcut on drawer
-kpick 225275 # Contacts: update splash screen to match the new icon
-kpick 225276 # Allow calling contacts via specific phone accounts.
 
 # packages/apps/DeskClock
 kpick 225281 # DeskClock: Add back flip and shake actions
@@ -1223,25 +1220,6 @@ kpick 226131 # DeskClock: Add support of power off alarm feature
 kpick 225289 # DocumentsUI: support night mode
 
 # packages/apps/Email
-kpick 225292 # Email: handle databases from cm-14.1
-kpick 225294 # Allow account deletion.
-kpick 225295 # email: support for auto-sync multiple IMAP folders
-kpick 225296 # email: Add an ActionBar to the mail app's PreferenceActivity
-kpick 225297 # email: support per-folder notifications
-kpick 225298 # Rewrite MailboxSettings loading logic.
-kpick 225299 # email: fix eas autodiscover
-kpick 225300 # Implement IMAP push using IMAP IDLE.
-kpick 225301 # Request battery optimization exemption if IMAP IDLE is used.
-kpick 225302 # Fix crash when attempting to view EML files.
-kpick 225303 # Allow download of compressed attachments.
-kpick 225304 # email: fix empty body update
-kpick 225305 # Improve notification coalescence algorithm.
-kpick 225306 # Email: Fix the ActivityNotFoundException when click "Update now"
-kpick 225307 # Email: Clean duplicated WRITE_CONTACTS permission
-kpick 225308 # email: return default folder name for subfolders
-kpick 225309 # email: junk icon
-kpick 225310 # Search in folder specified via URI parameter, if possible.
-kpick 225311 # Remove max aspect ratio.
 
 # packages/apps/ExactCalculator
 
@@ -1260,7 +1238,8 @@ kpick 221756 # StatusBarSettings: Hide battery preference category based on icon
 
 # packages/apps/LockClock
 
-# packages/apps/Message
+# packages/apps/Messaging
+kpick 228407 # Messaging: Fix crash of blocked participant list activity
 
 # packages/apps/Nfc
 kpick 223700 # NFC: Adding new vendor specific interface to NFC Service
@@ -1289,6 +1268,8 @@ kpick 226391 # Settings: Hide lockdown in lockscreen settings
 kpick 227120 # Settings: Check interfaces before enabling ADB over network
 kpick 227795 # Settings: Hide unsupported USB modes automatically
 kpick 227929 # Settings: Remove battery percentage switch
+kpick 228403 # Settings: forward port lock pattern grid size (2/2)
+kpick 228404 # Forward port pattern visibility settings (2/2)
 
 # packages/apps/SetupWizard
 
@@ -1308,26 +1289,6 @@ kpick 226275 # Terminal: volume keys as up/down
 kpick 223666 # Settings: Hide Notification Dots on low RAM devices
 
 # packages/apps/UnifiedEmail
-kpick 225343 # unified email: prefer account display name to sender name
-kpick 225344 # email: fix back button
-kpick 225345 # unified-email: check notification support prior to create notification objects
-kpick 225346 # unified-email: respect swipe user setting
-kpick 225347 # email: linkify urls in plain text emails
-kpick 225348 # email: do not close the input attachment buffer in Conversion#parseBodyFields
-kpick 225349 # email: linkify phone numbers
-kpick 225350 # Remove obsolete theme.
-kpick 225351 # Don't assume that a string isn't empty
-kpick 225352 # Add an ActionBar to the mail app's PreferenceActivity.
-kpick 225353 # email: allow move/copy operations to more system folders
-kpick 225354 # unifiedemail: junk icon
-kpick 225355 # Remove mail signatures from notification text.
-kpick 225356 # MimeUtility: ensure streams are always closed
-kpick 225357 # Fix cut off notification sounds.
-kpick 225358 # Pass selected folder to message search.
-kpick 225359 # Properly close body InputStreams.
-kpick 225360 # Make navigation drawer extend over status bar.
-kpick 225361 # Disable animations for translucent activities.
-kpick 225362 # Don't re-show search bar on query click.
 
 # packages/apps/Updater
 
@@ -1356,8 +1317,6 @@ kpick 225402 # LatinIME: support for incognito mode
 # packages/providers/CallLogProvider
 
 # packages/provider/ContackProvider
-kpick 225408 # ContactsProvider: Prevent device contact being deleted.
-kpick 225409 # CallLogDatabase: Bump the version and try to re-run the version 5 upgrade path
 
 # packages/providers/DownloadProvider
 
@@ -1365,7 +1324,6 @@ kpick 225409 # CallLogDatabase: Bump the version and try to re-run the version 5
 kpick 225412 # Fix mounting of non-FAT formatted SD cards (2/2)
 
 # packages/providers/TelephonyProvider
-kpick 226394 # TelephonyProvider: add upgrade support from cm-14.1
 
 # packages/services/Telecomm
 kpick 226093 # Telecomm: Make sensitive phone numbers not to be shown in call log history.
@@ -1385,23 +1343,27 @@ kpick 223085 # adbd: Disable "adb root" by system property (2/3)
 kpick 224264 # debuggerd: Resolve tombstoned missing O_CREAT mode
 kpick 226119 # libion: save errno value
 kpick 226120 # fs_mgr: Wrapped key support for FBE
-kpick 226193 # Show bootanimation after decrypt
 #kpick 226917 # Switch root to /system in first stage mount
 #kpick 226923 # init: First Stage Mount observe nofail mount flag
 
 # system/extras
 kpick 225426 # f2fs_utils: Add a static libf2fs_sparseblock for minvold
 kpick 225427 # ext4_utils: Fix FS creation for filesystems with exactly 32768 blocks.
+
 cd system/extras/
 git stash >/dev/null
 git clean -xdf >/dev/null
 cd $topdir
 kpick 225428 # extras: remove su
-if [ -d $topdir/system/extras/su ]; then
-   cd $topdir/system/extras/su
-   git stash >/dev/null
+if [ -f $topdir/.mypatches/su.xml ]; then
+   cp $topdir/.mypatches/su.xml $topdir/.repo/local_manifests/su.xml
+
+   #if [ -d $topdir/system/extras/su ]; then
+   #   cd $topdir/system/extras/su
+   #   git stash >/dev/null
+   #fi
+   repo sync --force-sync system/extras/su
 fi
-repo sync --force-sync system/extras/su
 
 # system/extras/su
 
