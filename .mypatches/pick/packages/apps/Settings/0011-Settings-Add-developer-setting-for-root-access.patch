@@ -1,4 +1,4 @@
-From db2bd693f5ae3f901b08c595093a2c614a724103 Mon Sep 17 00:00:00 2001
+From b1bb64ce5adc4cf398268801e38aa7f97bf5ad81 Mon Sep 17 00:00:00 2001
 From: Steve Kondik <steve@cyngn.com>
 Date: Sun, 18 Oct 2015 23:46:41 -0700
 Subject: [PATCH 11/19] Settings: Add developer setting for root access
@@ -18,11 +18,11 @@ Change-Id: If96219d893c0dfdcf4ad36e1cd8de3a413db0e8b
  res/values/cm_strings.xml                     |   9 ++
  res/values/lineage_arrays.xml                 |  43 ++++++
  res/xml/development_settings.xml              |   5 +
- .../DevelopmentSettingsDashboardFragment.java |  11 +-
- .../development/RootAccessDialogHost.java     |  28 ++++
- .../RootAccessPreferenceController.java       | 132 ++++++++++++++++++
- .../development/RootAccessWarningDialog.java  |  68 +++++++++
- 7 files changed, 295 insertions(+), 1 deletion(-)
+ .../DevelopmentSettingsDashboardFragment.java |  18 ++-
+ .../development/RootAccessDialogHost.java     |  33 +++++
+ .../RootAccessPreferenceController.java       | 136 ++++++++++++++++++
+ .../development/RootAccessWarningDialog.java  |  82 +++++++++++
+ 7 files changed, 325 insertions(+), 1 deletion(-)
  create mode 100644 res/values/lineage_arrays.xml
  create mode 100644 src/com/android/settings/development/RootAccessDialogHost.java
  create mode 100644 src/com/android/settings/development/RootAccessPreferenceController.java
@@ -114,7 +114,7 @@ index 906fe3755b..70a07757a6 100644
  
      <PreferenceCategory
 diff --git a/src/com/android/settings/development/DevelopmentSettingsDashboardFragment.java b/src/com/android/settings/development/DevelopmentSettingsDashboardFragment.java
-index 7bed5728c2..024ec97a53 100644
+index 7bed5728c2..f109b0e4b0 100644
 --- a/src/com/android/settings/development/DevelopmentSettingsDashboardFragment.java
 +++ b/src/com/android/settings/development/DevelopmentSettingsDashboardFragment.java
 @@ -57,7 +57,8 @@ import java.util.List;
@@ -127,7 +127,7 @@ index 7bed5728c2..024ec97a53 100644
  
      private static final String TAG = "DevSettingsDashboard";
  
-@@ -291,6 +292,13 @@ public class DevelopmentSettingsDashboardFragment extends RestrictedDashboardFra
+@@ -291,6 +292,20 @@ public class DevelopmentSettingsDashboardFragment extends RestrictedDashboardFra
          controller.onA2dpHwDialogConfirmed();
      }
  
@@ -138,10 +138,17 @@ index 7bed5728c2..024ec97a53 100644
 +        controller.onRootAccessDialogConfirmed();
 +    }
 +
++    @Override
++    public void onRootAccessDialogDismissed() {
++        final RootAccessPreferenceController controller =
++                getDevelopmentOptionsController(RootAccessPreferenceController.class);
++        controller.onRootAccessDialogDismissed();
++    }
++
      @Override
      public void onActivityResult(int requestCode, int resultCode, Intent data) {
          boolean handledResult = false;
-@@ -470,6 +478,7 @@ public class DevelopmentSettingsDashboardFragment extends RestrictedDashboardFra
+@@ -470,6 +485,7 @@ public class DevelopmentSettingsDashboardFragment extends RestrictedDashboardFra
          controllers.add(new FreeformWindowsPreferenceController(context));
          controllers.add(new ShortcutManagerThrottlingPreferenceController(context));
          controllers.add(new EnableGnssRawMeasFullTrackingPreferenceController(context));
@@ -151,10 +158,10 @@ index 7bed5728c2..024ec97a53 100644
          controllers.add(new DefaultLaunchPreferenceController(context, "quick_settings_tiles"));
 diff --git a/src/com/android/settings/development/RootAccessDialogHost.java b/src/com/android/settings/development/RootAccessDialogHost.java
 new file mode 100644
-index 0000000000..0631f36c23
+index 0000000000..4a31ae8650
 --- /dev/null
 +++ b/src/com/android/settings/development/RootAccessDialogHost.java
-@@ -0,0 +1,28 @@
+@@ -0,0 +1,33 @@
 +/*
 + * Copyright (C) 2018 The LineageOS Project
 + *
@@ -182,13 +189,18 @@ index 0000000000..0631f36c23
 +     * Called when the user presses ok on the warning dialog.
 +     */
 +    void onRootAccessDialogConfirmed();
++
++    /**
++     * Called when the user dismisses or cancels the warning dialog.
++     */
++    void onRootAccessDialogDismissed();
 +}
 diff --git a/src/com/android/settings/development/RootAccessPreferenceController.java b/src/com/android/settings/development/RootAccessPreferenceController.java
 new file mode 100644
-index 0000000000..2df91f091c
+index 0000000000..4db32ccf6c
 --- /dev/null
 +++ b/src/com/android/settings/development/RootAccessPreferenceController.java
-@@ -0,0 +1,132 @@
+@@ -0,0 +1,136 @@
 +/*
 + * Copyright (C) 2018 The LineageOS Project
 + *
@@ -295,6 +307,10 @@ index 0000000000..2df91f091c
 +        writeRootAccessOptions(mPendingRootAccessValue);
 +    }
 +
++    public void onRootAccessDialogDismissed() {
++        updatePreference();
++    }
++
 +    private void writeRootAccessOptions(Object newValue) {
 +        String oldValue = SystemProperties.get(ROOT_ACCESS_PROPERTY, "0");
 +        SystemProperties.set(ROOT_ACCESS_PROPERTY, newValue.toString());
@@ -323,10 +339,10 @@ index 0000000000..2df91f091c
 +}
 diff --git a/src/com/android/settings/development/RootAccessWarningDialog.java b/src/com/android/settings/development/RootAccessWarningDialog.java
 new file mode 100644
-index 0000000000..b0d939e4b2
+index 0000000000..a102c98b0c
 --- /dev/null
 +++ b/src/com/android/settings/development/RootAccessWarningDialog.java
-@@ -0,0 +1,68 @@
+@@ -0,0 +1,82 @@
 +/*
 + * Copyright (C) 2018 The LineageOS Project
 + *
@@ -382,7 +398,7 @@ index 0000000000..b0d939e4b2
 +                .setTitle(R.string.root_access_warning_title)
 +                .setMessage(R.string.root_access_warning_message)
 +                .setPositiveButton(android.R.string.ok, this /* onClickListener */)
-+                .setNegativeButton(android.R.string.cancel, null /* onClickListener */)
++                .setNegativeButton(android.R.string.cancel, this /* onClickListener */)
 +                .create();
 +    }
 +
@@ -392,7 +408,21 @@ index 0000000000..b0d939e4b2
 +        if (host == null) {
 +            return;
 +        }
-+        host.onRootAccessDialogConfirmed();
++        if (which == DialogInterface.BUTTON_POSITIVE) {
++            host.onRootAccessDialogConfirmed();
++        } else {
++            host.onRootAccessDialogDismissed();
++        }
++    }
++
++    @Override
++    public void onDismiss(DialogInterface dialog) {
++        super.onDismiss(dialog);
++        final RootAccessDialogHost host = (RootAccessDialogHost) getTargetFragment();
++        if (host == null) {
++            return;
++        }
++        host.onRootAccessDialogDismissed();
 +    }
 +}
 -- 

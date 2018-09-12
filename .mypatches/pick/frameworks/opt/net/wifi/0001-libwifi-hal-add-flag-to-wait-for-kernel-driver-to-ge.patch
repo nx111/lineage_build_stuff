@@ -1,0 +1,115 @@
+From 2f346584e4fbeb605512ff4fe30e2003603a86fd Mon Sep 17 00:00:00 2001
+From: codeworkx <daniel.hillenbrand@codeworkx.de>
+Date: Sat, 3 Feb 2018 22:13:53 +0100
+Subject: [PATCH 1/4] libwifi-hal: add flag to wait for kernel driver to get
+ ready
+
+If the wifi hal comes up before the kernel driver gets ready then wifi
+will be disabled after the device has fully booted up regardless of the previous state.
+
+This confuses users and is not an expected behaviour.
+
+Example:
+WIFI_DRIVER_OPERSTATE_PATH := "/sys/class/net/wlan0/operstate"
+
+Bug: Wifi down after boot
+Test: Enable wifi, reboot and check if it's still up
+
+Change-Id: If23d5d6ef0fe75e64053ea779feb6acb37d98850
+---
+ libwifi_hal/Android.mk          |  6 +++++
+ libwifi_hal/wifi_hal_common.cpp | 47 +++++++++++++++++++++++++++++++++
+ 2 files changed, 53 insertions(+)
+
+diff --git a/libwifi_hal/Android.mk b/libwifi_hal/Android.mk
+index 58e81ff8b..c7ff6364f 100644
+--- a/libwifi_hal/Android.mk
++++ b/libwifi_hal/Android.mk
+@@ -60,6 +60,12 @@ ifdef WIFI_DRIVER_STATE_OFF
+ wifi_hal_cflags += -DWIFI_DRIVER_STATE_OFF=\"$(WIFI_DRIVER_STATE_OFF)\"
+ endif
+ 
++# Wait for Wifi driver to get ready
++# Example: WIFI_DRIVER_OPERSTATE_PATH := "/sys/class/net/wlan0/operstate"
++ifdef WIFI_DRIVER_OPERSTATE_PATH
++wifi_hal_cflags += -DWIFI_DRIVER_OPERSTATE_PATH=\"$(WIFI_DRIVER_OPERSTATE_PATH)\"
++endif
++
+ # Common code shared between the HALs.
+ # ============================================================
+ include $(CLEAR_VARS)
+diff --git a/libwifi_hal/wifi_hal_common.cpp b/libwifi_hal/wifi_hal_common.cpp
+index 413daf7da..4bae629d0 100644
+--- a/libwifi_hal/wifi_hal_common.cpp
++++ b/libwifi_hal/wifi_hal_common.cpp
+@@ -42,6 +42,12 @@ extern "C" int delete_module(const char *, unsigned int);
+ #define WIFI_DRIVER_MODULE_ARG ""
+ #endif
+ 
++#ifdef WIFI_DRIVER_OPERSTATE_PATH
++#include <sys/stat.h>
++#define OPERSTATE_UP "up"
++#define OPERSTATE_DOWN "down"
++#endif
++
+ static const char DRIVER_PROP_NAME[] = "wlan.driver.status";
+ #ifdef WIFI_DRIVER_MODULE_PATH
+ static const char DRIVER_MODULE_NAME[] = WIFI_DRIVER_MODULE_NAME;
+@@ -147,6 +153,40 @@ int is_wifi_driver_loaded() {
+ #endif
+ }
+ 
++#ifdef WIFI_DRIVER_OPERSTATE_PATH
++int is_wifi_driver_ready() {
++  struct stat sbuf;
++  FILE *fstate;
++  char operstate[8];
++  int open_count = 25, read_count = 25;
++  while (open_count-- >= 0) {
++    if (stat(WIFI_DRIVER_OPERSTATE_PATH, &sbuf) == 0) {
++      if ((fstate = fopen(WIFI_DRIVER_OPERSTATE_PATH, "r")) == NULL) {
++        usleep(500000);
++      } else {
++        break;
++      }
++    } else {
++      usleep(500000);
++    }
++  }
++  if (fstate != NULL) {
++    while (read_count-- >= 0) {
++      fgets(operstate, sizeof(operstate), fstate);
++      if (strncmp(operstate, OPERSTATE_UP, strlen(OPERSTATE_UP)) == 0 ||
++          strncmp(operstate, OPERSTATE_DOWN, strlen(OPERSTATE_DOWN)) == 0) {
++        PLOG(INFO) << "Wifi driver is ready";
++        return 1;
++      }
++      PLOG(WARNING) << "Waiting for Wifi driver to get ready. (" << read_count << ")";
++      usleep(500000);
++    }
++    fclose(fstate);
++  }
++  return 0;
++}
++#endif
++
+ int wifi_load_driver() {
+ #ifdef WIFI_DRIVER_MODULE_PATH
+   if (is_wifi_driver_loaded()) {
+@@ -163,6 +203,13 @@ int wifi_load_driver() {
+ 
+   if (wifi_change_driver_state(WIFI_DRIVER_STATE_ON) < 0) return -1;
+ #endif
++
++#ifdef WIFI_DRIVER_OPERSTATE_PATH
++  if (!is_wifi_driver_ready()) {
++    PLOG(ERROR) << "Wifi driver didn't get ready in time, giving up!";
++    return -1;
++  }
++#endif
+   property_set(DRIVER_PROP_NAME, "ok");
+   return 0;
+ }
+-- 
+2.17.1
+

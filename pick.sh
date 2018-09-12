@@ -752,7 +752,6 @@ default_branch=$(grep "^[[:space:]]*<default revision=" $topdir/.repo/manifests/
 git reset --hard $(git branch -a | grep "remotes/m/$default_branch" | cut -d'>' -f 2 | sed -e "s/ //g") >/dev/null
 cd $topdir
 
-kpick 223893 # manifest: Re-enable bash, nano and other cmdline tools
 kpick 225832 # lineage: Enable qcom sepolicy
 kpick 227745 # lineage: Enable FM apps
 kpick 225583 # manifest: Enable lineage styles overlays
@@ -775,7 +774,6 @@ kpick 223063 # Restore android_alarm.h kernel uapi header
 kpick 223067 # libc fortify: Ignore open() O_TMPFILE mode bits warning
 kpick 223943 # bionic: meh
 kpick 225463 # bionic: Let popen and system fall back to /sbin/sh
-kpick 225464 # bionic: Sort and cache hosts file data for fast lookup
 kpick 225465 # libc: Mark libstdc++ as vendor available
 kpick 226183 # Implement per-process target SDK version override.
 
@@ -841,37 +839,27 @@ kpick 224916 # DO NOT MERGE: msm8974-common: sepolicy: Just make it build
 # kernel/samsung/msm8974
 
 # external/bash
-kpick 224023 # bash: don't spam errors on warnings
 
 # external/f2fs-tools
 kpick 225223 # Merge remote-tracking branch 'aosp/master' into lineage-16.0
 kpick 225224 # Android.mk: update strings to reflect v1.11.0 release
 
 # external/htop
-kpick 225161 # htop: disable warnings that cause errors
 
 # external/libncurse
-kpick 224022 # libncurses: don't spam warnings as errors
 
 # external/nano
-kpick 224030 # nano: don't spam warnings as errors
 
 # external/openssh
-kpick 224032 # openssh: Update for pie boringssl
-kpick 224033 # openssh: don't spam warnings as errors
 
 # external/p7zip
-kpick 224028 # p7zip: Cleanup if statement braces, whitespace lines, and ifs without paranthesis)
-kpick 224029 # p7zip: don't spam warnings as errors
 
 # external/perfetto
 kpick 223413 # perfetto_cmd: Resolve missing O_CREAT mode
 
 # external/pigz
-kpick 224025 # pigz: don't spam warnings as errors
 
 # external/rsync
-kpick 224024 # rsync: don't spam warnings as errors
 
 # external/tinycompress
 kpick 225762 # tinycompress: enable libtinycompress_vendor
@@ -881,13 +869,10 @@ kpick 223008 # tinycompress: tinycompress fixes
 # external/toybox
 
 # external/unrar
-kpick 224027 # unrar: don't spam warnings as errors
 
 # external/vim
-kpick 224031 # vim: don't spam warnings as errors
 
 # external/zip
-kpick 224026 # zip: don't spam warnings as errors
 
 # external/zlib
 kpick 225237 # zlib: Fix build under Android 6.0 and higher
@@ -908,6 +893,7 @@ kpick 225540 # Camera: CameraHardwareInterface: Releasing mHIDLMemoryMapLock in 
 kpick 225746 # Camera: Handle duplicate camera Id due to openLegacy support
 kpick 226592 # camera/parameters: Take device specific headers into account
 kpick 227433 # Explicitly initialise base class in copy constructor
+kpick 228236 # SoundTriggerHalLegacy.cpp: include errno.h
 
 # frameworks/base
 kpick 224266 # SystemUI: Add Lineage statusbar item holder
@@ -970,6 +956,12 @@ kpick 225543 # sensorservice: customize sensor fusion mag filter via prop
 kpick 225544 # input: Adjust priority
 kpick 225545 # Forward port 'Swap volume buttons' (2/3)
 kpick 225546 # AppOpsManager: Update with the new ops
+
+# frameworks/opt/net/wifi
+kpick 224675 # libwifi-hal: add flag to wait for kernel driver to get ready
+kpick 224676 # wifi: Check whether dev node is accessible or not before opening
+kpick 224677 # wifi: don't check if WIFI_DRIVER_STATE_CTRL_PARAM is readable
+kpick 225551 # wifi: Not reset country code for Dual SIM if any slot is active
 
 # frameworks/opt/telephony
 
@@ -1204,6 +1196,7 @@ kpick 225262 # Camera2: Remove google help preference
 kpick 225263 # Camera2: Fix Undo button behaviour
 kpick 225264 # Fix crash if Exif-Tag buffer-length and component-count are both 0
 kpick 225265 # Add Storage preference (1/2)
+kpick 228323 # Camera2: Request for ACCESS_FINE_LOCATION permission
 
 # packages/apps/CarrierConfig
 kpick 225266 # CarrierConfig: Add selected configs for national roaming
@@ -1222,20 +1215,9 @@ kpick 225276 # Allow calling contacts via specific phone accounts.
 kpick 225281 # DeskClock: Add back flip and shake actions
 kpick 225280 # Make new menu entry to link to cLock widget settings.
 kpick 225284 # Provide upgrade path for cm-14.1 -> lineage-15.1
+kpick 226131 # DeskClock: Add support of power off alarm feature
 
 # packages/apps/Dialer
-kpick 224712 # Dialer: disable anti-falsing for call answer screen
-kpick 226094 # Revert "Remove dialer sounds and vibrations settings fragments and redirect to the system sound settings fragment instead."
-kpick 226095 # Add back in-call vibration features
-kpick 226096 # Allow using private framework API.
-kpick 226097 # Re-add dialer lookup.
-kpick 226098 # Dialer: comply with EU's GDPR
-kpick 226099 # Generalize the in-call vibration settings category
-kpick 226100 # Add setting to enable Do Not Disturb during calls
-kpick 226101 # Re-add call recording.
-kpick 226102 # Allow per-call account selection.
-kpick 226103 # Re-add call statistics.
-kpick 226395 # Dialer: handle database upgrade from cm-14.1
 
 # packages/apps/DocumentsUI
 kpick 225289 # DocumentsUI: support night mode
@@ -1279,22 +1261,6 @@ kpick 221756 # StatusBarSettings: Hide battery preference category based on icon
 # packages/apps/LockClock
 
 # packages/apps/Message
-kpick 225317 # Messaging: Implement option for swipe right to delete.
-kpick 225318 # Messaging: change Avatar fontFamily to sans-serif-medium
-kpick 225319 # MessageQueue: Process pending messages per subscription
-kpick 225321 # Messaging: Toggable keyboard emoticons access
-kpick 225323 # Fix menu item highlight color.
-kpick 225324 # Messaging App is crashing when storage memory is full
-kpick 225325 # Messaging: bring back accent color
-kpick 225326 # Messaging: Implement saved video attachments in MMS
-kpick 225327 # Play an audible notification on receiving a class zero message.
-kpick 225328 # Added support for video and audio mms attachments
-kpick 225329 # Fixed storage permission issue for attachments
-kpick 225330 # Messaging app crashes after a few MMS
-kpick 225331 # Use app settings for conversation settings if no custom set
-kpick 225332 # Messaging: fix bad recycle on sending two mms in a row
-kpick 225333 # MediaPicker: Check for NPE
-kpick 225337 # Messaging: Don't crash on unsupported shared content type
 
 # packages/apps/Nfc
 kpick 223700 # NFC: Adding new vendor specific interface to NFC Service
@@ -1366,16 +1332,26 @@ kpick 225362 # Don't re-show search bar on query click.
 # packages/apps/Updater
 
 # packages/apps/WallpaperPicker
-kpick 225363 # WallpaperPicker: bump gradle
-kpick 225365 # WallpaperPicker: materialize delete icon
-kpick 225367 # WallpaperPicker: Update for wallpaper API changes
-kpick 225370 # WallpaperPicker: add a "No Wallpaper" option
-kpick 225369 # WallpaperPicker: Add icon near dialog items
-kpick 225371 # WallpaperPicker: Move strings for translation
-kpick 225372 # WallpaperPicker: 15.1 wallpapers
 
 # packages/inputmethods/LatinIME
-kpick -t pie-keyboard
+kpick 225375 # Don't crash when displaying the " key
+kpick 225378 # LatinIME: Add fallback loader for JNI lib
+kpick 225390 # latinime: Add "more" keys to ALL the keys
+kpick 225383 # LatinIME: Regenerate KeyboardTextsTable
+kpick 225384 # LatinIME: HU enable predictive dictionary and remove unused letters
+kpick 225386 # LatinIME: Enable spellchecker for additional languages
+kpick 225387 # LatinIME: Add support for Australian English
+kpick 225388 # LatinIME: Add Luxembourgish keyboard & spellchecking dictionary
+kpick 225392 # Add support for Bépo keyboard layout
+kpick 225393 # Don't interrupt active gesture input by modifier key presses.
+kpick 225394 # LatinIME: Add Bulgarian, Georgian and Ukrainian wordlists
+kpick 225395 # LatinIME: Disable Hungarian spell checking
+kpick 225397 # LatinIME: Add shortcuts support
+kpick 225398 # Fix send button not being centered for non-standard densities.
+kpick 225399 # LatinIME: disable sound on keypress on all devices by default
+kpick 225400 # LainIME: add unicode 9.0 chars
+kpick 225401 # LatinIME: sync and rebuild emojis
+kpick 225402 # LatinIME: support for incognito mode
 
 # packages/providers/CallLogProvider
 
