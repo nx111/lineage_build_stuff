@@ -626,7 +626,7 @@ function kpick()
                eval  sed -e \"/[[:space:]]*kpick $changeNumber[[:space:]]*.*/d\" -i $script_file.tmp
             elif [ "$changeNumber" != "" -a "$subject" != "" ]; then
                [ -f $script_file.tmp ] || cp $script_file $script_file.tmp
-               eval  "sed -e \"s|^[[:space:]]*kpick $changeNumber[[:space:]]*.*|kpick $changeNumber \# $subject|g\" -i $script_file.tmp"
+               eval  "sed -e \"s|^[[:space:]]*\(kpick .* $changeNumber\)[[:space:]]*.*|\1 \# $subject|g\" -i $script_file.tmp"
             fi
          fi
     fi
@@ -1365,6 +1365,18 @@ if [ -f $topdir/.mypatches/su.xml ]; then
 fi
 
 # system/extras/su
+kpick -P system/extras/su 225718 # su: Fix warnings from PVS Studio Analyzer
+kpick -P system/extras/su 225873 # su: strlcpy is always a friend
+kpick -P system/extras/su 225879 # su: Run clang format
+kpick -P system/extras/su 225880 # su: Move to cutils/properties.h
+kpick -P system/extras/su 225875 # su: Enable Clang Tidy
+kpick -P system/extras/su 225885 # su: Remove Sammy hacks
+kpick -P system/extras/su 225888 # su: Fix a clang tidy warning
+kpick -P system/extras/su 225889 # su: Cleanup includes
+kpick -P system/extras/su 225890 # su: Use shared libraries
+kpick -P system/extras/su 225935 # su: Remove useless casts
+kpick -P system/extras/su 225936 # su: Remove mount of emulated storage
+kpick -P system/extras/su 225937 # su: Initialize windows size
 
 # system/libvintf
 kpick 226922 # System always contains root dir.
