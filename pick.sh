@@ -801,7 +801,6 @@ kpick 222760 # Add LOCAL_AIDL_FLAGS
 # build/soong
 kpick 222648 # Allow providing flex and bison binaries
 kpick 224613 # soong: Add LOCAL_AIDL_FLAGS handling
-kpick 224827 # soong: Add java sources overlay support
 kpick 226593 # soong: Add function to return targer specific header path
 #kpick 226918 # Add /ramdisk to installclean
 
@@ -1144,7 +1143,6 @@ kpick 227823 # mm-video-v4l2: Protect buffer access and increase input buffer si
 # hardware/qcom/wlan-caf
 kpick 226638 # wcnss_qmi: Generate a fixed random mac address if the NV doesn't provide one
 kpick 226643 # wcnss_service: Read serial number from custom property
-kpick 226645 # Make wcnss_service build with the VNDK.
 
 # hardware/ril-caf
 kpick 227612 # Merge 767770dcffb7a6553d25740d2975b6e201f592be on remote branch
@@ -1251,8 +1249,6 @@ kpick 223700 # NFC: Adding new vendor specific interface to NFC Service
 # packages/apps/Settings
 kpick 224615 # deviceInfo: Fix imei dialog fc when only 1 sim is inserted
 kpick 225570 # Settings: Add LineageParts charging sound settings preference
-kpick 224973 # Settings: gesture: Add LineageParts touchscreen gesture settings
-kpick 224974 # Settings: Allow devices to provide remote gesture preferences
 kpick 225686 # Settings: Add advanced restart switch
 kpick 225730 # Settings: Add kill app back button toggle
 kpick 225755 # Settings: Hide AOSP theme-related controllers
@@ -1270,6 +1266,7 @@ kpick 227795 # Settings: Hide unsupported USB modes automatically
 kpick 227929 # Settings: Remove battery percentage switch
 kpick 228403 # Settings: forward port lock pattern grid size (2/2)
 kpick 228404 # Forward port pattern visibility settings (2/2)
+kpick 228434 # Setting: Reverse an incorrect check in AutoRestrictionPreferenceController
 
 # packages/apps/SetupWizard
 
@@ -1354,7 +1351,9 @@ cd system/extras/
 git stash >/dev/null
 git clean -xdf >/dev/null
 cd $topdir
+
 kpick 225428 # extras: remove su
+
 if [ -f $topdir/.mypatches/su.xml ]; then
    cp $topdir/.mypatches/su.xml $topdir/.repo/local_manifests/su.xml
 
@@ -1409,7 +1408,6 @@ kpick 226111 # vold: Wrapped key support for FBE
 
 # vendor/lineage
 kpick 223773 # Add IPv6 for Oister and 3. The 3.dk and oister.dk carriers now support IPv6 with the APN ”data.tre.dk”.
-kpick 224828 # vendor/lineage: Add support for java source overlays
 kpick 225882 # soong_config: Add TARGET_EXFAT_DRIVER variable
 kpick 225921 # overlay: Update list of GSF/GMS activities
 kpick 225938 # roomservice.py: document the hell out of the current behavior of the script

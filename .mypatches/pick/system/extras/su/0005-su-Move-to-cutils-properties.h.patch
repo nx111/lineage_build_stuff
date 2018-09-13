@@ -1,0 +1,210 @@
+From 9330304a0231bab52f5ac09ee730afc11e415905 Mon Sep 17 00:00:00 2001
+From: Luca Stefani <luca.stefani.ge1@gmail.com>
+Date: Sun, 26 Aug 2018 11:50:32 +0200
+Subject: [PATCH 05/12] su: Move to cutils/properties.h
+
+* Parsing props manually? Are we crazy or what.
+
+Change-Id: I57b2ff4ec777669f2ad14229045bf1a2e7d222d3
+---
+ su.c    | 54 ++++++++++++++---------------------------------
+ utils.c | 65 ---------------------------------------------------------
+ utils.h |  3 ---
+ 3 files changed, 16 insertions(+), 106 deletions(-)
+
+diff --git a/su.c b/su.c
+index b902b3e..59931e8 100644
+--- a/su.c
++++ b/su.c
+@@ -19,8 +19,6 @@
+ #include <fcntl.h>
+ #include <getopt.h>
+ #include <limits.h>
+-#include <log/log.h>
+-#include <private/android_filesystem_config.h>
+ #include <pwd.h>
+ #include <stdarg.h>
+ #include <stdint.h>
+@@ -36,6 +34,10 @@
+ #include <sys/wait.h>
+ #include <unistd.h>
+ 
++#include <cutils/properties.h>
++#include <log/log.h>
++#include <private/android_filesystem_config.h>
++
+ #include "binder/pm-wrapper.h"
+ #include "su.h"
+ #include "utils.h"
+@@ -273,53 +275,29 @@ static __attribute__((noreturn)) void allow(struct su_context* ctx, const char*
+     }
+ }
+ 
+-/*
+- * Lineage-specific behavior
+- *
+- * we can't simply use the property service, since we aren't launched from init
+- * and can't trust the location of the property workspace.
+- * Find the properties ourselves.
+- */
+ int access_disabled(const struct su_initiator* from) {
+-    char* data;
++    char lineage_version[PROPERTY_VALUE_MAX];
+     char build_type[PROPERTY_VALUE_MAX];
+-    char debuggable[PROPERTY_VALUE_MAX], enabled[PROPERTY_VALUE_MAX];
+-    size_t len;
++    int enabled;
+ 
+-    data = read_file("/system/build.prop");
+-    /* only allow su on Lineage 15.1 (or newer) builds */
+-    if (!(check_property(data, "ro.lineage.version"))) {
+-        free(data);
++    /* Only allow su on Lineage builds */
++    property_get("ro.lineage.version", lineage_version, "");
++    if (!strcmp(lineage_version, "")) {
+         ALOGE("Root access disabled on Non-Lineage builds");
+         return 1;
+     }
+ 
+-    get_property(data, build_type, "ro.build.type", "");
+-    free(data);
+-
+-    data = read_file("/default.prop");
+-    get_property(data, debuggable, "ro.debuggable", "0");
+-    free(data);
+-    /* only allow su on debuggable builds */
+-    if (strcmp("1", debuggable) != 0) {
++    /* Only allow su on debuggable builds */
++    if (!property_get_bool("ro.debuggable", false)) {
+         ALOGE("Root access is disabled on non-debug builds");
+         return 1;
+     }
+ 
+-    data = read_file("/data/property/persist.sys.root_access");
+-    if (data != NULL) {
+-        len = strlen(data);
+-        if (len >= PROPERTY_VALUE_MAX)
+-            memcpy(enabled, "0", 2);
+-        else
+-            memcpy(enabled, data, len + 1);
+-        free(data);
+-    } else
+-        memcpy(enabled, "0", 2);
+-
+-    /* enforce persist.sys.root_access on non-eng builds for apps */
++    /* Enforce persist.sys.root_access on non-eng builds for apps */
++    enabled = property_get_int32("persist.sys.root_access", 2);
++    property_get("ro.build.type", build_type, "");
+     if (strcmp("eng", build_type) != 0 && from->uid != AID_SHELL && from->uid != AID_ROOT &&
+-        (atoi(enabled) & LINEAGE_ROOT_ACCESS_APPS_ONLY) != LINEAGE_ROOT_ACCESS_APPS_ONLY) {
++        (enabled & LINEAGE_ROOT_ACCESS_APPS_ONLY) != LINEAGE_ROOT_ACCESS_APPS_ONLY) {
+         ALOGE(
+             "Apps root access is disabled by system setting - "
+             "enable it under settings -> developer options");
+@@ -328,7 +306,7 @@ int access_disabled(const struct su_initiator* from) {
+ 
+     /* disallow su in a shell if appropriate */
+     if (from->uid == AID_SHELL &&
+-        (atoi(enabled) & LINEAGE_ROOT_ACCESS_ADB_ONLY) != LINEAGE_ROOT_ACCESS_ADB_ONLY) {
++        (enabled & LINEAGE_ROOT_ACCESS_ADB_ONLY) != LINEAGE_ROOT_ACCESS_ADB_ONLY) {
+         ALOGE(
+             "Shell root access is disabled by a system setting - "
+             "enable it under settings -> developer options");
+diff --git a/utils.c b/utils.c
+index 1f44a44..dfcc197 100644
+--- a/utils.c
++++ b/utils.c
+@@ -14,15 +14,9 @@
+ ** limitations under the License.
+ */
+ 
+-#include <ctype.h>
+-#include <errno.h>
+ #include <fcntl.h>
+-#include <limits.h>
+-#include <stdio.h>
+ #include <stdlib.h>
+-#include <string.h>
+ #include <sys/stat.h>
+-#include <sys/types.h>
+ #include <unistd.h>
+ 
+ #include "utils.h"
+@@ -51,62 +45,3 @@ oops:
+     if (data) free(data);
+     return NULL;
+ }
+-
+-int get_property(const char* data, char* found, const char* searchkey, const char* not_found) {
+-    char *key, *value, *eol, *sol, *tmp;
+-    if (data == NULL) goto defval;
+-    int matched = 0;
+-    char* dup = strdup(data);
+-    if (!dup) goto defval;
+-
+-    sol = dup;
+-    while ((eol = strchr(sol, '\n'))) {
+-        key = sol;
+-        *eol++ = 0;
+-        sol = eol;
+-
+-        value = strchr(key, '=');
+-        if (value == 0) continue;
+-        *value++ = 0;
+-
+-        while (isspace(*key)) key++;
+-        if (*key == '#') continue;
+-        tmp = value - 2;
+-        while ((tmp > key) && isspace(*tmp)) *tmp-- = 0;
+-
+-        while (isspace(*value)) value++;
+-        tmp = eol - 2;
+-        while ((tmp > value) && isspace(*tmp)) *tmp-- = 0;
+-
+-        if (strncmp(searchkey, key, strlen(searchkey)) == 0) {
+-            matched = 1;
+-            break;
+-        }
+-    }
+-    free(dup);
+-    int len;
+-    if (matched) {
+-        len = strlen(value);
+-        if (len >= PROPERTY_VALUE_MAX) return -1;
+-        memcpy(found, value, len + 1);
+-    } else
+-        goto defval;
+-    return len;
+-
+-defval:
+-    len = strlen(not_found);
+-    memcpy(found, not_found, len + 1);
+-    return len;
+-}
+-
+-/*
+- * Fast version of get_property which purpose is to check
+- * whether the property with given prefix exists.
+- *
+- * Assume nobody is stupid enough to put a propery with prefix ro.lineage.version
+- * in his build.prop on a non-LineageOS ROM and comment it out.
+- */
+-int check_property(const char* data, const char* prefix) {
+-    if (!data) return 0;
+-    return strstr(data, prefix) != NULL;
+-}
+diff --git a/utils.h b/utils.h
+index 8612df2..07c7aad 100644
+--- a/utils.h
++++ b/utils.h
+@@ -23,7 +23,4 @@
+ 
+ /* reads a file, making sure it is terminated with \n \0 */
+ extern char* read_file(const char* fn);
+-
+-extern int get_property(const char* data, char* found, const char* searchkey, const char* not_found);
+-extern int check_property(const char* data, const char* prefix);
+ #endif
+-- 
+2.17.1
+

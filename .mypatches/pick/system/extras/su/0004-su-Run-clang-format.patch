@@ -1,0 +1,1262 @@
+From b48a22801d6ef68aac6d1e02e9ffba1708dd7d42 Mon Sep 17 00:00:00 2001
+From: Luca Stefani <luca.stefani.ge1@gmail.com>
+Date: Sun, 26 Aug 2018 11:35:00 +0200
+Subject: [PATCH 04/12] su: Run clang format
+
+Change-Id: Ia920575ef53642c5f5cdb0889cba852f346bca00
+
+# Conflicts:
+#	binder/appops-wrapper.cpp
+#	binder/pm-wrapper.c
+---
+ .clang-format             |  11 ++
+ binder/appops-wrapper.cpp |   9 +-
+ binder/pm-wrapper.c       |  21 ++-
+ daemon.c                  | 129 +++++++++--------
+ pts.c                     |  33 +++--
+ pts.h                     |  10 +-
+ su.c                      | 286 +++++++++++++++++++-------------------
+ su.h                      |  44 +++---
+ utils.c                   |  51 +++----
+ utils.h                   |   9 +-
+ 10 files changed, 295 insertions(+), 308 deletions(-)
+ create mode 100644 .clang-format
+
+diff --git a/.clang-format b/.clang-format
+new file mode 100644
+index 0000000..ae4a451
+--- /dev/null
++++ b/.clang-format
+@@ -0,0 +1,11 @@
++BasedOnStyle: Google
++AccessModifierOffset: -2
++AllowShortFunctionsOnASingleLine: Inline
++ColumnLimit: 100
++CommentPragmas: NOLINT:.*
++DerivePointerAlignment: false
++IndentWidth: 4
++PointerAlignment: Left
++TabWidth: 4
++UseTab: Never
++PenaltyExcessCharacter: 32
+diff --git a/binder/appops-wrapper.cpp b/binder/appops-wrapper.cpp
+index ad2a795..c4e6fd9 100644
+--- a/binder/appops-wrapper.cpp
++++ b/binder/appops-wrapper.cpp
+@@ -7,11 +7,11 @@ using namespace android;
+ 
+ extern "C" {
+ 
+-int appops_start_op_su(int uid, const char *pkgName) {
++int appops_start_op_su(int uid, const char* pkgName) {
+     ALOGD("Checking whether app [uid:%d, pkgName: %s] is allowed to be root", uid, pkgName);
+ 
+     AppOpsManager ops;
+-    int mode = ops.startOp(AppOpsManager::OP_SU, uid, String16(pkgName));
++    int mode = ops.noteOp(AppOpsManager::OP_SU, uid, String16(pkgName));
+     if (mode == AppOpsManager::MODE_ALLOWED) {
+         ALOGD("Privilege elevation allowed by appops");
+         return 0;
+@@ -21,11 +21,10 @@ int appops_start_op_su(int uid, const char *pkgName) {
+     return 1;
+ }
+ 
+-void appops_finish_op_su(int uid, const char *pkgName) {
++void appops_finish_op_su(int uid, const char* pkgName) {
+     ALOGD("Finishing su operation for app [uid:%d, pkgName: %s]", uid, pkgName);
+-    AppOpsManager *ops = new AppOpsManager();
++    AppOpsManager* ops = new AppOpsManager();
+     ops->finishOp(AppOpsManager::OP_SU, uid, String16(pkgName));
+     delete ops;
+ }
+-
+ }
+diff --git a/binder/pm-wrapper.c b/binder/pm-wrapper.c
+index 412f730..1a35c2e 100644
+--- a/binder/pm-wrapper.c
++++ b/binder/pm-wrapper.c
+@@ -1,12 +1,12 @@
+-#include "../utils.h"
+ #include <errno.h>
++#include <stdio.h>
+ #include <stdlib.h>
+ #include <string.h>
+-#include <stdio.h>
+ #include <utils/Log.h>
++#include "../utils.h"
+ 
+ #define PACKAGE_LIST_PATH "/data/system/packages.list"
+-#define PACKAGE_NAME_MAX_LEN (1<<16)
++#define PACKAGE_NAME_MAX_LEN (1 << 16)
+ 
+ /* Tries to resolve a package name from a uid via the packages list file.
+  *
+@@ -24,18 +24,17 @@ char* resolve_package_name(int uid) {
+         return NULL;
+     }
+ 
+-    char *p = packages;
++    char* p = packages;
+     while (*p) {
+-        char *line_end = strstr(p, "\n");
+-        if (line_end == NULL)
+-            break;
++        char* line_end = strstr(p, "\n");
++        if (line_end == NULL) break;
+ 
+-        char *token;
+-        char *pkgName = strtok_r(p, " ", &token);
++        char* token;
++        char* pkgName = strtok_r(p, " ", &token);
+         if (pkgName != NULL) {
+-            char *pkgUid = strtok_r(NULL, " ", &token);
++            char* pkgUid = strtok_r(NULL, " ", &token);
+             if (pkgUid != NULL) {
+-                char *endptr;
++                char* endptr;
+                 errno = 0;
+                 int pkgUidInt = strtoul(pkgUid, &endptr, 10);
+                 if ((errno == 0 && endptr != NULL && !(*endptr)) && pkgUidInt == uid) {
+diff --git a/daemon.c b/daemon.c
+index a34f452..9ed8ca2 100644
+--- a/daemon.c
++++ b/daemon.c
+@@ -17,45 +17,44 @@
+ 
+ #define _GNU_SOURCE /* for unshare() */
+ 
+-#include <sys/types.h>
+-#include <sys/socket.h>
+-#include <sys/un.h>
+-#include <sys/wait.h>
+-#include <sys/select.h>
+-#include <sys/time.h>
+-#include <unistd.h>
+-#include <limits.h>
+ #include <fcntl.h>
+-#include <stdio.h>
+-#include <stdlib.h>
+ #include <getopt.h>
+-#include <stdint.h>
++#include <limits.h>
++#include <log/log.h>
++#include <pthread.h>
+ #include <pwd.h>
++#include <sched.h>
++#include <signal.h>
++#include <stdarg.h>
++#include <stdint.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
+ #include <sys/mount.h>
++#include <sys/select.h>
++#include <sys/socket.h>
+ #include <sys/stat.h>
+-#include <stdarg.h>
++#include <sys/time.h>
+ #include <sys/types.h>
+-#include <pthread.h>
+-#include <sched.h>
++#include <sys/un.h>
++#include <sys/wait.h>
+ #include <termios.h>
+-#include <signal.h>
+-#include <string.h>
+-#include <log/log.h>
++#include <unistd.h>
+ 
+ #include <cutils/multiuser.h>
+ 
++#include "pts.h"
+ #include "su.h"
+ #include "utils.h"
+-#include "pts.h"
+ 
+ int is_daemon = 0;
+ int daemon_from_uid = 0;
+ int daemon_from_pid = 0;
+ 
+ // Constants for the atty bitfield
+-#define ATTY_IN     1
+-#define ATTY_OUT    2
+-#define ATTY_ERR    4
++#define ATTY_IN 1
++#define ATTY_OUT 2
++#define ATTY_ERR 4
+ 
+ /*
+  * Receive a file descriptor from a Unix socket.
+@@ -72,15 +71,15 @@ static int recv_fd(int sockfd) {
+ 
+     struct iovec iov = {
+         .iov_base = &iovbuf,
+-        .iov_len  = 1,
++        .iov_len = 1,
+     };
+ 
+     char cmsgbuf[CMSG_SPACE(sizeof(int))];
+ 
+     struct msghdr msg = {
+-        .msg_iov        = &iov,
+-        .msg_iovlen     = 1,
+-        .msg_control    = cmsgbuf,
++        .msg_iov = &iov,
++        .msg_iovlen = 1,
++        .msg_control = cmsgbuf,
+         .msg_controllen = sizeof(cmsgbuf),
+     };
+ 
+@@ -90,28 +89,26 @@ static int recv_fd(int sockfd) {
+ 
+     // Was a control message actually sent?
+     switch (msg.msg_controllen) {
+-    case 0:
+-        // No, so the file descriptor was closed and won't be used.
+-        return -1;
+-    case sizeof(cmsgbuf):
+-        // Yes, grab the file descriptor from it.
+-        break;
+-    default:
+-        goto error;
++        case 0:
++            // No, so the file descriptor was closed and won't be used.
++            return -1;
++        case sizeof(cmsgbuf):
++            // Yes, grab the file descriptor from it.
++            break;
++        default:
++            goto error;
+     }
+ 
+-    struct cmsghdr *cmsg = CMSG_FIRSTHDR(&msg);
++    struct cmsghdr* cmsg = CMSG_FIRSTHDR(&msg);
+ 
+-    if (cmsg             == NULL                  ||
+-        cmsg->cmsg_len   != CMSG_LEN(sizeof(int)) ||
+-        cmsg->cmsg_level != SOL_SOCKET            ||
+-        cmsg->cmsg_type  != SCM_RIGHTS) {
+-error:
++    if (cmsg == NULL || cmsg->cmsg_len != CMSG_LEN(sizeof(int)) || cmsg->cmsg_level != SOL_SOCKET ||
++        cmsg->cmsg_type != SCM_RIGHTS) {
++    error:
+         ALOGE("unable to read fd");
+         exit(-1);
+     }
+ 
+-    return *(int *)CMSG_DATA(cmsg);
++    return *(int*)CMSG_DATA(cmsg);
+ }
+ 
+ /*
+@@ -127,12 +124,12 @@ static void send_fd(int sockfd, int fd) {
+     // Need to send some data in the message, this will do.
+     struct iovec iov = {
+         .iov_base = "",
+-        .iov_len  = 1,
++        .iov_len = 1,
+     };
+ 
+     struct msghdr msg = {
+-        .msg_iov        = &iov,
+-        .msg_iovlen     = 1,
++        .msg_iov = &iov,
++        .msg_iovlen = 1,
+     };
+ 
+     char cmsgbuf[CMSG_SPACE(sizeof(int))];
+@@ -146,24 +143,24 @@ static void send_fd(int sockfd, int fd) {
+             // It's closed, don't send a control message or sendmsg will EBADF.
+         } else {
+             // It's open, send the file descriptor in a control message.
+-            msg.msg_control    = cmsgbuf;
++            msg.msg_control = cmsgbuf;
+             msg.msg_controllen = sizeof(cmsgbuf);
+ 
+-            struct cmsghdr *cmsg = CMSG_FIRSTHDR(&msg);
++            struct cmsghdr* cmsg = CMSG_FIRSTHDR(&msg);
+             if (!cmsg) {
+                 goto error;
+             }
+ 
+-            cmsg->cmsg_len   = CMSG_LEN(sizeof(int));
++            cmsg->cmsg_len = CMSG_LEN(sizeof(int));
+             cmsg->cmsg_level = SOL_SOCKET;
+-            cmsg->cmsg_type  = SCM_RIGHTS;
++            cmsg->cmsg_type = SCM_RIGHTS;
+ 
+-            *(int *)CMSG_DATA(cmsg) = fd;
++            *(int*)CMSG_DATA(cmsg) = fd;
+         }
+     }
+ 
+     if (sendmsg(sockfd, &msg, 0) != 1) {
+-error:
++    error:
+         PLOGE("unable to send fd");
+         exit(-1);
+     }
+@@ -218,8 +215,8 @@ static void write_string(int fd, char* val) {
+ }
+ 
+ static void mount_emulated_storage(int user_id) {
+-    const char *emulated_source = getenv("EMULATED_STORAGE_SOURCE");
+-    const char *emulated_target = getenv("EMULATED_STORAGE_TARGET");
++    const char* emulated_source = getenv("EMULATED_STORAGE_SOURCE");
++    const char* emulated_target = getenv("EMULATED_STORAGE_TARGET");
+     const char* legacy = getenv("EXTERNAL_STORAGE");
+ 
+     if (!emulated_source || !emulated_target) {
+@@ -280,7 +277,7 @@ static int daemon_accept(int fd) {
+     int pid = read_int(fd);
+     int child_result;
+     ALOGD("remote pid: %d", pid);
+-    char *pts_slave = read_string(fd);
++    char* pts_slave = read_string(fd);
+     ALOGD("remote pts_slave: %s", pts_slave);
+     daemon_from_pid = read_int(fd);
+     ALOGV("remote req pid: %d", daemon_from_pid);
+@@ -297,7 +294,7 @@ static int daemon_accept(int fd) {
+ 
+     int mount_storage = read_int(fd);
+     // The the FDs for each of the streams
+-    int infd  = recv_fd(fd);
++    int infd = recv_fd(fd);
+     int outfd = recv_fd(fd);
+     int errfd = recv_fd(fd);
+ 
+@@ -353,8 +350,7 @@ static int daemon_accept(int fd) {
+         ALOGD("waiting for child exit");
+         if (waitpid(child, &status, 0) > 0) {
+             code = WEXITSTATUS(status);
+-        }
+-        else {
++        } else {
+             code = -1;
+         }
+ 
+@@ -372,17 +368,17 @@ static int daemon_accept(int fd) {
+         }
+ 
+         close(fd);
+-error:
++    error:
+         ALOGD("child exited");
+         return code;
+     }
+ 
+     // We are in the child now
+     // Close the unix socket file descriptor
+-    close (fd);
++    close(fd);
+ 
+     // Become session leader
+-    if (setsid() == (pid_t) -1) {
++    if (setsid() == (pid_t)-1) {
+         PLOGE("setsid");
+     }
+ 
+@@ -413,9 +409,9 @@ error:
+             exit(-1);
+         }
+ 
+-        if (infd < 0)  {
++        if (infd < 0) {
+             ALOGD("daemon: stdin using PTY");
+-            infd  = ptsfd;
++            infd = ptsfd;
+         }
+         if (outfd < 0) {
+             ALOGD("daemon: stdout using PTY");
+@@ -498,8 +494,7 @@ int run_daemon() {
+         if (fork_zero_fucks() == 0) {
+             close(fd);
+             return daemon_accept(client);
+-        }
+-        else {
++        } else {
+             close(client);
+         }
+     }
+@@ -511,9 +506,9 @@ err:
+ }
+ 
+ // List of signals which cause process termination
+-static int quit_signals[] = { SIGALRM, SIGHUP, SIGPIPE, SIGQUIT, SIGTERM, SIGINT, 0 };
++static int quit_signals[] = {SIGALRM, SIGHUP, SIGPIPE, SIGQUIT, SIGTERM, SIGINT, 0};
+ 
+-static void sighandler(__attribute__ ((unused)) int sig) {
++static void sighandler(__attribute__((unused)) int sig) {
+     restore_stdin();
+ 
+     // Assume we'll only be called before death
+@@ -542,7 +537,7 @@ static void sighandler(__attribute__ ((unused)) int sig) {
+ 
+ /**
+  * Setup signal handlers trap signals which should result in program termination
+- * so that we can restore the terminal to its normal state and retrieve the 
++ * so that we can restore the terminal to its normal state and retrieve the
+  * return code.
+  */
+ static void setup_sighandlers(void) {
+@@ -563,7 +558,7 @@ static void setup_sighandlers(void) {
+     }
+ }
+ 
+-int connect_daemon(int argc, char *argv[], int ppid) {
++int connect_daemon(int argc, char* argv[], int ppid) {
+     int ptmx = -1;
+     char pts_slave[PATH_MAX];
+ 
+@@ -598,7 +593,7 @@ int connect_daemon(int argc, char *argv[], int ppid) {
+ 
+     // TODO: Check a system property and never use PTYs if
+     // the property is set.
+-    if (isatty(STDIN_FILENO))  atty |= ATTY_IN;
++    if (isatty(STDIN_FILENO)) atty |= ATTY_IN;
+     if (isatty(STDOUT_FILENO)) atty |= ATTY_OUT;
+     if (isatty(STDERR_FILENO)) atty |= ATTY_ERR;
+ 
+diff --git a/pts.c b/pts.c
+index 26927a9..12a47c3 100644
+--- a/pts.c
++++ b/pts.c
+@@ -14,21 +14,21 @@
+  * limitations under the License.
+  */
+ 
+- /*
++/*
+  * pts.c
+  *
+  * Manages the pseudo-terminal driver on Linux/Android and provides some
+  * helper functions to handle raw input mode and terminal window resizing
+  */
+ 
+-#include <stdlib.h>
+-#include <string.h>
+-#include <unistd.h>
++#include <errno.h>
+ #include <fcntl.h>
++#include <pthread.h>
+ #include <signal.h>
++#include <stdlib.h>
++#include <string.h>
+ #include <termios.h>
+-#include <errno.h>
+-#include <pthread.h>
++#include <unistd.h>
+ 
+ #include "pts.h"
+ 
+@@ -36,7 +36,7 @@
+  * Helper functions
+  */
+ // Ensures all the data is written out
+-static int write_blocking(int fd, char *buf, size_t bufsz) {
++static int write_blocking(int fd, char* buf, size_t bufsz) {
+     ssize_t ret, written;
+ 
+     written = 0;
+@@ -91,7 +91,6 @@ static void pump_async(int input, int output) {
+     pthread_create(&writer, NULL, pump_thread, files);
+ }
+ 
+-
+ /**
+  * pts_open
+  *
+@@ -105,7 +104,7 @@ static void pump_async(int input, int output) {
+  * on failure either -2 or -1 (errno set) is returned.
+  * on success, the file descriptor of the master device is returned.
+  */
+-int pts_open(char *slave_name, size_t slave_name_size) {
++int pts_open(char* slave_name, size_t slave_name_size) {
+     int fdm;
+     char sn_tmp[slave_name_size];
+ 
+@@ -143,7 +142,7 @@ static int stdin_is_raw = 0;
+ /**
+  * set_stdin_raw
+  *
+- * Changes stdin to raw unbuffered mode, disables echo, 
++ * Changes stdin to raw unbuffered mode, disables echo,
+  * auto carriage return, etc.
+  *
+  * Return Value
+@@ -207,14 +206,14 @@ int restore_stdin(void) {
+ static volatile int closing_time = 0;
+ 
+ /**
+- * Thread process. Wait for a SIGWINCH to be received, then update 
++ * Thread process. Wait for a SIGWINCH to be received, then update
+  * the terminal size.
+  */
+-static void *watch_sigwinch(void *data) {
++static void* watch_sigwinch(void* data) {
+     sigset_t winch;
+     int sig;
+-    int master = ((int *)data)[0];
+-    int slave = ((int *)data)[1];
++    int master = ((int*)data)[0];
++    int slave = ((int*)data)[1];
+ 
+     sigemptyset(&winch);
+     sigaddset(&winch, SIGWINCH);
+@@ -244,7 +243,7 @@ static void *watch_sigwinch(void *data) {
+  * watch_sigwinch_async
+  *
+  * After calling this function, if the application receives
+- * SIGWINCH, the terminal window size will be read from 
++ * SIGWINCH, the terminal window size will be read from
+  * "input" and set on "output".
+  *
+  * NOTE: This function blocks SIGWINCH and spawns a thread.
+@@ -258,13 +257,13 @@ static void *watch_sigwinch(void *data) {
+  *
+  * Return Value
+  * on failure, -1 and errno will be set. In this case, no
+- *      thread has been spawned and SIGWINCH will not be 
++ *      thread has been spawned and SIGWINCH will not be
+  *      blocked.
+  * on success, 0
+  */
+ int watch_sigwinch_async(int master, int slave) {
+     pthread_t watcher;
+-    int *files = (int *) malloc(sizeof(int) * 2);
++    int* files = (int*)malloc(sizeof(int) * 2);
+     if (files == NULL) {
+         return -1;
+     }
+diff --git a/pts.h b/pts.h
+index c323643..9a22e27 100644
+--- a/pts.h
++++ b/pts.h
+@@ -14,7 +14,7 @@
+  * limitations under the License.
+  */
+ 
+- /*
++/*
+  * pts.h
+  *
+  * Manages the pseudo-terminal driver on Linux/Android and provides some
+@@ -37,12 +37,12 @@
+  * on failure either -2 or -1 (errno set) is returned.
+  * on success, the file descriptor of the master device is returned.
+  */
+-int pts_open(char *slave_name, size_t slave_name_size);
++int pts_open(char* slave_name, size_t slave_name_size);
+ 
+ /**
+  * set_stdin_raw
+  *
+- * Changes stdin to raw unbuffered mode, disables echo, 
++ * Changes stdin to raw unbuffered mode, disables echo,
+  * auto carriage return, etc.
+  *
+  * Return Value
+@@ -70,7 +70,7 @@ int restore_stdin(void);
+  * watch_sigwinch_async
+  *
+  * After calling this function, if the application receives
+- * SIGWINCH, the terminal window size will be read from 
++ * SIGWINCH, the terminal window size will be read from
+  * "input" and set on "output".
+  *
+  * NOTE: This function blocks SIGWINCH and spawns a thread.
+@@ -82,7 +82,7 @@ int restore_stdin(void);
+  *
+  * Return Value
+  * on failure, -1 and errno will be set. In this case, no
+- *      thread has been spawned and SIGWINCH will not be 
++ *      thread has been spawned and SIGWINCH will not be
+  *      blocked.
+  * on success, 0
+  */
+diff --git a/su.c b/su.c
+index 40a6ba4..b902b3e 100644
+--- a/su.c
++++ b/su.c
+@@ -16,30 +16,29 @@
+ ** limitations under the License.
+ */
+ 
+-#include <sys/types.h>
+-#include <sys/socket.h>
+-#include <sys/uio.h>
+-#include <sys/un.h>
+-#include <sys/wait.h>
+-#include <sys/select.h>
+-#include <sys/time.h>
+-#include <unistd.h>
+-#include <limits.h>
+ #include <fcntl.h>
+-#include <stdio.h>
+-#include <stdlib.h>
+ #include <getopt.h>
+-#include <stdint.h>
++#include <limits.h>
++#include <log/log.h>
++#include <private/android_filesystem_config.h>
+ #include <pwd.h>
+-#include <sys/stat.h>
+ #include <stdarg.h>
++#include <stdint.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <sys/select.h>
++#include <sys/socket.h>
++#include <sys/stat.h>
++#include <sys/time.h>
+ #include <sys/types.h>
+-#include <log/log.h>
+-#include <private/android_filesystem_config.h>
++#include <sys/uio.h>
++#include <sys/un.h>
++#include <sys/wait.h>
++#include <unistd.h>
+ 
++#include "binder/pm-wrapper.h"
+ #include "su.h"
+ #include "utils.h"
+-#include "binder/pm-wrapper.h"
+ 
+ extern int is_daemon;
+ extern int daemon_from_uid;
+@@ -51,15 +50,13 @@ int fork_zero_fucks() {
+         int status;
+         waitpid(pid, &status, 0);
+         return pid;
+-    }
+-    else {
+-        if ((pid = fork()))
+-            exit(0);
++    } else {
++        if ((pid = fork())) exit(0);
+         return 0;
+     }
+ }
+ 
+-static int from_init(struct su_initiator *from) {
++static int from_init(struct su_initiator* from) {
+     char path[PATH_MAX], exe[PATH_MAX];
+     char args[4096], *argv0, *argv_rest;
+     int fd;
+@@ -95,7 +92,7 @@ static int from_init(struct su_initiator *from) {
+     for (i = 0; i < len; i++) {
+         if (args[i] == '\0') {
+             if (!argv_rest) {
+-                argv_rest = &args[i+1];
++                argv_rest = &args[i + 1];
+             } else {
+                 args[i] = ' ';
+             }
+@@ -129,7 +126,7 @@ static int from_init(struct su_initiator *from) {
+         return -1;
+     }
+ 
+-    struct passwd *pw;
++    struct passwd* pw;
+     pw = getpwuid(from->uid);
+     if (pw && pw->pw_name) {
+         if (strlcpy(from->name, pw->pw_name, sizeof(from->name)) >= sizeof(from->name)) {
+@@ -141,11 +138,10 @@ static int from_init(struct su_initiator *from) {
+     return 0;
+ }
+ 
+-static void populate_environment(const struct su_context *ctx) {
+-    struct passwd *pw;
++static void populate_environment(const struct su_context* ctx) {
++    struct passwd* pw;
+ 
+-    if (ctx->to.keepenv)
+-        return;
++    if (ctx->to.keepenv) return;
+ 
+     pw = getpwuid(ctx->to.uid);
+     if (pw) {
+@@ -181,64 +177,61 @@ void set_identity(unsigned int uid) {
+ }
+ 
+ static void usage(int status) {
+-    FILE *stream = (status == EXIT_SUCCESS) ? stdout : stderr;
++    FILE* stream = (status == EXIT_SUCCESS) ? stdout : stderr;
+ 
+     fprintf(stream,
+-    "Usage: su [options] [--] [-] [LOGIN] [--] [args...]\n\n"
+-    "Options:\n"
+-    "  --daemon                      start the su daemon agent\n"
+-    "  -c, --command COMMAND         pass COMMAND to the invoked shell\n"
+-    "  -h, --help                    display this help message and exit\n"
+-    "  -, -l, --login                pretend the shell to be a login shell\n"
+-    "  -m, -p,\n"
+-    "  --preserve-environment        do not change environment variables\n"
+-    "  -s, --shell SHELL             use SHELL instead of the default " DEFAULT_SHELL "\n"
+-    "  -v, --version                 display version number and exit\n"
+-    "  -V                            display version code and exit,\n"
+-    "                                this is used almost exclusively by Superuser.apk\n");
++            "Usage: su [options] [--] [-] [LOGIN] [--] [args...]\n\n"
++            "Options:\n"
++            "  --daemon                      start the su daemon agent\n"
++            "  -c, --command COMMAND         pass COMMAND to the invoked shell\n"
++            "  -h, --help                    display this help message and exit\n"
++            "  -, -l, --login                pretend the shell to be a login shell\n"
++            "  -m, -p,\n"
++            "  --preserve-environment        do not change environment variables\n"
++            "  -s, --shell SHELL             use SHELL instead of the default " DEFAULT_SHELL
++            "\n"
++            "  -v, --version                 display version number and exit\n"
++            "  -V                            display version code and exit,\n"
++            "                                this is used almost exclusively by Superuser.apk\n");
+     exit(status);
+ }
+ 
+-static __attribute__ ((noreturn)) void deny(struct su_context *ctx) {
+-    char *cmd = get_command(&ctx->to);
++static __attribute__((noreturn)) void deny(struct su_context* ctx) {
++    char* cmd = get_command(&ctx->to);
+     ALOGW("request rejected (%u->%u %s)", ctx->from.uid, ctx->to.uid, cmd);
+     fprintf(stderr, "%s\n", strerror(EACCES));
+     exit(EXIT_FAILURE);
+ }
+ 
+-static __attribute__ ((noreturn)) void allow(struct su_context *ctx, const char *packageName) {
+-    char *arg0;
++static __attribute__((noreturn)) void allow(struct su_context* ctx, const char* packageName) {
++    char* arg0;
+     int argc, err;
+ 
+     umask(ctx->umask);
+ 
+-    char *binary;
++    char* binary;
+     argc = ctx->to.optind;
+     if (ctx->to.command) {
+         binary = ctx->to.shell;
+         ctx->to.argv[--argc] = ctx->to.command;
+         ctx->to.argv[--argc] = "-c";
+-    }
+-    else if (ctx->to.shell) {
++    } else if (ctx->to.shell) {
+         binary = ctx->to.shell;
+-    }
+-    else {
++    } else {
+         if (ctx->to.argv[argc]) {
+             binary = ctx->to.argv[argc++];
+-        }
+-        else {
++        } else {
+             binary = DEFAULT_SHELL;
+         }
+     }
+ 
+-    arg0 = strrchr (binary, '/');
++    arg0 = strrchr(binary, '/');
+     arg0 = (arg0) ? arg0 + 1 : binary;
+     if (ctx->to.login) {
+         int s = strlen(arg0) + 2;
+-        char *p = malloc(s);
++        char* p = malloc(s);
+ 
+-        if (!p)
+-            exit(EXIT_FAILURE);
++        if (!p) exit(EXIT_FAILURE);
+ 
+         *p = '-';
+         strlcpy(p + 1, arg0, s - 2);
+@@ -248,15 +241,13 @@ static __attribute__ ((noreturn)) void allow(struct su_context *ctx, const char
+     populate_environment(ctx);
+     set_identity(ctx->to.uid);
+ 
+-#define PARG(arg)                                    \
+-    (argc + (arg) < ctx->to.argc) ? " " : "",                    \
+-    (argc + (arg) < ctx->to.argc) ? ctx->to.argv[argc + (arg)] : ""
++#define PARG(arg)                             \
++    (argc + (arg) < ctx->to.argc) ? " " : "", \
++        (argc + (arg) < ctx->to.argc) ? ctx->to.argv[argc + (arg)] : ""
+ 
+-    ALOGD("%u %s executing %u %s using binary %s : %s%s%s%s%s%s%s%s%s%s%s%s%s%s",
+-            ctx->from.uid, ctx->from.bin,
+-            ctx->to.uid, get_command(&ctx->to), binary,
+-            arg0, PARG(0), PARG(1), PARG(2), PARG(3), PARG(4), PARG(5),
+-            (ctx->to.optind + 6 < ctx->to.argc) ? " ..." : "");
++    ALOGD("%u %s executing %u %s using binary %s : %s%s%s%s%s%s%s%s%s%s%s%s%s%s", ctx->from.uid,
++          ctx->from.bin, ctx->to.uid, get_command(&ctx->to), binary, arg0, PARG(0), PARG(1),
++          PARG(2), PARG(3), PARG(4), PARG(5), (ctx->to.optind + 6 < ctx->to.argc) ? " ..." : "");
+ 
+     ctx->to.argv[--argc] = arg0;
+ 
+@@ -289,8 +280,8 @@ static __attribute__ ((noreturn)) void allow(struct su_context *ctx, const char
+  * and can't trust the location of the property workspace.
+  * Find the properties ourselves.
+  */
+-int access_disabled(const struct su_initiator *from) {
+-    char *data;
++int access_disabled(const struct su_initiator* from) {
++    char* data;
+     char build_type[PROPERTY_VALUE_MAX];
+     char debuggable[PROPERTY_VALUE_MAX], enabled[PROPERTY_VALUE_MAX];
+     size_t len;
+@@ -327,48 +318,48 @@ int access_disabled(const struct su_initiator *from) {
+         memcpy(enabled, "0", 2);
+ 
+     /* enforce persist.sys.root_access on non-eng builds for apps */
+-    if (strcmp("eng", build_type) != 0 &&
+-            from->uid != AID_SHELL && from->uid != AID_ROOT &&
+-            (atoi(enabled) & LINEAGE_ROOT_ACCESS_APPS_ONLY) != LINEAGE_ROOT_ACCESS_APPS_ONLY ) {
+-        ALOGE("Apps root access is disabled by system setting - "
+-             "enable it under settings -> developer options");
++    if (strcmp("eng", build_type) != 0 && from->uid != AID_SHELL && from->uid != AID_ROOT &&
++        (atoi(enabled) & LINEAGE_ROOT_ACCESS_APPS_ONLY) != LINEAGE_ROOT_ACCESS_APPS_ONLY) {
++        ALOGE(
++            "Apps root access is disabled by system setting - "
++            "enable it under settings -> developer options");
+         return 1;
+     }
+ 
+     /* disallow su in a shell if appropriate */
+     if (from->uid == AID_SHELL &&
+-            (atoi(enabled) & LINEAGE_ROOT_ACCESS_ADB_ONLY) != LINEAGE_ROOT_ACCESS_ADB_ONLY ) {
+-        ALOGE("Shell root access is disabled by a system setting - "
+-             "enable it under settings -> developer options");
++        (atoi(enabled) & LINEAGE_ROOT_ACCESS_ADB_ONLY) != LINEAGE_ROOT_ACCESS_ADB_ONLY) {
++        ALOGE(
++            "Shell root access is disabled by a system setting - "
++            "enable it under settings -> developer options");
+         return 1;
+     }
+ 
+     return 0;
+ }
+ 
+-static void fork_for_samsung(void)
+-{
++static void fork_for_samsung(void) {
+     // Samsung CONFIG_SEC_RESTRICT_SETUID wants the parent process to have
+     // EUID 0, or else our setresuid() calls will be denied.  So make sure
+     // all such syscalls are executed by a child process.
+     int rv;
+ 
+     switch (fork()) {
+-    case 0:
+-        return;
+-    case -1:
+-        PLOGE("fork");
+-        exit(1);
+-    default:
+-        if (wait(&rv) < 0) {
++        case 0:
++            return;
++        case -1:
++            PLOGE("fork");
+             exit(1);
+-        } else {
+-            exit(WEXITSTATUS(rv));
+-        }
++        default:
++            if (wait(&rv) < 0) {
++                exit(1);
++            } else {
++                exit(WEXITSTATUS(rv));
++            }
+     }
+ }
+ 
+-int main(int argc, char *argv[]) {
++int main(int argc, char* argv[]) {
+     if (getuid() != geteuid()) {
+         ALOGE("must not be a setuid binary");
+         return 1;
+@@ -377,7 +368,7 @@ int main(int argc, char *argv[]) {
+     return su_main(argc, argv, 1);
+ }
+ 
+-int su_main(int argc, char *argv[], int need_client) {
++int su_main(int argc, char* argv[], int need_client) {
+     // start up in daemon mode if prompted
+     if (argc == 2 && strcmp(argv[1], "--daemon") == 0) {
+         return run_daemon();
+@@ -417,8 +408,8 @@ int su_main(int argc, char *argv[], int need_client) {
+         // not listed in linker, used due to system() call
+         "IFS",
+     };
+-    const char* const* cp   = unsec_vars;
+-    const char* const* endp = cp + sizeof(unsec_vars)/sizeof(unsec_vars[0]);
++    const char* const* cp = unsec_vars;
++    const char* const* endp = cp + sizeof(unsec_vars) / sizeof(unsec_vars[0]);
+     while (cp < endp) {
+         unsetenv(*cp);
+         cp++;
+@@ -427,65 +418,67 @@ int su_main(int argc, char *argv[], int need_client) {
+     ALOGD("su invoked.");
+ 
+     struct su_context ctx = {
+-        .from = {
+-            .pid = -1,
+-            .uid = 0,
+-            .bin = "",
+-            .args = "",
+-            .name = "",
+-        },
+-        .to = {
+-            .uid = AID_ROOT,
+-            .login = 0,
+-            .keepenv = 0,
+-            .shell = NULL,
+-            .command = NULL,
+-            .argv = argv,
+-            .argc = argc,
+-            .optind = 0,
+-            .name = "",
+-        },
++        .from =
++            {
++                .pid = -1,
++                .uid = 0,
++                .bin = "",
++                .args = "",
++                .name = "",
++            },
++        .to =
++            {
++                .uid = AID_ROOT,
++                .login = 0,
++                .keepenv = 0,
++                .shell = NULL,
++                .command = NULL,
++                .argv = argv,
++                .argc = argc,
++                .optind = 0,
++                .name = "",
++            },
+     };
+     int c;
+     struct option long_opts[] = {
+-        { "command",            required_argument,    NULL, 'c' },
+-        { "help",            no_argument,        NULL, 'h' },
+-        { "login",            no_argument,        NULL, 'l' },
+-        { "preserve-environment",    no_argument,        NULL, 'p' },
+-        { "shell",            required_argument,    NULL, 's' },
+-        { "version",            no_argument,        NULL, 'v' },
+-        { NULL, 0, NULL, 0 },
++        {"command", required_argument, NULL, 'c'},
++        {"help", no_argument, NULL, 'h'},
++        {"login", no_argument, NULL, 'l'},
++        {"preserve-environment", no_argument, NULL, 'p'},
++        {"shell", required_argument, NULL, 's'},
++        {"version", no_argument, NULL, 'v'},
++        {NULL, 0, NULL, 0},
+     };
+ 
+     while ((c = getopt_long(argc, argv, "+c:hlmps:Vv", long_opts, NULL)) != -1) {
+-        switch(c) {
+-        case 'c':
+-            ctx.to.shell = DEFAULT_SHELL;
+-            ctx.to.command = optarg;
+-            break;
+-        case 'h':
+-            usage(EXIT_SUCCESS);
+-            break;
+-        case 'l':
+-            ctx.to.login = 1;
+-            break;
+-        case 'm':
+-        case 'p':
+-            ctx.to.keepenv = 1;
+-            break;
+-        case 's':
+-            ctx.to.shell = optarg;
+-            break;
+-        case 'V':
+-            printf("%d\n", VERSION_CODE);
+-            exit(EXIT_SUCCESS);
+-        case 'v':
+-            printf("%s\n", VERSION);
+-            exit(EXIT_SUCCESS);
+-        default:
+-            /* Bionic getopt_long doesn't terminate its error output by newline */
+-            fprintf(stderr, "\n");
+-            usage(2);
++        switch (c) {
++            case 'c':
++                ctx.to.shell = DEFAULT_SHELL;
++                ctx.to.command = optarg;
++                break;
++            case 'h':
++                usage(EXIT_SUCCESS);
++                break;
++            case 'l':
++                ctx.to.login = 1;
++                break;
++            case 'm':
++            case 'p':
++                ctx.to.keepenv = 1;
++                break;
++            case 's':
++                ctx.to.shell = optarg;
++                break;
++            case 'V':
++                printf("%d\n", VERSION_CODE);
++                exit(EXIT_SUCCESS);
++            case 'v':
++                printf("%s\n", VERSION);
++                exit(EXIT_SUCCESS);
++            default:
++                /* Bionic getopt_long doesn't terminate its error output by newline */
++                fprintf(stderr, "\n");
++                usage(2);
+         }
+     }
+ 
+@@ -501,10 +494,10 @@ int su_main(int argc, char *argv[], int need_client) {
+     }
+     /* username or uid */
+     if (optind < argc && strcmp(argv[optind], "--") != 0) {
+-        struct passwd *pw;
++        struct passwd* pw;
+         pw = getpwnam(argv[optind]);
+         if (!pw) {
+-            char *endptr;
++            char* endptr;
+ 
+             /* It seems we shouldn't do this at all */
+             errno = 0;
+@@ -536,7 +529,8 @@ int su_main(int argc, char *argv[], int need_client) {
+ 
+     ALOGE("SU from: %s", ctx.from.name);
+ 
+-    // the latter two are necessary for stock ROMs like note 2 which do dumb things with su, or crash otherwise
++    // the latter two are necessary for stock ROMs like note 2 which do dumb things with su, or
++    // crash otherwise
+     if (ctx.from.uid == AID_ROOT) {
+         ALOGD("Allowing root/system/radio.");
+         allow(&ctx, NULL);
+@@ -554,7 +548,7 @@ int su_main(int argc, char *argv[], int need_client) {
+         allow(&ctx, NULL);
+     }
+ 
+-    char *packageName = resolve_package_name(ctx.from.uid);
++    char* packageName = resolve_package_name(ctx.from.uid);
+     if (packageName) {
+         if (!appops_start_op_su(ctx.from.uid, packageName)) {
+             ALOGD("Allowing via appops.");
+diff --git a/su.h b/su.h
+index 47b0eb0..bfff0e8 100644
+--- a/su.h
++++ b/su.h
+@@ -16,7 +16,7 @@
+ ** limitations under the License.
+ */
+ 
+-#ifndef SU_h 
++#ifndef SU_h
+ #define SU_h 1
+ 
+ #ifdef LOG_TAG
+@@ -25,10 +25,10 @@
+ #define LOG_TAG "su"
+ 
+ // Lineage-specific behavior
+-#define LINEAGE_ROOT_ACCESS_DISABLED      0
+-#define LINEAGE_ROOT_ACCESS_APPS_ONLY     1
+-#define LINEAGE_ROOT_ACCESS_ADB_ONLY      2
+-#define LINEAGE_ROOT_ACCESS_APPS_AND_ADB  3
++#define LINEAGE_ROOT_ACCESS_DISABLED 0
++#define LINEAGE_ROOT_ACCESS_APPS_ONLY 1
++#define LINEAGE_ROOT_ACCESS_ADB_ONLY 2
++#define LINEAGE_ROOT_ACCESS_APPS_AND_ADB 3
+ 
+ #define DAEMON_SOCKET_PATH "/dev/socket/su-daemon/"
+ 
+@@ -58,9 +58,9 @@ struct su_request {
+     char name[64];
+     int login;
+     int keepenv;
+-    char *shell;
+-    char *command;
+-    char **argv;
++    char* shell;
++    char* command;
++    char** argv;
+     int argc;
+     int optind;
+ };
+@@ -80,24 +80,20 @@ typedef enum {
+ 
+ extern void set_identity(unsigned int uid);
+ 
+-static inline char *get_command(const struct su_request *to)
+-{
+-  if (to->command)
+-    return to->command;
+-  if (to->shell)
+-    return to->shell;
+-  char* ret = to->argv[to->optind];
+-  if (ret)
+-    return ret;
+-  return DEFAULT_SHELL;
++static inline char* get_command(const struct su_request* to) {
++    if (to->command) return to->command;
++    if (to->shell) return to->shell;
++    char* ret = to->argv[to->optind];
++    if (ret) return ret;
++    return DEFAULT_SHELL;
+ }
+ 
+-int appops_start_op_su(int uid, const char *pkgName);
+-int appops_finish_op_su(int uid, const char *pkgName);
++int appops_start_op_su(int uid, const char* pkgName);
++int appops_finish_op_su(int uid, const char* pkgName);
+ 
+ int run_daemon();
+-int connect_daemon(int argc, char *argv[], int ppid);
+-int su_main(int argc, char *argv[], int need_client);
++int connect_daemon(int argc, char* argv[], int ppid);
++int su_main(int argc, char* argv[], int need_client);
+ // for when you give zero fucks about the state of the child process.
+ // this version of fork understands you don't care about the child.
+ // deadbeat dad fork.
+@@ -109,7 +105,7 @@ int fork_zero_fucks();
+ 
+ #include <errno.h>
+ #include <string.h>
+-#define PLOGE(fmt,args...) ALOGE(fmt " failed with %d: %s", ##args, errno, strerror(errno))
+-#define PLOGEV(fmt,err,args...) ALOGE(fmt " failed with %d: %s", ##args, err, strerror(err))
++#define PLOGE(fmt, args...) ALOGE(fmt " failed with %d: %s", ##args, errno, strerror(errno))
++#define PLOGEV(fmt, err, args...) ALOGE(fmt " failed with %d: %s", ##args, err, strerror(err))
+ 
+ #endif
+diff --git a/utils.c b/utils.c
+index 327f8dc..1f44a44 100644
+--- a/utils.c
++++ b/utils.c
+@@ -14,24 +14,23 @@
+ ** limitations under the License.
+ */
+ 
+-#include <sys/types.h>
+-#include <sys/stat.h>
+-#include <unistd.h>
+-#include <limits.h>
+-#include <fcntl.h>
+-#include <errno.h>
+ #include <ctype.h>
++#include <errno.h>
++#include <fcntl.h>
++#include <limits.h>
+ #include <stdio.h>
+ #include <stdlib.h>
+ #include <string.h>
++#include <sys/stat.h>
++#include <sys/types.h>
++#include <unistd.h>
+ 
+ #include "utils.h"
+ 
+ /* reads a file, making sure it is terminated with \n \0 */
+-char* read_file(const char *fn)
+-{
++char* read_file(const char* fn) {
+     struct stat st;
+-    char *data = NULL;
++    char* data = NULL;
+ 
+     int fd = open(fn, O_RDONLY);
+     if (fd < 0) return data;
+@@ -53,33 +52,31 @@ oops:
+     return NULL;
+ }
+ 
+-int get_property(const char *data, char *found, const char *searchkey, const char *not_found)
+-{
++int get_property(const char* data, char* found, const char* searchkey, const char* not_found) {
+     char *key, *value, *eol, *sol, *tmp;
+     if (data == NULL) goto defval;
+     int matched = 0;
+-    char *dup = strdup(data);
+-    if (!dup)
+-        goto defval;
++    char* dup = strdup(data);
++    if (!dup) goto defval;
+ 
+     sol = dup;
+-    while((eol = strchr(sol, '\n'))) {
++    while ((eol = strchr(sol, '\n'))) {
+         key = sol;
+         *eol++ = 0;
+         sol = eol;
+ 
+         value = strchr(key, '=');
+-        if(value == 0) continue;
++        if (value == 0) continue;
+         *value++ = 0;
+ 
+-        while(isspace(*key)) key++;
+-        if(*key == '#') continue;
++        while (isspace(*key)) key++;
++        if (*key == '#') continue;
+         tmp = value - 2;
+-        while((tmp > key) && isspace(*tmp)) *tmp-- = 0;
++        while ((tmp > key) && isspace(*tmp)) *tmp-- = 0;
+ 
+-        while(isspace(*value)) value++;
++        while (isspace(*value)) value++;
+         tmp = eol - 2;
+-        while((tmp > value) && isspace(*tmp)) *tmp-- = 0;
++        while ((tmp > value) && isspace(*tmp)) *tmp-- = 0;
+ 
+         if (strncmp(searchkey, key, strlen(searchkey)) == 0) {
+             matched = 1;
+@@ -90,10 +87,10 @@ int get_property(const char *data, char *found, const char *searchkey, const cha
+     int len;
+     if (matched) {
+         len = strlen(value);
+-        if (len >= PROPERTY_VALUE_MAX)
+-            return -1;
++        if (len >= PROPERTY_VALUE_MAX) return -1;
+         memcpy(found, value, len + 1);
+-    } else goto defval;
++    } else
++        goto defval;
+     return len;
+ 
+ defval:
+@@ -109,9 +106,7 @@ defval:
+  * Assume nobody is stupid enough to put a propery with prefix ro.lineage.version
+  * in his build.prop on a non-LineageOS ROM and comment it out.
+  */
+-int check_property(const char *data, const char *prefix)
+-{
+-    if (!data)
+-        return 0;
++int check_property(const char* data, const char* prefix) {
++    if (!data) return 0;
+     return strstr(data, prefix) != NULL;
+ }
+diff --git a/utils.h b/utils.h
+index a9d4a8f..8612df2 100644
+--- a/utils.h
++++ b/utils.h
+@@ -18,13 +18,12 @@
+ #define _UTILS_H_
+ 
+ #ifndef PROPERTY_VALUE_MAX
+-#define PROPERTY_VALUE_MAX  92
++#define PROPERTY_VALUE_MAX 92
+ #endif
+ 
+ /* reads a file, making sure it is terminated with \n \0 */
+-extern char* read_file(const char *fn);
++extern char* read_file(const char* fn);
+ 
+-extern int get_property(const char *data, char *found, const char *searchkey,
+-                        const char *not_found);
+-extern int check_property(const char *data, const char *prefix);
++extern int get_property(const char* data, char* found, const char* searchkey, const char* not_found);
++extern int check_property(const char* data, const char* prefix);
+ #endif
+-- 
+2.17.1
+
