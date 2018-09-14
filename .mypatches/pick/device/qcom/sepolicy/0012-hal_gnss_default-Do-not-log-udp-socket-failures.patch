@@ -1,0 +1,43 @@
+From 6ccc25e9e83066fcea3ca2457a60ec19260c2026 Mon Sep 17 00:00:00 2001
+From: Subash Abhinov Kasiviswanathan <subashab@codeaurora.org>
+Date: Mon, 12 Jun 2017 18:16:14 -0600
+Subject: [PATCH 12/19] hal_gnss_default: Do not log udp socket failures
+
+hal_gnss_default uses data services API's to use data related
+functionality for SUPL/E911 call. This was internally using
+internet datagram sockets for IOCTL calls to retrieve interface
+name leading to this denial. Since HAL is not supposed to have
+this permission, use netlink route sockets instead to achieve
+this functionality.
+
+Fixes the following denial -
+
+audit(0.0:94): avc: denied { create } for comm="Loc_hal_worker"
+scontext=u:r:hal_gnss_default:s0 tcontext=u:r:hal_gnss_default:s0
+tclass=udp_socket permissive=0
+
+BUG:37730994
+Change-Id: If358032ffcf870747d6bca4fa50fb45214d70f8c
+---
+ common/hal_gnss_default.te | 9 +++++++++
+ 1 file changed, 9 insertions(+)
+ create mode 100644 common/hal_gnss_default.te
+
+diff --git a/common/hal_gnss_default.te b/common/hal_gnss_default.te
+new file mode 100644
+index 00000000..668b2017
+--- /dev/null
++++ b/common/hal_gnss_default.te
+@@ -0,0 +1,9 @@
++# Most HALs are not allowed to use network sockets. Qcom library
++# libqdi is used across multiple processes which are clients of
++# netmgrd including the GNSS HAL. libqdi first attempts to get the network
++# interface using an IOCTL on a UDP INET socket, which isn't allowed here.
++# If that fails, it falls back to using libc's if_nameindex() which requires
++# a netlink route socket, which HALs may use. Due to the initial
++# attempt to use a UDP socket, we still see a selinux denial,
++# but it is safe to ignore.
++dontaudit hal_gnss_default self:udp_socket create;
+-- 
+2.17.1
+

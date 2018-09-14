@@ -812,8 +812,30 @@ kpick 225476 # dexdeps: Ignore static initializers on analysis.
 #kpick 225945 # sepolicy: Update to match new qcom sepolicy
 
 # device/qcom/sepolicy
-kpick 224767 # sepol: Remove duplicated hal_vehicle attribute
-kpick 224768 # sepol: hostapd is now hal_wifi_hostapd
+#kpick 224767 # sepol: Remove duplicated hal_vehicle attribute
+#kpick 224768 # sepol: hostapd is now hal_wifi_hostapd
+kpick 228563 # sepolicy: Move definitions from Android.mk to make opt-in
+kpick 228566 # qcom: Label vendor files with (vendor|system/vendor) instead of vendor
+kpick 228567 # Revert "sepolicy: Allow platform app to find nfc service"
+kpick 228569 # Use set_prop() macro for property sets
+kpick 228570 # sepolicy: Allow wcnss_service to set wlan.driver properties
+kpick 228571 # sepolicy: allow system_server to read alarm boot prop
+kpick 228572 # sepolicy: Allow system_server to 'read' qti_debugfs
+kpick 228573 # sepolicy: Add libsdm-disp-vndapis and libsdmutils to SP-HALs
+kpick 228574 # sepolicy: Allow thermal-engine to read sysfs_uio[_file]
+kpick 228575 # sepolicy: Add libcryptfs_hw to SP HALs
+kpick 228576 # sepolicy: Label mpctl_socket as data_file_type
+kpick 228578 # sepolicy: rules to allow camera daemon access to app buffer
+kpick 228579 # sepolicy : add secontext for eMMC blocks
+kpick 228580 # hal_gnss_default: Do not log udp socket failures
+kpick 228582 # sepolicy: qti_init_shell needs to read dir too
+kpick 228583 # sepolicy: allow vold to read persist dirs
+kpick 228584 # sepolicy: Fix video4linux "name" node labeling
+kpick 228585 # sepolicy: Allow mm-qcamerad to access v4L "name" node
+kpick 228586 # common: Fix labelling of lcd-backlight
+kpick 228587 # sepolicy: Allow perf HAL to set freq props
+kpick 228588 # sepolicy: Fix ` breakage
+
 
 # device/samsung/kltechnduo
 
