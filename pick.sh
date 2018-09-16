@@ -974,6 +974,7 @@ kpick 227896 # SystemUI: Add Profiles tile
 kpick 221716 # Where's my circle battery, dude?
 kpick 228405 # Forward port CM Screen Security settings (1/2)
 kpick 228664 # [dnm][temp]display: Don't animate screen brightness when turning the screen on
+kpick 229166 # NightDisplayController: report unavailable if livedisplay feature is present
 
 # frameworks/native
 kpick 224443 # libbinder: Don't log call trace when waiting for vendor service on non-eng builds
@@ -1290,6 +1291,7 @@ kpick 227120 # Settings: Check interfaces before enabling ADB over network
 kpick 227929 # Settings: Remove battery percentage switch
 kpick 228403 # Settings: forward port lock pattern grid size (2/2)
 kpick 228404 # Forward port pattern visibility settings (2/2)
+kpick 229167 # Settings: Hide Night Mode suggestion if LiveDisplay feature is present
 
 # packages/apps/SetupWizard
 
