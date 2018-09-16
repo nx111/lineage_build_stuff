@@ -434,8 +434,10 @@ function kpick()
     local subject=$(grep -Ri -- '--> Subject:' $logfile | sed 's/--> Subject:[[:space:]]*//g')
     if [ "${subject:0:1}" = '"' ]; then
           subject=$(echo $subject | sed 's/^"//' | sed 's/"$//' | sed "s/\"/\\\\\"/g" | sed "s/'/\\\\\'/g" | sed "s/\&/\\\&/g")
+          subject=$(echo $subject | sed "s/\`/\\\\\`/g" | sed -e "s/|/\\\|/g")
     else
           subject=$(echo $subject | sed "s/\"/\\\\\"/g" | sed "s/'/\\\\\'/g" | sed "s/\&/\\\&/g")
+          subject=$(echo $subject | sed "s/\`/\\\\\`/g" | sed -e "s/|/\\\|/g")
     fi
     #echo " ---subject=$subject"
     fix_repopick_output $logfile
@@ -836,18 +838,17 @@ kpick 228586 # common: Fix labelling of lcd-backlight
 kpick 228587 # sepolicy: Allow perf HAL to set freq props
 kpick 228588 # sepolicy: Fix ` breakage
 
+# device/qcom/sepolicy-legacy
+kpick 228604 # sepolicy-legacy: Adapt for new path (sepolicy -> sepolicy-legacy)
+kpick 228608 # sepolicy-legacy: Treat BT vendor properties like non-vendor ones.	
 
 # device/samsung/kltechnduo
 
 # device/samsung/klte-common
-kpick 227732 # klte-common: Make the external camera provider ignore internal cameras
 kpick 225192 # klte-common: Align ril.h to samsung_msm8974-common P libril changes
 kpick 224917 # DO NOT MERGE: klte-common: Requisite bring-up BS change
 
 # device/samsung/msm8974-common
-kpick 226070 # msm8974-common: Allow additional gralloc 1.0 buffer usage bits
-kpick 227730 # msm8974-common: Disable USB host mode
-kpick 227731 # msm8974-common: Use Lineage overlays too
 kpick 225466 # msm8974-common: libril: Remove LOCAL_CLANG
 kpick 225467 # msm8974-common: libril: Fix Const-Correctness for RIL_RadioFunctions
 kpick 225468 # msm8974-common: libril: Remove unused code
@@ -859,6 +860,7 @@ kpick 225473 # msm8974-common: libril: Add SIM_ABSENT error
 kpick 225759 # msm8974-common: libril: Replace strncpy with strlcpy.
 kpick 225760 # msm8974-common: libril: FR51015: Tuning of Binder buffer for rild.
 kpick 224916 # DO NOT MERGE: msm8974-common: sepolicy: Just make it build
+kpick 228677 # msm8974-common: Make the external camera provider ignore internal cameras
 
 # device/samsung/qcom-common
 
@@ -971,6 +973,7 @@ kpick 227839 # storage: Set all sdcards to visible
 kpick 227896 # SystemUI: Add Profiles tile
 kpick 221716 # Where's my circle battery, dude?
 kpick 228405 # Forward port CM Screen Security settings (1/2)
+kpick 228664 # [dnm][temp]display: Don't animate screen brightness when turning the screen on
 
 # frameworks/native
 kpick 224443 # libbinder: Don't log call trace when waiting for vendor service on non-eng builds
@@ -1284,24 +1287,15 @@ kpick 226151 # Settings: show Trust brading in confirm_lock_password UI
 kpick 226154 # fingerprint: Allow devices to configure sensor location
 kpick 226391 # Settings: Hide lockdown in lockscreen settings
 kpick 227120 # Settings: Check interfaces before enabling ADB over network
-kpick 227795 # Settings: Hide unsupported USB modes automatically
 kpick 227929 # Settings: Remove battery percentage switch
 kpick 228403 # Settings: forward port lock pattern grid size (2/2)
 kpick 228404 # Forward port pattern visibility settings (2/2)
-kpick 228434 # Setting: Reverse an incorrect check in AutoRestrictionPreferenceController
 
 # packages/apps/SetupWizard
 
 # packages/apps/Stk
 
 # packages/apps/Terminal
-kpick 226269 # TerminalKeys: Disable debug
-kpick 226270 # Allow terminal app to show in LeanBack (1/2)
-kpick 226271 # Terminal: Fix keyboard Ctrl- and ALT-key input.
-kpick 226272 # Add settings for fullscreen, orientation, font size, color
-kpick 226273 # Allow access to external storage
-kpick 226274 # Term: materialize
-kpick 226275 # Terminal: volume keys as up/down
 
 
 # packages/apps/Trebuchet
@@ -1456,6 +1450,7 @@ kpick 226184 # soong_config: Allow process-specific override of target SDK versi
 kpick 226443 # soong: Add additional_deps attribute for libraries and binaries
 kpick 226444 # soong: Add generated_headers module alias
 kpick 226591 # soong: Add support for target specific headers
+kpick 228610 # lineage: disable adb auth on eng build
 
 # vendor/qcom/opensource/audio
 
