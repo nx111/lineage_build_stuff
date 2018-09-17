@@ -816,9 +816,7 @@ kpick 225476 # dexdeps: Ignore static initializers on analysis.
 # device/qcom/sepolicy
 #kpick 224767 # sepol: Remove duplicated hal_vehicle attribute
 #kpick 224768 # sepol: hostapd is now hal_wifi_hostapd
-kpick 228563 # sepolicy: Move definitions from Android.mk to make opt-in
 kpick 228566 # qcom: Label vendor files with (vendor|system/vendor) instead of vendor
-kpick 228567 # Revert "sepolicy: Allow platform app to find nfc service"
 kpick 228569 # Use set_prop() macro for property sets
 kpick 228570 # sepolicy: Allow wcnss_service to set wlan.driver properties
 kpick 228571 # sepolicy: allow system_server to read alarm boot prop
@@ -828,7 +826,6 @@ kpick 228574 # sepolicy: Allow thermal-engine to read sysfs_uio[_file]
 kpick 228575 # sepolicy: Add libcryptfs_hw to SP HALs
 kpick 228576 # sepolicy: Label mpctl_socket as data_file_type
 kpick 228578 # sepolicy: rules to allow camera daemon access to app buffer
-kpick 228579 # sepolicy : add secontext for eMMC blocks
 kpick 228580 # hal_gnss_default: Do not log udp socket failures
 kpick 228582 # sepolicy: qti_init_shell needs to read dir too
 kpick 228583 # sepolicy: allow vold to read persist dirs
@@ -836,11 +833,10 @@ kpick 228584 # sepolicy: Fix video4linux "name" node labeling
 kpick 228585 # sepolicy: Allow mm-qcamerad to access v4L "name" node
 kpick 228586 # common: Fix labelling of lcd-backlight
 kpick 228587 # sepolicy: Allow perf HAL to set freq props
-kpick 228588 # sepolicy: Fix ` breakage
 
 # device/qcom/sepolicy-legacy
-kpick 228604 # sepolicy-legacy: Adapt for new path (sepolicy -> sepolicy-legacy)
 kpick 228608 # sepolicy-legacy: Treat BT vendor properties like non-vendor ones.	
+kpick 229249 # common: Relabel /data/vendor/display files
 
 # device/samsung/kltechnduo
 
@@ -865,6 +861,11 @@ kpick 228677 # msm8974-common: Make the external camera provider ignore internal
 # device/samsung/qcom-common
 
 # kernel/samsung/msm8974
+
+# external/ant-wireless/ant_native
+kpick 227101 # Remove unused parameters in vfs code
+kpick 227260 # Update bt vendor callbacks array in vfs code
+kpick 227261 # Cast BT_VND_OP_ANT_USERIAL_{OPEN,CLOSE} to bt_vendor_opcode_t in vfs code
 
 # external/bash
 
@@ -929,9 +930,6 @@ kpick 224844 # lockscreen: Add option for showing unlock screen directly
 kpick 225582 # [TEMP]: Revert "OMS: harden permission checks"
 kpick 225983 # Runtime toggle of navbar
 kpick 225606 # Forward port 'Swap volume buttons' (1/3)
-kpick 225650 # Configurable 0, 90, 180 and 270 degree rotation
-kpick 225685 # frameworks: Power menu customizations
-kpick 225680 # SystemUI: Allow overlaying max notification icons
 kpick 225682 # Framework: Volume key cursor control
 kpick 225683 # PhoneWindowManager: add LineageButtons volumekey hook
 kpick 225684 # Long-press power while display is off for torch
@@ -947,14 +945,12 @@ kpick 225728 # Camera button support
 kpick 225729 # Framework: Forward port Long press back to kill app (2/2)
 kpick 225734 # Allow screen unpinning on devices without navbar
 kpick 225754 # SystemUI: Berry styles
-kpick 225799 # SystemUI: fix toggling lockscreen rotation [1/3]
 kpick 225859 # storage: Do not notify for volumes on non-removable disks
 kpick 226068 # Fix mounting of non-FAT formatted SD cards (1/2)
 kpick 226236 # SystemUI: add navbar button layout inversion tuning
 kpick 226249 # fw/b: Allow customisation of navbar app switch long press action
 kpick 226276 # power: Re-introduce custom charging sounds
 kpick 226343 # CameraServiceProxy: Loosen UID check
-kpick 226354 # Camera: Add feature extensions
 kpick 226358 # settings: Allow accessing LineageSettings via settings command
 kpick 226398 # frameworks: base: Port password retention feature
 kpick 226399 # Use fdeCheckPassword error code to indicate pw failure
@@ -1200,7 +1196,6 @@ kpick 227454 # power: Add Lineage power hints
 # lineage-sdk
 #kpick 223137 # lineage-sdk: Comment out LineageAudioService
 kpick 225581 # lineage-sdk: Make styles init at system services ready
-kpick 225687 # PowerMenuConstants: Add user logout as new global action
 kpick 226087 # lineage-sdk: Default config_deviceHardware{Wake}Keys to 64
 kpick 226141 # LineageSettingsProvider: Cleanup after LINEAGE_SETUP_WIZARD_COMPLETED deprecation
 kpick 227931 # lineagesdk: Refactor battery icon options
@@ -1254,7 +1249,6 @@ kpick 225289 # DocumentsUI: support night mode
 # packages/apps/LineageParts
 kpick 226141 # LineageSettingsProvider: Cleanup after LINEAGE_SETUP_WIZARD_COMPLETED deprecation
 kpick 226145 # LineageParts: Reenable buttons related settings
-kpick 226390 # PowerMenuActions: Make to sure to enable setting lockdown setting
 kpick 226392 # LineageParts: Set proper default value for charging sounds
 kpick 226863 # LineageParts: Drop  setting
 kpick 227930 # LineageParts: Bring back and refactor battery icon options
@@ -1275,18 +1269,15 @@ kpick 223700 # NFC: Adding new vendor specific interface to NFC Service
 # packages/apps/Settings
 kpick 224615 # deviceInfo: Fix imei dialog fc when only 1 sim is inserted
 kpick 225570 # Settings: Add LineageParts charging sound settings preference
-kpick 225686 # Settings: Add advanced restart switch
 kpick 225730 # Settings: Add kill app back button toggle
 kpick 225755 # Settings: Hide AOSP theme-related controllers
 kpick 225756 # Settings: fix dark style issues
-kpick 225800 # Settings: Add rotation settings
 kpick 225858 # storage: Do not allow eject for volumes on non-removable disks
 kpick 226142 # Settings: Add developer setting for root access
 kpick 226148 # Settings: "Security & location" -> "Security & privacy"
 kpick 226150 # Settings: add Trust interface hook
 kpick 226151 # Settings: show Trust brading in confirm_lock_password UI
 kpick 226154 # fingerprint: Allow devices to configure sensor location
-kpick 226391 # Settings: Hide lockdown in lockscreen settings
 kpick 227120 # Settings: Check interfaces before enabling ADB over network
 kpick 227929 # Settings: Remove battery percentage switch
 kpick 228403 # Settings: forward port lock pattern grid size (2/2)
