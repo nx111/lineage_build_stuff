@@ -755,7 +755,6 @@ default_branch=$(grep "^[[:space:]]*<default revision=" $topdir/.repo/manifests/
 git reset --hard $(git branch -a | grep "remotes/m/$default_branch" | cut -d'>' -f 2 | sed -e "s/ //g") >/dev/null
 cd $topdir
 
-kpick 225832 # lineage: Enable qcom sepolicy
 kpick 227745 # lineage: Enable FM apps
 kpick 225583 # manifest: Enable lineage styles overlays
 kpick 227747 # lineage: Enable weather apps
@@ -836,7 +835,6 @@ kpick 228587 # sepolicy: Allow perf HAL to set freq props
 
 # device/qcom/sepolicy-legacy
 kpick 228608 # sepolicy-legacy: Treat BT vendor properties like non-vendor ones.	
-kpick 229249 # common: Relabel /data/vendor/display files
 
 # device/samsung/kltechnduo
 
@@ -863,7 +861,6 @@ kpick 228677 # msm8974-common: Make the external camera provider ignore internal
 # kernel/samsung/msm8974
 
 # external/ant-wireless/ant_native
-kpick 227101 # Remove unused parameters in vfs code
 kpick 227260 # Update bt vendor callbacks array in vfs code
 kpick 227261 # Cast BT_VND_OP_ANT_USERIAL_{OPEN,CLOSE} to bt_vendor_opcode_t in vfs code
 
@@ -933,8 +930,6 @@ kpick 225606 # Forward port 'Swap volume buttons' (1/3)
 kpick 225682 # Framework: Volume key cursor control
 kpick 225683 # PhoneWindowManager: add LineageButtons volumekey hook
 kpick 225684 # Long-press power while display is off for torch
-kpick 225691 # SystemUI: Don't vibrate on touchscreen camera gesture
-kpick 225692 # framework: move device key handler logic, fix gesture camera launch
 kpick 225693 # SystemUI: add left and right virtual buttons while typing
 kpick 225702 # Camera: allow camera to use power key as shutter
 kpick 225721 # Reimplement hardware keys custom rebinding
@@ -971,6 +966,11 @@ kpick 221716 # Where's my circle battery, dude?
 kpick 228405 # Forward port CM Screen Security settings (1/2)
 kpick 228664 # [dnm][temp]display: Don't animate screen brightness when turning the screen on
 kpick 229166 # NightDisplayController: report unavailable if livedisplay feature is present
+kpick 229230 # SystemUI: allow the power menu to be relocated
+kpick 229254 # SystemUI: handle camera launch gesture from keyhandler
+kpick 229255 # TunerServiceImpl: Add support for Lineage global settings
+kpick 229256 # Add support for runtime toggle of navbar
+kpick 229300 # DNM: SystemUI: hide Quick Settings phone status icon and text
 
 # frameworks/native
 kpick 224443 # libbinder: Don't log call trace when waiting for vendor service on non-eng builds
@@ -1001,7 +1001,6 @@ kpick 226447 # libbt: Make sure that we don't load pre-patch when looking for pa
 # hardware/boardcomm/wlan
 
 # hardware/interfaces
-kpick 224064 # Revert "Bluetooth: Remove random MAC addresses"
 kpick 225506 # Camed HAL extension: Added support in HIDL for Extended FD.
 kpick 225507 # camera: Only link and use vendor.qti.hardware.camera.device if specified
 kpick 226402 # keymasterV4_0: Tags support for FBE wrapped key.
@@ -1024,6 +1023,7 @@ kpick 223194 # nxp: Begin restoring pn547
 
 # hardware/qcom/audio-caf/msm8974
 kpick 223436 # Add -Wno-error to compile with global -Werror.
+kpick 227340 # audio: Use normal tinycompress
 
 # hardware/qcom/bt-caf
 kpick 226647 # libbt-qcom: Allow building without proprietary bits
