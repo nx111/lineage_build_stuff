@@ -969,7 +969,7 @@ kpick 229166 # NightDisplayController: report unavailable if livedisplay feature
 kpick 229230 # SystemUI: allow the power menu to be relocated
 kpick 229254 # SystemUI: handle camera launch gesture from keyhandler
 kpick 229255 # TunerServiceImpl: Add support for Lineage global settings
-kpick 229256 # Add support for runtime toggle of navbar
+#kpick 229256 # Add support for runtime toggle of navbar
 kpick 229300 # DNM: SystemUI: hide Quick Settings phone status icon and text
 
 # frameworks/native
