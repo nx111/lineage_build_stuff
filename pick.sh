@@ -811,6 +811,8 @@ kpick 225476 # dexdeps: Ignore static initializers on analysis.
 
 # device/lineage/sepolicy
 #kpick 225945 # sepolicy: Update to match new qcom sepolicy
+kpick 229423 # selinux: add domain for snap
+kpick 229424 # selinux: add domain for Gallery
 
 # device/qcom/sepolicy
 #kpick 224767 # sepol: Remove duplicated hal_vehicle attribute
@@ -843,6 +845,7 @@ kpick 225192 # klte-common: Align ril.h to samsung_msm8974-common P libril chang
 kpick 224917 # DO NOT MERGE: klte-common: Requisite bring-up BS change
 
 # device/samsung/msm8974-common
+kpick 228677 # msm8974-common: Make the external camera provider ignore internal cameras
 kpick 225466 # msm8974-common: libril: Remove LOCAL_CLANG
 kpick 225467 # msm8974-common: libril: Fix Const-Correctness for RIL_RadioFunctions
 kpick 225468 # msm8974-common: libril: Remove unused code
@@ -854,7 +857,6 @@ kpick 225473 # msm8974-common: libril: Add SIM_ABSENT error
 kpick 225759 # msm8974-common: libril: Replace strncpy with strlcpy.
 kpick 225760 # msm8974-common: libril: FR51015: Tuning of Binder buffer for rild.
 kpick 224916 # DO NOT MERGE: msm8974-common: sepolicy: Just make it build
-kpick 228677 # msm8974-common: Make the external camera provider ignore internal cameras
 
 # device/samsung/qcom-common
 
@@ -927,6 +929,8 @@ kpick 224513 # SystemUI: Disable config_keyguardUserSwitcher on sw600dp
 kpick 224844 # lockscreen: Add option for showing unlock screen directly
 kpick 225582 # [TEMP]: Revert "OMS: harden permission checks"
 kpick 225606 # Forward port 'Swap volume buttons' (1/3)
+kpick 229255 # TunerServiceImpl: Add support for Lineage global settings
+kpick 229256 # Add support for runtime toggle of navbar
 kpick 225682 # Framework: Volume key cursor control
 kpick 225683 # PhoneWindowManager: add LineageButtons volumekey hook
 kpick 225684 # Long-press power while display is off for torch
@@ -968,8 +972,6 @@ kpick 228664 # [dnm][temp]display: Don't animate screen brightness when turning 
 kpick 229166 # NightDisplayController: report unavailable if livedisplay feature is present
 kpick 229230 # SystemUI: allow the power menu to be relocated
 kpick 229254 # SystemUI: handle camera launch gesture from keyhandler
-kpick 229255 # TunerServiceImpl: Add support for Lineage global settings
-#kpick 229256 # Add support for runtime toggle of navbar
 kpick 229300 # DNM: SystemUI: hide Quick Settings phone status icon and text
 kpick 229307 # Add CHANNEL_MODE_DUAL_CHANNEL constant
 kpick 229308 # Add Dual Channel into Bluetooth Audio Channel Mode developer options menu

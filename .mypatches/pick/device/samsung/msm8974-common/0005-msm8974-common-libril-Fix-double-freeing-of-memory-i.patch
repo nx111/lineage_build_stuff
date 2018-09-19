@@ -1,0 +1,80 @@
+From 230d379750958d0607127f7f989452e37bd869ce Mon Sep 17 00:00:00 2001
+From: Gohulan Balachandran <gohulanb@quicinc.com>
+Date: Fri, 20 Oct 2017 09:37:52 -0700
+Subject: [PATCH 05/14] msm8974-common: libril: Fix double freeing of memory in
+ SAP service and add null-checks.
+
+The payload of a SAP request could be freed twice in certain scenarios.
+Also, add null-checks to prevent dereferencing of null pointers.
+
+Bug: 64729356
+Test: Manually run the fuzz tests and ensure that there is no crash in
+      rild
+
+Change-Id: Ib7ae269fa5297d6acea267337b220b8858c82bae
+---
+ ril/libril/RilSapSocket.cpp | 11 ++++++++---
+ ril/libril/sap_service.cpp  |  7 ++++---
+ 2 files changed, 12 insertions(+), 6 deletions(-)
+
+diff --git a/ril/libril/RilSapSocket.cpp b/ril/libril/RilSapSocket.cpp
+index 664e6a9..211371e 100644
+--- a/ril/libril/RilSapSocket.cpp
++++ b/ril/libril/RilSapSocket.cpp
+@@ -55,10 +55,9 @@ void RilSapSocket::sOnRequestComplete (RIL_Token t,
+         sap_socket->onRequestComplete(t,e,response,responselen);
+     } else {
+         RLOGE("Invalid socket id");
+-        if (request->curr->payload) {
+-            free(request->curr->payload);
++        if (request->curr) {
++            free(request->curr);
+         }
+-        free(request->curr);
+         free(request);
+     }
+ }
+@@ -234,6 +233,12 @@ void RilSapSocket::dispatchRequest(MsgHeader *req) {
+ void RilSapSocket::onRequestComplete(RIL_Token t, RIL_Errno e, void *response,
+         size_t response_len) {
+     SapSocketRequest* request= (SapSocketRequest*)t;
++
++    if (!request || !request->curr) {
++        RLOGE("RilSapSocket::onRequestComplete: request/request->curr is NULL");
++        return;
++    }
++
+     MsgHeader *hdr = request->curr;
+ 
+     MsgHeader rsp;
+diff --git a/ril/libril/sap_service.cpp b/ril/libril/sap_service.cpp
+index b4f1dbe..88861ed 100644
+--- a/ril/libril/sap_service.cpp
++++ b/ril/libril/sap_service.cpp
+@@ -107,11 +107,12 @@ MsgHeader* SapImpl::createMsgHeader(MsgId msgId, int32_t token) {
+ Return<void> SapImpl::addPayloadAndDispatchRequest(MsgHeader *msg, uint16_t reqLen,
+         uint8_t *reqPtr) {
+     pb_bytes_array_t *payload = (pb_bytes_array_t *) malloc(sizeof(pb_bytes_array_t) - 1 + reqLen);
+-    msg->payload = payload;
+-    if (msg->payload == NULL) {
++    if (payload == NULL) {
+         sendFailedResponse(msg->id, msg->token, 2, reqPtr, msg);
+         return Void();
+     }
++
++    msg->payload = payload;
+     msg->payload->size = reqLen;
+     memcpy(msg->payload->bytes, reqPtr, reqLen);
+ 
+@@ -121,7 +122,7 @@ Return<void> SapImpl::addPayloadAndDispatchRequest(MsgHeader *msg, uint16_t reqL
+         sapSocket->dispatchRequest(msg);
+     } else {
+         RLOGE("SapImpl::addPayloadAndDispatchRequest: sapSocket is null");
+-        sendFailedResponse(msg->id, msg->token, 3, msg->payload, reqPtr, msg);
++        sendFailedResponse(msg->id, msg->token, 3, payload, reqPtr, msg);
+         return Void();
+     }
+     free(payload);
+-- 
+2.17.1
+
