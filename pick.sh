@@ -784,7 +784,6 @@ kpick 223063 # Restore android_alarm.h kernel uapi header
 kpick 223067 # libc fortify: Ignore open() O_TMPFILE mode bits warning
 kpick 223943 # bionic: meh
 kpick 225463 # bionic: Let popen and system fall back to /sbin/sh
-kpick 225465 # libc: Mark libstdc++ as vendor available
 kpick 226183 # Implement per-process target SDK version override.
 
 # boot/recovery
@@ -804,6 +803,7 @@ kpick 222648 # Allow providing flex and bison binaries
 kpick 224613 # soong: Add LOCAL_AIDL_FLAGS handling
 kpick 226593 # soong: Add function to return targer specific header path
 #kpick 226918 # Add /ramdisk to installclean
+kpick 229411 # soong sbox: Add option to allow copying all generated output
 
 # dalvik
 kpick 225475 # dexdeps: Add option for --include-lineage-classes.
@@ -889,6 +889,7 @@ kpick 223413 # perfetto_cmd: Resolve missing O_CREAT mode
 kpick 225762 # tinycompress: enable libtinycompress_vendor
 kpick 225763 # tinycompress: Use sanitized headers generated from kernel source
 kpick 223008 # tinycompress: tinycompress fixes
+kpick 229414 # tinycompress: Use generated kernel headers
 
 # external/toybox
 
@@ -925,7 +926,6 @@ kpick 224446 # SystemUI: Make tablets great again
 kpick 224513 # SystemUI: Disable config_keyguardUserSwitcher on sw600dp
 kpick 224844 # lockscreen: Add option for showing unlock screen directly
 kpick 225582 # [TEMP]: Revert "OMS: harden permission checks"
-kpick 225983 # Runtime toggle of navbar
 kpick 225606 # Forward port 'Swap volume buttons' (1/3)
 kpick 225682 # Framework: Volume key cursor control
 kpick 225683 # PhoneWindowManager: add LineageButtons volumekey hook
@@ -971,6 +971,9 @@ kpick 229254 # SystemUI: handle camera launch gesture from keyhandler
 kpick 229255 # TunerServiceImpl: Add support for Lineage global settings
 #kpick 229256 # Add support for runtime toggle of navbar
 kpick 229300 # DNM: SystemUI: hide Quick Settings phone status icon and text
+kpick 229307 # Add CHANNEL_MODE_DUAL_CHANNEL constant
+kpick 229308 # Add Dual Channel into Bluetooth Audio Channel Mode developer options menu
+kpick 229309 # Allow SBC as HD audio codec in Bluetooth device configuration
 
 # frameworks/native
 kpick 224443 # libbinder: Don't log call trace when waiting for vendor service on non-eng builds
@@ -980,6 +983,7 @@ kpick 225543 # sensorservice: customize sensor fusion mag filter via prop
 kpick 225544 # input: Adjust priority
 kpick 225545 # Forward port 'Swap volume buttons' (2/3)
 kpick 225546 # AppOpsManager: Update with the new ops
+kpick 229400 # HAXX to allow too large dimensions
 
 # frameworks/opt/net/wifi
 kpick 224675 # libwifi-hal: add flag to wait for kernel driver to get ready
@@ -1161,6 +1165,7 @@ kpick 227823 # mm-video-v4l2: Protect buffer access and increase input buffer si
 
 # hardware/qcom/power
 #kpick 223892 # power: Add power hint to set profile
+kpick 229339 # power: Return empty subsystems power stats and always use Power@1.1
 
 # hardware/qcom/wlan-caf
 kpick 226638 # wcnss_qmi: Generate a fixed random mac address if the NV doesn't provide one
@@ -1202,6 +1207,10 @@ kpick 227931 # lineagesdk: Refactor battery icon options
 
 # packages/apps/AudioFX
 
+# packages/apps/Bluetooth
+kpick 229310 # SBC Dual Channel (SBC HD Audio) support
+kpick 229311 # Assume optional codecs are supported if were supported previously
+
 # packages/apps/Calender
 
 # packages/apps/Camera2
@@ -1224,6 +1233,9 @@ kpick 225266 # CarrierConfig: Add selected configs for national roaming
 kpick 225267 # CarrierConfig: Load ERI configuration for U.S. Cellular
 kpick 225268 # Disable OTA for U.S. Cellular since there is no need for it
 kpick 225269 # CarrierConfig: HoT and tele.ring (232 07) may roam on T-Mobile (232 03)
+
+# packages/apps/CellBroadcastReciver
+kpick 229303 # Only enable presidential CMAS alerts if user is a monkey
 
 # packages/apps/Contacts
 
@@ -1253,6 +1265,8 @@ kpick 226392 # LineageParts: Set proper default value for charging sounds
 kpick 226863 # LineageParts: Drop  setting
 kpick 227930 # LineageParts: Bring back and refactor battery icon options
 kpick 221756 # StatusBarSettings: Hide battery preference category based on icon visibility
+kpick 229305 # ButtonSettings: Adapt for dropped needsNavigationBar method
+kpick 229389 # Trust: enforce vendor security patch level check
 
 # packages/apps/LockClock
 
@@ -1283,6 +1297,8 @@ kpick 227929 # Settings: Remove battery percentage switch
 kpick 228403 # Settings: forward port lock pattern grid size (2/2)
 kpick 228404 # Forward port pattern visibility settings (2/2)
 kpick 229167 # Settings: Hide Night Mode suggestion if LiveDisplay feature is present
+kpick 229312 # Add Dual Channel into Bluetooth Audio Channel Mode developer options menu
+kpick 229384 # Settings: Add high touch sensitivity and touchscreen hovering toggles
 
 # packages/apps/SetupWizard
 
@@ -1297,28 +1313,15 @@ kpick 223666 # Settings: Hide Notification Dots on low RAM devices
 # packages/apps/UnifiedEmail
 
 # packages/apps/Updater
+kpick 229354 # Updater: Allow Cleartext HTTP communications
 
 # packages/apps/WallpaperPicker
 
 # packages/inputmethods/LatinIME
-kpick 225375 # Don't crash when displaying the " key
-kpick 225378 # LatinIME: Add fallback loader for JNI lib
-kpick 225390 # latinime: Add "more" keys to ALL the keys
-kpick 225383 # LatinIME: Regenerate KeyboardTextsTable
-kpick 225384 # LatinIME: HU enable predictive dictionary and remove unused letters
-kpick 225386 # LatinIME: Enable spellchecker for additional languages
-kpick 225387 # LatinIME: Add support for Australian English
 kpick 225388 # LatinIME: Add Luxembourgish keyboard & spellchecking dictionary
-kpick 225392 # Add support for Bépo keyboard layout
-kpick 225393 # Don't interrupt active gesture input by modifier key presses.
-kpick 225394 # LatinIME: Add Bulgarian, Georgian and Ukrainian wordlists
 kpick 225395 # LatinIME: Disable Hungarian spell checking
 kpick 225397 # LatinIME: Add shortcuts support
-kpick 225398 # Fix send button not being centered for non-standard densities.
-kpick 225399 # LatinIME: disable sound on keypress on all devices by default
-kpick 225400 # LainIME: add unicode 9.0 chars
 kpick 225401 # LatinIME: sync and rebuild emojis
-kpick 225402 # LatinIME: support for incognito mode
 
 # packages/providers/CallLogProvider
 
@@ -1335,13 +1338,16 @@ kpick 225412 # Fix mounting of non-FAT formatted SD cards (2/2)
 kpick 226093 # Telecomm: Make sensitive phone numbers not to be shown in call log history.
 
 # packages/services/Telephony
-kpick 225420 # Use proper summary for network select list preference on dsds/dsda/tsts
 
 # system/bt
 kpick 223945 # Prevent abort in case of command timeout
 kpick 224813 # bt: osi: undef PROPERTY_VALUE_MAX
 kpick 225422 # Bluetooth: Read BLE vendor capability to proceed on Secure conn
 kpick 225423 # Add support to force disable enhanced sco commands
+kpick 229125 # Increase maximum Bluetooth SBC codec bitpool and bitrate values
+kpick 229313 # Explicit SBC Dual Channel (SBC HD) support
+kpick 229314 # Allow using alternative (higher) SBC HD bitrates with a property
+kpick 229401 # [DNM] Revert "Return early if vendor-specific command fails"
 
 # system/core
 privpick system/core refs/changes/19/206119/2 # init: I hate safety net
@@ -1395,6 +1401,8 @@ kpick 226922 # System always contains root dir.
 # system/sepolicy
 kpick 223746 # Add rules required for TARGET_HAS_LEGACY_CAMERA_HAL1
 kpick 223748 # Build sepolicy tools with Android.bp.
+kpick 229403 # sepolicy: New type sdcard_posix for labeled filesystems
+kpick 229404 # sepolicy: allow vold to mount ext4 sdcard
 
 # system/tool/aidl
 kpick 223133 # AIDL: Add option to generate No-Op methods
@@ -1411,7 +1419,6 @@ kpick 225440 # vold: Honor mount options for f2fs partitions
 kpick 225441 # vold: Mount ext4/f2fs portable storage with sdcard_posix
 kpick 225442 # vold: ntfs: Use strlcat
 kpick 225443 # Treat removable UFS card as SD card
-kpick 225444 # vold: dont't use commas in device names
 kpick 225445 # vold ext4/f2fs: do not use dirsync if we're mounting adopted storage
 kpick 225446 # Fix the group permissions of the sdcard root.
 kpick 225447 # vold: skip first disk change when converting MBR to GPT
@@ -1420,16 +1427,14 @@ kpick 225449 # vold: Accept Linux GPT partitions on external SD cards
 kpick 225450 # vold: Make sure block device exists before formatting it
 kpick 225451 # vold: Also wait for dm device when mounting private volume
 kpick 225452 # secdiscard: should pin_file to avoid moving blocks in F2FS
-kpick 225881 # vold: Make exfat driver support generic
-kpick 225948 # Support Samsung's implementation of exfat, called sdfat
 kpick 226109 # vold: Add Hardware FDE feature
 kpick 226110 # system: vold: Remove crypto block device creation
 kpick 226127 # vold: Move QCOM HW FDE inclusion under lineage namespace
 kpick 226111 # vold: Wrapped key support for FBE
+kpick 229304 # vold: Add texfat and sdfat support
 
 # vendor/lineage
 kpick 223773 # Add IPv6 for Oister and 3. The 3.dk and oister.dk carriers now support IPv6 with the APN ”data.tre.dk”.
-kpick 225882 # soong_config: Add TARGET_EXFAT_DRIVER variable
 kpick 225921 # overlay: Update list of GSF/GMS activities
 kpick 225938 # roomservice.py: document the hell out of the current behavior of the script
 #kpick 225978 # soong_config: Remove extra spacing
@@ -1443,7 +1448,8 @@ kpick 226184 # soong_config: Allow process-specific override of target SDK versi
 kpick 226443 # soong: Add additional_deps attribute for libraries and binaries
 kpick 226444 # soong: Add generated_headers module alias
 kpick 226591 # soong: Add support for target specific headers
-kpick 228610 # lineage: disable adb auth on eng build
+kpick 229412 # vendor/lineage: Add soong generator module type	
+#kpick 229415 # lineage: Dynamically generate kernel headers using lineage generator
 
 # vendor/qcom/opensource/audio
 

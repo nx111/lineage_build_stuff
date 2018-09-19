@@ -1,0 +1,75 @@
+From 38d94d0d9cd5e6923eab596678d15dbcf4211d03 Mon Sep 17 00:00:00 2001
+From: Sam Mortimer <sam@mortimer.me.uk>
+Date: Tue, 18 Sep 2018 13:41:03 -0700
+Subject: [PATCH 4/6] soong sbox: Add option to allow copying all generated
+ output
+
+*) Add option --copy-all-files that copies all generated output.
+
+*) When enabled, do not error when unexpected output files are found.
+
+*) For use by lineage_generator module.
+
+Change-Id: Ia3cd2216807f6165b23a97a001db7303f15d33e2
+---
+ cmd/sbox/sbox.go | 15 ++++++++++++---
+ 1 file changed, 12 insertions(+), 3 deletions(-)
+
+diff --git a/cmd/sbox/sbox.go b/cmd/sbox/sbox.go
+index 0af18863..fabe08d4 100644
+--- a/cmd/sbox/sbox.go
++++ b/cmd/sbox/sbox.go
+@@ -31,6 +31,7 @@ var (
+ 	rawCommand    string
+ 	outputRoot    string
+ 	keepOutDir    bool
++	copyAllOutput bool
+ 	depfileOut    string
+ )
+ 
+@@ -43,6 +44,8 @@ func init() {
+ 		"root of directory to copy outputs into")
+ 	flag.BoolVar(&keepOutDir, "keep-out-dir", false,
+ 		"whether to keep the sandbox directory when done")
++	flag.BoolVar(&copyAllOutput, "copy-all-output", false,
++		"whether to copy all output files")
+ 
+ 	flag.StringVar(&depfileOut, "depfile-out", "",
+ 		"file path of the depfile to generate. This value will replace '__SBOX_DEPFILE__' in the command and will be treated as an output but won't be added to __SBOX_OUT_FILES__")
+@@ -113,7 +116,7 @@ func run() error {
+ 
+ 	// the contents of the __SBOX_OUT_FILES__ variable
+ 	outputsVarEntries := flag.Args()
+-	if len(outputsVarEntries) == 0 {
++	if !copyAllOutput && len(outputsVarEntries) == 0 {
+ 		usageViolation("at least one output file must be given")
+ 	}
+ 
+@@ -222,7 +225,7 @@ func run() error {
+ 			missingOutputErrors = append(missingOutputErrors, fmt.Sprintf("%s: not a file", filePath))
+ 		}
+ 	}
+-	if len(missingOutputErrors) > 0 {
++	if !copyAllOutput && len(missingOutputErrors) > 0 {
+ 		// find all created files for making a more informative error message
+ 		createdFiles := findAllFilesUnder(tempDir)
+ 
+@@ -254,8 +257,14 @@ func run() error {
+ 		keepOutDir = true
+ 		return errors.New(errorMessage)
+ 	}
++	var filePathList []string
++	if copyAllOutput {
++		filePathList = findAllFilesUnder(tempDir)
++	} else {
++		filePathList = allOutputs
++	}
+ 	// the created files match the declared files; now move them
+-	for _, filePath := range allOutputs {
++	for _, filePath := range filePathList {
+ 		tempPath := filepath.Join(tempDir, filePath)
+ 		destPath := filePath
+ 		if len(outputRoot) != 0 {
+-- 
+2.17.1
+

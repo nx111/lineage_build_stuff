@@ -1,0 +1,65 @@
+From d61425353bca7c69203f5c36e25f64531140177a Mon Sep 17 00:00:00 2001
+From: Oleksandr Byelkin <sanja.byelkin@gmail.com>
+Date: Sat, 29 Dec 2012 13:00:23 +0100
+Subject: [PATCH 16/53] PhoneWindowManager: Implement press home to answer call
+
+Change-Id: I7662b593f5ba52cafe3d7ba7cf2099b29b8d308b
+---
+ .../server/policy/PhoneWindowManager.java     | 20 +++++++++++++++++++
+ 1 file changed, 20 insertions(+)
+
+diff --git a/services/core/java/com/android/server/policy/PhoneWindowManager.java b/services/core/java/com/android/server/policy/PhoneWindowManager.java
+index d1def9d8193..81f69b311d5 100644
+--- a/services/core/java/com/android/server/policy/PhoneWindowManager.java
++++ b/services/core/java/com/android/server/policy/PhoneWindowManager.java
+@@ -792,6 +792,10 @@ public class PhoneWindowManager implements WindowManagerPolicy {
+     // Whether system navigation keys are enabled
+     boolean mSystemNavigationKeysEnabled;
+ 
++    // Behavior of HOME button during an incoming call.
++    // (See LineageSettings.Secure.RING_HOME_BUTTON_BEHAVIOR.)
++    int mRingHomeBehavior;
++
+     Display mDisplay;
+ 
+     int mLandscapeRotation = 0;  // default landscape rotation
+@@ -1052,6 +1056,9 @@ public class PhoneWindowManager implements WindowManagerPolicy {
+             resolver.registerContentObserver(Settings.Secure.getUriFor(
+                     Settings.Secure.INCALL_BACK_BUTTON_BEHAVIOR), false, this,
+                     UserHandle.USER_ALL);
++            resolver.registerContentObserver(LineageSettings.Secure.getUriFor(
++                    LineageSettings.Secure.RING_HOME_BUTTON_BEHAVIOR), false, this,
++                    UserHandle.USER_ALL);
+             resolver.registerContentObserver(Settings.Secure.getUriFor(
+                     Settings.Secure.WAKE_GESTURE_ENABLED), false, this,
+                     UserHandle.USER_ALL);
+@@ -2726,6 +2733,10 @@ public class PhoneWindowManager implements WindowManagerPolicy {
+                     Settings.Secure.INCALL_BACK_BUTTON_BEHAVIOR,
+                     Settings.Secure.INCALL_BACK_BUTTON_BEHAVIOR_DEFAULT,
+                     UserHandle.USER_CURRENT);
++            mRingHomeBehavior = LineageSettings.Secure.getIntForUser(resolver,
++                    LineageSettings.Secure.RING_HOME_BUTTON_BEHAVIOR,
++                    LineageSettings.Secure.RING_HOME_BUTTON_BEHAVIOR_DEFAULT,
++                    UserHandle.USER_CURRENT);
+             mSystemNavigationKeysEnabled = Settings.Secure.getIntForUser(resolver,
+                     Settings.Secure.SYSTEM_NAVIGATION_KEYS_ENABLED,
+                     0, UserHandle.USER_CURRENT) == 1;
+@@ -3996,6 +4007,15 @@ public class PhoneWindowManager implements WindowManagerPolicy {
+                     return -1;
+                 }
+ 
++                if ((mRingHomeBehavior
++                        & LineageSettings.Secure.RING_HOME_BUTTON_BEHAVIOR_ANSWER) != 0) {
++                    final TelecomManager telecomManager = getTelecommService();
++                    if (telecomManager != null && telecomManager.isRinging()) {
++                        telecomManager.acceptRingingCall();
++                        return -1;
++                    }
++                }
++
+                 // Delay handling home if a double-tap is possible.
+                 if (mHomeDoubleTapAction != Action.NOTHING) {
+                     mHandler.removeCallbacks(mHomeDoubleTapTimeoutRunnable); // just in case
+-- 
+2.17.1
+

@@ -1,0 +1,44 @@
+From 54c117588934e4dc877b3c771bc2420bf1e60b0c Mon Sep 17 00:00:00 2001
+From: Steve Kondik <steve@cyngn.com>
+Date: Wed, 27 Jul 2016 18:12:04 -0700
+Subject: [PATCH 12/21] vold: Allow reset after shutdown
+
+ * If we shutdown all volumes (during crypto), vold throws up an
+   assert at us when reset() is called due to destroying an
+   already destroyed volume. This is actually fine, just return
+   an error instead of crashing.
+
+Change-Id: I51f8561da83e27de8e80d74f3a600fb0139d3035
+---
+ model/VolumeBase.cpp | 8 ++++++--
+ 1 file changed, 6 insertions(+), 2 deletions(-)
+
+diff --git a/model/VolumeBase.cpp b/model/VolumeBase.cpp
+index 429f134..8cca74e 100644
+--- a/model/VolumeBase.cpp
++++ b/model/VolumeBase.cpp
+@@ -162,7 +162,9 @@ std::shared_ptr<VolumeBase> VolumeBase::findVolume(const std::string& id) {
+ }
+ 
+ status_t VolumeBase::create() {
+-    CHECK(!mCreated);
++    if (mCreated) {
++        return BAD_VALUE;
++    }
+ 
+     mCreated = true;
+     status_t res = doCreate();
+@@ -180,7 +182,9 @@ status_t VolumeBase::doCreate() {
+ }
+ 
+ status_t VolumeBase::destroy() {
+-    CHECK(mCreated);
++    if (!mCreated) {
++        return NO_INIT;
++    }
+ 
+     if (mState == State::kMounted) {
+         unmount();
+-- 
+2.17.1
+
