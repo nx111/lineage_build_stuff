@@ -798,6 +798,7 @@ kpick 222760 # Add LOCAL_AIDL_FLAGS
 #kpick 227213 # releasetools: Fix an issue in image size computation.
 #kpick 226920 # Support a first stage ramdisk via TARGET_RAMDISK_OUT
 #kpick 226939 # releasetools: Fix the path to the OTA keys in recovery image.
+kpick 229483 # build: Add ability for device to specify additional targets
 
 # build/soong
 kpick 222648 # Allow providing flex and bison binaries
@@ -844,6 +845,7 @@ kpick 228608 # sepolicy-legacy: Treat BT vendor properties like non-vendor ones.
 # device/samsung/klte-common
 kpick 225192 # klte-common: Align ril.h to samsung_msm8974-common P libril changes
 kpick 224917 # DO NOT MERGE: klte-common: Requisite bring-up BS change
+kpick 229486 # 	klte-common: Set SDK API level for mediaserver and mm-qcamera-daemon
 
 # device/samsung/msm8974-common
 kpick 228677 # msm8974-common: Make the external camera provider ignore internal cameras
@@ -1304,6 +1306,7 @@ kpick 229167 # Settings: Hide Night Mode suggestion if LiveDisplay feature is pr
 kpick 229312 # Add Dual Channel into Bluetooth Audio Channel Mode developer options menu
 kpick 229384 # Settings: Add high touch sensitivity and touchscreen hovering toggles
 kpick 229453 # Settings: use LineageHW serial number
+kpick 229479 # Settings: Improve phone number preference ordering
 
 # packages/apps/SetupWizard
 
