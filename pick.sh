@@ -761,6 +761,7 @@ kpick 227747 # lineage: Enable weather apps
 #kpick 227748 # lineage: Enable qcom thermal/vr HALs
 kpick 226755 # lineage: Enable cryptfs_hw
 #kpick 227749 # lineage: Enable exfat/fuse/ntfs-3g repositories
+#kpick 229465 # lineage: Re-enable NXP NFC repositories
 
 android_head=$(cd android;git log -n 1 | sed -n 1p | cut -d' ' -f2;cd $topdir)
 
@@ -976,6 +977,7 @@ kpick 229300 # DNM: SystemUI: hide Quick Settings phone status icon and text
 kpick 229307 # Add CHANNEL_MODE_DUAL_CHANNEL constant
 kpick 229308 # Add Dual Channel into Bluetooth Audio Channel Mode developer options menu
 kpick 229309 # Allow SBC as HD audio codec in Bluetooth device configuration
+kpick 229463 # frameworks/base: Support for third party NFC features and extensions
 
 # frameworks/native
 kpick 224443 # libbinder: Don't log call trace when waiting for vendor service on non-eng builds
@@ -1167,7 +1169,7 @@ kpick 227823 # mm-video-v4l2: Protect buffer access and increase input buffer si
 
 # hardware/qcom/power
 #kpick 223892 # power: Add power hint to set profile
-kpick 229339 # power: Return empty subsystems power stats and always use Power@1.1
+#kpick 229339 # power: Return empty subsystems power stats and always use Power@1.1
 
 # hardware/qcom/wlan-caf
 kpick 226638 # wcnss_qmi: Generate a fixed random mac address if the NV doesn't provide one
@@ -1301,6 +1303,7 @@ kpick 228404 # Forward port pattern visibility settings (2/2)
 kpick 229167 # Settings: Hide Night Mode suggestion if LiveDisplay feature is present
 kpick 229312 # Add Dual Channel into Bluetooth Audio Channel Mode developer options menu
 kpick 229384 # Settings: Add high touch sensitivity and touchscreen hovering toggles
+kpick 229453 # Settings: use LineageHW serial number
 
 # packages/apps/SetupWizard
 
