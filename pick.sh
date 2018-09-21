@@ -786,6 +786,7 @@ kpick 223067 # libc fortify: Ignore open() O_TMPFILE mode bits warning
 kpick 223943 # bionic: meh
 kpick 225463 # bionic: Let popen and system fall back to /sbin/sh
 kpick 226183 # Implement per-process target SDK version override.
+kpick 229488 # Revert "linker: Make platform text relocations denial optional"
 
 # boot/recovery
 
@@ -799,6 +800,7 @@ kpick 222760 # Add LOCAL_AIDL_FLAGS
 #kpick 226920 # Support a first stage ramdisk via TARGET_RAMDISK_OUT
 #kpick 226939 # releasetools: Fix the path to the OTA keys in recovery image.
 kpick 229483 # build: Add ability for device to specify additional targets
+kpick 229491 # build: Automatically replace old-style kernel header includes with new ...
 
 # build/soong
 kpick 222648 # Allow providing flex and bison binaries
@@ -895,6 +897,8 @@ kpick 225762 # tinycompress: enable libtinycompress_vendor
 kpick 225763 # tinycompress: Use sanitized headers generated from kernel source
 kpick 223008 # tinycompress: tinycompress fixes
 kpick 229414 # tinycompress: Use generated kernel headers
+kpick 229489 # tinycompress: Fix compilation on old targets
+
 
 # external/toybox
 
@@ -1457,7 +1461,11 @@ kpick 226443 # soong: Add additional_deps attribute for libraries and binaries
 kpick 226444 # soong: Add generated_headers module alias
 kpick 226591 # soong: Add support for target specific headers
 kpick 229412 # vendor/lineage: Add soong generator module type	
-#kpick 229415 # lineage: Dynamically generate kernel headers using lineage generator
+kpick 229415 # lineage: Dynamically generate kernel headers using lineage generator
+kpick 229505 # vendor/lineage: Remove legacy kernel headers generation
+kpick 229506 # Revert "soong_config: Add TARGET_NEEDS_PLATFORM_TEXT_RELOCATIONS"
+kpick 229507 # lineage: Use add_json_str_omitempty directive for TARGET_LD_SHIM_LIBS
+kpick 229508 # lineage: Move some kernel definitions to BoardConfigKernel
 
 # vendor/qcom/opensource/audio
 

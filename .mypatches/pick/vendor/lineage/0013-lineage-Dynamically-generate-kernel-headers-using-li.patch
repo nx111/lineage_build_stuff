@@ -1,0 +1,138 @@
+From 4767ae0fdfc385c3bdeaddafccfae492190c2888 Mon Sep 17 00:00:00 2001
+From: Rashed Abdel-Tawab <rashed@linux.com>
+Date: Tue, 18 Sep 2018 21:53:24 -0700
+Subject: [PATCH 13/17] lineage: Dynamically generate kernel headers using
+ lineage generator
+
+Add a soong vendor plugin for kernel config variables so we can use
+these in go.
+
+Change-Id: Id31f2be8fcc5aba2d965dbe815edaaf1d28279c6
+---
+ build/soong/Android.bp             | 21 +++++++++++++++++++++
+ build/soong/generator/generator.go |  2 +-
+ build/soong/generator/variables.go | 28 ++++++++++++++++++++++++++++
+ config/BoardConfigLineage.mk       |  2 ++
+ config/BoardConfigSoong.mk         | 20 ++++++++++++++++++++
+ 5 files changed, 72 insertions(+), 1 deletion(-)
+ create mode 100644 build/soong/generator/variables.go
+ create mode 100644 config/BoardConfigSoong.mk
+
+diff --git a/build/soong/Android.bp b/build/soong/Android.bp
+index dca42cfa..262bf5b4 100644
+--- a/build/soong/Android.bp
++++ b/build/soong/Android.bp
+@@ -19,6 +19,27 @@ bootstrap_go_package {
+     ],
+     srcs: [
+         "generator/generator.go",
++        "generator/variables.go",
+     ],
+     pluginFor: ["soong_build"],
+ }
++
++lineage_generator {
++    name: "generated_kernel_includes",
++
++    // The header's make command
++    cmd: "make -j8  CFLAGS_MODULE=\"-fno-pic\" -C $(TARGET_KERNEL_SOURCE) O=$(genDir) ARCH=$(TARGET_KERNEL_ARCH) headers_install",
++
++    // Directories that can be imported by a cc_* module generated_headers key
++    export_include_dirs: ["usr/include"],
++
++    // Sources for dependency tracking
++    //dep_files: [ "Makefile", "include/**/*", "arch/arm*/include/**/*"],
++}
++
++cc_library_headers {
++    name: "generated_kernel_headers",
++    generated_headers: ["generated_kernel_includes"],
++    export_generated_headers: ["generated_kernel_includes"],
++    vendor_available: true,
++}
+diff --git a/build/soong/generator/generator.go b/build/soong/generator/generator.go
+index 86cc976f..2cd269ca 100644
+--- a/build/soong/generator/generator.go
++++ b/build/soong/generator/generator.go
+@@ -204,7 +204,7 @@ func (g *Module) GenerateAndroidBuildActions(ctx android.ModuleContext) {
+ 	// Calling ExpandSources automatically adds dependencies to ctx.
+ 	_ = ctx.ExpandSources(g.properties.Dep_files, nil)
+ 
+-	cmd := String(g.properties.Cmd)
++	cmd := lineageExpandVariables(ctx, String(g.properties.Cmd))
+ 
+ 	rawCommand, err := android.Expand(cmd, func(name string) (string, error) {
+ 		switch name {
+diff --git a/build/soong/generator/variables.go b/build/soong/generator/variables.go
+new file mode 100644
+index 00000000..8485f94b
+--- /dev/null
++++ b/build/soong/generator/variables.go
+@@ -0,0 +1,28 @@
++package generator
++
++import (
++	"fmt"
++
++	"android/soong/android"
++)
++
++func lineageExpandVariables(ctx android.ModuleContext, in string) string {
++	lineageVars := ctx.Config().VendorConfig("lineageVarsPlugin")
++
++	out, err := android.Expand(in, func(name string) (string, error) {
++		if lineageVars.IsSet(name) {
++			return lineageVars.String(name), nil
++		}
++		// This variable is not for us, restore what the original
++		// variable string will have looked like for an Expand
++		// that comes later.
++		return fmt.Sprintf("$(%s)", name), nil
++	})
++
++	if err != nil {
++		ctx.PropertyErrorf("%s: %s", in, err.Error())
++		return ""
++	}
++
++	return out
++}
+diff --git a/config/BoardConfigLineage.mk b/config/BoardConfigLineage.mk
+index e485b4af..fc509f29 100644
+--- a/config/BoardConfigLineage.mk
++++ b/config/BoardConfigLineage.mk
+@@ -6,3 +6,5 @@ endif
+ ifeq ($(BOARD_USES_QCOM_HARDWARE),true)
+ include vendor/lineage/config/BoardConfigQcom.mk
+ endif
++
++include vendor/lineage/config/BoardConfigSoong.mk
+diff --git a/config/BoardConfigSoong.mk b/config/BoardConfigSoong.mk
+new file mode 100644
+index 00000000..970d1997
+--- /dev/null
++++ b/config/BoardConfigSoong.mk
+@@ -0,0 +1,20 @@
++# Add variables that we wish to make available to soong here.
++EXPORT_TO_SOONG := \
++    TARGET_KERNEL_ARCH \
++    TARGET_KERNEL_CONFIG \
++    TARGET_KERNEL_SOURCE
++
++# Setup SOONG_CONFIG_* vars to export the vars listed above.
++# Documentation here:
++# https://github.com/LineageOS/android_build_soong/commit/8328367c44085b948c003116c0ed74a047237a69
++
++SOONG_CONFIG_NAMESPACES += lineageVarsPlugin
++
++SOONG_CONFIG_lineageVarsPlugin :=
++
++define addVar
++  SOONG_CONFIG_lineageVarsPlugin += $(1)
++  SOONG_CONFIG_lineageVarsPlugin_$(1) := $$($1)
++endef
++
++$(foreach v,$(EXPORT_TO_SOONG),$(eval $(call addVar,$(v))))
+-- 
+2.17.1
+
