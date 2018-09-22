@@ -1,0 +1,57 @@
+From 7b5eb1f092d36ae5722f13c7b27be8f160b1cabd Mon Sep 17 00:00:00 2001
+From: Michael W <baddaemon87@gmail.com>
+Date: Thu, 11 Jan 2018 00:00:09 +0100
+Subject: [PATCH 064/249] wiki: Validator: Handle more exceptions
+
+* Catch SIGINT so the user can abort with Ctrl+C without getting an error
+* catch Psych::SyntaxError so a parsing error results in a better message
+  than just throwing an unhandled exception
+
+Change-Id: I78674b742e3dff66c933851d1f54669c0147d29c
+---
+ test/validate.rb | 16 ++++++++++++----
+ 1 file changed, 12 insertions(+), 4 deletions(-)
+
+diff --git a/test/validate.rb b/test/validate.rb
+index 78a664d..4657178 100755
+--- a/test/validate.rb
++++ b/test/validate.rb
+@@ -17,7 +17,11 @@ schema_path = File.expand_path('schema-06.yml', __dir__)
+ schema = yaml_to_json(schema_path)
+ 
+ sample_path = File.expand_path('../device_sample/sample.yml', __dir__)
+-sample = yaml_to_json(sample_path)
++begin
++  sample = yaml_to_json(sample_path)
++rescue Psych::SyntaxError => e
++  puts 'Error parsing sample file: ' + e.message
++end
+ 
+ begin
+   JSON::Validator.validate!(schema, sample, :validate_schema => true)
+@@ -26,15 +30,19 @@ rescue JSON::Schema::ValidationError => e
+   at_exit { exit false }
+ end
+ 
++trap "SIGINT" do
++  puts "Aborted by user"
++  exit 130
++end
++
+ device_dir = File.expand_path('../_data/devices/', __dir__) + '/'
+ Dir.entries(device_dir).each do |filename|
+   device_path = device_dir + filename
+   if File.file?(device_path)
+-    device = yaml_to_json(device_path)
+-
+     begin
++      device = yaml_to_json(device_path)
+       JSON::Validator.validate!(schema, device, :validate_schema => true)
+-    rescue JSON::Schema::ValidationError => e
++    rescue JSON::Schema::ValidationError, Psych::SyntaxError => e
+       puts device_path + ': ' + e.message
+       at_exit { exit false }
+     end
+-- 
+2.17.1
+

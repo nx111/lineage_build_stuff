@@ -1,0 +1,129 @@
+From ae77c1a8aa19484d8d8196e55254f2c6f01d1aad Mon Sep 17 00:00:00 2001
+From: MSe1969 <mse1969@posteo.de>
+Date: Sun, 24 Jun 2018 17:00:53 +0200
+Subject: [PATCH 01/13] su.c: fix property check due to lineage rebranding
+
+Due to lineage rebranding, the property 'ro.cm.version' needs to be
+replaced with 'ro.lineage.version' in su.c, otherwise, the check for
+'access_disabled' always returns false and may lead to undefined
+behavior. To avoid such undefined behavior, su should refuse to work
+on builds without the 'ro.lineage.version' property.
+
+Change-Id: I59632ad4bfdc055e53cfac7c8e9c02a65ed58373
+---
+ su.c    | 77 ++++++++++++++++++++++++++++++---------------------------
+ utils.c |  4 +--
+ 2 files changed, 43 insertions(+), 38 deletions(-)
+
+diff --git a/su.c b/su.c
+index 99d0232..a28a9d8 100644
+--- a/su.c
++++ b/su.c
+@@ -295,48 +295,53 @@ int access_disabled(const struct su_initiator *from) {
+     size_t len;
+ 
+     data = read_file("/system/build.prop");
+-    if (check_property(data, "ro.cm.version")) {
+-        get_property(data, build_type, "ro.build.type", "");
++    /* only allow su on Lineage 15.1 (or newer) builds */
++    if (!(check_property(data, "ro.lineage.version"))) {
+         free(data);
++        ALOGE("Root access disabled on Non-Lineage builds");
++        return 1;
++    }
+ 
+-        data = read_file("/default.prop");
+-        get_property(data, debuggable, "ro.debuggable", "0");
+-        free(data);
+-        /* only allow su on debuggable builds */
+-        if (strcmp("1", debuggable) != 0) {
+-            ALOGE("Root access is disabled on non-debug builds");
+-            return 1;
+-        }
++    get_property(data, build_type, "ro.build.type", "");
++    free(data);
+ 
+-        data = read_file("/data/property/persist.sys.root_access");
+-        if (data != NULL) {
+-            len = strlen(data);
+-            if (len >= PROPERTY_VALUE_MAX)
+-                memcpy(enabled, "0", 2);
+-            else
+-                memcpy(enabled, data, len + 1);
+-            free(data);
+-        } else
+-            memcpy(enabled, "0", 2);
+-
+-        /* enforce persist.sys.root_access on non-eng builds for apps */
+-        if (strcmp("eng", build_type) != 0 &&
+-                from->uid != AID_SHELL && from->uid != AID_ROOT &&
+-                (atoi(enabled) & CM_ROOT_ACCESS_APPS_ONLY) != CM_ROOT_ACCESS_APPS_ONLY ) {
+-            ALOGE("Apps root access is disabled by system setting - "
+-                 "enable it under settings -> developer options");
+-            return 1;
+-        }
++    data = read_file("/default.prop");
++    get_property(data, debuggable, "ro.debuggable", "0");
++    free(data);
++    /* only allow su on debuggable builds */
++    if (strcmp("1", debuggable) != 0) {
++        ALOGE("Root access is disabled on non-debug builds");
++        return 1;
++    }
+ 
+-        /* disallow su in a shell if appropriate */
+-        if (from->uid == AID_SHELL &&
+-                (atoi(enabled) & CM_ROOT_ACCESS_ADB_ONLY) != CM_ROOT_ACCESS_ADB_ONLY ) {
+-            ALOGE("Shell root access is disabled by a system setting - "
+-                 "enable it under settings -> developer options");
+-            return 1;
+-        }
++    data = read_file("/data/property/persist.sys.root_access");
++    if (data != NULL) {
++        len = strlen(data);
++        if (len >= PROPERTY_VALUE_MAX)
++            memcpy(enabled, "0", 2);
++        else
++            memcpy(enabled, data, len + 1);
++        free(data);
++    } else
++        memcpy(enabled, "0", 2);
++
++    /* enforce persist.sys.root_access on non-eng builds for apps */
++    if (strcmp("eng", build_type) != 0 &&
++            from->uid != AID_SHELL && from->uid != AID_ROOT &&
++            (atoi(enabled) & CM_ROOT_ACCESS_APPS_ONLY) != CM_ROOT_ACCESS_APPS_ONLY ) {
++        ALOGE("Apps root access is disabled by system setting - "
++             "enable it under settings -> developer options");
++        return 1;
++    }
+ 
++    /* disallow su in a shell if appropriate */
++    if (from->uid == AID_SHELL &&
++            (atoi(enabled) & CM_ROOT_ACCESS_ADB_ONLY) != CM_ROOT_ACCESS_ADB_ONLY ) {
++        ALOGE("Shell root access is disabled by a system setting - "
++             "enable it under settings -> developer options");
++        return 1;
+     }
++
+     return 0;
+ }
+ 
+diff --git a/utils.c b/utils.c
+index a65f547..8bce3e0 100644
+--- a/utils.c
++++ b/utils.c
+@@ -104,8 +104,8 @@ defval:
+  * Fast version of get_property which purpose is to check
+  * whether the property with given prefix exists.
+  *
+- * Assume nobody is stupid enough to put a propery with prefix ro.cm.version
+- * in his build.prop on a non-CM ROM and comment it out.
++ * Assume nobody is stupid enough to put a propery with prefix ro.lineage.version
++ * in his build.prop on a non-LineageOS ROM and comment it out.
+  */
+ int check_property(const char *data, const char *prefix)
+ {
+-- 
+2.17.1
+

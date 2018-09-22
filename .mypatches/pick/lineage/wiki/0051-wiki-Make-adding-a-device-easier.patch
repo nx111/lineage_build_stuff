@@ -1,0 +1,203 @@
+From ddee021ed5074cfca19d934c41886a54883e78eb Mon Sep 17 00:00:00 2001
+From: Michael W <baddaemon87@gmail.com>
+Date: Thu, 28 Dec 2017 18:59:18 +0100
+Subject: [PATCH 051/249] wiki: Make adding a device easier
+
+* Instead of having everyone copy and modify the same files, automate it
+* Added a script which generates the files for build, install and info
+  and copies the sample.yml file to the destination path
+* Adapt the instructions accordingly
+
+Change-Id: I3da4da56d5450c6d5ee70244d85ad3d5f730ccc7
+---
+ _config.yml                     |  1 +
+ device_sample/build.md          |  9 -----
+ device_sample/info.md           | 10 -----
+ device_sample/install.md        |  9 -----
+ pages/internal/adding_device.md | 20 ++++++----
+ scripts/generate_device.sh      | 67 +++++++++++++++++++++++++++++++++
+ 6 files changed, 81 insertions(+), 35 deletions(-)
+ delete mode 100644 device_sample/build.md
+ delete mode 100644 device_sample/info.md
+ delete mode 100644 device_sample/install.md
+ create mode 100755 scripts/generate_device.sh
+
+diff --git a/_config.yml b/_config.yml
+index 9f93dcb..a3645be 100644
+--- a/_config.yml
++++ b/_config.yml
+@@ -27,6 +27,7 @@ exclude:
+   - .idea/
+   - .gitignore
+   - device_sample/
++  - scripts
+ # these are the files and directories that jekyll will exclude from the build
+ 
+ feedback_subject_line: Jekyll documentation theme
+diff --git a/device_sample/build.md b/device_sample/build.md
+deleted file mode 100644
+index 48d0121..0000000
+--- a/device_sample/build.md
++++ /dev/null
+@@ -1,9 +0,0 @@
+----
+-# pages/build/sample.md
+-sidebar: home_sidebar
+-title: Build for sample
+-folder: info
+-permalink: /devices/sample/build
+-device: sample
+----
+-{% include templates/device_build.md %}
+diff --git a/device_sample/info.md b/device_sample/info.md
+deleted file mode 100644
+index 227ab81..0000000
+--- a/device_sample/info.md
++++ /dev/null
+@@ -1,10 +0,0 @@
+----
+-# pages/info/sample.md
+-sidebar: home_sidebar
+-title: Info about sample
+-folder: info
+-layout: deviceinfo
+-permalink: /devices/sample/
+-device: sample
+----
+-{% include templates/device_info.md %}
+diff --git a/device_sample/install.md b/device_sample/install.md
+deleted file mode 100644
+index 763b544..0000000
+--- a/device_sample/install.md
++++ /dev/null
+@@ -1,9 +0,0 @@
+----
+-# pages/install/sample.md
+-sidebar: home_sidebar
+-title: Install LineageOS on sample
+-folder: info
+-permalink: /devices/sample/install
+-device: sample
+----
+-{% include templates/device_install.md %}
+diff --git a/pages/internal/adding_device.md b/pages/internal/adding_device.md
+index 1e44a1a..32e961c 100644
+--- a/pages/internal/adding_device.md
++++ b/pages/internal/adding_device.md
+@@ -20,6 +20,17 @@ See [contributing using repo](contributing.html#using-repo) for detailed instruc
+ 
+ ## Adding your device
+ 
++### Prepare the required files
++
++There are a few files which need to be there to have a device on the wiki.
++In order to get them, navigate to `$LINEAGE_SRC/lineage/wiki/` and run:
++
++```
++./scripts/generate_device.sh your_device
++```
++
++Obviously replace `your_device` with the codename of your device
++
+ ### Populating the YAML
+ 
+ {% assign devices = "" | split: " " %}
+@@ -37,8 +48,8 @@ See [contributing using repo](contributing.html#using-repo) for detailed instruc
+ {% endfor %}
+ {% assign sorted = all | uniq | sort %}
+ 
+-You can use the [sample template](https://github.com/LineageOS/lineage_wiki/blob/master/device_sample/sample.yml) as a starting point, and
+-update the values to match your device. An explanation of poorly-named/confusing options is below:
++The sample template has been copied to `$LINEAGE_SRC/lineage/wiki/_data/devices/your_device.yml`.
++Update the values to match your device. An explanation of poorly-named/confusing options is below:
+ 
+ * `architecture`: The CPU architecture of the device - for example, `arm` or `arm64`.
+ * `carrier`: If the device was released for a specific carrier, the name of that carrier. Otherwise, leave the line blank.
+@@ -62,11 +73,6 @@ update the values to match your device. An explanation of poorly-named/confusing
+ Find a reasonably high-quality image of your device, and add it to `images/devices/<image>.png`. The filename should match the
+ entry in your YAML file.
+ 
+-### Adding device-specific pages
+-
+-Copy each of the sample Markdown files found [here](https://github.com/LineageOS/lineage_wiki/tree/master/device_sample), replacing `sample` with your
+-device's codename. Each of these files should go in `pages/<build|info|install>/<codename>.md`.
+-
+ ## Testing it works
+ 
+ Start the wiki on your local Jekyll server, and navigate to [the devices list](http://localhost:4000/devices.html). Your device should be there.
+diff --git a/scripts/generate_device.sh b/scripts/generate_device.sh
+new file mode 100755
+index 0000000..bed6056
+--- /dev/null
++++ b/scripts/generate_device.sh
+@@ -0,0 +1,67 @@
++#!/bin/bash
++
++usage() {
++    echo "Usage:"
++    echo "  ./scripts/generate_device.sh device_name"
++    echo
++    exit 1
++}
++
++if [ "$#" -ne 1 ]; then
++    usage
++fi
++
++DEVICE=$1
++
++DATA_PATH="_data/devices/$DEVICE.yml"
++BUILD_PATH="pages/build/$DEVICE.md"
++INFO_PATH="pages/info/$DEVICE.md"
++INSTALL_PATH="pages/install/$DEVICE.md"
++
++if ([ -e $BUILD_PATH ] || [ -e $DATA_PATH ] || [ -e $INFO_PATH ] || [ -e $INSTALL_PATH ]); then
++    echo "One or more of these files already exists: $DATA_PATH, $BUILD_PATH, $INFO_PATH, $INSTALL_PATH"
++    exit 1
++fi
++
++cp -a "device_sample/sample.yml" $DATA_PATH
++sed -i "s/sample/$DEVICE/g" $DATA_PATH
++
++# generate device info file
++(cat << EOF) > $INFO_PATH
++---
++sidebar: home_sidebar
++title: Info about $DEVICE
++folder: info
++layout: deviceinfo
++permalink: /devices/$DEVICE/
++device: $DEVICE
++---
++{% include templates/device_info.md %}
++
++EOF
++
++#generate build info for the device
++(cat << EOF) > $BUILD_PATH
++---
++sidebar: home_sidebar
++title: Build for $DEVICE
++folder: build
++permalink: /devices/$DEVICE/build
++device: $DEVICE
++---
++{% include templates/device_build.md %}
++
++EOF
++
++# generate installation instructions for the device
++(cat << EOF) > $INSTALL_PATH
++---
++sidebar: home_sidebar
++title: Install LineageOS on $DEVICE
++folder: install
++permalink: /devices/$DEVICE/install
++device: $DEVICE
++---
++{% include templates/device_install.md %}
++
++EOF
+-- 
+2.17.1
+

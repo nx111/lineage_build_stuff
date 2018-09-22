@@ -811,6 +811,15 @@ kpick 220435 # klte-common: Add HFR/HSR support
 
 # device/samsung/msm8974-common
 kpick 210313 # msm8974-common: Binderize them all
+kpick -P device/samsung/msm8974-common/ 225466 # msm8974-common: libril: Remove LOCAL_CLANG
+kpick -P device/samsung/msm8974-common/ 225467 # msm8974-common: libril: Fix Const-Correctness for RIL_RadioFunctions
+kpick -P device/samsung/msm8974-common/ 225468 # msm8974-common: libril: Remove unused code
+kpick -P device/samsung/msm8974-common/ 225469 # msm8974-common: libril: Fix double freeing of memory in SAP service and add null-checks.
+kpick -P device/samsung/msm8974-common/ 225470 # msm8974-common: libril: Store the system time when NITZ is received
+kpick -P device/samsung/msm8974-common/ 225471 # msm8974-common: libril: Add DISABLE_RILD_OEM_HOOK
+kpick -P device/samsung/msm8974-common/ 225472 # msm8974-common: libril:  Change rild initial sequence to guarantee non-null function pointer before rild register its hidl service
+kpick -P device/samsung/msm8974-common/ 225473 # msm8974-common: libril: Add SIM_ABSENT error
+kpick -P device/samsung/msm8974-common/ 225759 # msm8974-common: libril: Replace strncpy with strlcpy.
 
 # kernel/samsung/msm8974
 kpick 210665 # wacom: Follow-up from gestures patch
@@ -867,8 +876,6 @@ kpick 214262 # Bind app name to menu row when notification updated
 kpick 214263 # Fix intercepting touch events for guts
 kpick 214265 # Better QS detail clip animation
 kpick 216872 # SystemUI: Fix systemui crash when showing data usage detail
-kpick 217594 # Fingerprint: Speed up wake-and-unlock scenario
-kpick 217595 # display: Don't animate screen brightness when turning the screen on
 kpick 218317 # SystemUI: Remove duplicate permission
 kpick 218359 # Revert "SystemUI: disable wallpaper-based tint for scrim"
 kpick 218430 # SystemUI: Require unlock to toggle airplane mode
@@ -970,7 +977,6 @@ kpick 225950 # power: set_power_profile: handle errors
 #kpick 227390 # power: Clean up hint IDs
 
 # hardware/qcom/thermal
-kpick 218360 # thermal: use log/log.h header
 
 # haedware/qcom/vr
 
@@ -978,7 +984,6 @@ kpick 218360 # thermal: use log/log.h header
 
 # hardware/samsung
 kpick 218823 # audio: Add flag to opt in/out amplifier support
-kpick 220853 # dtbhtool: Add new DTBH_MODEL entry
 
 # lineage/charter
 kpick 213574 # charter: Add some new USB rules
@@ -1000,7 +1005,6 @@ kpick 219543 # wiki: add workaround for booting into TWRP recovery
 
 # lineage-sdk
 kpick 213367 # NetworkTraffic: Include tethering traffic statistics
-kpick 216978 # sdk: add torch accent
 #kpick 218679 # lineage-sdk: Use ILight.getSupportedTypes for lights capabilities
 kpick 220407 # lineagesdk: Refactor battery icon options
 kpick 220417 # TelephonyExtUtils: Add possible error codes, and return with them
@@ -1045,7 +1049,6 @@ kpick 222465 # Gallery2: Fix wrong string for empty albums
 # packages/apps/Jelly
 
 # packages/apps/LineageParts
-kpick 217171 # Trust: enforce vendor security patch level check
 kpick 217642 # Align learn more and got it horizontally
 kpick 217644 # LineageParts: Set proper PreferenceTheme parent
 kpick 218315 # LineageParts: Fix brightness section
@@ -1071,7 +1074,6 @@ kpick 215672 # SimSettings: Fix dark mode issues
 kpick 216687 # settings: wifi: Default to numeric keyboard for static IP items
 kpick 216822 # Settings: Allow setting device phone number
 kpick 216871 # Utils: Always show SIM Settings menu
-kpick 216909 # Settings: Apply accent color to on-body detection icon
 kpick 218438 # Settings: Add lockscreen shortcuts customization to lockscreen settings
 kpick 218775 # Settings: Cleanup SimSettings additions
 kpick 219299 # Settings: Remove battery percentage switch
@@ -1087,7 +1089,6 @@ kpick 206595 # Use transparent navigation bar.
 kpick 222005 # Snap: Add Denoise to video menu
 
 # packages/apps/Trebuchet
-kpick 214336 # [WIP] Trebuchet: initial protected apps implementation
 
 # packages/apps/UnifiedEmail
 
@@ -1096,7 +1097,6 @@ kpick 219924 # Updater: Allow to suspend A/B updates
 
 # packages/overlays/Lineage
 kpick 215846 # dark: Add Theme.DeviceDefault.Settings.Dialog.NoActionBar style
-kpick 216979 # overlays: add torch accent
 
 # packages/providers/ContactsProvider
 
@@ -1135,7 +1135,6 @@ kpick 211210 # ext4: Add /data/stache/ to encryption exclusion list
 
 # system/extras/su
 kpick 226017 # su: Fully rebrand
-kpick 225718 # su: Fix warnings from PVS Studio Analyzer
 kpick 225873 # su: strlcpy is always a friend
 kpick 225875 # su: Enable Clang Tidy
 kpick 225879 # su: Run clang format
@@ -1171,7 +1170,6 @@ kpick 218416 # vold: utils: Introduce ForkCallp
 # vendor/lineage
 kpick 206154 # Include build manifest on target
 kpick 210664 # extract_utils: Support multidex
-kpick 216977 # lineage: build torch accent
 kpick 217527 # tools: Rewrite sdat2img
 kpick 217528 # sdat2img: Add support for brotli compressed files
 kpick 217628 # lineage: add generic x86_64 target
