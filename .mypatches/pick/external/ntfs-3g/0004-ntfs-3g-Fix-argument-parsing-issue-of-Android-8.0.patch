@@ -1,0 +1,56 @@
+From dd9e22bcc4a4b0e9e1675cac2a76b642406962e0 Mon Sep 17 00:00:00 2001
+From: Chih-Wei Huang <cwhuang@linux.org.tw>
+Date: Thu, 30 Nov 2017 14:23:56 +0800
+Subject: [PATCH 4/4] ntfs-3g: Fix argument parsing issue of Android 8.0
+
+Android 8.0 stupidly uses comma in vold's device node name, say
+"/dev/block/vold/public:8,32". The libfuse-lite can't parse it
+correctly since a comma is usually used as a separator between
+options.
+
+Modify the options parser to handle it specially.
+
+Change-Id: I9503c34c4873c501d4e84fbaabd17b50e7398dae
+---
+ libfuse-lite/fuse_opt.c   | 9 +++++++++
+ libfuse-lite/fusermount.c | 4 ++++
+ 2 files changed, 13 insertions(+)
+
+diff --git a/libfuse-lite/fuse_opt.c b/libfuse-lite/fuse_opt.c
+index 80b07774..c2f98da1 100644
+--- a/libfuse-lite/fuse_opt.c
++++ b/libfuse-lite/fuse_opt.c
+@@ -278,6 +278,15 @@ static int process_real_option_group(struct fuse_opt_context *ctx, char *opts)
+ #endif /* __SOLARIS__ */
+             {
+             sep = strchr(opts, ',');
++#ifdef ANDROID
++            if (!strncmp(opts, "fsname=/dev/block/vold/public:", 30)) {
++                if (sep && *(sep - 1) == '\\') {
++                    sep--;
++                    memmove(sep, sep + 1, strlen(sep));
++                }
++                sep = strchr(sep + 1, ',');
++            }
++#endif
+             if (sep)
+                 *sep = '\0';
+         }
+diff --git a/libfuse-lite/fusermount.c b/libfuse-lite/fusermount.c
+index 680fee1c..c7c52521 100644
+--- a/libfuse-lite/fusermount.c
++++ b/libfuse-lite/fusermount.c
+@@ -360,6 +360,10 @@ static int do_mount(const char *mnt, char **typep, mode_t rootmode,
+         const char *fsname_str = "fsname=";
+         for (len = 0; s[len] && s[len] != ','; len++);
+         if (begins_with(s, fsname_str)) {
++#ifdef ANDROID
++            if (begins_with(s + 7, "/dev/block/vold/public:"))
++                for (len++; s[len] && s[len] != ','; len++);
++#endif
+             if (!get_string_opt(s, len, fsname_str, &fsname))
+                 goto err;
+         } else if (opt_eq(s, len, "blkdev")) {
+-- 
+2.17.1
+

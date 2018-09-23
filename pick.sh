@@ -760,7 +760,7 @@ kpick 225583 # manifest: Enable lineage styles overlays
 kpick 227747 # lineage: Enable weather apps
 #kpick 227748 # lineage: Enable qcom thermal/vr HALs
 kpick 226755 # lineage: Enable cryptfs_hw
-#kpick 227749 # lineage: Enable exfat/fuse/ntfs-3g repositories
+kpick 227749 # lineage: Enable ntfs-3g and remove fuse
 #kpick 229465 # lineage: Re-enable NXP NFC repositories
 
 android_head=$(cd android;git log -n 1 | sed -n 1p | cut -d' ' -f2;cd $topdir)
@@ -799,12 +799,13 @@ kpick 222760 # Add LOCAL_AIDL_FLAGS
 #kpick 227213 # releasetools: Fix an issue in image size computation.
 #kpick 226920 # Support a first stage ramdisk via TARGET_RAMDISK_OUT
 #kpick 226939 # releasetools: Fix the path to the OTA keys in recovery image.
-kpick 229483 # build: Add ability for device to specify additional targets
 kpick 229491 # build: Automatically replace old-style kernel header includes with new ...
 
 # build/soong
 kpick 222648 # Allow providing flex and bison binaries
 kpick 224613 # soong: Add LOCAL_AIDL_FLAGS handling
+kpick 226443 # soong: Add additional_deps attribute for libraries and binaries
+#kpick 226444 # soong: Add generated_headers module alias
 kpick 226593 # soong: Add function to return targer specific header path
 #kpick 226918 # Add /ramdisk to installclean
 kpick 229411 # soong sbox: Add option to allow copying all generated output
@@ -847,7 +848,8 @@ kpick 228608 # sepolicy-legacy: Treat BT vendor properties like non-vendor ones.
 # device/samsung/klte-common
 kpick 225192 # klte-common: Align ril.h to samsung_msm8974-common P libril changes
 kpick 224917 # DO NOT MERGE: klte-common: Requisite bring-up BS change
-kpick 229486 # 	klte-common: Set SDK API level for mediaserver and mm-qcamera-daemon
+kpick 229486 # klte-common: Set SDK API level for mediaserver and mm-qcamera-daemon
+kpick 229571 # klte-common: Stop building sensors.msm8974
 
 # device/samsung/msm8974-common
 kpick 228677 # msm8974-common: Make the external camera provider ignore internal cameras
@@ -862,6 +864,10 @@ kpick 225473 # msm8974-common: libril: Add SIM_ABSENT error
 kpick 225759 # msm8974-common: libril: Replace strncpy with strlcpy.
 kpick 225760 # msm8974-common: libril: FR51015: Tuning of Binder buffer for rild.
 kpick 224916 # DO NOT MERGE: msm8974-common: sepolicy: Just make it build
+kpick 229565 # msm8974-common: sensors: Import default service and impl from hardware/interfaces
+kpick 229566 # msm8974-common: sensors: Convert to samsung8974 target
+kpick 229567 # msm8974-common: sensors: Add input group to sensor service
+kpick 229568 # msm8974-common: Build binderized samsung8974 sensors service
 
 # device/samsung/qcom-common
 
@@ -880,6 +886,12 @@ kpick 227261 # Cast BT_VND_OP_ANT_USERIAL_{OPEN,CLOSE} to bt_vendor_opcode_t in 
 # external/libncurse
 
 # external/nano
+
+# external/ntfs-3g
+kpick 229623 # ntfs-3g: Add support for android builds
+kpick 229624 # ntfs-3g: Fix compilation warning
+kpick 229625 # ntfs-3g: Fix overflow in ioctl command
+kpick 229626 # ntfs-3g: Fix argument parsing issue of Android 8.0
 
 # external/openssh
 
@@ -984,6 +996,8 @@ kpick 229307 # Add CHANNEL_MODE_DUAL_CHANNEL constant
 kpick 229308 # Add Dual Channel into Bluetooth Audio Channel Mode developer options menu
 kpick 229309 # Allow SBC as HD audio codec in Bluetooth device configuration
 kpick 229463 # frameworks/base: Support for third party NFC features and extensions
+kpick 229606 # ConsumerIR: Support Huawei's DSP chip implementation
+kpick 229612 # Performance: Memory Optimizations
 
 # frameworks/native
 kpick 224443 # libbinder: Don't log call trace when waiting for vendor service on non-eng builds
@@ -994,6 +1008,7 @@ kpick 225544 # input: Adjust priority
 kpick 225545 # Forward port 'Swap volume buttons' (2/3)
 kpick 225546 # AppOpsManager: Update with the new ops
 kpick 229400 # HAXX to allow too large dimensions
+kpick 229607 # HACK: SF: Force client composition for all layers
 
 # frameworks/opt/net/wifi
 kpick 224675 # libwifi-hal: add flag to wait for kernel driver to get ready
@@ -1002,6 +1017,12 @@ kpick 224677 # wifi: don't check if WIFI_DRIVER_STATE_CTRL_PARAM is readable
 kpick 225551 # wifi: Not reset country code for Dual SIM if any slot is active
 
 # frameworks/opt/telephony
+kpick 229601 # Implement signal strength hacks used on Huawei devices
+kpick 229602 # telephony: Squashed support of dynamic signal strength thresholds	
+kpick 229603 # telephony: Query LTE thresholds from CarrierConfig
+kpick 229604 # Telephony: Use a common prop for Huawei RIL hacks (1/2)
+kpick 229605 # Telephony: Don not call onUssdRelease for Huawei RIL
+
 
 # hardware/boardcom/libbt
 kpick 225146 # libbt: Only allow upio_start_stop_timer on 32bit arm
@@ -1350,6 +1371,8 @@ kpick 225412 # Fix mounting of non-FAT formatted SD cards (2/2)
 kpick 226093 # Telecomm: Make sensitive phone numbers not to be shown in call log history.
 
 # packages/services/Telephony
+kpick 229610 # Telephony: Support muting by RIL command
+kpick 229611 # Telephony: Use a common prop for Huawei RIL hacks (2/2)
 
 # system/bt
 kpick 223945 # Prevent abort in case of command timeout
@@ -1392,7 +1415,7 @@ if [ -f $topdir/.mypatches/su.xml ]; then
 fi
 
 # system/extras/su
-kpick -P system/extras/su 225718 # su: Fix warnings from PVS Studio Analyzer
+kpick -P system/extras/su 226017 # su: Fully rebrand
 kpick -P system/extras/su 225873 # su: strlcpy is always a friend
 kpick -P system/extras/su 225879 # su: Run clang format
 kpick -P system/extras/su 225880 # su: Move to cutils/properties.h
@@ -1401,7 +1424,6 @@ kpick -P system/extras/su 225885 # su: Remove Sammy hacks
 kpick -P system/extras/su 225888 # su: Fix a clang tidy warning
 kpick -P system/extras/su 225889 # su: Cleanup includes
 kpick -P system/extras/su 225890 # su: Use shared libraries
-kpick -P system/extras/su 225935 # su: Remove useless casts
 kpick -P system/extras/su 225936 # su: Remove mount of emulated storage
 kpick -P system/extras/su 225937 # su: Initialize windows size
 
@@ -1414,7 +1436,6 @@ kpick 226922 # System always contains root dir.
 kpick 223746 # Add rules required for TARGET_HAS_LEGACY_CAMERA_HAL1
 kpick 223748 # Build sepolicy tools with Android.bp.
 kpick 229403 # sepolicy: New type sdcard_posix for labeled filesystems
-kpick 229404 # sepolicy: allow vold to mount ext4 sdcard
 
 # system/tool/aidl
 kpick 223133 # AIDL: Add option to generate No-Op methods
@@ -1427,9 +1448,7 @@ kpick 225436 # vold: add support for more filesystems for public storage
 kpick 225437 # vold: Fix fsck on public volumes
 kpick 225438 # vold: Support internal storage partitions
 kpick 225439 # vold: Honor mount options for ext4 partitions
-kpick 225440 # vold: Honor mount options for f2fs partitions
 kpick 225441 # vold: Mount ext4/f2fs portable storage with sdcard_posix
-kpick 225442 # vold: ntfs: Use strlcat
 kpick 225443 # Treat removable UFS card as SD card
 kpick 225445 # vold ext4/f2fs: do not use dirsync if we're mounting adopted storage
 kpick 225446 # Fix the group permissions of the sdcard root.
@@ -1457,8 +1476,6 @@ kpick 226123 # soong_config: Add new flags for HW FDE
 kpick 226125 # soong_config: Add flag for legacy HW FDE
 kpick 226126 # soong_config: Add flag for crypto waiting on QSEE to start
 kpick 226184 # soong_config: Allow process-specific override of target SDK version
-kpick 226443 # soong: Add additional_deps attribute for libraries and binaries
-kpick 226444 # soong: Add generated_headers module alias
 kpick 226591 # soong: Add support for target specific headers
 kpick 229412 # vendor/lineage: Add soong generator module type	
 kpick 229415 # lineage: Dynamically generate kernel headers using lineage generator

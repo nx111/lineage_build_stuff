@@ -1,4 +1,4 @@
-From 6547b49e854f8cf422892b790df204da16be2694 Mon Sep 17 00:00:00 2001
+From d005e643881e361e3b286b836284ebf8a601dbb3 Mon Sep 17 00:00:00 2001
 From: Sam Mortimer <sam@mortimer.me.uk>
 Date: Tue, 18 Sep 2018 15:56:14 -0700
 Subject: [PATCH 12/17] vendor/lineage: Add soong generator module type
@@ -12,8 +12,8 @@ Subject: [PATCH 12/17] vendor/lineage: Add soong generator module type
 Change-Id: I10deb7ba8825393b0b5fdbf2d96b12ad37257e12
 ---
  build/soong/Android.bp             |  16 ++
- build/soong/generator/generator.go | 281 +++++++++++++++++++++++++++++
- 2 files changed, 297 insertions(+)
+ build/soong/generator/generator.go | 307 +++++++++++++++++++++++++++++
+ 2 files changed, 323 insertions(+)
  create mode 100644 build/soong/generator/generator.go
 
 diff --git a/build/soong/Android.bp b/build/soong/Android.bp
@@ -42,10 +42,10 @@ index 18e9a841..dca42cfa 100644
 +}
 diff --git a/build/soong/generator/generator.go b/build/soong/generator/generator.go
 new file mode 100644
-index 00000000..86cc976f
+index 00000000..06c383d5
 --- /dev/null
 +++ b/build/soong/generator/generator.go
-@@ -0,0 +1,281 @@
+@@ -0,0 +1,307 @@
 +// Copyright 2015 Google Inc. All rights reserved.
 +// Copyright (C) 2018 The LineageOS Project
 +//
@@ -124,6 +124,10 @@ index 00000000..86cc976f
 +	// List of directories to export as sources
 +	Export_source_dirs []string
 +
++	// Root directory for dep_files.
++	// Relative to top build dir.
++	Dep_root *string
++
 +	// Declare list of files that should be used for timestamp dependency checking
 +	Dep_files []string
 +}
@@ -133,8 +137,12 @@ index 00000000..86cc976f
 +
 +	properties generatorProperties
 +
-+	deps android.Paths
 +	rule blueprint.Rule
++
++	// Tool dependencies
++	implicitDeps android.Paths
++	// Deps from input files declared in dep_files property.
++	inputDeps android.Paths
 +
 +	exportedIncludeDirs android.Paths
 +	exportedSourceDirs  android.Paths
@@ -220,7 +228,7 @@ index 00000000..86cc976f
 +				}
 +
 +				if path.Valid() {
-+					g.deps = append(g.deps, path.Path())
++					g.implicitDeps = append(g.implicitDeps, path.Path())
 +					if _, exists := tools[tool]; !exists {
 +						tools[tool] = path.Path()
 +					} else {
@@ -241,7 +249,7 @@ index 00000000..86cc976f
 +
 +	toolFiles := ctx.ExpandSources(g.properties.Tool_files, nil)
 +	for _, tool := range toolFiles {
-+		g.deps = append(g.deps, tool)
++		g.implicitDeps = append(g.implicitDeps, tool)
 +		if _, exists := tools[tool.Rel()]; !exists {
 +			tools[tool.Rel()] = tool
 +		} else {
@@ -249,8 +257,24 @@ index 00000000..86cc976f
 +		}
 +	}
 +
-+	// Calling ExpandSources automatically adds dependencies to ctx.
-+	_ = ctx.ExpandSources(g.properties.Dep_files, nil)
++	// Determine root dir for dep_files.  Defaults to current ctx ModuleDir.
++	depRoot := String(g.properties.Dep_root)
++	if depRoot == "" {
++		depRoot = ctx.ModuleDir()
++	}
++
++	// Glob dep_files property
++	for _, dep_file := range g.properties.Dep_files {
++		globPath := filepath.Join(depRoot, dep_file)
++		paths, err := ctx.GlobWithDeps(globPath, nil)
++		if err != nil {
++			ctx.ModuleErrorf("unable to glob %s: %s", globPath, err.Error())
++			return
++		}
++		for _, path := range paths {
++			g.inputDeps = append(g.inputDeps, android.PathForSourceRelaxed(ctx, path))
++		}
++	}
 +
 +	cmd := String(g.properties.Cmd)
 +
@@ -286,6 +310,9 @@ index 00000000..86cc976f
 +		return
 +	}
 +
++	// Dummy output dep
++	dummyDep := android.PathForModuleGen(ctx, ".dummy_dep")
++
 +	// tell the sbox command which directory to use as its sandbox root
 +	buildDir := android.PathForOutput(ctx).String()
 +	sandboxPath := shared.TempDirForOutDir(buildDir)
@@ -293,8 +320,8 @@ index 00000000..86cc976f
 +	genDir := android.PathForModuleGen(ctx)
 +	// Escape the command for the shell
 +	rawCommand = "'" + strings.Replace(rawCommand, "'", `'\''`, -1) + "'"
-+	sandboxCommand := fmt.Sprintf("$sboxCmd --sandbox-path %s --output-root %s --copy-all-output -c %s",
-+		sandboxPath, genDir, rawCommand)
++	sandboxCommand := fmt.Sprintf("$sboxCmd --sandbox-path %s --output-root %s --copy-all-output -c %s && touch %s",
++		sandboxPath, genDir, rawCommand, dummyDep.String())
 +
 +	ruleParams := blueprint.RuleParams{
 +		Command:     sandboxCommand,
@@ -302,13 +329,12 @@ index 00000000..86cc976f
 +	}
 +	g.rule = ctx.Rule(pctx, "generator", ruleParams)
 +
-+	dummyDep := android.PathForModuleGen(ctx, "dummy_dep")
-+
 +	params := android.BuildParams{
 +		Rule:        g.rule,
 +		Description: "generate",
 +		Output:      dummyDep,
-+		Implicits:   g.deps,
++		Inputs:      g.inputDeps,
++		Implicits:   g.implicitDeps,
 +	}
 +
 +	g.outputDeps = append(g.outputDeps, dummyDep)

@@ -1,0 +1,70 @@
+From 87fb611b6a49ef9793c60df8f3858fa39bdfbfc7 Mon Sep 17 00:00:00 2001
+From: nx111 <gd.zhangdz@gmail.com>
+Date: Sun, 9 Sep 2018 11:35:38 +0800
+Subject: [PATCH 12/13] telephony: if service is not up, treat it like death
+ notification to try to get service again
+
+Change-Id: I4f9e9438ce395607e4795ee499980167d3990018
+---
+ .../com/android/internal/telephony/RIL.java   | 24 ++++++++++++++++++-
+ 1 file changed, 23 insertions(+), 1 deletion(-)
+
+diff --git a/src/java/com/android/internal/telephony/RIL.java b/src/java/com/android/internal/telephony/RIL.java
+index 56cf0dee6..a207a12e3 100644
+--- a/src/java/com/android/internal/telephony/RIL.java
++++ b/src/java/com/android/internal/telephony/RIL.java
+@@ -345,7 +345,10 @@ public class RIL extends BaseCommands implements CommandsInterface {
+         public void serviceDied(long cookie) {
+             // Deal with service going away
+             riljLog("serviceDied");
+-            mRilHandler.sendMessage(mRilHandler.obtainMessage(EVENT_RADIO_PROXY_DEAD, cookie));
++            //mRilHandler.sendMessage(mRilHandler.obtainMessage(EVENT_RADIO_PROXY_DEAD, cookie));
++            mRilHandler.sendMessageDelayed(
++                    mRilHandler.obtainMessage(EVENT_RADIO_PROXY_DEAD, cookie),
++                    IRADIO_GET_SERVICE_DELAY_MILLIS);
+         }
+     }
+ 
+@@ -406,6 +409,12 @@ public class RIL extends BaseCommands implements CommandsInterface {
+                         CommandException.fromRilErrno(RADIO_NOT_AVAILABLE));
+                 result.sendToTarget();
+             }
++
++            // if service is not up, treat it like death notification to try to get service again
++            mRilHandler.sendMessageDelayed(
++                    mRilHandler.obtainMessage(EVENT_RADIO_PROXY_DEAD,
++                            mRadioProxyCookie.incrementAndGet()),
++                    IRADIO_GET_SERVICE_DELAY_MILLIS);
+         }
+ 
+         return mRadioProxy;
+@@ -449,6 +458,12 @@ public class RIL extends BaseCommands implements CommandsInterface {
+                         CommandException.fromRilErrno(RADIO_NOT_AVAILABLE));
+                 result.sendToTarget();
+             }
++
++            // if service is not up, treat it like death notification to try to get service again
++            mRilHandler.sendMessageDelayed(
++                    mRilHandler.obtainMessage(EVENT_RADIO_PROXY_DEAD,
++                            mRadioProxyCookie.incrementAndGet()),
++                    IRADIO_GET_SERVICE_DELAY_MILLIS);
+         }
+ 
+         return mOemHookProxy;
+@@ -582,6 +597,13 @@ public class RIL extends BaseCommands implements CommandsInterface {
+     private void handleRadioProxyExceptionForRR(RILRequest rr, String caller, Exception e) {
+         riljLoge(caller + ": " + e);
+         resetProxyAndRequestList();
++
++        // service most likely died, handle exception like death notification to try to get service
++        // again
++        mRilHandler.sendMessageDelayed(
++                mRilHandler.obtainMessage(EVENT_RADIO_PROXY_DEAD,
++                        mRadioProxyCookie.incrementAndGet()),
++                IRADIO_GET_SERVICE_DELAY_MILLIS);
+     }
+ 
+     private String convertNullToEmptyString(String string) {
+-- 
+2.17.1
+

@@ -1,25 +1,22 @@
-From ab66bef9b784ad87a72c52f6bcef38e5742963a0 Mon Sep 17 00:00:00 2001
+From 136bb48ae13024e89fe2eaf6630822c1a3b72e20 Mon Sep 17 00:00:00 2001
 From: Luca Stefani <luca.stefani.ge1@gmail.com>
 Date: Sun, 26 Aug 2018 11:50:32 +0200
-Subject: [PATCH 04/11] su: Move to cutils/properties.h
+Subject: [PATCH 04/12] su: Move to cutils/properties.h
 
 * Parsing props manually? Are we crazy or what.
 
 Change-Id: I57b2ff4ec777669f2ad14229045bf1a2e7d222d3
-
-# Conflicts:
-#	su.c
 ---
- su.c    | 67 ++++++++++++++++++++-------------------------------------
- utils.c | 65 -------------------------------------------------------
+ su.c    | 54 ++++++++++++++---------------------------------
+ utils.c | 65 ---------------------------------------------------------
  utils.h |  3 ---
- 3 files changed, 23 insertions(+), 112 deletions(-)
+ 3 files changed, 16 insertions(+), 106 deletions(-)
 
 diff --git a/su.c b/su.c
-index 80be6b9..366cbee 100644
+index aa248320..40527ea2 100644
 --- a/su.c
 +++ b/su.c
-@@ -18,8 +18,6 @@
+@@ -19,8 +19,6 @@
  #include <fcntl.h>
  #include <getopt.h>
  #include <limits.h>
@@ -28,7 +25,7 @@ index 80be6b9..366cbee 100644
  #include <pwd.h>
  #include <stdarg.h>
  #include <stdint.h>
-@@ -35,6 +33,10 @@
+@@ -36,6 +34,10 @@
  #include <sys/wait.h>
  #include <unistd.h>
  
@@ -39,12 +36,12 @@ index 80be6b9..366cbee 100644
  #include "binder/pm-wrapper.h"
  #include "su.h"
  #include "utils.h"
-@@ -272,64 +274,41 @@ static __attribute__((noreturn)) void allow(struct su_context* ctx, const char*
+@@ -273,53 +275,29 @@ static __attribute__((noreturn)) void allow(struct su_context* ctx, const char*
      }
  }
  
 -/*
-- * CyanogenMod-specific behavior
+- * Lineage-specific behavior
 - *
 - * we can't simply use the property service, since we aren't launched from init
 - * and can't trust the location of the property workspace.
@@ -95,36 +92,26 @@ index 80be6b9..366cbee 100644
 -        memcpy(enabled, "0", 2);
 -
 -    /* enforce persist.sys.root_access on non-eng builds for apps */
--    if (strcmp("eng", build_type) != 0 &&
--            from->uid != AID_SHELL && from->uid != AID_ROOT &&
--            (atoi(enabled) & LINEAGE_ROOT_ACCESS_APPS_ONLY) != LINEAGE_ROOT_ACCESS_APPS_ONLY ) {
--        ALOGE("Apps root access is disabled by system setting - "
--             "enable it under settings -> developer options");
 +    /* Enforce persist.sys.root_access on non-eng builds for apps */
 +    enabled = property_get_int32("persist.sys.root_access", 2);
 +    property_get("ro.build.type", build_type, "");
-+    if (strcmp("eng", build_type) != 0 && from->uid != AID_SHELL && from->uid != AID_ROOT &&
+     if (strcmp("eng", build_type) != 0 && from->uid != AID_SHELL && from->uid != AID_ROOT &&
+-        (atoi(enabled) & LINEAGE_ROOT_ACCESS_APPS_ONLY) != LINEAGE_ROOT_ACCESS_APPS_ONLY) {
 +        (enabled & LINEAGE_ROOT_ACCESS_APPS_ONLY) != LINEAGE_ROOT_ACCESS_APPS_ONLY) {
-+        ALOGE(
-+            "Apps root access is disabled by system setting - "
-+            "enable it under settings -> developer options");
-         return 1;
-     }
+         ALOGE(
+             "Apps root access is disabled by system setting - "
+             "enable it under settings -> developer options");
+@@ -328,7 +306,7 @@ int access_disabled(const struct su_initiator* from) {
  
      /* disallow su in a shell if appropriate */
      if (from->uid == AID_SHELL &&
--            (atoi(enabled) & LINEAGE_ROOT_ACCESS_ADB_ONLY) != LINEAGE_ROOT_ACCESS_ADB_ONLY ) {
--        ALOGE("Shell root access is disabled by a system setting - "
--             "enable it under settings -> developer options");
+-        (atoi(enabled) & LINEAGE_ROOT_ACCESS_ADB_ONLY) != LINEAGE_ROOT_ACCESS_ADB_ONLY) {
 +        (enabled & LINEAGE_ROOT_ACCESS_ADB_ONLY) != LINEAGE_ROOT_ACCESS_ADB_ONLY) {
-+        ALOGE(
-+            "Shell root access is disabled by a system setting - "
-+            "enable it under settings -> developer options");
-         return 1;
-     }
- 
+         ALOGE(
+             "Shell root access is disabled by a system setting - "
+             "enable it under settings -> developer options");
 diff --git a/utils.c b/utils.c
-index 1f44a44..dfcc197 100644
+index 1f44a442..dfcc1970 100644
 --- a/utils.c
 +++ b/utils.c
 @@ -14,15 +14,9 @@
@@ -207,7 +194,7 @@ index 1f44a44..dfcc197 100644
 -    return strstr(data, prefix) != NULL;
 -}
 diff --git a/utils.h b/utils.h
-index 8612df2..07c7aad 100644
+index 8612df26..07c7aad9 100644
 --- a/utils.h
 +++ b/utils.h
 @@ -23,7 +23,4 @@
