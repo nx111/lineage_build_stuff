@@ -815,9 +815,9 @@ kpick -P device/samsung/msm8974-common/ 225466 # msm8974-common: libril: Remove 
 kpick -P device/samsung/msm8974-common/ 225467 # msm8974-common: libril: Fix Const-Correctness for RIL_RadioFunctions
 kpick -P device/samsung/msm8974-common/ 225468 # msm8974-common: libril: Remove unused code
 kpick -P device/samsung/msm8974-common/ 225469 # msm8974-common: libril: Fix double freeing of memory in SAP service and add null-checks.
-kpick -P device/samsung/msm8974-common/ 225470 # msm8974-common: libril: Store the system time when NITZ is received
-kpick -P device/samsung/msm8974-common/ 225471 # msm8974-common: libril: Add DISABLE_RILD_OEM_HOOK
-kpick -P device/samsung/msm8974-common/ 225472 # msm8974-common: libril:  Change rild initial sequence to guarantee non-null function pointer before rild register its hidl service
+kpick -P device/samsung/msm8974-common/ 225470 # msm8974-common: libril: Store the system time when NITZ is received.
+kpick -P device/samsung/msm8974-common/ 225471 # msm8974-common: libril: Add DISABLE_RILD_OEM_HOOK.
+kpick -P device/samsung/msm8974-common/ 225472 # msm8974-common: libril: Change rild initial sequence to guarantee non-null function pointer before rild register its hidl service
 kpick -P device/samsung/msm8974-common/ 225473 # msm8974-common: libril: Add SIM_ABSENT error
 kpick -P device/samsung/msm8974-common/ 225759 # msm8974-common: libril: Replace strncpy with strlcpy.
 
@@ -1107,7 +1107,6 @@ kpick 215846 # dark: Add Theme.DeviceDefault.Settings.Dialog.NoActionBar style
 # pakcages/service/Telecomm
 
 # packages/service/Telephony
-kpick 209045 # Telephony: Fallback gracefully for emergency calls if suitable app isn't found
 
 # prebuilts/build-tools
 
@@ -1198,8 +1197,6 @@ kpick 226428 # [DNM] prebuilt: aarch64: add binaries for docker
 
 #-----------------------
 # translations
-
-kpick 224535-224566
 
 ##################################
 echo
