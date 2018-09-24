@@ -785,7 +785,6 @@ kpick 223063 # Restore android_alarm.h kernel uapi header
 kpick 223067 # libc fortify: Ignore open() O_TMPFILE mode bits warning
 kpick 223943 # bionic: meh
 kpick 225463 # bionic: Let popen and system fall back to /sbin/sh
-kpick 226183 # Implement per-process target SDK version override.
 kpick 229488 # Revert "linker: Make platform text relocations denial optional"
 
 # boot/recovery
@@ -806,7 +805,6 @@ kpick 222648 # Allow providing flex and bison binaries
 kpick 224613 # soong: Add LOCAL_AIDL_FLAGS handling
 kpick 226443 # soong: Add additional_deps attribute for libraries and binaries
 #kpick 226444 # soong: Add generated_headers module alias
-kpick 226593 # soong: Add function to return targer specific header path
 #kpick 226918 # Add /ramdisk to installclean
 kpick 229411 # soong sbox: Add option to allow copying all generated output
 
@@ -848,8 +846,6 @@ kpick 228608 # sepolicy-legacy: Treat BT vendor properties like non-vendor ones.
 # device/samsung/klte-common
 kpick 225192 # klte-common: Align ril.h to samsung_msm8974-common P libril changes
 kpick 224917 # DO NOT MERGE: klte-common: Requisite bring-up BS change
-kpick 229486 # klte-common: Set SDK API level for mediaserver and mm-qcamera-daemon
-kpick 229571 # klte-common: Stop building sensors.msm8974
 
 # device/samsung/msm8974-common
 kpick 228677 # msm8974-common: Make the external camera provider ignore internal cameras
@@ -864,10 +860,6 @@ kpick 225473 # msm8974-common: libril: Add SIM_ABSENT error
 kpick 225759 # msm8974-common: libril: Replace strncpy with strlcpy.
 kpick 225760 # msm8974-common: libril: FR51015: Tuning of Binder buffer for rild.
 kpick 224916 # DO NOT MERGE: msm8974-common: sepolicy: Just make it build
-kpick 229565 # msm8974-common: sensors: Import default service and impl from hardware/interfaces
-kpick 229566 # msm8974-common: sensors: Convert to samsung8974 target
-kpick 229567 # msm8974-common: sensors: Add input group to sensor service
-kpick 229568 # msm8974-common: Build binderized samsung8974 sensors service
 
 # device/samsung/qcom-common
 
@@ -936,7 +928,6 @@ kpick 225536 # Camera: Add support for preview frame fd
 kpick 225537 # libstagefright: Add more sample rates for FLAC
 kpick 225539 # Camera:CameraService: Added lock on mHIDLMemPoolId in QDataCallback..
 kpick 225540 # Camera: CameraHardwareInterface: Releasing mHIDLMemoryMapLock in QdataCallback
-kpick 226592 # camera/parameters: Take device specific headers into account
 kpick 227433 # Explicitly initialise base class in copy constructor
 kpick 228236 # SoundTriggerHalLegacy.cpp: include errno.h
 
@@ -998,6 +989,8 @@ kpick 229309 # Allow SBC as HD audio codec in Bluetooth device configuration
 kpick 229463 # frameworks/base: Support for third party NFC features and extensions
 kpick 229606 # ConsumerIR: Support Huawei's DSP chip implementation
 kpick 229612 # Performance: Memory Optimizations
+kpick 229874 # SystemUI: Add support for persistent usb drive notification.
+kpick 230016 # Implement expanded desktop feature
 
 # frameworks/native
 kpick 224443 # libbinder: Don't log call trace when waiting for vendor service on non-eng builds
@@ -1298,6 +1291,7 @@ kpick 227930 # LineageParts: Bring back and refactor battery icon options
 kpick 221756 # StatusBarSettings: Hide battery preference category based on icon visibility
 kpick 229305 # ButtonSettings: Adapt for dropped needsNavigationBar method
 kpick 229389 # Trust: enforce vendor security patch level check
+kpick 230017 # LineageParts: Re-enable expanded desktop.
 
 # packages/apps/LockClock
 
@@ -1463,6 +1457,8 @@ kpick 226110 # system: vold: Remove crypto block device creation
 kpick 226127 # vold: Move QCOM HW FDE inclusion under lineage namespace
 kpick 226111 # vold: Wrapped key support for FBE
 kpick 229304 # vold: Add texfat and sdfat support
+kpick 229954 # Move kMajor* constants to a header file
+kpick 229955 # vold: ISO9660 and UDF support
 
 # vendor/lineage
 kpick 223773 # Add IPv6 for Oister and 3. The 3.dk and oister.dk carriers now support IPv6 with the APN ”data.tre.dk”.
@@ -1475,14 +1471,17 @@ kpick 225939 # roomservice.py: non-depsonly: bootstrap first device repo from Hu
 kpick 226123 # soong_config: Add new flags for HW FDE
 kpick 226125 # soong_config: Add flag for legacy HW FDE
 kpick 226126 # soong_config: Add flag for crypto waiting on QSEE to start
-kpick 226184 # soong_config: Allow process-specific override of target SDK version
-kpick 226591 # soong: Add support for target specific headers
 kpick 229412 # vendor/lineage: Add soong generator module type	
 kpick 229415 # lineage: Dynamically generate kernel headers using lineage generator
 kpick 229505 # vendor/lineage: Remove legacy kernel headers generation
 kpick 229506 # Revert "soong_config: Add TARGET_NEEDS_PLATFORM_TEXT_RELOCATIONS"
-kpick 229507 # lineage: Use add_json_str_omitempty directive for TARGET_LD_SHIM_LIBS
 kpick 229508 # lineage: Move some kernel definitions to BoardConfigKernel
+kpick 229590 # lineage: Move qcom pathmap setting into "BoardConfig"
+kpick 229620 # backuptool: Support non-A/B system-as-root
+kpick 229622 # overlay: Remove config_persistUsbDriveNotification
+kpick 229914 # tools: update vdexExtractor from 0.4.1 to 0.5.2 for P compat
+kpick 229915 # tools: update smali/baksmali to 2.2.5
+kpick 229917 # extract_utils: add CDEX support via compact_dex_converter
 
 # vendor/qcom/opensource/audio
 

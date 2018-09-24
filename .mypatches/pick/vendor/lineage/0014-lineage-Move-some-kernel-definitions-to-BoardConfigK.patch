@@ -1,0 +1,109 @@
+From 0ac4802276858cbe838afc5c4e63566e0734c29f Mon Sep 17 00:00:00 2001
+From: Rashed Abdel-Tawab <rashed@linux.com>
+Date: Thu, 20 Sep 2018 15:19:57 -0700
+Subject: [PATCH 14/20] lineage: Move some kernel definitions to
+ BoardConfigKernel
+
+Kernel source settings should always come at BoardConfig population
+time so things that use the variable later don't end up pointing to
+an empty or wrong variable.
+
+The following is also squashed in:
+
+Author: Christopher N. Hesse <raymanfx@gmail.com>
+Date:   Fri Aug 10 00:23:54 2018 +0200
+    tasks: kernel: Honor prebuilt kernel flag
+    For devices that want to use a prebuilt kernel, TARGET_KERNEL_SOURCE
+    would still be set to TARGET_AUTO_KDIR, meaning the build system would
+    still try to build the kernel if TARGET_AUTO_KDIR was present.
+    Setting TARGET_PREBUILT_KERNEL indicates this is not wanted, so don't
+    attempt to do it.
+    Change-Id: Ic79b3ac1b9c946fd258ada43dce2b08bb74ea0d9
+
+Change-Id: If046b86ff0d18c76898e90295be873a8379f678a
+---
+ build/tasks/kernel.mk        |  9 ---------
+ config/BoardConfigKernel.mk  | 28 ++++++++++++++++++++++++++++
+ config/BoardConfigLineage.mk |  2 ++
+ 3 files changed, 30 insertions(+), 9 deletions(-)
+ create mode 100644 config/BoardConfigKernel.mk
+
+diff --git a/build/tasks/kernel.mk b/build/tasks/kernel.mk
+index 078ee1f0..3b2d0d1a 100644
+--- a/build/tasks/kernel.mk
++++ b/build/tasks/kernel.mk
+@@ -72,11 +72,7 @@
+ 
+ ifneq ($(TARGET_NO_KERNEL),true)
+ 
+-TARGET_AUTO_KDIR := $(shell echo $(TARGET_DEVICE_DIR) | sed -e 's/^device/kernel/g')
+-
+ ## Externally influenced variables
+-# kernel location - optional, defaults to kernel/<vendor>/<device>
+-TARGET_KERNEL_SOURCE ?= $(TARGET_AUTO_KDIR)
+ KERNEL_SRC := $(TARGET_KERNEL_SOURCE)
+ # kernel configuration - mandatory
+ KERNEL_DEFCONFIG := $(TARGET_KERNEL_CONFIG)
+@@ -87,12 +83,7 @@ SELINUX_DEFCONFIG := $(TARGET_KERNEL_SELINUX_CONFIG)
+ KERNEL_OUT := $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ
+ KERNEL_CONFIG := $(KERNEL_OUT)/.config
+ 
+-TARGET_KERNEL_ARCH := $(strip $(TARGET_KERNEL_ARCH))
+-ifeq ($(TARGET_KERNEL_ARCH),)
+-KERNEL_ARCH := $(TARGET_ARCH)
+-else
+ KERNEL_ARCH := $(TARGET_KERNEL_ARCH)
+-endif
+ 
+ ifeq ($(KERNEL_ARCH),x86_64)
+ KERNEL_DEFCONFIG_ARCH := x86
+diff --git a/config/BoardConfigKernel.mk b/config/BoardConfigKernel.mk
+new file mode 100644
+index 00000000..f1e7db87
+--- /dev/null
++++ b/config/BoardConfigKernel.mk
+@@ -0,0 +1,28 @@
++# Copyright (C) 2018 The LineageOS Project
++#
++# Licensed under the Apache License, Version 2.0 (the "License");
++# you may not use this file except in compliance with the License.
++# You may obtain a copy of the License at
++#
++#      http://www.apache.org/licenses/LICENSE-2.0
++#
++# Unless required by applicable law or agreed to in writing, software
++# distributed under the License is distributed on an "AS IS" BASIS,
++# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++# See the License for the specific language governing permissions and
++# limitations under the License.
++
++TARGET_AUTO_KDIR := $(shell echo $(TARGET_DEVICE_DIR) | sed -e 's/^device/kernel/g')
++
++# kernel location - optional, defaults to kernel/<vendor>/<device> (see above TARGET_AUTO_KDIR)
++TARGET_KERNEL_SOURCE ?= $(TARGET_AUTO_KDIR)
++ifneq ($(TARGET_PREBUILT_KERNEL),)
++TARGET_KERNEL_SOURCE :=
++endif
++
++CUSTOM_KERNEL_ARCH := $(strip $(TARGET_KERNEL_ARCH))
++ifeq ($(CUSTOM_KERNEL_ARCH),)
++TARGET_KERNEL_ARCH := $(TARGET_ARCH)
++else
++TARGET_KERNEL_ARCH := $(CUSTOM_KERNEL_ARCH)
++endif
+diff --git a/config/BoardConfigLineage.mk b/config/BoardConfigLineage.mk
+index fc509f29..547792fd 100644
+--- a/config/BoardConfigLineage.mk
++++ b/config/BoardConfigLineage.mk
+@@ -3,6 +3,8 @@ ifeq ($(WITH_LINEAGE_CHARGER),true)
+     BOARD_HAL_STATIC_LIBRARIES := libhealthd.lineage
+ endif
+ 
++include vendor/lineage/config/BoardConfigKernel.mk
++
+ ifeq ($(BOARD_USES_QCOM_HARDWARE),true)
+ include vendor/lineage/config/BoardConfigQcom.mk
+ endif
+-- 
+2.17.1
+

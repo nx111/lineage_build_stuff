@@ -1,7 +1,7 @@
-From 135299bfaea93a0abdf9b46ad4fac0fa6a682676 Mon Sep 17 00:00:00 2001
+From 69d37d7256f6887d36a6ba9ea7ef0c88dbe06ee2 Mon Sep 17 00:00:00 2001
 From: Dan Pasanen <dan.pasanen@gmail.com>
 Date: Tue, 27 Oct 2015 22:52:37 -0500
-Subject: [PATCH 01/19] vold: add support for more filesystems for public
+Subject: [PATCH 01/21] vold: add support for more filesystems for public
  storage
 
 * Add exfat and ntfs support based off f2fs and ported to use
@@ -32,12 +32,12 @@ Change-Id: I0a83761cefd97791e3ec84a18e199dfd27a5ed0b
 ---
  Android.bp             |   1 +
  Utils.cpp              |   4 ++
- fs/Ntfs.cpp            |  96 +++++++++++++++++++++++++++++++++++
- fs/Ntfs.h              |  40 +++++++++++++++
+ fs/Ntfs.cpp            | 104 ++++++++++++++++++++++++++++++++++++++
+ fs/Ntfs.h              |  39 +++++++++++++++
  main.cpp               |   2 +
  model/Disk.cpp         |   1 +
- model/PublicVolume.cpp | 111 ++++++++++++++++++++++++++---------------
- 7 files changed, 216 insertions(+), 39 deletions(-)
+ model/PublicVolume.cpp | 110 ++++++++++++++++++++++++++---------------
+ 7 files changed, 222 insertions(+), 39 deletions(-)
  create mode 100644 fs/Ntfs.cpp
  create mode 100644 fs/Ntfs.h
 
@@ -70,10 +70,10 @@ index 98e8a9b..40cb7f0 100644
  
 diff --git a/fs/Ntfs.cpp b/fs/Ntfs.cpp
 new file mode 100644
-index 0000000..08fff31
+index 0000000..a00c5ad
 --- /dev/null
 +++ b/fs/Ntfs.cpp
-@@ -0,0 +1,96 @@
+@@ -0,0 +1,104 @@
 +/*
 + * Copyright (C) 2015 The Android Open Source Project
 + *
@@ -90,16 +90,15 @@ index 0000000..08fff31
 + * limitations under the License.
 + */
 +
-+#include "Ntfs.h"
-+#include "Utils.h"
++#include <sys/mount.h>
 +
 +#include <android-base/logging.h>
 +#include <android-base/stringprintf.h>
 +
-+#include <vector>
-+#include <string>
++#include <logwrap/logwrap.h>
 +
-+#include <sys/mount.h>
++#include "Ntfs.h"
++#include "Utils.h"
 +
 +using android::base::StringPrintf;
 +
@@ -124,47 +123,56 @@ index 0000000..08fff31
 +    cmd.push_back("-n");
 +    cmd.push_back(source);
 +
-+    return ForkExecvp(cmd, sFsckContext);
++    int rc = ForkExecvp(cmd, sFsckUntrustedContext);
++    if (rc == 0) {
++        LOG(INFO) << "Check OK";
++        return 0;
++    } else {
++        LOG(ERROR) << "Check failed (code " << rc << ")";
++        errno = EIO;
++        return -1;
++    }
 +}
 +
-+status_t Mount(const std::string& source, const std::string& target, bool ro,
-+        bool remount, bool executable, int ownerUid, int ownerGid, int permMask,
-+        bool createLost) {
-+    char mountData[255];
-+
-+    const char* c_source = source.c_str();
-+    const char* c_target = target.c_str();
-+
-+    sprintf(mountData,
-+            "utf8,uid=%d,gid=%d,fmask=%o,dmask=%o,"
-+            "shortname=mixed,nodev,nosuid,dirsync",
-+            ownerUid, ownerGid, permMask, permMask);
-+
-+    if (!executable)
-+        strlcat(mountData, ",noexec", sizeof(mountData));
-+    if (ro)
-+        strlcat(mountData, ",ro", sizeof(mountData));
-+    if (remount)
-+        strlcat(mountData, ",remount", sizeof(mountData));
++status_t Mount(const std::string& source, const std::string& target, int ownerUid, int ownerGid,
++               int permMask) {
++    auto mountData = android::base::StringPrintf("utf8,uid=%d,gid=%d,fmask=%o,dmask=%o,"
++                                                 "shortname=mixed,nodev,nosuid,dirsync,noatime,"
++                                                 "noexec", ownerUid, ownerGid, permMask, permMask);
 +
 +    std::vector<std::string> cmd;
 +    cmd.push_back(kMountPath);
 +    cmd.push_back("-o");
-+    cmd.push_back(mountData);
-+    cmd.push_back(c_source);
-+    cmd.push_back(c_target);
++    cmd.push_back(mountData.c_str());
++    cmd.push_back(source.c_str());
++    cmd.push_back(target.c_str());
 +
-+    return ForkExecvp(cmd);
++    int rc = ForkExecvp(cmd);
++    if (rc == 0) {
++        LOG(INFO) << "Mount OK";
++        return 0;
++    } else {
++        LOG(ERROR) << "Mount failed (code " << rc << ")";
++        errno = EIO;
++        return -1;
++    }
 +}
 +
-+status_t Format(const std::string& source, bool wipe) {
++status_t Format(const std::string& source) {
 +    std::vector<std::string> cmd;
 +    cmd.push_back(kMkfsPath);
-+    if (wipe)
-+        cmd.push_back("-f");
 +    cmd.push_back(source);
 +
-+    return ForkExecvp(cmd);
++    int rc = ForkExecvp(cmd);
++    if (rc == 0) {
++        LOG(INFO) << "Format OK";
++        return 0;
++    } else {
++        LOG(ERROR) << "Format failed (code " << rc << ")";
++        errno = EIO;
++        return -1;
++    }
++    return 0;
 +}
 +
 +}  // namespace ntfs
@@ -172,10 +180,10 @@ index 0000000..08fff31
 +}  // namespace android
 diff --git a/fs/Ntfs.h b/fs/Ntfs.h
 new file mode 100644
-index 0000000..805fb99
+index 0000000..2f002b2
 --- /dev/null
 +++ b/fs/Ntfs.h
-@@ -0,0 +1,40 @@
+@@ -0,0 +1,39 @@
 +/*
 + * Copyright (C) 2015 The Android Open Source Project
 + *
@@ -206,10 +214,9 @@ index 0000000..805fb99
 +bool IsSupported();
 +
 +status_t Check(const std::string& source);
-+status_t Mount(const std::string& source, const std::string& target, bool ro,
-+        bool remount, bool executable, int ownerUid, int ownerGid, int permMask,
-+        bool createLost);
-+status_t Format(const std::string& source, bool wipe);
++status_t Mount(const std::string& source, const std::string& target, int ownerUid, int ownerGid,
++               int permMask);
++status_t Format(const std::string& source);
 +
 +}  // namespace ntfs
 +}  // namespace vold
@@ -244,7 +251,7 @@ index d7b19ac..afcb54e 100644
                          break;
                  }
 diff --git a/model/PublicVolume.cpp b/model/PublicVolume.cpp
-index fc7e96f..4657da3 100644
+index fc7e96f..6640bde 100644
 --- a/model/PublicVolume.cpp
 +++ b/model/PublicVolume.cpp
 @@ -18,6 +18,9 @@
@@ -276,7 +283,7 @@ index fc7e96f..4657da3 100644
          LOG(ERROR) << getId() << " unsupported filesystem " << mFsType;
          return -EIO;
      }
-@@ -135,17 +128,43 @@ status_t PublicVolume::doMount() {
+@@ -135,17 +128,42 @@ status_t PublicVolume::doMount() {
          return -errno;
      }
  
@@ -317,8 +324,7 @@ index fc7e96f..4657da3 100644
 +    } else if (mFsType == "f2fs") {
 +        ret = f2fs::Mount(mDevPath, mRawPath);
 +    } else if (mFsType == "ntfs") {
-+        ret = ntfs::Mount(mDevPath, mRawPath, false, false, false,
-+                AID_MEDIA_RW, AID_MEDIA_RW, 0007, true);
++        ret = ntfs::Mount(mDevPath, mRawPath, AID_MEDIA_RW, AID_MEDIA_RW, 0007);
 +    } else if (mFsType == "vfat") {
 +        ret = vfat::Mount(mDevPath, mRawPath, false, false, false,
 +                AID_MEDIA_RW, AID_MEDIA_RW, 0007, true);
@@ -331,7 +337,7 @@ index fc7e96f..4657da3 100644
      }
  
      if (getMountFlags() & MountFlags::kPrimary) {
-@@ -251,27 +270,41 @@ status_t PublicVolume::doUnmount() {
+@@ -251,27 +269,41 @@ status_t PublicVolume::doUnmount() {
  }
  
  status_t PublicVolume::doFormat(const std::string& fsType) {
@@ -373,7 +379,7 @@ index fc7e96f..4657da3 100644
 +    } else if (fsType == "f2fs") {
 +        ret = f2fs::Format(mDevPath);
 +    } else if (fsType == "ntfs") {
-+        ret = ntfs::Format(mDevPath, 0);
++        ret = ntfs::Format(mDevPath);
 +    } else if (fsType == "vfat") {
 +        ret = vfat::Format(mDevPath, 0);
 +    } else {
