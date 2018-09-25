@@ -907,8 +907,6 @@ kpick 223413 # perfetto_cmd: Resolve missing O_CREAT mode
 # external/rsync
 
 # external/tinycompress
-kpick 225762 # tinycompress: enable libtinycompress_vendor
-kpick 225763 # tinycompress: Use sanitized headers generated from kernel source
 kpick 223008 # tinycompress: tinycompress fixes
 kpick 229414 # tinycompress: Use generated kernel headers
 kpick 229489 # tinycompress: Fix compilation on old targets
