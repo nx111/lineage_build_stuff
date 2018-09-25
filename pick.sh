@@ -126,9 +126,11 @@ function projects_snapshot()
     cd $(gettop)
     topdir=$(gettop)
     snapshot_file=$topdir/.mypatches/snapshot.list
+    local vproject=""
+    [ "$1" != "" ] && vproject=$(echo $1 | sed -e 's/\/$//')
     rm -f $snapshot_file.new
     cat $topdir/.repo/project.list | while read project; do
-         [ "$1" != "" -a "$project" != "$(echo $1 | sed -e 's/\/$//')" ] && continue
+         [ "$1" != "" -a "$project" != "$vproject" ] && continue
          cd $topdir/$project
          echo ">>>  project: $project ... "
 
@@ -160,8 +162,16 @@ function projects_snapshot()
          done < /tmp/gitlog.txt
          rm -f /tmp/gitlog.txt
 
-         [ "$1" != "" -a "$project" != "$1" ] || \
-         echo "$project, $commit_id, $url" >> $snapshot_file.new
+         if [ "$1" = "" ];  then
+              echo "$project, $commit_id, $url" >> $snapshot_file.new
+         elif [ "$1" != "" -a "$project" = "$vproject" ]; then
+              if [ -f $snapshot_file.new ]; then
+                     eval sed -e \"s|^$project.*|$project,$commit_id, $url|" -i $snapshot_file.new 
+              else
+                     eval sed -e \"s|^$project.*|$project,$commit_id, $url|" -i $snapshot_file
+              fi
+         fi
+
 
          [ -d $topdir/.mypatches/pick/$project ] || mkdir -p $topdir/.mypatches/pick/$project
          rm -rf $topdir/.mypatches/pick/$project/*.patch
@@ -169,11 +179,11 @@ function projects_snapshot()
 
          git format-patch "$commit_id" -o $topdir/.mypatches/pick/$project/ | sed -e "s:.*/:              :"
 
-         patches_count=$(find $topdir/.mypatches/pick/$project -name "*.patch" -o -name "*.diff" | wc -l)
+         patches_count=$(find $topdir/.mypatches/pick/$project -maxdepth 1 -name "*.patch" -o -name "*.diff" | wc -l)
          if [ $patches_count -eq 0 ]; then
               rmdir -p --ignore-fail-on-non-empty $topdir/.mypatches/pick/$project
          elif [ -d $topdir/.mypatches/local/$project ]; then
-              find $topdir/.mypatches/local/$project -type f -name "*.patch" -o -name "*.diff" | while read patchfile; do
+              find $topdir/.mypatches/local/$project -maxdepth 1 -type f -name "*.patch" -o -name "*.diff" | while read patchfile; do
                    patch_file_name=$(basename $patchfile)
                    changeid=$(grep "Change-Id: " $patchfile | tail -n 1 | sed -e "s/ \{1,\}/ /g" -e "s/^ //g" | cut -d' ' -f2)
                    #echo "$project >  $patchfile  ==== Change-Id:$changeid"
@@ -206,7 +216,7 @@ function projects_snapshot()
     done
     find $topdir/.mypatches -type d | xargs rmdir --ignore-fail-on-non-empty >/dev/null 2>/dev/null
 
-    [ "$1" != "" -a "$project" != "$1" ] || \
+    [ "$1" = "" -a -f $snapshot_file.new ] && \
     mv $snapshot_file.new $snapshot_file
 
     cd $topdir
