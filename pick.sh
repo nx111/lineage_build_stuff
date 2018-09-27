@@ -797,6 +797,7 @@ kpick 223067 # libc fortify: Ignore open() O_TMPFILE mode bits warning
 kpick 223943 # bionic: meh
 kpick 225463 # bionic: Let popen and system fall back to /sbin/sh
 kpick 229488 # Revert "linker: Make platform text relocations denial optional"
+kpick 230099 # Actually restore pre-P mutex behavior
 
 # boot/recovery
 
@@ -810,6 +811,7 @@ kpick 222760 # Add LOCAL_AIDL_FLAGS
 #kpick 226920 # Support a first stage ramdisk via TARGET_RAMDISK_OUT
 #kpick 226939 # releasetools: Fix the path to the OTA keys in recovery image.
 kpick 229491 # build: Automatically replace old-style kernel header includes with new ...
+kpick 230222
 
 # build/soong
 kpick 222648 # Allow providing flex and bison binaries
@@ -851,6 +853,17 @@ kpick 228587 # sepolicy: Allow perf HAL to set freq props
 
 # device/qcom/sepolicy-legacy
 kpick 228608 # sepolicy-legacy: Treat BT vendor properties like non-vendor ones.	
+kpick 230229 # mm-qcamera-daemon: fix denial
+kpick 230230 # common: fix sensors denial
+kpick 230231 # common: grant cnss-daemon access to sysfs_net
+kpick 230232 # common: grant netmgrd access to sysfs_net nodes
+kpick 230233 # common: allow sensors HIDL HAL to access /dev/sensors
+kpick 230234 # common: allow wifi HIDL HAL to read tombstones
+kpick 230235 # common: grant DRM HIDL HAL ownership access to /data/{misc,vendor}/media/
+kpick 230236 # common: label /sys/devices/virtual/graphics as sysfs_graphics
+kpick 230237 # common: allow vendor_init to create /data/dpm
+kpick 230238 # common: create proc_kernel_sched domain to restrict perf hal access
+kpick 230239 # common: allow uevent to control sysfs_mmc_host via vold
 
 # device/samsung/kltechnduo
 
@@ -1000,6 +1013,11 @@ kpick 229606 # ConsumerIR: Support Huawei's DSP chip implementation
 kpick 229612 # Performance: Memory Optimizations
 kpick 229874 # SystemUI: Add support for persistent usb drive notification.
 kpick 230016 # Implement expanded desktop feature
+kpick 230112 # ConnectivityManager: Change default private DNS mode
+kpick 230259 # SystemUI: Add tunables for clock position
+kpick 230260 # SystemUI: Add tunables for clock AM/PM style
+kpick 230261 # Tuner: Move clock seconds option to status bar settings
+kpick 230262 # SystemUI: Fix clock icon blacklist handling
 
 # frameworks/native
 kpick 224443 # libbinder: Don't log call trace when waiting for vendor service on non-eng builds
@@ -1227,7 +1245,7 @@ kpick 226077 # libsecril-client: remove unused variables/functions
 kpick 226080 # libril: Replace strncpy with strlcpy.
 kpick 227453 # power: remove getFeature functionality
 kpick 227454 # power: Add Lineage power hints
-
+kpick 230047 # dtbhtool: fix unused variable 'model' warning
 
 # kernel/samsung/msm8974
 
@@ -1237,6 +1255,7 @@ kpick 225581 # lineage-sdk: Make styles init at system services ready
 kpick 226087 # lineage-sdk: Default config_deviceHardware{Wake}Keys to 64
 kpick 226141 # LineageSettingsProvider: Cleanup after LINEAGE_SETUP_WIZARD_COMPLETED deprecation
 kpick 227931 # lineagesdk: Refactor battery icon options
+kpick 230263 # sdk: Update default clock position
 
 # packages/apps/AudioFX
 
@@ -1262,10 +1281,6 @@ kpick 225265 # Add Storage preference (1/2)
 kpick 228323 # Camera2: Request for ACCESS_FINE_LOCATION permission
 
 # packages/apps/CarrierConfig
-kpick 225266 # CarrierConfig: Add selected configs for national roaming
-kpick 225267 # CarrierConfig: Load ERI configuration for U.S. Cellular
-kpick 225268 # Disable OTA for U.S. Cellular since there is no need for it
-kpick 225269 # CarrierConfig: HoT and tele.ring (232 07) may roam on T-Mobile (232 03)
 
 # packages/apps/CellBroadcastReciver
 kpick 229303 # Only enable presidential CMAS alerts if user is a monkey
@@ -1273,9 +1288,6 @@ kpick 229303 # Only enable presidential CMAS alerts if user is a monkey
 # packages/apps/Contacts
 
 # packages/apps/DeskClock
-kpick 225281 # DeskClock: Add back flip and shake actions
-kpick 225280 # Make new menu entry to link to cLock widget settings.
-kpick 225284 # Provide upgrade path for cm-14.1 -> lineage-15.1
 kpick 226131 # DeskClock: Add support of power off alarm feature
 
 # packages/apps/Dialer
@@ -1488,8 +1500,6 @@ kpick 229508 # lineage: Move some kernel definitions to BoardConfigKernel
 kpick 229590 # lineage: Move qcom pathmap setting into "BoardConfig"
 kpick 229620 # backuptool: Support non-A/B system-as-root
 kpick 229622 # overlay: Remove config_persistUsbDriveNotification
-kpick 229914 # tools: update vdexExtractor from 0.4.1 to 0.5.2 for P compat
-kpick 229915 # tools: update smali/baksmali to 2.2.5
 kpick 229917 # extract_utils: add CDEX support via compact_dex_converter
 
 # vendor/qcom/opensource/audio
