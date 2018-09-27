@@ -131,6 +131,7 @@ function projects_snapshot()
     rm -f $snapshot_file.new
     cat $topdir/.repo/project.list | while read project; do
          [ "$1" != "" -a "$project" != "$vproject" ] && continue
+         [ -d "$topdir/$project" ] || continue
          cd $topdir/$project
          echo ">>>  project: $project ... "
 
@@ -626,19 +627,19 @@ function kpick()
         if [ -f $logfile -a "$script_file" != "bash" -a ! -z $changeNumber ]; then
             if grep -q -E "Change status is MERGED.|nothing to commit" $logfile; then
                [ -f $script_file.tmp ] || cp $script_file $script_file.tmp
-               eval  sed -e \"/[[:space:]]*kpick $changeNumber[[:space:]]*.*/d\" -i $script_file.tmp
+               eval  sed -e \"/[[:space:]]*kpick[[:space:]]\{1,\}$changeNumber[[:space:]]*.*/d\" -i $script_file.tmp
             elif grep -q -E "Change status is ABANDONED." $logfile; then
                [ -f $script_file.tmp ] || cp $script_file $script_file.tmp
-               eval  sed -e \"/[[:space:]]*kpick $changeNumber[[:space:]]*.*/d\" -i $script_file.tmp
+               eval  sed -e \"/[[:space:]]*kpick[[:space:]]\{1,\}$changeNumber[[:space:]]*.*/d\" -i $script_file.tmp
             elif grep -q -E "Change $changeNumber not found, skipping" $logfile; then
                [ -f $script_file.tmp ] || cp $script_file $script_file.tmp
-               eval  sed -e \"/[[:space:]]*kpick $changeNumber[[:space:]]*.*/d\" -i $script_file.tmp
+               eval  sed -e \"/[[:space:]]*kpick[[:space:]]\{1,\}$changeNumber[[:space:]]*.*/d\" -i $script_file.tmp
             elif grep -q "could not determine the project path for" $errfile; then
                [ -f $script_file.tmp ] || cp $script_file $script_file.tmp
-               eval  sed -e \"/[[:space:]]*kpick $changeNumber[[:space:]]*.*/d\" -i $script_file.tmp
+               eval  sed -e \"/[[:space:]]*kpick[[:space:]]\{1,\}$changeNumber[[:space:]]*.*/d\" -i $script_file.tmp
             elif [ "$changeNumber" != "" -a "$subject" != "" ]; then
                [ -f $script_file.tmp ] || cp $script_file $script_file.tmp
-               eval  "sed -e \"s|^[[:space:]]*\(kpick .* $changeNumber\)[[:space:]]*.*|\1 \# $subject|g\" -i $script_file.tmp"
+               eval  "sed -e \"s|^[[:space:]]*kpick[[:space:]]\{1,\}\($changeNumber\)[[:space:]]*.*|kpick \1 \# $subject|g\" -i $script_file.tmp"
             fi
          fi
     fi
