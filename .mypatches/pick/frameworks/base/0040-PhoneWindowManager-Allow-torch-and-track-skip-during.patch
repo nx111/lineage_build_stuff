@@ -1,0 +1,117 @@
+From b49d45d62221c7e15fe593195a1595a3d280b5e8 Mon Sep 17 00:00:00 2001
+From: ezio84 <brabus84@gmail.com>
+Date: Wed, 13 Jun 2018 21:24:55 -0700
+Subject: [PATCH 40/64] PhoneWindowManager: Allow torch and track skip during
+ ambient display
+
+This allows long press power button for torch and long press
+volume buttons for track skip to work during ambient display.
+
+sam3000/razorloves: partial pick from:
+
+Author: ezio84 <brabus84@gmail.com>
+Date:   Fri Feb 2 01:24:34 2018 -0500
+    base: Support binding the power button to flashlight
+    Thanks to beanstown106 for the initial longpress action calls in
+    PhoneWindowManager (improved by lineage guys)
+    [cut]
+    Allow torch action also on ambient display
+    Change-Id: I12da044f86c7b625872607529cf8524615cf576b
+
+Author: ezio84 <brabus84@gmail.com>
+Date:   Sun, 7 Jan 2018 21:24:53 +0100
+    Fix volume rocker skip track on Ambient Display and Lift to Wake
+    we need to check if dream service is dozing before checking
+    keyguard status
+    Change-Id: Ic3a6c830496188bb6edf27043cd24eb2d553bb82
+
+Change-Id: I2463579e056364652b549524bc9775da4fa35b1f
+---
+ .../server/policy/PhoneWindowManager.java     | 39 ++++++++++++++-----
+ 1 file changed, 29 insertions(+), 10 deletions(-)
+
+diff --git a/services/core/java/com/android/server/policy/PhoneWindowManager.java b/services/core/java/com/android/server/policy/PhoneWindowManager.java
+index b1dccc26a24..84286cdd269 100644
+--- a/services/core/java/com/android/server/policy/PhoneWindowManager.java
++++ b/services/core/java/com/android/server/policy/PhoneWindowManager.java
+@@ -1650,7 +1650,8 @@ public class PhoneWindowManager implements WindowManagerPolicy {
+             mPowerKeyHandled = true;
+             mHandler.removeMessages(MSG_POWER_LONG_PRESS);
+             // See if we deferred screen wake because long press power for torch is enabled
+-            if (mResolvedLongPressOnPowerBehavior == LONG_PRESS_POWER_TORCH && !isScreenOn()) {
++            if (mResolvedLongPressOnPowerBehavior == LONG_PRESS_POWER_TORCH &&
++                    (!isScreenOn() || isDozeMode())) {
+                 wakeUpFromPowerKey(SystemClock.uptimeMillis());
+             }
+         }
+@@ -1878,11 +1879,24 @@ public class PhoneWindowManager implements WindowManagerPolicy {
+         }
+     }
+ 
++    private boolean isDozeMode() {
++        IDreamManager dreamManager = getDreamManager();
++
++        try {
++            if (dreamManager != null && dreamManager.isDreaming()) {
++                return true;
++            }
++        } catch (RemoteException e) {
++            Slog.e(TAG, "RemoteException when checking if dreaming", e);
++        }
++        return false;
++    }
++
+     private int getResolvedLongPressOnPowerBehavior() {
+         if (FactoryTest.isLongPressOnPowerOffEnabled()) {
+             return LONG_PRESS_POWER_SHUT_OFF_NO_CONFIRM;
+         }
+-        if (mTorchLongPressPowerEnabled && !isScreenOn()) {
++        if (mTorchLongPressPowerEnabled && (!isScreenOn() || isDozeMode())) {
+             return LONG_PRESS_POWER_TORCH;
+         }
+         return mLongPressOnPowerBehavior;
+@@ -7232,6 +7246,12 @@ public class PhoneWindowManager implements WindowManagerPolicy {
+             return false;
+         }
+ 
++        final boolean isDozing = isDozeMode();
++
++        if (event != null && isVolumeKey(event) && isDozing) {
++            return false;
++        }
++
+         // Send events to keyguard while the screen is on and it's showing.
+         if (isKeyguardShowingAndNotOccluded() && !displayOff) {
+             return true;
+@@ -7247,14 +7267,8 @@ public class PhoneWindowManager implements WindowManagerPolicy {
+ 
+         // Send events to a dozing dream even if the screen is off since the dream
+         // is in control of the state of the screen.
+-        IDreamManager dreamManager = getDreamManager();
+-
+-        try {
+-            if (dreamManager != null && dreamManager.isDreaming()) {
+-                return true;
+-            }
+-        } catch (RemoteException e) {
+-            Slog.e(TAG, "RemoteException when checking if dreaming", e);
++        if (isDozing) {
++            return true;
+         }
+ 
+         // Otherwise, consume events since the user can't see what is being
+@@ -7262,6 +7276,11 @@ public class PhoneWindowManager implements WindowManagerPolicy {
+         return false;
+     }
+ 
++    private boolean isVolumeKey(KeyEvent event) {
++        return event.getKeyCode() == KeyEvent.KEYCODE_VOLUME_DOWN
++                || event.getKeyCode() == KeyEvent.KEYCODE_VOLUME_UP;
++    }
++
+     private void dispatchDirectAudioEvent(KeyEvent event) {
+         if (event.getAction() != KeyEvent.ACTION_DOWN) {
+             return;
+-- 
+2.17.1
+

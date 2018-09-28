@@ -1215,8 +1215,6 @@ kpick 223441 # Add -Wno-error to compile with global -Werror.
 kpick 227823 # mm-video-v4l2: Protect buffer access and increase input buffer size
 
 # hardware/qcom/power
-#kpick 223892 # power: Add power hint to set profile
-#kpick 229339 # power: Return empty subsystems power stats and always use Power@1.1
 
 # hardware/qcom/wlan-caf
 kpick 226638 # wcnss_qmi: Generate a fixed random mac address if the NV doesn't provide one
@@ -1253,10 +1251,12 @@ kpick 230047 # dtbhtool: fix unused variable 'model' warning
 #kpick 223137 # lineage-sdk: Comment out LineageAudioService
 kpick 225581 # lineage-sdk: Make styles init at system services ready
 kpick 226087 # lineage-sdk: Default config_deviceHardware{Wake}Keys to 64
+kpick 226810 # lineage-sdk: Bump PREF_HAS_MIGRATED_LINEAGE_SETTINGS for 16.0
 kpick 226141 # LineageSettingsProvider: Cleanup after LINEAGE_SETUP_WIZARD_COMPLETED deprecation
 kpick 227931 # lineagesdk: Refactor battery icon options
 kpick 230263 # sdk: Update default clock position
 kpick 230272 # sdk: Remove VOLUME_KEYS_CONTROL_RING_STREAM
+kpick 230285 # lineage-sdk: Move force show navbar to lineage system settings
 
 # packages/apps/AudioFX
 
@@ -1318,6 +1318,7 @@ kpick 221756 # StatusBarSettings: Hide battery preference category based on icon
 kpick 229305 # ButtonSettings: Adapt for dropped needsNavigationBar method
 kpick 229389 # Trust: enforce vendor security patch level check
 kpick 230017 # LineageParts: Re-enable expanded desktop.
+kpick 230286 # LineageParts: force show navbar has moved to system settings
 
 # packages/apps/LockClock
 
@@ -1354,6 +1355,7 @@ kpick 229453 # Settings: use LineageHW serial number
 kpick 229479 # Settings: Improve phone number preference ordering
 
 # packages/apps/SetupWizard
+kpick 230334 # SetupWizard: Update for moved force show navbar setting
 
 # packages/apps/Stk
 
