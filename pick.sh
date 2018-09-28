@@ -810,8 +810,8 @@ kpick 222760 # Add LOCAL_AIDL_FLAGS
 #kpick 227213 # releasetools: Fix an issue in image size computation.
 #kpick 226920 # Support a first stage ramdisk via TARGET_RAMDISK_OUT
 #kpick 226939 # releasetools: Fix the path to the OTA keys in recovery image.
-kpick 229491 # build: Automatically replace old-style kernel header includes with new ...
-kpick 230222
+kpick 229491 # build: Automatically replace old-style kernel header includes with new header lib
+kpick 230222 # core_base: Remove libnfc_ndef from PRODUCT_PACKAGES
 
 # build/soong
 kpick 222648 # Allow providing flex and bison binaries
@@ -852,7 +852,7 @@ kpick 228586 # common: Fix labelling of lcd-backlight
 kpick 228587 # sepolicy: Allow perf HAL to set freq props
 
 # device/qcom/sepolicy-legacy
-kpick 228608 # sepolicy-legacy: Treat BT vendor properties like non-vendor ones.	
+kpick 228608 # sepolicy-legacy: Treat BT vendor properties like non-vendor ones.
 kpick 230229 # mm-qcamera-daemon: fix denial
 kpick 230230 # common: fix sensors denial
 kpick 230231 # common: grant cnss-daemon access to sysfs_net
@@ -978,7 +978,7 @@ kpick 225734 # Allow screen unpinning on devices without navbar
 kpick 225754 # SystemUI: Berry styles
 kpick 225859 # storage: Do not notify for volumes on non-removable disks
 kpick 226068 # Fix mounting of non-FAT formatted SD cards (1/2)
-kpick 226236 # SystemUI: add navbar button layout inversion tuning
+kpick 226236 # SystemUI: add navbar layout inversion tuning
 kpick 226249 # fw/b: Allow customisation of navbar app switch long press action
 kpick 226276 # power: Re-introduce custom charging sounds
 kpick 226343 # CameraServiceProxy: Loosen UID check
@@ -1010,7 +1010,7 @@ kpick 229308 # Add Dual Channel into Bluetooth Audio Channel Mode developer opti
 kpick 229309 # Allow SBC as HD audio codec in Bluetooth device configuration
 kpick 229463 # frameworks/base: Support for third party NFC features and extensions
 kpick 229606 # ConsumerIR: Support Huawei's DSP chip implementation
-kpick 229612 # Performance: Memory Optimizations
+kpick 229612 # Performance: Memory Optimizations.
 kpick 229874 # SystemUI: Add support for persistent usb drive notification.
 kpick 230016 # Implement expanded desktop feature
 kpick 230112 # ConnectivityManager: Change default private DNS mode
@@ -1038,7 +1038,7 @@ kpick 225551 # wifi: Not reset country code for Dual SIM if any slot is active
 
 # frameworks/opt/telephony
 kpick 229601 # Implement signal strength hacks used on Huawei devices
-kpick 229602 # telephony: Squashed support of dynamic signal strength thresholds	
+kpick 229602 # telephony: Squashed support of dynamic signal strength thresholds
 kpick 229603 # telephony: Query LTE thresholds from CarrierConfig
 kpick 229604 # Telephony: Use a common prop for Huawei RIL hacks (1/2)
 kpick 229605 # Telephony: Don not call onUssdRelease for Huawei RIL
@@ -1256,6 +1256,7 @@ kpick 226087 # lineage-sdk: Default config_deviceHardware{Wake}Keys to 64
 kpick 226141 # LineageSettingsProvider: Cleanup after LINEAGE_SETUP_WIZARD_COMPLETED deprecation
 kpick 227931 # lineagesdk: Refactor battery icon options
 kpick 230263 # sdk: Update default clock position
+kpick 230272 # sdk: Remove VOLUME_KEYS_CONTROL_RING_STREAM
 
 # packages/apps/AudioFX
 
@@ -1300,6 +1301,10 @@ kpick 225289 # DocumentsUI: support night mode
 # packages/apps/ExactCalculator
 
 # packages/apps/FlipFlap
+kpick 230277 # Resolve conflicting visibilty on nextAlarmPanel
+kpick 230278 # Do not hide calledID while a phonecall is active
+kpick 230279 # Merge ignoreCall and endCall buttons
+kpick 230280 # Cleanup unused imports
 
 # packages/apps/Gallery2
 
@@ -1307,7 +1312,7 @@ kpick 225289 # DocumentsUI: support night mode
 kpick 226141 # LineageSettingsProvider: Cleanup after LINEAGE_SETUP_WIZARD_COMPLETED deprecation
 kpick 226145 # LineageParts: Reenable buttons related settings
 kpick 226392 # LineageParts: Set proper default value for charging sounds
-kpick 226863 # LineageParts: Drop  setting
+kpick 226863 # LineageParts: Drop `Control ringtone volume` setting
 kpick 227930 # LineageParts: Bring back and refactor battery icon options
 kpick 221756 # StatusBarSettings: Hide battery preference category based on icon visibility
 kpick 229305 # ButtonSettings: Adapt for dropped needsNavigationBar method
@@ -1362,6 +1367,7 @@ kpick 223666 # Settings: Hide Notification Dots on low RAM devices
 
 # packages/apps/Updater
 kpick 229354 # Updater: Allow Cleartext HTTP communications
+kpick 230264 # Updater: Grant FOREGROUND_SERVICE permission
 
 # packages/apps/WallpaperPicker
 
@@ -1462,7 +1468,7 @@ kpick 225430 # update_engine: run backuptool script before normal postinstall sc
 kpick 225436 # vold: add support for more filesystems for public storage
 kpick 225437 # vold: Fix fsck on public volumes
 kpick 225438 # vold: Support internal storage partitions
-kpick 225439 # vold: Honor mount options for ext4 partitions
+kpick 225439 # vold: Honor mount options for ext4/f2fs partitions
 kpick 225441 # vold: Mount ext4/f2fs portable storage with sdcard_posix
 kpick 225443 # Treat removable UFS card as SD card
 kpick 225445 # vold ext4/f2fs: do not use dirsync if we're mounting adopted storage
@@ -1492,9 +1498,9 @@ kpick 225939 # roomservice.py: non-depsonly: bootstrap first device repo from Hu
 kpick 226123 # soong_config: Add new flags for HW FDE
 kpick 226125 # soong_config: Add flag for legacy HW FDE
 kpick 226126 # soong_config: Add flag for crypto waiting on QSEE to start
-kpick 229412 # vendor/lineage: Add soong generator module type	
+kpick 229412 # vendor/lineage: Add soong generator module type
 kpick 229415 # lineage: Dynamically generate kernel headers using lineage generator
-kpick 229505 # vendor/lineage: Remove legacy kernel headers generation
+kpick 229505 # vendor/lineage: Remove kernel.mk headers generation
 kpick 229506 # Revert "soong_config: Add TARGET_NEEDS_PLATFORM_TEXT_RELOCATIONS"
 kpick 229508 # lineage: Move some kernel definitions to BoardConfigKernel
 kpick 229590 # lineage: Move qcom pathmap setting into "BoardConfig"
@@ -1510,6 +1516,7 @@ kpick 226129 # cryptfs_hw: Featureize support for waiting on QSEE to start
 kpick 226130 # cryptfs_hw: add missing logging tag
 kpick 226403 # cryptfs_hw: Remove unused variable
 kpick 226404 # [TEMP]: Header hack to compile for 8974
+kpick 230271 # cryptfs_hw: Use generated kernel headers
 
 #-----------------------
 # translations

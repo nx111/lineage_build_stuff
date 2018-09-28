@@ -1,0 +1,179 @@
+From a1ec0d8865b8f43272cb2dde5067e5a8d15ba1e5 Mon Sep 17 00:00:00 2001
+From: Michael Bestas <mikeioannina@gmail.com>
+Date: Sat, 14 Feb 2015 02:53:32 +0200
+Subject: [PATCH 3/7] Camera2: Add option to set max screen brightness
+
+* Set maximum screen brightness while the user is inside the camera app
+
+Change-Id: I8b16ba47a933bc7d6b0c1cd62bfd6ca54875ce1e
+---
+ res/values/cm_strings.xml                     |  2 ++
+ res/xml/camera_preferences.xml                |  6 +++++
+ src/com/android/camera/CameraActivity.java    | 19 +++++++++++++++
+ .../android/camera/settings/AppUpgrader.java  | 23 ++++++++++++++++++-
+ src/com/android/camera/settings/Keys.java     |  9 ++++++++
+ 5 files changed, 58 insertions(+), 1 deletion(-)
+
+diff --git a/res/values/cm_strings.xml b/res/values/cm_strings.xml
+index 7440bcaf2..a42f411ee 100644
+--- a/res/values/cm_strings.xml
++++ b/res/values/cm_strings.xml
+@@ -17,4 +17,6 @@
+ <resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+     <!-- More Settings screen, power button title -->
+     <string name="pref_camera_power_shutter_title">Power shutter</string>
++    <!-- More Settings screen, max brightness title -->
++    <string name="pref_camera_max_brightness_title">Bright screen</string>
+ </resources>
+diff --git a/res/xml/camera_preferences.xml b/res/xml/camera_preferences.xml
+index 3ac01ad20..3ba076b98 100644
+--- a/res/xml/camera_preferences.xml
++++ b/res/xml/camera_preferences.xml
+@@ -69,10 +69,16 @@
+         android:defaultValue="false"
+         android:key="pref_camera_exposure_compensation_key"
+         android:title="@string/pref_camera_exposure_compensation" />
++    <!-- Power button shutter -->
+     <com.android.camera.settings.ManagedSwitchPreference
+         android:key="pref_power_shutter"
+         android:defaultValue="false"
+         android:title="@string/pref_camera_power_shutter_title" />
++    <!-- Max screen brightness -->
++    <com.android.camera.settings.ManagedSwitchPreference
++        android:key="pref_max_brightness"
++        android:defaultValue="false"
++        android:title="@string/pref_camera_max_brightness_title" />
+   </PreferenceScreen>
+ 
+   <!-- Google Help and feedback launcher -->
+diff --git a/src/com/android/camera/CameraActivity.java b/src/com/android/camera/CameraActivity.java
+index 179ba15f6..521a6930f 100644
+--- a/src/com/android/camera/CameraActivity.java
++++ b/src/com/android/camera/CameraActivity.java
+@@ -296,6 +296,8 @@ public class CameraActivity extends QuickActivity
+ 
+     // Keep track of powershutter state
+     public boolean mPowerShutter;
++    // Keep track of max brightness state
++    public boolean mMaxBrightness;
+ 
+     @Override
+     public CameraAppUI getCameraAppUI() {
+@@ -573,6 +575,8 @@ public class CameraActivity extends QuickActivity
+     public void onSettingChanged(SettingsManager settingsManager, String key) {
+         if (key.equals(Keys.KEY_POWER_SHUTTER)) {
+             initPowerShutter();
++        } else if (key.equals(Keys.KEY_MAX_BRIGHTNESS)) {
++            initMaxBrightness();
+         }
+     }
+ 
+@@ -1510,6 +1514,7 @@ public class CameraActivity extends QuickActivity
+         mSettingsManager.addListener(this);
+ 
+         initPowerShutter();
++        initMaxBrightness();
+ 
+         AppUpgrader appUpgrader = new AppUpgrader(this);
+         appUpgrader.upgrade(mSettingsManager);
+@@ -2238,6 +2243,20 @@ public class CameraActivity extends QuickActivity
+         }
+     }
+ 
++    protected void initMaxBrightness() {
++        Window win = getWindow();
++        WindowManager.LayoutParams params = win.getAttributes();
++
++        mMaxBrightness = Keys.isMaxBrightnessOn(mSettingsManager);
++        if (mMaxBrightness) {
++            params.screenBrightness = WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_FULL;
++        } else {
++            params.screenBrightness = WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE;
++        }
++
++        win.setAttributes(params);
++    }
++
+     @Override
+     public boolean onKeyDown(int keyCode, KeyEvent event) {
+         if (!mFilmstripVisible) {
+diff --git a/src/com/android/camera/settings/AppUpgrader.java b/src/com/android/camera/settings/AppUpgrader.java
+index 113f4d23b..277960728 100644
+--- a/src/com/android/camera/settings/AppUpgrader.java
++++ b/src/com/android/camera/settings/AppUpgrader.java
+@@ -91,10 +91,15 @@ public class AppUpgrader extends SettingsUpgrader {
+      */
+     private static final int CAMERA_SETTINGS_POWER_SHUTTER = 8;
+ 
++    /**
++     * With this version, port over max brightness settings.
++     */
++    private static final int CAMERA_SETTINGS_MAX_BRIGHTNESS = 9;
++
+     /**
+      * Increment this value whenever new AOSP UpgradeSteps need to be executed.
+      */
+-    public static final int APP_UPGRADE_VERSION = 8;
++    public static final int APP_UPGRADE_VERSION = 9;
+ 
+     private final AppController mAppController;
+ 
+@@ -170,6 +175,10 @@ public class AppUpgrader extends SettingsUpgrader {
+         if (lastVersion < CAMERA_SETTINGS_POWER_SHUTTER) {
+             upgradePowerShutter(settingsManager);
+         }
++
++        if (lastVersion < CAMERA_SETTINGS_MAX_BRIGHTNESS) {
++            upgradeMaxBrightness(settingsManager);
++        }
+     }
+ 
+     /**
+@@ -453,6 +462,18 @@ public class AppUpgrader extends SettingsUpgrader {
+         }
+     }
+ 
++    private void upgradeMaxBrightness(SettingsManager settingsManager) {
++        SharedPreferences oldGlobalPreferences =
++                settingsManager.openPreferences(OLD_GLOBAL_PREFERENCES_FILENAME);
++        if (oldGlobalPreferences.contains(Keys.KEY_MAX_BRIGHTNESS)) {
++            String maxBrightness = removeString(oldGlobalPreferences, Keys.KEY_MAX_BRIGHTNESS);
++            if (OLD_SETTINGS_VALUE_ON.equals(maxBrightness)) {
++                settingsManager.set(SettingsManager.SCOPE_GLOBAL, Keys.KEY_MAX_BRIGHTNESS,
++                        true);
++            }
++        }
++    }
++
+     /**
+      * The R.integer.camera_mode_* indices were cleaned up, resulting in
+      * removals and renaming of certain values. In particular camera_mode_gcam
+diff --git a/src/com/android/camera/settings/Keys.java b/src/com/android/camera/settings/Keys.java
+index 31200b30d..f59591f84 100644
+--- a/src/com/android/camera/settings/Keys.java
++++ b/src/com/android/camera/settings/Keys.java
+@@ -82,6 +82,7 @@ public class Keys {
+             "pref_should_show_settings_button_cling";
+     public static final String KEY_HAS_SEEN_PERMISSIONS_DIALOGS = "pref_has_seen_permissions_dialogs";
+     public static final String KEY_POWER_SHUTTER = "pref_power_shutter";
++    public static final String KEY_MAX_BRIGHTNESS = "pref_max_brightness";
+ 
+     /**
+      * Set some number of defaults for the defined keys.
+@@ -232,5 +233,13 @@ public class Keys {
+         return settingsManager.getBoolean(SettingsManager.SCOPE_GLOBAL,
+                 KEY_POWER_SHUTTER);
+     }
++
++    /**
++     * Returns whether max brightness is set on.
++     */
++    public static boolean isMaxBrightnessOn(SettingsManager settingsManager) {
++        return settingsManager.getBoolean(SettingsManager.SCOPE_GLOBAL,
++                KEY_MAX_BRIGHTNESS);
++    }
+ }
+ 
+-- 
+2.17.1
+
