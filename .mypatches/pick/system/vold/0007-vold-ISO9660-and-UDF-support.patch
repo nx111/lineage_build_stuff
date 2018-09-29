@@ -1,0 +1,294 @@
+From 39639ca3b7936713999fc61c3f0e0fcb17be144c Mon Sep 17 00:00:00 2001
+From: Luo Chunbo <luochunbo@jidemail.com>
+Date: Wed, 25 May 2016 16:16:48 +0800
+Subject: [PATCH 7/7] vold: ISO9660 and UDF support
+
+Ref: T7691
+
+Includes:
+
+Author: Chih-Wei Huang <cwhuang@linux.org.tw>
+Date:   Sun Mar 26 00:45:41 2017 +0800
+
+    vold3: auto mount CDROM
+
+    Jide's ISO9660 support (commit 76b535f) is not complete. Still
+    need to handle block devices with major number of CDROM.
+
+    Change-Id: I4825527eec33b8919f4bb8b175b15a322b7be8f6
+
+Author: Chih-Wei Huang <cwhuang@linux.org.tw>
+Date:   Sun Mar 26 00:46:42 2017 +0800
+
+    vold3: support UDF (Universal Disk Format)
+
+    Refer to https://en.wikipedia.org/wiki/Universal_Disk_Format.
+
+    Change-Id: I71808a97895d4091a9ac409223b821da46a41092
+
+Change-Id: Ifc602781e7d87aea9f3181263e09ffe143e9a231
+Signed-off-by: Luo Chunbo <luochunbo@jidemail.com>
+---
+ Android.bp             |  1 +
+ VolumeManager.cpp      |  2 ++
+ fs/Iso9660.cpp         | 44 ++++++++++++++++++++++++++++++++++++++++++
+ fs/Iso9660.h           | 37 +++++++++++++++++++++++++++++++++++
+ main.cpp               |  1 +
+ model/Disk.cpp         | 18 ++++++++++++++++-
+ model/Disk.h           |  3 +++
+ model/PublicVolume.cpp | 12 +++++++++++-
+ 8 files changed, 116 insertions(+), 2 deletions(-)
+ create mode 100644 fs/Iso9660.cpp
+ create mode 100644 fs/Iso9660.h
+
+diff --git a/Android.bp b/Android.bp
+index 5bc254a..fa6534c 100644
+--- a/Android.bp
++++ b/Android.bp
+@@ -119,6 +119,7 @@ cc_library_static {
+         "fs/Exfat.cpp",
+         "fs/Ext4.cpp",
+         "fs/F2fs.cpp",
++        "fs/Iso9660.cpp",
+         "fs/Ntfs.cpp",
+         "fs/Vfat.cpp",
+         "model/Disk.cpp",
+diff --git a/VolumeManager.cpp b/VolumeManager.cpp
+index f391910..f340f54 100644
+--- a/VolumeManager.cpp
++++ b/VolumeManager.cpp
+@@ -199,6 +199,8 @@ void VolumeManager::handleBlockEvent(NetlinkEvent *evt) {
+                     || (eventPath.find("ufs") != std::string::npos)
+                     || android::vold::Disk::isVirtioBlkDevice(major)) {
+                     flags |= android::vold::Disk::Flags::kSd;
++                } else if (major == android::vold::Disk::kMajorBlockCdrom) {
++                    flags |= android::vold::Disk::Flags::kCdrom;
+                 } else {
+                     flags |= android::vold::Disk::Flags::kUsb;
+                 }
+diff --git a/fs/Iso9660.cpp b/fs/Iso9660.cpp
+new file mode 100644
+index 0000000..f064226
+--- /dev/null
++++ b/fs/Iso9660.cpp
+@@ -0,0 +1,44 @@
++/*
++ * Copyright (C) 2008 The Android Open Source Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#include <sys/mount.h>
++
++#include <android-base/stringprintf.h>
++
++#include "Iso9660.h"
++#include "Utils.h"
++
++using android::base::StringPrintf;
++
++namespace android {
++namespace vold {
++namespace iso9660 {
++
++bool IsSupported() {
++    return IsFilesystemSupported("iso9660");
++}
++
++status_t Mount(const std::string& source, const std::string& target, int ownerUid, int ownerGid,
++               const char* type) {
++    int mountFlags = MS_NODEV | MS_NOSUID | MS_DIRSYNC | MS_NOEXEC | MS_RDONLY;
++    auto mountData = android::base::StringPrintf("uid=%d,gid=%d", ownerUid, ownerGid);
++
++    return mount(source.c_str(), target.c_str(), type, mountFlags, mountData.c_str());
++}
++
++}  // namespace iso9660
++}  // namespace vold
++}  // namespace android
+diff --git a/fs/Iso9660.h b/fs/Iso9660.h
+new file mode 100644
+index 0000000..1a76546
+--- /dev/null
++++ b/fs/Iso9660.h
+@@ -0,0 +1,37 @@
++/*
++ * Copyright (C) 2008 The Android Open Source Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#ifndef ANDROID_VOLD_ISO9660_H
++#define ANDROID_VOLD_ISO9660_H
++
++#include <utils/Errors.h>
++
++#include <string>
++
++namespace android {
++namespace vold {
++namespace iso9660 {
++
++bool IsSupported();
++
++status_t Mount(const std::string& source, const std::string& target, int ownerUid, int ownerGid,
++               const char* type);
++
++}  // namespace iso9660
++}  // namespace vold
++}  // namespace android
++
++#endif
+diff --git a/main.cpp b/main.cpp
+index 7418aaf..4cdd304 100644
+--- a/main.cpp
++++ b/main.cpp
+@@ -64,6 +64,7 @@ int main(int argc, char** argv) {
+             << (android::vold::IsFilesystemSupported("exfat") ? " exfat" : "")
+             << (android::vold::IsFilesystemSupported("ext4") ? " ext4" : "")
+             << (android::vold::IsFilesystemSupported("f2fs") ? " f2fs" : "")
++            << (android::vold::IsFilesystemSupported("iso9660") ? " iso9660" : "")
+             << (android::vold::IsFilesystemSupported("ntfs") ? " ntfs" : "")
+             << (android::vold::IsFilesystemSupported("vfat") ? " vfat" : "");
+ 
+diff --git a/model/Disk.cpp b/model/Disk.cpp
+index e37db8e..aa128c9 100644
+--- a/model/Disk.cpp
++++ b/model/Disk.cpp
+@@ -234,6 +234,9 @@ status_t Disk::readMetadata() {
+         mLabel = "Virtual";
+         break;
+     }
++    case kMajorBlockCdrom:
++        LOG(DEBUG) << "Found a CDROM: " << mSysPath;
++        // fall through
+     case kMajorBlockScsiA: case kMajorBlockScsiB: case kMajorBlockScsiC: case kMajorBlockScsiD:
+     case kMajorBlockScsiE: case kMajorBlockScsiF: case kMajorBlockScsiG: case kMajorBlockScsiH:
+     case kMajorBlockScsiI: case kMajorBlockScsiJ: case kMajorBlockScsiK: case kMajorBlockScsiL:
+@@ -313,10 +316,19 @@ status_t Disk::readPartitions() {
+     cmd.push_back(mDevPath);
+ 
+     std::vector<std::string> output;
+-    status_t res = ForkExecvp(cmd, output);
++    status_t res = maxMinors ? ForkExecvp(cmd, output) : ENODEV;
+     if (res != OK) {
+         LOG(WARNING) << "sgdisk failed to scan " << mDevPath;
+ 
++        std::string fsType, unused;
++        if (ReadMetadataUntrusted(mDevPath, &fsType, &unused, &unused) == OK) {
++            if (fsType == "iso9660" || fsType == "udf") {
++                LOG(INFO) << "Detected " << fsType;
++                createPublicVolume(mDevice);
++                res = OK;
++            }
++        }
++
+         auto listener = VolumeManager::Instance()->getListener();
+         if (listener) listener->onDiskScanned(getId());
+ 
+@@ -361,6 +373,7 @@ status_t Disk::readPartitions() {
+                 }
+ 
+                 switch (type) {
++                    case 0x00:  // ISO9660
+                     case 0x06:  // FAT16
+                     case 0x07:  // HPFS/NTFS/exFAT
+                     case 0x0b:  // W95 FAT32 (LBA)
+@@ -592,6 +605,9 @@ int Disk::getMaxMinors() {
+         // Per Documentation/devices.txt this is static
+         return 15;
+     }
++    case kMajorBlockCdrom: {
++        return 0;
++    }
+     case kMajorBlockMmc: {
+         // Per Documentation/devices.txt this is dynamic
+         std::string tmp;
+diff --git a/model/Disk.h b/model/Disk.h
+index bd888cd..93154a7 100644
+--- a/model/Disk.h
++++ b/model/Disk.h
+@@ -43,6 +43,7 @@ public:
+     enum {
+         kMajorBlockLoop = 7,
+         kMajorBlockScsiA = 8,
++        kMajorBlockCdrom = 11,
+         kMajorBlockScsiB = 65,
+         kMajorBlockScsiC = 66,
+         kMajorBlockScsiD = 67,
+@@ -77,6 +78,8 @@ public:
+         kEmmc = 1 << 4,
+         /* Flag that disk is non-removable */
+         kNonRemovable = 1 << 5,
++        /* Flag that disk is CDROM */
++        kCdrom = 1 << 6,
+     };
+ 
+     const std::string& getId() { return mId; }
+diff --git a/model/PublicVolume.cpp b/model/PublicVolume.cpp
+index 11fa2c6..7182a42 100644
+--- a/model/PublicVolume.cpp
++++ b/model/PublicVolume.cpp
+@@ -20,6 +20,7 @@
+ #include "fs/Exfat.h"
+ #include "fs/Ext4.h"
+ #include "fs/F2fs.h"
++#include "fs/Iso9660.h"
+ #include "fs/Ntfs.h"
+ #include "fs/Vfat.h"
+ 
+@@ -60,6 +61,12 @@ PublicVolume::~PublicVolume() {
+ status_t PublicVolume::readMetadata() {
+     status_t res = ReadMetadataUntrusted(mDevPath, &mFsType, &mFsUuid, &mFsLabel);
+ 
++    // iso9660 has no UUID, we use label as UUID
++    if ((mFsType == "iso9660" || mFsType == "udf") && mFsUuid.empty() && !mFsLabel.empty()) {
++        std::replace(mFsLabel.begin(), mFsLabel.end(), ' ', '_');
++        mFsUuid = mFsLabel;
++    }
++
+     auto listener = getListener();
+     if (listener) listener->onVolumeMetadataChanged(getId(), mFsType, mFsUuid, mFsLabel);
+ 
+@@ -141,7 +148,7 @@ status_t PublicVolume::doMount() {
+         ret = ntfs::Check(mDevPath);
+     } else if (mFsType == "vfat") {
+         ret = vfat::Check(mDevPath);
+-    } else {
++    } else if (mFsType != "iso9660" && mFsType != "udf") {
+         LOG(WARNING) << getId() << " unsupported filesystem check, skipping";
+     }
+     if (ret) {
+@@ -156,6 +163,9 @@ status_t PublicVolume::doMount() {
+                 false, true);
+     } else if (mFsType == "f2fs") {
+         ret = f2fs::Mount(mDevPath, mRawPath, mMntOpts, false, true);
++    } else if (mFsType == "iso9660" || mFsType == "udf") {
++        ret = iso9660::Mount(mDevPath, mRawPath,
++                AID_MEDIA_RW, AID_MEDIA_RW, mFsType.c_str());
+     } else if (mFsType == "ntfs") {
+         ret = ntfs::Mount(mDevPath, mRawPath, AID_MEDIA_RW, AID_MEDIA_RW, 0007);
+     } else if (mFsType == "vfat") {
+-- 
+2.17.1
+

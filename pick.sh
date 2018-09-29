@@ -952,6 +952,7 @@ kpick 225539 # Camera:CameraService: Added lock on mHIDLMemPoolId in QDataCallba
 kpick 225540 # Camera: CameraHardwareInterface: Releasing mHIDLMemoryMapLock in QdataCallback
 kpick 227433 # Explicitly initialise base class in copy constructor
 kpick 228236 # SoundTriggerHalLegacy.cpp: include errno.h
+kpick 230387 # CameraService: Support calling addStates in enumerateProviders
 
 # frameworks/base
 kpick 224266 # SystemUI: Add Lineage statusbar item holder
@@ -1018,6 +1019,7 @@ kpick 230259 # SystemUI: Add tunables for clock position
 kpick 230260 # SystemUI: Add tunables for clock AM/PM style
 kpick 230261 # Tuner: Move clock seconds option to status bar settings
 kpick 230262 # SystemUI: Fix clock icon blacklist handling
+kpick 230388 # base: show bluetooth battery status when available
 
 # frameworks/native
 kpick 224443 # libbinder: Don't log call trace when waiting for vendor service on non-eng builds
@@ -1319,6 +1321,7 @@ kpick 229305 # ButtonSettings: Adapt for dropped needsNavigationBar method
 kpick 229389 # Trust: enforce vendor security patch level check
 kpick 230017 # LineageParts: Re-enable expanded desktop.
 kpick 230286 # LineageParts: force show navbar has moved to system settings
+kpick 230363 # LineageParts: Remove dividers from expanded desktop/long screen apps list
 
 # packages/apps/LockClock
 
@@ -1406,6 +1409,7 @@ kpick 229125 # Increase maximum Bluetooth SBC codec bitpool and bitrate values
 kpick 229313 # Explicit SBC Dual Channel (SBC HD) support
 kpick 229314 # Allow using alternative (higher) SBC HD bitrates with a property
 kpick 229401 # [DNM] Revert "Return early if vendor-specific command fails"
+kpick 230382 # Fix for Bluetooth device name is resetting to default name after reboot
 
 # system/core
 privpick system/core refs/changes/19/206119/2 # init: I hate safety net
