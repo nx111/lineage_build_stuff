@@ -884,6 +884,7 @@ kpick 225473 # msm8974-common: libril: Add SIM_ABSENT error
 kpick 225759 # msm8974-common: libril: Replace strncpy with strlcpy.
 kpick 225760 # msm8974-common: libril: FR51015: Tuning of Binder buffer for rild.
 kpick 224916 # DO NOT MERGE: msm8974-common: sepolicy: Just make it build
+kpick 227614 # Disable IOemHook implemenation in rild.
 
 # device/samsung/qcom-common
 
@@ -1019,6 +1020,7 @@ kpick 230259 # SystemUI: Add tunables for clock position
 kpick 230260 # SystemUI: Add tunables for clock AM/PM style
 kpick 230261 # Tuner: Move clock seconds option to status bar settings
 kpick 230262 # SystemUI: Fix clock icon blacklist handling
+kpick 230361 # fw/b UserManagerService: Use ro.build.date to signal upgrades
 kpick 230388 # base: show bluetooth battery status when available
 
 # frameworks/native
@@ -1081,6 +1083,7 @@ kpick 223194 # nxp: Begin restoring pn547
 # hardware/qcom/audio-caf/msm8974
 kpick 223436 # Add -Wno-error to compile with global -Werror.
 kpick 227340 # audio: Use normal tinycompress
+kpick 230458 # Revert "audio: Use normal tinycompress"
 
 # hardware/qcom/bt-caf
 kpick 226647 # libbt-qcom: Allow building without proprietary bits
@@ -1297,6 +1300,7 @@ kpick 226131 # DeskClock: Add support of power off alarm feature
 
 # packages/apps/DocumentsUI
 kpick 225289 # DocumentsUI: support night mode
+kpick 230449 # DocumentsUI: Don't check for mStarted state on user/userdebug builds
 
 # packages/apps/Email
 
