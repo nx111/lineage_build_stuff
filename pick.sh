@@ -40,7 +40,7 @@ function patch_local()
     va_patches_dir=$1
     search_dir=".mypatches"
 
-    if [ -d "$topdir/.mypatches/$va_patches_dir" ]; then
+    if [ ! -z $va_patches_dir -a -d "$topdir/.mypatches/$va_patches_dir" ]; then
         search_dir=".mypatches/$va_patches_dir"
     elif [ -d "$topdir/.mypatches/pick/$va_patches_dir" -o -d "$topdir/.mypatches/local/$va_patches_dir" ]; then
         search_dir=".mypatches/local/$va_patches_dir .mypatches/pick/$va_patches_dir"
@@ -97,7 +97,34 @@ function patch_local()
              fi
          fi
     done
+
     cd $topdir
+    if [ "$va_patches_dir" = "local" -a -d $topdir/.mypatches/overwrite ]; then
+        search_dir=.mypatches/overwrite
+        find $search_dir -type f | sed -e "s/\.mypatches\/overwrite\///"  | while read f; do
+             [ -f $line ] && cp $search_dir/$f $f
+        done
+    fi
+
+}
+
+function reset_overwrite_projects()
+{
+    cd $topdir
+    [ -f .mypatches/overwrite/projects.list ] && rm -f .mypatches/overwrite/projects.list
+    [ -d ".mypatches/overwrite" ] || return
+    find ".mypatches/overwrite" -type f | sed -e "s/\.mypatches\/overwrite\///"  | while read f; do
+        while [ $f != $(dirname $f) -a ! -d $(dirname $f)/.git ]; do
+              f=$(dirname $f)
+        done
+        f=$(dirname $f)
+        if [ -d $topdir/$f ]; then
+            if ! grep -q $f .mypatches/overwrite/projects.list 2>/dev/null ; then
+                git -C $topdir/$f stash >/dev/null
+                echo $f >> .mypatches/overwrite/projects.list
+            fi
+        fi
+    done
 }
 
 function projects_reset()
@@ -752,6 +779,7 @@ if [ $0 != "bash" -a ! -f $0.tmp -a $op_pick_continue -eq 0 ]; then    # continu
 rm -f $topdir/.repo/local_manifests/su.xml
 repo sync vendor/lineage >/dev/null
 apply_force_changes
+reset_overwrite_projects
 
 # android
 
