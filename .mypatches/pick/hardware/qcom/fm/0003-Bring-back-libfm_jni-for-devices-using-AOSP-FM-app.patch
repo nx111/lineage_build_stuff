@@ -1,0 +1,5344 @@
+From e46d2908a9cd03301a04a258e394565eb900cb2a Mon Sep 17 00:00:00 2001
+From: Michael Bestas <mkbestas@lineageos.org>
+Date: Thu, 30 Aug 2018 23:47:36 +0300
+Subject: [PATCH 03/51] Bring back libfm_jni for devices using AOSP FM app
+
+This partially reverts commit d93df73b176f675ce4a88a089981ef1ab491dfd5.
+This reverts commit 854d7540782348cd2e2acb8135fb2b81638322ff.
+
+Change-Id: I328a8d64d1c58fca70bb2678bd5a1bda1b060fe8
+---
+ Android.mk                        |    3 +
+ libfm_jni/Android.mk              |   30 +
+ libfm_jni/ConfFileParser.cpp      |  926 ++++++++++++++++++
+ libfm_jni/ConfFileParser.h        |   82 ++
+ libfm_jni/ConfigFmThs.cpp         |  607 ++++++++++++
+ libfm_jni/ConfigFmThs.h           |  183 ++++
+ libfm_jni/FM_Const.h              |  368 ++++++++
+ libfm_jni/FmIoctlsInterface.cpp   |  384 ++++++++
+ libfm_jni/FmIoctlsInterface.h     |   57 ++
+ libfm_jni/FmPerformanceParams.cpp |  545 +++++++++++
+ libfm_jni/FmPerformanceParams.h   |   78 ++
+ libfm_jni/FmRadioController.cpp   | 1444 +++++++++++++++++++++++++++++
+ libfm_jni/FmRadioController.h     |  125 +++
+ libfm_jni/LibfmJni.cpp            |  383 ++++++++
+ 14 files changed, 5215 insertions(+)
+ create mode 100644 libfm_jni/Android.mk
+ create mode 100644 libfm_jni/ConfFileParser.cpp
+ create mode 100644 libfm_jni/ConfFileParser.h
+ create mode 100644 libfm_jni/ConfigFmThs.cpp
+ create mode 100644 libfm_jni/ConfigFmThs.h
+ create mode 100644 libfm_jni/FM_Const.h
+ create mode 100644 libfm_jni/FmIoctlsInterface.cpp
+ create mode 100644 libfm_jni/FmIoctlsInterface.h
+ create mode 100644 libfm_jni/FmPerformanceParams.cpp
+ create mode 100644 libfm_jni/FmPerformanceParams.h
+ create mode 100644 libfm_jni/FmRadioController.cpp
+ create mode 100644 libfm_jni/FmRadioController.h
+ create mode 100644 libfm_jni/LibfmJni.cpp
+
+diff --git a/Android.mk b/Android.mk
+index e8b5175..2c77dc0 100644
+--- a/Android.mk
++++ b/Android.mk
+@@ -28,4 +28,7 @@ include $(LOCAL_PATH)/fm_hci/Android.mk
+ LOCAL_PATH := $(LOCAL_DIR_PATH)
+ include $(LOCAL_PATH)/helium/Android.mk
+ 
++LOCAL_PATH := $(LOCAL_DIR_PATH)
++include $(LOCAL_PATH)/libfm_jni/Android.mk
++
+ endif # BOARD_HAVE_QCOM_FM
+diff --git a/libfm_jni/Android.mk b/libfm_jni/Android.mk
+new file mode 100644
+index 0000000..901bdda
+--- /dev/null
++++ b/libfm_jni/Android.mk
+@@ -0,0 +1,30 @@
++ifneq (,$(filter $(QCOM_BOARD_PLATFORMS),$(TARGET_BOARD_PLATFORM)))
++LOCAL_PATH := $(call my-dir)
++
++include $(CLEAR_VARS)
++
++LOCAL_SRC_FILES := \
++    FmIoctlsInterface.cpp \
++    ConfigFmThs.cpp \
++    FmPerformanceParams.cpp \
++    ConfFileParser.cpp \
++    FmRadioController.cpp \
++    LibfmJni.cpp
++
++LOCAL_C_INCLUDES := $(JNI_H_INCLUDE) \
++    frameworks/base/include/media
++
++LOCAL_SHARED_LIBRARIES := \
++    libcutils \
++    libdl \
++    liblog \
++    libmedia \
++    libnativehelper \
++
++#LOCAL_C_INCLUDES += $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr/include
++#LOCAL_ADDITIONAL_DEPENDENCIES := $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr
++
++LOCAL_MODULE := libfmjni
++include $(BUILD_SHARED_LIBRARY)
++
++endif
+diff --git a/libfm_jni/ConfFileParser.cpp b/libfm_jni/ConfFileParser.cpp
+new file mode 100644
+index 0000000..1817ad7
+--- /dev/null
++++ b/libfm_jni/ConfFileParser.cpp
+@@ -0,0 +1,926 @@
++/*
++Copyright (c) 2015, The Linux Foundation. All rights reserved.
++
++Redistribution and use in source and binary forms, with or without
++modification, are permitted provided that the following conditions are
++met:
++    * Redistributions of source code must retain the above copyright
++      notice, this list of conditions and the following disclaimer.
++    * Redistributions in binary form must reproduce the above
++      copyright notice, this list of conditions and the following
++      disclaimer in the documentation and/or other materials provided
++      with the distribution.
++    * Neither the name of The Linux Foundation nor the names of its
++      contributors may be used to endorse or promote products derived
++      from this software without specific prior written permission.
++
++THIS SOFTWARE IS PROVIDED "AS IS" AND ANY EXPRESS OR IMPLIED
++WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
++MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT
++ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS
++BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
++CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
++SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR
++BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
++WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
++OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
++IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
++*/
++
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++#include <ctype.h>
++#include <limits.h>
++#include <math.h>
++#include <utils/Log.h>
++#include "ConfFileParser.h"
++
++//declaration of functions only specific to this file
++static char parse_line
++(
++  group_table *key_file,
++  const char *line,
++  char **cur_grp
++);
++
++static char parse_load_frm_fhandler
++(
++  group_table *key_file,
++  FILE *fp
++);
++
++static char line_is_grp
++(
++  group_table *key_file,
++  const char *str,
++  char **cur_grp
++);
++
++static void free_grp_list
++(
++  group *a
++);
++
++static void free_key_list
++(
++  key_value_pair_list *a
++);
++
++static char line_is_key_value_pair
++(
++  group_table *key_file,
++  const char *str,
++  const char *cur_grp
++);
++
++static char line_is_comment
++(
++  const char *str
++);
++
++static char grp_exist
++(
++  const group_table *key_file,
++  const char *new_grp
++);
++
++static char add_grp
++(
++  group_table *key_file,
++  const char *new_grp
++);
++
++static group *alloc_group
++(
++  void
++);
++
++static key_value_pair_list *alloc_key_value_pair
++(
++  void
++);
++
++static char add_key_value_pair
++(
++  group_table *key_file,
++  const char *cur_grp,
++  const char *key,
++  const char *val
++);
++
++
++//Definitions
++void free_strs
++(
++  char **str_array
++)
++{
++  char **str_array_cpy = str_array;
++  if(str_array != NULL) {
++     while(*str_array != NULL) {
++           free(*str_array);
++           str_array++;
++     }
++  }
++  free(str_array_cpy);
++}
++//ToDo: Come up with code hashing
++//function
++unsigned int get_hash_code
++(
++  const char *str
++)
++{
++
++  unsigned len = strlen(str);
++  unsigned int i;
++  unsigned int hash_code = 0;
++
++  for(i = 0; len > 0; len--, i++) {
++      hash_code += (int)((str[i] * pow(2, len))) % INT_MAX;
++      hash_code %= INT_MAX;
++  }
++  return hash_code;
++}
++
++static key_value_pair_list *alloc_key_value_pair
++(
++  void
++)
++{
++  key_value_pair_list *key_list = NULL;
++
++  key_list = (key_value_pair_list *)malloc(
++                                       sizeof(key_value_pair_list));
++  if(key_list != NULL) {
++     key_list->key = NULL;
++     key_list->next = NULL;
++     key_list->value = NULL;
++  }
++  return key_list;
++}
++
++static group * alloc_group
++(
++  void
++)
++{
++  group *grp = NULL;
++  unsigned int i;
++
++  grp = (group *)malloc(sizeof(group));
++  if(grp != NULL) {
++     grp->grp_name = NULL;
++     grp->grp_next = NULL;
++     grp->num_of_keys = 0;
++     grp->keys_hash_size = MAX_UNIQ_KEYS;
++     grp->list = (key_value_pair_list **)malloc
++                    (sizeof(key_value_pair_list *) * grp->keys_hash_size);
++     if(grp->list == NULL) {
++        ALOGE("Could not alloc group\n");
++        free(grp);
++        grp = NULL;
++     }else {
++        for(i = 0; i < grp->keys_hash_size; i++) {
++            grp->list[i] = NULL;
++        }
++     }
++  }
++  return grp;
++}
++
++group_table *get_key_file
++(
++)
++{
++  group_table *t = NULL;
++  unsigned int i;
++
++  t = (group_table *)malloc(sizeof(group_table));
++  if (t != NULL) {
++      t->grps_hash_size = MAX_UNIQ_GRPS;
++      t->num_of_grps = 0;
++      t->grps_hash = (group **)malloc(sizeof(group *)
++                                       * t->grps_hash_size);
++      if (t->grps_hash == NULL) {
++          free(t);
++          return NULL;
++      }
++      for(i = 0; i < t->grps_hash_size; i++) {
++          t->grps_hash[i] = NULL;
++      }
++  }
++  return t;
++}
++
++void free_key_file(
++  group_table *key_file
++)
++{
++  unsigned int i;
++
++  if(key_file != NULL) {
++     if(key_file->grps_hash != NULL) {
++        for(i = 0; i < key_file->grps_hash_size; i++) {
++            free_grp_list(key_file->grps_hash[i]);
++        }
++     }
++     free(key_file->grps_hash);
++     free(key_file);
++  }
++}
++
++static void free_grp_list
++(
++  group *a
++)
++{
++  group *next;
++  unsigned int i;
++
++  while(a != NULL) {
++       next = a->grp_next;
++       if(a->list != NULL) {
++          for(i = 0; i < a->keys_hash_size; i++) {
++              free_key_list(a->list[i]);
++          }
++       }
++       free(a->grp_name);
++       free(a->list);
++       free(a);
++       a = next;
++  }
++}
++
++static void free_key_list
++(
++  key_value_pair_list *a
++)
++{
++  key_value_pair_list *next;
++
++  while(a != NULL) {
++       next = a->next;
++       free(a->key);
++       free(a->value);
++       free(a);
++       a = next;
++  }
++}
++//return all the groups
++//present in the file
++char **get_grps
++(
++  const group_table *key_file
++)
++{
++  char **grps = NULL;
++  unsigned int i = 0;
++  unsigned int j = 0;
++  unsigned int grp_len;
++  group *grp_list;
++
++  if((key_file == NULL)
++     || (key_file->grps_hash == NULL)
++     || (key_file->grps_hash_size == 0)
++     || (key_file->num_of_grps == 0)) {
++     return grps;
++  }
++  grps = (char **)calloc((key_file->num_of_grps + 1),
++                           sizeof(char *));
++  if(grps == NULL) {
++     return grps;
++  }
++  for(i = 0; i < key_file->grps_hash_size; i++) {
++      grp_list = key_file->grps_hash[i];
++      while(grp_list != NULL) {
++            grp_len = strlen(grp_list->grp_name);
++            grps[j] = (char *)malloc(sizeof(char) *
++                                     (grp_len + 1));
++            if(grps[j] == NULL) {
++               free_strs(grps);
++               grps = NULL;
++               return grps;
++            }
++            memcpy(grps[j], grp_list->grp_name,
++                   (grp_len + 1));
++            grp_list = grp_list->grp_next;
++            j++;
++      }
++  }
++  grps[j] = NULL;
++  return grps;
++}
++
++//returns the list of keys
++//associated with group name
++char **get_keys
++(
++  const group_table *key_file,
++  const char *grp_name
++)
++{
++  unsigned int grp_hash_code;
++  unsigned int grp_index;
++  unsigned int num_of_keys;
++  unsigned int i;
++  unsigned int j = 0;
++  unsigned int key_len;
++  group *grp;
++  key_value_pair_list *key_val_list;
++  char **keys = NULL;
++
++  if((key_file == NULL) || (grp_name == NULL)
++     || (key_file->num_of_grps == 0) ||
++     (key_file->grps_hash_size == 0) ||
++     (key_file->grps_hash == NULL) ||
++     (!strcmp(grp_name, ""))) {
++      return keys;
++  }
++  grp_hash_code = get_hash_code(grp_name);
++  grp_index = (grp_hash_code % key_file->grps_hash_size);
++  grp = key_file->grps_hash[grp_index];
++  while(grp != NULL) {
++        if(!strcmp(grp_name, grp->grp_name)) {
++            if((grp->num_of_keys == 0)
++               || (grp->keys_hash_size == 0)
++               || (grp->list == 0)) {
++               return keys;
++            }
++            keys = (char **)calloc((grp->num_of_keys + 1),
++                                   sizeof(char *));
++            if(keys == NULL) {
++                return keys;
++            }
++            for(i = 0; i < grp->keys_hash_size; i++) {
++                key_val_list = grp->list[i];
++                while(key_val_list != NULL) {
++                     key_len = strlen(key_val_list->key);
++                     keys[j] = (char *)malloc(sizeof(char) *
++                                              (key_len + 1));
++                     if(keys[j] == NULL) {
++                         free_strs(keys);
++                         keys = NULL;
++                         return keys;
++                     }
++                     memcpy(keys[j], key_val_list->key,
++                            (key_len + 1));
++                     j++;
++                     key_val_list = key_val_list->next;
++                }
++            }
++            keys[j] = NULL;
++            return keys;
++        }
++        grp = grp->grp_next;
++  }
++  return keys;
++}
++
++char *get_value
++(
++   const group_table *key_file,
++   const char *grp_name,
++   const char *key
++)
++{
++   unsigned int grp_hash_code;
++   unsigned int key_hash_code;
++   unsigned int grp_index;
++   unsigned int key_index;
++   unsigned val_len;
++   char *val = NULL;
++   group *grp;
++   key_value_pair_list *list;
++
++   if((key_file == NULL) || (grp_name == NULL)
++      || (key == NULL) || (key_file->grps_hash == NULL)
++      || (key_file->grps_hash_size == 0) || !strcmp(grp_name, "")
++      ||(!strcmp(key, ""))) {
++       return NULL;
++   }
++   grp_hash_code = get_hash_code(grp_name);
++   key_hash_code = get_hash_code(key);
++   grp_index = (grp_hash_code % key_file->grps_hash_size);
++   grp = key_file->grps_hash[grp_index];
++   while(grp != NULL) {
++         if(!strcmp(grp_name, grp->grp_name) && grp->keys_hash_size
++            && grp->list) {
++            key_index = (key_hash_code % grp->keys_hash_size);
++            list = grp->list[key_index];
++            while((list != NULL) && (strcmp(list->key, key))) {
++                   list = list->next;
++            }
++            if(list != NULL) {
++                val_len = strlen(list->value);
++                val = (char *)malloc(sizeof(char) * (val_len + 1));
++                if(val != NULL) {
++                   memcpy(val, list->value, val_len);
++                   val[val_len] = '\0';
++                }
++            }
++            return val;
++         }
++         grp = grp->grp_next;
++   }
++   return val;
++}
++//open the file,
++//read, parse and load
++//returns PARSE_SUCCESS if successfully
++//loaded else PARSE_FAILED
++char parse_load_file
++(
++  group_table *key_file,
++  const char *file
++)
++{
++  FILE *fp;
++  char ret = FALSE;
++
++  if((file == NULL) || !strcmp(file, "")) {
++     ALOGE("File name is null or empty \n");
++     return ret;
++  }
++
++  fp = fopen(file, "r");
++  if(fp == NULL) {
++     ALOGE("could not open file for read\n");
++     return ret;
++  }
++
++  ret = parse_load_frm_fhandler(key_file, fp);
++  fclose(fp);
++
++  return ret;
++}
++
++//Read block of data from file handler
++//extract each line, check kind of line(comment,
++//group, key value pair)
++static char parse_load_frm_fhandler
++(
++  group_table *key_file,
++  FILE *fp
++)
++{
++  char buf[MAX_LINE_LEN];
++  char ret = TRUE;
++  char *line = NULL;
++  void *new_line;
++  char *cur_grp = NULL;
++  unsigned line_len = 0;
++  unsigned line_allocated = 0;
++  unsigned int bytes_read = 0;
++  unsigned int i;
++  bool has_carriage_rtn = false;
++
++  while((bytes_read = fread(buf, 1, MAX_LINE_LEN, fp))) {
++        for(i = 0; i < bytes_read; i++) {
++            if(line_len == line_allocated) {
++                line_allocated += 25;
++                new_line = realloc(line, line_allocated);
++                if(new_line == NULL) {
++                   ret = FALSE;
++                   ALOGE("memory allocation failed for line\n");
++                   break;
++                }
++                line = (char *)new_line;
++            }
++            if((buf[i] == '\n')) {
++                has_carriage_rtn = false;
++                line[line_len] = '\0';
++                ret = parse_line(key_file, line, &cur_grp);
++                line_len = 0;
++                if(ret == FALSE) {
++                   ALOGE("could not parse the line, line not proper\n");
++                   break;
++                }
++            }else if(buf[i] == '\r') {
++                ALOGE("File has carriage return\n");
++                has_carriage_rtn = true;
++            }else if(has_carriage_rtn) {
++                ALOGE("File format is not proper, no line character\
++                        after carraige return\n");
++                ret = FALSE;
++                break;
++            }else {
++                line[line_len] = buf[i];
++                line_len++;
++            }
++        }
++        if (!ret) {
++            break;
++        }
++  }
++  free(line);
++  free(cur_grp);
++
++  return ret;
++}
++
++//checks whether a line is
++//comment or grp or key pair value
++//and accordingly adds to list
++static char parse_line
++(
++  group_table *key_file,
++  const char *line,
++  char **cur_grp
++)
++{
++  const char *line_begin;
++  char *grp_name;
++  unsigned int len;
++
++  if((line == NULL) || (key_file == NULL)) {
++      ALOGE("key file or line is null\n");
++      return FALSE;
++  }
++
++  for(line_begin = line; isspace(*line_begin);
++          line_begin++);
++
++  if(line_is_comment(line_begin)) {
++      ALOGE("line is comment\n");
++      return TRUE;
++  }else if(line_is_grp(key_file, line_begin, cur_grp)) {
++      ALOGE("line is grp\n");
++      return TRUE;
++  }else if(line_is_key_value_pair(key_file, line_begin, *cur_grp)) {
++      ALOGE("line is key value pair\n");
++      return TRUE;
++  }else {
++     ALOGE("line is neither comment, grp nor key value pair\n");
++     return FALSE;
++  }
++}
++
++static char line_is_comment
++(
++  const char *str
++)
++{
++  if(str == NULL) {
++      return FALSE;
++  }else if(((*str) == '#') || ((*str) == '\0')
++       || ((*str) == '\n')) {
++      return TRUE;
++  }else {
++      ALOGE("line is not comment\n");
++      return FALSE;
++  }
++}
++
++//return true if a group
++//name already exist
++//else false
++static char grp_exist
++(
++  const group_table *key_file,
++  const char *new_grp
++)
++{
++  unsigned hash_code;
++  unsigned int index;
++  group *grp;
++
++  if((key_file == NULL) || (new_grp == NULL)
++     || (!key_file->grps_hash_size)) {
++     return FALSE;
++  }else {
++    hash_code = get_hash_code(new_grp);
++    index = hash_code % key_file->grps_hash_size;
++    grp = key_file->grps_hash[index];
++    while(grp != NULL) {
++          if (!strcmp(grp->grp_name, new_grp))
++              return TRUE;
++          grp = grp->grp_next;
++    }
++    return FALSE;
++  }
++}
++
++//Add a group to group
++//table if it does not exist
++static char add_grp
++(
++  group_table *key_file,
++  const char *new_grp
++)
++{
++  unsigned int hash_code;
++  unsigned int index;
++  unsigned int grp_name_len;
++  group *grp;
++
++  if(!grp_exist(key_file, new_grp)) {
++      if((key_file == NULL) || (new_grp == NULL)
++         || !key_file->grps_hash_size) {
++         return FALSE;
++      }
++      hash_code = get_hash_code(new_grp);
++      ALOGE("group hash code is: %u\n", hash_code);
++      index = hash_code % key_file->grps_hash_size;
++      ALOGE("group index is: %u\n", index);
++      grp = alloc_group();
++      if(grp == NULL) {
++         return FALSE;
++      }
++      grp_name_len = strlen(new_grp);
++      grp->grp_name = (char *)malloc(
++                                  sizeof(char) * (grp_name_len + 1));
++      if(grp->grp_name == NULL) {
++         ALOGE("could not alloc memory for group name\n");
++         ALOGE("Add group failed\n");
++         free_grp_list(grp);
++         return FALSE;
++      }else {
++         memcpy(grp->grp_name, new_grp, (grp_name_len + 1));
++      }
++      grp->grp_next = key_file->grps_hash[index];
++      key_file->grps_hash[index] = grp;
++      key_file->num_of_grps++;
++      return TRUE;
++  }else {
++     return FALSE;
++  }
++}
++
++//checks validity of a group
++//a valid group is
++//inside [] group name must be
++//alphanumeric
++//Example: [grpName]
++static char line_is_grp
++(
++  group_table *key_file,
++  const char *str,
++  char **cur_grp
++)
++{
++  const char *g_start;
++  const char *g_end;
++  char *new_grp;
++  unsigned int grp_len;
++
++  if ((str == NULL) || (key_file == NULL)) {
++      ALOGE("str is null or key file is null\n");
++      return FALSE;
++  }
++  //checks start mark char ']'
++  if(((*str) != '[')) {
++      ALOGE("start mark is not '['\n");
++      return FALSE;
++  }else {
++      str++;
++      g_start = str;
++  }
++  //checks the end char '['
++  while((*str != '\0') && ((*str) != ']')) {
++        str++;
++  }
++  //if end mark group not found
++  if ((*str) != ']') {
++       ALOGE("grp end mark is not '['\n");
++       return FALSE;
++  }else {
++       g_end = (str - 1);
++  }
++
++  str++;
++  //if end mark found checks the rest chars as well
++  //rest chars should be space
++  while(((*str) == ' ') || ((*str) == '\t')) {
++        str++;
++  }
++  if(*str) {
++     ALOGE("after ']' there are some character\n");
++     return FALSE;
++  }
++
++  str = g_start;
++  while((*g_start != '\0') && (g_start != g_end)
++         && isalnum(*g_start)) {
++        g_start++;
++  }
++  if((g_start == g_end) && isalnum(*g_start)) {
++      //look up if already exist
++      //return false else insert the grp in grp table
++      grp_len = (g_end - str + 1);
++      new_grp = (char *)malloc(sizeof(char) * (grp_len + 1));
++      if (new_grp == NULL) {
++          ALOGE("could not alloc memory for new group\n");
++          return FALSE;
++      }
++      memcpy(new_grp, str, grp_len);
++      new_grp[grp_len] = '\0';
++
++      if(add_grp(key_file, new_grp)) {
++          free(*cur_grp);
++         *cur_grp = new_grp;
++         return TRUE;
++      }else {
++         ALOGE("could not add group to group table\n");
++         return FALSE;
++      }
++  }else {
++      return FALSE;
++  }
++}
++
++static char key_exist
++(
++  const group_table *key_file,
++  const char *cur_grp,
++  const char *key
++)
++{
++  unsigned int grp_hash_code;
++  unsigned int key_hash_code;
++  unsigned int grp_index;
++  unsigned int key_index;
++  group *grp = NULL;
++  key_value_pair_list *list = NULL;
++
++  if((key_file != NULL) && (cur_grp != NULL)
++      && (key != NULL) && ((key_file->grps_hash != NULL))
++      && (strcmp(key, ""))) {
++     grp_hash_code = get_hash_code(cur_grp);
++     grp_index = (grp_hash_code % key_file->grps_hash_size);
++     grp = key_file->grps_hash[grp_index];
++     key_hash_code = get_hash_code(key);
++     while((grp != NULL)) {
++           if(!strcmp(cur_grp, grp->grp_name)) {
++              key_index = (key_hash_code % grp->keys_hash_size);
++              if(grp->list)
++                 list = grp->list[key_index];
++              while((list != NULL) && strcmp(key, list->key)) {
++                    list = list->next;
++              }
++              if(list != NULL){
++                  return TRUE;
++              }else{
++                  return FALSE;
++              }
++           }
++           grp = grp->grp_next;
++     }
++     if(!grp) {
++        return TRUE;
++     }else {
++        return FALSE;
++     }
++  }else {
++     return FALSE;
++  }
++}
++
++//checks validity of key
++//a valid key must start in
++//a seperate line and key must
++//be alphanumeric and before '='
++//there must not be any space
++//Example: key=value
++static char line_is_key_value_pair
++(
++  group_table *key_file,
++  const char *str,
++  const char *cur_grp
++)
++{
++  char *equal_start;
++  char *key = NULL;
++  char *val = NULL;
++  unsigned key_len;
++  unsigned val_len;
++
++  if((str == NULL) || (cur_grp == NULL) ||
++     !strcmp(cur_grp, "") || (key_file == NULL)) {
++     ALOGE("line is null or cur group or key file is null or empty\n");
++     return FALSE;
++  }
++  equal_start = strchr(str, '=');
++  key_len = (equal_start - str);
++  if((equal_start == NULL) || (equal_start == str)) {
++     ALOGE("line does not have '=' character or no key\n");
++     return FALSE;
++  }
++  while((str != equal_start) && isalnum(*str))
++        str++;
++  if((str == equal_start)) {
++      key = (char *)malloc(sizeof(char) * (key_len + 1));
++      if(key == NULL) {
++         ALOGE("could not alloc memory for new key\n");
++         return FALSE;
++      }
++      equal_start++;
++      val_len = strlen(equal_start);
++      val = (char *)malloc(sizeof(char) * (val_len + 1));
++      if(val == NULL) {
++         ALOGE("could not alloc memory for value\n");
++         if(key){
++             free(key);
++             key = NULL;
++         }
++         return FALSE;
++      }
++      memcpy(key, (str - key_len), key_len);
++      memcpy(val, equal_start, val_len);
++      key[key_len] = '\0';
++      val[val_len] = '\0';
++      ALOGE("Grp: %s, key: %s, value: %s\n", cur_grp, key, val);
++      return add_key_value_pair(key_file,
++                                 cur_grp, key, val);
++  }else {
++     ALOGE("key name doesnot have alpha numeric char\n");
++     return FALSE;
++  }
++}
++
++static char add_key_value_pair
++(
++  group_table *key_file,
++  const char *cur_grp,
++  const char *key,
++  const char *val
++)
++{
++  unsigned int grp_hash_code;
++  unsigned int key_hash_code;
++  unsigned int grp_index;
++  unsigned int key_index;
++  unsigned key_len, val_len;
++  group *grp = NULL;
++  key_value_pair_list *list = NULL;
++
++  if((key_file != NULL) && (cur_grp != NULL)
++      && (key != NULL) && ((key_file->grps_hash != NULL))
++      && (strcmp(key, ""))) {
++     grp_hash_code = get_hash_code(cur_grp);
++     ALOGE("grp hash code is %u\n", grp_hash_code);
++     grp_index = (grp_hash_code % key_file->grps_hash_size);
++     ALOGE("grp index is %u\n", grp_index);
++     grp = key_file->grps_hash[grp_index];
++     key_hash_code = get_hash_code(key);
++     while((grp != NULL)) {
++           if(!strcmp(cur_grp, grp->grp_name)) {
++              key_index = (key_hash_code % grp->keys_hash_size);
++              if(grp->list) {
++                 list = grp->list[key_index];
++              }else {
++                 ALOGE("group list is null\n");
++                 goto err;
++              }
++              while((list != NULL) && strcmp(key, list->key)) {
++                    list = list->next;
++              }
++              if(list != NULL) {
++                  ALOGE("group already contains the key\n");
++                  goto err;
++              }else{
++                  list = alloc_key_value_pair();
++                  if(list == NULL) {
++                     ALOGE("add key value failed as could not alloc memory for key\
++                            val pair\n");
++                     goto err;
++                  }
++                  key_len = strlen(key);
++                  list->key = (char *)malloc(sizeof(char) *
++                                              (key_len + 1));
++                  if(list->key == NULL) {
++                     ALOGE("could not alloc memory for key\n");
++                     free(list);
++                     goto err;
++                  }
++                  val_len = strlen(val);
++                  list->value = (char *)malloc(sizeof(char) *
++                                                (val_len + 1));
++                  if(!list->value) {
++                      free(list->key);
++                      free(list);
++                      goto err;
++                  }
++                  memcpy(list->key, key, key_len);
++                  memcpy(list->value, val, val_len);
++                  if (key) free((char*)key);
++                  if (val) free((char*)val);
++                  list->key[key_len] = '\0';
++                  list->value[val_len] = '\0';
++                  list->next = grp->list[key_index];
++                  grp->list[key_index] = list;
++                  grp->num_of_keys++;
++                  return TRUE;
++              }
++           }
++           grp = grp->grp_next;
++     }
++     ALOGE("group does not exist\n");
++     goto err;
++  }
++err:
++     if (key) free((char*)key);
++     if (val) free((char*)val);
++     return FALSE;
++}
+diff --git a/libfm_jni/ConfFileParser.h b/libfm_jni/ConfFileParser.h
+new file mode 100644
+index 0000000..88f67e0
+--- /dev/null
++++ b/libfm_jni/ConfFileParser.h
+@@ -0,0 +1,82 @@
++/*
++Copyright (c) 2015, The Linux Foundation. All rights reserved.
++
++Redistribution and use in source and binary forms, with or without
++modification, are permitted provided that the following conditions are
++met:
++    * Redistributions of source code must retain the above copyright
++      notice, this list of conditions and the following disclaimer.
++    * Redistributions in binary form must reproduce the above
++      copyright notice, this list of conditions and the following
++      disclaimer in the documentation and/or other materials provided
++      with the distribution.
++    * Neither the name of The Linux Foundation nor the names of its
++      contributors may be used to endorse or promote products derived
++      from this software without specific prior written permission.
++
++THIS SOFTWARE IS PROVIDED "AS IS" AND ANY EXPRESS OR IMPLIED
++WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
++MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT
++ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS
++BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
++CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
++SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR
++BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
++WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
++OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
++IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
++*/
++
++#ifndef __CONF_FILE_PARSER_H__
++#define __CONF_FILE_PARSER_H__
++
++#define MAX_LINE_LEN 512
++#define MAX_UNIQ_KEYS 5
++#define MAX_UNIQ_GRPS 10
++#define TRUE 1
++#define FALSE 0
++
++struct key_value_pair_list
++{
++   char *key;
++   char *value;
++   key_value_pair_list *next;
++};
++
++struct group
++{
++    char *grp_name;
++    unsigned int num_of_keys;
++    unsigned int keys_hash_size;
++    key_value_pair_list **list;
++    group *grp_next;
++};
++
++struct group_table
++{
++    unsigned int grps_hash_size;
++    unsigned int num_of_grps;
++    group **grps_hash;
++};
++
++enum CONF_PARSE_ERRO_CODE
++{
++  PARSE_SUCCESS,
++  INVALID_FILE_NAME,
++  FILE_OPEN_FAILED,
++  FILE_NOT_PROPER,
++  MEMORY_ALLOC_FAILED,
++  PARSE_FAILED,
++};
++
++unsigned int get_hash_code(const char *str);
++group_table *get_key_file();
++void free_strs(char **str_array);
++void free_key_file(group_table *key_file);
++char parse_load_file(group_table *key_file, const char *file);
++char **get_grps(const group_table *key_file);
++char **get_keys(const group_table *key_file, const char *grp);
++char *get_value(const group_table *key_file, const char *grp,
++                 const char *key);
++
++#endif //__CONF_FILE_PARSER_H__
+diff --git a/libfm_jni/ConfigFmThs.cpp b/libfm_jni/ConfigFmThs.cpp
+new file mode 100644
+index 0000000..dd6b283
+--- /dev/null
++++ b/libfm_jni/ConfigFmThs.cpp
+@@ -0,0 +1,607 @@
++/*
++Copyright (c) 2015, The Linux Foundation. All rights reserved.
++
++Redistribution and use in source and binary forms, with or without
++modification, are permitted provided that the following conditions are
++met:
++    * Redistributions of source code must retain the above copyright
++      notice, this list of conditions and the following disclaimer.
++    * Redistributions in binary form must reproduce the above
++      copyright notice, this list of conditions and the following
++      disclaimer in the documentation and/or other materials provided
++      with the distribution.
++    * Neither the name of The Linux Foundation nor the names of its
++      contributors may be used to endorse or promote products derived
++      from this software without specific prior written permission.
++
++THIS SOFTWARE IS PROVIDED "AS IS" AND ANY EXPRESS OR IMPLIED
++WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
++MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT
++ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS
++BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
++CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
++SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR
++BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
++WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
++OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
++IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
++*/
++
++#include <cstdlib>
++#include <cstring>
++#include <utils/Log.h>
++#include "ConfigFmThs.h"
++#include "FmPerformanceParams.h"
++#include "FmRadioController.h"
++
++static int compare_name
++(
++   const void *name1, const void *name2
++)
++{
++    char *first = (char *)name1;
++    struct NAME_MAP *second = (struct NAME_MAP *)name2;
++
++    return(strcmp(first, second->name));
++}
++
++ConfigFmThs :: ConfigFmThs
++(
++)
++{
++    keyfile = NULL;
++}
++
++ConfigFmThs :: ~ConfigFmThs
++(
++)
++{
++   free_key_file(keyfile);
++}
++
++void ConfigFmThs :: set_band_cfgs
++(
++   UINT fd
++)
++{
++    signed char ret = FM_SUCCESS;
++    char **keys;
++    char **keys_cpy;
++    char *key_value;
++    int value;
++    FmPerformanceParams perf_params;
++    struct NAME_MAP *found;
++
++    if(keyfile != NULL) {
++       keys_cpy = keys = get_keys(keyfile, GRPS_MAP[1].name);
++       if(keys != NULL) {
++          while(*keys != NULL) {
++              ALOGE("key found is: %s\n", *keys);
++              found = (NAME_MAP *)bsearch(*keys, BAND_CFG_MAP,
++                          MAX_BAND_PARAMS, sizeof(NAME_MAP), compare_name);
++              if(found != NULL) {
++                 key_value = get_value(keyfile,
++                                     GRPS_MAP[1].name, found->name);
++                 if((key_value != NULL) && strcmp(key_value, "")) {
++                    value = atoi(key_value);
++                    switch(found->num) {
++                    case RADIO_BAND:
++                         ALOGE("RADIO_BAND\n");
++                         if((value >= BAND_87500_108000)
++                             && (value <= BAND_76000_90000)) {
++                             ALOGE("%s:Set band as: %d\n",__func__, value);
++                             ret = perf_params.SetBand(fd, value);
++                             if(ret == FM_FAILURE)
++                                ALOGE("Error in setting band\n");
++                         }
++                         break;
++                    case EMPHASIS:
++                         ALOGE("EMPHASIS\n");
++                         if((value >= DE_EMP75)
++                             && (value <= DE_EMP50)) {
++                             ALOGE("%s:Set Emphasis as: %d\n",__func__, value);
++                             ret = perf_params.SetEmphsis(fd, value);
++                             if(ret == FM_FAILURE)
++                                ALOGE("Error in setting Emphasis\n");
++                         }
++                         break;
++                    case CHANNEL_SPACING:
++                         ALOGE("CHANNEL_SPACING\n");
++                         if((value >= CHAN_SPACE_200)
++                             && (value <= CHAN_SPACE_50)) {
++                             ALOGE("%s:Set CH space as: %d\n",__func__, value);
++                             ret = perf_params.SetChannelSpacing(fd, value);
++                             if(ret == FM_FAILURE)
++                                ALOGE("Error in setting channel spacing\n");
++                         }
++                         break;
++                   }
++                 }else {
++                   ALOGE("key_val for key: %s is empty\n",
++                             *keys);
++                 }
++                 free(key_value);
++              }
++              keys++;
++          }
++       }else {
++          ALOGE("No of keys found is zero\n");
++       }
++       free_strs(keys_cpy);
++    }else {
++       ALOGE("key file is null\n");
++    }
++}
++
++void ConfigFmThs :: set_af_ths
++(
++   UINT fd
++)
++{
++    signed char ret = FM_SUCCESS;
++    char **keys;
++    char **keys_cpy;
++    char *key_value;
++    int value;
++    FmPerformanceParams perf_params;
++    struct NAME_MAP *found;
++
++    if(keyfile != NULL) {
++       keys_cpy = keys = get_keys(keyfile, GRPS_MAP[0].name);
++       if(keys != NULL) {
++          while(*keys != NULL) {
++              ALOGE("key found is: %s\n", *keys);
++              found = (NAME_MAP *)bsearch(*keys, AF_PARAMS_MAP,
++                          MAX_AF_PARAMS, sizeof(NAME_MAP), compare_name);
++              if(found != NULL) {
++                 key_value = get_value(keyfile,
++                                     GRPS_MAP[0].name, found->name);
++                 if((key_value != NULL) && strcmp(key_value, "")) {
++                    value = atoi(key_value);
++                    switch(found->num) {
++                    case AF_RMSSI_TH:
++                         if((value >= AF_RMSSI_TH_MIN)
++                             && (value <= AF_RMSSI_TH_MAX)) {
++                             ALOGE("Set af rmssi th: %d\n", value);
++                             ret = perf_params.SetAfRmssiTh(fd, value);
++                             if(ret == FM_FAILURE) {
++                                ALOGE("Error in setting Af Rmssi th\n");
++                                break;
++                             }
++                             unsigned short th;
++                             ret = perf_params.GetAfRmssiTh(fd, th);
++                             if(ret == FM_SUCCESS) {
++                                ALOGE("Read af rmssith: %hd\n", th);
++                             }else {
++                                ALOGE("Error in reading Af Rmssi th\n");
++                             }
++                         }
++                         break;
++                    case AF_RMSSI_SAMPLES:
++                         if((value >= AF_RMSSI_SAMPLES_MIN)
++                             && (value <= AF_RMSSI_SAMPLES_MAX)) {
++                             ALOGE("Set af rmssi samples cnt: %d\n", value);
++                             ret = perf_params.SetAfRmssiSamplesCnt(fd, value);
++                             if(ret == FM_FAILURE) {
++                                ALOGE("Error in setting af rmssi samples\n");
++                                break;
++                             }
++                             unsigned char cnt;
++                             ret = perf_params.GetAfRmssiSamplesCnt(fd, cnt);
++                             if(ret == FM_SUCCESS) {
++                                ALOGE("Read af rmssi samples cnt: %hhd\n", cnt);
++                             }else {
++                                 ALOGE("Error in reading rmssi samples\n");
++                             }
++                         }
++                         break;
++                    case GOOD_CH_RMSSI_TH:
++                         if((value >= GOOD_CH_RMSSI_TH_MIN)
++                             && (value <= GOOD_CH_RMSSI_TH_MAX)) {
++                             ALOGE("Set Good channle rmssi th: %d\n", value);
++                             ret = perf_params.SetGoodChannelRmssiTh(fd, value);
++                             if(ret == FM_FAILURE) {
++                                ALOGE("Error in setting Good channle rmssi th\n");
++                                break;
++                             }
++                             signed char th;
++                             ret = perf_params.GetGoodChannelRmssiTh(fd, th);
++                             if(ret == FM_SUCCESS) {
++                                ALOGE("Read good channel rmssi th: %d\n", th);
++                             }else {
++                                ALOGE("Error in reading Good channle rmssi th\n");
++                             }
++                         }
++                         break;
++                   }
++                 }else {
++                   ALOGE("key_val for key: %s is empty\n",
++                             *keys);
++                 }
++                 free(key_value);
++              }
++              keys++;
++          }
++       }else {
++          ALOGE("No of keys found is zero\n");
++       }
++       free_strs(keys_cpy);
++    }else {
++       ALOGE("key file is null\n");
++    }
++}
++
++void ConfigFmThs :: set_srch_ths
++(
++    UINT fd
++)
++{
++    signed char ret = FM_SUCCESS;
++    char **keys = NULL;
++    char **keys_cpy = NULL;
++    char *key_value = NULL;
++    int value;
++    FmPerformanceParams perf_params;
++    struct NAME_MAP *found = NULL;
++
++    if(keyfile != NULL) {
++       keys_cpy = keys = get_keys(keyfile, GRPS_MAP[3].name);
++       if(keys != NULL) {
++          while(*keys != NULL) {
++              found = (NAME_MAP *)bsearch(*keys, SEACH_PARAMS_MAP,
++                           MAX_SRCH_PARAMS, sizeof(NAME_MAP), compare_name);
++              if(found != NULL) {
++                 key_value = get_value(keyfile, GRPS_MAP[2].name, found->name);
++                 ALOGE("found srch ths: %s: %s\n", found->name, key_value);
++                 if((key_value != NULL) && strcmp(key_value, "")) {
++                    value = atoi(key_value);
++                    switch(found->num) {
++                    case SINR_FIRST_STAGE:
++                         if((value >= SINR_FIRST_STAGE_MIN)
++                             && (value <= SINR_FIRST_STAGE_MAX)) {
++                             ALOGE("Set sinr first stage: %d\n", value);
++                             ret = perf_params.SetSinrFirstStage(fd, value);
++                             if(ret == FM_FAILURE) {
++                                ALOGE("Error in setting sinr first stage\n");
++                                break;
++                             }
++                             signed char th;
++                             ret = perf_params.GetSinrFirstStage(fd, th);
++                             if(ret == FM_SUCCESS) {
++                                ALOGE("Read sinr first stage: %d\n", th);
++                             }else {
++                                ALOGE("Error in reading sinr first stage\n");
++                             }
++                         }
++                         break;
++                    case RMSSI_FIRST_STAGE:
++                         if((value >= RMSSI_FIRST_STAGE_MIN)
++                             && (value <= RMSSI_FIRST_STAGE_MAX)) {
++                             ALOGE("Set rmssi first stage: %d\n", value);
++                             ret = perf_params.SetRmssiFirstStage(fd, value);
++                             if(ret == FM_FAILURE) {
++                                ALOGE("Error in setting rmssi first stage\n");
++                                break;
++                             }
++                             signed char th;
++                             ret = perf_params.GetRmssiFirstStage(fd, th);
++                             if(ret == FM_SUCCESS) {
++                                ALOGE("Read rmssi first stage: %d\n", th);
++                             }else {
++                                ALOGE("Error in reading rmssi first stage\n");
++                             }
++                         }
++                         break;
++                    case INTF_LOW_TH:
++                         if((value >= INTF_LOW_TH_MIN)
++                             && (value <= INTF_LOW_TH_MAX)) {
++                            ALOGE("Set intf low th: %d\n", value);
++                            ret = perf_params.SetIntfLowTh(fd, value);
++                            if(ret == FM_FAILURE) {
++                                ALOGE("Error in setting intf low th\n");
++                                break;
++                            }
++                            unsigned char th;
++                            ret = perf_params.GetIntfLowTh(fd, th);
++                            if(ret == FM_SUCCESS) {
++                               ALOGE("Read intf low th: %u\n", th);
++                            }else {
++                               ALOGE("Error in reading intf low th\n");
++                            }
++                         }
++                         break;
++                    case INTF_HIGH_TH:
++                         if((value >= INTF_HIGH_TH_MIN)
++                             && (value <= INTF_HIGH_TH_MAX)) {
++                            ALOGE("Set intf high th: %d\n", value);
++                            ret = perf_params.SetIntfHighTh(fd, value);
++                            if(ret == FM_FAILURE) {
++                                ALOGE("Error in setting intf high th\n");
++                                break;
++                            }
++                            unsigned char th;
++                            ret = perf_params.GetIntfHighTh(fd, th);
++                            if(ret == FM_SUCCESS) {
++                               ALOGE("Read intf high th: %u\n", th);
++                            }else {
++                               ALOGE("Error in reading intf high th\n");
++                            }
++                         }
++                         break;
++                    case CF0_TH:
++                         ALOGE("Set cf0 th: %d\n", value);
++                         ret = perf_params.SetCf0Th12(fd, value);
++                         if(ret == FM_FAILURE) {
++                            ALOGE("Error in setting cf0 th\n");
++                            break;
++                         }
++                         int th;
++                         ret = perf_params.GetCf0Th12(fd, th);
++                         if(ret == FM_SUCCESS) {
++                            ALOGE("Read CF012 th: %d\n", th);
++                         }else {
++                            ALOGE("Error in reading cf0 th\n");
++                         }
++                         break;
++                    case SRCH_ALGO_TYPE:
++                         if((value >= SRCH_ALGO_TYPE_MIN)
++                             && (value <= SRCH_ALGO_TYPE_MAX)) {
++                             ALOGE("Set search algo type: %d\n", value);
++                             ret = perf_params.SetSrchAlgoType(fd, value);
++                             if(ret == FM_FAILURE) {
++                                ALOGE("Error in setting search algo type\n");
++                                break;
++                             }
++                             unsigned char algo;
++                             ret = perf_params.GetSrchAlgoType(fd, algo);
++                             if(ret == FM_SUCCESS) {
++                                ALOGE("Read algo type: %u\n", algo);
++                             }else {
++                                ALOGE("Error in reading search algo type\n");
++                             }
++                         }
++                         break;
++                    case SINR_SAMPLES:
++                         if((value >= SINR_SAMPLES_CNT_MIN)
++                             && (value <= SINR_SAMPLES_CNT_MAX)) {
++                             ALOGE("Set sinr samples count: %d\n", value);
++                             ret = perf_params.SetSinrSamplesCnt(fd, value);
++                             if(ret == FM_FAILURE) {
++                                ALOGE("Error in setting sinr samples count\n");
++                                break;
++                             }
++                             unsigned char cnt;
++                             ret = perf_params.GetSinrSamplesCnt(fd, cnt);
++                             if(ret == FM_SUCCESS) {
++                                ALOGE("Read sinr samples cnt: %u\n", cnt);
++                             }else {
++                                ALOGE("Error in reading sinr samples count\n");
++                             }
++                         }
++                         break;
++                    case SINR:
++                         if((value >= SINR_FINAL_STAGE_MIN)
++                             && (value <= SINR_FINAL_STAGE_MAX)) {
++                             ALOGE("Set final stage sinr: %d\n", value);
++                             ret = perf_params.SetSinrFinalStage(fd, value);
++                             if(ret == FM_FAILURE) {
++                                ALOGE("Error in setting final stage sinr\n");
++                                break;
++                             }
++                             signed char th;
++                             ret = perf_params.GetSinrFinalStage(fd, th);
++                             if(ret == FM_SUCCESS) {
++                                ALOGE("Read final stage sinr: %d\n", th);
++                             }else {
++                                ALOGE("Error in reading final stage sinr\n");
++                             }
++                         }
++                         break;
++                    }
++                 }else {
++                    ALOGE("key_value for key: %s is empty\n",
++                                  *keys);
++                 }
++                 free(key_value);
++              }
++              keys++;
++          }
++       }else {
++          ALOGE("No of keys found is zero\n");
++       }
++       free_strs(keys_cpy);
++    }else {
++       ALOGE("key file is null\n");
++    }
++}
++
++void ConfigFmThs :: set_hybrd_list
++(
++    UINT fd
++)
++{
++    signed char ret = FM_SUCCESS;
++    char **keys = NULL;
++    char **keys_cpy = NULL;
++    char *key_value = NULL;
++    char *freqs = NULL;
++    unsigned int *freqs_array = NULL;
++    signed char *sinrs_array = NULL;
++    char *sinrs = NULL;
++    int value;
++    unsigned int freq_cnt = 0;
++    unsigned int sinr_cnt = 0;
++    FmPerformanceParams perf_params;
++    struct NAME_MAP *found;
++
++    ALOGE("Inside hybrid srch list\n");
++    if(keyfile != NULL) {
++       keys_cpy = keys = get_keys(keyfile, GRPS_MAP[2].name);
++       if(keys != NULL) {
++          while(*keys != NULL) {
++              found = (NAME_MAP *)bsearch(*keys, HYBRD_SRCH_MAP,
++                           MAX_HYBRID_SRCH_PARAMS, sizeof(NAME_MAP), compare_name);
++              if(found != NULL) {
++                 key_value = get_value(keyfile, GRPS_MAP[1].name, found->name);
++                 if((key_value != NULL) && strcmp(key_value, "")) {
++                     switch(found->num) {
++                     case FREQ_LIST:
++                          freqs = key_value;
++                          break;
++                     case SINR_LIST:
++                          sinrs = key_value;
++                          break;
++                     default:
++                          free(key_value);
++                          break;
++                     }
++                 }
++              }
++              keys++;
++          }
++          free_strs(keys_cpy);
++       }else {
++          ALOGE("No of keys found is zero\n");
++       }
++    }else {
++       ALOGE("key file is null\n");
++    }
++
++    freq_cnt = extract_comma_sep_freqs(freqs, &freqs_array, ",");
++    sinr_cnt = extract_comma_sep_sinrs(sinrs, &sinrs_array, ",");
++
++    if((freq_cnt == sinr_cnt) && (sinr_cnt > 0)) {
++       perf_params.SetHybridSrchList(fd, freqs_array, sinrs_array, freq_cnt);
++    }
++
++    free(freqs);
++    free(sinrs);
++    free(freqs_array);
++    free(sinrs_array);
++}
++
++unsigned int ConfigFmThs :: extract_comma_sep_freqs
++(
++    char *freqs,
++    unsigned int **freqs_arr,
++    const char *str
++)
++{
++    char *next_freq;
++    char *saveptr;
++    unsigned int freq;
++    unsigned int *freqs_new_arr;
++    unsigned int size = 0;
++    unsigned int len = 0;
++
++    next_freq = strtok_r(freqs, str, &saveptr);
++    while(next_freq != NULL) {
++          freq = atoi(next_freq);
++          ALOGD("HYBRID_SRCH freq: %u\n", freq);
++          if(size == len) {
++             size <<= 1;
++             if(size == 0)
++                size = 1;
++             freqs_new_arr = (unsigned int *)realloc(*freqs_arr,
++                                              size * sizeof(unsigned int));
++             if(freqs_new_arr == NULL) {
++                free(*freqs_arr);
++                *freqs_arr = NULL;
++                break;
++             }
++             *freqs_arr = freqs_new_arr;
++          }
++          (*freqs_arr)[len] = freq;
++          len++;
++          next_freq = strtok_r(NULL, str, &saveptr);
++    }
++    return len;
++}
++
++unsigned int ConfigFmThs :: extract_comma_sep_sinrs
++(
++    char *sinrs,
++    signed char **sinrs_arr,
++    const char *str
++)
++{
++    char *next_sinr;
++    char *saveptr;
++    signed char *sinrs_new_arr;
++    unsigned int size = 0;
++    unsigned int len = 0;
++    signed char sinr;
++
++    next_sinr = strtok_r(sinrs, str, &saveptr);
++    while(next_sinr != NULL) {
++          sinr = atoi(next_sinr);
++          ALOGD("HYBRID_SRCH sinr: %d\n", sinr);
++          if(size == len) {
++             size <<= 1;
++             if(size == 0)
++                size = 1;
++             sinrs_new_arr = (signed char *)realloc(*sinrs_arr,
++                                               size * sizeof(signed char));
++             if(sinrs_new_arr == NULL) {
++                free(*sinrs_arr);
++                *sinrs_arr = NULL;
++                break;
++             }
++             *sinrs_arr = sinrs_new_arr;
++          }
++          (*sinrs_arr)[len] = sinr;
++          len++;
++          next_sinr = strtok_r(NULL, str,&saveptr);
++    }
++    return len;
++}
++
++void  ConfigFmThs :: SetRxSearchAfThs
++(
++    const char *file, UINT fd
++)
++{
++    int index;
++    struct NAME_MAP *found;
++    char **grps = NULL;
++    char **grps_cpy = NULL;
++
++    keyfile = get_key_file();
++
++    ALOGE("file name is: %s\n", file);
++    if(!parse_load_file(keyfile, file)) {
++       ALOGE("Error in loading threshold file\n");
++    }else {
++       grps_cpy = grps = get_grps(keyfile);
++       if(grps != NULL) {
++          while(*grps != NULL) {
++              ALOGE("Search grp: %s\n", *grps);
++              found = (NAME_MAP *)bsearch(*grps, GRPS_MAP, MAX_GRPS,
++                             sizeof(NAME_MAP), compare_name);
++              if(found != NULL) {
++                 ALOGE("Found group: %s\n", found->name);
++                 switch(found->num) {
++                 case AF_THS:
++                      set_af_ths(fd);
++                      break;
++                 case SRCH_THS:
++                      set_srch_ths(fd);
++                      break;
++                 case HYBRD_SRCH_LIST:
++                      set_hybrd_list(fd);
++                      break;
++                 case BAND_CFG:
++                      set_band_cfgs(fd);
++                      break;
++                 }
++              }
++              grps++;
++          }
++       }else {
++          ALOGE("No of groups found is zero\n");
++       }
++       free_strs(grps_cpy);
++    }
++    free_key_file(keyfile);
++    keyfile = NULL;
++}
+diff --git a/libfm_jni/ConfigFmThs.h b/libfm_jni/ConfigFmThs.h
+new file mode 100644
+index 0000000..19bf86c
+--- /dev/null
++++ b/libfm_jni/ConfigFmThs.h
+@@ -0,0 +1,183 @@
++/*
++Copyright (c) 2015, The Linux Foundation. All rights reserved.
++
++Redistribution and use in source and binary forms, with or without
++modification, are permitted provided that the following conditions are
++met:
++    * Redistributions of source code must retain the above copyright
++      notice, this list of conditions and the following disclaimer.
++    * Redistributions in binary form must reproduce the above
++      copyright notice, this list of conditions and the following
++      disclaimer in the documentation and/or other materials provided
++      with the distribution.
++    * Neither the name of The Linux Foundation nor the names of its
++      contributors may be used to endorse or promote products derived
++      from this software without specific prior written permission.
++
++THIS SOFTWARE IS PROVIDED "AS IS" AND ANY EXPRESS OR IMPLIED
++WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
++MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT
++ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS
++BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
++CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
++SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR
++BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
++WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
++OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
++IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
++*/
++
++#ifndef __CONFIG_FM_THS_H__
++#define __CONFIG_FM_THS_H__
++
++#include <cstring>
++#include "FM_Const.h"
++#include "ConfFileParser.h"
++
++#define MAX_GRPS 4
++#define MAX_SRCH_PARAMS 8
++#define MAX_AF_PARAMS 3
++#define MAX_BAND_PARAMS 3
++
++#define SINR_SAMPLES_CNT_MIN 0
++#define SINR_SAMPLES_CNT_MAX 255
++#define SINR_FIRST_STAGE_MIN -128
++#define SINR_FIRST_STAGE_MAX 127
++#define RMSSI_FIRST_STAGE_MIN -128
++#define RMSSI_FIRST_STAGE_MAX 127
++#define INTF_LOW_TH_MIN 0
++#define INTF_LOW_TH_MAX  255
++#define INTF_HIGH_TH_MIN 0
++#define INTF_HIGH_TH_MAX 255
++#define SRCH_ALGO_TYPE_MIN 0
++#define SRCH_ALGO_TYPE_MAX 1
++#define SINR_FINAL_STAGE_MIN -128
++#define SINR_FINAL_STAGE_MAX 127
++
++#define AF_RMSSI_TH_MIN 0
++#define AF_RMSSI_TH_MAX 65535
++#define AF_RMSSI_SAMPLES_MIN 0
++#define AF_RMSSI_SAMPLES_MAX 255
++#define GOOD_CH_RMSSI_TH_MIN -128
++#define GOOD_CH_RMSSI_TH_MAX 127
++#define FM_DE_EMP75  0
++#define FM_DE_EMP50  1
++#define FM_CHSPACE_200_KHZ  0
++#define FM_CHSPACE_100_KHZ  1
++#define FM_CHSPACE_50_KHZ  2
++
++const unsigned char MAX_HYBRID_SRCH_PARAMS = 2;
++
++struct NAME_MAP
++{
++   const char name[50];
++   const int num;
++};
++
++enum PERFORMANCE_GRPS
++{
++    AF_THS,
++    SRCH_THS,
++    HYBRD_SRCH_LIST,
++    BAND_CFG,
++};
++
++enum BAND_CFG_PARAMS
++{
++    RADIO_BAND,
++    EMPHASIS,
++    CHANNEL_SPACING,
++};
++
++enum PERFORMANCE_SRCH_PARAMS
++{
++    SRCH_ALGO_TYPE,
++    CF0_TH,
++    SINR_FIRST_STAGE,
++    SINR,
++    RMSSI_FIRST_STAGE,
++    INTF_LOW_TH,
++    INTF_HIGH_TH,
++    SINR_SAMPLES,
++};
++
++enum PERFORMANCE_AF_PARAMS
++{
++    AF_RMSSI_TH,
++    AF_RMSSI_SAMPLES,
++    GOOD_CH_RMSSI_TH,
++};
++
++enum HYBRID_SRCH_PARAMS
++{
++    FREQ_LIST,
++    SINR_LIST,
++};
++
++//Keep this list in sorted order (ascending order in terms of "name")
++//Don't change the name of GRPS, if changed please also change accordingly
++//file: fm_srch_af_th.conf
++static struct NAME_MAP GRPS_MAP[] =
++{
++   {"AFTHRESHOLDS", AF_THS},
++   {"BANDCONFIG", BAND_CFG},
++   {"HYBRIDSEARCHLIST", HYBRD_SRCH_LIST},
++   {"SEARCHTHRESHOLDS", SRCH_THS},
++};
++
++static struct NAME_MAP BAND_CFG_MAP[] =
++{
++    {"ChSpacing", CHANNEL_SPACING},
++    {"Emphasis", EMPHASIS},
++    {"RadioBand", RADIO_BAND},
++};
++
++//Keep this list in sorted order (ascending order in terms of "name")
++//Don't change the name of SEARCH thresholds,
++//if changed please also change accordingly
++//file: fm_srch_af_th.conf
++static struct NAME_MAP SEACH_PARAMS_MAP[] =
++{
++   {"Cf0Th12", CF0_TH},
++   {"IntfHighTh", INTF_HIGH_TH},
++   {"IntfLowTh", INTF_LOW_TH},
++   {"RmssiFirstStage", RMSSI_FIRST_STAGE},
++   {"SearchAlgoType", SRCH_ALGO_TYPE},
++   {"Sinr", SINR},
++   {"SinrFirstStage", SINR_FIRST_STAGE},
++   {"SinrSamplesCnt", SINR_SAMPLES},
++};
++
++//Keep this list in sorted order (ascending order in terms of "name")
++//Don't change the name of SEARCH thresholds,
++//if changed please also change accordingly
++//file: fm_srch_af_th.conf
++static struct NAME_MAP AF_PARAMS_MAP[] =
++{
++   {"AfRmssiSamplesCnt", AF_RMSSI_SAMPLES},
++   {"AfRmssiTh", AF_RMSSI_TH},
++   {"GoodChRmssiTh", GOOD_CH_RMSSI_TH},
++};
++
++static struct NAME_MAP HYBRD_SRCH_MAP[] =
++{
++   {"Freqs", FREQ_LIST},
++   {"Sinrs", SINR_LIST},
++};
++
++class ConfigFmThs {
++   private:
++          group_table *keyfile;
++          void set_srch_ths(UINT fd);
++          void set_af_ths(UINT fd);
++          unsigned int extract_comma_sep_freqs(char *freqs, unsigned int **freqs_arr, const char *str);
++          unsigned int extract_comma_sep_sinrs(char *sinrs, signed char **sinrs_arr, const char *str);
++          void set_hybrd_list(UINT fd);
++          void set_band_cfgs(UINT fd);
++   public:
++          ConfigFmThs();
++          ~ConfigFmThs();
++          void SetRxSearchAfThs(const char *file, UINT fd);
++};
++
++#endif //__CONFIG_FM_THS_H__
+diff --git a/libfm_jni/FM_Const.h b/libfm_jni/FM_Const.h
+new file mode 100644
+index 0000000..b0cc684
+--- /dev/null
++++ b/libfm_jni/FM_Const.h
+@@ -0,0 +1,368 @@
++/*
++Copyright (c) 2015, The Linux Foundation. All rights reserved.
++
++Redistribution and use in source and binary forms, with or without
++modification, are permitted provided that the following conditions are
++met:
++    * Redistributions of source code must retain the above copyright
++      notice, this list of conditions and the following disclaimer.
++    * Redistributions in binary form must reproduce the above
++      copyright notice, this list of conditions and the following
++      disclaimer in the documentation and/or other materials provided
++      with the distribution.
++    * Neither the name of The Linux Foundation nor the names of its
++      contributors may be used to endorse or promote products derived
++      from this software without specific prior written permission.
++
++THIS SOFTWARE IS PROVIDED "AS IS" AND ANY EXPRESS OR IMPLIED
++WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
++MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT
++ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS
++BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
++CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
++SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR
++BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
++WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
++OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
++IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
++*/
++
++#ifndef __FM_CONST_H__
++#define __FM_CONST_H__
++
++//return related
++#define IOCTL_SUCC 0
++#define FM_SUCCESS 0
++#define FM_FAILURE -1
++#define PROP_SET_SUCC 0
++
++#define MAX_VER_STR_LEN 40
++#define INIT_LOOP_CNT 45
++
++//Time in us
++#define INIT_WAIT_TIMEOUT 200000
++#define RDS_AVL_INT_WAIT_TIMEOUT 200000
++//Time in secs
++#define READY_EVENT_TIMEOUT 5
++#define SCAN_COMPL_TIMEOUT 1280
++#define TUNE_EVENT_TIMEOUT 2
++#define SEEK_COMPL_TIMEOUT 60
++#define FM_SCAN_CH_SIZE_MAX 25
++
++#define TUNE_MULT 16
++#define CAL_DATA_SIZE 23
++#define STD_BUF_SIZE 256
++
++//RDS GROUPS
++#define GRP_3A 64
++
++//data related to enabling various
++//rds data RT, PS, AF LIST, AF JMP
++#define RDS_GRP_RT_EN 1
++#define RDS_GRP_PS_EN 2
++#define RDS_AF_JMP_LIST_EN 8
++#define RDS_GRP_AFJMP_EN 16
++
++//Data for PS received
++#define MAX_PS_LEN 8
++#define PS_STR_NUM_IND 0
++#define PS_DATA_OFFSET_IND 5
++
++//RT related
++#define MAX_RT_LEN 64
++#define RT_LEN_IND 0
++#define RT_DATA_OFFSET_IND 5
++#define RT_A_B_FLAG_IND 4
++
++//ERT related
++#define ERT_LEN_IND 0
++#define ERT_DATA_OFFSET_IND 3
++
++//Common to RT, PS
++#define FIRST_CTRL_CHAR 0
++#define LAST_CTRL_CHAR 31
++#define FIRST_NON_PRNT_CHAR  127
++#define SPACE_CHAR 32
++
++//RT PLUS related constanst
++#define RT_OR_ERT_IND 1
++#define RT_PLUS_TAGS_NUM_IND 0
++#define MAX_RT_PLUS_TAGS 2
++#define TAGS_DATA_BEGIN_OFFSET 4
++#define ITEM_TOGGLE_IND 2
++#define ITEM_RUNNING_IND 3
++#define DUMMY_TAG_CODE 0
++
++#define FM_RX_RDS_GRP_RT_EBL   1
++#define FM_RX_RDS_GRP_PS_EBL   2
++#define FM_RX_RDS_GRP_AF_EBL 4
++#define FM_RX_RDS_GRP_PS_SIMPLE_EBL 16
++
++#define FREQ_MULT 1000
++#define HYBRID_SRCH_DATA_LEN 3
++#define HYBRID_SRCH_DATA_INDEX 3
++#define HYBRID_SRCH_MODE 0x40
++#define STARTING_FREQ 76000
++#define FREQ_MULTIPLEX 50
++#define NO_OF_BYTES_EACH_FREQ 2
++#define EXTRACT_FIRST_BYTE 0x03
++#define SRCH_DIV 100
++#define AF_SIZE_IDX 6
++#define NO_OF_BYTES_AF 4
++#define MAX_AF_LIST_SIZE 25
++
++typedef  unsigned int UINT;
++typedef  unsigned long ULINT;
++
++//STRING LITERALS
++const char *const FM_MODE_PROP = "hw.fm.mode";
++const char *const FM_VERSION_PROP = "hw.fm.version";
++const char *const FM_INIT_PROP = "hw.fm.init";
++const char *const SCRIPT_START_PROP = "ctl.start";
++const char *const FM_SOC_DL_SCRIPT = "fm_dl";
++const char *const SCRIPT_STOP_PROP = "ctl.stOP";
++const char *const CALIB_DATA_NAME = "/data/misc/fm/Riva_fm_cal";
++const char *const SOC_PATCH_DL_SCRPT = "fm_dl";
++const char *const FM_DEVICE_PATH = "/dev/radio0";
++const char *const FM_PERFORMANCE_PARAMS = "/etc/fm/fm_srch_af_th.conf";
++
++const UINT V4L2_CTRL_CLASS_USER = 0x00980000;
++const UINT V4L2_CID_BASE = (V4L2_CTRL_CLASS_USER | 0x900);
++const UINT V4L2_CID_AUDIO_MUTE  = (V4L2_CID_BASE + 9);
++const UINT SEARCH_DWELL_TIME = 2;
++const UINT SEEK_DWELL_TIME = 0;
++
++//BAND LIMITS
++const UINT US_BAND_LOW = 87500;
++const UINT US_BAND_HIGH = 108000;
++const UINT EU_BAND_LOW = 87500;
++const UINT EU_BAND_HIGH = 108000;
++const UINT JAP_BAND_STD_LOW = 76000;
++const UINT JAP_BAND_STD_HIGH = 90000;
++const UINT JAP_BAND_WIDE_LOW = 90000;
++const UINT JAP_BAND_WIDE_HIGH = 108000;
++const UINT USR_DEF_BAND_LOW = 87500;
++const UINT USR_DEF_BAND_HIGH = 108000;
++const UINT FM_RX_SRCHLIST_MAX_STATIONS =20;
++
++//RDS standard type
++enum RDS_STD
++{
++    RBDS,
++    RDS,
++    NO_RDS_RBDS,
++};
++
++enum DE_EMPHASIS
++{
++    DE_EMP75,
++    DE_EMP50,
++};
++
++//Band Type
++enum FM_REGION
++{
++    BAND_87500_108000 = 1,
++    BAND_76000_108000,
++    BAND_76000_90000,
++};
++
++enum FM_AUDIO_PATH
++{
++    AUDIO_DIGITAL_PATH,
++    AUDIO_ANALOG_PATH,
++};
++
++enum FM_DEVICE
++{
++    FM_DEV_NONE,
++    FM_RX,
++    FM_TX,
++};
++
++enum fm_rds_onoff {
++    FM_RDS_ON,
++    FM_RDS_OFF,
++    FM_MAX
++};
++
++typedef enum {
++    FM_LONG_ANA = 0,
++    FM_SHORT_ANA
++} fm_antenna_type;
++
++enum BUFF_INDEXES
++{
++    STATION_LIST_IND,
++    EVENT_IND,
++    RT_IND,
++    PS_IND,
++    AF_LIST_IND = PS_IND + 2,
++    RT_PLUS_IND = 11,
++    ERT_IND,
++};
++
++typedef enum {
++    RDS_EVT_UPDATE         = 0x0001,
++    RDS_EVT_PI_UPDATE      = 0x0002,
++    RDS_EVT_PTY_UPDATE     = 0x0004,
++    RDS_EVT_PS_UPDATE      = 0x0008,
++    RDS_EVT_RT_UPDATE      = 0x0040,
++    RDS_EVT_AF_JUMP        = 0x0080,
++    RDS_EVT_AF_LIST        = 0x0100,
++    RDS_EVT_AF_LIST_UPDATE = 0x0200,
++    RDS_EVT_RDS_AVL        = 0x2000,
++    RDS_EVT_RDS_NOT_AVL    = 0x4000,
++} RdsEvts;
++
++enum SEARCH_MODE
++{
++    SEEK_MODE,
++    SCAN_MODE,
++    SRCHLIST_MODE_STRONG,
++    SRCHLIST_MODE_WEAK,
++    SRCHRDS_MODE_SEEK_PTY,
++    SRCHRDS_MODE_SCAN_PTY,
++    SRCHRDS_MODE_SEEK_PI,
++    SRCHRDS_MODE_SEEK_AF,
++    SRCHLIST_MODE_STRONGEST,
++    SRCHLIST_MODE_WEAKEST,
++};
++
++enum SEARCH_DIR
++{
++    SEARCH_DOWN,
++    SEARCH_UP,
++};
++
++//CHANNEL SPACING for samsung
++enum SS_CHAN_SPACING
++{
++    SS_CHAN_SPACE_200 = 20,
++    SS_CHAN_SPACE_100 = 10,
++    SS_CHAN_SPACE_50 = 5,
++};
++
++enum CHAN_SPACING
++{
++    CHAN_SPACE_200,
++    CHAN_SPACE_100,
++    CHAN_SPACE_50,
++};
++
++enum AUDIO_MODE
++{
++    MONO,
++    STEREO,
++};
++
++//HARD MUTE MODE
++enum HARD_MUTE_MODE
++{
++    UNMUTE_L_R_CHAN,
++    MUTE_L_CHAN,
++    MUTE_R_CHAN,
++    MUTE_L_R_CHAN,
++};
++
++//SOFT MUTE STATES
++enum SOFT_MUTE_MODE
++{
++    SMUTE_DISABLED,
++    SMUTE_ENABLED,
++};
++
++//FM EVENTS FROM KERNEL
++enum FM_EVENTS
++{
++    READY_EVENT,
++    TUNE_EVENT,
++    SEEK_COMPLETE_EVENT,
++    SCAN_NEXT_EVENT,
++    RAW_RDS_EVENT,
++    RT_EVENT,
++    PS_EVENT,
++    ERROR_EVENT,
++    BELOW_TH_EVENT,
++    ABOVE_TH_EVENT,
++    STEREO_EVENT,
++    MONO_EVENT,
++    RDS_AVAL_EVENT,
++    RDS_NOT_AVAL_EVENT,
++    SRCH_LIST_EVENT,
++    AF_LIST_EVENT,
++    DISABLED_EVENT = 18,
++    RDS_GRP_MASK_REQ_EVENT,
++    RT_PLUS_EVENT,
++    ERT_EVENT,
++    AF_JMP_EVENT,
++};
++
++//FM STATES
++enum fm_states
++{
++    FM_OFF,
++    FM_OFF_IN_PROGRESS,
++    FM_ON_IN_PROGRESS,
++    FM_ON,
++    FM_TUNE_IN_PROGRESS,
++    SEEK_IN_PROGRESS,
++    SCAN_IN_PROGRESS,
++};
++
++//V4L2 CONTROLS FOR FM DRIVER
++enum FM_V4L2_PRV_CONTROLS
++{
++    V4L2_CID_PRV_BASE = 0x8000000,
++    V4L2_CID_PRV_SRCHMODE,
++    V4L2_CID_PRV_SCANDWELL,
++    V4L2_CID_PRV_SRCHON,
++    V4L2_CID_PRV_STATE,
++    V4L2_CID_PRV_TRANSMIT_MODE,
++    V4L2_CID_PRV_RDSGROUP_MASK,
++    V4L2_CID_PRV_REGION,
++    V4L2_CID_PRV_SIGNAL_TH,
++    V4L2_CID_PRV_SRCH_PTY,
++    V4L2_CID_PRV_SRCH_PI,
++    V4L2_CID_PRV_SRCH_CNT,
++    V4L2_CID_PRV_EMPHASIS,
++    V4L2_CID_PRV_RDS_STD,
++    V4L2_CID_PRV_CHAN_SPACING,
++    V4L2_CID_PRV_RDSON,
++    V4L2_CID_PRV_RDSGROUP_PROC,
++    V4L2_CID_PRV_LP_MODE,
++    V4L2_CID_PRV_ANTENNA,
++    V4L2_CID_PRV_INTDET = V4L2_CID_PRV_BASE + 25,
++    V4L2_CID_PRV_AF_JUMP = V4L2_CID_PRV_BASE + 27,
++    V4L2_CID_PRV_SOFT_MUTE = V4L2_CID_PRV_BASE + 30,
++    V4L2_CID_PRV_AUDIO_PATH = V4L2_CID_PRV_BASE + 41,
++    V4L2_CID_PRV_SINR = V4L2_CID_PRV_BASE + 44,
++    V4L2_CID_PRV_ON_CHANNEL_THRESHOLD = V4L2_CID_PRV_BASE + 0x2D,
++    V4L2_CID_PRV_OFF_CHANNEL_THRESHOLD,
++    V4L2_CID_PRV_SINR_THRESHOLD,
++    V4L2_CID_PRV_SINR_SAMPLES,
++    V4L2_CID_PRV_SPUR_FREQ,
++    V4L2_CID_PRV_SPUR_FREQ_RMSSI,
++    V4L2_CID_PRV_SPUR_SELECTION,
++    V4L2_CID_PRV_AF_RMSSI_TH = V4L2_CID_PRV_BASE + 0x36,
++    V4L2_CID_PRV_AF_RMSSI_SAMPLES,
++    V4L2_CID_PRV_GOOD_CH_RMSSI_TH,
++    V4L2_CID_PRV_SRCHALGOTYPE,
++    V4L2_CID_PRV_CF0TH12,
++    V4L2_CID_PRV_SINRFIRSTSTAGE,
++    V4L2_CID_PRV_RMSSIFIRSTSTAGE,
++    V4L2_CID_PRV_SOFT_MUTE_TH,
++    V4L2_CID_PRV_IRIS_RDSGRP_RT,
++    V4L2_CID_PRV_IRIS_RDSGRP_PS_SIMPLE,
++    V4L2_CID_PRV_IRIS_BLEND_SINRHI,
++    V4L2_CID_PRV_IRIS_BLEND_RMSSIHI,
++    V4L2_CID_PRV_IRIS_RDSGRP_AFLIST,
++    V4L2_CID_PRV_IRIS_RDSGRP_ERT,
++    V4L2_CID_PRV_IRIS_RDSGRP_RT_PLUS,
++    V4L2_CID_PRV_IRIS_RDSGRP_3A,
++
++    V4L2_CID_PRV_IRIS_READ_DEFAULT = V4L2_CTRL_CLASS_USER + 0x928,
++    V4L2_CID_PRV_IRIS_WRITE_DEFAULT,
++    V4L2_CID_PRV_SET_CALIBRATION = V4L2_CTRL_CLASS_USER + 0x92A,
++};
++#endif
+diff --git a/libfm_jni/FmIoctlsInterface.cpp b/libfm_jni/FmIoctlsInterface.cpp
+new file mode 100644
+index 0000000..fbe035c
+--- /dev/null
++++ b/libfm_jni/FmIoctlsInterface.cpp
+@@ -0,0 +1,384 @@
++/*
++Copyright (c) 2015, The Linux Foundation. All rights reserved.
++
++Redistribution and use in source and binary forms, with or without
++modification, are permitted provided that the following conditions are
++met:
++    * Redistributions of source code must retain the above copyright
++      notice, this list of conditions and the following disclaimer.
++    * Redistributions in binary form must reproduce the above
++      copyright notice, this list of conditions and the following
++      disclaimer in the documentation and/or other materials provided
++      with the distribution.
++    * Neither the name of The Linux Foundation nor the names of its
++      contributors may be used to endorse or promote products derived
++      from this software without specific prior written permission.
++
++THIS SOFTWARE IS PROVIDED "AS IS" AND ANY EXPRESS OR IMPLIED
++WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
++MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT
++ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS
++BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
++CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
++SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR
++BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
++WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
++OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
++IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
++*/
++
++#include "FmIoctlsInterface.h"
++#include <cstdio>
++#include <cstdlib>
++#include <cstring>
++#include <fcntl.h>
++#include <cutils/properties.h>
++#include <sys/ioctl.h>
++#include <linux/videodev2.h>
++#include <math.h>
++#include <utils/Log.h>
++
++int FmIoctlsInterface :: start_fm_patch_dl
++(
++    UINT fd
++)
++{
++    int ret;
++    int init_success = 0;
++    char versionStr[MAX_VER_STR_LEN] = {'\0'};
++    char prop_value[PROPERTY_VALUE_MAX] = {'\0'};
++    struct v4l2_capability cap;
++
++    ALOGE("start_fm_patch_dl = %d\n",fd);
++    ret = ioctl(fd, VIDIOC_QUERYCAP, &cap);
++    ALOGE("executed cmd\n");
++    if(ret == IOCTL_SUCC) {
++        ret = snprintf(versionStr, MAX_VER_STR_LEN, "%d", cap.version);
++        if(ret >= MAX_VER_STR_LEN) {
++            return FM_FAILURE;
++        }else {
++            ret = property_set(FM_VERSION_PROP, versionStr);
++            ALOGE("set versionStr done");
++            if(ret != PROP_SET_SUCC)
++               return FM_FAILURE;
++            ret = property_set(FM_MODE_PROP, "normal");
++            ALOGE("set FM_MODE_PROP done");
++            if(ret != PROP_SET_SUCC)
++               return FM_FAILURE;
++            ret = property_set(FM_INIT_PROP, "0");
++            ALOGE("set FM_INIT_PROP done");
++            if(ret != PROP_SET_SUCC)
++               return FM_FAILURE;
++            ret = property_set(SCRIPT_START_PROP, SOC_PATCH_DL_SCRPT);
++            if(ret != PROP_SET_SUCC)
++               return FM_FAILURE;
++            for(int i = 0; i < INIT_LOOP_CNT; i++) {
++                property_get(FM_INIT_PROP, prop_value, NULL);
++                if (strcmp(prop_value, "1") == 0) {
++                    init_success = 1;
++                    break;
++                }else {
++                    usleep(INIT_WAIT_TIMEOUT);
++                }
++            }
++            if(!init_success) {
++                property_set(SCRIPT_STOP_PROP, SOC_PATCH_DL_SCRPT);
++                return FM_FAILURE;
++            }else {
++                return FM_SUCCESS;
++            }
++        }
++    }else {
++        return FM_FAILURE;
++    }
++}
++
++int  FmIoctlsInterface :: close_fm_patch_dl
++(
++    void
++)
++{
++    int ret;
++
++    ret = property_set(SCRIPT_STOP_PROP, SOC_PATCH_DL_SCRPT);
++    if(ret != PROP_SET_SUCC) {
++        return FM_FAILURE;
++    }else {
++        return FM_SUCCESS;
++    }
++}
++
++int  FmIoctlsInterface :: get_cur_freq
++(
++    UINT fd, long &freq
++)
++{
++    int ret;
++    struct v4l2_frequency channel;
++
++    channel.type = V4L2_TUNER_RADIO;
++    ret = ioctl(fd, VIDIOC_G_FREQUENCY, &channel);
++
++    if(ret < IOCTL_SUCC) {
++        return FM_FAILURE;
++    }else {
++        freq = (channel.frequency / TUNE_MULT);
++        return FM_SUCCESS;
++    }
++}
++
++int  FmIoctlsInterface :: set_freq
++(
++    UINT fd, ULINT freq
++)
++{
++    int ret;
++    struct v4l2_frequency channel;
++
++    channel.type = V4L2_TUNER_RADIO;
++    channel.frequency = (freq * TUNE_MULT);
++
++    ret = ioctl(fd, VIDIOC_S_FREQUENCY, &channel);
++    if(ret < IOCTL_SUCC) {
++        return FM_FAILURE;
++    }else {
++        return FM_SUCCESS;
++    }
++}
++
++int  FmIoctlsInterface :: set_control
++(
++    UINT fd, UINT id, int val
++)
++{
++    int ret;
++    struct v4l2_control control;
++
++    control.value = val;
++    control.id = id;
++
++    ret = ioctl(fd, VIDIOC_S_CTRL, &control);
++    if(ret < IOCTL_SUCC) {
++        return FM_FAILURE;
++    }else {
++        return FM_SUCCESS;
++    }
++}
++
++int  FmIoctlsInterface :: set_calibration
++(
++    UINT fd
++)
++{
++    int ret;
++    FILE *cal_fp;
++    struct v4l2_ext_control ext_ctl;
++    struct v4l2_ext_controls v4l2_ctls;
++    char cal_data[CAL_DATA_SIZE] = {0};
++
++    cal_fp = fopen(CALIB_DATA_NAME, "r");
++    if(cal_fp != NULL) {
++       if(fread(&cal_data[0], 1, CAL_DATA_SIZE, cal_fp)
++           < CAL_DATA_SIZE) {
++           fclose(cal_fp);
++           return FM_FAILURE;
++       }
++       fclose(cal_fp);
++       ext_ctl.string = cal_data;
++       ext_ctl.size = CAL_DATA_SIZE;
++       v4l2_ctls.ctrl_class = V4L2_CTRL_CLASS_USER;
++       v4l2_ctls.count = 1;
++       v4l2_ctls.controls = &ext_ctl;
++       ret = ioctl(fd, VIDIOC_S_EXT_CTRLS, &v4l2_ctls);
++       if(ret < IOCTL_SUCC) {
++           return FM_FAILURE;
++       }else {
++           return FM_SUCCESS;
++       }
++    }else {
++        return FM_FAILURE;
++    }
++}
++
++int  FmIoctlsInterface :: get_control
++(
++    UINT fd, UINT id, long &val
++)
++{
++    int ret;
++    struct v4l2_control control;
++
++    control.id = id;
++    ret = ioctl(fd, VIDIOC_G_CTRL, &control);
++    if(ret < IOCTL_SUCC) {
++        return FM_FAILURE;
++    }else {
++        val = control.value;
++        return FM_SUCCESS;
++    }
++}
++
++int  FmIoctlsInterface :: start_search
++(
++    UINT fd, UINT dir
++)
++{
++    int ret;
++    struct v4l2_hw_freq_seek hw_seek;
++
++    hw_seek.seek_upward = dir;
++    hw_seek.type = V4L2_TUNER_RADIO;
++
++    ret = ioctl(fd, VIDIOC_S_HW_FREQ_SEEK, &hw_seek);
++    if(ret < IOCTL_SUCC) {
++        return FM_FAILURE;
++    }else {
++        return FM_SUCCESS;
++    }
++}
++
++int  FmIoctlsInterface :: set_band
++(
++    UINT fd, ULINT low, ULINT high
++)
++{
++    int ret;
++    struct v4l2_tuner tuner;
++
++    tuner.index = 0;
++    tuner.signal = 0;
++    tuner.rangelow = (low * TUNE_MULT);
++    tuner.rangehigh = (high * TUNE_MULT);
++
++    ret = ioctl(fd, VIDIOC_S_TUNER, &tuner);
++    ret = set_control(fd, V4L2_CID_PRV_REGION, 0);
++    if(ret < IOCTL_SUCC) {
++        return FM_FAILURE;
++    }else {
++        return FM_SUCCESS;
++    }
++}
++
++int FmIoctlsInterface :: get_rmssi
++(
++    UINT fd, long &rmssi
++)
++{
++    struct v4l2_tuner tuner;
++    int ret;
++
++    tuner.index = 0;
++    tuner.signal = 0;
++    ret = ioctl(fd, VIDIOC_G_TUNER, &tuner);
++    if(ret < IOCTL_SUCC) {
++        ret = FM_FAILURE;
++    }else {
++        rmssi = tuner.signal;
++        ret = FM_SUCCESS;
++    }
++    return ret;
++}
++
++int  FmIoctlsInterface :: get_upperband_limit
++(
++    UINT fd, ULINT &freq
++)
++{
++    int ret;
++    struct v4l2_tuner tuner;
++
++    tuner.index = 0;
++    ret = ioctl(fd, VIDIOC_G_TUNER, &tuner);
++    if(ret < IOCTL_SUCC) {
++        return FM_FAILURE;
++    }else {
++        freq = (tuner.rangehigh / TUNE_MULT);
++        ALOGE("high freq: %d\n",freq);
++        return FM_SUCCESS;
++    }
++}
++
++int  FmIoctlsInterface :: get_lowerband_limit
++(
++    UINT fd, ULINT &freq
++)
++{
++    int ret;
++    struct v4l2_tuner tuner;
++
++    tuner.index = 0;
++    ret = ioctl(fd, VIDIOC_G_TUNER, &tuner);
++    if(ret < IOCTL_SUCC) {
++        return FM_FAILURE;
++    }else {
++        freq = (tuner.rangelow / TUNE_MULT);
++        ALOGE("low freq: %d\n",freq);
++        return FM_SUCCESS;
++    }
++}
++
++int  FmIoctlsInterface :: set_audio_mode
++(
++    UINT fd, enum AUDIO_MODE mode
++)
++{
++    int ret;
++    struct v4l2_tuner tuner;
++
++    tuner.index = 0;
++    ret = ioctl(fd, VIDIOC_G_TUNER, &tuner);
++    if(ret < IOCTL_SUCC) {
++        return FM_FAILURE;
++    }else {
++        tuner.audmode = mode;
++        ret = ioctl(fd, VIDIOC_S_TUNER, &tuner);
++        if(ret != IOCTL_SUCC) {
++            return FM_FAILURE;
++        }else {
++            return FM_SUCCESS;
++        }
++    }
++}
++
++int  FmIoctlsInterface :: get_buffer
++(
++     UINT fd, char *buff, UINT len, UINT index
++)
++{
++    int ret;
++    struct v4l2_buffer v4l2_buf;
++
++    if((len < STD_BUF_SIZE) || (buff == NULL)) {
++        return FM_FAILURE;
++    }else {
++        memset(&v4l2_buf, 0, sizeof(v4l2_buf));
++        v4l2_buf.index = index;
++        v4l2_buf.type = V4L2_BUF_TYPE_PRIVATE;
++        v4l2_buf.length = STD_BUF_SIZE;
++        v4l2_buf.m.userptr = (ULINT)buff;
++        ret = ioctl(fd, VIDIOC_DQBUF, &v4l2_buf);
++        if(ret < IOCTL_SUCC) {
++            return FM_FAILURE;
++        }else {
++            return v4l2_buf.bytesused;
++        }
++    }
++}
++
++int FmIoctlsInterface :: set_ext_control
++(
++    UINT fd,
++    struct v4l2_ext_controls *v4l2_ctls
++)
++{
++    int ret;
++
++    ret = ioctl(fd, VIDIOC_S_EXT_CTRLS, v4l2_ctls);
++
++    if(ret < IOCTL_SUCC) {
++       return FM_FAILURE;
++    }else {
++       return FM_SUCCESS;
++    }
++}
++
+diff --git a/libfm_jni/FmIoctlsInterface.h b/libfm_jni/FmIoctlsInterface.h
+new file mode 100644
+index 0000000..e2ae601
+--- /dev/null
++++ b/libfm_jni/FmIoctlsInterface.h
+@@ -0,0 +1,57 @@
++/*
++Copyright (c) 2015, The Linux Foundation. All rights reserved.
++
++Redistribution and use in source and binary forms, with or without
++modification, are permitted provided that the following conditions are
++met:
++    * Redistributions of source code must retain the above copyright
++      notice, this list of conditions and the following disclaimer.
++    * Redistributions in binary form must reproduce the above
++      copyright notice, this list of conditions and the following
++      disclaimer in the documentation and/or other materials provided
++      with the distribution.
++    * Neither the name of The Linux Foundation nor the names of its
++      contributors may be used to endorse or promote products derived
++      from this software without specific prior written permission.
++
++THIS SOFTWARE IS PROVIDED "AS IS" AND ANY EXPRESS OR IMPLIED
++WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
++MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT
++ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS
++BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
++CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
++SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR
++BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
++WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
++OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
++IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
++*/
++
++#ifndef __FM_IOCTL_INTERFACE_H__
++#define __FM_IOCTL_INTERFACE_H__
++
++#include "FM_Const.h"
++
++#include <linux/videodev2.h>
++
++class FmIoctlsInterface
++{
++    public:
++        static int start_fm_patch_dl(UINT fd);
++        static int close_fm_patch_dl(void);
++        static int get_cur_freq(UINT fd, long &freq);
++        static int set_freq(UINT fd, ULINT freq);
++        static int set_control(UINT fd, UINT id, int val);
++        static int set_calibration(UINT fd);
++        static int get_control(UINT fd, UINT id, long &val);
++        static int start_search(UINT fd, UINT dir);
++        static int set_band(UINT fd, ULINT low, ULINT high);
++        static int get_upperband_limit(UINT fd, ULINT &freq);
++        static int get_lowerband_limit(UINT fd, ULINT &freq);
++        static int set_audio_mode(UINT fd, enum AUDIO_MODE mode);
++        static int get_buffer(UINT fd, char *buff, UINT len, UINT index);
++        static int get_rmssi(UINT fd, long &rmssi);
++        static int set_ext_control(UINT fd, struct v4l2_ext_controls *v4l2_ctls);
++};
++
++#endif //__FM_IOCTL_INTERFACE_H__
+diff --git a/libfm_jni/FmPerformanceParams.cpp b/libfm_jni/FmPerformanceParams.cpp
+new file mode 100644
+index 0000000..dc22432
+--- /dev/null
++++ b/libfm_jni/FmPerformanceParams.cpp
+@@ -0,0 +1,545 @@
++/*
++Copyright (c) 2015, The Linux Foundation. All rights reserved.
++
++Redistribution and use in source and binary forms, with or without
++modification, are permitted provided that the following conditions are
++met:
++    * Redistributions of source code must retain the above copyright
++      notice, this list of conditions and the following disclaimer.
++    * Redistributions in binary form must reproduce the above
++      copyright notice, this list of conditions and the following
++      disclaimer in the documentation and/or other materials provided
++      with the distribution.
++    * Neither the name of The Linux Foundation nor the names of its
++      contributors may be used to endorse or promote products derived
++      from this software without specific prior written permission.
++
++THIS SOFTWARE IS PROVIDED "AS IS" AND ANY EXPRESS OR IMPLIED
++WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
++MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT
++ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS
++BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
++CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
++SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR
++BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
++WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
++OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
++IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
++*/
++
++#include <cstdio>
++#include <utils/Log.h>
++#include "FmPerformanceParams.h"
++#include "FmIoctlsInterface.h"
++#include <linux/videodev2.h>
++
++signed char FmPerformanceParams :: SetBand
++(
++   UINT fd, unsigned char band
++)
++{
++   signed char ret = FM_FAILURE;
++
++   switch(band) {
++   case BAND_87500_108000:
++       ret = FmIoctlsInterface::set_band(fd,
++                               87500, 108000);
++       break;
++   case BAND_76000_108000:
++       ret = FmIoctlsInterface::set_band(fd,
++                               76000, 108000);
++       break;
++   case BAND_76000_90000:
++       ret = FmIoctlsInterface::set_band(fd,
++                               76000, 90000);
++       break;
++   default:
++       ALOGE("Band type: %ld is invalid\n", band);
++       ret = FM_FAILURE;
++       break;
++   }
++   return ret;
++}
++
++signed char FmPerformanceParams :: SetEmphsis
++(
++   UINT fd, unsigned char emph
++)
++{
++   signed char ret = FM_FAILURE;
++
++   switch(emph) {
++   case DE_EMP75:
++   case DE_EMP50:
++       ret = FmIoctlsInterface::set_control(fd,
++                       V4L2_CID_PRV_EMPHASIS, emph);
++       break;
++   default:
++       ALOGE("invalid de-emphasis value\n");
++       ret = FM_FAILURE;
++       break;
++   }
++   return ret;
++}
++
++signed char FmPerformanceParams :: SetChannelSpacing
++(
++   UINT fd, unsigned char spacing
++)
++{
++   signed char ret = FM_FAILURE;
++
++   ret = FmIoctlsInterface::set_control(fd,
++                               V4L2_CID_PRV_CHAN_SPACING, spacing);
++   return ret;
++}
++
++signed char FmPerformanceParams :: SetAfRmssiTh
++(
++   UINT fd, unsigned short th
++)
++{
++   signed char ret = FM_FAILURE;
++
++   ret = FmIoctlsInterface::set_control(fd,
++                V4L2_CID_PRV_AF_RMSSI_TH, th);
++
++   return ret;
++}
++
++signed char FmPerformanceParams :: SetAfRmssiSamplesCnt
++(
++   UINT fd, unsigned char cnt
++)
++{
++   signed char ret = FM_FAILURE;
++
++   ret = FmIoctlsInterface::set_control(fd,
++                V4L2_CID_PRV_AF_RMSSI_SAMPLES, cnt);
++
++   return ret;
++}
++
++signed char FmPerformanceParams :: SetGoodChannelRmssiTh
++(
++   UINT fd, signed char th
++)
++{
++   signed char ret = FM_FAILURE;
++
++   ret = FmIoctlsInterface::set_control(fd,
++                V4L2_CID_PRV_GOOD_CH_RMSSI_TH, th);
++
++   return ret;
++}
++
++signed char FmPerformanceParams :: SetSrchAlgoType
++(
++   UINT fd, unsigned char algo
++)
++{
++   signed char ret = FM_FAILURE;
++
++   ret = FmIoctlsInterface::set_control(fd,
++                V4L2_CID_PRV_SRCHALGOTYPE, algo);
++
++   return ret;
++}
++
++signed char FmPerformanceParams :: SetSinrFirstStage
++(
++   UINT fd, signed char th
++)
++{
++   signed char ret = FM_FAILURE;
++
++   ret = FmIoctlsInterface::set_control(fd,
++                V4L2_CID_PRV_SINRFIRSTSTAGE, th);
++
++   return ret;
++}
++
++signed char FmPerformanceParams :: SetRmssiFirstStage
++(
++   UINT fd, signed char th
++)
++{
++   signed char ret = FM_FAILURE;
++
++   ret = FmIoctlsInterface::set_control(fd,
++                V4L2_CID_PRV_RMSSIFIRSTSTAGE, th);
++
++   return ret;
++}
++
++signed char FmPerformanceParams :: SetCf0Th12
++(
++   UINT fd, int th
++)
++{
++   signed char ret = FM_FAILURE;
++
++   ret = FmIoctlsInterface::set_control(fd,
++                V4L2_CID_PRV_CF0TH12, th);
++   return ret;
++}
++
++signed char FmPerformanceParams :: SetSinrSamplesCnt
++(
++   UINT fd, unsigned char cnt
++)
++{
++   signed char ret = FM_FAILURE;
++
++   ret = FmIoctlsInterface::set_control(fd,
++                V4L2_CID_PRV_SINR_SAMPLES, cnt);
++
++   return ret;
++}
++
++signed char FmPerformanceParams :: SetIntfLowTh
++(
++   UINT fd, unsigned char th
++)
++{
++   signed char ret = FM_FAILURE;
++
++   ret = FmIoctlsInterface::set_control(fd,
++                V4L2_CID_PRV_ON_CHANNEL_THRESHOLD, th);
++
++   return ret;
++}
++
++signed char FmPerformanceParams :: SetIntfHighTh
++(
++   UINT fd, unsigned char th
++)
++{
++   signed char ret = FM_FAILURE;
++
++   ret = FmIoctlsInterface::set_control(fd,
++                V4L2_CID_PRV_OFF_CHANNEL_THRESHOLD, th);
++   return ret;
++}
++
++signed char FmPerformanceParams :: SetSinrFinalStage
++(
++   UINT fd, signed char th
++)
++{
++   signed char ret = FM_FAILURE;
++
++   ret = FmIoctlsInterface::set_control(fd,
++                V4L2_CID_PRV_SINR_THRESHOLD, th);
++
++   return ret;
++}
++
++signed char FmPerformanceParams :: GetAfRmssiTh
++(
++   UINT fd, unsigned short &th
++)
++{
++   long int af_rmssi_th;
++   signed char ret = FM_FAILURE;
++
++   ret = FmIoctlsInterface::get_control(fd,
++                V4L2_CID_PRV_AF_RMSSI_TH, af_rmssi_th);
++   if(ret == FM_SUCCESS) {
++      th = af_rmssi_th;
++   }
++   return ret;
++}
++
++signed char FmPerformanceParams :: GetAfRmssiSamplesCnt
++(
++   UINT fd, unsigned char &cnt
++)
++{
++   long int af_samples_cnt;
++   signed char ret = FM_FAILURE;
++
++   ret = FmIoctlsInterface::get_control(fd,
++                V4L2_CID_PRV_AF_RMSSI_SAMPLES, af_samples_cnt);
++   if(ret == FM_SUCCESS) {
++      cnt = af_samples_cnt;
++   }
++   return ret;
++}
++
++signed char FmPerformanceParams :: GetGoodChannelRmssiTh
++(
++   UINT fd, signed char &th
++)
++{
++   long int gd_chan_rmssi_th;
++   signed char ret = FM_FAILURE;
++
++   ret = FmIoctlsInterface::get_control(fd,
++                V4L2_CID_PRV_GOOD_CH_RMSSI_TH, gd_chan_rmssi_th);
++   if(ret == FM_SUCCESS) {
++      th = gd_chan_rmssi_th;
++   }
++   return ret;
++}
++
++signed char FmPerformanceParams :: GetSrchAlgoType
++(
++   UINT fd, unsigned char &algo
++)
++{
++   long int srch_algo_type;
++   signed char ret = FM_FAILURE;
++
++   ret = FmIoctlsInterface::get_control(fd,
++                V4L2_CID_PRV_SRCHALGOTYPE, srch_algo_type);
++   if(ret == FM_SUCCESS) {
++      algo = srch_algo_type;
++   }
++   return ret;
++}
++
++signed char FmPerformanceParams :: GetSinrFirstStage
++(
++   UINT fd, signed char &th
++)
++{
++   long int sinr_first_stage;
++   signed char ret = FM_FAILURE;
++
++   ret = FmIoctlsInterface::get_control(fd,
++                V4L2_CID_PRV_SINRFIRSTSTAGE, sinr_first_stage);
++   if(ret == FM_SUCCESS) {
++      th = sinr_first_stage;
++   }
++   return ret;
++}
++
++signed char FmPerformanceParams :: GetRmssiFirstStage
++(
++   UINT fd, signed char &th
++)
++{
++   long int rmssi_first_stage;
++   signed char ret = FM_FAILURE;
++
++   ret = FmIoctlsInterface::get_control(fd,
++                V4L2_CID_PRV_RMSSIFIRSTSTAGE, rmssi_first_stage);
++   if(ret == FM_SUCCESS) {
++      th = rmssi_first_stage;
++   }
++   return ret;
++}
++
++signed char FmPerformanceParams :: GetCf0Th12
++(
++   UINT fd, int &th
++)
++{
++   long int cf0th12;
++   signed char ret = FM_FAILURE;
++
++   ret = FmIoctlsInterface::get_control(fd,
++                V4L2_CID_PRV_CF0TH12, cf0th12);
++   if(ret == FM_SUCCESS) {
++      th = cf0th12;
++   }
++   return ret;
++}
++
++signed char FmPerformanceParams :: GetSinrSamplesCnt
++(
++   UINT fd, unsigned char &cnt
++)
++{
++   long int sinr_samples_cnt;
++   signed char ret = FM_FAILURE;
++
++   ret = FmIoctlsInterface::get_control(fd,
++                V4L2_CID_PRV_SINR_SAMPLES, sinr_samples_cnt);
++   if(ret == FM_SUCCESS) {
++      cnt = sinr_samples_cnt;
++   }
++   return ret;
++}
++
++signed char FmPerformanceParams :: GetIntfLowTh
++(
++   UINT fd, unsigned char &th
++)
++{
++   long int intf_low_th;
++   signed char ret = FM_FAILURE;
++
++   ret = FmIoctlsInterface::get_control(fd,
++               V4L2_CID_PRV_ON_CHANNEL_THRESHOLD, intf_low_th);
++   if(ret == FM_SUCCESS) {
++      th = intf_low_th;
++   }
++   return ret;
++}
++
++signed char FmPerformanceParams :: GetIntfHighTh
++(
++   UINT fd, unsigned char &th
++)
++{
++   long int intf_high_th;
++   signed char ret = FM_FAILURE;
++
++   ret = FmIoctlsInterface::get_control(fd,
++               V4L2_CID_PRV_OFF_CHANNEL_THRESHOLD, intf_high_th);
++   if(ret == FM_SUCCESS) {
++      th = intf_high_th;
++   }
++   return ret;
++}
++
++signed char FmPerformanceParams :: GetIntfDet
++(
++   UINT fd, unsigned char &th
++)
++{
++   long int int_det;
++   signed char ret = FM_FAILURE;
++
++   ret = FmIoctlsInterface::get_control(fd,
++               V4L2_CID_PRV_INTDET, int_det);
++   if(ret == FM_SUCCESS) {
++      th = int_det;
++   }
++   return ret;
++}
++signed char FmPerformanceParams :: GetSinrFinalStage
++(
++   UINT fd, signed char &th
++)
++{
++   signed char ret = FM_FAILURE;
++   long int sinr;
++
++   ret = FmIoctlsInterface::get_control(fd,
++                V4L2_CID_PRV_SINR_THRESHOLD, sinr);
++
++   if(ret == FM_SUCCESS) {
++      th = sinr;
++   }
++   return ret;
++}
++
++signed char FmPerformanceParams :: SetHybridSrchList
++(
++   UINT fd,
++   unsigned int *freqs,
++   signed char *sinrs,
++   unsigned int n
++)
++{
++   struct v4l2_ext_control ext_ctl;
++   struct v4l2_ext_controls v4l2_ctls;
++   unsigned int freq;
++   signed char sinr;
++   unsigned int size = 0;
++   char *data = NULL;
++   signed char ret = FM_FAILURE;
++
++   if(n <= 0) {
++      return ret;
++   }
++   data = new char[(n * HYBRID_SRCH_DATA_LEN + HYBRID_SRCH_DATA_INDEX)];
++
++   if(data != NULL) {
++      data[size++] = HYBRID_SRCH_MODE;
++      data[size++] = ((n * HYBRID_SRCH_DATA_LEN) + 1);
++      data[size++] = n;
++      while((size < (n * HYBRID_SRCH_DATA_LEN + 2)) && (freqs != NULL)
++            && (sinrs != NULL)) {
++            freq = (*freqs - STARTING_FREQ) / FREQ_MULTIPLEX;
++            data[size++] = (freq & 0xff);
++            data[size++] = ((freq >> 8) & 0xff);
++            data[size++] = *sinrs;
++            freqs++;
++            sinrs++;
++      }
++      if(size == (n * HYBRID_SRCH_DATA_LEN + HYBRID_SRCH_DATA_INDEX)) {
++         ext_ctl.id = V4L2_CID_PRV_IRIS_WRITE_DEFAULT;
++         ext_ctl.string = data;
++         ext_ctl.size = size;
++         v4l2_ctls.ctrl_class = V4L2_CTRL_CLASS_USER;
++         v4l2_ctls.count = 1;
++         v4l2_ctls.controls  = &ext_ctl;
++         ret =  FmIoctlsInterface::set_ext_control(fd, &v4l2_ctls);
++         if(ret == FM_SUCCESS) {
++            ALOGE("hybrid srch list sent successfully\n");
++         }else {
++            ALOGE("hybrid srch list setting failed\n");
++         }
++      }
++   }
++
++   delete []data;
++
++   return ret;
++}
++
++signed char FmPerformanceParams :: SetBlendSinr
++(
++   UINT fd, signed char bsinr
++)
++{
++   signed char ret = FM_FAILURE;
++
++   if ((bsinr >= MIN_BLEND_SINRHI) &&
++       (bsinr <= MAX_BLEND_SINRHI))
++        ret = FmIoctlsInterface::set_control(fd,
++                   V4L2_CID_PRV_IRIS_BLEND_SINRHI, bsinr);
++
++   return ret;
++}
++
++signed char FmPerformanceParams :: GetBlendSinr
++(
++   UINT fd, signed char &bsinr
++)
++{
++   long int blend_sinr_hi;
++   signed char ret = FM_FAILURE;
++
++   ret = FmIoctlsInterface::get_control(fd,
++                V4L2_CID_PRV_IRIS_BLEND_SINRHI, blend_sinr_hi);
++   if(ret == FM_SUCCESS) {
++      bsinr = blend_sinr_hi;
++   }
++   return ret;
++}
++
++signed char FmPerformanceParams :: SetBlendRmssi
++(
++   UINT fd, signed char brmssi
++)
++{
++   signed char ret = FM_FAILURE;
++
++    if ((brmssi >= MIN_BLEND_RMSSIHI) &&
++        (brmssi <= MAX_BLEND_RMSSIHI))
++         ret = FmIoctlsInterface::set_control(fd,
++                   V4L2_CID_PRV_IRIS_BLEND_RMSSIHI, brmssi);
++
++   return ret;
++}
++
++signed char FmPerformanceParams :: GetBlendRmssi
++(
++   UINT fd, signed char &brmssi
++)
++{
++   long int blend_rmssi_hi;
++   signed char ret = FM_FAILURE;
++
++   ret = FmIoctlsInterface::get_control(fd,
++                V4L2_CID_PRV_IRIS_BLEND_RMSSIHI, blend_rmssi_hi);
++   if(ret == FM_SUCCESS) {
++      brmssi = blend_rmssi_hi;
++   }
++   return ret;
++}
+diff --git a/libfm_jni/FmPerformanceParams.h b/libfm_jni/FmPerformanceParams.h
+new file mode 100644
+index 0000000..88e53cc
+--- /dev/null
++++ b/libfm_jni/FmPerformanceParams.h
+@@ -0,0 +1,78 @@
++/*
++Copyright (c) 2015, The Linux Foundation. All rights reserved.
++
++Redistribution and use in source and binary forms, with or without
++modification, are permitted provided that the following conditions are
++met:
++    * Redistributions of source code must retain the above copyright
++      notice, this list of conditions and the following disclaimer.
++    * Redistributions in binary form must reproduce the above
++      copyright notice, this list of conditions and the following
++      disclaimer in the documentation and/or other materials provided
++      with the distribution.
++    * Neither the name of The Linux Foundation nor the names of its
++      contributors may be used to endorse or promote products derived
++      from this software without specific prior written permission.
++
++THIS SOFTWARE IS PROVIDED "AS IS" AND ANY EXPRESS OR IMPLIED
++WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
++MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT
++ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS
++BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
++CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
++SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR
++BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
++WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
++OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
++IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
++*/
++
++#ifndef __FM_PERFORMANCE_PARAMS_H__
++#define __FM_PERFORMANCE_PARAMS_H__
++
++#include "FM_Const.h"
++
++#define MIN_BLEND_SINRHI -128
++#define MAX_BLEND_SINRHI  127
++#define MIN_BLEND_RMSSIHI -128
++#define MAX_BLEND_RMSSIHI  127
++
++class FmPerformanceParams
++{
++      private:
++      public:
++          signed char SetBand(UINT fd, unsigned char band);
++          signed char SetEmphsis(UINT fd, unsigned char emph);
++          signed char SetChannelSpacing(UINT fd, unsigned char spacing);
++          signed char SetAfRmssiTh(UINT fd, unsigned short th);
++          signed char SetAfRmssiSamplesCnt(UINT fd, unsigned char cnt);
++          signed char SetGoodChannelRmssiTh(UINT fd, signed char th);
++          signed char SetSrchAlgoType(UINT fd, unsigned char algo);
++          signed char SetSinrFirstStage(UINT fd, signed char th);
++          signed char SetRmssiFirstStage(UINT fd, signed char th);
++          signed char SetCf0Th12(UINT fd, int th);
++          signed char SetSinrSamplesCnt(UINT fd, unsigned char cnt);
++          signed char SetIntfLowTh(UINT fd, unsigned char th);
++          signed char SetIntfHighTh(UINT fd, unsigned char th);
++          signed char SetSinrFinalStage(UINT fd, signed char th);
++          signed char SetHybridSrchList(UINT fd, unsigned int *freqs, signed char *sinrs, unsigned int n);
++          signed char SetBlendSinr(UINT fd, signed char bsinr);
++          signed char SetBlendRmssi(UINT fd, signed char brmssi);
++
++          signed char GetAfRmssiTh(UINT fd, unsigned short &th);
++          signed char GetAfRmssiSamplesCnt(UINT fd, unsigned char &cnt);
++          signed char GetGoodChannelRmssiTh(UINT fd, signed char &th);
++          signed char GetSrchAlgoType(UINT fd, unsigned char &algo);
++          signed char GetSinrFirstStage(UINT fd, signed char &th);
++          signed char GetRmssiFirstStage(UINT fd, signed char &th);
++          signed char GetCf0Th12(UINT fd, int &th);
++          signed char GetSinrSamplesCnt(UINT fd, unsigned char &cnt);
++          signed char GetIntfLowTh(UINT fd, unsigned char &th);
++          signed char GetIntfHighTh(UINT fd, unsigned char &th);
++          signed char GetIntfDet(UINT fd, unsigned char &th);
++          signed char GetSinrFinalStage(UINT fd, signed char &th);
++          signed char GetBlendSinr(UINT fd, signed char &bsinr);
++          signed char GetBlendRmssi(UINT fd, signed char &brmssi);
++};
++
++#endif //__FM_PERFORMANCE_PARAMS_H__
+diff --git a/libfm_jni/FmRadioController.cpp b/libfm_jni/FmRadioController.cpp
+new file mode 100644
+index 0000000..613a062
+--- /dev/null
++++ b/libfm_jni/FmRadioController.cpp
+@@ -0,0 +1,1444 @@
++/*
++Copyright (c) 2015, The Linux Foundation. All rights reserved.
++
++Redistribution and use in source and binary forms, with or without
++modification, are permitted provided that the following conditions are
++met:
++    * Redistributions of source code must retain the above copyright
++      notice, this list of conditions and the following disclaimer.
++    * Redistributions in binary form must reproduce the above
++      copyright notice, this list of conditions and the following
++      disclaimer in the documentation and/or other materials provided
++      with the distribution.
++    * Neither the name of The Linux Foundation nor the names of its
++      contributors may be used to endorse or promote products derived
++      from this software without specific prior written permission.
++
++THIS SOFTWARE IS PROVIDED "AS IS" AND ANY EXPRESS OR IMPLIED
++WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
++MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT
++ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS
++BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
++CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
++SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR
++BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
++WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
++OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
++IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
++*/
++
++#include <cstdio>
++#include <cstdlib>
++#include <cstring>
++#include <fcntl.h>
++#include <utils/Log.h>
++#include <cutils/properties.h>
++#include <sys/ioctl.h>
++#include <math.h>
++#include "FmRadioController.h"
++#include "FmIoctlsInterface.h"
++#include "ConfigFmThs.h"
++#include <linux/videodev2.h>
++
++//Reset all variables to default value
++static FmIoctlsInterface * FmIoct;
++FmRadioController :: FmRadioController
++(
++)
++{
++    cur_fm_state = FM_OFF;
++    prev_freq = -1;
++    seek_scan_canceled = false;
++    af_enabled = 0;
++    rds_enabled = 0;
++    event_listener_canceled = false;
++    is_rds_support = false;
++    is_ps_event_received = false;
++    is_rt_event_received = false;
++    is_af_jump_received = false;
++    mutex_fm_state = PTHREAD_MUTEX_INITIALIZER;
++    mutex_seek_compl_cond = PTHREAD_MUTEX_INITIALIZER;
++    mutex_scan_compl_cond = PTHREAD_MUTEX_INITIALIZER;
++    mutex_tune_compl_cond = PTHREAD_MUTEX_INITIALIZER;
++    mutex_turn_on_cond = PTHREAD_MUTEX_INITIALIZER;
++    turn_on_cond = PTHREAD_COND_INITIALIZER;
++    seek_compl_cond = PTHREAD_COND_INITIALIZER;
++    scan_compl_cond = PTHREAD_COND_INITIALIZER;
++    tune_compl_cond = PTHREAD_COND_INITIALIZER;
++    event_listener_thread = 0;
++    fd_driver = -1;
++    FmIoct = new FmIoctlsInterface();
++}
++
++/* Turn off FM */
++FmRadioController :: ~FmRadioController
++(
++)
++{
++    if((cur_fm_state != FM_OFF)) {
++        Stop_Scan_Seek();
++        set_fm_state(FM_OFF_IN_PROGRESS);
++        FmIoctlsInterface::set_control(fd_driver,
++                        V4L2_CID_PRV_STATE, FM_DEV_NONE);
++    }
++    if(event_listener_thread != 0) {
++        event_listener_canceled = true;
++        pthread_join(event_listener_thread, NULL);
++    }
++}
++
++int FmRadioController ::open_dev()
++{
++    int ret = FM_SUCCESS;
++
++    fd_driver = open(FM_DEVICE_PATH, O_RDONLY, O_NONBLOCK);
++
++    if (fd_driver < 0) {
++        ALOGE("%s failed, [fd=%d] %s\n", __func__, fd_driver, FM_DEVICE_PATH);
++        return FM_FAILURE;
++    }
++
++    ALOGD("%s, [fd=%d] \n", __func__, fd_driver);
++    return ret;
++}
++
++int FmRadioController ::close_dev()
++{
++    int ret = 0;
++
++    if (fd_driver > 0) {
++        close(fd_driver);
++        fd_driver = -1;
++    }
++    ALOGD("%s, [fd=%d] [ret=%d]\n", __func__, fd_driver, ret);
++    return ret;
++}
++
++struct timespec FmRadioController :: set_time_out
++(
++    int secs
++)
++{
++    struct timespec ts;
++    struct timeval tp;
++
++    gettimeofday(&tp, NULL);
++    ts.tv_sec = tp.tv_sec;
++    ts.tv_nsec = tp.tv_usec * 1000;
++    ts.tv_sec += secs;
++
++    return ts;
++}
++
++//Get current tuned frequency
++//Return -1 if failed to get freq
++long FmRadioController :: GetChannel
++(
++    void
++)
++{
++    long freq = -1;
++    int ret;
++
++    if((cur_fm_state != FM_OFF) &&
++       (cur_fm_state != FM_ON_IN_PROGRESS)) {
++       ret = FmIoctlsInterface::get_cur_freq(fd_driver, freq);
++       if(ret == FM_SUCCESS) {
++          ALOGI("FM get freq is successfull, freq is: %ld\n", freq);
++       }else {
++          ALOGE("FM get frequency failed, freq is: %ld\n", freq);
++       }
++    }else {
++       ALOGE("FM get freq is not valid in current state\n");
++    }
++    return freq;
++}
++
++int FmRadioController ::Pwr_Up(int freq)
++{
++    int ret = FM_SUCCESS;
++    struct timespec ts;
++    ConfigFmThs thsObj;
++    char value[PROPERTY_VALUE_MAX] = {'\0'};
++
++    ALOGI("%s,[freq=%d]\n", __func__, freq);
++    property_get("qcom.bluetooth.soc", value, NULL);
++    ALOGD("BT soc is %s\n", value);
++    if (fd_driver < 0) {
++        ret = open_dev();
++        if (ret != FM_SUCCESS) {
++            ALOGE("Dev open failed\n");
++            return FM_FAILURE;
++        }
++    }
++
++    if (cur_fm_state == FM_OFF) {
++        ALOGE("cur_fm_state = %d\n",cur_fm_state);
++        if (strcmp(value, "rome") != 0) {
++            ret = FmIoctlsInterface::start_fm_patch_dl(fd_driver);
++            if (ret != FM_SUCCESS) {
++                ALOGE("FM patch downloader failed: %d\n", ret);
++                close_dev();
++                set_fm_state(FM_OFF);
++                return FM_FAILURE;
++            }
++        }
++        if (event_listener_thread == 0) {
++            ret = pthread_create(&event_listener_thread, NULL,
++                                              handle_events, this);
++            if (ret == 0) {
++                ALOGI("Lock the mutex for FM turn on cond\n");
++                pthread_mutex_lock(&mutex_turn_on_cond);
++                ts = set_time_out(READY_EVENT_TIMEOUT);
++                ret = FmIoctlsInterface::set_control(fd_driver,
++                                             V4L2_CID_PRV_STATE, FM_RX);
++                if (ret == FM_SUCCESS) {
++                    ALOGI("Waiting for timedout or FM on\n");
++                    pthread_cond_timedwait(&turn_on_cond,
++                                       &mutex_turn_on_cond, &ts);
++                    ALOGI("Unlocked mutex & timedout or condition satisfied\n");
++                    pthread_mutex_unlock(&mutex_turn_on_cond);
++                    if (cur_fm_state == FM_ON) {//after READY event
++                        ret = SetBand(BAND_87500_108000);
++                        if (ret != FM_SUCCESS) {
++                            ALOGE("set band failed\n");
++                            ret = FM_FAILURE;
++                            goto exit;
++                        }
++                        ret = SetChannelSpacing(CHAN_SPACE_100);
++                        if (ret != FM_SUCCESS) {
++                            ALOGE("set channel spacing failed\n");
++                            ret = FM_FAILURE;
++                            goto exit;
++                        }
++                        ret = SetDeConstant(DE_EMP50);
++                        if (ret != FM_SUCCESS) {
++                            ALOGE("set Emphasis failed\n");
++                            ret = FM_FAILURE;
++                            goto exit;
++                        }
++                        thsObj.SetRxSearchAfThs(FM_PERFORMANCE_PARAMS, fd_driver);
++                        SetStereo();
++                        ret = TuneChannel(freq);
++                        if (ret != FM_SUCCESS) {
++                            ALOGI("FM set freq command failed\n");
++                            ret = FM_FAILURE;
++                            goto exit;
++                        }
++                        return FM_SUCCESS;
++                    } else { //if time out
++                        ret = FM_FAILURE;
++                        goto exit;
++                    }
++                } else {
++                    ALOGE("Set FM on control failed\n");
++                    pthread_mutex_unlock(&mutex_turn_on_cond);
++                    ALOGI("Unlocked the FM on cond mutex\n");
++                    ret = FM_FAILURE;
++                    goto close_fd;
++                }
++            } else {
++                ALOGE("FM event listener thread failed: %d\n", ret);
++                set_fm_state(FM_OFF);
++                return FM_FAILURE;
++            }
++        } else {
++            ALOGE("FM event listener threadi existed\n");
++            return FM_SUCCESS;
++        }
++    } else if(cur_fm_state != FM_ON_IN_PROGRESS) {
++        return FM_SUCCESS;
++    } else {
++        return FM_FAILURE;
++    }
++
++exit:
++    FmIoctlsInterface::set_control(fd_driver,
++                                     V4L2_CID_PRV_STATE, FM_DEV_NONE);
++close_fd:
++    event_listener_canceled = true;
++    pthread_join(event_listener_thread, NULL);
++    close(fd_driver);
++    fd_driver = -1;
++    set_fm_state(FM_OFF);
++
++    ALOGD("%s, [ret=%d]\n", __func__, ret);
++    return ret;
++}
++
++int FmRadioController ::Pwr_Down()
++{
++    int ret = 0;
++
++    if((cur_fm_state != FM_OFF)) {
++        Stop_Scan_Seek();
++        set_fm_state(FM_OFF_IN_PROGRESS);
++        FmIoctlsInterface::set_control(fd_driver,
++                        V4L2_CID_PRV_STATE, FM_DEV_NONE);
++    }
++    if(event_listener_thread != 0) {
++        ALOGD("%s, event_listener_thread canceeled\n", __func__);
++        event_listener_canceled = true;
++        pthread_join(event_listener_thread, NULL);
++    }
++    ALOGD("%s, [ret=%d]\n", __func__, ret);
++    return ret;
++}
++//Tune to a Freq
++//Return FM_SUCCESS on success FM_FAILURE
++//on failure
++int FmRadioController :: TuneChannel
++(
++    long freq
++)
++{
++    int ret = FM_SUCCESS;
++    struct timespec ts;
++
++    if((cur_fm_state == FM_ON) &&
++        (freq > 0)) {
++        set_fm_state(FM_TUNE_IN_PROGRESS);
++        ret = FmIoctlsInterface::set_freq(fd_driver,
++                                             freq);
++        if(ret == FM_SUCCESS) {
++           ALOGI("FM set frequency command set successfully\n");
++           pthread_mutex_lock(&mutex_tune_compl_cond);
++           ts = set_time_out(TUNE_EVENT_TIMEOUT);
++           ret = pthread_cond_timedwait(&tune_compl_cond, &mutex_tune_compl_cond, &ts);
++           pthread_mutex_unlock(&mutex_tune_compl_cond);
++        }else {
++           if((cur_fm_state != FM_OFF)) {
++              set_fm_state(FM_ON);
++           }
++           ALOGE("FM set freq command failed\n");
++        }
++    }else {
++        ALOGE("Fm is not in proper state for tuning to a freq\n");
++        ret = FM_FAILURE;
++    }
++    return ret;
++}
++
++int FmRadioController :: Seek(int dir)
++{
++    int ret = 0;
++    int freq = -1;
++    struct timespec ts;
++
++    if (cur_fm_state != FM_ON) {
++        ALOGE("%s error Fm state: %d\n", __func__,cur_fm_state);
++        return FM_FAILURE;
++    }
++
++    ALOGI("FM seek started\n");
++    set_fm_state(SEEK_IN_PROGRESS);
++    ret = FmIoctlsInterface::set_control(fd_driver,
++                                  V4L2_CID_PRV_SRCHMODE, SEEK_MODE);
++    if (ret != FM_SUCCESS) {
++        set_fm_state(FM_ON);
++        return FM_FAILURE;
++    }
++
++    ret = FmIoctlsInterface::set_control(fd_driver,
++                           V4L2_CID_PRV_SCANDWELL, SEEK_DWELL_TIME);
++    if (ret != FM_SUCCESS) {
++        set_fm_state(FM_ON);
++        return FM_FAILURE;
++    }
++
++    if (dir == 1) {
++        ret = FmIoctlsInterface::start_search(fd_driver,
++                                                     SEARCH_UP);
++    } else {
++        ret = FmIoctlsInterface::start_search(fd_driver,
++                                            SEARCH_DOWN);
++    }
++
++    if (ret != FM_SUCCESS) {
++        set_fm_state(FM_ON);
++        return FM_FAILURE;
++    }
++    pthread_mutex_lock(&mutex_seek_compl_cond);
++    ts = set_time_out(SEEK_COMPL_TIMEOUT);
++    ret = pthread_cond_timedwait(&seek_compl_cond, &mutex_seek_compl_cond, &ts);
++    pthread_mutex_unlock(&mutex_seek_compl_cond);
++    if ((cur_fm_state != SEEK_IN_PROGRESS) && !seek_scan_canceled) {
++        ALOGI("Seek completed without timeout\n");
++        freq = GetChannel();
++    }
++    seek_scan_canceled = false;
++    return freq;
++}
++
++bool FmRadioController ::IsRds_support
++(
++    void
++)
++{
++   is_rds_support = true;
++   ALOGI("is_rds_support: \n", is_rds_support);
++   return is_rds_support;
++}
++
++//HardMute both audio channels
++int FmRadioController ::MuteOn()
++{
++    int ret;
++
++    ALOGE("cur_fm_state = %d\n", cur_fm_state);
++    if((cur_fm_state != FM_OFF) &&
++       (cur_fm_state != FM_ON_IN_PROGRESS)) {
++       ret = FmIoctlsInterface::set_control(fd_driver,
++                       V4L2_CID_AUDIO_MUTE, MUTE_L_R_CHAN);
++       ALOGE("CMD executed mute\n");
++    }else {
++       ret = FM_FAILURE;
++    }
++    return ret;
++}
++
++//Unmute both audio channel
++int FmRadioController ::MuteOff()
++{
++    int ret;
++
++    ALOGE("cur_fm_state = %d\n", cur_fm_state);
++    if((cur_fm_state != FM_OFF) &&
++       (cur_fm_state != FM_ON_IN_PROGRESS)) {
++        ret = FmIoctlsInterface::set_control(fd_driver,
++                      V4L2_CID_AUDIO_MUTE, UNMUTE_L_R_CHAN);
++        ALOGE("CMD executed for unmute\n");
++    }else {
++        ret = FM_FAILURE;
++    }
++    return ret;
++}
++
++//
++int FmRadioController ::SetSoftMute(bool mode)
++{
++    int ret;
++
++    if((cur_fm_state != FM_OFF) &&
++       (cur_fm_state != FM_ON_IN_PROGRESS)) {
++        ret = FmIoctlsInterface::set_control(fd_driver,
++                             V4L2_CID_PRV_SOFT_MUTE, mode);
++    }else {
++        ret = FM_FAILURE;
++    }
++    return ret;
++}
++
++int FmRadioController :: Set_mute(bool mute)
++{
++    int ret = 0;
++
++    if (mute) {
++        ret = MuteOn();
++    } else {
++        ret = MuteOff();
++    }
++
++    if (ret)
++        ALOGE("%s failed, %d\n", __func__, ret);
++    ALOGD("%s, [mute=%d] [ret=%d]\n", __func__, mute, ret);
++    return ret;
++}
++
++int FmRadioController :: Stop_Scan_Seek
++(
++)
++{
++   int ret;
++
++    if((cur_fm_state == SEEK_IN_PROGRESS) ||
++       (cur_fm_state == SCAN_IN_PROGRESS)) {
++        ret = FmIoctlsInterface::set_control(fd_driver,
++                                       V4L2_CID_PRV_SRCHON, 0);
++        if (ret == FM_SUCCESS) {
++            ALOGI("FM Seek cancel command set successfully\n");
++            seek_scan_canceled = true;
++        } else {
++            ALOGE("FM Seek cancel command sent failed\n");
++        }
++    } else {
++        ALOGE("FM is not in proper state for cancelling Seek operation\n");
++        ret = FM_FAILURE;
++    }
++    return ret;
++}
++
++int FmRadioController :: ReadRDS() //todo define each RDS flag
++{
++   int ret = 0;
++
++   if (is_ps_event_received)
++       ret |= RDS_EVT_PS_UPDATE;
++   if (is_rt_event_received)
++       ret |= RDS_EVT_RT_UPDATE;
++   if (is_af_jump_received)
++       ret |= RDS_EVT_AF_JUMP;
++
++   return ret;
++}
++
++int FmRadioController :: Get_ps(char *ps, int *ps_len)
++{
++    int ret = 0;
++    int len = 0;
++    char raw_rds[STD_BUF_SIZE];
++
++    ret = FmIoctlsInterface::get_buffer(fd_driver,
++                                    raw_rds, STD_BUF_SIZE, PS_IND);
++    if (ret <= 0) {
++        return FM_FAILURE;
++    } else {
++        if (raw_rds[PS_STR_NUM_IND] > 0) {
++            if (ps != NULL) {
++                for(int i = 0; i < MAX_PS_LEN; i++) {
++                    ps[i] = raw_rds[PS_DATA_OFFSET_IND + i];
++                    if (ps[i] == 0) {
++                        break;
++                    } else if((ps[len] <= LAST_CTRL_CHAR) ||
++                              (ps[len] >= FIRST_NON_PRNT_CHAR)) {
++                        ps[i] = SPACE_CHAR;
++                        continue;
++                    }
++                    len++;
++                }
++                if (len < (MAX_PS_LEN - 1)) {
++                    ps[len] = '\0';
++                    *ps_len = len + 1;
++                } else {
++                    *ps_len = len;
++                }
++                ALOGI("PS is: %s\n", ps);
++            } else {
++                return FM_FAILURE;
++            }
++        }
++    }
++    is_ps_event_received = false;
++    ALOGD("%s, [ps_len=%d]\n", __func__, *ps_len);
++    return FM_SUCCESS;
++}
++
++int FmRadioController :: Get_rt(char *rt, int *rt_len)
++{
++    int ret = 0;
++    int len = 0;
++    char raw_rds[STD_BUF_SIZE];
++
++    ret = FmIoctlsInterface::get_buffer(fd_driver,
++                               raw_rds, STD_BUF_SIZE, RT_IND);
++    if (ret <= 0) {
++        return FM_FAILURE;
++    } else {
++        if (rt != NULL) {
++            if ((raw_rds[RT_LEN_IND] > 0) &&
++                (raw_rds[RT_LEN_IND] <= MAX_RT_LEN)) {
++                for(len = 0; len < raw_rds[RT_LEN_IND]; len++) {
++                   rt[len] = raw_rds[RT_DATA_OFFSET_IND + len];
++                   ALOGI("Rt byte[%d]: %d\n", len, rt[len]);
++                   if ((rt[len] <= LAST_CTRL_CHAR) ||
++                       (rt[len] >= FIRST_NON_PRNT_CHAR)) {
++                       rt[len] = SPACE_CHAR;
++                       continue;
++                   }
++                }
++                if (len < (MAX_RT_LEN - 1)) {
++                    rt[len] = '\0';
++                    *rt_len = len + 1;
++                } else {
++                    *rt_len = len;
++                }
++                ALOGI("Rt is: %s\n", rt);
++                ALOGI("RT text A / B: %d\n", raw_rds[RT_A_B_FLAG_IND]);
++            } else {
++                return FM_FAILURE;
++            }
++        } else {
++            return FM_FAILURE;
++        }
++    }
++    is_rt_event_received = false;
++    ALOGD("%s, [rt_len=%d]\n", __func__, *rt_len);
++    return FM_SUCCESS;
++}
++
++int FmRadioController :: Get_AF_freq(uint16_t *ret_freq)
++{
++    int ret =0;
++    ULINT lowBand, highBand;
++    float real_freq = 0;
++
++    ALOGI("get_AF_freq\n");
++    ret = FmIoctlsInterface::get_lowerband_limit(fd_driver,
++                                                         lowBand);
++    if (ret != FM_SUCCESS) {
++        ALOGE("failed to get lowerband: %d\n", ret);
++        return FM_FAILURE;
++    }
++    ALOGI("lowBand = %ld\n",lowBand);
++    ret = FmIoctlsInterface::get_upperband_limit(fd_driver,
++                                                      highBand);
++    if (ret != FM_SUCCESS) {
++        ALOGE("failed to getgherband: %d\n", ret);
++        return FM_FAILURE;
++    }
++    ALOGI("highBand = %ld\n",highBand);
++    real_freq = GetChannel();
++    if ((real_freq < lowBand ) || (real_freq > highBand)) {
++        ALOGE("AF freq is not in band limits\ni");
++        return FM_FAILURE;
++    } else {
++        *ret_freq = real_freq/100;
++    }
++    is_af_jump_received = false;
++    return FM_SUCCESS;
++}
++
++//Emphasis:
++//75microsec: 0, 50 microsec: 1
++//return FM_SUCCESS on success, FM_FAILURE
++//on failure
++int FmRadioController :: SetDeConstant
++(
++    long emphasis
++)
++{
++    int ret;
++
++     ALOGE("cur_fm_state: %d, emphasis: %d\n", cur_fm_state, emphasis);
++    if(cur_fm_state == FM_ON) {
++        switch(emphasis) {
++            case DE_EMP75:
++            case DE_EMP50:
++                ret = FmIoctlsInterface::set_control(fd_driver,
++                       V4L2_CID_PRV_EMPHASIS, emphasis);
++                break;
++            default:
++                ALOGE("FM value pass for set Deconstant is invalid\n");
++                ret = FM_FAILURE;
++                break;
++        }
++    }else {
++        ALOGE("FM is not in proper state to set De constant\n");
++        ret = FM_FAILURE;
++    }
++    return ret;
++}
++
++int FmRadioController :: GetStationList
++(
++    uint16_t *scan_tbl, int *max_cnt
++)
++{
++    char srch_list[STD_BUF_SIZE];
++    int ret;
++    ULINT lowBand, highBand;
++    int station_num = 0;
++    int stationList[FM_RX_SRCHLIST_MAX_STATIONS];
++    int tmpFreqByte1=0;
++    int tmpFreqByte2=0;
++    int freq = 0;
++    float real_freq = 0;
++    int i = 0, j = 0;
++
++    ALOGI("getstationList\n");
++    ret = FmIoctlsInterface::get_lowerband_limit(fd_driver,
++                                                         lowBand);
++    if (ret != FM_SUCCESS) {
++        ALOGE("failed to get lowerband: %d\n", ret);
++        return FM_FAILURE;
++    }
++    ALOGI("lowBand = %ld\n",lowBand);
++    ret = FmIoctlsInterface::get_upperband_limit(fd_driver,
++                                                      highBand);
++    if (ret != FM_SUCCESS) {
++        ALOGE("failed to getgherband: %d\n", ret);
++        return FM_FAILURE;
++    }
++    ALOGI("highBand = %ld\n",highBand);
++    ret = FmIoctlsInterface::get_buffer(fd_driver,
++                          srch_list, STD_BUF_SIZE, STATION_LIST_IND);
++    if ((int)srch_list[0] >0) {
++        station_num = (int)srch_list[0];
++    }
++    ALOGI("station_num: %d ", station_num);
++    *max_cnt = station_num;
++    for (i=0;i<station_num;i++) {
++        freq = 0;
++        ALOGI(" Byte1 = %d", srch_list[i * NO_OF_BYTES_EACH_FREQ + 1]);
++        ALOGI(" Byte2 = %d", srch_list[i * NO_OF_BYTES_EACH_FREQ + 2]);
++        tmpFreqByte1 = srch_list[i * NO_OF_BYTES_EACH_FREQ + 1] & 0xFF;
++        tmpFreqByte2 = srch_list[i * NO_OF_BYTES_EACH_FREQ + 2] & 0xFF;
++        ALOGI(" tmpFreqByte1 = %d", tmpFreqByte1);
++        ALOGI(" tmpFreqByte2 = %d", tmpFreqByte2);
++        freq = (tmpFreqByte1 & EXTRACT_FIRST_BYTE) << 8;
++        freq |= tmpFreqByte2;
++        ALOGI(" freq: %d", freq);
++        real_freq  = (freq * FREQ_MULTIPLEX) + lowBand;
++        ALOGI(" real_freq: %d", real_freq);
++        if ( (real_freq < lowBand ) || (real_freq > highBand) ) {
++              ALOGI("Frequency out of band limits");
++        } else {
++            scan_tbl[j] = (real_freq/SRCH_DIV);
++            ALOGI(" scan_tbl: %d", scan_tbl[j]);
++            j++;
++        }
++    }
++    return FM_SUCCESS;
++}
++
++int FmRadioController ::ScanList
++(
++    uint16_t *scan_tbl, int *max_cnt
++)
++{
++    int ret;
++    struct timespec ts;
++
++    /* Check current state of FM device */
++    if (cur_fm_state == FM_ON) {
++        ALOGI("FM searchlist started\n");
++        set_fm_state(SCAN_IN_PROGRESS);
++        ret = FmIoctlsInterface::set_control(fd_driver,
++                           V4L2_CID_PRV_SRCHMODE, SRCHLIST_MODE_STRONG);
++        if (ret != FM_SUCCESS) {
++            set_fm_state(FM_ON);
++            return FM_FAILURE;
++        }
++        ret = FmIoctlsInterface::set_control(fd_driver,
++                         V4L2_CID_PRV_SRCH_CNT, FM_RX_SRCHLIST_MAX_STATIONS);
++        if (ret != FM_SUCCESS) {
++            set_fm_state(FM_ON);
++            return FM_FAILURE;
++        }
++        ret = FmIoctlsInterface::start_search(fd_driver,
++                                                     SEARCH_UP);
++        if (ret != FM_SUCCESS) {
++            set_fm_state(FM_ON);
++            return FM_FAILURE;
++        }
++        pthread_mutex_lock(&mutex_scan_compl_cond);
++        ts = set_time_out(SCAN_COMPL_TIMEOUT);
++        ALOGI("Wait for Scan Timeout or scan complete");
++        ret = pthread_cond_timedwait(&scan_compl_cond, &mutex_scan_compl_cond, &ts);
++        ALOGI("Scan complete or timedout");
++        pthread_mutex_unlock(&mutex_scan_compl_cond);
++        if (cur_fm_state == FM_ON && !seek_scan_canceled) {
++            GetStationList(scan_tbl, max_cnt);
++        } else {
++            seek_scan_canceled = false;
++            return FM_FAILURE;
++        }
++    } else {
++        ALOGI("Scanlist: not proper state %d\n",cur_fm_state );
++        return FM_FAILURE;
++    }
++    return FM_SUCCESS;
++}
++
++long FmRadioController :: GetCurrentRSSI
++(
++    void
++)
++{
++    int ret;
++    long rmssi = -129;
++
++    if((cur_fm_state != FM_OFF) &&
++       (cur_fm_state != FM_ON_IN_PROGRESS)) {
++        ret = FmIoctlsInterface::get_rmssi(fd_driver, rmssi);
++    }else {
++    }
++    return rmssi;
++}
++
++//enable, disable value to receive data of a RDS group
++//return FM_SUCCESS on success, FM_FAILURE on failure
++int FmRadioController :: SetRdsGrpProcessing
++(
++    int grps
++)
++{
++    int ret;
++    long mask;
++
++    if(cur_fm_state == FM_ON) {
++       ret = FmIoctlsInterface::get_control(fd_driver,
++                     V4L2_CID_PRV_RDSGROUP_PROC, mask);
++       if(ret != FM_SUCCESS) {
++          return ret;
++       }
++       mask &= 0xC7;
++       mask |= ((grps & 0x07) << 3);
++       ret = FmIoctlsInterface::set_control(fd_driver,
++                    V4L2_CID_PRV_RDSGROUP_PROC, (int)mask);
++    }else {
++       ret = FM_FAILURE;
++    }
++    return ret;
++}
++
++//Enable RDS data receiving
++//Enable RT, PS, AF Jump, RTPLUS, ERT etc
++int FmRadioController :: EnableRDS
++(
++    void
++)
++{
++    int ret = FM_FAILURE;
++
++    ALOGE("%s:cur_fm_state = %d\n", __func__, cur_fm_state);
++    if (cur_fm_state == FM_ON) {
++        ret = FmIoctlsInterface::set_control(fd_driver,
++                      V4L2_CID_PRV_RDSON, 1);
++        if (ret != FM_SUCCESS) {
++            ALOGE("RDS ON failed\n");
++            return ret;
++        }
++        ret = SetRdsGrpProcessing(FM_RX_RDS_GRP_RT_EBL |
++                                  FM_RX_RDS_GRP_PS_EBL |
++                                  FM_RX_RDS_GRP_AF_EBL |
++                                  FM_RX_RDS_GRP_PS_SIMPLE_EBL);
++        if (ret != FM_SUCCESS) {
++            ALOGE("Set RDS grp processing\n");
++            return ret;
++        }
++        ret = FM_SUCCESS;
++        rds_enabled = 1;
++        EnableAF();
++    } else {
++        ALOGE("%s:not in proper state cur_fm_state = %d\n", cur_fm_state);
++        return ret;
++    }
++    return ret;
++}
++
++//Disable all RDS data processing
++//RT, ERT, RT PLUS, PS
++int FmRadioController :: DisableRDS
++(
++    void
++)
++{
++    int ret = FM_FAILURE;
++
++    ALOGE("%s:cur_fm_state = %d\n", __func__, cur_fm_state);
++    if (cur_fm_state == FM_ON) {
++        ret = FmIoctlsInterface::set_control(fd_driver,
++                      V4L2_CID_PRV_RDSON, 2);
++        if (ret != FM_SUCCESS) {
++            ALOGE("Disable RDS failed\n");
++            return ret;
++        }
++        ret = FM_SUCCESS;
++        rds_enabled = 0;
++        DisableAF();
++    } else {
++        ALOGE("%s:not in proper state cur_fm_state = %d\n", cur_fm_state);
++        ret = FM_FAILURE;
++    }
++    return ret;
++}
++
++int FmRadioController :: Turn_On_Off_Rds(bool onoff)
++{
++    int ret = 0;
++
++    if (onoff) {
++        ret = EnableRDS();
++    } else {
++        ret = DisableRDS();
++    }
++
++    if (ret) {
++        ALOGE("%s, failed\n", __func__);
++    }
++    ALOGD("%s, [onoff=%d] [ret=%d]\n", __func__, onoff, ret);
++    return ret;
++}
++
++//Enables Alternate Frequency switching
++int FmRadioController :: EnableAF
++(
++    void
++)
++{
++    int ret;
++    long rdsgrps;
++
++    if(cur_fm_state == FM_ON) {
++        ret = FmIoctlsInterface::get_control(fd_driver,
++                      V4L2_CID_PRV_RDSGROUP_PROC, rdsgrps);
++        ret = FmIoctlsInterface::set_control(fd_driver,
++                      V4L2_CID_PRV_RDSON, 1);
++        if(ret == FM_SUCCESS) {
++            ret = FmIoctlsInterface::set_control(fd_driver,
++                      V4L2_CID_PRV_AF_JUMP, 1);
++            if(ret == FM_SUCCESS) {
++               af_enabled = 1;
++            }
++        } else {
++        }
++    } else {
++        ret = FM_FAILURE;
++    }
++    return ret;
++}
++
++//Disables Alternate Frequency switching
++int FmRadioController :: DisableAF
++(
++    void
++)
++{
++    int ret;
++    long rdsgrps;
++
++    if(cur_fm_state == FM_ON) {
++        ret = FmIoctlsInterface::get_control(fd_driver,
++                      V4L2_CID_PRV_RDSGROUP_PROC, rdsgrps);
++        if(ret == FM_SUCCESS) {
++            ret = FmIoctlsInterface::set_control(fd_driver,
++                      V4L2_CID_PRV_AF_JUMP, 0);
++            if(ret == FM_SUCCESS) {
++               af_enabled = 0;
++            }
++        }else {
++        }
++    }else {
++        ret = FM_FAILURE;
++    }
++    return ret;
++}
++
++//Set regional band
++int FmRadioController :: SetBand
++(
++    long band
++)
++{
++    int ret;
++
++    if(cur_fm_state == FM_ON) {
++        switch(band) {
++            case BAND_87500_108000:
++                ret = FmIoctlsInterface::set_band(fd_driver,
++                               87500, 108000);
++                break;
++            case BAND_76000_108000:
++                ret = FmIoctlsInterface::set_band(fd_driver,
++                               76000, 108000);
++                break;
++            case BAND_76000_90000:
++                ret = FmIoctlsInterface::set_band(fd_driver,
++                               76000, 90000);
++                break;
++            default:
++                ALOGE("Band type: %ld is invalid\n", band);
++                ret = FM_FAILURE;
++                break;
++        }
++    }else {
++        ALOGE("FM is not in proper state to set band type\n");
++        ret = FM_FAILURE;
++    }
++    return ret;
++}
++
++//set spacing for successive channels
++int FmRadioController :: SetChannelSpacing
++(
++    long spacing
++)
++{
++    int ret;
++
++    if (cur_fm_state == FM_ON) {
++        ret = FmIoctlsInterface::set_control(fd_driver,
++                               V4L2_CID_PRV_CHAN_SPACING, spacing);
++    } else {
++        ALOGE("FM is not in proper state to set the channel spacing\n");
++        ret = FM_FAILURE;
++    }
++    return ret;
++}
++
++int FmRadioController :: SetStereo
++(
++)
++{
++    int ret;
++
++    if((cur_fm_state != FM_OFF) &&
++       (cur_fm_state != FM_ON_IN_PROGRESS)) {
++       ret = FmIoctlsInterface::set_audio_mode(fd_driver,
++                                           STEREO);
++    }else {
++       ret = FM_FAILURE;
++    }
++    return ret;
++}
++
++int FmRadioController :: SetMono
++(
++)
++{
++    int ret;
++
++    if((cur_fm_state != FM_OFF) &&
++       (cur_fm_state != FM_ON_IN_PROGRESS)) {
++       ret = FmIoctlsInterface::set_audio_mode(fd_driver,
++                                              MONO);
++    }else {
++       ret = FM_FAILURE;
++    }
++    return ret;
++}
++
++bool FmRadioController :: GetSoftMute
++(
++)
++{
++    int ret = FM_SUCCESS;
++    long mode = SMUTE_DISABLED;
++
++    if((cur_fm_state != FM_OFF) &&
++       (cur_fm_state != FM_ON_IN_PROGRESS)) {
++       ret = FmIoctlsInterface::get_control(fd_driver,
++                            V4L2_CID_PRV_SOFT_MUTE, mode);
++       if(ret == FM_SUCCESS) {
++          ALOGI("FM Get soft mute is successful: %ld\n", mode);
++       }else {
++          ALOGE("FM Get soft mute failed");
++       }
++    }else {
++       ALOGE("FM is not in proper state for getting soft mute\n");
++       ret = FM_FAILURE;
++    }
++    return mode;
++}
++
++int FmRadioController :: Antenna_Switch(int antenna)
++{
++    int ret = 0;
++
++    if (antenna) {
++        ret = FmIoctlsInterface::set_control(fd_driver,
++                                     V4L2_CID_PRV_ANTENNA, 1);
++    } else {
++        ret = FmIoctlsInterface::set_control(fd_driver,
++                                     V4L2_CID_PRV_ANTENNA, 0);
++    }
++    ALOGD("%s, antenna type = %d [ret=%d]\n", __func__, antenna, ret);
++    return ret;
++}
++
++int FmRadioController :: get_fm_state
++(
++)
++{
++    return cur_fm_state;
++}
++
++void FmRadioController :: set_fm_state
++(
++    int state
++)
++{
++    pthread_mutex_lock(&mutex_fm_state);
++    cur_fm_state = state;
++    pthread_mutex_unlock(&mutex_fm_state);
++}
++
++void* FmRadioController :: handle_events
++(
++    void *arg
++)
++{
++    int bytesread;
++    char event_buff[STD_BUF_SIZE];
++    bool status = true;
++    FmRadioController *obj_p = static_cast<FmRadioController*>(arg);
++
++    while(status && !obj_p->event_listener_canceled) {
++        bytesread = FmIoctlsInterface::get_buffer(obj_p->fd_driver,
++                      event_buff, STD_BUF_SIZE, EVENT_IND);
++        for(int i = 0; i < bytesread; i++) {
++            status = obj_p->process_radio_events(event_buff[i]);
++            if(status == false) {
++                break;
++            }
++        }
++    }
++    return NULL;
++}
++
++int FmRadioController :: SetRdsGrpMask
++(
++    int mask
++)
++{
++    int ret;
++
++    if((cur_fm_state != FM_OFF) &&
++       (cur_fm_state != FM_OFF_IN_PROGRESS) &&
++       (cur_fm_state != FM_ON_IN_PROGRESS)) {
++        ret = FmIoctlsInterface::set_control(fd_driver,
++                      V4L2_CID_PRV_RDSGROUP_MASK, mask);
++    }else {
++        ret = FM_FAILURE;
++    }
++    return ret;
++}
++
++void FmRadioController :: handle_enabled_event
++(
++     void
++)
++{
++     char value[PROPERTY_VALUE_MAX] = {'\0'};
++
++     ALOGI("FM handle ready Event\n");
++     FmIoctlsInterface::set_control(fd_driver,
++             V4L2_CID_PRV_AUDIO_PATH, AUDIO_DIGITAL_PATH);
++     property_get("qcom.bluetooth.soc", value, NULL);
++     if (strcmp(value, "rome") != 0) {
++         FmIoctlsInterface::set_calibration(fd_driver);
++     }
++     pthread_mutex_lock(&mutex_turn_on_cond);
++     set_fm_state(FM_ON);
++     pthread_cond_broadcast(&turn_on_cond);
++     pthread_mutex_unlock(&mutex_turn_on_cond);
++}
++
++void FmRadioController :: handle_tuned_event
++(
++     void
++)
++{
++     long freq = -1;
++
++     ALOGI("FM handle Tune event\n");
++     freq = GetChannel();
++     switch(cur_fm_state) {
++         case FM_ON:
++            if(af_enabled && (freq != prev_freq)
++                && (prev_freq > 0)) {
++               ALOGI("AF jump happened\n");
++               is_af_jump_received = true;
++            }
++            break;
++         case FM_TUNE_IN_PROGRESS:
++            pthread_mutex_lock(&mutex_tune_compl_cond);
++            set_fm_state(FM_ON);
++            pthread_cond_broadcast(&tune_compl_cond);
++            pthread_mutex_unlock(&mutex_tune_compl_cond);
++            break;
++         case SEEK_IN_PROGRESS:
++            pthread_mutex_lock(&mutex_seek_compl_cond);
++            set_fm_state(FM_ON);
++            pthread_cond_broadcast(&seek_compl_cond);
++            pthread_mutex_unlock(&mutex_seek_compl_cond);
++            break;
++         case SCAN_IN_PROGRESS:
++            break;
++     }
++     prev_freq = freq;
++}
++
++void FmRadioController :: handle_seek_next_event
++(
++     void
++)
++{
++     ALOGI("FM handle seek next event\n");
++}
++
++void FmRadioController :: handle_seek_complete_event
++(
++     void
++)
++{
++     ALOGI("FM handle seek complete event\n");
++}
++
++void FmRadioController :: handle_raw_rds_event
++(
++     void
++)
++{
++
++}
++
++void FmRadioController :: handle_rt_event
++(
++     void
++)
++{
++     ALOGI("FM handle RT event\n");
++     is_rt_event_received = true;
++}
++
++void FmRadioController :: handle_ps_event
++(
++    void
++)
++{
++    ALOGI("FM handle PS event\n");
++    is_ps_event_received = true;
++}
++
++void FmRadioController :: handle_error_event
++(
++   void
++)
++{
++
++}
++
++void FmRadioController :: handle_below_th_event
++(
++   void
++)
++{
++
++}
++
++void FmRadioController :: handle_above_th_event
++(
++   void
++)
++{
++
++}
++
++void FmRadioController :: handle_stereo_event
++(
++   void
++)
++{
++
++}
++void FmRadioController :: handle_mono_event
++(
++  void
++)
++{
++
++}
++
++void FmRadioController :: handle_rds_aval_event
++(
++  void
++)
++{
++    ALOGI("Got rds_aval_event\n");
++    is_rds_support = true;
++}
++
++void FmRadioController :: handle_rds_not_aval_event
++(
++  void
++)
++{
++    ALOGI("Got rds_not_aval_event\n");
++}
++
++void FmRadioController :: handle_srch_list_event
++(
++  void
++)
++{
++    ALOGI("Got srch list event\n");
++    if (cur_fm_state == SCAN_IN_PROGRESS) {
++        pthread_mutex_lock(&mutex_scan_compl_cond);
++        set_fm_state(FM_ON);
++        pthread_cond_broadcast(&scan_compl_cond);
++        pthread_mutex_unlock(&mutex_scan_compl_cond);
++    }
++}
++
++void FmRadioController :: handle_af_list_event
++(
++  void
++)
++{
++    char raw_rds[STD_BUF_SIZE];
++    int ret;
++    int aflist_size;
++    ULINT lower_band;
++    int AfList[MAX_AF_LIST_SIZE];
++
++    ALOGI("Got af list event\n");
++    ret = FmIoctlsInterface::get_buffer(fd_driver,
++                     raw_rds, STD_BUF_SIZE, AF_LIST_IND);
++    lower_band = FmIoctlsInterface::get_lowerband_limit(fd_driver,
++                     lower_band);
++    ALOGI("raw_rds[0]: %d\n", (raw_rds[0] & 0xff));
++    ALOGI("raw_rds[1]: %d\n", (raw_rds[1] & 0xff));
++    ALOGI("raw_rds[2]: %d\n", (raw_rds[2] & 0xff));
++    ALOGI("raw_rds[3]: %d\n", (raw_rds[3] & 0xff));
++    ALOGI("raw_rds[4]: %d\n", (raw_rds[4] & 0xff));
++    ALOGI("raw_rds[5]: %d\n", (raw_rds[5] & 0xff));
++    ALOGI("raw_rds[6]: %d\n", (raw_rds[6] & 0xff));
++
++    aflist_size = raw_rds[AF_SIZE_IDX] & 0xff;
++    for(int i = 0; i < aflist_size; i++) {
++       AfList[i] = (raw_rds[AF_SIZE_IDX + i * NO_OF_BYTES_AF + 1] & 0xFF) |
++                   ((raw_rds[AF_SIZE_IDX + i * NO_OF_BYTES_AF + 2] & 0xFF) << 8) |
++                   ((raw_rds[AF_SIZE_IDX + i * NO_OF_BYTES_AF + 3] & 0xFF) << 16) |
++                   ((raw_rds[AF_SIZE_IDX + i * NO_OF_BYTES_AF + 4] & 0xFF) << 24);
++       ALOGI("AF: %d\n", AfList[i]);
++    }
++}
++
++void FmRadioController :: handle_disabled_event
++(
++  void
++)
++{
++     //Expected disabled
++     if(cur_fm_state == FM_OFF_IN_PROGRESS) {
++        ALOGI("Expected disabled event\n");
++     }else {//Enexpected disabled
++        ALOGI("Unexpected disabled event\n");
++     }
++
++     set_fm_state(FM_OFF);
++     close(fd_driver);
++     fd_driver = -1;
++
++     //allow tune function to exit
++     pthread_mutex_lock(&mutex_tune_compl_cond);
++     pthread_cond_broadcast(&tune_compl_cond);
++     pthread_mutex_unlock(&mutex_tune_compl_cond);
++     //allow scan function to exit
++     pthread_mutex_lock(&mutex_scan_compl_cond);
++     pthread_cond_broadcast(&scan_compl_cond);
++     pthread_mutex_unlock(&mutex_scan_compl_cond);
++     //Allow seek function to exit
++     pthread_mutex_lock(&mutex_seek_compl_cond);
++     pthread_cond_broadcast(&seek_compl_cond);
++     pthread_mutex_unlock(&mutex_seek_compl_cond);
++}
++
++void FmRadioController :: handle_rds_grp_mask_req_event
++(
++    void
++)
++{
++    SetRdsGrpMask(0);
++}
++
++void FmRadioController :: handle_rt_plus_event
++(
++    void
++)
++{
++    ALOGI("FM handle RT Plus event\n");
++}
++
++void FmRadioController :: handle_af_jmp_event
++(
++    void
++)
++{
++    long freq = -1;
++
++    freq = GetChannel();
++    ALOGI("FM handle AF Jumped event\n");
++    if(af_enabled && (freq != prev_freq)) {
++       ALOGI("AF Jump occured, prevfreq is: %ld, af freq is: %ld\n", prev_freq, freq);
++    }
++    prev_freq = freq;
++}
++
++void FmRadioController :: handle_ert_event
++(
++    void
++)
++{
++    ALOGI("FM handle ERT event\n");
++}
++
++bool FmRadioController :: process_radio_events
++(
++    int event
++)
++{
++    bool ret = true;
++
++    switch(event) {
++        case READY_EVENT:
++            handle_enabled_event();
++            break;
++        case TUNE_EVENT:
++            handle_tuned_event();
++            break;
++        case SEEK_COMPLETE_EVENT:
++            handle_seek_complete_event();
++            break;
++        case SCAN_NEXT_EVENT:
++            handle_seek_next_event();
++            break;
++        case RAW_RDS_EVENT:
++            handle_raw_rds_event();
++            break;
++        case RT_EVENT:
++            handle_rt_event();
++            break;
++        case PS_EVENT:
++            handle_ps_event();
++            break;
++        case ERROR_EVENT:
++            handle_error_event();
++            break;
++        case BELOW_TH_EVENT:
++            handle_below_th_event();
++            break;
++        case ABOVE_TH_EVENT:
++            handle_above_th_event();
++            break;
++        case STEREO_EVENT:
++            handle_stereo_event();
++            break;
++        case MONO_EVENT:
++            handle_mono_event();
++            break;
++        case RDS_AVAL_EVENT:
++            handle_rds_aval_event();
++            break;
++        case RDS_NOT_AVAL_EVENT:
++            handle_rds_not_aval_event();
++            break;
++        case SRCH_LIST_EVENT:
++            handle_srch_list_event();
++            break;
++        case AF_LIST_EVENT:
++            handle_af_list_event();
++            break;
++        case DISABLED_EVENT:
++            handle_disabled_event();
++            ret = false;
++            break;
++        case RDS_GRP_MASK_REQ_EVENT:
++            handle_rds_grp_mask_req_event();
++            break;
++        case RT_PLUS_EVENT:
++            handle_rt_plus_event();
++            break;
++        case ERT_EVENT:
++            handle_ert_event();
++            break;
++        case AF_JMP_EVENT:
++            handle_af_jmp_event();
++            break;
++        default:
++            break;
++    }
++    return ret;
++}
+diff --git a/libfm_jni/FmRadioController.h b/libfm_jni/FmRadioController.h
+new file mode 100644
+index 0000000..6ce906e
+--- /dev/null
++++ b/libfm_jni/FmRadioController.h
+@@ -0,0 +1,125 @@
++/*
++Copyright (c) 2015, The Linux Foundation. All rights reserved.
++
++Redistribution and use in source and binary forms, with or without
++modification, are permitted provided that the following conditions are
++met:
++    * Redistributions of source code must retain the above copyright
++      notice, this list of conditions and the following disclaimer.
++    * Redistributions in binary form must reproduce the above
++      copyright notice, this list of conditions and the following
++      disclaimer in the documentation and/or other materials provided
++      with the distribution.
++    * Neither the name of The Linux Foundation nor the names of its
++      contributors may be used to endorse or promote products derived
++      from this software without specific prior written permission.
++
++THIS SOFTWARE IS PROVIDED "AS IS" AND ANY EXPRESS OR IMPLIED
++WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
++MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT
++ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS
++BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
++CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
++SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR
++BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
++WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
++OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
++IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
++*/
++
++#ifndef __FM_RADIO_CTRL_H__
++#define __FM_RADIO_CTRL_H___
++
++#include <pthread.h>
++#include <ctime>
++
++class FmRadioController
++{
++    private:
++        int cur_fm_state;
++        char af_enabled;
++        bool seek_scan_canceled;
++        bool is_rds_support;
++        bool is_ps_event_received = false;
++        bool is_rt_event_received = false;
++        bool is_af_jump_received = false;
++        bool event_listener_canceled;
++        pthread_mutex_t mutex_fm_state;
++        pthread_mutex_t mutex_turn_on_cond;
++        pthread_mutex_t mutex_seek_compl_cond;
++        pthread_mutex_t mutex_scan_compl_cond;
++        pthread_mutex_t mutex_tune_compl_cond;
++        pthread_cond_t turn_on_cond;
++        pthread_cond_t seek_compl_cond;
++        pthread_cond_t scan_compl_cond;
++        pthread_cond_t tune_compl_cond;
++        char rds_enabled;
++        long int prev_freq;
++        int fd_driver;
++        pthread_t event_listener_thread;
++        int SetRdsGrpMask(int mask);
++        int SetRdsGrpProcessing(int grps);
++        void handle_enabled_event(void);
++        void handle_tuned_event(void);
++        void handle_seek_next_event(void);
++        void handle_seek_complete_event(void);
++        void handle_raw_rds_event(void);
++        void handle_rt_event(void);
++        void handle_ps_event(void);
++        void handle_error_event(void);
++        void handle_below_th_event(void);
++        void handle_above_th_event(void);
++        void handle_stereo_event(void);
++        void handle_mono_event(void);
++        void handle_rds_aval_event(void);
++        void handle_rds_not_aval_event(void);
++        void handle_srch_list_event(void);
++        void handle_af_list_event(void);
++        void handle_disabled_event(void);
++        void handle_rds_grp_mask_req_event(void);
++        void handle_rt_plus_event(void);
++        void handle_ert_event(void);
++        void handle_af_jmp_event(void);
++        void set_fm_state(int state);
++        struct timespec set_time_out(int secs);
++        int GetStationList(uint16_t *scan_tbl, int *max_cnt);
++        int EnableRDS(void);
++        int DisableRDS(void);
++        int EnableAF(void);
++        int DisableAF(void);
++        int SetStereo(void);
++        int SetMono(void);
++        int MuteOn(void);
++        int MuteOff(void);
++        int get_fm_state(void);
++        long GetCurrentRSSI(void);
++        bool GetSoftMute(void);
++    public:
++       FmRadioController();
++       ~FmRadioController();
++       int open_dev(void);
++       int close_dev();
++       int Pwr_Up(int freq);
++       int Pwr_Down(void);
++       long GetChannel(void);
++       int TuneChannel(long);
++       bool IsRds_support();
++       int ScanList(uint16_t *scan_tbl, int *max_cnt);
++       int Seek(int dir);
++       int ReadRDS(void);
++       int Get_ps(char *ps, int *ps_len);
++       int Get_rt(char *rt, int *rt_len);
++       int Get_AF_freq(uint16_t *ret_freq);
++       int SetDeConstant(long );
++       int SetSoftMute(bool mode);
++       int Set_mute(bool mute);
++       int SetBand(long);
++       int SetChannelSpacing(long);
++       int Stop_Scan_Seek(void);
++       int Turn_On_Off_Rds(bool onoff);
++       int Antenna_Switch(int antenna);
++       static void* handle_events(void *arg);
++       bool process_radio_events(int event);
++};
++
++#endif
+diff --git a/libfm_jni/LibfmJni.cpp b/libfm_jni/LibfmJni.cpp
+new file mode 100644
+index 0000000..52ad029
+--- /dev/null
++++ b/libfm_jni/LibfmJni.cpp
+@@ -0,0 +1,383 @@
++/*
++Copyright (c) 2015, The Linux Foundation. All rights reserved.
++
++Redistribution and use in source and binary forms, with or without
++modification, are permitted provided that the following conditions are
++met:
++    * Redistributions of source code must retain the above copyright
++      notice, this list of conditions and the following disclaimer.
++    * Redistributions in binary form must reproduce the above
++      copyright notice, this list of conditions and the following
++      disclaimer in the documentation and/or other materials provided
++      with the distribution.
++    * Neither the name of The Linux Foundation nor the names of its
++      contributors may be used to endorse or promote products derived
++      from this software without specific prior written permission.
++
++THIS SOFTWARE IS PROVIDED "AS IS" AND ANY EXPRESS OR IMPLIED
++WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
++MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT
++ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS
++BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
++CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
++SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR
++BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
++WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
++OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
++IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
++*/
++
++#include <jni.h>
++#include "JNIHelp.h"
++#include "android_runtime/AndroidRuntime.h"
++#include <utils/Log.h>
++#include "FmRadioController.h"
++#include "FM_Const.h"
++
++static FmRadioController * pFMRadio;
++
++jboolean OpenFd(JNIEnv *env, jobject thiz)
++{
++    int ret = 0;
++    pFMRadio = new FmRadioController();
++    if (pFMRadio)
++        ret = pFMRadio->open_dev();
++    else
++        ret = JNI_FALSE;
++    ALOGD("%s, [ret=%d]\n", __func__, ret);
++    return ret? JNI_FALSE: JNI_TRUE;
++}
++
++jboolean CloseFd(JNIEnv *env, jobject thiz)
++{
++    int ret = 0;
++
++    if (pFMRadio)
++        ret = pFMRadio->close_dev();
++    else
++        ret = JNI_FALSE;
++
++    ALOGD("%s, [ret=%d]\n", __func__, ret);
++    return ret? JNI_FALSE: JNI_TRUE;
++}
++
++jboolean TurnOn(JNIEnv *env, jobject thiz, jfloat freq)
++{
++    int ret = 0;
++    int tmp_freq;
++
++    ALOGI("%s, [freq=%d]\n", __func__, (int)freq);
++    tmp_freq = (int)(freq * FREQ_MULT);   //Eg, 87.5 * 1000 --> 87500
++    if (!pFMRadio) {
++        pFMRadio = new FmRadioController();
++    }
++    if (pFMRadio)
++        ret = pFMRadio->Pwr_Up(tmp_freq);
++    else
++        ret = JNI_FALSE;
++
++    ALOGD("%s, [ret=%d]\n", __func__, ret);
++    return ret?JNI_FALSE:JNI_TRUE;
++}
++
++jboolean TurnOff(JNIEnv *env, jobject thiz, jint type)
++{
++    int ret = 0;
++
++    if (pFMRadio)
++        ret = pFMRadio->Pwr_Down();
++    else
++        ret = JNI_FALSE;
++
++    ALOGD("%s, [ret=%d]\n", __func__, ret);
++    if (pFMRadio) {
++        delete pFMRadio;
++        pFMRadio = NULL;
++    }
++    return ret?JNI_FALSE:JNI_TRUE;
++}
++
++jboolean SetFreq(JNIEnv *env, jobject thiz, jfloat freq)
++{
++    int ret = 0;
++    int tmp_freq;
++
++    tmp_freq = (int)(freq * FREQ_MULT);        //Eg, 87.5 * 10 --> 875
++    if (pFMRadio)
++        ret = pFMRadio->TuneChannel(tmp_freq);
++    else
++        ret = JNI_FALSE;
++
++    ALOGD("%s, [ret=%d]\n", __func__, ret);
++    return ret?JNI_FALSE:JNI_TRUE;
++}
++
++jfloat Seek(JNIEnv *env, jobject thiz, jfloat freq, jboolean isUp)
++{
++    int ret = JNI_FALSE;
++    float val = freq;
++
++    if (pFMRadio) {
++        ret = pFMRadio->Set_mute(true);
++        ALOGD("%s, [mute] [ret=%d]\n", __func__, ret);
++        ret = pFMRadio->Seek((int)isUp);
++        ALOGD("%s, [freq=%f] [ret=%d]\n", __func__, freq, ret);
++        if (ret > 0)
++            val = (float)ret/FREQ_MULT;   //Eg, 8755 / 100 --> 87.55
++    }
++
++    return val;
++}
++
++jshortArray ScanList(JNIEnv *env, jobject thiz)
++{
++    int ret = 0;
++    jshortArray scanList;
++    int chl_cnt = FM_SCAN_CH_SIZE_MAX;
++    uint16_t ScanTBL[FM_SCAN_CH_SIZE_MAX];
++
++    if (pFMRadio)
++        ret = pFMRadio->ScanList(ScanTBL, &chl_cnt);
++    else
++        ret = JNI_FALSE;
++    if (ret < 0) {
++        ALOGE("scan failed!\n");
++        scanList = NULL;
++        goto out;
++    }
++    if (chl_cnt > 0) {
++        scanList = env->NewShortArray(chl_cnt);
++        env->SetShortArrayRegion(scanList, 0, chl_cnt, (const jshort*)&ScanTBL[0]);
++    } else {
++        ALOGE("cnt error, [cnt=%d]\n", chl_cnt);
++        scanList = NULL;
++    }
++
++out:
++    ALOGD("%s, [cnt=%d] [ret=%d]\n", __func__, chl_cnt, ret);
++    return scanList;
++}
++
++jshort GetRdsEvent(JNIEnv *env, jobject thiz)
++{
++    int ret = JNI_FALSE;
++
++    if (pFMRadio)
++        ret = pFMRadio->ReadRDS();
++
++    return ret;
++}
++
++jbyteArray GetPsText(JNIEnv *env, jobject thiz)
++{
++    int ret = 0;
++    jbyteArray PS;
++    char ps[MAX_PS_LEN];
++    int ps_len = 0;
++
++    if (pFMRadio)
++        ret = pFMRadio->Get_ps(ps, &ps_len);
++    else
++        ret = JNI_FALSE;
++    if (ret) {
++        ALOGE("%s, error, [ret=%d]\n", __func__, ret);
++        return NULL;
++    }
++    PS = env->NewByteArray(ps_len);
++    env->SetByteArrayRegion(PS, 0, ps_len, (const jbyte*)ps);
++    ALOGD("%s, [ret=%d]\n", __func__, ret);
++    return PS;
++}
++
++jbyteArray GetRtText(JNIEnv *env, jobject thiz)
++{
++    int ret = 0;
++    jbyteArray RadioText;
++    char rt[MAX_RT_LEN];
++    int rt_len = 0;
++
++    if (pFMRadio)
++        ret = pFMRadio->Get_rt(rt, &rt_len);
++    else
++        ret = JNI_FALSE;
++    if (ret) {
++        ALOGE("%s, error, [ret=%d]\n", __func__, ret);
++        return NULL;
++    }
++    RadioText = env->NewByteArray(rt_len);
++    env->SetByteArrayRegion(RadioText, 0, rt_len, (const jbyte*)rt);
++    ALOGD("%s, [ret=%d]\n", __func__, ret);
++    return RadioText;
++}
++
++jshort GetAfFreq(JNIEnv *env, jobject thiz)
++{
++    int ret = 0;
++    jshort ret_freq = 0;
++
++    if (pFMRadio)
++        ret = pFMRadio->Get_AF_freq((uint16_t*)&ret_freq);
++    else
++        ret = JNI_FALSE;
++    if (ret) {
++        ALOGE("%s, error, [ret=%d]\n", __func__, ret);
++        return 0;
++    }
++    ALOGD("%s, [ret_freq=%d]\n", __func__, ret_freq);
++    return ret_freq;
++}
++
++jint SetRds(JNIEnv *env, jobject thiz, jboolean rdson)
++{
++    int ret = 0;
++
++    if (pFMRadio)
++        ret = pFMRadio->Turn_On_Off_Rds(rdson);
++    else
++        ret = JNI_FALSE;
++    if (ret) {
++        ALOGE("%s, error, [ret=%d]\n", __func__, ret);
++    }
++    ALOGD("%s, [rdson=%d] [ret=%d]\n", __func__, rdson, ret);
++    return ret?JNI_FALSE:JNI_TRUE;
++}
++
++jboolean StopSrch(JNIEnv *env, jobject thiz)
++{
++    int ret = 0;
++
++    if (pFMRadio)
++        ret = pFMRadio->Stop_Scan_Seek();
++    else
++        ret = JNI_FALSE;
++    if (ret) {
++        ALOGE("%s, error, [ret=%d]\n", __func__, ret);
++    }
++    ALOGD("%s, [ret=%d]\n", __func__, ret);
++    return ret?JNI_FALSE:JNI_TRUE;
++}
++
++jint SetMute(JNIEnv *env, jobject thiz, jboolean mute)
++{
++    int ret = 0;
++
++    if (pFMRadio)
++        ret = pFMRadio->Set_mute(mute);
++    else
++        ret = JNI_FALSE;
++    if (ret) {
++        ALOGE("%s, error, [ret=%d]\n", __func__, ret);
++    }
++    ALOGD("%s, [mute=%d] [ret=%d]\n", __func__, (int)mute, ret);
++    return ret?JNI_FALSE:JNI_TRUE;
++}
++
++/******************************************
++ * Inquiry if RDS is support in driver.
++ * Parameter:
++ *      None
++ *Return Value:
++ *      1: support
++ *      0: NOT support
++ *      -1: error
++ ******************************************/
++jint IsRdsSupport(JNIEnv *env, jobject thiz)
++{
++    int ret = 0;
++
++    if (pFMRadio)
++        ret = pFMRadio->IsRds_support();
++    else
++        ret = JNI_FALSE;
++    if (!ret) {
++        ALOGE("%s, error, [ret=%d]\n", __func__, ret);
++    }
++    ALOGD("%s, [ret=%d]\n", __func__, ret);
++    return ret;
++}
++
++/******************************************
++ * SwitchAntenna
++ * Parameter:
++ *      antenna:
++                0 : switch to long antenna
++                1: switch to short antenna
++ *Return Value:
++ *          0: Success
++ *          1: Failed
++ *          2: Not support
++ ******************************************/
++jint SetAntenna(JNIEnv *env, jobject thiz, jint antenna)
++{
++    int ret = 0;
++    jint jret = 0;
++    int ana = -1;
++
++    if (0 == antenna) {
++        ana = FM_LONG_ANA;
++    } else if (1 == antenna) {
++        ana = FM_SHORT_ANA;
++    } else {
++        ALOGE("%s:fail, para error\n", __func__);
++        jret = JNI_FALSE;
++        goto out;
++    }
++    if (pFMRadio)
++        ret = pFMRadio->Antenna_Switch(ana);
++    else
++        ret = JNI_FALSE;
++    if (ret) {
++        ALOGE("switchAntenna(), error\n");
++        jret = 1;
++    } else {
++        jret = 0;
++    }
++out:
++    ALOGD("%s: [antenna=%d] [ret=%d]\n", __func__, ana, ret);
++    return jret;
++}
++
++static const char *classPathNameFM = "com/android/fmradio/FmNative";
++
++static JNINativeMethod gMethods[] = {
++    {"openDev",       "()Z",   (void*)OpenFd },
++    {"closeDev",      "()Z",   (void*)CloseFd },
++    {"powerUp",       "(F)Z",  (void*)TurnOn },
++    {"powerDown",     "(I)Z",  (void*)TurnOff },
++    {"tune",          "(F)Z",  (void*)SetFreq },
++    {"seek",          "(FZ)F", (void*)Seek },
++    {"autoScan",      "()[S",  (void*)ScanList },
++    {"stopScan",      "()Z",   (void*)StopSrch },
++    {"setRds",        "(Z)I",  (void*)SetRds  },
++    {"readRds",       "()S",   (void*)GetRdsEvent },
++    {"getPs",         "()[B",  (void*)GetPsText },
++    {"getLrText",     "()[B",  (void*)GetRtText},
++    {"activeAf",      "()S",   (void*)GetAfFreq},
++    {"setMute",       "(Z)I",  (void*)SetMute},
++    {"isRdsSupport",  "()I",   (void*)IsRdsSupport},
++    {"switchAntenna", "(I)I",  (void*)SetAntenna},
++};
++
++int register_android_hardware_fm(JNIEnv* env)
++{
++        return jniRegisterNativeMethods(env, classPathNameFM, gMethods, NELEM(gMethods));
++}
++
++jint JNI_OnLoad(JavaVM *jvm, void *reserved)
++{
++  JNIEnv *e;
++  int status;
++   ALOGE("FM : loading FM-JNI\n");
++
++   if(jvm->GetEnv((void **)&e, JNI_VERSION_1_6)) {
++       ALOGE("JNI version mismatch error");
++      return JNI_ERR;
++   }
++
++   if ((status = register_android_hardware_fm(e)) < 0) {
++       ALOGE("jni adapter service registration failure, status: %d", status);
++      return JNI_ERR;
++   }
++   return JNI_VERSION_1_6;
++}
++
+-- 
+2.17.1
+

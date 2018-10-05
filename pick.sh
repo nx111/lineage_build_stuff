@@ -830,6 +830,8 @@ kpick 230099 # Actually restore pre-P mutex behavior
 kpick 230762 # bionic: Fix more mutex breakage
 
 # boot/recovery
+#kpick 230746 # sr: Get a proper shell environment in recovery
+kpick 230747 # update_verifier: skip verity to determine successful on lineage builds
 
 # build/make
 kpick 222733 # core: Disable vendor restrictions
@@ -915,6 +917,7 @@ kpick 225759 # msm8974-common: libril: Replace strncpy with strlcpy.
 kpick 225760 # msm8974-common: libril: FR51015: Tuning of Binder buffer for rild.
 kpick 224916 # DO NOT MERGE: msm8974-common: sepolicy: Just make it build
 kpick 227614 # Disable IOemHook implemenation in rild.
+kpick 230737 # libril: Fix manual network selection with old modem
 
 # device/samsung/qcom-common
 
@@ -1116,6 +1119,11 @@ kpick 223192 # nfc: Restore pn548 support to 1.1 HAL
 kpick 223193 # nxp: Rename HAL to @1.1-service-nxp
 kpick 223194 # nxp: Begin restoring pn547
 
+# hardware/qcom/audio
+kpick 222690 # audio: Use kernel headers
+kpick 223338 # Revert "msm8x74: remove from top level makefile"
+kpick 230749 # audio: Use generated kernel headers
+
 # hardware/qcom/audio-caf/msm8974
 kpick 223436 # Add -Wno-error to compile with global -Werror.
 kpick 227340 # audio: Use normal tinycompress
@@ -1155,80 +1163,57 @@ kpick 226482 # display: Enable clang for all display modules
 # hardware/qcom/display-caf/msm8998
 
 # hardware/qcom/fm
-kpick 226683 # Partially revert "FM: QSSI changes"
-kpick 226684 # Drop BOARD_HAVE_QCOM_FM flag
-kpick 226685 # jni: fix calibration data path for legacy fm_qsoc_patches
-kpick 226686 # libfm_jni: Skip loading FM firmware if requested
+kpick 226731 # Use BOARD_HAVE_QCOM_FM flag
+kpick 226745 # fm_hci/helium: Exclude from OSS builds
+kpick 226683 # Bring back libfm_jni for devices using AOSP FM app
+kpick 226685 # jni/libfm_jni: fix calibration data path for legacy fm_qsoc_patches
+kpick 226692 # jni/libfm_jni: Skip loading FM firmware if requested
 kpick 226687 # libfm_jni: Do not come here unless QCOM_HARDWARE is in use
 kpick 226688 # libfm_jni: Add support for internal antenna hardware
 kpick 226689 # libfm_jni: Improve and fix FM jni logs
-kpick 226690 # libfm_jni: Confine the firmware-load skipping to the actual loading
-kpick 226691 # jni: Skip loading FM firmware if requested
-kpick 226692 # jni: Confine the firmware-load skipping to the actual loading
-kpick 226693 # Allow library to be used by apps directly
-kpick 226694 # Break bootclasspath dependency
-kpick 226695 # fmapp2: new launcher icon by LeopardSurd
-kpick 226696 # FMRadio : Re-vamp UI
-kpick 226697 # Fm : Restore seek arrows
-kpick 226698 # Fm : Make default country an overlay
-kpick 226699 # FmRadio : Re-add RDS fields to UI
-kpick 226700 # Scanned frequencies are saved in ascending ordering
-kpick 226701 # FMRadio : Call unregister in onPause
-kpick 226702 # FMRadio : Switch file extension to aac
-kpick 226703 # FM: Add property to force use internal antenna
-kpick 226704 # FM: Cleanup resources
-kpick 226705 # FMRadio: add Indonesia
-kpick 226706 # New Material icon
-kpick 226707 # FM: fixup strings
-kpick 226708 # FM2: materialize
-kpick 226709 # FM: retune last frequency when resume after call
-kpick 226710 # FM: always use overlay default country
-kpick 226711 # FM: Store tag num/value in sequence
-kpick 226712 # FM: reenable radio text visibility after station info updated
-kpick 226713 # FMRadio : Launch station list automatically after scan
-kpick 226714 # FM: respect hw.fm.internal_antenna
-kpick 226715 # FM: fix mRadioTextScroller usage in transmitter activity
-kpick 226716 # Fix status text to reflect when FM is enabled.
-kpick 226717 # FM: The collect channel disappear when quit FM
-kpick 226718 # FMRadio : Ensure scan state is kept in sync
-kpick 226719 # FMRadio : Keep track of scanned frequencies in service
-kpick 226720 # FMRadio : Select band based on country
-kpick 226721 # FMRadio : cleaned up band selection code
-kpick 226722 # FMRadio : improved band selection
-kpick 226723 # FMRadio : Localization of band types
-kpick 226724 # FMRadio : Fix settings UI bugs
-kpick 226725 # FMRadio : Fix headphone icon
-kpick 226726 # Fm : Update India bands
-kpick 226727 # fmapp2: String improvements
-kpick 226728 # fmapp2: Allow value for the default fm recording duration to be overlayed.
-kpick 226729 # Convert regional band arrays to string references
-kpick 226730 # Revert "Disable libfm_jni"
-kpick 226731 # Use BOARD_HAVE_QCOM_FM flag
-kpick 226732 # FM: Use some sane colors
-kpick 226733 # FM: Fix helium hal build
-kpick 226734 # FM: Fix KHz->kHz
-kpick 226735 # FM2: Convert FM transmitter notifications to use NotificationChannel
-kpick 226736 # FM2: Revamp notifications
 kpick 226737 # libfm_jni: Fix strchr implicit char* typecast in ConfFileParser
 kpick 226738 # libfm_jni: Add jni core headers dependency
-kpick 226739 # Do not link to android.hidl.base@1.0
-kpick 226740 # FM: adaptive icon
-kpick 226741 # fm: Resolve required dependency qcom.fmradio.xml linkage
 kpick 226742 # libfm_jni: Remove unused variables
 kpick 226743 # libfm_jni: Resolve fread assignment to condition cast
 kpick 223685 # libfm_jni: Resolve FM_DEVICE_PATH R/O open flag
 kpick 226744 # libfm_jni: Ignore unused parameters from APIs
-kpick 226745 # fm_hci/helium: Exclude from OSS builds
 kpick 223678 # libfm_jni: use proper nativehelper headers
-kpick 223683 # jni: Remove unused variables
 kpick 223684 # jni: Resolve equality comparisons with extraneous parentheses
-kpick 226862 # jni: Resolve FM_DEVICE_PATH R/O open flag
-kpick 223686 # jni: Ignore unused parameters from APIs
 kpick 223687 # jni: Resolve V4L2_CID_AUDIO_MUTE redefinitions
 kpick 223692 # jni: Resolve -Wwritable-strings warnings in helium FW library variables
-kpick 223688 # fmapp2: Set LOCAL_PRIVATE_PLATFORM_APIS
-kpick 224246 # jni: Resolve unused and uninitialized variable errors
-kpick 224386 # libfm_jni: Resolve unused and uninitialized variable errors
+kpick 226741 # fm: Resolve required dependency qcom.fmradio.xml linkage
+kpick 226694 # FM: Break bootclasspath dependency
+kpick 226696 # FM: Re-vamp UI
+kpick 226697 # FM: Restore seek arrows
+kpick 226710 # FM: Make default country an overlay
+kpick 226699 # FM: Re-add RDS fields to UI
+kpick 226700 # FM: Scanned frequencies are saved in ascending ordering
+kpick 226701 # FM: Call unregister in onPause
+kpick 226702 # FM: Switch file extension to aac
+kpick 226714 # FM: Add property to force use internal antenna
+kpick 226727 # FM: Cleanup resources
+kpick 226705 # FM: add Indonesia
+kpick 226732 # FM: Use some sane colors
+kpick 226709 # FM: retune last frequency when resume after call
+kpick 226711 # FM: Store tag num/value in sequence
+kpick 226712 # FM: reenable radio text visibility after station info updated
+kpick 226713 # FM: Launch station list automatically after scan
+kpick 226715 # FM: fix mRadioTextScroller usage in transmitter activity
+kpick 226716 # FM: Fix status text to reflect when FM is enabled.
+kpick 226717 # FM: The collect channel disappear when quit FM
+kpick 226718 # FM: Ensure scan state is kept in sync
+kpick 226719 # FM: Keep track of scanned frequencies in service
+kpick 226721 # FM: Select band based on country
+kpick 226722 # FM: improved band selection
+kpick 226723 # FM: Localization of band types
+kpick 226724 # FM: Fix settings UI bugs
+kpick 226725 # FM: Fix headphone icon
+kpick 226726 # FM: Update India bands
+kpick 226729 # Convert regional band arrays to string references
+kpick 226734 # FM: Fix KHz->kHz
+kpick 226735 # FM2: Convert FM transmitter notifications to use NotificationChannel
+kpick 226736 # FM2: Revamp notifications
+kpick 226740 # FM: adaptive icon
 
 # hardware/qcom/gps
 kpick 223351 # Revert "msm8974: deprecate msm8974"
@@ -1247,6 +1232,7 @@ kpick 225034 # msm8974: Add -Wno-error to compile with global -Werror.
 kpick 224289 # Add -Wno-error to compile with global -Werror.
 kpick 222695 # media: Add missing links
 kpick 224305 # media: Use kernel headers
+kpick 230750 # media: Use generated kernel headers
 kpick 224955 # Revert "msm8974: remove from top level makefile"
 kpick 224956 # mm-video: venc: Correct a typo in variable name
 kpick 224957 # media: vdec: Include nativebase headers
@@ -1277,6 +1263,7 @@ kpick 227614 # Disable IOemHook implemenation in rild.
 kpick 227615 # Snap for 4955954 from 08781f88bb6159d3ebb0d48b569204295129460a to p-keystone-qcom-release
 kpick 227616 # Merge 845f6b7eb0fe4a1a1883129dd341c7bf6fb469cd on remote branch
 kpick 227617 # Merge tag 'LA.UM.7.4.r1-03000-8x98.0' into lineage-16.0-caf
+kpick 230737 # libril: Fix manual network selection with old modem
 
 # hardware/samsung
 kpick 225628 # Sending empty strings instead of NULL for some RIL requests
@@ -1307,6 +1294,8 @@ kpick 227931 # lineagesdk: Refactor battery icon options
 kpick 230263 # sdk: Update default clock position
 kpick 230272 # sdk: Remove VOLUME_KEYS_CONTROL_RING_STREAM
 kpick 230285 # lineage-sdk: Move force show navbar to lineage system settings
+kpick 230536 # sdk: Stop using lerp for night/day mode transitions
+kpick 230724 # sdk: Split TWILIGHT_ADJUSTMENT_TIME in half
 
 # packages/apps/AudioFX
 
@@ -1466,8 +1455,7 @@ kpick 223085 # adbd: Disable "adb root" by system property (2/3)
 kpick 224264 # debuggerd: Resolve tombstoned missing O_CREAT mode
 kpick 226119 # libion: save errno value
 kpick 226120 # fs_mgr: Wrapped key support for FBE
-#kpick 226917 # Switch root to /system in first stage mount
-#kpick 226923 # init: First Stage Mount observe nofail mount flag
+kpick 230755 # libsuspend: Bring back earlysuspend
 
 # system/extras
 kpick 225426 # f2fs_utils: Add a static libf2fs_sparseblock for minvold
@@ -1547,19 +1535,17 @@ kpick 229955 # vold: ISO9660 and UDF support
 kpick 223773 # Add IPv6 for Oister and 3. The 3.dk and oister.dk carriers now support IPv6 with the APN ”data.tre.dk”.
 kpick 225921 # overlay: Update list of GSF/GMS activities
 kpick 225938 # roomservice.py: document the hell out of the current behavior of the script
-#kpick 225978 # soong_config: Remove extra spacing
 kpick 225939 # roomservice.py: non-depsonly: bootstrap first device repo from Hudson
-#kpick 225981 # roomservice.py: depsonly: do not look up device repo by name in the manifest
-#kpick 225982 # roomservice.py: Strip cm.{mk,dependencies} support
 kpick 226123 # soong_config: Add new flags for HW FDE
 kpick 226125 # soong_config: Add flag for legacy HW FDE
 kpick 226126 # soong_config: Add flag for crypto waiting on QSEE to start
+kpick 229508 # lineage: Move kernel variable configuration to BoardConfigKernel
 kpick 229412 # vendor/lineage: Add soong generator module type
 kpick 229415 # lineage: Dynamically generate kernel headers using lineage generator
 kpick 229505 # vendor/lineage: Remove kernel.mk headers generation
-kpick 229506 # Revert "soong_config: Add TARGET_NEEDS_PLATFORM_TEXT_RELOCATIONS"
-kpick 229508 # lineage: Move some kernel definitions to BoardConfigKernel
+kpick 229589 # lineage: Automatically set soong namespace when setting project pathmap
 kpick 229590 # lineage: Move qcom pathmap setting into "BoardConfig"
+kpick 229506 # Revert "soong_config: Add TARGET_NEEDS_PLATFORM_TEXT_RELOCATIONS"
 kpick 229620 # backuptool: Support non-A/B system-as-root
 kpick 229622 # overlay: Remove config_persistUsbDriveNotification
 kpick 229917 # extract_utils: add CDEX support via compact_dex_converter
