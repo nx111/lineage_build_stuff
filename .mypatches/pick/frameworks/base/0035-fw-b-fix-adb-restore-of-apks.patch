@@ -1,0 +1,58 @@
+From c1b040f04fa6a70873857c2d5b1b0614f26fb7de Mon Sep 17 00:00:00 2001
+From: Cal Archer <carcher002@gmail.com>
+Date: Sun, 16 Sep 2018 21:21:53 +0200
+Subject: [PATCH 35/40] fw/b: fix adb restore of apks
+
+Restored apk are staged by system server and then
+handed to DefaultContainerService which does not have
+permission to read the backup staging dir. Create a new
+restore staging dir that we can allow platform apps to read.
+
+Test:
+adb backup -all -keyvalue -apk -obb -f mybackup.ab
+adb restore mybackup.ab
+
+The issue before fix:
+I BackupManagerService: Package org.fdroid.fdroid not installed; requiring apk in dataset
+D BackupManagerService: APK file; installing
+W asset   : Asset path /data/cache/backup_stage/org.fdroid.fdroid is neither a directory nor file
+W DefContainer: Failed to parse package at /data/cache/backup_stage/org.fdroid.fdroid
+D BackupManagerService: install failed
+
+Change-Id: I95fa8725508e5dfa0a562de9f87499a1e564fef8
+---
+ .../java/com/android/server/backup/BackupManagerService.java  | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/services/backup/java/com/android/server/backup/BackupManagerService.java b/services/backup/java/com/android/server/backup/BackupManagerService.java
+index 0dd518141cf..1e1eda6a825 100644
+--- a/services/backup/java/com/android/server/backup/BackupManagerService.java
++++ b/services/backup/java/com/android/server/backup/BackupManagerService.java
+@@ -706,6 +706,7 @@ public class BackupManagerService implements BackupManagerServiceInterface {
+     // Where we keep our journal files and other bookkeeping
+     File mBaseStateDir;
+     File mDataDir;
++    File mRestoreDir;
+     File mJournalDir;
+     File mJournal;
+ 
+@@ -1249,6 +1250,7 @@ public class BackupManagerService implements BackupManagerServiceInterface {
+ 
+         // This dir on /cache is managed directly in init.rc
+         mDataDir = new File(Environment.getDownloadCacheDirectory(), "backup_stage");
++        mRestoreDir = new File(Environment.getDownloadCacheDirectory(), "restore_stage");
+ 
+         mPasswordVersion = 1;       // unless we hear otherwise
+         mPasswordVersionFile = new File(mBaseStateDir, "pwversion");
+@@ -7810,7 +7812,7 @@ if (MORE_DEBUG) Slog.v(TAG, "   + got " + nRead + "; now wanting " + (size - soF
+ 
+             // The file content is an .apk file.  Copy it out to a staging location and
+             // attempt to install it.
+-            File apkFile = new File(mDataDir, info.packageName);
++            File apkFile = new File(mRestoreDir, info.packageName);
+             try {
+                 FileOutputStream apkStream = new FileOutputStream(apkFile);
+                 byte[] buffer = new byte[32 * 1024];
+-- 
+2.17.1
+

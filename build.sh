@@ -1,7 +1,22 @@
 #!/bin/bash
 product=kltechnduo
 
-if [ "$1" = "-prepare" ]; then
+force=0
+for op in $*; do
+    if [ "$op" = "-prepare" ]; then
+       mode="prepare";
+    elif [ "$op" = "addonsu" ]; then
+       mode="addonesu"
+    elif [ "$op" = "klte" -o "$op" = "kltechnduo" -o "$op" = "kltechn" ]; then
+       product=$op
+    elif [ "$op" = "boot" -o "$op" = "-boot" ]; then
+       mode="boot"
+    elif [ "$op" = "-B" ]; then
+       force=1
+    fi
+done
+
+if [ "$mode" = "prepare" ]; then
     sudo apt install bc bison build-essential ccache curl flex g++-multilib gcc-multilib git gnupg gperf imagemagick lib32ncurses5-dev \
                      lib32readline-dev lib32z1-dev liblz4-tool libncurses5-dev libsdl1.2-dev libssl-dev libwxgtk3.0-dev libxml2 libxml2-utils \
                      lzop pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev ccache cmake
@@ -26,13 +41,13 @@ export JACK_SERVER_VM_ARGUMENTS="-Dfile.encoding=UTF-8 -XX:+TieredCompilation -X
 
 #[ -x $workdir/repopick.sh ] && $workdir/
 
-if [ "$1" = "addonsu" ]; then
+if [ "$mode" = "addonsu" ]; then
 	breakfast $product
 	[ -f $workdir/.mypatches/superuser.rc -a ! -f $workdir/system/extras/su/superuser.rc ] \
 		&& cp $workdir/.mypatches/superuser.rc $workdir/system/extras/su/
 	make addonsu
 else
-	if [ "$1" != "boot" -a "$1" != "-boot" ]; then
+	if [ "$mode" != "boot" ]; then
 		rm -rf $workdir/out/target/product/$product/system
 		rm -rf $workdir/out/target/product/$product/root
 		rm -rf $workdir/out/target/product/$product/lineage_$product-ota-*.zip
@@ -44,10 +59,10 @@ else
         [ -f $workdir/out/target/product/$product/boot.img ] && obootime=$(stat -c %Y $workdir/out/target/product/$product/boot.img)
 
         breakfast $product
-	if [ "$1" = "boot" -o "$1" = "-boot" ]; then
+	if [ "$mode" = "boot" ]; then
 	    make  bootimage
             echo "bootimage: $nbootimg build complete."
-        elif [ $# -eq 1 -a "$1" = "-B" ]; then
+        elif [ $force -eq 1 ]; then
             LINEAGE_VERSION_APPEND_TIME_OF_DAY=true WITH_SU=true LC_ALL=C \
    	    cmka bacon
         else

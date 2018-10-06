@@ -40,7 +40,7 @@ function patch_local()
     va_patches_dir=$1
     search_dir=".mypatches"
 
-    if [ -d "$topdir/.mypatches/$va_patches_dir" ]; then
+    if [ ! -z $va_patches_dir -a -d "$topdir/.mypatches/$va_patches_dir" ]; then
         search_dir=".mypatches/$va_patches_dir"
     elif [ -d "$topdir/.mypatches/pick/$va_patches_dir" -o -d "$topdir/.mypatches/local/$va_patches_dir" ]; then
         search_dir=".mypatches/local/$va_patches_dir .mypatches/pick/$va_patches_dir"
@@ -97,7 +97,34 @@ function patch_local()
              fi
          fi
     done
+
     cd $topdir
+    if [ "$va_patches_dir" = "local" -a -d $topdir/.mypatches/overwrite ]; then
+        search_dir=.mypatches/overwrite
+        find $search_dir -type f | sed -e "s/\.mypatches\/overwrite\///"  | while read f; do
+             [ -f $line ] && cp $search_dir/$f $f
+        done
+    fi
+
+}
+
+function reset_overwrite_projects()
+{
+    cd $topdir
+    [ -f .mypatches/overwrite/projects.list ] && rm -f .mypatches/overwrite/projects.list
+    [ -d ".mypatches/overwrite" ] || return
+    find ".mypatches/overwrite" -type f | sed -e "s/\.mypatches\/overwrite\///"  | while read f; do
+        while [ $f != $(dirname $f) -a ! -d $(dirname $f)/.git ]; do
+              f=$(dirname $f)
+        done
+        f=$(dirname $f)
+        if [ -d $topdir/$f ]; then
+            if ! grep -q $f .mypatches/overwrite/projects.list 2>/dev/null ; then
+                git -C $topdir/$f stash >/dev/null
+                echo $f >> .mypatches/overwrite/projects.list
+            fi
+        fi
+    done
 }
 
 function projects_reset()
@@ -126,9 +153,12 @@ function projects_snapshot()
     cd $(gettop)
     topdir=$(gettop)
     snapshot_file=$topdir/.mypatches/snapshot.list
+    local vproject=""
+    [ "$1" != "" ] && vproject=$(echo $1 | sed -e 's/\/$//')
     rm -f $snapshot_file.new
     cat $topdir/.repo/project.list | while read project; do
-         [ "$1" != "" -a "$project" != "$(echo $1 | sed -e 's/\/$//')" ] && continue
+         [ "$1" != "" -a "$project" != "$vproject" ] && continue
+         [ -d "$topdir/$project" ] || continue
          cd $topdir/$project
          echo ">>>  project: $project ... "
 
@@ -160,8 +190,16 @@ function projects_snapshot()
          done < /tmp/gitlog.txt
          rm -f /tmp/gitlog.txt
 
-         [ "$1" != "" -a "$project" != "$1" ] || \
-         echo "$project, $commit_id, $url" >> $snapshot_file.new
+         if [ "$1" = "" ];  then
+              echo "$project, $commit_id, $url" >> $snapshot_file.new
+         elif [ "$1" != "" -a "$project" = "$vproject" ]; then
+              if [ -f $snapshot_file.new ]; then
+                     eval sed -e \"s|^$project.*|$project,$commit_id, $url|" -i $snapshot_file.new 
+              else
+                     eval sed -e \"s|^$project.*|$project,$commit_id, $url|" -i $snapshot_file
+              fi
+         fi
+
 
          [ -d $topdir/.mypatches/pick/$project ] || mkdir -p $topdir/.mypatches/pick/$project
          rm -rf $topdir/.mypatches/pick/$project/*.patch
@@ -169,11 +207,11 @@ function projects_snapshot()
 
          git format-patch "$commit_id" -o $topdir/.mypatches/pick/$project/ | sed -e "s:.*/:              :"
 
-         patches_count=$(find $topdir/.mypatches/pick/$project -name "*.patch" -o -name "*.diff" | wc -l)
+         patches_count=$(find $topdir/.mypatches/pick/$project -maxdepth 1 -name "*.patch" -o -name "*.diff" | wc -l)
          if [ $patches_count -eq 0 ]; then
               rmdir -p --ignore-fail-on-non-empty $topdir/.mypatches/pick/$project
          elif [ -d $topdir/.mypatches/local/$project ]; then
-              find $topdir/.mypatches/local/$project -type f -name "*.patch" -o -name "*.diff" | while read patchfile; do
+              find $topdir/.mypatches/local/$project -maxdepth 1 -type f -name "*.patch" -o -name "*.diff" | while read patchfile; do
                    patch_file_name=$(basename $patchfile)
                    changeid=$(grep "Change-Id: " $patchfile | tail -n 1 | sed -e "s/ \{1,\}/ /g" -e "s/^ //g" | cut -d' ' -f2)
                    #echo "$project >  $patchfile  ==== Change-Id:$changeid"
@@ -206,7 +244,7 @@ function projects_snapshot()
     done
     find $topdir/.mypatches -type d | xargs rmdir --ignore-fail-on-non-empty >/dev/null 2>/dev/null
 
-    [ "$1" != "" -a "$project" != "$1" ] || \
+    [ "$1" = "" -a -f $snapshot_file.new ] && \
     mv $snapshot_file.new $snapshot_file
 
     cd $topdir
@@ -434,8 +472,10 @@ function kpick()
     local subject=$(grep -Ri -- '--> Subject:' $logfile | sed 's/--> Subject:[[:space:]]*//g')
     if [ "${subject:0:1}" = '"' ]; then
           subject=$(echo $subject | sed 's/^"//' | sed 's/"$//' | sed "s/\"/\\\\\"/g" | sed "s/'/\\\\\'/g" | sed "s/\&/\\\&/g")
+          subject=$(echo $subject | sed "s/\`/\\\\\`/g" | sed -e "s/|/\\\|/g")
     else
           subject=$(echo $subject | sed "s/\"/\\\\\"/g" | sed "s/'/\\\\\'/g" | sed "s/\&/\\\&/g")
+          subject=$(echo $subject | sed "s/\`/\\\\\`/g" | sed -e "s/|/\\\|/g")
     fi
     #echo " ---subject=$subject"
     fix_repopick_output $logfile
@@ -614,19 +654,19 @@ function kpick()
         if [ -f $logfile -a "$script_file" != "bash" -a ! -z $changeNumber ]; then
             if grep -q -E "Change status is MERGED.|nothing to commit" $logfile; then
                [ -f $script_file.tmp ] || cp $script_file $script_file.tmp
-               eval  sed -e \"/[[:space:]]*kpick $changeNumber[[:space:]]*.*/d\" -i $script_file.tmp
+               eval  sed -e \"/[[:space:]]*kpick[[:space:]]\{1,\}$changeNumber[[:space:]]*.*/d\" -i $script_file.tmp
             elif grep -q -E "Change status is ABANDONED." $logfile; then
                [ -f $script_file.tmp ] || cp $script_file $script_file.tmp
-               eval  sed -e \"/[[:space:]]*kpick $changeNumber[[:space:]]*.*/d\" -i $script_file.tmp
+               eval  sed -e \"/[[:space:]]*kpick[[:space:]]\{1,\}$changeNumber[[:space:]]*.*/d\" -i $script_file.tmp
             elif grep -q -E "Change $changeNumber not found, skipping" $logfile; then
                [ -f $script_file.tmp ] || cp $script_file $script_file.tmp
-               eval  sed -e \"/[[:space:]]*kpick $changeNumber[[:space:]]*.*/d\" -i $script_file.tmp
+               eval  sed -e \"/[[:space:]]*kpick[[:space:]]\{1,\}$changeNumber[[:space:]]*.*/d\" -i $script_file.tmp
             elif grep -q "could not determine the project path for" $errfile; then
                [ -f $script_file.tmp ] || cp $script_file $script_file.tmp
-               eval  sed -e \"/[[:space:]]*kpick $changeNumber[[:space:]]*.*/d\" -i $script_file.tmp
+               eval  sed -e \"/[[:space:]]*kpick[[:space:]]\{1,\}$changeNumber[[:space:]]*.*/d\" -i $script_file.tmp
             elif [ "$changeNumber" != "" -a "$subject" != "" ]; then
                [ -f $script_file.tmp ] || cp $script_file $script_file.tmp
-               eval  "sed -e \"s|^[[:space:]]*\(kpick .* $changeNumber\)[[:space:]]*.*|\1 \# $subject|g\" -i $script_file.tmp"
+               eval  "sed -e \"s|^[[:space:]]*kpick[[:space:]]\{1,\}\($changeNumber\)[[:space:]]*.*|kpick \1 \# $subject|g\" -i $script_file.tmp"
             fi
          fi
     fi
@@ -799,9 +839,11 @@ kpick 222034 # build: Allow using prebuilt vbmeta images in signed builds
 
 # device/lineage/sepolicy
 kpick 219022 # sepolicy: Fix neverallow for user builds
+kpick 231003 # move snap_app type definition to public
 
 # device/qcom/sepolicy
 kpick 211273 # qcom/sepol: Fix timeservice app context
+kpick 231004 # sepolicy: Allow mm-qcamerad to access snap_app
 
 # device/samsung/klte-common
 #kpick 212648 # klte-common: Enable AOD
@@ -824,7 +866,7 @@ kpick -P device/samsung/msm8974-common/ 225759 # msm8974-common: libril: Replace
 # kernel/samsung/msm8974
 kpick 210665 # wacom: Follow-up from gestures patch
 kpick 210666 # wacom: Report touch when pen button is pressed if gestures are off
-#kpick 221437 # msm: ADSPRPC: Use ID in response to get context pointer
+kpick 230615 # ANDROID: sdcardfs: Don't use OVERRIDE_CRED macro
 
 # external/ant-wireless/ant_native
 
@@ -893,10 +935,14 @@ kpick 223334 # Update device default colors for darker UI
 kpick 224392 # VibratorService: Apply vibrator intensity setting.
 kpick 224757 # webkit: Add AOSP WebView provider by default
 kpick 226009 # Make volume steps and defaults adjustable for all audio streams
-kpick 227822 # GlobalScreenshot: Fix screenshot not saved when appending appname with some ...
+kpick 227822 # GlobalScreenshot: Fix screenshot not saved when appending appname with some languages
 kpick 228542 # Add CHANNEL_MODE_DUAL_CHANNEL constant
 kpick 228543 # Add Dual Channel into Bluetooth Audio Channel Mode developer options menu
 kpick 228544 # Allow SBC as HD audio codec in Bluetooth device configuration
+kpick 229239 # fw/b: fix adb restore of apks
+kpick 229251 # Allow media to read sdcards
+kpick 230391 # SystemUI: tune battery level ranges for Bluetooth statusbar icon
+kpick 231005 # SystemUI: Make scrims dark & text white by pretending wallpaper is black
 
 # frameworks/native
 kpick 213549 # SurfaceFlinger: Support get/set ActiveConfigs.
@@ -1005,11 +1051,12 @@ kpick 219543 # wiki: add workaround for booting into TWRP recovery
 
 # lineage-sdk
 kpick 213367 # NetworkTraffic: Include tethering traffic statistics
-#kpick 218679 # lineage-sdk: Use ILight.getSupportedTypes for lights capabilities
 kpick 220407 # lineagesdk: Refactor battery icon options
 kpick 220417 # TelephonyExtUtils: Add possible error codes, and return with them
 kpick 222512 # Fix inconsistent disabled state color for LiveDisplay tile
 kpick 222513 # Remove deprecated VibratorHW
+kpick 230536 # sdk: Stop using lerp for night/day mode transitions
+kpick 230724 # sdk: Split TWILIGHT_ADJUSTMENT_TIME in half
 
 # lineage-sdk/samples/weatherproviderservice/YahooWeatherProvider
 kpick 207864 # Updated Gradle to 3.0.1; The Lineage-SDK jar is now contained in the project files
@@ -1042,6 +1089,7 @@ kpick 221488 # Failure in testAllSystemAppsUsingRuntimePermissionsTargetMncAndAb
 kpick 221489 # Automatic translation import
 
 # packages/apps/Flipflap
+kpick 230989 # Add an option to keep brightness unchanged
 
 # packages/apps/Gallery2
 kpick 222465 # Gallery2: Fix wrong string for empty albums

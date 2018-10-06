@@ -1,0 +1,446 @@
+From 0e0645463752cfc0522db46020de668880b92a82 Mon Sep 17 00:00:00 2001
+From: Sampath Vangaveti <sampathv@codeaurora.org>
+Date: Fri, 14 Apr 2017 15:15:27 +0530
+Subject: [PATCH 04/20] Camera2Client: Add support for QTI specific HFR feature
+
+Add support for QTI specific HFR feature for API1-HAL3.
+
+Change-Id: I7e7a3f36883200b041224e1123830df7cf0de93b
+---
+ .../libcameraservice/api1/Camera2Client.cpp   |  11 ++
+ .../api1/QTICamera2Client.cpp                 | 186 +++++++++++++++++-
+ .../libcameraservice/api1/QTICamera2Client.h  |   5 +
+ .../api1/qticlient2/QTIParameters.cpp         |  58 ++++++
+ .../api1/qticlient2/QTIParameters.h           |   3 +
+ .../api1/qticlient2/StreamingProcessor.cpp    |  63 ++++++
+ .../api1/qticlient2/StreamingProcessor.h      |   3 +
+ 7 files changed, 328 insertions(+), 1 deletion(-)
+
+diff --git a/services/camera/libcameraservice/api1/Camera2Client.cpp b/services/camera/libcameraservice/api1/Camera2Client.cpp
+index d9409c567..b52f6044d 100644
+--- a/services/camera/libcameraservice/api1/Camera2Client.cpp
++++ b/services/camera/libcameraservice/api1/Camera2Client.cpp
+@@ -1034,6 +1034,11 @@ status_t Camera2Client::startRecording() {
+     if ( (res = checkPid(__FUNCTION__) ) != OK) return res;
+     SharedParameters::Lock l(mParameters);
+ 
++#ifdef USE_QTI_CAMERA2CLIENT
++    if (l.mParameters.qtiParams->hfrMode) {
++        return mQTICamera2Client->startHFRRecording(l.mParameters);
++    }
++#endif
+     return startRecordingL(l.mParameters, false);
+ }
+ 
+@@ -1221,6 +1226,12 @@ void Camera2Client::stopRecording() {
+     status_t res;
+     if ( (res = checkPid(__FUNCTION__) ) != OK) return;
+ 
++#ifdef USE_QTI_CAMERA2CLIENT
++    if (l.mParameters.qtiParams->hfrMode) {
++        return mQTICamera2Client->stopHFRRecording(l.mParameters);
++    }
++#endif
++
+     switch (l.mParameters.state) {
+         case Parameters::RECORD:
+             // OK to stop
+diff --git a/services/camera/libcameraservice/api1/QTICamera2Client.cpp b/services/camera/libcameraservice/api1/QTICamera2Client.cpp
+index fd88869b0..79bbbf66e 100644
+--- a/services/camera/libcameraservice/api1/QTICamera2Client.cpp
++++ b/services/camera/libcameraservice/api1/QTICamera2Client.cpp
+@@ -107,4 +107,188 @@ status_t QTICamera2Client::stopPreviewExtn() {
+     }
+     return res;
+ }
+-} // namespace android
+\ No newline at end of file
++
++status_t QTICamera2Client::startHFRRecording(Parameters &params) {
++    status_t res = OK;
++    sp<Camera2Client> client = mParentClient.promote();
++    bool needRestart = (params.qtiParams->hfrMode &&
++            (params.state >= Parameters::PREVIEW));
++
++
++    if (needRestart) {
++        stopPreviewForRestart(params);
++        // Store previous Fps range values,
++        // will be useful to restart preview, when recording stops.
++        params.qtiParams->nonHfrPreviewFpsRange[0] = params.previewFpsRange[0];
++        params.qtiParams->nonHfrPreviewFpsRange[1] = params.previewFpsRange[1];
++
++        params.previewFpsRange[0] = params.qtiParams->hfrPreviewFpsRange[0];
++        params.previewFpsRange[1] = params.qtiParams->hfrPreviewFpsRange[1];
++    }
++
++    if (params.videoBufferMode != hardware::ICamera::VIDEO_BUFFER_MODE_BUFFER_QUEUE) {
++        ALOGE("%s: Camera %d: Recording only supported buffer queue mode, but "
++                "mode %d is requested!", __FUNCTION__, client->mCameraId, params.videoBufferMode);
++        return INVALID_OPERATION;
++    }
++
++    if (!client->mStreamingProcessor->haveValidRecordingWindow()) {
++        ALOGE("%s: No valid recording window", __FUNCTION__);
++        return INVALID_OPERATION;
++    }
++
++
++    client->sCameraService->playSound(CameraService::SOUND_RECORDING_START);
++    client->mStreamingProcessor->updateRecordingRequest(params);
++    if (res != OK) {
++        ALOGE("%s: Camera %d: Unable to update recording request: %s (%d)",
++                __FUNCTION__, client->mCameraId, strerror(-res), res);
++        return res;
++    }
++
++    // Disable callbacks if they're enabled; can't record and use callbacks,
++    // and we can't fail record start without stagefright asserting.
++    params.previewCallbackFlags = 0;
++
++    res = client->mStreamingProcessor->updatePreviewStream(params);
++    if (res != OK) {
++        ALOGE("%s: Camera %d: Unable to update preview stream: "
++                "%s (%d)", __FUNCTION__, client->mCameraId,
++                strerror(-res), res);
++        return res;
++    }
++
++    res = client->updateProcessorStream<
++        StreamingProcessor,
++        &StreamingProcessor::updateRecordingStream>(
++                                                    client->mStreamingProcessor,
++                                                    params);
++    if (res != OK) {
++        ALOGE("%s: Camera %d: Unable to update recording stream: "
++                "%s (%d)", __FUNCTION__, client->mCameraId,
++                strerror(-res), res);
++        return res;
++    }
++
++    size_t requestListSize = params.qtiParams->hfrPreviewFpsRange[1]/30;
++    Vector<Vector<int32_t>> outputStreams;
++    for (size_t i = 0; i < requestListSize; i++) {
++        Vector<int32_t> request;
++        // For first request, add preview + video stream requests
++        if (i == 0) {
++            request.push(client->getPreviewStreamId());
++            request.push(client->getRecordingStreamId());
++        } else {
++            // For any other request, only add recording stream.
++            request.push(client->getRecordingStreamId());
++        }
++        outputStreams.push(request);
++    }
++
++    res = client->mStreamingProcessor->startHfrStream(outputStreams);
++
++    if (res != OK) {
++        ALOGE("%s: Camera %d: Unable to start recording stream: %s (%d)",
++                __FUNCTION__, client->mCameraId, strerror(-res), res);
++        return res;
++    }
++
++    if (params.state < Parameters::RECORD) {
++        params.state = Parameters::RECORD;
++    }
++
++    return res;
++
++}
++
++void QTICamera2Client::stopHFRRecording(Parameters &params) {
++    status_t res = OK;
++    sp<Camera2Client> client = mParentClient.promote();
++    client->sCameraService->playSound(CameraService::SOUND_RECORDING_STOP);
++
++    // We need to reconfigure for the preview.to start in non-hfr mode.
++    stopPreviewForRestart(params);
++
++    params.previewFpsRange[0] = params.qtiParams->nonHfrPreviewFpsRange[0];
++    params.previewFpsRange[1] = params.qtiParams->nonHfrPreviewFpsRange[1];
++
++    //.Reset the constrained high speed to false.
++    client->mDevice->configureStreams(false);
++
++    res = client->startPreviewL(params, false);
++    if (res != OK) {
++        ALOGE("%s: Camera %d: Unable to re-start preview after recording : %s (%d)",
++                __FUNCTION__, client->mCameraId, strerror(-res), res);
++        return;
++    }
++
++}
++
++void QTICamera2Client::stopPreviewForRestart(Parameters &params) {
++    status_t res;
++    sp<Camera2Client> client = mParentClient.promote();
++    const nsecs_t kStopCaptureTimeout = 3000000000LL; // 3 seconds
++    Parameters::State state = params.state;
++
++    switch (state) {
++        case Parameters::DISCONNECTED:
++            // Nothing to do.
++            break;
++        case Parameters::STOPPED:
++        case Parameters::VIDEO_SNAPSHOT:
++        case Parameters::STILL_CAPTURE:
++            client->mCaptureSequencer->waitUntilIdle(kStopCaptureTimeout);
++            // no break
++        case Parameters::RECORD:
++        case Parameters::PREVIEW:
++            client->syncWithDevice();
++            res = client->stopStream();
++            if (res != OK) {
++                ALOGE("%s: Camera %d: Can't stop streaming: %s (%d)",
++                        __FUNCTION__, client->mCameraId, strerror(-res), res);
++            }
++
++            // Flush all in-process captures and buffer in order to stop
++            // preview faster.
++            res = client->mDevice->flush();
++            if (res != OK) {
++                ALOGE("%s: Camera %d: Unable to flush pending requests: %s (%d)",
++                        __FUNCTION__, client->mCameraId, strerror(-res), res);
++            }
++
++            res = client->mDevice->waitUntilDrained();
++            if (res != OK) {
++                ALOGE("%s: Camera %d: Waiting to stop streaming failed: %s (%d)",
++                        __FUNCTION__, client->mCameraId, strerror(-res), res);
++            }
++            // Clean up recording stream
++            res = client->mStreamingProcessor->deleteRecordingStream();
++            if (res != OK) {
++                ALOGE("%s: Camera %d: Unable to delete recording stream before "
++                        "stop preview: %s (%d)",
++                        __FUNCTION__, client->mCameraId, strerror(-res), res);
++            }
++            // no break
++        case Parameters::WAITING_FOR_PREVIEW_WINDOW: {
++            params.state = Parameters::STOPPED;
++            client->commandStopFaceDetectionL(params);
++            break;
++        }
++        default:
++            ALOGE("%s: Camera %d: Unknown state %d", __FUNCTION__, client->mCameraId,
++                    state);
++    }
++
++    {
++        params.state = Parameters::STOPPED;
++    }
++
++    client->mStreamingProcessor->deletePreviewStream();
++    client->mStreamingProcessor->deleteRecordingStream();
++    client->mJpegProcessor->deleteStream();
++    client->mCallbackProcessor->deleteStream();
++    client->mZslProcessor->deleteStream();
++
++}
++} // namespace android
++
+diff --git a/services/camera/libcameraservice/api1/QTICamera2Client.h b/services/camera/libcameraservice/api1/QTICamera2Client.h
+index a096ba4f6..c0da03830 100644
+--- a/services/camera/libcameraservice/api1/QTICamera2Client.h
++++ b/services/camera/libcameraservice/api1/QTICamera2Client.h
+@@ -44,6 +44,11 @@ public:
+     QTICamera2Client(sp<Camera2Client> client);
+     ~QTICamera2Client();
+     status_t setParametersExtn(Parameters &params);
++    status_t startHFRRecording(Parameters &params);
++    void stopHFRRecording(Parameters &params);
++
++private:
++    void stopPreviewForRestart(Parameters &params);
+ 
+ };
+ 
+diff --git a/services/camera/libcameraservice/api1/qticlient2/QTIParameters.cpp b/services/camera/libcameraservice/api1/qticlient2/QTIParameters.cpp
+index ad142cc99..d24524642 100644
+--- a/services/camera/libcameraservice/api1/qticlient2/QTIParameters.cpp
++++ b/services/camera/libcameraservice/api1/qticlient2/QTIParameters.cpp
+@@ -157,6 +157,11 @@ const char KEY_QTI_AE_BRACKET_HDR[] = "ae-bracket-hdr";
+ const char AE_BRACKET_OFF[] = "Off";
+ const char AE_BRACKET[] = "AE-Bracket";
+ 
++// HFR
++const char KEY_QTI_VIDEO_HIGH_FRAME_RATE[] = "video-hfr";
++const char KEY_QTI_VIDEO_HIGH_SPEED_RECORDING[] = "video-hsr";
++const char KEY_QTI_SUPPORTED_VIDEO_HIGH_FRAME_RATE_MODES[] = "video-hfr-values";
++const char KEY_QTI_SUPPORTED_HFR_SIZES[] = "hfr-size-values";
+ 
+ status_t QTIParameters::initialize(void *parametersParent,
+         sp<CameraDeviceBase> device, sp<CameraProviderManager> manager) {
+@@ -409,6 +414,49 @@ status_t QTIParameters::initialize(void *parametersParent,
+         ParentParams->params.remove(KEY_QTI_CAPTURE_BURST_EXPOSURE);
+     }
+ 
++    // HFR
++    camera_metadata_ro_entry_t availableHfrConfigs =
++            ParentParams->staticInfo(ANDROID_CONTROL_AVAILABLE_HIGH_SPEED_VIDEO_CONFIGURATIONS);
++    if (availableHfrConfigs.count >= 10) {
++        // Retrieve Hfr Configurations.
++        // The elements of config are (width, height, fps_min, fps_max, batch_size_max)
++        // Two sets of such config are available
++        // One for preview and the second one for video.
++
++        String8 hfrValues;
++        String8 hfrSizeValues;
++        int32_t width = 0;
++        int32_t height = 0;
++        int32_t fps_max = 0;
++
++        for (size_t i = 0; i < availableHfrConfigs.count &&
++                availableHfrConfigs.count >= (i+10); i += 10) {
++            width = availableHfrConfigs.data.i32[i+0];
++            height = availableHfrConfigs.data.i32[i+1];
++            // Check if previous fps is same as current fps.
++            // Advertize the max resolution for each high FPS mode.
++            // Each FPS mode, like 120 FPS, will be advertised for max resolution.
++            if (fps_max != availableHfrConfigs.data.i32[i+3]) {
++                fps_max = availableHfrConfigs.data.i32[i+3];
++
++                if (i != 0 ) {
++                    hfrValues += ",";
++                    hfrSizeValues += ",";
++                }
++                hfrValues += String8::format("%d",fps_max);
++                hfrSizeValues += String8::format("%dx%d",width,height);
++
++            }
++        }
++
++        ParentParams->params.set(KEY_QTI_SUPPORTED_VIDEO_HIGH_FRAME_RATE_MODES, hfrValues.string());
++        ParentParams->params.set(KEY_QTI_SUPPORTED_HFR_SIZES, hfrSizeValues.string());
++
++        // Default
++        ParentParams->params.set(KEY_QTI_VIDEO_HIGH_SPEED_RECORDING, "off");
++        ParentParams->params.set(KEY_QTI_VIDEO_HIGH_FRAME_RATE, "off");
++
++    }
+     return res;
+ }
+ 
+@@ -589,6 +637,16 @@ status_t QTIParameters::set(CameraParameters2& newParams, void *parametersParent
+     ALOGV("%s mNeedRestart = %d, prevAllowZslMode = %d, allowZslMode = %d",
+             __FUNCTION__, mNeedRestart, prevAllowZslMode, ParentParams->allowZslMode);
+ 
++    const char *qtiHfrMode = newParams.get(KEY_QTI_VIDEO_HIGH_FRAME_RATE);
++    ALOGV("HFR mode = %s", qtiHfrMode);
++    if (qtiHfrMode != NULL && strcmp(qtiHfrMode, "off")) {
++        ParentParams->qtiParams->hfrMode = true;
++        ParentParams->qtiParams->hfrPreviewFpsRange[0] = atoi(qtiHfrMode);
++        ParentParams->qtiParams->hfrPreviewFpsRange[1] = atoi(qtiHfrMode);
++    } else {
++        ParentParams->qtiParams->hfrMode = false;
++    }
++
+     return res;
+ }
+ 
+diff --git a/services/camera/libcameraservice/api1/qticlient2/QTIParameters.h b/services/camera/libcameraservice/api1/qticlient2/QTIParameters.h
+index e9d594fc3..5bfce5704 100644
+--- a/services/camera/libcameraservice/api1/qticlient2/QTIParameters.h
++++ b/services/camera/libcameraservice/api1/qticlient2/QTIParameters.h
+@@ -102,6 +102,9 @@ public:
+     bool mNeedRestart;
+     uint8_t burstCount;
+     bool aeBracketEnable;
++    bool hfrMode;
++    int32_t hfrPreviewFpsRange[2];
++    int32_t nonHfrPreviewFpsRange[2];
+     // Sets up default QTI parameters
+     status_t initialize(void *parametersParent, sp<CameraDeviceBase> device, sp<CameraProviderManager> manager);
+     // Validate and update camera parameters based on new settings
+diff --git a/services/camera/libcameraservice/api1/qticlient2/StreamingProcessor.cpp b/services/camera/libcameraservice/api1/qticlient2/StreamingProcessor.cpp
+index a449f1ac0..0ed60eb91 100644
+--- a/services/camera/libcameraservice/api1/qticlient2/StreamingProcessor.cpp
++++ b/services/camera/libcameraservice/api1/qticlient2/StreamingProcessor.cpp
+@@ -481,6 +481,69 @@ status_t StreamingProcessor::startStream(StreamType type,
+     return OK;
+ }
+ 
++status_t StreamingProcessor::startHfrStream(
++        const Vector <Vector <int32_t>> &outputStreams) {
++
++    ATRACE_CALL();
++    status_t res;
++
++    sp<CameraDeviceBase> device = mDevice.promote();
++    if (device == 0) {
++        ALOGE("%s: Camera %d: Device does not exist", __FUNCTION__, mId);
++        return INVALID_OPERATION;
++    }
++
++    ALOGV("%s: Camera %d:", __FUNCTION__, mId);
++
++    Mutex::Autolock m(mMutex);
++
++    CameraMetadata &request = mRecordingRequest;
++
++    // Configure streams for Constrained High Speed mode
++    device->configureStreams(true);
++
++    List<const CameraMetadata> requestList;
++    std::list<const SurfaceMap> surfaceMapsList;
++    for (size_t i = 0; i < outputStreams.size(); i++) {
++        SurfaceMap surfaceMap;
++        CameraMetadata tempRequest = request;
++        res = tempRequest.update(
++            ANDROID_REQUEST_OUTPUT_STREAMS,
++            outputStreams[i]);
++        if (res != OK) {
++            ALOGE("%s: Camera %d: Unable to set up preview request: %s (%d)",
++                    __FUNCTION__, mId, strerror(-res), res);
++            return res;
++        }
++
++        res = tempRequest.sort();
++        if (res != OK) {
++            ALOGE("%s: Camera %d: Error sorting preview request: %s (%d)",
++                    __FUNCTION__, mId, strerror(-res), res);
++            return res;
++        }
++        requestList.push_back(tempRequest);
++
++        camera_metadata_entry streams = tempRequest.find(ANDROID_REQUEST_OUTPUT_STREAMS);
++         for (size_t i = 0; i < streams.count; i++) {
++            surfaceMap[streams.data.i32[i]].push_back(0);
++        }
++        surfaceMapsList.push_back(surfaceMap);
++    }
++    res = device->setStreamingRequestList(requestList, surfaceMapsList);
++    if (res != OK) {
++        ALOGE("%s: Camera %d: Unable to set preview request to start preview: "
++                "%s (%d)",
++                __FUNCTION__, mId, strerror(-res), res);
++        return res;
++    }
++    mActiveRequest = RECORD;
++    mPaused = false;
++    mActiveStreamIds = outputStreams[0];
++    return OK;
++
++}
++
+ status_t StreamingProcessor::togglePauseStream(bool pause) {
+     ATRACE_CALL();
+     status_t res;
+diff --git a/services/camera/libcameraservice/api1/qticlient2/StreamingProcessor.h b/services/camera/libcameraservice/api1/qticlient2/StreamingProcessor.h
+index 22231d557..98a4051eb 100644
+--- a/services/camera/libcameraservice/api1/qticlient2/StreamingProcessor.h
++++ b/services/camera/libcameraservice/api1/qticlient2/StreamingProcessor.h
+@@ -69,6 +69,9 @@ class StreamingProcessor : public virtual VirtualLightRefBase {
+     status_t startStream(StreamType type,
+             const Vector<int32_t> &outputStreams);
+ 
++    status_t startHfrStream(
++            const Vector<Vector <int32_t>> &outputStreams);
++
+     // Toggle between paused and unpaused. Stream must be started first.
+     status_t togglePauseStream(bool pause);
+ 
+-- 
+2.17.1
+
