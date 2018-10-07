@@ -896,12 +896,20 @@ kpick 230236 # common: label /sys/devices/virtual/graphics as sysfs_graphics
 kpick 230237 # common: allow vendor_init to create /data/dpm
 kpick 230238 # common: create proc_kernel_sched domain to restrict perf hal access
 kpick 230239 # common: allow uevent to control sysfs_mmc_host via vold
+kpick 230828 # legacy: Label qpnp-smbcharger sysfs
+kpick 230829 # legacy: Resolve hal_gnss_default denial
+kpick 230830 # legacy: Resolve hal_bluetooth_default denial
+kpick 230831 # sepolicy: Allow android service to write on tombstones
+#kpick 230832 # Partially revert "sepol: hostapd is now hal_wifi_hostapd"
+kpick 230833 # legacy: Correctly label display.qservice
+kpick 230834 # legacy: allow init to read /proc/device-tree
 
 # device/samsung/kltechnduo
 
 # device/samsung/klte-common
 kpick 225192 # klte-common: Align ril.h to samsung_msm8974-common P libril changes
 kpick 224917 # DO NOT MERGE: klte-common: Requisite bring-up BS change
+kpick 231029 # klte-common: Set SDK API level for rild
 
 # device/samsung/msm8974-common
 kpick 228677 # msm8974-common: Make the external camera provider ignore internal cameras
@@ -1060,6 +1068,7 @@ kpick 230262 # SystemUI: Fix clock icon blacklist handling
 kpick 230361 # fw/b UserManagerService: Use ro.build.date to signal upgrades
 kpick 230388 # base: show bluetooth battery status when available
 kpick 230600 # FingerprintService: add property to prevent cleanup of unused fingerprints
+kpick 230787 # Screenshot: Append app name after screenshot date.
 
 # frameworks/native
 kpick 224443 # libbinder: Don't log call trace when waiting for vendor service on non-eng builds
@@ -1173,15 +1182,15 @@ kpick 226688 # libfm_jni: Add support for internal antenna hardware
 kpick 226689 # libfm_jni: Improve and fix FM jni logs
 kpick 226737 # libfm_jni: Fix strchr implicit char* typecast in ConfFileParser
 kpick 226738 # libfm_jni: Add jni core headers dependency
-kpick 226742 # libfm_jni: Remove unused variables
+kpick 226742 # jni/libfm_jni: Remove unused variables
 kpick 226743 # libfm_jni: Resolve fread assignment to condition cast
-kpick 223685 # libfm_jni: Resolve FM_DEVICE_PATH R/O open flag
-kpick 226744 # libfm_jni: Ignore unused parameters from APIs
+kpick 223685 # jni/libfm_jni: Resolve FM_DEVICE_PATH R/O open flag
+kpick 226744 # jni/libfm_jni: Ignore unused parameters from APIs
 kpick 223678 # libfm_jni: use proper nativehelper headers
 kpick 223684 # jni: Resolve equality comparisons with extraneous parentheses
 kpick 223687 # jni: Resolve V4L2_CID_AUDIO_MUTE redefinitions
 kpick 223692 # jni: Resolve -Wwritable-strings warnings in helium FW library variables
-kpick 226741 # fm: Resolve required dependency qcom.fmradio.xml linkage
+kpick 226741 # Allow library to be used by apps directly
 kpick 226694 # FM: Break bootclasspath dependency
 kpick 226696 # FM: Re-vamp UI
 kpick 226697 # FM: Restore seek arrows
@@ -1193,7 +1202,7 @@ kpick 226702 # FM: Switch file extension to aac
 kpick 226714 # FM: Add property to force use internal antenna
 kpick 226727 # FM: Cleanup resources
 kpick 226705 # FM: add Indonesia
-kpick 226732 # FM: Use some sane colors
+kpick 226732 # FM: materialize
 kpick 226709 # FM: retune last frequency when resume after call
 kpick 226711 # FM: Store tag num/value in sequence
 kpick 226712 # FM: reenable radio text visibility after station info updated
@@ -1209,10 +1218,10 @@ kpick 226723 # FM: Localization of band types
 kpick 226724 # FM: Fix settings UI bugs
 kpick 226725 # FM: Fix headphone icon
 kpick 226726 # FM: Update India bands
-kpick 226729 # Convert regional band arrays to string references
+kpick 226729 # FM: Convert regional band arrays to string references
 kpick 226734 # FM: Fix KHz->kHz
-kpick 226735 # FM2: Convert FM transmitter notifications to use NotificationChannel
-kpick 226736 # FM2: Revamp notifications
+kpick 226735 # FM: Convert FM transmitter notifications to use NotificationChannel
+kpick 226736 # FM: Revamp notifications
 kpick 226740 # FM: adaptive icon
 
 # hardware/qcom/gps
@@ -1296,6 +1305,7 @@ kpick 230272 # sdk: Remove VOLUME_KEYS_CONTROL_RING_STREAM
 kpick 230285 # lineage-sdk: Move force show navbar to lineage system settings
 kpick 230536 # sdk: Stop using lerp for night/day mode transitions
 kpick 230724 # sdk: Split TWILIGHT_ADJUSTMENT_TIME in half
+kpick 230856 # sdk: Don't clear calling identify when calling IOverlayManager.setEnabled()
 
 # packages/apps/AudioFX
 
@@ -1539,7 +1549,7 @@ kpick 225939 # roomservice.py: non-depsonly: bootstrap first device repo from Hu
 kpick 226123 # soong_config: Add new flags for HW FDE
 kpick 226125 # soong_config: Add flag for legacy HW FDE
 kpick 226126 # soong_config: Add flag for crypto waiting on QSEE to start
-kpick 229508 # lineage: Move kernel variable configuration to BoardConfigKernel
+kpick 229508 # lineage: Move some kernel definitions to BoardConfigKernel
 kpick 229412 # vendor/lineage: Add soong generator module type
 kpick 229415 # lineage: Dynamically generate kernel headers using lineage generator
 kpick 229505 # vendor/lineage: Remove kernel.mk headers generation

@@ -1,7 +1,7 @@
-From 0f36fb40e080706b76a260d2f17807eccf2f44a1 Mon Sep 17 00:00:00 2001
+From 1ffb8b29684582b0436424d8f321cfddb7090da8 Mon Sep 17 00:00:00 2001
 From: =?UTF-8?q?eray=20or=C3=A7unus?= <erayorcunus@gmail.com>
 Date: Wed, 17 Jun 2015 16:12:19 +0300
-Subject: [PATCH 05/45] lockscreen: Add option for showing unlock screen
+Subject: [PATCH 05/41] lockscreen: Add option for showing unlock screen
  directly
 MIME-Version: 1.0
 Content-Type: text/plain; charset=UTF-8
@@ -31,12 +31,12 @@ Squash of the following changes, updated for the new SDK:
 
 Change-Id: I0cfb43bfb631fce532dfacdf56455309a04ddfa2
 ---
- packages/SettingsProvider/Android.mk          |  7 +-
+ packages/SettingsProvider/Android.mk          |  7 ++-
  .../providers/settings/DatabaseHelper.java    |  3 +
- .../statusbar/phone/KeyguardBouncer.java      | 38 ++++++++---
- .../phone/StatusBarKeyguardViewManager.java   | 64 ++++++++++++++-----
+ .../statusbar/phone/KeyguardBouncer.java      | 39 ++++++++++---
+ .../phone/StatusBarKeyguardViewManager.java   | 55 ++++++++++++++-----
  .../locksettings/LockSettingsService.java     |  5 +-
- 5 files changed, 90 insertions(+), 27 deletions(-)
+ 5 files changed, 85 insertions(+), 24 deletions(-)
 
 diff --git a/packages/SettingsProvider/Android.mk b/packages/SettingsProvider/Android.mk
 index db57fd16236..40a39c375c2 100644
@@ -78,7 +78,7 @@ index e853399133a..1a047c1b4e8 100644
                     "lockscreen.lockoutattemptdeadline",
                     "lockscreen.patterneverchosen",
 diff --git a/packages/SystemUI/src/com/android/systemui/statusbar/phone/KeyguardBouncer.java b/packages/SystemUI/src/com/android/systemui/statusbar/phone/KeyguardBouncer.java
-index c74d09d93fc..a32d394ddeb 100644
+index c74d09d93fc..b01e2583628 100644
 --- a/packages/SystemUI/src/com/android/systemui/statusbar/phone/KeyguardBouncer.java
 +++ b/packages/SystemUI/src/com/android/systemui/statusbar/phone/KeyguardBouncer.java
 @@ -45,6 +45,8 @@ import com.android.systemui.DejankUtils;
@@ -125,44 +125,45 @@ index c74d09d93fc..a32d394ddeb 100644
 -            return mode == SecurityMode.SimPin || mode == SecurityMode.SimPuk;
 -        }
 -        return false;
-+        return (getFullscreenBouncer(false) == UNLOCK_SEQUENCE_FORCE_BOUNCER);
++        return getFullscreenBouncer(false) == UNLOCK_SEQUENCE_FORCE_BOUNCER;
      }
  
      /**
-@@ -439,11 +444,28 @@ public class KeyguardBouncer {
+@@ -439,11 +444,29 @@ public class KeyguardBouncer {
       * makes this method much faster.
       */
      public boolean isFullscreenBouncer() {
-+        return (getFullscreenBouncer(true) == UNLOCK_SEQUENCE_FORCE_BOUNCER);
++        return getFullscreenBouncer(true) == UNLOCK_SEQUENCE_FORCE_BOUNCER;
 +    }
 +
 +    /**
 +     * @return Whether the bouncer should be shown first, this could be because of SIM PIN/PUK
 +     * or it just could be chosen to be shown first.
 +     */
-+    public int getFullscreenBouncer(boolean useCurrentSecMode) {
++    public int getFullscreenBouncer(boolean useCurrentSecurityMode) {
++        int unlockSequence = UNLOCK_SEQUENCE_DEFAULT;
          if (mKeyguardView != null) {
 -            SecurityMode mode = mKeyguardView.getCurrentSecurityMode();
 -            return mode == SecurityMode.SimPin || mode == SecurityMode.SimPuk;
-+            SecurityMode mode = useCurrentSecMode ?
++            SecurityMode mode = useCurrentSecurityMode ?
 +                    mKeyguardView.getCurrentSecurityMode() : mKeyguardView.getSecurityMode();
 +            if (mode == SecurityMode.SimPin || mode == SecurityMode.SimPuk) {
-+                return UNLOCK_SEQUENCE_FORCE_BOUNCER;
++                unlockSequence = UNLOCK_SEQUENCE_FORCE_BOUNCER;
 +            } else if ((mode == SecurityMode.Pattern || mode == SecurityMode.Password
 +                    || mode == SecurityMode.PIN) && (mLockPatternUtils != null
 +                    && mLineageLockPatternUtils.shouldPassToSecurityView(
 +                            KeyguardUpdateMonitor.getCurrentUser()))) {
 +                // "Bouncer first" mode is only available to some security methods
-+                return UNLOCK_SEQUENCE_BOUNCER_FIRST;
++                unlockSequence = UNLOCK_SEQUENCE_BOUNCER_FIRST;
 +            }
          }
 -        return false;
-+        return UNLOCK_SEQUENCE_DEFAULT;
++        return unlockSequence;
      }
  
      /**
 diff --git a/packages/SystemUI/src/com/android/systemui/statusbar/phone/StatusBarKeyguardViewManager.java b/packages/SystemUI/src/com/android/systemui/statusbar/phone/StatusBarKeyguardViewManager.java
-index dfc48f161e9..995fdbd61b4 100644
+index dfc48f161e9..f625f091245 100644
 --- a/packages/SystemUI/src/com/android/systemui/statusbar/phone/StatusBarKeyguardViewManager.java
 +++ b/packages/SystemUI/src/com/android/systemui/statusbar/phone/StatusBarKeyguardViewManager.java
 @@ -200,17 +200,37 @@ public class StatusBarKeyguardViewManager implements RemoteInputController.Callb
@@ -181,7 +182,7 @@ index dfc48f161e9..995fdbd61b4 100644
 -                mBouncer.prepare();
 -            }
 +    protected void showBouncerOrKeyguard(boolean hideBouncerWhenShowing, boolean isBackPressed) {
-+        switch (mBouncer.getFullscreenBouncer(false)) {
++        switch (mBouncer.getFullscreenBouncer(false /* useCurrentSecurityMode */)) {
 +            case KeyguardBouncer.UNLOCK_SEQUENCE_FORCE_BOUNCER:
 +                // SIM PIN/PUK
 +                // The keyguard might be showing (already). So we need to hide it.
@@ -214,7 +215,7 @@ index dfc48f161e9..995fdbd61b4 100644
          }
          updateStates();
      }
-@@ -273,21 +293,29 @@ public class StatusBarKeyguardViewManager implements RemoteInputController.Callb
+@@ -273,7 +293,7 @@ public class StatusBarKeyguardViewManager implements RemoteInputController.Callb
      /**
       * Reset the state of the view.
       */
@@ -223,9 +224,7 @@ index dfc48f161e9..995fdbd61b4 100644
          if (mShowing) {
              if (mOccluded && !mDozing) {
                  mStatusBar.hideKeyguard();
--                if (hideBouncerWhenShowing || mBouncer.needsFullscreenBouncer()) {
-+                if (hideBouncerWhenShowing ||
-+                        (mBouncer.getFullscreenBouncer(false) == mBouncer.UNLOCK_SEQUENCE_DEFAULT)) {
+@@ -281,13 +301,20 @@ public class StatusBarKeyguardViewManager implements RemoteInputController.Callb
                      hideBouncer(false /* destroyView */);
                  }
              } else {
@@ -247,17 +246,7 @@ index dfc48f161e9..995fdbd61b4 100644
      public boolean isGoingToSleepVisibleNotOccluded() {
          return mGoingToSleepVisibleNotOccluded;
      }
-@@ -322,7 +350,8 @@ public class StatusBarKeyguardViewManager implements RemoteInputController.Callb
-     public void setDozing(boolean dozing) {
-         if (mDozing != dozing) {
-             mDozing = dozing;
--            if (dozing || mBouncer.needsFullscreenBouncer() || mOccluded) {
-+            if (dozing || mOccluded ||
-+                    (mBouncer.getFullscreenBouncer(false) == mBouncer.UNLOCK_SEQUENCE_DEFAULT)) {
-                 reset(dozing /* hideBouncerWhenShowing */);
-             }
-             updateStates();
-@@ -543,7 +572,7 @@ public class StatusBarKeyguardViewManager implements RemoteInputController.Callb
+@@ -543,7 +570,7 @@ public class StatusBarKeyguardViewManager implements RemoteInputController.Callb
      public boolean onBackPressed(boolean hideImmediately) {
          if (mBouncer.isShowing()) {
              mStatusBar.endAffordanceLaunch();
@@ -266,16 +255,6 @@ index dfc48f161e9..995fdbd61b4 100644
              return true;
          }
          return false;
-@@ -580,7 +609,8 @@ public class StatusBarKeyguardViewManager implements RemoteInputController.Callb
-         boolean showing = mShowing;
-         boolean occluded = mOccluded;
-         boolean bouncerShowing = mBouncer.isShowing();
--        boolean bouncerDismissible = !mBouncer.isFullscreenBouncer();
-+        boolean bouncerDismissible =
-+                mBouncer.getFullscreenBouncer(true) != KeyguardBouncer.UNLOCK_SEQUENCE_FORCE_BOUNCER;
-         boolean remoteInputActive = mRemoteInputActive;
- 
-         if ((bouncerDismissible || !showing || remoteInputActive) !=
 diff --git a/services/core/java/com/android/server/locksettings/LockSettingsService.java b/services/core/java/com/android/server/locksettings/LockSettingsService.java
 index 36b04fcd610..52ded5034a1 100644
 --- a/services/core/java/com/android/server/locksettings/LockSettingsService.java

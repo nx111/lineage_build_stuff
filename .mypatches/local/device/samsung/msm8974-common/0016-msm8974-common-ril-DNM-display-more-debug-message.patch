@@ -1,13 +1,13 @@
-From 740ee7f96a5ebc652d1b738f80aeed39d50d7a79 Mon Sep 17 00:00:00 2001
+From e39b8c04fcd8358919acffac6ebbc563f6ea5fb1 Mon Sep 17 00:00:00 2001
 From: nx111 <gd.zhangdz@gmail.com>
 Date: Fri, 7 Sep 2018 23:45:57 +0800
-Subject: [PATCH 16/16] msm8974-common: ril: [DNM] display more debug message.
+Subject: [PATCH 16/17] msm8974-common: ril: [DNM] display more debug message.
 
 Change-Id: If422afc01719f7cc7d5394b669d189c632610787
 ---
  ril/libril/ril_internal.h  |  4 ++--
- ril/libril/ril_service.cpp | 25 +++++++++++++++++++++++++
- 2 files changed, 27 insertions(+), 2 deletions(-)
+ ril/libril/ril_service.cpp | 31 +++++++++++++++++++++++++++++++
+ 2 files changed, 33 insertions(+), 2 deletions(-)
 
 diff --git a/ril/libril/ril_internal.h b/ril/libril/ril_internal.h
 index 350791b..de9cd48 100644
@@ -29,10 +29,26 @@ index 350791b..de9cd48 100644
  #if RILC_LOG
      #define startRequest           sprintf(printBuf, "(")
 diff --git a/ril/libril/ril_service.cpp b/ril/libril/ril_service.cpp
-index 6ff1b68..8da4e09 100644
+index 622f585..d07c146 100644
 --- a/ril/libril/ril_service.cpp
 +++ b/ril/libril/ril_service.cpp
-@@ -560,6 +560,9 @@ bool dispatchVoid(int serial, int slotId, int request) {
+@@ -31,6 +31,7 @@
+ #include <utils/SystemClock.h>
+ #include <inttypes.h>
+ #include <cutils/properties.h>
++#include <string>
+ 
+ #define ANDROID_ATOMIC_INLINE
+ extern "C" {
+@@ -53,6 +54,7 @@ using android::CommandInfo;
+ using android::RequestInfo;
+ using android::requestToString;
+ using android::sp;
++using namespace std;
+ 
+ #define BOOL_TO_INT(x) (x ? 1 : 0)
+ #define ATOI_NULL_HANDLED(x) (x ? atoi(x) : -1)
+@@ -560,6 +562,9 @@ bool dispatchVoid(int serial, int slotId, int request) {
      if (pRI == NULL) {
          return false;
      }
@@ -42,7 +58,7 @@ index 6ff1b68..8da4e09 100644
      CALL_ONREQUEST(request, NULL, 0, pRI, slotId);
      return true;
  }
-@@ -575,6 +578,9 @@ bool dispatchString(int serial, int slotId, int request, const char * str) {
+@@ -575,6 +580,9 @@ bool dispatchString(int serial, int slotId, int request, const char * str) {
          return false;
      }
  
@@ -52,27 +68,50 @@ index 6ff1b68..8da4e09 100644
      CALL_ONREQUEST(request, pString, sizeof(char *), pRI, slotId);
  
      memsetAndFreeStrings(1, pString);
-@@ -609,6 +615,9 @@ bool dispatchStrings(int serial, int slotId, int request, bool allowEmpty, int c
+@@ -596,6 +604,7 @@ bool dispatchStrings(int serial, int slotId, int request, bool allowEmpty, int c
+     }
+     va_list ap;
+     va_start(ap, countStrings);
++    string inputString;
+     for (int i = 0; i < countStrings; i++) {
+         const char* str = va_arg(ap, const char *);
+         if (!copyHidlStringToRil(&pStrings[i], hidl_string(str), pRI, allowEmpty)) {
+@@ -606,9 +615,13 @@ bool dispatchStrings(int serial, int slotId, int request, bool allowEmpty, int c
+             free(pStrings);
+             return false;
+         }
++        inputString += (inputString.size() ? string(", ") : string("")) + string(str);
      }
      va_end(ap);
  
 +#if VDBG
-+    RLOGD("%s => %s", __FUNCTION__, requestToString(request));
++    RLOGD("%s => %s(%s)", __FUNCTION__, requestToString(request), inputString.c_str());
 +#endif
      CALL_ONREQUEST(request, pStrings, countStrings * sizeof(char *), pRI, slotId);
  
      if (pStrings != NULL) {
-@@ -649,6 +658,9 @@ bool dispatchStrings(int serial, int slotId, int request, const hidl_vec<hidl_st
+@@ -639,6 +652,7 @@ bool dispatchStrings(int serial, int slotId, int request, const hidl_vec<hidl_st
+         return false;
+     }
+ 
++    string inputString;
+     for (int i = 0; i < countStrings; i++) {
+         if (!copyHidlStringToRil(&pStrings[i], data[i], pRI)) {
+             for (int j = 0; j < i; j++) {
+@@ -647,8 +661,12 @@ bool dispatchStrings(int serial, int slotId, int request, const hidl_vec<hidl_st
+             free(pStrings);
+             return false;
          }
++        inputString += (inputString.size() ? string(", ") : string(""))  + string(pStrings[i]);
      }
  
 +#if VDBG
-+    RLOGD("%s => %s", __FUNCTION__, requestToString(request));
++    RLOGD("%s => %s(%s)", __FUNCTION__, requestToString(request), inputString.c_str());
 +#endif
      CALL_ONREQUEST(request, pStrings, countStrings * sizeof(char *), pRI, slotId);
  
      if (pStrings != NULL) {
-@@ -667,6 +679,7 @@ bool dispatchStrings(int serial, int slotId, int request, const hidl_vec<hidl_st
+@@ -667,6 +685,7 @@ bool dispatchStrings(int serial, int slotId, int request, const hidl_vec<hidl_st
  bool dispatchInts(int serial, int slotId, int request, int countInts, ...) {
      RequestInfo *pRI = android::addRequestToList(serial, slotId, request);
      if (pRI == NULL) {
@@ -80,7 +119,7 @@ index 6ff1b68..8da4e09 100644
          return false;
      }
  
-@@ -684,6 +697,9 @@ bool dispatchInts(int serial, int slotId, int request, int countInts, ...) {
+@@ -684,6 +703,9 @@ bool dispatchInts(int serial, int slotId, int request, int countInts, ...) {
      }
      va_end(ap);
  
@@ -90,7 +129,7 @@ index 6ff1b68..8da4e09 100644
      CALL_ONREQUEST(request, pInts, countInts * sizeof(int), pRI, slotId);
  
      if (pInts != NULL) {
-@@ -713,6 +729,9 @@ bool dispatchCallForwardStatus(int serial, int slotId, int request,
+@@ -713,6 +735,9 @@ bool dispatchCallForwardStatus(int serial, int slotId, int request,
          return false;
      }
  
@@ -100,7 +139,7 @@ index 6ff1b68..8da4e09 100644
      CALL_ONREQUEST(request, &cf, sizeof(cf), pRI, slotId);
  
      memsetAndFreeStrings(1, cf.number);
-@@ -728,6 +747,9 @@ bool dispatchRaw(int serial, int slotId, int request, const hidl_vec<uint8_t>& r
+@@ -728,6 +753,9 @@ bool dispatchRaw(int serial, int slotId, int request, const hidl_vec<uint8_t>& r
  
      const uint8_t *uData = rawBytes.data();
  
@@ -110,7 +149,7 @@ index 6ff1b68..8da4e09 100644
      CALL_ONREQUEST(request, (void *) uData, rawBytes.size(), pRI, slotId);
  
      return true;
-@@ -752,6 +774,9 @@ bool dispatchIccApdu(int serial, int slotId, int request, const SimApdu& message
+@@ -752,6 +780,9 @@ bool dispatchIccApdu(int serial, int slotId, int request, const SimApdu& message
          return false;
      }
  
