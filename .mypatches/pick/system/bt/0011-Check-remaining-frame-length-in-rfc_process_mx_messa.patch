@@ -1,0 +1,65 @@
+From 3325709615ed185896023232461c5cb0e4f9ada2 Mon Sep 17 00:00:00 2001
+From: Hansong Zhang <hsz@google.com>
+Date: Wed, 8 Aug 2018 11:31:28 -0700
+Subject: [PATCH 11/20] Check remaining frame length in rfc_process_mx_message
+
+Bug: 111936792
+Bug: 80432928
+Test: manual
+Change-Id: Ie2c09f3d598fb230ce060c9043f5a88c241cdd79
+(cherry picked from commit 0471355c8b035aaa2ce07a33eecad60ad49c5ad0)
+---
+ stack/rfcomm/rfc_ts_frames.cc | 23 ++++++++++++++++++++++-
+ 1 file changed, 22 insertions(+), 1 deletion(-)
+
+diff --git a/stack/rfcomm/rfc_ts_frames.cc b/stack/rfcomm/rfc_ts_frames.cc
+index 0c8ce09f6..8e7c11849 100644
+--- a/stack/rfcomm/rfc_ts_frames.cc
++++ b/stack/rfcomm/rfc_ts_frames.cc
+@@ -611,6 +611,14 @@ void rfc_process_mx_message(tRFC_MCB* p_mcb, BT_HDR* p_buf) {
+   uint8_t ea, cr, mx_len;
+   bool is_command;
+ 
++  if (length < 2) {
++    RFCOMM_TRACE_ERROR(
++        "%s: Illegal MX Frame len when reading EA, C/R. len:%d < 2", __func__,
++        length);
++    android_errorWriteLog(0x534e4554, "111937065");
++    osi_free(p_buf);
++    return;
++  }
+   p_rx_frame->ea = *p_data & RFCOMM_EA;
+   p_rx_frame->cr = (*p_data & RFCOMM_CR_MASK) >> RFCOMM_SHIFT_CR;
+   p_rx_frame->type = *p_data++ & ~(RFCOMM_CR_MASK | RFCOMM_EA_MASK);
+@@ -633,6 +641,13 @@ void rfc_process_mx_message(tRFC_MCB* p_mcb, BT_HDR* p_buf) {
+   length--;
+ 
+   if (!ea) {
++    if (length < 1) {
++      RFCOMM_TRACE_ERROR("%s: Illegal MX Frame when EA = 0. len:%d < 1",
++                         __func__, length);
++      android_errorWriteLog(0x534e4554, "111937065");
++      osi_free(p_buf);
++      return;
++    }
+     mx_len += *p_data++ << RFCOMM_SHIFT_LENGTH2;
+     length--;
+   }
+@@ -709,7 +724,13 @@ void rfc_process_mx_message(tRFC_MCB* p_mcb, BT_HDR* p_buf) {
+       return;
+ 
+     case RFCOMM_MX_MSC:
+-
++      if (length != RFCOMM_MX_MSC_LEN_WITH_BREAK &&
++          length != RFCOMM_MX_MSC_LEN_NO_BREAK) {
++        RFCOMM_TRACE_ERROR("%s: Illegal MX MSC Frame len:%d", __func__, length);
++        android_errorWriteLog(0x534e4554, "111937065");
++        osi_free(p_buf);
++        return;
++      }
+       ea = *p_data & RFCOMM_EA;
+       cr = (*p_data & RFCOMM_CR_MASK) >> RFCOMM_SHIFT_CR;
+       p_rx_frame->dlci = *p_data++ >> RFCOMM_SHIFT_DLCI;
+-- 
+2.17.1
+

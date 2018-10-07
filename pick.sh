@@ -11,11 +11,12 @@ op_snap_project=""
 op_patches_dir=""
 op_base_pick=0
 default_remote="github"
-script_file=$0
+script_file="pick.sh"
 conflict_resolved=0
 checkcount=200
 
-[ "$script_file" != "bash" ] && script_file=$(realpath $0)
+[ "$0" != "bash" ] && script_file=$(realpath $0)
+#echo "script_file:$script_file"
 
 ##### apply patch saved first ########
 function get_defaul_remote()
@@ -471,12 +472,13 @@ function kpick()
     rc=$?
     local subject=$(grep -Ri -- '--> Subject:' $logfile | sed 's/--> Subject:[[:space:]]*//g')
     if [ "${subject:0:1}" = '"' ]; then
-          subject=$(echo $subject | sed 's/^"//' | sed 's/"$//' | sed "s/\"/\\\\\"/g" | sed "s/'/\\\\\'/g" | sed "s/\&/\\\&/g")
-          subject=$(echo $subject | sed "s/\`/\\\\\`/g" | sed -e "s/|/\\\|/g")
-    else
-          subject=$(echo $subject | sed "s/\"/\\\\\"/g" | sed "s/'/\\\\\'/g" | sed "s/\&/\\\&/g")
-          subject=$(echo $subject | sed "s/\`/\\\\\`/g" | sed -e "s/|/\\\|/g")
+          subject=$(echo $subject | sed 's/^"//' | sed 's/"$//' )
     fi
+    if [ $(echo $subject | wc -c) -gt 120 ]; then
+          subject="${subject:0:115} ..."
+    fi
+    subject=$(echo $subject | sed "s/\"/\\\\\"/g" | sed "s/'/\\\\\'/g" | sed "s/\&/\\\&/g")
+    subject=$(echo $subject | sed "s/\`/\\\\\`/g" | sed -e "s/|/\\\|/g")
     #echo " ---subject=$subject"
     fix_repopick_output $logfile
     cat $logfile | sed -e "/ERROR: git command failed/d" | sed "/Force-picking a closed change/d"
@@ -651,22 +653,27 @@ function kpick()
              cd $topdir
         fi
  
-        if [ -f $logfile -a "$script_file" != "bash" -a ! -z $changeNumber ]; then
-            if grep -q -E "Change status is MERGED.|nothing to commit" $logfile; then
-               [ -f $script_file.tmp ] || cp $script_file $script_file.tmp
-               eval  sed -e \"/[[:space:]]*kpick[[:space:]]\{1,\}$changeNumber[[:space:]]*.*/d\" -i $script_file.tmp
+        if [ -f $logfile -a ! -z $changeNumber ]; then
+            if grep -q -E "Change status is MERGED.|nothing to commit|git command resulted with an empty commit" $logfile; then
+               [ ! -f $script_file.tmp -a "$script_file" != "bash" ] && cp $script_file $script_file.tmp
+               [ -f $script_file.tmp ] && \
+                  eval  sed -E \"/[[:space:]]*kpick[[:space:]]\{1,\}$changeNumber[[:space:]]*.*/d\" -i $script_file.tmp
             elif grep -q -E "Change status is ABANDONED." $logfile; then
-               [ -f $script_file.tmp ] || cp $script_file $script_file.tmp
-               eval  sed -e \"/[[:space:]]*kpick[[:space:]]\{1,\}$changeNumber[[:space:]]*.*/d\" -i $script_file.tmp
+               [ ! -f $script_file.tmp -a "$script_file" != "bash" ] && cp $script_file $script_file.tmp
+               [ -f $script_file.tmp ] && \
+               eval  sed -E \"/[[:space:]]*kpick[[:space:]]\{1,\}$changeNumber[[:space:]]*.*/d\" -i $script_file.tmp
             elif grep -q -E "Change $changeNumber not found, skipping" $logfile; then
-               [ -f $script_file.tmp ] || cp $script_file $script_file.tmp
-               eval  sed -e \"/[[:space:]]*kpick[[:space:]]\{1,\}$changeNumber[[:space:]]*.*/d\" -i $script_file.tmp
+               [ ! -f $script_file.tmp -a "$script_file" != "bash" ] && cp $script_file $script_file.tmp
+               [ -f $script_file.tmp ] && \
+               eval  sed -E \"/[[:space:]]*kpick[[:space:]]\{1,\}$changeNumber[[:space:]]*.*/d\" -i $script_file.tmp
             elif grep -q "could not determine the project path for" $errfile; then
-               [ -f $script_file.tmp ] || cp $script_file $script_file.tmp
-               eval  sed -e \"/[[:space:]]*kpick[[:space:]]\{1,\}$changeNumber[[:space:]]*.*/d\" -i $script_file.tmp
+               [ ! -f $script_file.tmp -a "$script_file" != "bash" ] && cp $script_file $script_file.tmp
+               [ -f $script_file.tmp ] && \
+               eval  sed -E \"/[[:space:]]*kpick[[:space:]]\{1,\}$changeNumber[[:space:]]*.*/d\" -i $script_file.tmp
             elif [ "$changeNumber" != "" -a "$subject" != "" ]; then
-               [ -f $script_file.tmp ] || cp $script_file $script_file.tmp
-               eval  "sed -e \"s|^[[:space:]]*kpick[[:space:]]\{1,\}\($changeNumber\)[[:space:]]*.*|kpick \1 \# $subject|g\" -i $script_file.tmp"
+               [ ! -f $script_file.tmp -a "$script_file" != "bash" ] && cp $script_file $script_file.tmp
+               [ -f $script_file.tmp ] && \
+               eval  "sed -E \"s|^[[:space:]]*kpick[[:space:]]\{1,\}\($changeNumber\)[[:space:]]*.*|kpick \1 \# $subject|g\" -i $script_file.tmp"
             fi
          fi
     fi
@@ -802,6 +809,7 @@ kpick 226755 # lineage: Enable cryptfs_hw
 kpick 227749 # lineage: Enable ntfs-3g and remove fuse
 #kpick 229465 # lineage: Re-enable NXP NFC repositories
 kpick 230651 # manifest: Track our libtextclassifier
+kpick 231080 # manifest: android-9.0.0_r6 -> android-9.0.0_r10
 
 android_head=$(cd android;git log -n 1 | sed -n 1p | cut -d' ' -f2;cd $topdir)
 
@@ -837,13 +845,15 @@ kpick 230747 # update_verifier: skip verity to determine successful on lineage b
 kpick 222733 # core: Disable vendor restrictions
 kpick 222742 # build: Use project pathmap for recovery
 kpick 222760 # Add LOCAL_AIDL_FLAGS
-#kpick 226919 # Depend on the ramdisk/root files for BOARD_BUILD_SYSTEM_ROOT_IMAGE
-#kpick 226537 # releasetools: Rename the ramdisk_dir in prop dict to root_dir.
-#kpick 227213 # releasetools: Fix an issue in image size computation.
-#kpick 226920 # Support a first stage ramdisk via TARGET_RAMDISK_OUT
-#kpick 226939 # releasetools: Fix the path to the OTA keys in recovery image.
 kpick 229491 # build: Automatically replace old-style kernel header includes with new header lib
 kpick 230222 # core_base: Remove libnfc_ndef from PRODUCT_PACKAGES
+kpick 231081 # Version bump to PPR2.180905.006
+kpick 231082 # Update platform security string to 2018-10-05 on pi-dev & master bug: 112535135 (cherry picked from commit 61ddf1fa27039bc83a...
+kpick 231083 # Make change and version bump to PPR2.181005.001
+kpick 231084 # Version bump to PPR2.181005.002
+kpick 231085 # Version bump to PPR2.181005.003
+kpick 231086 # Merge tag 'android-9.0.0_r10' into lineage-16.0-android-9.0.0_r10
+kpick 231135 # pie-gsi-tracking
 
 # build/soong
 kpick 222648 # Allow providing flex and bison binaries
@@ -861,6 +871,7 @@ kpick 225476 # dexdeps: Ignore static initializers on analysis.
 #kpick 225945 # sepolicy: Update to match new qcom sepolicy
 kpick 229423 # selinux: add domain for snap
 kpick 229424 # selinux: add domain for Gallery
+kpick 231003
 
 # device/qcom/sepolicy
 #kpick 224767 # sepol: Remove duplicated hal_vehicle attribute
@@ -896,7 +907,7 @@ kpick 230236 # common: label /sys/devices/virtual/graphics as sysfs_graphics
 kpick 230237 # common: allow vendor_init to create /data/dpm
 kpick 230238 # common: create proc_kernel_sched domain to restrict perf hal access
 kpick 230239 # common: allow uevent to control sysfs_mmc_host via vold
-kpick 230828 # legacy: Label qpnp-smbcharger sysfs
+kpick 230828 # legacy: Label more power_supply sysfs
 kpick 230829 # legacy: Resolve hal_gnss_default denial
 kpick 230830 # legacy: Resolve hal_bluetooth_default denial
 kpick 230831 # sepolicy: Allow android service to write on tombstones
@@ -919,7 +930,7 @@ kpick 225468 # msm8974-common: libril: Remove unused code
 kpick 225469 # msm8974-common: libril: Fix double freeing of memory in SAP service and add null-checks.
 kpick 225470 # msm8974-common: libril: Store the system time when NITZ is received.
 kpick 225471 # msm8974-common: libril: Add DISABLE_RILD_OEM_HOOK.
-kpick 225472 # msm8974-common: libril: Change rild initial sequence to guarantee non-null function pointer before rild register its hidl service
+kpick 225472 # msm8974-common: libril: Change rild initial sequence to guarantee non-null function pointer before rild register its hidl se...
 kpick 225473 # msm8974-common: libril: Add SIM_ABSENT error
 kpick 225759 # msm8974-common: libril: Replace strncpy with strlcpy.
 kpick 225760 # msm8974-common: libril: FR51015: Tuning of Binder buffer for rild.
@@ -999,6 +1010,12 @@ kpick 227433 # Explicitly initialise base class in copy constructor
 kpick 228236 # SoundTriggerHalLegacy.cpp: include errno.h
 kpick 230387 # CameraService: Support calling addStates in enumerateProviders
 kpick 230642 # CameraService: Initialize CameraParameters for the cameras and cache them onFirstRef
+kpick 231087 # Allow playing output to default output device when during uplink playback
+kpick 231088 # Check for overflow of crypto size
+kpick 231089 # Fix information disclosure in mediadrmserver
+kpick 231091 # Merge tag 'android-9.0.0_r10' into lineage-16.0-android-9.0.0_r10
+kpick 231136 # pie-gsi-tracking
+kpick 231137
 
 # frameworks/base
 kpick 224266 # SystemUI: Add Lineage statusbar item holder
@@ -1042,7 +1059,7 @@ kpick 227108 # SystemUI: Fix several issues in the ADB over Network tile
 kpick 227290 # PowerProfile: allow overriding default power profile
 kpick 227291 # [DNM] Revert "Handle public volumes and otherwise invalid UUIDs."
 kpick 227820 # PhoneWindowManager: Allow torch and track skip during ambient display
-kpick 227821 # GlobalScreenshot: Fix screenshot not saved when appending appname with some languages
+kpick 227821 # GlobalScreenshot: Fix screenshot not saved with some languages
 kpick 227839 # storage: Set all sdcards to visible
 kpick 227896 # SystemUI: Add Profiles tile
 kpick 221716 # Where's my circle battery, dude?
@@ -1069,6 +1086,7 @@ kpick 230361 # fw/b UserManagerService: Use ro.build.date to signal upgrades
 kpick 230388 # base: show bluetooth battery status when available
 kpick 230600 # FingerprintService: add property to prevent cleanup of unused fingerprints
 kpick 230787 # Screenshot: Append app name after screenshot date.
+kpick 231101 # Merge tag 'android-9.0.0_r10' into lineage-16.0-android-9.0.0_r10
 
 # frameworks/native
 kpick 224443 # libbinder: Don't log call trace when waiting for vendor service on non-eng builds
@@ -1081,6 +1099,14 @@ kpick 225546 # AppOpsManager: Update with the new ops
 kpick 229400 # HAXX to allow too large dimensions
 kpick 229607 # HACK: SF: Force client composition for all layers
 kpick 230610 # APP may display abnormally in landscape LCM
+kpick 231092 # Fix for incorrect cycle evaluation in computeOomAdj DO NOT MERGE
+kpick 231093 # DO NOT MERGE. Persistable Uri grants still require permissions.
+kpick 231094 # DO NOT MERGE. Execute "strict" queries with extra parentheses.
+kpick 231095 # DO NOT MERGE. Extend SQLiteQueryBuilder for update and delete.
+kpick 231096 # RESTRICT AUTOMERGE: Revoke permissions defined in a to-be removed package.
+kpick 231097 # Fix crash during cursor moving on BiDi text
+kpick 231099 # Revert "RESTRICT AUTOMERGE: Revoke permissions defined in a to-be removed package."
+kpick 231100 # Merge cherrypicks of [4902694, 4902725, 4902587, 4902588, 4902761, 4902762] into pi-release-2
 
 # frameworks/opt/net/wifi
 kpick 224675 # libwifi-hal: add flag to wait for kernel driver to get ready
@@ -1404,6 +1430,9 @@ kpick 229312 # Add Dual Channel into Bluetooth Audio Channel Mode developer opti
 kpick 229384 # Settings: Add high touch sensitivity and touchscreen hovering toggles
 kpick 229453 # Settings: use LineageHW serial number
 kpick 229479 # Settings: Improve phone number preference ordering
+kpick 231102 # Disable changing lock when device is not provisioned.
+kpick 231104 # Merge tag 'android-9.0.0_r10' into lineage-16.0-android-9.0.0_r10
+kpick 231158 # Settings: fix apn_editor carrier_enabled summaryOff string
 
 # packages/apps/SetupWizard
 kpick 230334 # SetupWizard: Update for moved force show navbar setting
@@ -1435,6 +1464,8 @@ kpick 225401 # LatinIME: sync and rebuild emojis
 # packages/provider/ContackProvider
 
 # packages/providers/DownloadProvider
+kpick 231105 # DO NOT MERGE. All untrusted selections must go through builder.
+kpick 231107 # Merge tag 'android-9.0.0_r10' into lineage-16.0-android-9.0.0_r10
 
 # packages/providers/MediaProvider
 kpick 225412 # Fix mounting of non-FAT formatted SD cards (2/2)
@@ -1458,6 +1489,19 @@ kpick 229313 # Explicit SBC Dual Channel (SBC HD) support
 kpick 229314 # Allow using alternative (higher) SBC HD bitrates with a property
 kpick 229401 # [DNM] Revert "Return early if vendor-specific command fails"
 kpick 230382 # Fix for Bluetooth device name is resetting to default name after reboot
+kpick 231108 # Fix copy length calculation in sdp_copy_raw_data
+kpick 231109 # Check remaining frame length in rfc_process_mx_message
+kpick 231110 # Fix OOB read in avrc_ctrl_pars_vendor_rsp
+kpick 231111 # Check packet length in bta_av_proc_meta_cmd
+kpick 231112 # Add missing AVRCP message length checks inside avrc_msg_cback
+kpick 231113 # Add packet length check in smp_proc_master_id
+kpick 231114 # Checks the SMP length to fix OOB read
+kpick 231115 # Add packet length checks in mca_ccb_hdl_req
+kpick 231117 # Fix build failure in stack/rfcomm/rfc_ts_frames.c
+kpick 231118 # Merge cherrypicks of [4793900] into pi-release-2
+kpick 231119 # Add bound check for rfc_parse_data
+kpick 231120 # Fix a wrong check in rfc_parse_data
+kpick 231121 # Merge cherrypicks of [4902694, 4902725, 4902587, 4902588, 4902761, 4902762] into pi-release-2
 
 # system/core
 privpick system/core refs/changes/19/206119/2 # init: I hate safety net
@@ -1466,16 +1510,18 @@ kpick 224264 # debuggerd: Resolve tombstoned missing O_CREAT mode
 kpick 226119 # libion: save errno value
 kpick 226120 # fs_mgr: Wrapped key support for FBE
 kpick 230755 # libsuspend: Bring back earlysuspend
+kpick 231122 # Revert "Support Speck encryption."
+kpick 231133 # pie-gsi-tracking
 
 # system/extras
 kpick 225426 # f2fs_utils: Add a static libf2fs_sparseblock for minvold
 kpick 225427 # ext4_utils: Fix FS creation for filesystems with exactly 32768 blocks.
+kpick 231125 # Revert "Support Speck encryption."
 
 cd system/extras/
 git stash >/dev/null
 git clean -xdf >/dev/null
 cd $topdir
-
 kpick 225428 # extras: remove su
 
 if [ -f $topdir/.mypatches/su.xml ]; then
@@ -1505,12 +1551,15 @@ kpick -P system/extras/su 225937 # su: Initialize windows size
 kpick 226922 # System always contains root dir.
 
 # system/netd
+kpick 231127 # Set optlen for UDP-encap check in XfrmController
+kpick 231129 # Merge tag 'android-9.0.0_r10' into lineage-16.0-android-9.0.0_r10
 
 # system/sepolicy
 kpick 223746 # Add rules required for TARGET_HAS_LEGACY_CAMERA_HAL1
 kpick 223748 # Build sepolicy tools with Android.bp.
 kpick 229403 # sepolicy: New type sdcard_posix for labeled filesystems
 kpick 230613 # Allow webview_zygote to read /dev/ion
+kpick 231134 # pie-gsi-tracking
 
 # system/tool/aidl
 kpick 223133 # AIDL: Add option to generate No-Op methods
@@ -1540,6 +1589,8 @@ kpick 226111 # vold: Wrapped key support for FBE
 kpick 229304 # vold: Add texfat and sdfat support
 kpick 229954 # Move kMajor* constants to a header file
 kpick 229955 # vold: ISO9660 and UDF support
+kpick 231130 # cryptfs: Remove Speck support
+kpick 231132 # Merge tag 'android-9.0.0_r10' into lineage-16.0-android-9.0.0_r10
 
 # vendor/lineage
 kpick 223773 # Add IPv6 for Oister and 3. The 3.dk and oister.dk carriers now support IPv6 with the APN ”data.tre.dk”.
@@ -1549,7 +1600,7 @@ kpick 225939 # roomservice.py: non-depsonly: bootstrap first device repo from Hu
 kpick 226123 # soong_config: Add new flags for HW FDE
 kpick 226125 # soong_config: Add flag for legacy HW FDE
 kpick 226126 # soong_config: Add flag for crypto waiting on QSEE to start
-kpick 229508 # lineage: Move some kernel definitions to BoardConfigKernel
+kpick 229508 # lineage: Move kernel variable configuration to BoardConfigKernel
 kpick 229412 # vendor/lineage: Add soong generator module type
 kpick 229415 # lineage: Dynamically generate kernel headers using lineage generator
 kpick 229505 # vendor/lineage: Remove kernel.mk headers generation

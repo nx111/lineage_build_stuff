@@ -1,7 +1,7 @@
-From f84e8e056d5b13af9652b0b526b4c4a09b03bb8e Mon Sep 17 00:00:00 2001
+From 5fbb02717a1069de7e0d14f9ce12de8532105b3e Mon Sep 17 00:00:00 2001
 From: Rashed Abdel-Tawab <rashed@linux.com>
 Date: Tue, 18 Sep 2018 21:53:24 -0700
-Subject: [PATCH 12/19] lineage: Dynamically generate kernel headers using
+Subject: [PATCH 12/17] lineage: Dynamically generate kernel headers using
  lineage generator
 
 Add a soong vendor plugin for kernel config variables so we can use
@@ -13,13 +13,13 @@ Change-Id: Id31f2be8fcc5aba2d965dbe815edaaf1d28279c6
  build/soong/generator/generator.go |  5 ++++-
  build/soong/generator/variables.go | 28 ++++++++++++++++++++++++++++
  config/BoardConfigLineage.mk       |  2 ++
- config/BoardConfigSoong.mk         | 20 ++++++++++++++++++++
- 5 files changed, 76 insertions(+), 1 deletion(-)
+ config/BoardConfigSoong.mk         | 24 ++++++++++++++++++++++++
+ 5 files changed, 80 insertions(+), 1 deletion(-)
  create mode 100644 build/soong/generator/variables.go
  create mode 100644 config/BoardConfigSoong.mk
 
 diff --git a/build/soong/Android.bp b/build/soong/Android.bp
-index dca42cfa..130b5f82 100644
+index dca42cfa..e3cbcd6f 100644
 --- a/build/soong/Android.bp
 +++ b/build/soong/Android.bp
 @@ -19,6 +19,28 @@ bootstrap_go_package {
@@ -35,14 +35,14 @@ index dca42cfa..130b5f82 100644
 +    name: "generated_kernel_includes",
 +
 +    // The headers make command
-+    cmd: "make -j4 CFLAGS_MODULE=\"-fno-pic\" -C $(TARGET_KERNEL_SOURCE) O=$(genDir) ARCH=$(TARGET_KERNEL_ARCH) headers_install",
++    cmd: "make $(KERNEL_MAKE_FLAGS) -C $(TARGET_KERNEL_SOURCE) O=$(genDir) ARCH=$(KERNEL_ARCH) $(KERNEL_CROSS_COMPILE) $(KERNEL_CLANG_TRIPLE) $(KERNEL_CC) headers_install",
 +
 +    // Directories that can be imported by a cc_* module generated_headers property
 +    export_include_dirs: ["usr/include"],
 +
 +    // Sources for dependency tracking
 +    dep_root: "$(TARGET_KERNEL_SOURCE)",
-+    dep_files: [ "Makefile", "include/**/*", "arch/$(TARGET_KERNEL_ARCH)/include/**/*"],
++    dep_files: [ "Makefile", "include/**/*", "arch/$(KERNEL_ARCH)/include/**/*"],
 +}
 +
 +cc_library_headers {
@@ -124,13 +124,17 @@ index 99990a4c..547792fd 100644
 +include vendor/lineage/config/BoardConfigSoong.mk
 diff --git a/config/BoardConfigSoong.mk b/config/BoardConfigSoong.mk
 new file mode 100644
-index 00000000..970d1997
+index 00000000..b2d9ba13
 --- /dev/null
 +++ b/config/BoardConfigSoong.mk
-@@ -0,0 +1,20 @@
+@@ -0,0 +1,24 @@
 +# Add variables that we wish to make available to soong here.
 +EXPORT_TO_SOONG := \
-+    TARGET_KERNEL_ARCH \
++    KERNEL_ARCH \
++    KERNEL_CC \
++    KERNEL_CLANG_TRIPLE \
++    KERNEL_CROSS_COMPILE \
++    KERNEL_MAKE_FLAGS \
 +    TARGET_KERNEL_CONFIG \
 +    TARGET_KERNEL_SOURCE
 +
@@ -144,7 +148,7 @@ index 00000000..970d1997
 +
 +define addVar
 +  SOONG_CONFIG_lineageVarsPlugin += $(1)
-+  SOONG_CONFIG_lineageVarsPlugin_$(1) := $$($1)
++  SOONG_CONFIG_lineageVarsPlugin_$(1) := $$(subst ",\",$$($1))
 +endef
 +
 +$(foreach v,$(EXPORT_TO_SOONG),$(eval $(call addVar,$(v))))

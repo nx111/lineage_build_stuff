@@ -1,0 +1,67 @@
+From 1cb38184ad04dca0026c18a18f3815d77ea05276 Mon Sep 17 00:00:00 2001
+From: Alberto97 <albertop2197@gmail.com>
+Date: Mon, 7 Aug 2017 23:09:38 +0200
+Subject: [PATCH 03/12] libbt-qcom: Allow reading BT address from property
+
+ * Restore MAC tokens validation
+ * Kill vnd_local_bd_addr as seen in "Make libbt-vendor thread-safe"
+
+Change-Id: Ia62f35b16e1576599533ecb9631dd65b2270cd14
+---
+ libbt-vendor/Android.mk           |  4 +++-
+ libbt-vendor/src/bt_vendor_qcom.c | 12 ++++--------
+ 2 files changed, 7 insertions(+), 9 deletions(-)
+
+diff --git a/libbt-vendor/Android.mk b/libbt-vendor/Android.mk
+index e3a9dfb..23eced9 100644
+--- a/libbt-vendor/Android.mk
++++ b/libbt-vendor/Android.mk
+@@ -98,7 +98,9 @@ LOCAL_CFLAGS += -Wno-enum-conversion
+ ifneq ($(BOARD_ANT_WIRELESS_DEVICE),)
+ LOCAL_CFLAGS += -DENABLE_ANT
+ endif
+-#LOCAL_CFLAGS += -DREAD_BT_ADDR_FROM_PROP
++ifeq ($(QCOM_BT_READ_ADDR_FROM_PROP),true)
++LOCAL_CFLAGS += -DREAD_BT_ADDR_FROM_PROP
++endif
+ 
+ #include $(LOCAL_PATH)/vnd_buildcfg.mk
+ 
+diff --git a/libbt-vendor/src/bt_vendor_qcom.c b/libbt-vendor/src/bt_vendor_qcom.c
+index 4553edc..74487b3 100644
+--- a/libbt-vendor/src/bt_vendor_qcom.c
++++ b/libbt-vendor/src/bt_vendor_qcom.c
+@@ -942,18 +942,14 @@ userial_open:
+                                     ALOGV("BD address read from Boot property: %s\n", bd_addr);
+                                     tok =  strtok(bd_addr, ":");
+                                     while (tok != NULL) {
+-                                        ALOGV("bd add [%d]: %d ", i, strtol(tok, NULL, 16));
++                                        ALOGV("bd add [%d]: %ld ", i, strtol(tok, NULL, 16));
+                                         if (i>=6) {
+                                             ALOGE("bd property of invalid length");
+                                             ignore_boot_prop = TRUE;
+                                             break;
+                                         }
+-                                        if (i == 6 && !ignore_boot_prop) {
+-                                            ALOGV("Valid BD address read from prop");
+-                                            memcpy(q->bdaddr, local_bd_addr_from_prop, sizeof(vnd_local_bd_addr));
+-                                            ignore_boot_prop = FALSE;
+-                                        } else {
+-                                            ALOGE("There are not enough tokens in BD addr");
++                                        if (!validate_tok(tok)) {
++                                            ALOGE("Invalid token in BD address");
+                                             ignore_boot_prop = TRUE;
+                                             break;
+                                         }
+@@ -963,7 +959,7 @@ userial_open:
+                                     }
+                                     if (i == 6 && !ignore_boot_prop) {
+                                         ALOGV("Valid BD address read from prop");
+-                                        memcpy(vnd_local_bd_addr, local_bd_addr_from_prop, sizeof(vnd_local_bd_addr));
++                                        memcpy(q->bdaddr, local_bd_addr_from_prop, sizeof(q->bdaddr));
+                                         ignore_boot_prop = FALSE;
+                                     } else {
+                                         ALOGE("There are not enough tokens in BD addr");
+-- 
+2.17.1
+
