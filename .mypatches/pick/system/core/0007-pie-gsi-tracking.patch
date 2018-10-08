@@ -1,0 +1,175 @@
+From 235e61e6ffd6e0cf38daeaa284eb021d51948373 Mon Sep 17 00:00:00 2001
+From: Luca Stefani <luca.stefani.ge1@gmail.com>
+Date: Mon, 8 Oct 2018 11:11:09 +0200
+Subject: [PATCH 7/7] pie-gsi-tracking
+
+commit f5840af7532445f484f7946a0ad0fed107d1e9a7
+Merge: 416764718 25d86f560
+Author: Treehugger Robot <treehugger-gerrit@google.com>
+Date:   Wed Oct 3 00:22:04 2018 +0000
+
+    Merge "allow adb to remount symlink mount points" into pie-gsi
+
+commit 25d86f5606501f1af452426390db5b5cab1faff6
+Author: Bowgo Tsai <bowgotsai@google.com>
+Date:   Fri Sep 28 12:05:02 2018 +0800
+
+    allow adb to remount symlink mount points
+
+    Currently `adb remount` won't remount symlink mount points.
+    In Android Generic System Image, there is a symlink
+    /product -> /system/product for devices with and without a physical
+    /product partition to work, respectively:
+
+      - Mount product partition under /system/product via
+        'mount /product' OR
+
+      - Keep using /product -> /system/product symlink,
+        when no product partition
+
+    Currently find_proc_mount() is seeking "/product" under /proc/mounts.
+    But the actual mount path is "/system/product" when GSI is used
+    on a device with product partition.
+
+    Bug: 111539442
+    Test: adb remount && touch /product/abc on both GSI and non-GSI
+
+    Change-Id: I8f15a67109d0a3f4ee18596ef7eb4280c5631b11
+    Merged-In: I8f15a67109d0a3f4ee18596ef7eb4280c5631b11
+    (cherry picked from commit 41649b871a21f3f7ced97b9c2a3491a959bc4dd5)
+
+commit 416764718612adf3b61676c451108884be2da5cd
+Merge: 29b1f59ec cfe89277d
+Author: Treehugger Robot <treehugger-gerrit@google.com>
+Date:   Wed Sep 19 06:42:47 2018 +0000
+
+    Merge "adbd: fix spurious failure to create dirs when pushing." into pie-gsi
+
+commit cfe89277d9c7a996d888ab75afa1945e3e86f0b1
+Author: Josh Gao <jmgao@google.com>
+Date:   Thu Jun 28 18:43:19 2018 -0700
+
+    adbd: fix spurious failure to create dirs when pushing.
+
+    When pushing to a path, we first try to ensure the directory path
+    exists and has the permissions expected by fs_config. Due to a change
+    that changed the fs_config check from a blacklist to a whitelist, we
+    started doing this for /data (which doesn't begin with /data/), and the
+    UID/GID for that path was accidentally being reused for following path
+    segments that didn't exist, leading to a failed attempt to chown
+    /data/local/tmp/foo to be owned by system.
+
+    Bug: http://b/110953234
+    Test: python test_device.py
+    Change-Id: Ie798eec48bcf54aea40f6d90cc03bb2170280ee8
+    Merged-In: Ie798eec48bcf54aea40f6d90cc03bb2170280ee8
+    (cherry picked from commit 4c0078d67a552c63b439b2398e17e9cdaf6b7067)
+
+Change-Id: I6b75c36b349fc14d1a70b64261097e45f37701b1
+---
+ adb/file_sync_service.cpp | 18 ++++++++++++------
+ adb/remount_service.cpp   | 11 ++++++++++-
+ adb/test_device.py        | 15 +++++++++++++++
+ 3 files changed, 37 insertions(+), 7 deletions(-)
+
+diff --git a/adb/file_sync_service.cpp b/adb/file_sync_service.cpp
+index 11289934e..f7be8f94b 100644
+--- a/adb/file_sync_service.cpp
++++ b/adb/file_sync_service.cpp
+@@ -69,17 +69,23 @@ static bool update_capabilities(const char* path, uint64_t capabilities) {
+ }
+ 
+ static bool secure_mkdirs(const std::string& path) {
+-    uid_t uid = -1;
+-    gid_t gid = -1;
+-    unsigned int mode = 0775;
+-    uint64_t capabilities = 0;
+-
+     if (path[0] != '/') return false;
+ 
+     std::vector<std::string> path_components = android::base::Split(path, "/");
+     std::string partial_path;
+     for (const auto& path_component : path_components) {
+-        if (partial_path.back() != OS_PATH_SEPARATOR) partial_path += OS_PATH_SEPARATOR;
++        uid_t uid = -1;
++        gid_t gid = -1;
++        unsigned int mode = 0775;
++        uint64_t capabilities = 0;
++
++        if (path_component.empty()) {
++            continue;
++        }
++
++        if (partial_path.empty() || partial_path.back() != OS_PATH_SEPARATOR) {
++            partial_path += OS_PATH_SEPARATOR;
++        }
+         partial_path += path_component;
+ 
+         if (should_use_fs_config(partial_path)) {
+diff --git a/adb/remount_service.cpp b/adb/remount_service.cpp
+index d679a6dff..67aeafed2 100644
+--- a/adb/remount_service.cpp
++++ b/adb/remount_service.cpp
+@@ -29,6 +29,7 @@
+ 
+ #include <string>
+ 
++#include <android-base/file.h>
+ #include <android-base/properties.h>
+ 
+ #include "adb.h"
+@@ -36,6 +37,8 @@
+ #include "adb_utils.h"
+ #include "fs_mgr.h"
+ 
++using android::base::Realpath;
++
+ // Returns the device used to mount a directory in /proc/mounts.
+ static std::string find_proc_mount(const char* dir) {
+     std::unique_ptr<FILE, int(*)(FILE*)> fp(setmntent("/proc/mounts", "r"), endmntent);
+@@ -43,9 +46,15 @@ static std::string find_proc_mount(const char* dir) {
+         return "";
+     }
+ 
++    // dir might be a symlink, e.g., /product -> /system/product in GSI.
++    std::string canonical_path;
++    if (!Realpath(dir, &canonical_path)) {
++        PLOG(ERROR) << "Realpath failed: " << dir;
++    }
++
+     mntent* e;
+     while ((e = getmntent(fp.get())) != nullptr) {
+-        if (strcmp(dir, e->mnt_dir) == 0) {
++        if (canonical_path == e->mnt_dir) {
+             return e->mnt_fsname;
+         }
+     }
+diff --git a/adb/test_device.py b/adb/test_device.py
+index 72e1c67de..552e0c328 100644
+--- a/adb/test_device.py
++++ b/adb/test_device.py
+@@ -868,6 +868,21 @@ class FileOperationsTest(DeviceTest):
+             self.assertTrue('Permission denied' in output or
+                             'Read-only file system' in output)
+ 
++    @requires_non_root
++    def test_push_directory_creation(self):
++        """Regression test for directory creation.
++
++        Bug: http://b/110953234
++        """
++        with tempfile.NamedTemporaryFile() as tmp_file:
++            tmp_file.write('\0' * 1024 * 1024)
++            tmp_file.flush()
++            remote_path = self.DEVICE_TEMP_DIR + '/test_push_directory_creation'
++            self.device.shell(['rm', '-rf', remote_path])
++
++            remote_path += '/filename'
++            self.device.push(local=tmp_file.name, remote=remote_path)
++
+     def _test_pull(self, remote_file, checksum):
+         tmp_write = tempfile.NamedTemporaryFile(mode='wb', delete=False)
+         tmp_write.close()
+-- 
+2.17.1
+

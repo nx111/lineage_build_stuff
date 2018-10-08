@@ -1,0 +1,1240 @@
+From 752faca7b1250919ccf4ffa22fae1ee5c8529404 Mon Sep 17 00:00:00 2001
+From: Luca Stefani <luca.stefani.ge1@gmail.com>
+Date: Mon, 8 Oct 2018 11:12:22 +0200
+Subject: [PATCH 5/5] pie-gsi-tracking
+
+commit d920d5d003f9f2afae225411deed4a8ef7dc0bd3
+Merge: edbae9c48 31df933a8
+Author: Treehugger Robot <treehugger-gerrit@google.com>
+Date:   Thu Oct 4 04:07:05 2018 +0000
+
+    Merge changes from topic "avb_reserved_size" into pie-gsi
+
+    * changes:
+      Prevent AVB signing from using _RESERVED_SIZE
+      releasetools: Clean up the use of `partition_size`.
+      releasetools: Fix an issue in image size computation.
+      releasetools: Return the actual image size when building logical partitions.
+
+commit 31df933a82d4dfa3467bdd2f2c158e32a83eebe2
+Author: Bowgo Tsai <bowgotsai@google.com>
+Date:   Thu Sep 20 16:40:01 2018 +0800
+
+    Prevent AVB signing from using _RESERVED_SIZE
+
+    When AVB is enabled with PRODUCT_USE_DYNAMIC_PARTITION_SIZE, AVB
+    metadata (e.g., hash tree, fec metadata) will consume _RESERVED_SIZE,
+    resulting in smaller reserved size in file system (e.g., ext4).
+
+    Adding additional space for AVB signing and keep the _RESERVED_SIZE only
+    for file system. This is done by adding a function to binary search an
+    optimal partition size for a given image size (disk usage + _RESERVED_SIZE).
+
+    Bug: 112322265
+    Test: Build aosp_arm64-userdebug, calculate the running time of
+          AVBCalcMinPartitionSize() is about 0.3-0.4 seconds.
+    Test: python -m unittest test_build_image
+    Change-Id: I8f0051b57701d6fbba6a9db3756dd194066c74b8
+    Merged-In: I8f0051b57701d6fbba6a9db3756dd194066c74b8
+    (cherry picked from commit 040410c1042709cf4cef674d4ebda6f4e7655c2c)
+
+commit 77122cb9f916a4df9183cb8aeca64f89bfda1e3c
+Author: Tao Bao <tbao@google.com>
+Date:   Thu Sep 27 15:31:11 2018 -0700
+
+    releasetools: Clean up the use of `partition_size`.
+
+    Unless using dynamic partitions, `partition_size` should be a fixed
+    value that equals to the partition size in BoardConfig. It should stay
+    the same when building an image for that partition. Only the actual
+    image size that's used to hold the filesystem could be adjusted. This CL
+    cleans up the uses of `partition_size` and `image_size` to better
+    reflect such logic.
+
+    With dynamic partitions, the only thing that changes is the need to
+    compute `partition_size` upfront. Once that's done, `partition_size`
+    should remain unchanged.
+
+    Test: `m dist`
+    Test: `python -m unittest test_add_img_to_target_files`
+    Test: `python -m unittest test_validate_target_files`
+    Change-Id: Idedb3e018c95e8f63dc4d9c423be27f30ebb584f
+    Merged-In: Idedb3e018c95e8f63dc4d9c423be27f30ebb584f
+    (cherry picked from commit 35f4ebc957fba01063218a21e98c61a60eacdd3f)
+
+commit 5b9a62b99b4333cb911e370e4565ef52f4ac754e
+Author: Tao Bao <tbao@google.com>
+Date:   Fri Jul 20 14:44:46 2018 -0700
+
+    releasetools: Fix an issue in image size computation.
+
+    When building a system image with system_root_image enabled, the size
+    computation should include files under both of in_dir (i.e. /system
+    files) and root (pointed by 'root_dir'). Because files from both
+    locations will end up into the built image. The files under root are
+    usually only a few MiBs, but should be accounted for especially in the
+    context of logical partitions (where the partition size will be
+    allocated based on the actual need). Note that we will still need some
+    "reserved space" (defined via BOARD_*_PARTITION_RESERVED_SIZE) to cover
+    the cost for filesystem and/or verity metadata.
+
+    This CL moves the combination of the two dirs up, before parsing and
+    computing other properties. This doesn't affect anything for a
+    successful image building path. It may however increase the time to
+    error out in certain error path, since it copies the files earlier now.
+
+    Test: python -m unittest test_build_image
+    Test: `make dist`
+    Test: Setup a target with PRODUCT_USE_LOGICAL_PARTITIONS == true and
+          BOARD_SYSTEMIMAGE_PARTITION_RESERVED_SIZE == 20MiB. Build system
+          image successfully.
+    Test: Setup a target with PRODUCT_USE_LOGICAL_PARTITIONS == true and
+          BOARD_SYSTEMIMAGE_PARTITION_RESERVED_SIZE == 20MiB. Write a large
+          file to root dir (PRODUCT_OUT_ROOT). The image building fails, but
+          reporting a size that accounts for both of /system and root.
+    Change-Id: Idfb26b8e259626ba57ec3bd4f85d357c30e56163
+    Merged-In: Idfb26b8e259626ba57ec3bd4f85d357c30e56163
+    (cherry picked from commit c2606eb548c0b169235a87870ce117e79a524180)
+
+commit d41489320156f117423a0fa553cbc0d272a63781
+Author: Tao Bao <tbao@google.com>
+Date:   Mon Jul 23 13:05:00 2018 -0700
+
+    releasetools: Return the actual image size when building logical partitions.
+
+    When verity is enabled, `partition_size` has the "adjusted" partition
+    size for holding the filesystem files (i.e. excluding verity hashtree,
+    and FEC metadata if applicable), whereas `original_partition_size` has
+    the one for the actual image returned by build_image.py.
+    `partition_size` must be smaller than `original_partition_size`. As a
+    result, the later assertion in Makefile (e.g. assert-max-image-size) may
+    fail to hold when using `partition_size`.
+
+    This CL addresses the issue by returning the value in
+    `original_partition_size` instead, if available. It also changes to
+    include both values when dumping the size info on image creation
+    failure.
+
+    Fixes: 79106666
+    Test: `m dist` with aosp_walleye-userdebug
+    Test: Set up walleye to use logical partitions, with a reserved size of
+          20MiB. `m systemimage` no longer fails.
+    Test: Set up walleye that doesn't use verified boot. Use `m systemimage`
+          to build an oversized image. Check the error message.
+    Change-Id: I41d77bffa85e8eadfbf4a2a7dcd2e798fadfdab7
+    Merged-In: I41d77bffa85e8eadfbf4a2a7dcd2e798fadfdab7
+    (cherry picked from commit 4251fe97aaab2be1cf84afdf8b0398a98862e265)
+
+commit edbae9c48f6e9f2000c177d6281b6a2f42b16c09
+Merge: f04d401c3 16ab44c55
+Author: Treehugger Robot <treehugger-gerrit@google.com>
+Date:   Fri Sep 21 15:23:03 2018 +0000
+
+    Merge changes from topic "same-pi-pie" into pie-gsi
+
+    * changes:
+      DO NOT MERGE ANYWHERE: Split PRODUCT_USE_LOGICAL_PARTITIONS into sub-flags.
+      DO NOT MERGE ANYWHERE: Revert "Split PRODUCT_USE_LOGICAL_PARTITIONS into sub-flags."
+
+commit 16ab44c55f5272654d4ac244337ed4b33a6938fd
+Author: Yifan Hong <elsk@google.com>
+Date:   Tue Jul 31 12:47:27 2018 -0700
+
+    DO NOT MERGE ANYWHERE: Split PRODUCT_USE_LOGICAL_PARTITIONS into sub-flags.
+
+    Split the flag into PRODUCT_USE_DYNAMIC_PARTITION_SIZE
+    and PRODUCT_BUILD_SUPER_PARTITION. More sub-flags can be
+    added with the same way.
+
+    Also change some checks with USE_LOGICAL_PARTITIONS with
+    the appropriate sub-flags.
+
+    This allows easier device bring-up to fulfill the requirements
+    separately.
+
+    This also enables dynamic partition size without logical patition.
+    Originally, to enable BOARD_*_PARTITION_RESERVED_SIZE must also
+    enable PRODUCT_USE_LOGICAL_PARTITIONS. The patch fix the rule to
+    let dynamic partition size is able to be used independently.
+
+    Fixes: 111966003
+
+    Test: make superimage with PRODUCT_USE_LOGICAL_PARTITIONS
+    (cherry picked from commit 2dae5721d445fcd26d64df6bcfe9e669e2c8bdb9)
+
+    Change-Id: I4e1935904d5da55f581005d712d469d818866b3d
+
+commit 6b15ea6e2ce2fba4a67cb2d45a3e60af8d6d0450
+Author: Po-Chien Hsueh <pchsueh@google.com>
+Date:   Fri Sep 21 09:08:23 2018 +0000
+
+    DO NOT MERGE ANYWHERE: Revert "Split PRODUCT_USE_LOGICAL_PARTITIONS into sub-flags."
+
+    This reverts commit 5c5c29709252307067372cc26a0cb5b87bbca326.
+
+    Reason for revert: This cherry-pick is done incorrectly. Doing it again
+
+    Change-Id: I1f7d39ea59e5b2e38934b564a107b33d4fd4a41d
+
+commit f04d401c3be1f0f16fcb5113717dd0bc7d5ca6d9
+Merge: 9d4f49b51 ec04beb4d
+Author: Treehugger Robot <treehugger-gerrit@google.com>
+Date:   Tue Sep 18 16:23:15 2018 +0000
+
+    Merge changes from topic "gsi-signing" into pie-gsi
+
+    * changes:
+      Enable AVB signing on GSI
+      Adding better AVB error message
+      Remove the hack that uses INSTALLED_RAMDISK_TARGET as INSTALLED_BOOTIMAGE_TARGET.
+
+commit ec04beb4d744c50d58b3a8fd0a7c4a173f682b2c
+Author: Bowgo Tsai <bowgotsai@google.com>
+Date:   Fri Aug 31 21:40:10 2018 +0800
+
+    Enable AVB signing on GSI
+
+    In current GSI builds, AVB signing is not allowed.
+    We should allow signing GSI image, while building a vbmeta.img with
+    AVB_VBMETA_IMAGE_FLAGS_VERIFICATION_DISABLED (flag 2).
+
+    When need to disable AVB, use the vbmeta.img above together with the
+    GSI. When need enable AVB on GSI, include the GSI public key into the
+    device-specific vbmeta.img. Note that GSI is a chain partition so the
+    keys used to sign GSI and vbmeta.img are different.
+
+    Bug: 112293933
+    Test: build aosp_arm64-userdebug, checks flag 2 is set in vbmeta.img
+          and there is AVB HASHTREE in system.img
+          `avbtool info_image --image $OUT/system.img`
+          `avbtool info_image --image $OUT/vbmeta.img`
+
+    Change-Id: If1eff317621882994e7dcbf37cd35f5bfa16b69a
+    Merged-In: If1eff317621882994e7dcbf37cd35f5bfa16b69a
+    (cherry picked from commit 9d28638cfcac11b3955873674ba119d4d0c995b7)
+
+commit f0959c4286a1560e5c3709aaea128ac1cd3e9714
+Author: Bowgo Tsai <bowgotsai@google.com>
+Date:   Tue Sep 4 17:31:07 2018 +0800
+
+    Adding better AVB error message
+
+    Also removing the requirement of BOARD_BOOTIMAGE_PARTITION_SIZE when
+    BOARD_AVB_ENABLE is set. Some targets (e.g., emulator) doesn't build
+    boot.img when AVB is enabled.
+
+    Bug: 112293933
+    Test: build a failure case and checks the error output is expected
+    Change-Id: I290c707719193ddaedcd9fd0b31de566ad17078c
+    Merged-In: I290c707719193ddaedcd9fd0b31de566ad17078c
+    (cherry picked from commit 99ed1b4fbd5124f344a95a05a1f69e9a93b9d0dd)
+
+commit 22abedee6e708f79948ad92ff6d744853f656233
+Author: Tao Bao <tbao@google.com>
+Date:   Tue Aug 14 16:17:12 2018 -0700
+
+    Remove the hack that uses INSTALLED_RAMDISK_TARGET as INSTALLED_BOOTIMAGE_TARGET.
+
+    This also fixes the emulator build issue with `BOARFD_AVB_ENABLE := true`.
+
+    Bug: 78113934
+    Test: `m dist` with emulator builds.
+    Test: `m dist` with aosp_taimen-userdebug
+    Change-Id: I2089e0ab15885b4cfc16d4a7e8be3dd0b60ef46f
+    Merged-In: I2089e0ab15885b4cfc16d4a7e8be3dd0b60ef46f
+    (cherry picked from commit b1a2e353f2416bbd2ee5a3b307065f58d92f8d8f)
+
+commit 9d4f49b5159a2a1ea28a7fba039d51384025c7f1
+Merge: b8df718f5 3ce010e36
+Author: Android Merger <noreply-android-build-merger@google.com>
+Date:   Sat Sep 15 05:12:08 2018 +0000
+
+    Merge "Merge commit '2e697ca9deb687f531595318df7e26d8413f84f2' into pi-platform-release am: f9d90a6781" into pie-gsi
+
+commit 3ce010e36ddb2d95250eb29143a8528efb5e96a8
+Merge: b8df718f5 f9d90a678
+Author: Baligh Uddin <baligh@google.com>
+Date:   Fri Sep 14 22:11:59 2018 -0700
+
+    Merge commit '2e697ca9deb687f531595318df7e26d8413f84f2' into pi-platform-release
+    am: f9d90a6781
+
+    Change-Id: Ic6b73a8aafa10448f83a8758678f715ff20c87cd
+
+commit f9d90a6781472b49ac38586e9bf0130dbaa9baad
+Merge: 29acab883 2e697ca9d
+Author: Baligh Uddin <baligh@google.com>
+Date:   Tue Sep 11 08:32:44 2018 -0700
+
+    Merge commit '2e697ca9deb687f531595318df7e26d8413f84f2' into pi-platform-release
+
+Change-Id: Ia6a11f334fa458001f95ed3cfe719cced69391bb
+---
+ core/Makefile                                 |  50 +---
+ core/config.mk                                |   5 +-
+ core/main.mk                                  |   1 +
+ target/board/BoardConfigEmuCommon.mk          |   5 +-
+ target/board/BoardConfigGsiCommon.mk          |  24 +-
+ target/board/treble_common.mk                 |  24 +-
+ tools/releasetools/add_img_to_target_files.py |  26 +-
+ tools/releasetools/build_image.py             | 277 ++++++++++++------
+ .../test_add_img_to_target_files.py           |   4 +-
+ tools/releasetools/test_build_image.py        | 159 +++++++++-
+ 10 files changed, 409 insertions(+), 166 deletions(-)
+
+diff --git a/core/Makefile b/core/Makefile
+index 3a2c23df7..2b4a20b4e 100644
+--- a/core/Makefile
++++ b/core/Makefile
+@@ -845,23 +845,18 @@ endif # PRODUCT_SUPPORTS_VBOOT
+ endif # TARGET_BOOTIMAGE_USE_EXT2 / BOARD_CUSTOM_BOOTIMG_MK
+ endif # BOARD_USES_RECOVERY_AS_BOOT
+ 
+-else	# TARGET_NO_KERNEL
++else # TARGET_NO_KERNEL == "true"
+ ifdef BOARD_PREBUILT_BOOTIMAGE
+ ifneq ($(BOARD_BUILD_SYSTEM_ROOT_IMAGE),true)
+ # Remove when b/63676296 is resolved.
+ $(error Prebuilt bootimage is only supported for AB targets)
+ endif
+ $(eval $(call copy-one-file,$(BOARD_PREBUILT_BOOTIMAGE),$(INSTALLED_BOOTIMAGE_TARGET)))
+-else
++else # BOARD_PREBUILT_BOOTIMAGE not defined
+ INTERNAL_KERNEL_CMDLINE := $(strip $(BOARD_KERNEL_CMDLINE))
+-# HACK: The top-level targets depend on the bootimage.  Not all targets
+-# can produce a bootimage, though, and emulator targets need the ramdisk
+-# instead.  Fake it out by calling the ramdisk the bootimage.
+-# TODO: make the emulator use bootimages, and make mkbootimg accept
+-#       kernel-less inputs.
+-INSTALLED_BOOTIMAGE_TARGET := $(INSTALLED_RAMDISK_TARGET)
+-endif
+-endif
++INSTALLED_BOOTIMAGE_TARGET :=
++endif # BOARD_PREBUILT_BOOTIMAGE
++endif # TARGET_NO_KERNEL
+ 
+ # -----------------------------------------------------------------
+ # NOTICE files
+@@ -1700,6 +1695,7 @@ SYSTEMIMAGE_SOURCE_DIR := $(TARGET_OUT)
+ # as the source (since they are very similar).  Generate the patch so
+ # we can see how big it's going to be, and include that in the system
+ # image size check calculation.
++ifneq ($(INSTALLED_BOOTIMAGE_TARGET),)
+ ifneq ($(INSTALLED_RECOVERYIMAGE_TARGET),)
+ ifneq ($(BOARD_USES_FULL_RECOVERY_IMAGE),true)
+ ifneq (,$(filter true, $(BOARD_BUILD_SYSTEM_ROOT_IMAGE) $(BOARD_INCLUDE_RECOVERY_DTBO)))
+@@ -1722,9 +1718,9 @@ $(RECOVERY_FROM_BOOT_PATCH): \
+ 	$(PRIVATE_DIFF_TOOL) $(INSTALLED_BOOTIMAGE_TARGET) $(INSTALLED_RECOVERYIMAGE_TARGET) $@
+ else # $(BOARD_USES_FULL_RECOVERY_IMAGE) == true
+ RECOVERY_FROM_BOOT_PATCH := $(INSTALLED_RECOVERYIMAGE_TARGET)
+-endif
+-endif
+-
++endif # BOARD_USES_FULL_RECOVERY_IMAGE
++endif # INSTALLED_RECOVERYIMAGE_TARGET
++endif # INSTALLED_BOOTIMAGE_TARGET
+ 
+ $(INSTALLED_SYSTEMIMAGE): $(BUILT_SYSTEMIMAGE) $(RECOVERY_FROM_BOOT_PATCH)
+ 	@echo "Install system fs image: $@"
+@@ -2291,12 +2287,14 @@ $(eval _footer_args := $(PART)_FOOTER_ARGS)
+ $(eval $($(_footer_args)) += --rollback_index $($(_rollback_index)))
+ endef
+ 
++ifdef INSTALLED_BOOTIMAGE_TARGET
+ ifdef BOARD_AVB_BOOT_KEY_PATH
+ $(eval $(call check-and-set-avb-chain-args,BOOT))
+ else
+ INTERNAL_AVB_MAKE_VBMETA_IMAGE_ARGS += \
+     --include_descriptors_from_image $(INSTALLED_BOOTIMAGE_TARGET)
+ endif
++endif
+ 
+ ifdef BOARD_AVB_SYSTEM_KEY_PATH
+ $(eval $(call check-and-set-avb-chain-args,SYSTEM))
+@@ -2357,10 +2355,6 @@ ifdef BOARD_AVB_ROLLBACK_INDEX
+ BOARD_AVB_MAKE_VBMETA_IMAGE_ARGS += --rollback_index $(BOARD_AVB_ROLLBACK_INDEX)
+ endif
+ 
+-ifndef BOARD_BOOTIMAGE_PARTITION_SIZE
+-  $(error BOARD_BOOTIMAGE_PARTITION_SIZE must be set for BOARD_AVB_ENABLE)
+-endif
+-
+ # $(1): the directory to extract public keys to
+ define extract-avb-chain-public-keys
+   $(if $(BOARD_AVB_BOOT_KEY_PATH),\
+@@ -2411,14 +2405,6 @@ $(INSTALLED_VBMETAIMAGE_TARGET): \
+ vbmetaimage-nodeps:
+ 	$(build-vbmetaimage-target)
+ 
+-else ifeq (true,$(BOARD_BUILD_DISABLED_VBMETAIMAGE))
+-BUILT_DISABLED_VBMETAIMAGE := $(PRODUCT_OUT)/vbmeta.img
+-
+-INSTALLED_VBMETAIMAGE_TARGET := $(BUILT_DISABLED_VBMETAIMAGE)
+-$(INSTALLED_VBMETAIMAGE_TARGET): $(AVBTOOL)
+-	$(hide) $(AVBTOOL) make_vbmeta_image \
+-	  --flag 2 --padding_size 4096 --output $@
+-
+ else ifdef BOARD_PREBUILT_VBMETAIMAGE
+ INSTALLED_VBMETAIMAGE_TARGET := $(PRODUCT_OUT)/vbmeta.img
+ $(eval $(call copy-one-file,$(BOARD_PREBUILT_VBMETAIMAGE),$(INSTALLED_VBMETAIMAGE_TARGET)))
+@@ -2763,6 +2749,7 @@ endef
+ # Depending on the various images guarantees that the underlying
+ # directories are up-to-date.
+ $(BUILT_TARGET_FILES_PACKAGE): \
++		$(INSTALLED_RAMDISK_TARGET) \
+ 		$(INSTALLED_BOOTIMAGE_TARGET) \
+ 		$(INSTALLED_RADIOIMAGE_TARGET) \
+ 		$(INSTALLED_RECOVERYIMAGE_TARGET) \
+@@ -2994,9 +2981,6 @@ ifdef BOARD_AVB_RECOVERY_KEY_PATH
+ 	$(hide) echo "avb_recovery_rollback_index_location=$(BOARD_AVB_RECOVERY_ROLLBACK_INDEX_LOCATION)" >> $(zip_root)/META/misc_info.txt
+ endif # BOARD_AVB_RECOVERY_KEY_PATH
+ endif # BOARD_AVB_ENABLE
+-ifeq ($(BOARD_BUILD_DISABLED_VBMETAIMAGE),true)
+-	$(hide) echo "avb_disabled_vbmeta=true" >> $(zip_root)/META/misc_info.txt
+-endif # BOARD_BUILD_DISABLED_VBMETAIMAGE
+ ifdef BOARD_BPT_INPUT_FILES
+ 	$(hide) echo "board_bpt_enable=true" >> $(zip_root)/META/misc_info.txt
+ 	$(hide) echo "board_bpt_make_table_args=$(BOARD_BPT_MAKE_TABLE_ARGS)" >> $(zip_root)/META/misc_info.txt
+@@ -3044,14 +3028,6 @@ ifeq ($(BREAKPAD_GENERATE_SYMBOLS),true)
+ 	$(hide) $(ACP) -r $(TARGET_OUT_BREAKPAD) $(zip_root)/BREAKPAD
+ endif
+ 	$(hide) echo "ota_override_device=$(OTA_SCRIPT_OVERRIDE_DEVICE)" >> $(zip_root)/META/misc_info.txt
+-# BOARD_BUILD_DISABLED_VBMETAIMAGE is used to build a special vbmeta.img
+-# that disables AVB verification. The content is fixed and we can just copy
+-# it to $(zip_root)/IMAGES without passing some info into misc_info.txt for
+-# regeneration.
+-ifeq (true,$(BOARD_BUILD_DISABLED_VBMETAIMAGE))
+-	$(hide) mkdir -p $(zip_root)/IMAGES
+-	$(hide) cp $(INSTALLED_VBMETAIMAGE_TARGET) $(zip_root)/IMAGES/
+-endif
+ ifdef BOARD_PREBUILT_VBMETAIMAGE
+ 	$(hide) mkdir -p $(zip_root)/IMAGES
+ 	$(hide) cp $(INSTALLED_VBMETAIMAGE_TARGET) $(zip_root)/IMAGES/
+@@ -3234,6 +3210,7 @@ SYMBOLS_ZIP := $(PRODUCT_OUT)/$(name).zip
+ # For apps_only build we'll establish the dependency later in build/make/core/main.mk.
+ ifndef TARGET_BUILD_APPS
+ $(SYMBOLS_ZIP): $(INSTALLED_SYSTEMIMAGE) \
++		$(INSTALLED_RAMDISK_TARGET) \
+ 		$(INSTALLED_BOOTIMAGE_TARGET) \
+ 		$(INSTALLED_USERDATAIMAGE_TARGET) \
+ 		$(INSTALLED_VENDORIMAGE_TARGET) \
+@@ -3258,6 +3235,7 @@ name := $(name)-coverage-$(FILE_NAME_TAG)
+ COVERAGE_ZIP := $(PRODUCT_OUT)/$(name).zip
+ ifndef TARGET_BUILD_APPS
+ $(COVERAGE_ZIP): $(INSTALLED_SYSTEMIMAGE) \
++		$(INSTALLED_RAMDISK_TARGET) \
+ 		$(INSTALLED_BOOTIMAGE_TARGET) \
+ 		$(INSTALLED_USERDATAIMAGE_TARGET) \
+ 		$(INSTALLED_VENDORIMAGE_TARGET) \
+diff --git a/core/config.mk b/core/config.mk
+index 03b33be91..fb233c6e4 100644
+--- a/core/config.mk
++++ b/core/config.mk
+@@ -981,9 +981,6 @@ $(error Should not define BOARD_VENDORIMAGE_PARTITION_SIZE and \
+ endif
+ endif
+ 
+-endif # PRODUCT_USE_DYNAMIC_PARTITION_SIZE
+-
+-ifeq ($(PRODUCT_BUILD_SUPER_PARTITION),true)
+ ifneq ($(BOARD_PRODUCTIMAGE_PARTITION_SIZE),)
+ ifneq ($(BOARD_PRODUCTIMAGE_PARTITION_RESERVED_SIZE),)
+ $(error Should not define BOARD_PRODUCTIMAGE_PARTITION_SIZE and \
+@@ -991,7 +988,7 @@ $(error Should not define BOARD_PRODUCTIMAGE_PARTITION_SIZE and \
+ endif
+ endif
+ 
+-endif # PRODUCT_BUILD_SUPER_PARTITION
++endif # PRODUCT_USE_DYNAMIC_PARTITION_SIZE
+ 
+ # ###############################################################
+ # Set up final options.
+diff --git a/core/main.mk b/core/main.mk
+index 4ca757a53..cd27c9cec 100644
+--- a/core/main.mk
++++ b/core/main.mk
+@@ -1128,6 +1128,7 @@ auxiliary: $(INSTALLED_AUX_TARGETS)
+ .PHONY: droidcore
+ droidcore: files \
+ 	systemimage \
++	$(INSTALLED_RAMDISK_TARGET) \
+ 	$(INSTALLED_BOOTIMAGE_TARGET) \
+ 	$(INSTALLED_RECOVERYIMAGE_TARGET) \
+ 	$(INSTALLED_VBMETAIMAGE_TARGET) \
+diff --git a/target/board/BoardConfigEmuCommon.mk b/target/board/BoardConfigEmuCommon.mk
+index e8a562a22..dc6864188 100644
+--- a/target/board/BoardConfigEmuCommon.mk
++++ b/target/board/BoardConfigEmuCommon.mk
+@@ -28,8 +28,9 @@ USE_OPENGL_RENDERER := true
+ TARGET_COPY_OUT_VENDOR := vendor
+ 
+ # ~100 MB vendor image. Please adjust system image / vendor image sizes
+-# when finalizing them.
+-BOARD_VENDORIMAGE_PARTITION_SIZE := 100000000
++# when finalizing them. The partition size needs to be a multiple of image
++# block size: 4096.
++BOARD_VENDORIMAGE_PARTITION_SIZE := 100003840
+ BOARD_VENDORIMAGE_FILE_SYSTEM_TYPE := ext4
+ BOARD_FLASH_BLOCK_SIZE := 512
+ DEVICE_MATRIX_FILE   := device/generic/goldfish/compatibility_matrix.xml
+diff --git a/target/board/BoardConfigGsiCommon.mk b/target/board/BoardConfigGsiCommon.mk
+index 47107a022..095d122ee 100644
+--- a/target/board/BoardConfigGsiCommon.mk
++++ b/target/board/BoardConfigGsiCommon.mk
+@@ -15,14 +15,22 @@ TARGET_USES_MKE2FS := true
+ BOARD_SYSTEMIMAGE_PARTITION_RESERVED_SIZE := 67108864
+ 
+ # Android Verified Boot (AVB):
+-#   Builds a special vbmeta.img that disables AVB verification.
+-#   Otherwise, AVB will prevent the device from booting the generic system.img.
+-#   Also checks that BOARD_AVB_ENABLE is not set, to prevent adding verity
+-#   metadata into system.img.
+-ifeq ($(BOARD_AVB_ENABLE),true)
+-$(error BOARD_AVB_ENABLE cannot be set for GSI)
+-endif
+-BOARD_BUILD_DISABLED_VBMETAIMAGE := true
++#   1) Sets BOARD_AVB_ENABLE to sign the GSI image.
++#   2) Sets AVB_VBMETA_IMAGE_FLAGS_VERIFICATION_DISABLED (--flag 2) in
++#      vbmeta.img to disable AVB verification.
++#
++# To disable AVB for GSI, use the vbmeta.img and the GSI together.
++# To enable AVB for GSI, include the GSI public key into the device-specific
++# vbmeta.img.
++BOARD_AVB_ENABLE := true
++BOARD_AVB_ROLLBACK_INDEX := $(PLATFORM_SECURITY_PATCH_TIMESTAMP)
++BOARD_AVB_MAKE_VBMETA_IMAGE_ARGS += --flag 2
++
++# Enable chain partition for system.
++BOARD_AVB_SYSTEM_KEY_PATH := external/avb/test/data/testkey_rsa2048.pem
++BOARD_AVB_SYSTEM_ALGORITHM := SHA256_RSA2048
++BOARD_AVB_SYSTEM_ROLLBACK_INDEX := $(PLATFORM_SECURITY_PATCH_TIMESTAMP)
++BOARD_AVB_SYSTEM_ROLLBACK_INDEX_LOCATION := 1
+ 
+ ifneq (,$(filter userdebug eng,$(TARGET_BUILD_VARIANT)))
+ # GSI is always userdebug and needs a couple of properties taking precedence
+diff --git a/target/board/treble_common.mk b/target/board/treble_common.mk
+index 3df2e9360..9b8784edf 100644
+--- a/target/board/treble_common.mk
++++ b/target/board/treble_common.mk
+@@ -54,11 +54,19 @@ NUM_FRAMEBUFFER_SURFACE_BUFFERS := 3
+ USE_XML_AUDIO_POLICY_CONF := 1
+ 
+ # Android Verified Boot (AVB):
+-#   Builds a special vbmeta.img that disables AVB verification.
+-#   Otherwise, AVB will prevent the device from booting the generic system.img.
+-#   Also checks that BOARD_AVB_ENABLE is not set, to prevent adding verity
+-#   metadata into system.img.
+-ifeq ($(BOARD_AVB_ENABLE),true)
+-$(error BOARD_AVB_ENABLE cannot be set for Treble GSI)
+-endif
+-BOARD_BUILD_DISABLED_VBMETAIMAGE := true
++#   1) Sets BOARD_AVB_ENABLE to sign the GSI image.
++#   2) Sets AVB_VBMETA_IMAGE_FLAGS_VERIFICATION_DISABLED (--flag 2) in
++#      vbmeta.img to disable AVB verification.
++#
++# To disable AVB for GSI, use the vbmeta.img and the GSI together.
++# To enable AVB for GSI, include the GSI public key into the device-specific
++# vbmeta.img.
++BOARD_AVB_ENABLE := true
++BOARD_AVB_ROLLBACK_INDEX := $(PLATFORM_SECURITY_PATCH_TIMESTAMP)
++BOARD_AVB_MAKE_VBMETA_IMAGE_ARGS += --flag 2
++
++# Enable chain partition for system.
++BOARD_AVB_SYSTEM_KEY_PATH := external/avb/test/data/testkey_rsa2048.pem
++BOARD_AVB_SYSTEM_ALGORITHM := SHA256_RSA2048
++BOARD_AVB_SYSTEM_ROLLBACK_INDEX := $(PLATFORM_SECURITY_PATCH_TIMESTAMP)
++BOARD_AVB_SYSTEM_ROLLBACK_INDEX_LOCATION := 1
+diff --git a/tools/releasetools/add_img_to_target_files.py b/tools/releasetools/add_img_to_target_files.py
+index 90acafc57..a77287ccd 100755
+--- a/tools/releasetools/add_img_to_target_files.py
++++ b/tools/releasetools/add_img_to_target_files.py
+@@ -110,12 +110,12 @@ def GetCareMap(which, imgname):
+ 
+   simg = sparse_img.SparseImage(imgname)
+   care_map_ranges = simg.care_map
+-  key = which + "_adjusted_partition_size"
+-  adjusted_blocks = OPTIONS.info_dict.get(key)
+-  if adjusted_blocks:
+-    assert adjusted_blocks > 0, "blocks should be positive for " + which
+-    care_map_ranges = care_map_ranges.intersect(rangelib.RangeSet(
+-        "0-%d" % (adjusted_blocks,)))
++  key = which + "_image_blocks"
++  image_blocks = OPTIONS.info_dict.get(key)
++  if image_blocks:
++    assert image_blocks > 0, "blocks for {} must be positive".format(which)
++    care_map_ranges = care_map_ranges.intersect(
++        rangelib.RangeSet("0-{}".format(image_blocks)))
+ 
+   return [which, care_map_ranges.to_string_raw()]
+ 
+@@ -284,18 +284,18 @@ def CreateImage(input_dir, info_dict, what, output_file, block_list=None):
+   if block_list:
+     block_list.Write()
+ 
+-  # Set the 'adjusted_partition_size' that excludes the verity blocks of the
+-  # given image. When avb is enabled, this size is the max image size returned
+-  # by the avb tool.
++  # Set the '_image_blocks' that excludes the verity metadata blocks of the
++  # given image. When AVB is enabled, this size is the max image size returned
++  # by the AVB tool.
+   is_verity_partition = "verity_block_device" in image_props
+   verity_supported = (image_props.get("verity") == "true" or
+                       image_props.get("avb_enable") == "true")
+   is_avb_enable = image_props.get("avb_hashtree_enable") == "true"
+   if verity_supported and (is_verity_partition or is_avb_enable):
+-    adjusted_blocks_value = image_props.get("partition_size")
+-    if adjusted_blocks_value:
+-      adjusted_blocks_key = what + "_adjusted_partition_size"
+-      info_dict[adjusted_blocks_key] = int(adjusted_blocks_value)/4096 - 1
++    image_size = image_props.get("image_size")
++    if image_size:
++      image_blocks_key = what + "_image_blocks"
++      info_dict[image_blocks_key] = int(image_size) / 4096 - 1
+ 
+ 
+ def AddUserdata(output_zip):
+diff --git a/tools/releasetools/build_image.py b/tools/releasetools/build_image.py
+index 835fd3ac1..fc21350a6 100755
+--- a/tools/releasetools/build_image.py
++++ b/tools/releasetools/build_image.py
+@@ -150,13 +150,14 @@ def AVBCalcMaxImageSize(avbtool, footer_type, partition_size, additional_args):
+     avbtool: String with path to avbtool.
+     footer_type: 'hash' or 'hashtree' for generating footer.
+     partition_size: The size of the partition in question.
+-    additional_args: Additional arguments to pass to 'avbtool
+-      add_hashtree_image'.
++    additional_args: Additional arguments to pass to "avbtool add_hash_footer"
++        or "avbtool add_hashtree_footer".
++
+   Returns:
+     The maximum image size or 0 if an error occurred.
+   """
+   cmd = [avbtool, "add_%s_footer" % footer_type,
+-         "--partition_size", partition_size, "--calc_max_image_size"]
++         "--partition_size", str(partition_size), "--calc_max_image_size"]
+   cmd.extend(shlex.split(additional_args))
+ 
+   (output, exit_code) = RunCommand(cmd)
+@@ -166,6 +167,63 @@ def AVBCalcMaxImageSize(avbtool, footer_type, partition_size, additional_args):
+     return int(output)
+ 
+ 
++def AVBCalcMinPartitionSize(image_size, size_calculator):
++  """Calculates min partition size for a given image size.
++
++  Args:
++    image_size: The size of the image in question.
++    size_calculator: The function to calculate max image size
++        for a given partition size.
++
++  Returns:
++    The minimum partition size required to accommodate the image size.
++  """
++  # Use image size as partition size to approximate final partition size.
++  image_ratio = size_calculator(image_size) / float(image_size)
++
++  # Prepare a binary search for the optimal partition size.
++  lo = int(image_size / image_ratio) // BLOCK_SIZE * BLOCK_SIZE - BLOCK_SIZE
++
++  # Ensure lo is small enough: max_image_size should <= image_size.
++  delta = BLOCK_SIZE
++  max_image_size = size_calculator(lo)
++  while max_image_size > image_size:
++    image_ratio = max_image_size / float(lo)
++    lo = int(image_size / image_ratio) // BLOCK_SIZE * BLOCK_SIZE - delta
++    delta *= 2
++    max_image_size = size_calculator(lo)
++
++  hi = lo + BLOCK_SIZE
++
++  # Ensure hi is large enough: max_image_size should >= image_size.
++  delta = BLOCK_SIZE
++  max_image_size = size_calculator(hi)
++  while max_image_size < image_size:
++    image_ratio = max_image_size / float(hi)
++    hi = int(image_size / image_ratio) // BLOCK_SIZE * BLOCK_SIZE + delta
++    delta *= 2
++    max_image_size = size_calculator(hi)
++
++  partition_size = hi
++
++  # Start to binary search.
++  while lo < hi:
++    mid = ((lo + hi) // (2 * BLOCK_SIZE)) * BLOCK_SIZE
++    max_image_size = size_calculator(mid)
++    if max_image_size >= image_size:  # if mid can accommodate image_size
++      if mid < partition_size:  # if a smaller partition size is found
++        partition_size = mid
++      hi = mid
++    else:
++      lo = mid + BLOCK_SIZE
++
++  if OPTIONS.verbose:
++    print("AVBCalcMinPartitionSize({}): partition_size: {}.".format(
++        image_size, partition_size))
++
++  return partition_size
++
++
+ def AVBAddFooter(image_path, avbtool, footer_type, partition_size,
+                  partition_name, key_path, algorithm, salt,
+                  additional_args):
+@@ -180,8 +238,8 @@ def AVBAddFooter(image_path, avbtool, footer_type, partition_size,
+     key_path: Path to key to use or None.
+     algorithm: Name of algorithm to use or None.
+     salt: The salt to use (a hexadecimal string) or None.
+-    additional_args: Additional arguments to pass to 'avbtool
+-        add_hashtree_image'.
++    additional_args: Additional arguments to pass to "avbtool add_hash_footer"
++        or "avbtool add_hashtree_footer".
+ 
+   Returns:
+     True if the operation succeeded.
+@@ -198,8 +256,11 @@ def AVBAddFooter(image_path, avbtool, footer_type, partition_size,
+ 
+   cmd.extend(shlex.split(additional_args))
+ 
+-  (_, exit_code) = RunCommand(cmd)
+-  return exit_code == 0
++  output, exit_code = RunCommand(cmd)
++  if exit_code != 0:
++    print("Failed to add AVB footer! Error: %s" % output)
++    return False
++  return True
+ 
+ 
+ def AdjustPartitionSizeForVerity(partition_size, fec_supported):
+@@ -372,7 +433,7 @@ def MakeVerityEnabledImage(out_file, fec_supported, prop_dict):
+     True on success, False otherwise.
+   """
+   # get properties
+-  image_size = int(prop_dict["partition_size"])
++  image_size = int(prop_dict["image_size"])
+   block_dev = prop_dict["verity_block_device"]
+   signer_key = prop_dict["verity_key"] + ".pk8"
+   if OPTIONS.verity_signer_path is not None:
+@@ -403,10 +464,10 @@ def MakeVerityEnabledImage(out_file, fec_supported, prop_dict):
+     return False
+ 
+   # build the full verified image
+-  target_size = int(prop_dict["original_partition_size"])
++  partition_size = int(prop_dict["partition_size"])
+   verity_size = int(prop_dict["verity_size"])
+ 
+-  padding_size = target_size - image_size - verity_size
++  padding_size = partition_size - image_size - verity_size
+   assert padding_size >= 0
+ 
+   if not BuildVerifiedImage(out_file,
+@@ -427,6 +488,52 @@ def ConvertBlockMapToBaseFs(block_map_file):
+   return base_fs_file if exit_code == 0 else None
+ 
+ 
++def SetUpInDirAndFsConfig(origin_in, prop_dict):
++  """Returns the in_dir and fs_config that should be used for image building.
++
++  If the target uses system_root_image and it's building system.img, it creates
++  and returns a staged dir that combines the contents of /system (i.e. in the
++  given in_dir) and root.
++
++  Args:
++    origin_in: Path to the input directory.
++    prop_dict: A property dict that contains info like partition size. Values
++        may be updated.
++
++  Returns:
++    A tuple of in_dir and fs_config that should be used to build the image.
++  """
++  fs_config = prop_dict.get("fs_config")
++  if (prop_dict.get("system_root_image") != "true" or
++      prop_dict["mount_point"] != "system"):
++    return origin_in, fs_config
++
++  # Construct a staging directory of the root file system.
++  in_dir = common.MakeTempDir()
++  root_dir = prop_dict.get("root_dir")
++  if root_dir:
++    shutil.rmtree(in_dir)
++    shutil.copytree(root_dir, in_dir, symlinks=True)
++  in_dir_system = os.path.join(in_dir, "system")
++  shutil.rmtree(in_dir_system, ignore_errors=True)
++  shutil.copytree(origin_in, in_dir_system, symlinks=True)
++
++  # Change the mount point to "/".
++  prop_dict["mount_point"] = "/"
++  if fs_config:
++    # We need to merge the fs_config files of system and root.
++    merged_fs_config = common.MakeTempFile(
++        prefix="merged_fs_config", suffix=".txt")
++    with open(merged_fs_config, "w") as fw:
++      if "root_fs_config" in prop_dict:
++        with open(prop_dict["root_fs_config"]) as fr:
++          fw.writelines(fr.readlines())
++      with open(fs_config) as fr:
++        fw.writelines(fr.readlines())
++    fs_config = merged_fs_config
++  return in_dir, fs_config
++
++
+ def CheckHeadroom(ext4fs_output, prop_dict):
+   """Checks if there's enough headroom space available.
+ 
+@@ -470,40 +577,25 @@ def CheckHeadroom(ext4fs_output, prop_dict):
+ 
+ 
+ def BuildImage(in_dir, prop_dict, out_file, target_out=None):
+-  """Build an image to out_file from in_dir with property prop_dict.
+-  After the function call, values in prop_dict is updated with
+-  computed values.
++  """Builds an image for the files under in_dir and writes it to out_file.
++
++  When using system_root_image, it will additionally look for the files under
++  root (specified by 'root_dir') and builds an image that contains both sources.
+ 
+   Args:
+-    in_dir: path of input directory.
+-    prop_dict: property dictionary.
+-    out_file: path of the output image file.
+-    target_out: path of the product out directory to read device specific FS
+-        config files.
++    in_dir: Path to input directory.
++    prop_dict: A property dict that contains info like partition size. Values
++        will be updated with computed values.
++    out_file: The output image file.
++    target_out: Path to the TARGET_OUT directory as in Makefile. It actually
++        points to the /system directory under PRODUCT_OUT. fs_config (the one
++        under system/core/libcutils) reads device specific FS config files from
++        there.
+ 
+   Returns:
+     True iff the image is built successfully.
+   """
+-  # system_root_image=true: build a system.img that combines the contents of
+-  # /system and root, which should be mounted at the root of the file system.
+-  origin_in = in_dir
+-  fs_config = prop_dict.get("fs_config")
+-  if (prop_dict.get("system_root_image") == "true" and
+-      prop_dict["mount_point"] == "system"):
+-    in_dir = common.MakeTempDir()
+-    # Change the mount point to "/".
+-    prop_dict["mount_point"] = "/"
+-    if fs_config:
+-      # We need to merge the fs_config files of system and root.
+-      merged_fs_config = common.MakeTempFile(prefix="merged_fs_config",
+-                                             suffix=".txt")
+-      with open(merged_fs_config, "w") as fw:
+-        if "root_fs_config" in prop_dict:
+-          with open(prop_dict["root_fs_config"]) as fr:
+-            fw.writelines(fr.readlines())
+-        with open(fs_config) as fr:
+-          fw.writelines(fr.readlines())
+-      fs_config = merged_fs_config
++  in_dir, fs_config = SetUpInDirAndFsConfig(in_dir, prop_dict)
+ 
+   build_command = []
+   fs_type = prop_dict.get("fs_type", "")
+@@ -517,51 +609,61 @@ def BuildImage(in_dir, prop_dict, out_file, target_out=None):
+   verity_supported = prop_dict.get("verity") == "true"
+   verity_fec_supported = prop_dict.get("verity_fec") == "true"
+ 
++  avb_footer_type = None
++  if prop_dict.get("avb_hash_enable") == "true":
++    avb_footer_type = "hash"
++  elif prop_dict.get("avb_hashtree_enable") == "true":
++    avb_footer_type = "hashtree"
++
++  if avb_footer_type:
++    avbtool = prop_dict.get("avb_avbtool")
++    avb_signing_args = prop_dict.get(
++        "avb_add_" + avb_footer_type + "_footer_args")
++
+   if (prop_dict.get("use_dynamic_partition_size") == "true" and
+       "partition_size" not in prop_dict):
+     # if partition_size is not defined, use output of `du' + reserved_size
+-    success, size = GetDiskUsage(origin_in)
++    success, size = GetDiskUsage(in_dir)
+     if not success:
+       return False
+     if OPTIONS.verbose:
+-      print("The tree size of %s is %d MB." % (origin_in, size // BYTES_IN_MB))
++      print("The tree size of %s is %d MB." % (in_dir, size // BYTES_IN_MB))
+     size += int(prop_dict.get("partition_reserved_size", 0))
+     # Round this up to a multiple of 4K so that avbtool works
+     size = common.RoundUpTo4K(size)
++    # Adjust partition_size to add more space for AVB footer, to prevent
++    # it from consuming partition_reserved_size.
++    if avb_footer_type:
++      size = AVBCalcMinPartitionSize(
++          size,
++          lambda x: AVBCalcMaxImageSize(
++              avbtool, avb_footer_type, x, avb_signing_args))
+     prop_dict["partition_size"] = str(size)
+     if OPTIONS.verbose:
+       print("Allocating %d MB for %s." % (size // BYTES_IN_MB, out_file))
+ 
+-  # Adjust the partition size to make room for the hashes if this is to be
+-  # verified.
++  prop_dict["image_size"] = prop_dict["partition_size"]
++
++  # Adjust the image size to make room for the hashes if this is to be verified.
+   if verity_supported and is_verity_partition:
+     partition_size = int(prop_dict.get("partition_size"))
+-    (adjusted_size, verity_size) = AdjustPartitionSizeForVerity(
++    image_size, verity_size = AdjustPartitionSizeForVerity(
+         partition_size, verity_fec_supported)
+-    if not adjusted_size:
++    if not image_size:
+       return False
+-    prop_dict["partition_size"] = str(adjusted_size)
+-    prop_dict["original_partition_size"] = str(partition_size)
++    prop_dict["image_size"] = str(image_size)
+     prop_dict["verity_size"] = str(verity_size)
+ 
+-  # Adjust partition size for AVB hash footer or AVB hashtree footer.
+-  avb_footer_type = ''
+-  if prop_dict.get("avb_hash_enable") == "true":
+-    avb_footer_type = 'hash'
+-  elif prop_dict.get("avb_hashtree_enable") == "true":
+-    avb_footer_type = 'hashtree'
+-
++  # Adjust the image size for AVB hash footer or AVB hashtree footer.
+   if avb_footer_type:
+-    avbtool = prop_dict["avb_avbtool"]
+     partition_size = prop_dict["partition_size"]
+     # avb_add_hash_footer_args or avb_add_hashtree_footer_args.
+-    additional_args = prop_dict["avb_add_" + avb_footer_type + "_footer_args"]
+     max_image_size = AVBCalcMaxImageSize(avbtool, avb_footer_type,
+-                                         partition_size, additional_args)
+-    if max_image_size == 0:
++                                         partition_size, avb_signing_args)
++    if max_image_size <= 0:
++      print("AVBCalcMaxImageSize is <= 0: %d" % max_image_size)
+       return False
+-    prop_dict["partition_size"] = str(max_image_size)
+-    prop_dict["original_partition_size"] = partition_size
++    prop_dict["image_size"] = str(max_image_size)
+ 
+   if fs_type.startswith("ext"):
+     build_command = [prop_dict["ext_mkuserimg"]]
+@@ -570,7 +672,7 @@ def BuildImage(in_dir, prop_dict, out_file, target_out=None):
+       run_e2fsck = True
+     build_command.extend([in_dir, out_file, fs_type,
+                           prop_dict["mount_point"]])
+-    build_command.append(prop_dict["partition_size"])
++    build_command.append(prop_dict["image_size"])
+     if "journal_size" in prop_dict:
+       build_command.extend(["-j", prop_dict["journal_size"]])
+     if "timestamp" in prop_dict:
+@@ -629,7 +731,7 @@ def BuildImage(in_dir, prop_dict, out_file, target_out=None):
+       build_command.extend(["-a"])
+   elif fs_type.startswith("f2fs"):
+     build_command = ["mkf2fsuserimg.sh"]
+-    build_command.extend([out_file, prop_dict["partition_size"]])
++    build_command.extend([out_file, prop_dict["image_size"]])
+     if fs_config:
+       build_command.extend(["-C", fs_config])
+     build_command.extend(["-f", in_dir])
+@@ -645,31 +747,26 @@ def BuildImage(in_dir, prop_dict, out_file, target_out=None):
+     print("Error: unknown filesystem type '%s'" % (fs_type))
+     return False
+ 
+-  if in_dir != origin_in:
+-    # Construct a staging directory of the root file system.
+-    root_dir = prop_dict.get("root_dir")
+-    if root_dir:
+-      shutil.rmtree(in_dir)
+-      shutil.copytree(root_dir, in_dir, symlinks=True)
+-    staging_system = os.path.join(in_dir, "system")
+-    shutil.rmtree(staging_system, ignore_errors=True)
+-    shutil.copytree(origin_in, staging_system, symlinks=True)
+-
+   (mkfs_output, exit_code) = RunCommand(build_command)
+   if exit_code != 0:
+     print("Error: '%s' failed with exit code %d:\n%s" % (
+         build_command, exit_code, mkfs_output))
+-    success, du = GetDiskUsage(origin_in)
++    success, du = GetDiskUsage(in_dir)
+     du_str = ("%d bytes (%d MB)" % (du, du // BYTES_IN_MB)
+              ) if success else "unknown"
+-    print("Out of space? The tree size of %s is %s.\n" % (
+-        origin_in, du_str))
+-    print("The max is %d bytes (%d MB).\n" % (
+-        int(prop_dict["partition_size"]),
+-        int(prop_dict["partition_size"]) // BYTES_IN_MB))
+-    print("Reserved space is %d bytes (%d MB).\n" % (
+-        int(prop_dict.get("partition_reserved_size", 0)),
+-        int(prop_dict.get("partition_reserved_size", 0)) // BYTES_IN_MB))
++    print(
++        "Out of space? The tree size of {} is {}, with reserved space of {} "
++        "bytes ({} MB).".format(
++            in_dir, du_str,
++            int(prop_dict.get("partition_reserved_size", 0)),
++            int(prop_dict.get("partition_reserved_size", 0)) // BYTES_IN_MB))
++    print(
++        "The max image size for filsystem files is {} bytes ({} MB), out of a "
++        "total partition size of {} bytes ({} MB).".format(
++            int(prop_dict["image_size"]),
++            int(prop_dict["image_size"]) // BYTES_IN_MB,
++            int(prop_dict["partition_size"]),
++            int(prop_dict["partition_size"]) // BYTES_IN_MB))
+     return False
+ 
+   # Check if there's enough headroom space available for ext4 image.
+@@ -679,14 +776,14 @@ def BuildImage(in_dir, prop_dict, out_file, target_out=None):
+ 
+   if not fs_spans_partition:
+     mount_point = prop_dict.get("mount_point")
+-    partition_size = int(prop_dict.get("partition_size"))
+-    image_size = GetSimgSize(out_file)
+-    if image_size > partition_size:
++    image_size = int(prop_dict["image_size"])
++    sparse_image_size = GetSimgSize(out_file)
++    if sparse_image_size > image_size:
+       print("Error: %s image size of %d is larger than partition size of "
+-            "%d" % (mount_point, image_size, partition_size))
++            "%d" % (mount_point, sparse_image_size, image_size))
+       return False
+     if verity_supported and is_verity_partition:
+-      ZeroPadSimg(out_file, partition_size - image_size)
++      ZeroPadSimg(out_file, image_size - sparse_image_size)
+ 
+   # Create the verified image if this is to be verified.
+   if verity_supported and is_verity_partition:
+@@ -695,18 +792,15 @@ def BuildImage(in_dir, prop_dict, out_file, target_out=None):
+ 
+   # Add AVB HASH or HASHTREE footer (metadata).
+   if avb_footer_type:
+-    avbtool = prop_dict["avb_avbtool"]
+-    original_partition_size = prop_dict["original_partition_size"]
++    partition_size = prop_dict["partition_size"]
+     partition_name = prop_dict["partition_name"]
+     # key_path and algorithm are only available when chain partition is used.
+     key_path = prop_dict.get("avb_key_path")
+     algorithm = prop_dict.get("avb_algorithm")
+     salt = prop_dict.get("avb_salt")
+-    # avb_add_hash_footer_args or avb_add_hashtree_footer_args
+-    additional_args = prop_dict["avb_add_" + avb_footer_type + "_footer_args"]
+     if not AVBAddFooter(out_file, avbtool, avb_footer_type,
+-                        original_partition_size, partition_name, key_path,
+-                        algorithm, salt, additional_args):
++                        partition_size, partition_name, key_path,
++                        algorithm, salt, avb_signing_args):
+       return False
+ 
+   if run_e2fsck and prop_dict.get("skip_fsck") != "true":
+@@ -912,6 +1006,7 @@ def GlobalDictFromImageProp(image_prop, mount_point):
+       d[dest_p] = image_prop[src_p]
+       return True
+     return False
++
+   if mount_point == "system":
+     copy_prop("partition_size", "system_size")
+   elif mount_point == "system_other":
+diff --git a/tools/releasetools/test_add_img_to_target_files.py b/tools/releasetools/test_add_img_to_target_files.py
+index 9a0f78ed1..08c547d40 100644
+--- a/tools/releasetools/test_add_img_to_target_files.py
++++ b/tools/releasetools/test_add_img_to_target_files.py
+@@ -319,7 +319,7 @@ class AddImagesToTargetFilesTest(unittest.TestCase):
+         (0xCAC3, 4),
+         (0xCAC1, 6)])
+     OPTIONS.info_dict = {
+-        'system_adjusted_partition_size' : 12,
++        'system_image_blocks' : 12,
+     }
+     name, care_map = GetCareMap('system', sparse_image)
+     self.assertEqual('system', name)
+@@ -334,6 +334,6 @@ class AddImagesToTargetFilesTest(unittest.TestCase):
+         (0xCAC3, 4),
+         (0xCAC1, 6)])
+     OPTIONS.info_dict = {
+-        'system_adjusted_partition_size' : -12,
++        'system_image_blocks' : -12,
+     }
+     self.assertRaises(AssertionError, GetCareMap, 'system', sparse_image)
+diff --git a/tools/releasetools/test_build_image.py b/tools/releasetools/test_build_image.py
+index 161faff8c..daadf7c99 100644
+--- a/tools/releasetools/test_build_image.py
++++ b/tools/releasetools/test_build_image.py
+@@ -14,10 +14,16 @@
+ # limitations under the License.
+ #
+ 
++import filecmp
++import math
++import os.path
++import random
+ import unittest
+ 
+ import common
+-from build_image import CheckHeadroom, RunCommand
++from build_image import (
++    AVBCalcMinPartitionSize, BLOCK_SIZE,
++    CheckHeadroom, RunCommand, SetUpInDirAndFsConfig)
+ 
+ 
+ class BuildImageTest(unittest.TestCase):
+@@ -26,6 +32,16 @@ class BuildImageTest(unittest.TestCase):
+   EXT4FS_OUTPUT = (
+       "Created filesystem with 2777/129024 inodes and 515099/516099 blocks")
+ 
++  def setUp(self):
++    # To test AVBCalcMinPartitionSize(), by using 200MB to 2GB image size.
++    #   -  51200 = 200MB * 1024 * 1024 / 4096
++    #   - 524288 = 2GB * 1024 * 1024 * 1024 / 4096
++    self._image_sizes = [BLOCK_SIZE * random.randint(51200, 524288) + offset
++                         for offset in range(BLOCK_SIZE)]
++
++  def tearDown(self):
++    common.Cleanup()
++
+   def test_CheckHeadroom_SizeUnderLimit(self):
+     # Required headroom: 1000 blocks.
+     prop_dict = {
+@@ -91,4 +107,143 @@ class BuildImageTest(unittest.TestCase):
+     }
+     self.assertFalse(CheckHeadroom(ext4fs_output, prop_dict))
+ 
+-    common.Cleanup()
++  def test_SetUpInDirAndFsConfig_SystemRootImageFalse(self):
++    prop_dict = {
++        'fs_config': 'fs-config',
++        'mount_point': 'system',
++    }
++    in_dir, fs_config = SetUpInDirAndFsConfig('/path/to/in_dir', prop_dict)
++    self.assertEqual('/path/to/in_dir', in_dir)
++    self.assertEqual('fs-config', fs_config)
++    self.assertEqual('system', prop_dict['mount_point'])
++
++  def test_SetUpInDirAndFsConfig_SystemRootImageTrue_NonSystem(self):
++    prop_dict = {
++        'fs_config': 'fs-config',
++        'mount_point': 'vendor',
++        'system_root_image': 'true',
++    }
++    in_dir, fs_config = SetUpInDirAndFsConfig('/path/to/in_dir', prop_dict)
++    self.assertEqual('/path/to/in_dir', in_dir)
++    self.assertEqual('fs-config', fs_config)
++    self.assertEqual('vendor', prop_dict['mount_point'])
++
++  @staticmethod
++  def _gen_fs_config(partition):
++    fs_config = common.MakeTempFile(suffix='.txt')
++    with open(fs_config, 'w') as fs_config_fp:
++      fs_config_fp.write('fs-config-{}\n'.format(partition))
++    return fs_config
++
++  def test_SetUpInDirAndFsConfig_SystemRootImageTrue(self):
++    root_dir = common.MakeTempDir()
++    with open(os.path.join(root_dir, 'init'), 'w') as init_fp:
++      init_fp.write('init')
++
++    origin_in = common.MakeTempDir()
++    with open(os.path.join(origin_in, 'file'), 'w') as in_fp:
++      in_fp.write('system-file')
++    os.symlink('../etc', os.path.join(origin_in, 'symlink'))
++
++    fs_config_system = self._gen_fs_config('system')
++
++    prop_dict = {
++        'fs_config': fs_config_system,
++        'mount_point': 'system',
++        'root_dir': root_dir,
++        'system_root_image': 'true',
++    }
++    in_dir, fs_config = SetUpInDirAndFsConfig(origin_in, prop_dict)
++
++    self.assertTrue(filecmp.cmp(
++        os.path.join(in_dir, 'init'), os.path.join(root_dir, 'init')))
++    self.assertTrue(filecmp.cmp(
++        os.path.join(in_dir, 'system', 'file'),
++        os.path.join(origin_in, 'file')))
++    self.assertTrue(os.path.islink(os.path.join(in_dir, 'system', 'symlink')))
++
++    self.assertTrue(filecmp.cmp(fs_config_system, fs_config))
++    self.assertEqual('/', prop_dict['mount_point'])
++
++  def test_SetUpInDirAndFsConfig_SystemRootImageTrue_WithRootFsConfig(self):
++    root_dir = common.MakeTempDir()
++    with open(os.path.join(root_dir, 'init'), 'w') as init_fp:
++      init_fp.write('init')
++
++    origin_in = common.MakeTempDir()
++    with open(os.path.join(origin_in, 'file'), 'w') as in_fp:
++      in_fp.write('system-file')
++    os.symlink('../etc', os.path.join(origin_in, 'symlink'))
++
++    fs_config_system = self._gen_fs_config('system')
++    fs_config_root = self._gen_fs_config('root')
++
++    prop_dict = {
++        'fs_config': fs_config_system,
++        'mount_point': 'system',
++        'root_dir': root_dir,
++        'root_fs_config': fs_config_root,
++        'system_root_image': 'true',
++    }
++    in_dir, fs_config = SetUpInDirAndFsConfig(origin_in, prop_dict)
++
++    self.assertTrue(filecmp.cmp(
++        os.path.join(in_dir, 'init'), os.path.join(root_dir, 'init')))
++    self.assertTrue(filecmp.cmp(
++        os.path.join(in_dir, 'system', 'file'),
++        os.path.join(origin_in, 'file')))
++    self.assertTrue(os.path.islink(os.path.join(in_dir, 'system', 'symlink')))
++
++    with open(fs_config) as fs_config_fp:
++      fs_config_data = fs_config_fp.readlines()
++    self.assertIn('fs-config-system\n', fs_config_data)
++    self.assertIn('fs-config-root\n', fs_config_data)
++    self.assertEqual('/', prop_dict['mount_point'])
++
++  def test_AVBCalcMinPartitionSize_LinearFooterSize(self):
++    """Tests with footer size which is linear to partition size."""
++    for image_size in self._image_sizes:
++      for ratio in 0.95, 0.56, 0.22:
++        expected_size = common.RoundUpTo4K(int(math.ceil(image_size / ratio)))
++        self.assertEqual(
++            expected_size,
++            AVBCalcMinPartitionSize(image_size, lambda x: int(x * ratio)))
++
++  def test_AVBCalcMinPartitionSize_SlowerGrowthFooterSize(self):
++    """Tests with footer size which grows slower than partition size."""
++
++    def _SizeCalculator(partition_size):
++      """Footer size is the power of 0.95 of partition size."""
++      # Minus footer size to return max image size.
++      return partition_size - int(math.pow(partition_size, 0.95))
++
++    for image_size in self._image_sizes:
++      min_partition_size = AVBCalcMinPartitionSize(image_size, _SizeCalculator)
++      # Checks min_partition_size can accommodate image_size.
++      self.assertGreaterEqual(
++          _SizeCalculator(min_partition_size),
++          image_size)
++      # Checks min_partition_size (round to BLOCK_SIZE) is the minimum.
++      self.assertLess(
++          _SizeCalculator(min_partition_size - BLOCK_SIZE),
++          image_size)
++
++  def test_AVBCalcMinPartitionSize_FasterGrowthFooterSize(self):
++    """Tests with footer size which grows faster than partition size."""
++
++    def _SizeCalculator(partition_size):
++      """Max image size is the power of 0.95 of partition size."""
++      # Max image size grows less than partition size, which means
++      # footer size grows faster than partition size.
++      return int(math.pow(partition_size, 0.95))
++
++    for image_size in self._image_sizes:
++      min_partition_size = AVBCalcMinPartitionSize(image_size, _SizeCalculator)
++      # Checks min_partition_size can accommodate image_size.
++      self.assertGreaterEqual(
++          _SizeCalculator(min_partition_size),
++          image_size)
++      # Checks min_partition_size (round to BLOCK_SIZE) is the minimum.
++      self.assertLess(
++          _SizeCalculator(min_partition_size - BLOCK_SIZE),
++          image_size)
+-- 
+2.17.1
+

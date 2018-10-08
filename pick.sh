@@ -807,7 +807,6 @@ kpick 227747 # lineage: Enable weather apps
 #kpick 227748 # lineage: Enable qcom thermal/vr HALs
 kpick 226755 # lineage: Enable cryptfs_hw
 #kpick 229465 # lineage: Re-enable NXP NFC repositories
-kpick 231080 # manifest: android-9.0.0_r6 -> android-9.0.0_r10
 
 android_head=$(cd android;git log -n 1 | sed -n 1p | cut -d' ' -f2;cd $topdir)
 
@@ -843,10 +842,6 @@ kpick 222733 # core: Disable vendor restrictions
 kpick 222742 # build: Use project pathmap for recovery
 kpick 222760 # Add LOCAL_AIDL_FLAGS
 kpick 229491 # build: Automatically replace old-style kernel header includes with new header lib
-kpick 231081 # Version bump to PPR2.180905.006
-kpick 231082 # Update platform security string to 2018-10-05 on pi-dev & master bug: 112535135 (cherry picked from commit 61ddf1fa ...
-kpick 231084 # Version bump to PPR2.181005.002
-kpick 231085 # Version bump to PPR2.181005.003
 kpick 231135 # pie-gsi-tracking
 
 # build/soong
@@ -914,6 +909,9 @@ kpick 230834 # legacy: allow init to read /proc/device-tree
 kpick 225192 # klte-common: Align ril.h to samsung_msm8974-common P libril changes
 kpick 224917 # DO NOT MERGE: klte-common: Requisite bring-up BS change
 kpick 231029 # klte-common: Set SDK API level for rild
+#kpick 231207 # klte-common: Rename libnfc-brcm.conf -> libnfc-nci.conf
+#kpick 231208 # klte-common: nfc: remove unsupported MAX_RF_DATA_CREDITS config
+#kpick 231209 # klte-common: nfc: pn547: Use prebuilt NFC HAL from 15.1
 
 # device/samsung/msm8974-common
 kpick 228677 # msm8974-common: Make the external camera provider ignore internal cameras
@@ -953,9 +951,6 @@ kpick 225239 # zlib: crc optimization for arm64
 # frameworks/av
 kpick 230387 # CameraService: Support calling addStates in enumerateProviders
 kpick 230642 # CameraService: Initialize CameraParameters for the cameras and cache them onFirstRef
-kpick 231087 # Allow playing output to default output device when during uplink playback
-kpick 231088 # Check for overflow of crypto size
-kpick 231089 # Fix information disclosure in mediadrmserver
 kpick 231136 # pie-gsi-tracking
 
 # frameworks/base
@@ -998,7 +993,6 @@ kpick 230112 # ConnectivityManager: Change default private DNS mode
 kpick 230361 # fw/b UserManagerService: Use ro.build.date to signal upgrades
 kpick 230388 # base: show bluetooth battery status when available
 kpick 230600 # FingerprintService: add property to prevent cleanup of unused fingerprints
-kpick 230787 # Screenshot: Append app name after screenshot date.
 
 # frameworks/native
 kpick 224443 # libbinder: Don't log call trace when waiting for vendor service on non-eng builds
@@ -1010,13 +1004,6 @@ kpick 225546 # AppOpsManager: Update with the new ops
 kpick 229400 # HAXX to allow too large dimensions
 kpick 229607 # HACK: SF: Force client composition for all layers
 kpick 230610 # APP may display abnormally in landscape LCM
-kpick 231092 # Fix for incorrect cycle evaluation in computeOomAdj DO NOT MERGE
-kpick 231093 # DO NOT MERGE. Persistable Uri grants still require permissions.
-kpick 231094 # DO NOT MERGE. Execute "strict" queries with extra parentheses.
-kpick 231095 # DO NOT MERGE. Extend SQLiteQueryBuilder for update and delete.
-kpick 231096 # RESTRICT AUTOMERGE: Revoke permissions defined in a to-be removed package.
-kpick 231097 # Fix crash during cursor moving on BiDi text
-kpick 231099 # Revert "RESTRICT AUTOMERGE: Revoke permissions defined in a to-be removed package."
 
 # frameworks/opt/net/wifi
 kpick 224675 # libwifi-hal: add flag to wait for kernel driver to get ready
@@ -1205,6 +1192,7 @@ kpick 226077 # libsecril-client: remove unused variables/functions
 kpick 226080 # libril: Replace strncpy with strlcpy.
 kpick 227453 # power: remove getFeature functionality
 kpick 227454 # power: Add Lineage power hints
+kpick 231194 # power: properly initialize cluster states
 
 # kernel/samsung/msm8974
 
@@ -1273,7 +1261,6 @@ kpick 229167 # Settings: Hide Night Mode suggestion if LiveDisplay feature is pr
 kpick 229312 # Add Dual Channel into Bluetooth Audio Channel Mode developer options menu
 kpick 229453 # Settings: use LineageHW serial number
 kpick 229479 # Settings: Improve phone number preference ordering
-kpick 231102 # Disable changing lock when device is not provisioned.
 kpick 231158 # Settings: fix apn_editor carrier_enabled summaryOff string
 
 # packages/apps/Trebuchet
@@ -1283,7 +1270,6 @@ kpick 223666 # Settings: Hide Notification Dots on low RAM devices
 kpick 229354 # Updater: Allow Cleartext HTTP communications
 
 # packages/providers/DownloadProvider
-kpick 231105 # DO NOT MERGE. All untrusted selections must go through builder.
 
 # packages/services/Telephony
 kpick 229610 # Telephony: Support muting by RIL command
@@ -1299,17 +1285,6 @@ kpick 229313 # Explicit SBC Dual Channel (SBC HD) support
 kpick 229314 # Allow using alternative (higher) SBC HD bitrates with a property
 kpick 229401 # [DNM] Revert "Return early if vendor-specific command fails"
 kpick 230382 # Fix for Bluetooth device name is resetting to default name after reboot
-kpick 231108 # Fix copy length calculation in sdp_copy_raw_data
-kpick 231109 # Check remaining frame length in rfc_process_mx_message
-kpick 231110 # Fix OOB read in avrc_ctrl_pars_vendor_rsp
-kpick 231111 # Check packet length in bta_av_proc_meta_cmd
-kpick 231112 # Add missing AVRCP message length checks inside avrc_msg_cback
-kpick 231113 # Add packet length check in smp_proc_master_id
-kpick 231114 # Checks the SMP length to fix OOB read
-kpick 231115 # Add packet length checks in mca_ccb_hdl_req
-kpick 231117 # Fix build failure in stack/rfcomm/rfc_ts_frames.c
-kpick 231119 # Add bound check for rfc_parse_data
-kpick 231120 # Fix a wrong check in rfc_parse_data
 
 # system/core
 privpick system/core refs/changes/19/206119/2 # init: I hate safety net
@@ -1318,13 +1293,11 @@ kpick 224264 # debuggerd: Resolve tombstoned missing O_CREAT mode
 kpick 226119 # libion: save errno value
 kpick 226120 # fs_mgr: Wrapped key support for FBE
 kpick 230755 # libsuspend: Bring back earlysuspend
-kpick 231122 # Revert "Support Speck encryption."
 kpick 231133 # pie-gsi-tracking
 
 # system/extras
 kpick 225426 # f2fs_utils: Add a static libf2fs_sparseblock for minvold
 kpick 225427 # ext4_utils: Fix FS creation for filesystems with exactly 32768 blocks.
-kpick 231125 # Revert "Support Speck encryption."
 
 cd system/extras/
 git stash >/dev/null
@@ -1359,7 +1332,6 @@ kpick -P system/extras/su 225937 # su: Initialize windows size
 kpick 226922 # System always contains root dir.
 
 # system/netd
-kpick 231127 # Set optlen for UDP-encap check in XfrmController
 
 # system/sepolicy
 kpick 223746 # Add rules required for TARGET_HAS_LEGACY_CAMERA_HAL1
@@ -1381,7 +1353,6 @@ kpick 226111 # vold: Wrapped key support for FBE
 kpick 229304 # vold: Add texfat and sdfat support
 kpick 229954 # Move kMajor* constants to a header file
 kpick 229955 # vold: ISO9660 and UDF support
-kpick 231130 # cryptfs: Remove Speck support
 
 # vendor/lineage
 kpick 223773 # Add IPv6 for Oister and 3. The 3.dk and oister.dk carriers now support IPv6 with the APN ”data.tre.dk”.
@@ -1391,10 +1362,13 @@ kpick 225939 # roomservice.py: non-depsonly: bootstrap first device repo from Hu
 kpick 226123 # soong_config: Add new flags for HW FDE
 kpick 226125 # soong_config: Add flag for legacy HW FDE
 kpick 226126 # soong_config: Add flag for crypto waiting on QSEE to start
+kpick 231218 # kernel: Correct CROSS_COMPILE_ARM32 toolchain
 kpick 229508 # lineage: Move kernel variable configuration to BoardConfigKernel
 kpick 229412 # vendor/lineage: Add soong generator module type
 kpick 229415 # lineage: Dynamically generate kernel headers using lineage generator
 kpick 229505 # vendor/lineage: Remove kernel.mk headers generation
+kpick 231219 # kernel: Remove deprecated flag errors
+kpick 231220 # kernel: Remove kernel{x}config
 kpick 229589 # lineage: Automatically set soong namespace when setting project pathmap
 kpick 229590 # lineage: Move qcom pathmap setting into "BoardConfig"
 kpick 229506 # Revert "soong_config: Add TARGET_NEEDS_PLATFORM_TEXT_RELOCATIONS"
