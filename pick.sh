@@ -801,12 +801,12 @@ default_branch=$(grep "^[[:space:]]*<default revision=" $topdir/.repo/manifests/
 git reset --hard $(git branch -a | grep "remotes/m/$default_branch" | cut -d'>' -f 2 | sed -e "s/ //g") >/dev/null
 cd $topdir
 
-kpick 223886
+kpick 223886 # manifest: Re-add hardware/qcom/data/ipacfg-mgr
 kpick 227745 # lineage: Enable FM apps
 kpick 225583 # manifest: Enable lineage styles overlays
 kpick 227747 # lineage: Enable weather apps
 kpick 226755 # lineage: Enable cryptfs_hw
-kpick 228594 
+kpick 228594 # manifest: Track our own hardware/broadcom/nfc
 
 android_head=$(cd android;git log -n 1 | sed -n 1p | cut -d' ' -f2;cd $topdir)
 
@@ -841,6 +841,7 @@ kpick 230747 # update_verifier: skip verity to determine successful on lineage b
 kpick 222733 # core: Disable vendor restrictions
 kpick 222742 # build: Use project pathmap for recovery
 kpick 222760 # Add LOCAL_AIDL_FLAGS
+kpick 227111 # releasetools: Store the build.prop file in the OTA zip
 kpick 229491 # build: Automatically replace old-style kernel header includes with new header lib
 kpick 231135 # pie-gsi-tracking
 
@@ -928,6 +929,7 @@ kpick 225760 # msm8974-common: libril: FR51015: Tuning of Binder buffer for rild
 kpick 224916 # DO NOT MERGE: msm8974-common: sepolicy: Just make it build
 kpick 227614 # Disable IOemHook implemenation in rild.
 kpick 230737 # libril: Fix manual network selection with old modem
+kpick 231350 # msm8974-common: Set TARGET_NEEDS_NETD_DIRECT_CONNECT_RULE to true
 
 # device/samsung/qcom-common
 
@@ -952,6 +954,7 @@ kpick 225239 # zlib: crc optimization for arm64
 kpick 230387 # CameraService: Support calling addStates in enumerateProviders
 kpick 230642 # CameraService: Initialize CameraParameters for the cameras and cache them onFirstRef
 kpick 231136 # pie-gsi-tracking
+kpick 231348 # camera: Catch mad hals that mess up buffer time
 
 # frameworks/base
 kpick 224266 # SystemUI: Add Lineage statusbar item holder
@@ -1012,6 +1015,7 @@ kpick 224677 # wifi: don't check if WIFI_DRIVER_STATE_CTRL_PARAM is readable
 kpick 225551 # wifi: Not reset country code for Dual SIM if any slot is active
 
 # frameworks/opt/telephony
+kpick 227125 # RIL: Allow overriding RadioResponse and RadioIndication
 kpick 229601 # Implement signal strength hacks used on Huawei devices
 kpick 229602 # telephony: Squashed support of dynamic signal strength thresholds
 kpick 229603 # telephony: Query LTE thresholds from CarrierConfig
@@ -1029,12 +1033,12 @@ kpick 225816 # libbt-vendor: add support for samsung bluetooth
 kpick 226447 # libbt: Make sure that we don't load pre-patch when looking for patch
 
 # hardware/boardcom/nfc
-kpick 230348
-kpick 230349
-kpick 230350
-kpick 230351
-kpick 230352
-kpick 230353
+kpick 230348 # Remove all files not related to bcm2079x NFC HAL
+kpick 230349 # Remove nfca_version.h
+kpick 230350 # Move CrcChecksum to bcm2079x HAL
+kpick 230351 # Add flags to fix build errors under Pie
+kpick 230352 # Change config name for Pie
+kpick 230353 # Move include files into halimpl folder
 
 # hardware/boardcomm/wlan
 
@@ -1169,7 +1173,6 @@ kpick 224957 # media: vdec: Include nativebase headers
 
 # hardware/qcom/media-caf/msm8974
 kpick 223441 # Add -Wno-error to compile with global -Werror.
-kpick 227823 # mm-video-v4l2: Protect buffer access and increase input buffer size
 
 # hardware/qcom/power
 kpick 230513 # power: msm8960: Implement performance profiles
@@ -1211,6 +1214,7 @@ kpick 226810 # lineage-sdk: Bump PREF_HAS_MIGRATED_LINEAGE_SETTINGS for 16.0
 kpick 226141 # LineageSettingsProvider: Cleanup after LINEAGE_SETUP_WIZARD_COMPLETED deprecation
 kpick 227931 # lineagesdk: Refactor battery icon options
 kpick 230272 # sdk: Remove VOLUME_KEYS_CONTROL_RING_STREAM
+kpick 230284 # Revert "[3/3] cmsdk: add burnIn protection setting"
 kpick 230856 # sdk: Don't clear calling identify when calling IOverlayManager.setEnabled()
 
 # packages/apps/AudioFX
@@ -1239,13 +1243,16 @@ kpick 226131 # DeskClock: Add support of power off alarm feature
 kpick 225289 # DocumentsUI: support night mode
 kpick 230449 # DocumentsUI: Don't check for mStarted state on user/userdebug builds
 
+# packages/apps/Eleven
+kpick 231355 # Eleven: Fix crash after receiving media button intent
+
 # packages/apps/Email
 
 # packages/apps/Gallery2
 
 # packages/apps/LineageParts
 kpick 226141 # LineageSettingsProvider: Cleanup after LINEAGE_SETUP_WIZARD_COMPLETED deprecation
-kpick 226863 # LineageParts: Drop `Control ringtone volume` setting
+#kpick 226863 # LineageParts: Drop `Control ringtone volume` setting
 kpick 227930 # LineageParts: Bring back and refactor battery icon options
 kpick 221756 # StatusBarSettings: Hide battery preference category based on icon visibility
 kpick 229389 # Trust: enforce vendor security patch level check
@@ -1269,7 +1276,9 @@ kpick 229167 # Settings: Hide Night Mode suggestion if LiveDisplay feature is pr
 kpick 229312 # Add Dual Channel into Bluetooth Audio Channel Mode developer options menu
 kpick 229453 # Settings: use LineageHW serial number
 kpick 229479 # Settings: Improve phone number preference ordering
+kpick 230392 # Settings/DeviceInfo - Translations for patch level disclaimer
 kpick 231158 # Settings: fix apn_editor carrier_enabled summaryOff string
+kpick 231352 # Settings: Sim status and IMEI info are wrong if only sim2 inserted
 
 # packages/apps/Trebuchet
 kpick 223666 # Settings: Hide Notification Dots on low RAM devices
@@ -1340,6 +1349,7 @@ kpick -P system/extras/su 225937 # su: Initialize windows size
 kpick 226922 # System always contains root dir.
 
 # system/netd
+kpick 231201 # Revert "Don't look up the main table any more."
 
 # system/sepolicy
 kpick 223746 # Add rules required for TARGET_HAS_LEGACY_CAMERA_HAL1
@@ -1373,18 +1383,18 @@ kpick 226123 # soong_config: Add new flags for HW FDE
 kpick 226125 # soong_config: Add flag for legacy HW FDE
 kpick 226126 # soong_config: Add flag for crypto waiting on QSEE to start
 kpick 231218 # kernel: Correct CROSS_COMPILE_ARM32 toolchain
-kpick 229508 # lineage: Move kernel variable configuration to BoardConfigKernel
+kpick 229508 # lineage: Move some kernel definitions to BoardConfigKernel
 kpick 229412 # vendor/lineage: Add soong generator module type
 kpick 229415 # lineage: Dynamically generate kernel headers using lineage generator
 kpick 229505 # vendor/lineage: Remove kernel.mk headers generation
+kpick 227392 # lineage: Dynamically add custom APNs
 kpick 231219 # kernel: Remove deprecated flag errors
 kpick 231220 # kernel: Remove kernel{x}config
-kpick 221349 # roomservice.py: adapt to lineage-16.0
 kpick 229589 # lineage: Automatically set soong namespace when setting project pathmap
 kpick 229590 # lineage: Move qcom pathmap setting into "BoardConfig"
 kpick 229506 # Revert "soong_config: Add TARGET_NEEDS_PLATFORM_TEXT_RELOCATIONS"
 kpick 229620 # backuptool: Support non-A/B system-as-root
-k
+
 # vendor/qcom/opensource/cryptfs/hw
 kpick 226128 # cryptfs_hw: Add compatibility for pre-O hw crypto
 kpick 226129 # cryptfs_hw: Featureize support for waiting on QSEE to start
