@@ -801,12 +801,12 @@ default_branch=$(grep "^[[:space:]]*<default revision=" $topdir/.repo/manifests/
 git reset --hard $(git branch -a | grep "remotes/m/$default_branch" | cut -d'>' -f 2 | sed -e "s/ //g") >/dev/null
 cd $topdir
 
+kpick 223886
 kpick 227745 # lineage: Enable FM apps
 kpick 225583 # manifest: Enable lineage styles overlays
 kpick 227747 # lineage: Enable weather apps
-#kpick 227748 # lineage: Enable qcom thermal/vr HALs
 kpick 226755 # lineage: Enable cryptfs_hw
-#kpick 229465 # lineage: Re-enable NXP NFC repositories
+kpick 228594 
 
 android_head=$(cd android;git log -n 1 | sed -n 1p | cut -d' ' -f2;cd $topdir)
 
@@ -906,12 +906,12 @@ kpick 230834 # legacy: allow init to read /proc/device-tree
 # device/samsung/kltechnduo
 
 # device/samsung/klte-common
+kpick 231029 # klte-common: Set SDK API level for rild
+kpick 231207 # klte-common: Rename libnfc-brcm.conf -> libnfc-nci.conf
+kpick 231208 # klte-common: nfc: remove unsupported MAX_RF_DATA_CREDITS config
+kpick 231209 # klte-common: nfc: pn547: Use prebuilt NFC HAL from 15.1
 kpick 225192 # klte-common: Align ril.h to samsung_msm8974-common P libril changes
 kpick 224917 # DO NOT MERGE: klte-common: Requisite bring-up BS change
-kpick 231029 # klte-common: Set SDK API level for rild
-#kpick 231207 # klte-common: Rename libnfc-brcm.conf -> libnfc-nci.conf
-#kpick 231208 # klte-common: nfc: remove unsupported MAX_RF_DATA_CREDITS config
-#kpick 231209 # klte-common: nfc: pn547: Use prebuilt NFC HAL from 15.1
 
 # device/samsung/msm8974-common
 kpick 228677 # msm8974-common: Make the external camera provider ignore internal cameras
@@ -1027,6 +1027,14 @@ kpick 225149 # libbt: Add support for using two stop bits
 kpick 225155 # Broadcom BT: Add support fm/bt via v4l2.
 kpick 225816 # libbt-vendor: add support for samsung bluetooth
 kpick 226447 # libbt: Make sure that we don't load pre-patch when looking for patch
+
+# hardware/boardcom/nfc
+kpick 230348
+kpick 230349
+kpick 230350
+kpick 230351
+kpick 230352
+kpick 230353
 
 # hardware/boardcomm/wlan
 
@@ -1359,6 +1367,8 @@ kpick 223773 # Add IPv6 for Oister and 3. The 3.dk and oister.dk carriers now su
 kpick 225921 # overlay: Update list of GSF/GMS activities
 kpick 225938 # roomservice.py: document the hell out of the current behavior of the script
 kpick 225939 # roomservice.py: non-depsonly: bootstrap first device repo from Hudson
+kpick 225981 # roomservice.py: depsonly: do not look up device repo by name in the manifest
+kpick 225982 # roomservice.py: Strip cm.{mk,dependencies} support
 kpick 226123 # soong_config: Add new flags for HW FDE
 kpick 226125 # soong_config: Add flag for legacy HW FDE
 kpick 226126 # soong_config: Add flag for crypto waiting on QSEE to start
@@ -1369,11 +1379,12 @@ kpick 229415 # lineage: Dynamically generate kernel headers using lineage genera
 kpick 229505 # vendor/lineage: Remove kernel.mk headers generation
 kpick 231219 # kernel: Remove deprecated flag errors
 kpick 231220 # kernel: Remove kernel{x}config
+kpick 221349 # roomservice.py: adapt to lineage-16.0
 kpick 229589 # lineage: Automatically set soong namespace when setting project pathmap
 kpick 229590 # lineage: Move qcom pathmap setting into "BoardConfig"
 kpick 229506 # Revert "soong_config: Add TARGET_NEEDS_PLATFORM_TEXT_RELOCATIONS"
 kpick 229620 # backuptool: Support non-A/B system-as-root
-
+k
 # vendor/qcom/opensource/cryptfs/hw
 kpick 226128 # cryptfs_hw: Add compatibility for pre-O hw crypto
 kpick 226129 # cryptfs_hw: Featureize support for waiting on QSEE to start
