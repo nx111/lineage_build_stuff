@@ -721,6 +721,8 @@ for op in $*; do
     elif [ "$op" = "--restore-rr-cache" ]; then
          rrCache -restore
          exit $?
+    elif [ "$op" = "-a" -o "$op" = "--auto" ]; then
+         op_auto=1
     elif [ $op_patch_local -eq 1 ]; then
             op_patches_dir="$op"
     elif [ $op_project_snapshot -eq 1 -a  -d "$(gettop)/$op" ]; then
@@ -1408,7 +1410,7 @@ kpick 230271 # cryptfs_hw: Use generated kernel headers
 ##################################
 echo
 echo "---------------------------------------------------------------"
-read -n1 -r -p "  Picking remote changes finished, Press any key to continue..." key
+[ "$op_auto" != "1" ] && read -n1 -r -p "  Picking remote changes finished, Press any key to continue..." key
 
 [ $op_pick_remote_only -eq 0 ] && patch_local local
 [ -f $script_file.tmp ] && mv $script_file.tmp $script_file.new

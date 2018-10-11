@@ -1,0 +1,52 @@
+From 9a578066473e0d04ff32edc9476baa1c12bad20d Mon Sep 17 00:00:00 2001
+From: maxwen <max.weninger@gmail.com>
+Date: Tue, 9 Oct 2018 13:52:55 +0200
+Subject: [PATCH 4/4] camera: Catch mad hals that mess up buffer time
+
+e.g. op6 hal does not send correct mTimestampOffset
+so calculate it every time if needed
+
+set TARGET_CAMERA_BOOTTIME_TIMESTAMP := true to enable
+
+Change-Id: I56b623a1c2b58ca8a6287783d938fb665de201df
+---
+ services/camera/libcameraservice/Android.mk                | 4 ++++
+ .../libcameraservice/device3/Camera3OutputStream.cpp       | 7 +++++++
+ 2 files changed, 11 insertions(+)
+
+diff --git a/services/camera/libcameraservice/Android.mk b/services/camera/libcameraservice/Android.mk
+index b5599a057..b54e28e84 100644
+--- a/services/camera/libcameraservice/Android.mk
++++ b/services/camera/libcameraservice/Android.mk
+@@ -89,6 +89,10 @@ LOCAL_SHARED_LIBRARIES += \
+     vendor.qti.hardware.camera.device@1.0
+ endif
+ 
++ifeq ($(TARGET_CAMERA_BOOTTIME_TIMESTAMP),true)
++LOCAL_CFLAGS += -DTARGET_CAMERA_BOOTTIME_TIMESTAMP
++endif
++
+ LOCAL_EXPORT_SHARED_LIBRARY_HEADERS := libbinder libcamera_client libfmq
+ 
+ LOCAL_C_INCLUDES += \
+diff --git a/services/camera/libcameraservice/device3/Camera3OutputStream.cpp b/services/camera/libcameraservice/device3/Camera3OutputStream.cpp
+index b3c3717c3..f6d755f86 100644
+--- a/services/camera/libcameraservice/device3/Camera3OutputStream.cpp
++++ b/services/camera/libcameraservice/device3/Camera3OutputStream.cpp
+@@ -271,6 +271,13 @@ status_t Camera3OutputStream::returnBufferCheckedLocked(
+         /* Certain consumers (such as AudioSource or HardwareComposer) use
+          * MONOTONIC time, causing time misalignment if camera timestamp is
+          * in BOOTTIME. Do the conversion if necessary. */
++#ifdef TARGET_CAMERA_BOOTTIME_TIMESTAMP
++        if (mUseMonoTimestamp && mTimestampOffset == 0) {
++            // If that happens something is clearly wrong with the one using this
++            mTimestampOffset =
++                    abs(systemTime(SYSTEM_TIME_BOOTTIME) - systemTime(SYSTEM_TIME_MONOTONIC));
++        }
++#endif
+         res = native_window_set_buffers_timestamp(mConsumer.get(),
+                 mUseMonoTimestamp ? timestamp - mTimestampOffset : timestamp);
+         if (res != OK) {
+-- 
+2.17.1
+
