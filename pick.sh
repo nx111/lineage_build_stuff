@@ -1079,7 +1079,6 @@ kpick 223346 # msm8974: libexternal should depend on libmedia
 kpick 224958 # msm8960/8974: Include string.h where it is necessary
 
 # hardware/qcom/display-caf/msm8974
-kpick 223435 # Add -Wno-error to compile with global -Werror.
 kpick 226481 # display: remove compile time warnings
 kpick 226482 # display: Enable clang for all display modules
 
@@ -1159,7 +1158,6 @@ kpick 224956 # mm-video: venc: Correct a typo in variable name
 kpick 224957 # media: vdec: Include nativebase headers
 
 # hardware/qcom/media-caf/msm8974
-kpick 223441 # Add -Wno-error to compile with global -Werror.
 
 # hardware/qcom/power
 kpick 230513 # power: msm8960: Implement performance profiles
