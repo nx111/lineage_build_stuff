@@ -918,16 +918,6 @@ kpick 224917 # DO NOT MERGE: klte-common: Requisite bring-up BS change
 
 # device/samsung/msm8974-common
 kpick 228677 # msm8974-common: Make the external camera provider ignore internal cameras
-kpick 225466 # msm8974-common: libril: Remove LOCAL_CLANG
-kpick 225467 # msm8974-common: libril: Fix Const-Correctness for RIL_RadioFunctions
-kpick 225468 # msm8974-common: libril: Remove unused code
-kpick 225469 # msm8974-common: libril: Fix double freeing of memory in SAP service and add null-checks.
-kpick 225470 # msm8974-common: libril: Store the system time when NITZ is received.
-kpick 225471 # msm8974-common: libril: Add DISABLE_RILD_OEM_HOOK.
-kpick 225472 # msm8974-common: libril: Change rild initial sequence to guarantee non-null function pointer before rild register i ...
-kpick 225473 # msm8974-common: libril: Add SIM_ABSENT error
-kpick 225759 # msm8974-common: libril: Replace strncpy with strlcpy.
-kpick 225760 # msm8974-common: libril: FR51015: Tuning of Binder buffer for rild.
 kpick 224916 # DO NOT MERGE: msm8974-common: sepolicy: Just make it build
 kpick 227614 # Disable IOemHook implemenation in rild.
 kpick 230737 # libril: Fix manual network selection with old modem
@@ -1026,12 +1016,7 @@ kpick 229605 # Telephony: Don not call onUssdRelease for Huawei RIL
 
 
 # hardware/boardcom/libbt
-kpick 225146 # libbt: Only allow upio_start_stop_timer on 32bit arm
-kpick 225147 # libbt: Add btlock support
-kpick 225148 # libbt: Add prepatch support
-kpick 225149 # libbt: Add support for using two stop bits
 kpick 225155 # Broadcom BT: Add support fm/bt via v4l2.
-kpick 225816 # libbt-vendor: add support for samsung bluetooth
 kpick 226447 # libbt: Make sure that we don't load pre-patch when looking for patch
 
 # hardware/boardcom/nfc
@@ -1213,7 +1198,6 @@ kpick 231194 # power: properly initialize cluster states
 #kpick 223137 # lineage-sdk: Comment out LineageAudioService
 kpick 225581 # lineage-sdk: Make styles init at system services ready
 kpick 226810 # lineage-sdk: Bump PREF_HAS_MIGRATED_LINEAGE_SETTINGS for 16.0
-kpick 226141 # LineageSettingsProvider: Cleanup after LINEAGE_SETUP_WIZARD_COMPLETED deprecation
 kpick 227931 # lineagesdk: Refactor battery icon options
 kpick 230272 # sdk: Remove VOLUME_KEYS_CONTROL_RING_STREAM
 kpick 230284 # Revert "[3/3] cmsdk: add burnIn protection setting"
@@ -1253,7 +1237,6 @@ kpick 231355 # Eleven: Fix crash after receiving media button intent
 # packages/apps/Gallery2
 
 # packages/apps/LineageParts
-kpick 226141 # LineageSettingsProvider: Cleanup after LINEAGE_SETUP_WIZARD_COMPLETED deprecation
 #kpick 226863 # LineageParts: Drop `Control ringtone volume` setting
 kpick 227930 # LineageParts: Bring back and refactor battery icon options
 kpick 221756 # StatusBarSettings: Hide battery preference category based on icon visibility
@@ -1278,7 +1261,6 @@ kpick 229167 # Settings: Hide Night Mode suggestion if LiveDisplay feature is pr
 kpick 229312 # Add Dual Channel into Bluetooth Audio Channel Mode developer options menu
 kpick 229453 # Settings: use LineageHW serial number
 kpick 229479 # Settings: Improve phone number preference ordering
-kpick 230392 # Settings/DeviceInfo - Translations for patch level disclaimer
 kpick 231158 # Settings: fix apn_editor carrier_enabled summaryOff string
 kpick 231352 # Settings: Sim status and IMEI info are wrong if only sim2 inserted
 
@@ -1351,7 +1333,7 @@ kpick -P system/extras/su 225937 # su: Initialize windows size
 kpick 226922 # System always contains root dir.
 
 # system/netd
-kpick 231201 # Revert "Don't look up the main table any more."
+kpick 231201 # netd: Allow devices to force-add directly-connected routes
 
 # system/sepolicy
 kpick 223746 # Add rules required for TARGET_HAS_LEGACY_CAMERA_HAL1
@@ -1384,7 +1366,6 @@ kpick 225982 # roomservice.py: Strip cm.{mk,dependencies} support
 kpick 226123 # soong_config: Add new flags for HW FDE
 kpick 226125 # soong_config: Add flag for legacy HW FDE
 kpick 226126 # soong_config: Add flag for crypto waiting on QSEE to start
-kpick 231218 # kernel: Correct CROSS_COMPILE_ARM32 toolchain
 kpick 229508 # lineage: Move some kernel definitions to BoardConfigKernel
 kpick 229412 # vendor/lineage: Add soong generator module type
 kpick 229415 # lineage: Dynamically generate kernel headers using lineage generator
