@@ -1361,6 +1361,7 @@ kpick 225938 # roomservice.py: document the hell out of the current behavior of 
 kpick 225939 # roomservice.py: non-depsonly: bootstrap first device repo from Hudson
 kpick 225981 # roomservice.py: depsonly: do not look up device repo by name in the manifest
 kpick 225982 # roomservice.py: Strip cm.{mk,dependencies} support
+kpick 231249 # roomservice.py: adapt to lineage-16.0
 kpick 226123 # soong_config: Add new flags for HW FDE
 kpick 226125 # soong_config: Add flag for legacy HW FDE
 kpick 226126 # soong_config: Add flag for crypto waiting on QSEE to start
@@ -1375,6 +1376,7 @@ kpick 229589 # lineage: Automatically set soong namespace when setting project p
 kpick 229590 # lineage: Move qcom pathmap setting into "BoardConfig"
 kpick 229506 # Revert "soong_config: Add TARGET_NEEDS_PLATFORM_TEXT_RELOCATIONS"
 kpick 229620 # backuptool: Support non-A/B system-as-root
+kpick 231291 # repopick: add hashtag support
 
 # vendor/qcom/opensource/cryptfs/hw
 kpick 226128 # cryptfs_hw: Add compatibility for pre-O hw crypto

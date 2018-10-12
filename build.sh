@@ -25,7 +25,7 @@ fi
 
 export USE_CCACHE=1
 export CCACHE_COMPRESS=1
-workdir=`dirname $0`
+workdir=$(dirname $(realpath $0))
 curdir=`pwd`
 if [ $workdir != "" -a $workdir != "." ]; then
 	cd $workdir
