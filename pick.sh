@@ -808,7 +808,6 @@ kpick 227745 # lineage: Enable FM apps
 kpick 225583 # manifest: Enable lineage styles overlays
 kpick 227747 # lineage: Enable weather apps
 kpick 226755 # lineage: Enable cryptfs_hw
-kpick 228594 # manifest: Track our own hardware/broadcom/nfc
 
 android_head=$(cd android;git log -n 1 | sed -n 1p | cut -d' ' -f2;cd $topdir)
 
@@ -946,7 +945,7 @@ kpick 225239 # zlib: crc optimization for arm64
 kpick 230387 # CameraService: Support calling addStates in enumerateProviders
 kpick 230642 # CameraService: Initialize CameraParameters for the cameras and cache them onFirstRef
 kpick 231136 # pie-gsi-tracking
-kpick 231348 # camera: Catch mad hals that mess up buffer time
+kpick 231348 # camera: Allow to use boottime as timestamp reference
 
 # frameworks/base
 kpick 224266 # SystemUI: Add Lineage statusbar item holder
@@ -1017,15 +1016,9 @@ kpick 229605 # Telephony: Don not call onUssdRelease for Huawei RIL
 
 # hardware/boardcom/libbt
 kpick 225155 # Broadcom BT: Add support fm/bt via v4l2.
-kpick 226447 # libbt: Make sure that we don't load pre-patch when looking for patch
+#kpick 226447 # libbt: Make sure that we don't load pre-patch when looking for patch
 
 # hardware/boardcom/nfc
-kpick 230348 # Remove all files not related to bcm2079x NFC HAL
-kpick 230349 # Remove nfca_version.h
-kpick 230350 # Move CrcChecksum to bcm2079x HAL
-kpick 230351 # Add flags to fix build errors under Pie
-kpick 230352 # Change config name for Pie
-kpick 230353 # Move include files into halimpl folder
 
 # hardware/boardcomm/wlan
 
@@ -1052,7 +1045,6 @@ kpick 223338 # Revert "msm8x74: remove from top level makefile"
 kpick 230749 # audio: Use generated kernel headers
 
 # hardware/qcom/audio-caf/msm8974
-kpick 223436 # Add -Wno-error to compile with global -Werror.
 
 # hardware/qcom/bt-caf
 kpick 226648 # libbt: Fix case where SoC type is not set
@@ -1079,61 +1071,8 @@ kpick 223346 # msm8974: libexternal should depend on libmedia
 kpick 224958 # msm8960/8974: Include string.h where it is necessary
 
 # hardware/qcom/display-caf/msm8974
-kpick 226481 # display: remove compile time warnings
-kpick 226482 # display: Enable clang for all display modules
 
 # hardware/qcom/fm
-kpick 226731 # Use BOARD_HAVE_QCOM_FM flag
-kpick 226745 # fm_hci/helium: Exclude from OSS builds
-kpick 226683 # Bring back libfm_jni for devices using AOSP FM app
-kpick 226685 # jni/libfm_jni: fix calibration data path for legacy fm_qsoc_patches
-kpick 226692 # jni/libfm_jni: Skip loading FM firmware if requested
-kpick 226687 # libfm_jni: Do not come here unless QCOM_HARDWARE is in use
-kpick 226688 # libfm_jni: Add support for internal antenna hardware
-kpick 226689 # libfm_jni: Improve and fix FM jni logs
-kpick 226737 # libfm_jni: Fix strchr implicit char* typecast in ConfFileParser
-kpick 226738 # libfm_jni: Add jni core headers dependency
-kpick 226742 # jni/libfm_jni: Remove unused variables
-kpick 226743 # libfm_jni: Resolve fread assignment to condition cast
-kpick 223685 # jni/libfm_jni: Resolve FM_DEVICE_PATH R/O open flag
-kpick 226744 # jni/libfm_jni: Ignore unused parameters from APIs
-kpick 223678 # libfm_jni: use proper nativehelper headers
-kpick 223684 # jni: Resolve equality comparisons with extraneous parentheses
-kpick 223687 # jni: Resolve V4L2_CID_AUDIO_MUTE redefinitions
-kpick 223692 # jni: Resolve -Wwritable-strings warnings in helium FW library variables
-kpick 226741 # Allow library to be used by apps directly
-kpick 226694 # FM: Break bootclasspath dependency
-kpick 226696 # FM: Re-vamp UI
-kpick 226697 # FM: Restore seek arrows
-kpick 226710 # FM: Make default country an overlay
-kpick 226699 # FM: Re-add RDS fields to UI
-kpick 226700 # FM: Scanned frequencies are saved in ascending ordering
-kpick 226701 # FM: Call unregister in onPause
-kpick 226702 # FM: Switch file extension to aac
-kpick 226714 # FM: Add property to force use internal antenna
-kpick 226727 # FM: Cleanup resources
-kpick 226705 # FM: add Indonesia
-kpick 226732 # FM: materialize
-kpick 226709 # FM: retune last frequency when resume after call
-kpick 226711 # FM: Store tag num/value in sequence
-kpick 226712 # FM: reenable radio text visibility after station info updated
-kpick 226713 # FM: Launch station list automatically after scan
-kpick 226715 # FM: fix mRadioTextScroller usage in transmitter activity
-kpick 226716 # FM: Fix status text to reflect when FM is enabled.
-kpick 226717 # FM: The collect channel disappear when quit FM
-kpick 226718 # FM: Ensure scan state is kept in sync
-kpick 226719 # FM: Keep track of scanned frequencies in service
-kpick 226721 # FM: Select band based on country
-kpick 226722 # FM: improved band selection
-kpick 226723 # FM: Localization of band types
-kpick 226724 # FM: Fix settings UI bugs
-kpick 226725 # FM: Fix headphone icon
-kpick 226726 # FM: Update India bands
-kpick 226729 # FM: Convert regional band arrays to string references
-kpick 226734 # FM: Fix KHz->kHz
-kpick 226735 # FM: Convert FM transmitter notifications to use NotificationChannel
-kpick 226736 # FM: Revamp notifications
-kpick 226740 # FM: adaptive icon
 
 # hardware/qcom/gps
 kpick 223351 # Revert "msm8974: deprecate msm8974"
@@ -1147,6 +1086,9 @@ kpick 223358 # msm8974: Fix logging level and remove nmea log
 kpick 223359 # msm8974: Don't rely on transitively included headers
 kpick 223360 # msm8974: Return the correct length of nmea sentence
 kpick 225034 # msm8974: Add -Wno-error to compile with global -Werror.
+
+# hardware/qcom/keymaster
+kpick 224954 # keymaster: move to /vendor
 
 # hardware/qcom/media
 kpick 224289 # Add -Wno-error to compile with global -Werror.
@@ -1234,8 +1176,10 @@ kpick 231355 # Eleven: Fix crash after receiving media button intent
 
 # packages/apps/Gallery2
 
+# packages/apps/Jelly
+kpick 231418 # Automatic translation import
+
 # packages/apps/LineageParts
-#kpick 226863 # LineageParts: Drop `Control ringtone volume` setting
 kpick 227930 # LineageParts: Bring back and refactor battery icon options
 kpick 221756 # StatusBarSettings: Hide battery preference category based on icon visibility
 kpick 229389 # Trust: enforce vendor security patch level check
@@ -1243,7 +1187,6 @@ kpick 230017 # LineageParts: Re-enable expanded desktop.
 kpick 231163 # LineageParts: Add some missing psychedelics
 
 # packages/apps/Settings
-kpick 224615 # deviceInfo: Fix imei dialog fc when only 1 sim is inserted
 kpick 225755 # Settings: Hide AOSP theme-related controllers
 kpick 225756 # Settings: fix dark style issues
 kpick 226142 # Settings: Add developer setting for root access
@@ -1259,8 +1202,6 @@ kpick 229167 # Settings: Hide Night Mode suggestion if LiveDisplay feature is pr
 kpick 229312 # Add Dual Channel into Bluetooth Audio Channel Mode developer options menu
 kpick 229453 # Settings: use LineageHW serial number
 kpick 229479 # Settings: Improve phone number preference ordering
-kpick 231158 # Settings: fix apn_editor carrier_enabled summaryOff string
-kpick 231352 # Settings: Sim status and IMEI info are wrong if only sim2 inserted
 
 # packages/apps/Trebuchet
 kpick 223666 # Settings: Hide Notification Dots on low RAM devices
@@ -1275,9 +1216,9 @@ kpick 229610 # Telephony: Support muting by RIL command
 kpick 229611 # Telephony: Use a common prop for Huawei RIL hacks (2/2)
 
 # system/bt
-kpick 223945 # Prevent abort in case of command timeout
 kpick 224813 # bt: osi: undef PROPERTY_VALUE_MAX
 kpick 225422 # Bluetooth: Read BLE vendor capability to proceed on Secure conn
+kpick 223945 # Prevent abort in case of command timeout
 kpick 225423 # Add support to force disable enhanced sco commands
 kpick 229125 # Increase maximum Bluetooth SBC codec bitpool and bitrate values
 kpick 229313 # Explicit SBC Dual Channel (SBC HD) support
@@ -1334,7 +1275,6 @@ kpick 226922 # System always contains root dir.
 kpick 231201 # netd: Allow devices to force-add directly-connected routes
 
 # system/sepolicy
-kpick 223746 # Add rules required for TARGET_HAS_LEGACY_CAMERA_HAL1
 kpick 223748 # Build sepolicy tools with Android.bp.
 kpick 230613 # Allow webview_zygote to read /dev/ion
 kpick 231134 # pie-gsi-tracking
@@ -1379,11 +1319,6 @@ kpick 229620 # backuptool: Support non-A/B system-as-root
 kpick 231291 # repopick: add hashtag support
 
 # vendor/qcom/opensource/cryptfs/hw
-kpick 226128 # cryptfs_hw: Add compatibility for pre-O hw crypto
-kpick 226129 # cryptfs_hw: Featureize support for waiting on QSEE to start
-kpick 226130 # cryptfs_hw: add missing logging tag
-kpick 226403 # cryptfs_hw: Remove unused variable
-kpick 230271 # cryptfs_hw: Use generated kernel headers
 
 #-----------------------
 # translations
