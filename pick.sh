@@ -1224,6 +1224,8 @@ kpick 231355 # Eleven: Fix crash after receiving media button intent
 
 # packages/apps/Jelly
 kpick 231418 # Automatic translation import
+kpick 231710 # Jelly: Set proper mime type when downloading files
+kpick 231711 # Jelly: Grant REQUEST_INSTALL_PACKAGES permission
 
 # packages/apps/LineageParts
 kpick 227930 # LineageParts: Bring back and refactor battery icon options
