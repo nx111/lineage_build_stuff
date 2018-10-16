@@ -1,0 +1,274 @@
+From a84460f0fd4ec1fde7b8721ad93bc35bb103749b Mon Sep 17 00:00:00 2001
+From: nx111 <gd.zhangdz@gmail.com>
+Date: Tue, 16 Oct 2018 23:35:56 +0800
+Subject: [PATCH 46/46] Revert "f/b: port more to privacy guard. [DNM]"
+
+This reverts commit a16231524794c0487d7fde58fde45ee0b45f97f6.
+---
+ core/java/android/app/AppOpsManager.java      |  26 -----
+ .../android/internal/app/IAppOpsService.aidl  |   7 --
+ .../com/android/server/AppOpsService.java     | 108 +-----------------
+ .../com/android/server/am/ActivityRecord.java |  29 -----
+ .../server/pm/PackageManagerService.java      |  12 --
+ 5 files changed, 1 insertion(+), 181 deletions(-)
+
+diff --git a/core/java/android/app/AppOpsManager.java b/core/java/android/app/AppOpsManager.java
+index b16e7ab91a2..98e2001e543 100644
+--- a/core/java/android/app/AppOpsManager.java
++++ b/core/java/android/app/AppOpsManager.java
+@@ -2648,30 +2648,4 @@ public class AppOpsManager {
+         }
+         return time;
+     }
+-
+-    /** @hide */
+-    public boolean getPrivacyGuardSettingForPackage(int uid, String packageName) {
+-        try {
+-            return mService.getPrivacyGuardSettingForPackage(uid, packageName);
+-        } catch (RemoteException e) {
+-        }
+-        return false;
+-    }
+-
+-    /** @hide */
+-    public void setPrivacyGuardSettingForPackage(int uid, String packageName,
+-            boolean state) {
+-        try {
+-            mService.setPrivacyGuardSettingForPackage(uid, packageName, state);
+-        } catch (RemoteException e) {
+-        }
+-    }
+-
+-    /** @hide */
+-    public void resetCounters() {
+-        try {
+-            mService.resetCounters();
+-        } catch (RemoteException e) {
+-        }
+-    }
+ }
+diff --git a/core/java/com/android/internal/app/IAppOpsService.aidl b/core/java/com/android/internal/app/IAppOpsService.aidl
+index c2a1a343213..0ed97247712 100644
+--- a/core/java/com/android/internal/app/IAppOpsService.aidl
++++ b/core/java/com/android/internal/app/IAppOpsService.aidl
+@@ -56,11 +56,4 @@ interface IAppOpsService {
+     boolean isOperationActive(int code, int uid, String packageName);
+ 
+     void startWatchingModeWithFlags(int op, String packageName, int flags, IAppOpsCallback callback);
+-
+-    // Privacy guard methods
+-    boolean getPrivacyGuardSettingForPackage(int uid, String packageName);
+-    void setPrivacyGuardSettingForPackage(int uid, String packageName, boolean state);
+-
+-    // AppOps accounting
+-    void resetCounters();
+ }
+diff --git a/services/core/java/com/android/server/AppOpsService.java b/services/core/java/com/android/server/AppOpsService.java
+index 16601b83a31..6589dd0df69 100644
+--- a/services/core/java/com/android/server/AppOpsService.java
++++ b/services/core/java/com/android/server/AppOpsService.java
+@@ -1598,68 +1598,12 @@ public class AppOpsService extends IAppOpsService.Stub {
+             } else {
+                 final Op switchOp = switchCode != code ? getOpLocked(ops, switchCode, true) : op;
+                 final int mode = switchOp.getMode();
+-                if (mode != AppOpsManager.MODE_ALLOWED
+-                      && mode != AppOpsManager.MODE_ASK) {
++                if (mode != AppOpsManager.MODE_ALLOWED) {
+                     if (DEBUG) Slog.d(TAG, "noteOperation: reject #" + mode + " for code "
+                             + switchCode + " (" + code + ") uid " + uid + " package "
+                             + packageName);
+                     op.rejectTime[uidState.state] = System.currentTimeMillis();
+                     return mode;
+-                } else if (mode == AppOpsManager.MODE_ASK) {
+-                    if (Looper.myLooper() == mLooper) {
+-                        Log.e(TAG,
+-                                "noteOperation: This method will deadlock if called from the main thread. (Code: "
+-                                        + code
+-                                        + " uid: "
+-                                        + uid
+-                                        + " package: "
+-                                        + packageName + ")");
+-                        return mode;
+-                    }
+-
+-                    if (DEBUG) {
+-                            Log.d(TAG, "Package " + op.packageName + " has " + op.noteOpCount
+-                                    + " requests and " + op.startOpCount + " start requests with "
+-                                    + op.ignoredCount + " ignored at " + op.time +
+-                                    " with a duration of "
+-                                    + op.duration + " while being delayed " + op.delayedCount +
+-                                    " times");
+-                            Log.d(TAG, "Total pkops for " + ops.packageName + " "
+-                                    + ops.uidState.pkgOps.size());
+-                    }
+-
+-                    // First drop all request events if the device is not interactive, next
+-                    // check what the global pkg ops count for the package,
+-                    // then check op scoped count. High frequency request ops will be delayed until
+-                    // their delay count ceiling is met. This is to mitigate the overloading the
+-                    // main activity manager service handler and having watchdog kill our service.
+-                    // Google play services likes to share its uid with numerous packages to avoid
+-                    // having to grant permissions from the users perspective and thus is the worst
+-                    // example of overloading this queue -- so, to not encourage bad behavior,
+-                    // we move them to the back of the line. NOTE: these values are magic, and may need
+-                    // tuning. Ideally we'd want a ringbuffer or token bucket here to do proper rate
+-                    // limiting.
+-                    final boolean isInteractive = mPowerManager.isInteractive();
+-                    if (isInteractive &&
+-                            (ops.uidState.pkgOps.size() < AppOpsPolicy.RATE_LIMIT_OPS_TOTAL_PKG_COUNT
+-                            && op.noteOpCount < AppOpsPolicy.RATE_LIMIT_OP_COUNT
+-                            || op.delayedCount > AppOpsPolicy.RATE_LIMIT_OP_DELAY_CEILING)) {
+-
+-                        // Reset delayed count, most ops will never need this
+-                        if (op.delayedCount > 0) {
+-                            if (DEBUG) Log.d(TAG, "Resetting delayed count for " + op.packageName);
+-                            op.delayedCount = 0;
+-                        }
+-
+-                        op.noteOpCount++;
+-                        req = askOperationLocked(code, uid, packageName, switchOp);
+-                    } else {
+-                        if (isInteractive) {
+-                            op.delayedCount++;
+-                        }
+-                        op.ignoredCount++;
+-                        return AppOpsManager.MODE_IGNORED;
+-                    }
+                 }
+             }
+             if (DEBUG) Slog.d(TAG, "noteOperation: allowing code " + code + " uid " + uid
+@@ -1752,7 +1696,6 @@ public class AppOpsService extends IAppOpsService.Stub {
+             if (uidState.opModes != null && uidState.opModes.indexOfKey(switchCode) >= 0) {
+                 final int uidMode = uidState.evalMode(uidState.opModes.get(switchCode));
+                 if (uidMode != AppOpsManager.MODE_ALLOWED
+-                        && switchOp.mode != AppOpsManager.MODE_ASK
+                         && (!startIfModeDefault || uidMode != AppOpsManager.MODE_DEFAULT)) {
+                     if (DEBUG) Slog.d(TAG, "noteOperation: uid reject #" + uidMode + " for code "
+                             + switchCode + " (" + code + ") uid " + uid + " package "
+@@ -3849,53 +3792,4 @@ public class AppOpsService extends IAppOpsService.Stub {
+             }
+         }
+     }
+-
+-    @Override
+-    public boolean getPrivacyGuardSettingForPackage(int uid, String packageName) {
+-        for (int op : AppOpsManager.PRIVACY_GUARD_OP_STATES) {
+-            int switchOp = AppOpsManager.opToSwitch(op);
+-            int mode = checkOperation(op, uid, packageName);
+-            if (mode != AppOpsManager.MODE_ALLOWED && mode != AppOpsManager.MODE_IGNORED) {
+-                return true;
+-            }
+-        }
+-        return false;
+-    }
+-
+-    @Override
+-    public void setPrivacyGuardSettingForPackage(int uid, String packageName, boolean state) {
+-        for (int op : AppOpsManager.PRIVACY_GUARD_OP_STATES) {
+-            int switchOp = AppOpsManager.opToSwitch(op);
+-            setMode(switchOp, uid, packageName, state
+-                    ? AppOpsManager.MODE_ASK : AppOpsManager.MODE_ALLOWED);
+-        }
+-    }
+-
+-    @Override
+-    public void resetCounters() {
+-        mContext.enforcePermission(android.Manifest.permission.UPDATE_APP_OPS_STATS,
+-                Binder.getCallingPid(), Binder.getCallingUid(), null);
+-        synchronized (this) {
+-            for (int i = 0; i < mUidStates.size(); i++) {
+-                final UidState uidState = mUidStates.valueAt(i);
+-                if (uidState.pkgOps == null || uidState.pkgOps.isEmpty())
+-                    continue;
+-                for (Map.Entry<String, Ops> ent : uidState.pkgOps.entrySet()) {
+-                    if (ent == null)
+-                        continue;
+-                    String packageName = ent.getKey();
+-                    Ops pkgOps = ent.getValue();
+-                    for (int j = 0; j < pkgOps.size(); j++) {
+-                        Op curOp = pkgOps.valueAt(j);
+-                        if (curOp == null)
+-                            continue;
+-                        curOp.allowedCount = 0;
+-                        curOp.ignoredCount = 0;
+-                    }
+-                }
+-            }
+-            // ensure the counter reset persists
+-            scheduleWriteLocked();
+-        }
+-    }
+ }
+diff --git a/services/core/java/com/android/server/am/ActivityRecord.java b/services/core/java/com/android/server/am/ActivityRecord.java
+index 9c9632aafa3..c721b7e34f3 100644
+--- a/services/core/java/com/android/server/am/ActivityRecord.java
++++ b/services/core/java/com/android/server/am/ActivityRecord.java
+@@ -191,8 +191,6 @@ import com.android.server.wm.AppWindowContainerListener;
+ import com.android.server.wm.ConfigurationContainer;
+ import com.android.server.wm.TaskWindowContainerController;
+ 
+-import lineageos.providers.LineageSettings;
+-
+ import org.xmlpull.v1.XmlPullParser;
+ import org.xmlpull.v1.XmlPullParserException;
+ import org.xmlpull.v1.XmlSerializer;
+@@ -1891,33 +1889,6 @@ final class ActivityRecord extends ConfigurationContainer implements AppWindowCo
+             // pause and then resume again later, which will result in a double life-cycle event.
+             stack.checkReadyForSleep();
+         }
+-
+-        updatePrivacyGuardNotificationLocked();
+-    }
+-
+-    private final void updatePrivacyGuardNotificationLocked() {
+-        String privacyGuardPackageName = mStackSupervisor.mPrivacyGuardPackageName;
+-        if (privacyGuardPackageName != null && privacyGuardPackageName.equals(this.packageName)) {
+-            return;
+-        }
+-
+-        boolean privacy = service.mAppOpsService.getPrivacyGuardSettingForPackage(
+-                this.app.uid, this.packageName);
+-        boolean privacyNotification = (LineageSettings.Secure.getInt(
+-                service.mContext.getContentResolver(),
+-                LineageSettings.Secure.PRIVACY_GUARD_NOTIFICATION, 1) == 1);
+-
+-        if (privacyGuardPackageName != null && !privacy) {
+-            Message msg = service.mHandler.obtainMessage(
+-                    ActivityManagerService.CANCEL_PRIVACY_NOTIFICATION_MSG, this.userId);
+-            msg.sendToTarget();
+-            mStackSupervisor.mPrivacyGuardPackageName = null;
+-        } else if (privacy && privacyNotification) {
+-            Message msg = service.mHandler.obtainMessage(
+-                    ActivityManagerService.POST_PRIVACY_NOTIFICATION_MSG, this);
+-            msg.sendToTarget();
+-            mStackSupervisor.mPrivacyGuardPackageName = this.packageName;
+-        }
+     }
+ 
+     final void activityStoppedLocked(Bundle newIcicle, PersistableBundle newPersistentState,
+diff --git a/services/core/java/com/android/server/pm/PackageManagerService.java b/services/core/java/com/android/server/pm/PackageManagerService.java
+index 14620951021..2faf95d7709 100644
+--- a/services/core/java/com/android/server/pm/PackageManagerService.java
++++ b/services/core/java/com/android/server/pm/PackageManagerService.java
+@@ -2154,18 +2154,6 @@ public class PackageManagerService extends IPackageManager.Stub
+                 }
+             }
+ 
+-            if (!update && !isSystemApp(res.pkg)) {
+-                boolean privacyGuard = LineageSettings.Secure.getIntForUser(
+-                        mContext.getContentResolver(),
+-                        LineageSettings.Secure.PRIVACY_GUARD_DEFAULT,
+-                        0, UserHandle.USER_CURRENT) == 1;
+-                if (privacyGuard) {
+-                    mAppOps.setPrivacyGuardSettingForPackage(
+-                    res.pkg.applicationInfo.uid,
+-                    res.pkg.applicationInfo.packageName, true);
+-                }
+-            }
+-
+             if (allNewUsers && !update) {
+                 notifyPackageAdded(packageName);
+             }
+-- 
+2.17.1
+

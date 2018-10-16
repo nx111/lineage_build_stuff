@@ -831,9 +831,6 @@ fi       # continue pick or not
 # device/samsung/kltechnduo
 
 # device/samsung/klte-common
-kpick 231029 # klte-common: Set SDK API level for rild
-kpick 231207 # klte-common: Rename libnfc-brcm.conf -> libnfc-nci.conf
-kpick 231208 # klte-common: nfc: remove unsupported MAX_RF_DATA_CREDITS config
 kpick 231209 # klte-common: nfc: pn547: Use prebuilt NFC HAL from 15.1
 kpick 225192 # klte-common: Align ril.h to samsung_msm8974-common P libril changes
 kpick 224917 # DO NOT MERGE: klte-common: Requisite bring-up BS change
@@ -855,7 +852,6 @@ kpick 223067 # libc fortify: Ignore open() O_TMPFILE mode bits warning
 kpick 225463 # bionic: Let popen and system fall back to /sbin/sh
 kpick 229488 # Revert "linker: Make platform text relocations denial optional"
 kpick 230099 # Actually restore pre-P mutex behavior
-kpick 230762 # bionic: Fix more mutex breakage
 
 # boot/recovery
 #kpick 230746 # sr: Get a proper shell environment in recovery
@@ -867,7 +863,6 @@ kpick 222742 # build: Use project pathmap for recovery
 kpick 222760 # Add LOCAL_AIDL_FLAGS
 kpick 227111 # releasetools: Store the build.prop file in the OTA zip
 kpick 229491 # build: Automatically replace old-style kernel header includes with new header lib
-kpick 231135 # pie-gsi-tracking
 
 # build/soong
 kpick 222648 # Allow providing flex and bison binaries
@@ -943,7 +938,6 @@ kpick 225239 # zlib: crc optimization for arm64
 # frameworks/av
 kpick 230387 # CameraService: Support calling addStates in enumerateProviders
 kpick 230642 # CameraService: Initialize CameraParameters for the cameras and cache them onFirstRef
-kpick 231136 # pie-gsi-tracking
 kpick 231348 # camera: Allow to use boottime as timestamp reference
 
 # frameworks/base
@@ -982,10 +976,13 @@ kpick 229309 # Allow SBC as HD audio codec in Bluetooth device configuration
 kpick 229606 # ConsumerIR: Support Huawei's DSP chip implementation
 kpick 229612 # Performance: Memory Optimizations.
 kpick 230016 # Implement expanded desktop feature
-kpick 230112 # ConnectivityManager: Change default private DNS mode
-kpick 230361 # fw/b UserManagerService: Use ro.build.date to signal upgrades
 kpick 230388 # base: show bluetooth battery status when available
 kpick 230600 # FingerprintService: add property to prevent cleanup of unused fingerprints
+kpick 231796 # SignalClusterView: Hide signal icons for disabled SIMs
+kpick 231797 # Keyguard: Remove carrier text for disabled SIMs
+kpick 231823 # Do not move the multi-window divider when showing IME
+kpick 231824 # Fix StatusBar icons tinting when in split screen
+kpick 231827 # Add display shrink mode
 
 # frameworks/native
 kpick 224443 # libbinder: Don't log call trace when waiting for vendor service on non-eng builds
@@ -997,6 +994,7 @@ kpick 225546 # AppOpsManager: Update with the new ops
 kpick 229400 # HAXX to allow too large dimensions
 kpick 229607 # HACK: SF: Force client composition for all layers
 kpick 230610 # APP may display abnormally in landscape LCM
+kpick 231828 # Translate pointer motion events for OneHandOperation Display Shrink
 
 # frameworks/opt/net/wifi
 kpick 224675 # libwifi-hal: add flag to wait for kernel driver to get ready
@@ -1046,18 +1044,6 @@ kpick 230749 # audio: Use generated kernel headers
 # hardware/qcom/audio-caf/msm8974
 
 # hardware/qcom/bt-caf
-kpick 226648 # libbt: Fix case where SoC type is not set
-kpick 226649 # Bluetooth: load btaddr from NV if QCOM_BT_USE_BTNV is set
-kpick 226650 # libbt-qcom: Allow reading BT address from property
-kpick 226651 # Add vendor-specific message types for FM.
-kpick 226652 # Remove hardcoded LOCAL_MODULE_PATHS from vendor components. (bt)
-kpick 226653 # BT: Moving chipset version parameters' initialization out of ALOG
-kpick 226654 # Apply the Cherokee's mechanism of stopping hci_filter to ROME
-kpick 226655 # Add missing headers to libbt-vendor
-kpick 226656 # Load bluetooth firmwares from /vendor
-kpick 226658 # Don't build libbt-hidlclient for OSS builds
-kpick 227449 # libbt-vendor: Fix BLUETOOTH_MAC_ADDR_BOOT_PROPERTY definition
-kpick 227450 # libbt-vendor: Add missing vendor prefix to a bluetooth.status prop
 
 # hardware/qcom/display
 kpick 223340 # Revert "msm8974: deprecate msm8974"
@@ -1252,11 +1238,13 @@ kpick 229453 # Settings: use LineageHW serial number
 kpick 229479 # Settings: Improve phone number preference ordering
 kpick 231518 # Settings: Check if we have any color modes declared in overlay
 kpick 231590 # SimSettings: Add manual SIM provisioning support
+kpick 231826 # Update the white list of Data saver
 
 # packages/apps/SettingsIntelligence
 kpick 230519 # Fix dark style issues
 kpick 231538 # SettingsIntelligence: Match Settings style
 kpick 231539 # SettingsIntelligence: Regen database on build version change
+kpick 231825 # Increase time limit of search task
 
 # packages/apps/Trebuchet
 kpick 223666 # Settings: Hide Notification Dots on low RAM devices
@@ -1288,7 +1276,6 @@ kpick 224264 # debuggerd: Resolve tombstoned missing O_CREAT mode
 kpick 226119 # libion: save errno value
 kpick 226120 # fs_mgr: Wrapped key support for FBE
 kpick 230755 # libsuspend: Bring back earlysuspend
-kpick 231133 # pie-gsi-tracking
 
 # system/extras
 kpick 225426 # f2fs_utils: Add a static libf2fs_sparseblock for minvold
@@ -1331,7 +1318,6 @@ kpick 231201 # netd: Allow devices to force-add directly-connected routes
 # system/sepolicy
 kpick 223748 # Build sepolicy tools with Android.bp.
 kpick 230613 # Allow webview_zygote to read /dev/ion
-kpick 231134 # pie-gsi-tracking
 
 # system/tool/aidl
 kpick 223133 # AIDL: Add option to generate No-Op methods
