@@ -195,9 +195,9 @@ function projects_snapshot()
               echo "$project, $commit_id, $url" >> $snapshot_file.new
          elif [ "$1" != "" -a "$project" = "$vproject" ]; then
               if [ -f $snapshot_file.new ]; then
-                     eval sed -e \"s|^$project.*|$project,$commit_id, $url|" -i $snapshot_file.new 
+                     eval "sed -e \"s|^$project.*|$project,$commit_id, $url|" -i $snapshot_file.new"
               else
-                     eval sed -e \"s|^$project.*|$project,$commit_id, $url|" -i $snapshot_file
+                     eval "sed -e \"s|^$project.*|$project,$commit_id, $url|" -i $snapshot_file"
               fi
          fi
 
@@ -983,6 +983,10 @@ kpick 231797 # Keyguard: Remove carrier text for disabled SIMs
 kpick 231823 # Do not move the multi-window divider when showing IME
 kpick 231824 # Fix StatusBar icons tinting when in split screen
 kpick 231827 # Add display shrink mode
+kpick 231847 # onehand: Enable debug only on eng builds
+kpick 231848 # SystemUI: Add one hand mode triggers
+kpick 231851 # onehand: Take into account cutouts
+kpick 231852 # onehand: Remove guide link
 
 # frameworks/native
 kpick 224443 # libbinder: Don't log call trace when waiting for vendor service on non-eng builds
@@ -1276,6 +1280,7 @@ kpick 224264 # debuggerd: Resolve tombstoned missing O_CREAT mode
 kpick 226119 # libion: save errno value
 kpick 226120 # fs_mgr: Wrapped key support for FBE
 kpick 230755 # libsuspend: Bring back earlysuspend
+kpick 231716 # init: Always use libbootloader_message from bootable/recovery namespace
 
 # system/extras
 kpick 225426 # f2fs_utils: Add a static libf2fs_sparseblock for minvold
@@ -1333,6 +1338,7 @@ kpick 226111 # vold: Wrapped key support for FBE
 kpick 229304 # vold: Add texfat and sdfat support
 kpick 229954 # Move kMajor* constants to a header file
 kpick 229955 # vold: ISO9660 and UDF support
+kpick 231717 # vold: Always use libbootloader_message from bootable/recovery namespace
 
 # vendor/lineage
 kpick 223773 # Add IPv6 for Oister and 3. The 3.dk and oister.dk carriers now support IPv6 with the APN ”data.tre.dk”.
