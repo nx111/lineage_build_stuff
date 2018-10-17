@@ -856,6 +856,7 @@ kpick 230099 # Actually restore pre-P mutex behavior
 # boot/recovery
 #kpick 230746 # sr: Get a proper shell environment in recovery
 kpick 230747 # update_verifier: skip verity to determine successful on lineage builds
+kpick 231718 # recovery: Declare a soong namespace
 
 # build/make
 kpick 222733 # core: Disable vendor restrictions
@@ -1143,6 +1144,21 @@ kpick 224957 # media: vdec: Include nativebase headers
 
 # hardware/qcom/power
 kpick 230513 # power: msm8960: Implement performance profiles
+kpick 231884 # sdm670:power: Turn on/off display
+kpick 231885 # Rename sdm670 to sdm710
+kpick 231886 # power: Notify touch of display status
+kpick 231887 # power: Fix VNDK Compilation Errors
+kpick 231888 # power: Fix for VNDK compliance issue
+kpick 231889 # Add touch boost override
+kpick 231890 # power: Turn on/off display
+kpick 231891 # sdm710 : fixed VNDK compilation for warlock
+kpick 231892 # VNDK: Added required libs
+kpick 231893 # Power: Fixing the header inclusion for VNDK.
+kpick 231894 # VNDK: Added required headers for 8998 target
+kpick 231895 # VNDK: Added required libs
+kpick 231896 # power: Turn on/off display in SDM439
+kpick 231897 # power: qcom: powerHal for sdm439 and sdm429
+kpick 231898 # Power: Naming convention change
 
 # hardware/qcom/wlan-caf
 kpick 226638 # wcnss_qmi: Generate a fixed random mac address if the NV doesn't provide one
