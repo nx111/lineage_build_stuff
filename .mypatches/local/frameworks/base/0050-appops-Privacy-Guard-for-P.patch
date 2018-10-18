@@ -1,4 +1,4 @@
-From 0725fd74cbdf7924e5f0e81196c293e8c8abba60 Mon Sep 17 00:00:00 2001
+From 6d6c594e7252da096d327d65f47aa1cc32e63762 Mon Sep 17 00:00:00 2001
 From: Steve Kondik <steve@cyngn.com>
 Date: Sun, 20 Oct 2013 23:48:00 -0700
 Subject: [PATCH 50/50] appops: Privacy Guard for P
@@ -357,8 +357,7 @@ Date:   Tue Sep 6 21:33:57 2016 +0800
 
 Change-Id: I5414dd0be6a81e143f5035e58709ac4258c93616
 ---
- core/java/android/app/AppOpsManager.java      | 350 ++++++++++-
- core/java/android/os/UserManager.java         |   1 +
+ core/java/android/app/AppOpsManager.java      | 355 ++++++++++-
  core/java/android/provider/Settings.java      |  13 +
  .../android/internal/app/IAppOpsService.aidl  |   9 +
  core/res/AndroidManifest.xml                  |   3 +
@@ -374,7 +373,7 @@ Change-Id: I5414dd0be6a81e143f5035e58709ac4258c93616
  .../statusbar/policy/SuController.java        |  27 +
  .../statusbar/policy/SuControllerImpl.java    | 137 +++++
  .../java/com/android/server/AppOpsPolicy.java | 440 ++++++++++++++
- .../com/android/server/AppOpsService.java     | 572 ++++++++++++++++--
+ .../com/android/server/AppOpsService.java     | 575 ++++++++++++++++--
  .../android/server/BasePermissionDialog.java  |  84 +++
  .../server/BluetoothManagerService.java       |  12 +-
  .../com/android/server/PermissionDialog.java  | 145 +++++
@@ -385,9 +384,9 @@ Change-Id: I5414dd0be6a81e143f5035e58709ac4258c93616
  .../com/android/server/am/UserController.java |  15 +
  .../server/pm/PackageManagerService.java      |  18 +-
  .../android/server/pm/UserManagerService.java |   2 +
- .../server/pm/UserRestrictionsUtils.java      |   2 +
+ .../server/pm/UserRestrictionsUtils.java      |   6 +-
  .../android/telephony/TelephonyManager.java   |  12 +
- 30 files changed, 2388 insertions(+), 49 deletions(-)
+ 29 files changed, 2397 insertions(+), 51 deletions(-)
  create mode 100644 core/res/res/drawable/stat_notify_privacy_guard.xml
  create mode 100644 core/res/res/layout/permission_confirmation_dialog.xml
  create mode 100644 core/res/res/values/lineage_arrays.xml
@@ -400,7 +399,7 @@ Change-Id: I5414dd0be6a81e143f5035e58709ac4258c93616
  create mode 100644 services/core/java/com/android/server/PermissionDialogReqQueue.java
 
 diff --git a/core/java/android/app/AppOpsManager.java b/core/java/android/app/AppOpsManager.java
-index 001dc1ba4ad..b9753a0ea9b 100644
+index 001dc1ba4ad..1e0c7484683 100644
 --- a/core/java/android/app/AppOpsManager.java
 +++ b/core/java/android/app/AppOpsManager.java
 @@ -1,5 +1,7 @@
@@ -764,19 +763,25 @@ index 001dc1ba4ad..b9753a0ea9b 100644
          for (int i=0; i<_NUM_OP; i++) {
              if (sOpToString[i] != null) {
                  sOpStrToOp.put(sOpToString[i], i);
-@@ -1509,7 +1753,10 @@ public class AppOpsManager {
+@@ -1509,7 +1753,17 @@ public class AppOpsManager {
       * Retrieve the default mode for the operation.
       * @hide
       */
--    public static int opToDefaultMode(int op) {
 +    public static int opToDefaultMode(int op, boolean isStrict) {
 +        if (isStrict) {
++            return sOpDefaultStrictMode[op];
++        }
++        return sOpDefaultMode[op];
++    }
++
+     public static int opToDefaultMode(int op) {
++        if (isStrictOp(op)) {
 +            return sOpDefaultStrictMode[op];
 +        }
          return sOpDefaultMode[op];
      }
  
-@@ -1608,9 +1855,11 @@ public class AppOpsManager {
+@@ -1608,9 +1862,11 @@ public class AppOpsManager {
          private final int mProxyUid;
          private final boolean mRunning;
          private final String mProxyPackageName;
@@ -789,7 +794,7 @@ index 001dc1ba4ad..b9753a0ea9b 100644
              mOp = op;
              mMode = mode;
              mTimes = new long[_NUM_UID_STATE];
-@@ -1621,10 +1870,12 @@ public class AppOpsManager {
+@@ -1621,10 +1877,12 @@ public class AppOpsManager {
              mRunning = duration == -1;
              mProxyUid = proxyUid;
              mProxyPackageName = proxyPackage;
@@ -803,7 +808,7 @@ index 001dc1ba4ad..b9753a0ea9b 100644
              mOp = op;
              mMode = mode;
              mTimes = new long[_NUM_UID_STATE];
-@@ -1635,11 +1886,13 @@ public class AppOpsManager {
+@@ -1635,11 +1893,13 @@ public class AppOpsManager {
              mRunning = running;
              mProxyUid = proxyUid;
              mProxyPackageName = proxyPackage;
@@ -819,7 +824,7 @@ index 001dc1ba4ad..b9753a0ea9b 100644
          }
  
          public int getOp() {
-@@ -1706,6 +1959,14 @@ public class AppOpsManager {
+@@ -1706,6 +1966,14 @@ public class AppOpsManager {
              return mProxyPackageName;
          }
  
@@ -834,7 +839,7 @@ index 001dc1ba4ad..b9753a0ea9b 100644
          @Override
          public int describeContents() {
              return 0;
-@@ -1721,6 +1982,8 @@ public class AppOpsManager {
+@@ -1721,6 +1989,8 @@ public class AppOpsManager {
              dest.writeBoolean(mRunning);
              dest.writeInt(mProxyUid);
              dest.writeString(mProxyPackageName);
@@ -843,7 +848,7 @@ index 001dc1ba4ad..b9753a0ea9b 100644
          }
  
          OpEntry(Parcel source) {
-@@ -1732,6 +1995,8 @@ public class AppOpsManager {
+@@ -1732,6 +2002,8 @@ public class AppOpsManager {
              mRunning = source.readBoolean();
              mProxyUid = source.readInt();
              mProxyPackageName = source.readString();
@@ -852,7 +857,7 @@ index 001dc1ba4ad..b9753a0ea9b 100644
          }
  
          public static final Creator<OpEntry> CREATOR = new Creator<OpEntry>() {
-@@ -2640,4 +2905,75 @@ public class AppOpsManager {
+@@ -2640,4 +2912,75 @@ public class AppOpsManager {
          }
          return time;
      }
@@ -928,17 +933,6 @@ index 001dc1ba4ad..b9753a0ea9b 100644
 +        }
 +    }
  }
-diff --git a/core/java/android/os/UserManager.java b/core/java/android/os/UserManager.java
-index bfe4e4d4eba..8fe48ffd6da 100644
---- a/core/java/android/os/UserManager.java
-+++ b/core/java/android/os/UserManager.java
-@@ -1,5 +1,6 @@
- /*
-  * Copyright (C) 2012 The Android Open Source Project
-+ * Copyright (C) 2016 The CyanogenMod Project
-  *
-  * Licensed under the Apache License, Version 2.0 (the "License");
-  * you may not use this file except in compliance with the License.
 diff --git a/core/java/android/provider/Settings.java b/core/java/android/provider/Settings.java
 index b8f5f27bcc2..60e3e74bc74 100644
 --- a/core/java/android/provider/Settings.java
@@ -2160,7 +2154,7 @@ index 00000000000..94624b8b38d
 +    }
 +}
 diff --git a/services/core/java/com/android/server/AppOpsService.java b/services/core/java/com/android/server/AppOpsService.java
-index 6589dd0df69..ebd1350d711 100644
+index 6589dd0df69..c5e31b7cde4 100644
 --- a/services/core/java/com/android/server/AppOpsService.java
 +++ b/services/core/java/com/android/server/AppOpsService.java
 @@ -1,4 +1,7 @@
@@ -2192,7 +2186,15 @@ index 6589dd0df69..ebd1350d711 100644
  import android.os.Process;
  import android.os.RemoteException;
  import android.os.ResultReceiver;
-@@ -70,6 +79,7 @@ import com.android.internal.util.FastXmlSerializer;
+@@ -52,6 +61,7 @@ import android.util.ArrayMap;
+ import android.util.ArraySet;
+ import android.util.AtomicFile;
+ import android.util.KeyValueListParser;
++import android.util.Log;
+ import android.util.Slog;
+ import android.util.SparseArray;
+ import android.util.SparseBooleanArray;
+@@ -70,6 +80,7 @@ import com.android.internal.util.FastXmlSerializer;
  import com.android.internal.util.Preconditions;
  import com.android.internal.util.XmlUtils;
  import com.android.internal.util.function.pooled.PooledLambda;
@@ -2200,7 +2202,7 @@ index 6589dd0df69..ebd1350d711 100644
  
  import libcore.util.EmptyArray;
  
-@@ -119,6 +129,9 @@ public class AppOpsService extends IAppOpsService.Stub {
+@@ -119,6 +130,9 @@ public class AppOpsService extends IAppOpsService.Stub {
      // Constant meaning that any UID should be matched when dispatching callbacks
      private static final int UID_ANY = -2;
  
@@ -2210,7 +2212,7 @@ index 6589dd0df69..ebd1350d711 100644
      // Map from process states to the uid states we track.
      private static final int[] PROCESS_STATE_TO_UID_STATE = new int[] {
          UID_STATE_PERSISTENT,           // ActivityManager.PROCESS_STATE_PERSISTENT
-@@ -173,6 +186,10 @@ public class AppOpsService extends IAppOpsService.Stub {
+@@ -173,6 +187,10 @@ public class AppOpsService extends IAppOpsService.Stub {
      Context mContext;
      final AtomicFile mFile;
      final Handler mHandler;
@@ -2221,7 +2223,7 @@ index 6589dd0df69..ebd1350d711 100644
  
      private final AppOpsManagerInternalImpl mAppOpsManagerInternal
              = new AppOpsManagerInternalImpl();
-@@ -297,7 +314,15 @@ public class AppOpsService extends IAppOpsService.Stub {
+@@ -297,7 +315,15 @@ public class AppOpsService extends IAppOpsService.Stub {
          }
      }
  
@@ -2238,7 +2240,7 @@ index 6589dd0df69..ebd1350d711 100644
  
      @VisibleForTesting
      static final class UidState {
-@@ -395,6 +420,7 @@ public class AppOpsService extends IAppOpsService.Stub {
+@@ -395,6 +421,7 @@ public class AppOpsService extends IAppOpsService.Stub {
          }
      }
  
@@ -2246,7 +2248,7 @@ index 6589dd0df69..ebd1350d711 100644
      final static class Op {
          final UidState uidState;
          final int uid;
-@@ -408,13 +434,23 @@ public class AppOpsService extends IAppOpsService.Stub {
+@@ -408,13 +435,23 @@ public class AppOpsService extends IAppOpsService.Stub {
          long rejectTime[] = new long[_NUM_UID_STATE];
          int startNesting;
          long startRealtime;
@@ -2273,7 +2275,7 @@ index 6589dd0df69..ebd1350d711 100644
          }
  
          boolean hasAnyTime() {
-@@ -570,6 +606,13 @@ public class AppOpsService extends IAppOpsService.Stub {
+@@ -570,6 +607,13 @@ public class AppOpsService extends IAppOpsService.Stub {
                  }
                  mClients.remove(mAppToken);
              }
@@ -2287,7 +2289,7 @@ index 6589dd0df69..ebd1350d711 100644
          }
      }
  
-@@ -578,11 +621,14 @@ public class AppOpsService extends IAppOpsService.Stub {
+@@ -578,11 +622,14 @@ public class AppOpsService extends IAppOpsService.Stub {
          mFile = new AtomicFile(storagePath, "appops");
          mHandler = handler;
          mConstants = new Constants(mHandler);
@@ -2302,7 +2304,7 @@ index 6589dd0df69..ebd1350d711 100644
          ServiceManager.addService(Context.APP_OPS_SERVICE, asBinder());
          LocalServices.addService(AppOpsManagerInternal.class, mAppOpsManagerInternal);
      }
-@@ -681,8 +727,44 @@ public class AppOpsService extends IAppOpsService.Stub {
+@@ -681,8 +728,44 @@ public class AppOpsService extends IAppOpsService.Stub {
                                  || mountMode == Zygote.MOUNT_EXTERNAL_WRITE;
                      }
                  });
@@ -2347,7 +2349,7 @@ index 6589dd0df69..ebd1350d711 100644
      public void packageRemoved(int uid, String packageName) {
          synchronized (this) {
              UidState uidState = mUidStates.get(uid);
-@@ -818,7 +900,7 @@ public class AppOpsService extends IAppOpsService.Stub {
+@@ -818,7 +901,7 @@ public class AppOpsService extends IAppOpsService.Stub {
                          : curOp.duration;
                  resOps.add(new AppOpsManager.OpEntry(curOp.op, curOp.mode, curOp.time,
                          curOp.rejectTime, (int) duration, running, curOp.proxyUid,
@@ -2356,7 +2358,7 @@ index 6589dd0df69..ebd1350d711 100644
              }
          } else {
              for (int j=0; j<ops.length; j++) {
-@@ -833,7 +915,7 @@ public class AppOpsService extends IAppOpsService.Stub {
+@@ -833,7 +916,7 @@ public class AppOpsService extends IAppOpsService.Stub {
                              : curOp.duration;
                      resOps.add(new AppOpsManager.OpEntry(curOp.op, curOp.mode, curOp.time,
                              curOp.rejectTime, (int) duration, running, curOp.proxyUid,
@@ -2365,7 +2367,7 @@ index 6589dd0df69..ebd1350d711 100644
                  }
              }
          }
-@@ -846,7 +928,7 @@ public class AppOpsService extends IAppOpsService.Stub {
+@@ -846,7 +929,7 @@ public class AppOpsService extends IAppOpsService.Stub {
              resOps = new ArrayList<>();
              for (int j=0; j<uidOps.size(); j++) {
                  resOps.add(new AppOpsManager.OpEntry(uidOps.keyAt(j), uidOps.valueAt(j),
@@ -2374,7 +2376,7 @@ index 6589dd0df69..ebd1350d711 100644
              }
          } else {
              for (int j=0; j<ops.length; j++) {
-@@ -856,7 +938,7 @@ public class AppOpsService extends IAppOpsService.Stub {
+@@ -856,7 +939,7 @@ public class AppOpsService extends IAppOpsService.Stub {
                          resOps = new ArrayList<>();
                      }
                      resOps.add(new AppOpsManager.OpEntry(uidOps.keyAt(index), uidOps.valueAt(index),
@@ -2383,7 +2385,7 @@ index 6589dd0df69..ebd1350d711 100644
                  }
              }
          }
-@@ -990,7 +1072,8 @@ public class AppOpsService extends IAppOpsService.Stub {
+@@ -990,7 +1073,8 @@ public class AppOpsService extends IAppOpsService.Stub {
          code = AppOpsManager.opToSwitch(code);
  
          synchronized (this) {
@@ -2393,7 +2395,7 @@ index 6589dd0df69..ebd1350d711 100644
  
              UidState uidState = getUidStateLocked(uid, false);
              if (uidState == null) {
-@@ -1115,7 +1198,7 @@ public class AppOpsService extends IAppOpsService.Stub {
+@@ -1115,7 +1199,7 @@ public class AppOpsService extends IAppOpsService.Stub {
                          }
                          repCbs.addAll(cbs);
                      }
@@ -2402,7 +2404,7 @@ index 6589dd0df69..ebd1350d711 100644
                          // If going into the default mode, prune this op
                          // if there is nothing else interesting in it.
                          pruneOp(op, uid, packageName);
-@@ -1271,9 +1354,11 @@ public class AppOpsService extends IAppOpsService.Stub {
+@@ -1271,9 +1355,11 @@ public class AppOpsService extends IAppOpsService.Stub {
                      Ops pkgOps = ent.getValue();
                      for (int j=pkgOps.size()-1; j>=0; j--) {
                          Op curOp = pkgOps.valueAt(j);
@@ -2416,7 +2418,7 @@ index 6589dd0df69..ebd1350d711 100644
                              changed = true;
                              uidChanged = true;
                              callbacks = addCallbacks(callbacks, curOp.op, curOp.uid, packageName,
-@@ -1431,7 +1516,7 @@ public class AppOpsService extends IAppOpsService.Stub {
+@@ -1431,7 +1517,7 @@ public class AppOpsService extends IAppOpsService.Stub {
              }
              Op op = getOpLocked(code, uid, resolvedPackageName, false);
              if (op == null) {
@@ -2425,7 +2427,7 @@ index 6589dd0df69..ebd1350d711 100644
              }
              return op.mode;
          }
-@@ -1564,6 +1649,7 @@ public class AppOpsService extends IAppOpsService.Stub {
+@@ -1564,6 +1650,7 @@ public class AppOpsService extends IAppOpsService.Stub {
  
      private int noteOperationUnchecked(int code, int uid, String packageName,
              int proxyUid, String proxyPackageName) {
@@ -2433,7 +2435,7 @@ index 6589dd0df69..ebd1350d711 100644
          synchronized (this) {
              final Ops ops = getOpsRawLocked(uid, packageName, true /* edit */,
                      false /* uidMismatchExpected */);
-@@ -1574,6 +1660,7 @@ public class AppOpsService extends IAppOpsService.Stub {
+@@ -1574,6 +1661,7 @@ public class AppOpsService extends IAppOpsService.Stub {
              }
              final Op op = getOpLocked(ops, code, true);
              if (isOpRestrictedLocked(uid, code, packageName)) {
@@ -2441,7 +2443,7 @@ index 6589dd0df69..ebd1350d711 100644
                  return AppOpsManager.MODE_IGNORED;
              }
              final UidState uidState = ops.uidState;
-@@ -1598,22 +1685,88 @@ public class AppOpsService extends IAppOpsService.Stub {
+@@ -1598,22 +1686,88 @@ public class AppOpsService extends IAppOpsService.Stub {
              } else {
                  final Op switchOp = switchCode != code ? getOpLocked(ops, switchCode, true) : op;
                  final int mode = switchOp.getMode();
@@ -2538,7 +2540,7 @@ index 6589dd0df69..ebd1350d711 100644
      }
  
      @Override
-@@ -1670,6 +1823,7 @@ public class AppOpsService extends IAppOpsService.Stub {
+@@ -1670,6 +1824,7 @@ public class AppOpsService extends IAppOpsService.Stub {
      @Override
      public int startOperation(IBinder token, int code, int uid, String packageName,
              boolean startIfModeDefault) {
@@ -2546,7 +2548,7 @@ index 6589dd0df69..ebd1350d711 100644
          verifyIncomingUid(uid);
          verifyIncomingOp(code);
          String resolvedPackageName = resolvePackageName(uid, packageName);
-@@ -1687,6 +1841,7 @@ public class AppOpsService extends IAppOpsService.Stub {
+@@ -1687,6 +1842,7 @@ public class AppOpsService extends IAppOpsService.Stub {
              }
              final Op op = getOpLocked(ops, code, true);
              if (isOpRestrictedLocked(uid, code, resolvedPackageName)) {
@@ -2554,7 +2556,7 @@ index 6589dd0df69..ebd1350d711 100644
                  return AppOpsManager.MODE_IGNORED;
              }
              final int switchCode = AppOpsManager.opToSwitch(code);
-@@ -1715,23 +1870,50 @@ public class AppOpsService extends IAppOpsService.Stub {
+@@ -1715,23 +1871,50 @@ public class AppOpsService extends IAppOpsService.Stub {
                      return mode;
                  }
              }
@@ -2585,7 +2587,7 @@ index 6589dd0df69..ebd1350d711 100644
 +                        + " uid " + uid + " package " + resolvedPackageName);
 +                if (op.nesting == 0) {
 +                    op.time[uidState.state] = System.currentTimeMillis();
-+                    op.rejectTime = 0;
++                    op.rejectTime[uidState.state] = 0;
 +                    op.duration = -1;
 +                    op.allowedCount++;
 +                }
@@ -2620,7 +2622,7 @@ index 6589dd0df69..ebd1350d711 100644
      }
  
      @Override
-@@ -1823,6 +2005,7 @@ public class AppOpsService extends IAppOpsService.Stub {
+@@ -1823,6 +2006,7 @@ public class AppOpsService extends IAppOpsService.Stub {
          } finally {
              Binder.restoreCallingIdentity(identity);
          }
@@ -2628,7 +2630,7 @@ index 6589dd0df69..ebd1350d711 100644
      }
  
      @Override
-@@ -1854,6 +2037,10 @@ public class AppOpsService extends IAppOpsService.Stub {
+@@ -1854,6 +2038,10 @@ public class AppOpsService extends IAppOpsService.Stub {
      }
  
      private void verifyIncomingUid(int uid) {
@@ -2639,7 +2641,7 @@ index 6589dd0df69..ebd1350d711 100644
          if (uid == Binder.getCallingUid()) {
              return;
          }
-@@ -2025,12 +2212,14 @@ public class AppOpsService extends IAppOpsService.Stub {
+@@ -2025,12 +2213,14 @@ public class AppOpsService extends IAppOpsService.Stub {
      }
  
      private Op getOpLocked(Ops ops, int code, boolean edit) {
@@ -2651,11 +2653,20 @@ index 6589dd0df69..ebd1350d711 100644
              }
 -            op = new Op(ops.uidState, ops.packageName, code);
 +            mode = getDefaultMode(code, ops.uidState.uid, ops.packageName);
-+            op = new Op(ops.uidState.uid, ops.packageName, code, mode);
++            op = new Op(ops.uidState, ops.packageName, code, mode);
              ops.put(code, op);
          }
          if (edit) {
-@@ -2278,6 +2467,62 @@ public class AppOpsService extends IAppOpsService.Stub {
+@@ -2163,7 +2353,7 @@ public class AppOpsService extends IAppOpsService.Stub {
+                 Ops ops = uidState.pkgOps.valueAt(j);
+                 if (ops != null) {
+                     final Op op = ops.get(AppOpsManager.OP_RUN_IN_BACKGROUND);
+-                    if (op != null && op.mode != AppOpsManager.opToDefaultMode(op.op)) {
++                    if (op != null && op.mode != AppOpsManager.opToDefaultMode(op.op, AppOpsManager.isStrictOp(op.op))) {
+                         final Op copy = new Op(op.uidState, op.packageName,
+                                 AppOpsManager.OP_RUN_ANY_IN_BACKGROUND);
+                         copy.mode = op.mode;
+@@ -2278,6 +2468,62 @@ public class AppOpsService extends IAppOpsService.Stub {
  
              String tagName = parser.getName();
              if (tagName.equals("op")) {
@@ -2718,7 +2729,7 @@ index 6589dd0df69..ebd1350d711 100644
                  UidState uidState = getUidStateLocked(uid, true);
                  if (uidState.pkgOps == null) {
                      uidState.pkgOps = new ArrayMap<>();
-@@ -2461,8 +2706,12 @@ public class AppOpsService extends IAppOpsService.Stub {
+@@ -2461,8 +2707,12 @@ public class AppOpsService extends IAppOpsService.Stub {
                              out.startTag(null, "op");
                              out.attribute(null, "n", Integer.toString(op.getOp()));
                              out.attribute(null, "ns", AppOpsManager.opToName(op.getOp()));
@@ -2732,7 +2743,7 @@ index 6589dd0df69..ebd1350d711 100644
                              }
                              for (int k = 0; k < _NUM_UID_STATE; k++) {
                                  final long time = op.getLastTimeFor(k);
-@@ -2488,6 +2737,14 @@ public class AppOpsService extends IAppOpsService.Stub {
+@@ -2488,6 +2738,14 @@ public class AppOpsService extends IAppOpsService.Stub {
                              if (proxyPackageName != null) {
                                  out.attribute(null, "pp", proxyPackageName);
                              }
@@ -2747,7 +2758,7 @@ index 6589dd0df69..ebd1350d711 100644
                              out.endTag(null, "op");
                          }
                          out.endTag(null, "uid");
-@@ -3582,6 +3839,174 @@ public class AppOpsService extends IAppOpsService.Stub {
+@@ -3582,6 +3840,174 @@ public class AppOpsService extends IAppOpsService.Stub {
          }
      }
  
@@ -2922,7 +2933,7 @@ index 6589dd0df69..ebd1350d711 100644
      private static String resolvePackageName(int uid, String packageName)  {
          if (uid == Process.ROOT_UID) {
              return "root";
-@@ -3792,4 +4217,75 @@ public class AppOpsService extends IAppOpsService.Stub {
+@@ -3792,4 +4218,75 @@ public class AppOpsService extends IAppOpsService.Stub {
              }
          }
      }
@@ -3516,7 +3527,7 @@ index e034b824dc5..c4666cc16b1 100644
       * We don't want to allow the device to go to sleep while in the process
       * of launching an activity.  This is primarily to allow alarm intent
 diff --git a/services/core/java/com/android/server/am/UserController.java b/services/core/java/com/android/server/am/UserController.java
-index 3d93cb938f0..20263e7b71f 100644
+index 3d93cb938f0..a0830b90c8e 100644
 --- a/services/core/java/com/android/server/am/UserController.java
 +++ b/services/core/java/com/android/server/am/UserController.java
 @@ -531,6 +531,21 @@ class UserController implements Handler.Callback {
@@ -3528,7 +3539,7 @@ index 3d93cb938f0..20263e7b71f 100644
 +            bootIntent.putExtra(Intent.EXTRA_USER_HANDLE, userId);
 +            bootIntent.addFlags(Intent.FLAG_RECEIVER_NO_ABORT
 +                    | Intent.FLAG_RECEIVER_INCLUDE_BACKGROUND);
-+            mInjector.broadcastIntentLocked(bootIntent, null, new IIntentReceiver.Stub() {
++            mInjector.broadcastIntent(bootIntent, null, new IIntentReceiver.Stub() {
 +                @Override
 +                public void performReceive(Intent intent, int resultCode, String data,
 +                        Bundle extras, boolean ordered, boolean sticky, int sendingUser)
@@ -3612,21 +3623,25 @@ index cac6383ff3d..1a22a84908f 100644
              return user;
          }
 diff --git a/services/core/java/com/android/server/pm/UserRestrictionsUtils.java b/services/core/java/com/android/server/pm/UserRestrictionsUtils.java
-index 9ca02bad50b..d6874d5d4bd 100644
+index 9ca02bad50b..975545db440 100644
 --- a/services/core/java/com/android/server/pm/UserRestrictionsUtils.java
 +++ b/services/core/java/com/android/server/pm/UserRestrictionsUtils.java
-@@ -127,6 +127,7 @@ public class UserRestrictionsUtils {
+@@ -126,7 +126,8 @@ public class UserRestrictionsUtils {
+             UserManager.DISALLOW_SHARE_INTO_MANAGED_PROFILE,
              UserManager.DISALLOW_AMBIENT_DISPLAY,
              UserManager.DISALLOW_CONFIG_SCREEN_TIMEOUT,
-             UserManager.DISALLOW_PRINTING
+-            UserManager.DISALLOW_PRINTING
++            UserManager.DISALLOW_PRINTING,
 +            UserManager.DISALLOW_SU
      });
  
      /**
-@@ -156,6 +157,7 @@ public class UserRestrictionsUtils {
+@@ -155,7 +156,8 @@ public class UserRestrictionsUtils {
+             UserManager.DISALLOW_SAFE_BOOT,
              UserManager.DISALLOW_CREATE_WINDOWS,
              UserManager.DISALLOW_DATA_ROAMING,
-             UserManager.DISALLOW_AIRPLANE_MODE
+-            UserManager.DISALLOW_AIRPLANE_MODE
++            UserManager.DISALLOW_AIRPLANE_MODE,
 +            UserManager.DISALLOW_SU
      );
  
