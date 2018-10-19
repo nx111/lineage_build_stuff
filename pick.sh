@@ -852,8 +852,9 @@ kpick 224916 # DO NOT MERGE: msm8974-common: sepolicy: Just make it build
 kpick 223063 # Restore android_alarm.h kernel uapi header
 kpick 223067 # libc fortify: Ignore open() O_TMPFILE mode bits warning
 kpick 225463 # bionic: Let popen and system fall back to /sbin/sh
-kpick 229488 # Revert "linker: Make platform text relocations denial optional"
 kpick 230099 # Actually restore pre-P mutex behavior
+kpick 232002 # Merge android-9.0.0_r12
+kpick 232143 # remove bionic-compile-time-tests-g++
 
 # boot/recovery
 #kpick 230746 # sr: Get a proper shell environment in recovery
@@ -871,9 +872,8 @@ kpick 229491 # build: Automatically replace old-style kernel header includes wit
 kpick 222648 # Allow providing flex and bison binaries
 kpick 224613 # soong: Add LOCAL_AIDL_FLAGS handling
 kpick 226443 # soong: Add additional_deps attribute for libraries and binaries
-#kpick 226444 # soong: Add generated_headers module alias
-#kpick 226918 # Add /ramdisk to installclean
 kpick 229411 # soong sbox: Add option to allow copying all generated output
+kpick 232004 # Merge android-9.0.0_r12
 
 # dalvik
 kpick 225475 # dexdeps: Add option for --include-lineage-classes.
@@ -923,6 +923,9 @@ kpick 230831 # sepolicy: Allow android service to write on tombstones
 kpick 230833 # legacy: Correctly label display.qservice
 kpick 230834 # legacy: allow init to read /proc/device-tree
 
+# development
+kpick 232005 # Merge android-9.0.0_r12
+
 # external/ant-wireless/ant_native
 kpick 227260 # Update bt vendor callbacks array in vfs code
 kpick 227261 # Cast BT_VND_OP_ANT_USERIAL_{OPEN,CLOSE} to bt_vendor_opcode_t in vfs code
@@ -942,6 +945,7 @@ kpick 225239 # zlib: crc optimization for arm64
 kpick 230387 # CameraService: Support calling addStates in enumerateProviders
 kpick 230642 # CameraService: Initialize CameraParameters for the cameras and cache them onFirstRef
 kpick 231348 # camera: Allow to use boottime as timestamp reference
+kpick 232006 # Merge android-9.0.0_r12
 
 # frameworks/base
 kpick 224266 # SystemUI: Add Lineage statusbar item holder
@@ -969,7 +973,6 @@ kpick 227821 # GlobalScreenshot: Fix screenshot not saved with some languages
 kpick 227839 # storage: Set all sdcards to visible
 kpick 227896 # SystemUI: Add Profiles tile
 kpick 221716 # Where's my circle battery, dude?
-kpick 228405 # Forward port CM Screen Security settings (1/2)
 kpick 228664 # [dnm][temp]display: Don't animate screen brightness when turning the screen on
 kpick 229166 # NightDisplayController: report unavailable if livedisplay feature is present
 kpick 229230 # SystemUI: allow the power menu to be relocated
@@ -990,6 +993,7 @@ kpick 231847 # onehand: Enable debug only on eng builds
 kpick 231848 # SystemUI: Add one hand mode triggers
 kpick 231851 # onehand: Take into account cutouts
 kpick 231852 # onehand: Remove guide link
+kpick 232007 # Merge android-9.0.0_r12
 
 # frameworks/native
 kpick 224443 # libbinder: Don't log call trace when waiting for vendor service on non-eng builds
@@ -1003,12 +1007,14 @@ kpick 229607 # HACK: SF: Force client composition for all layers
 kpick 230610 # APP may display abnormally in landscape LCM
 kpick 231828 # Translate pointer motion events for OneHandOperation Display Shrink
 kpick 231980 # HWComposer: HWC2: allow SkipValidate to be force disabled
+kpick 232008 # Merge android-9.0.0_r12
 
 # frameworks/opt/net/wifi
 kpick 224675 # libwifi-hal: add flag to wait for kernel driver to get ready
 kpick 224676 # wifi: Check whether dev node is accessible or not before opening
 kpick 224677 # wifi: don't check if WIFI_DRIVER_STATE_CTRL_PARAM is readable
 kpick 225551 # wifi: Not reset country code for Dual SIM if any slot is active
+kpick 232038 # Merge android-9.0.0_r12
 
 # frameworks/opt/telephony
 kpick 227125 # RIL: Allow overriding RadioResponse and RadioIndication
@@ -1020,6 +1026,7 @@ kpick 229605 # Telephony: Don not call onUssdRelease for Huawei RIL
 kpick 231595 # Enable vendor Telephony plugin
 kpick 231596 # Enable vendor Telephony plugin: MSIM Changes
 kpick 231598 # Telephony: Send INITIAL_ATTACH only when it is applicable.
+kpick 232039 # Merge android-9.0.0_r12
 
 # hardware/boardcom/libbt
 #kpick 225155 # Broadcom BT: Add support fm/bt via v4l2.
@@ -1031,6 +1038,7 @@ kpick 231598 # Telephony: Send INITIAL_ATTACH only when it is applicable.
 kpick 225506 # Camed HAL extension: Added support in HIDL for Extended FD.
 kpick 225507 # camera: Only link and use vendor.qti.hardware.camera.device if specified
 kpick 226402 # keymasterV4_0: Tags support for FBE wrapped key.
+kpick 232040 # Merge android-9.0.0_r12
 
 # hardware/lineage/interfaces
 kpick 223374 # interfaces: Add 2.0 livedisplay interfaces
@@ -1048,8 +1056,12 @@ kpick 223192 # nfc: Restore pn548 support to 1.1 HAL
 kpick 222690 # audio: Use kernel headers
 kpick 223338 # Revert "msm8x74: remove from top level makefile"
 kpick 230749 # audio: Use generated kernel headers
+kpick 232009 # Merge android-9.0.0_r12
 
 # hardware/qcom/audio-caf/msm8974
+
+# hardware/qcom/bootctl
+kpick 232041 # Merge android-9.0.0_r12
 
 # hardware/qcom/bt-caf
 
@@ -1130,6 +1142,7 @@ kpick 223358 # msm8974: Fix logging level and remove nmea log
 kpick 223359 # msm8974: Don't rely on transitively included headers
 kpick 223360 # msm8974: Return the correct length of nmea sentence
 kpick 225034 # msm8974: Add -Wno-error to compile with global -Werror.
+kpick 232010 # Merge android-9.0.0_r12
 
 # hardware/qcom/keymaster
 kpick 224954 # keymaster: move to /vendor
@@ -1204,28 +1217,36 @@ kpick 230856 # sdk: Don't clear calling identify when calling IOverlayManager.se
 # packages/apps/Bluetooth
 kpick 229310 # SBC Dual Channel (SBC HD Audio) support
 kpick 229311 # Assume optional codecs are supported if were supported previously
+kpick 232042 # Merge android-9.0.0_r12
 
 # packages/apps/Calender
 
 # packages/apps/Camera2
 kpick 224752 # Use mCameraAgentNg for getting camera info when available
 kpick 225265 # Add Storage preference (1/2)
+kpick 232011 # Merge android-9.0.0_r12
+
+# packages/apps/Carrierconfig
+kpick 232012 # Merge android-9.0.0_r12
 
 # packages/apps/CellBroadcastReciver
 kpick 229303 # Only enable presidential CMAS alerts if user is a monkey
+kpick 232043 # Merge android-9.0.0_r12
 
 # packages/apps/Contacts
+kpick 232013 # Merge android-9.0.0_r12
 
 # packages/apps/DeskClock
 kpick 226131 # DeskClock: Add support of power off alarm feature
+kpick 232014 # Merge android-9.0.0_r12
 
 # packages/apps/Dialer
 
 # packages/apps/DocumentsUI
 kpick 225289 # DocumentsUI: support night mode
+kpick 232015 # Merge android-9.0.0_r12
 
 # packages/apps/Eleven
-kpick 231355 # Eleven: Fix crash after receiving media button intent
 
 # packages/apps/Email
 
@@ -1236,12 +1257,28 @@ kpick 231418 # Automatic translation import
 kpick 231710 # Jelly: Set proper mime type when downloading files
 kpick 231711 # Jelly: Grant REQUEST_INSTALL_PACKAGES permission
 
+# packages/apps/LatinIME
+kpick 232022 # Merge android-9.0.0_r12
+
 # packages/apps/LineageParts
 kpick 227930 # LineageParts: Bring back and refactor battery icon options
 kpick 221756 # StatusBarSettings: Hide battery preference category based on icon visibility
 kpick 229389 # Trust: enforce vendor security patch level check
 kpick 230017 # LineageParts: Re-enable expanded desktop.
 kpick 231163 # LineageParts: Add some missing psychedelics
+kpick 232146 # LineageParts: Reenable Privacy Guard
+
+# packages/apps/ManagedProvisoning
+kpick 232047 # Merge android-9.0.0_r12
+
+# packages/apps/Nfc
+kpick 232016 # Merge android-9.0.0_r12
+
+# packages/apps/PackagesInstaller
+kpick 232017 # Merge android-9.0.0_r12
+
+# packages/apps/PhoneCommon
+kpick 232048 # Merge android-9.0.0_r12
 
 # packages/apps/Settings
 kpick 225755 # Settings: Hide AOSP theme-related controllers
@@ -1253,8 +1290,6 @@ kpick 226151 # Settings: show Trust brading in confirm_lock_password UI
 kpick 226154 # fingerprint: Allow devices to configure sensor location
 kpick 227120 # Settings: Check interfaces before enabling ADB over network
 kpick 227929 # Settings: Remove battery percentage switch
-kpick 228403 # Settings: forward port lock pattern grid size (2/2)
-kpick 228404 # Forward port pattern visibility settings (2/2)
 kpick 229167 # Settings: Hide Night Mode suggestion if LiveDisplay feature is present
 kpick 229312 # Add Dual Channel into Bluetooth Audio Channel Mode developer options menu
 kpick 229453 # Settings: use LineageHW serial number
@@ -1262,6 +1297,8 @@ kpick 229479 # Settings: Improve phone number preference ordering
 kpick 231518 # Settings: Check if we have any color modes declared in overlay
 kpick 231590 # SimSettings: Add manual SIM provisioning support
 kpick 231826 # Update the white list of Data saver
+kpick 232001 # lockscreen: Forward port option to pass swipe-up-to-unlock
+kpick 232019 # Merge android-9.0.0_r12
 
 # packages/apps/SettingsIntelligence
 kpick 230519 # Fix dark style issues
@@ -1269,17 +1306,42 @@ kpick 231538 # SettingsIntelligence: Match Settings style
 kpick 231539 # SettingsIntelligence: Regen database on build version change
 kpick 231825 # Increase time limit of search task
 
+# packages/apps/Stk
+kpick 232020 # Merge android-9.0.0_r12
+
+# packages/apps/StoreManager
+kpick 232049 # Merge android-9.0.0_r12
+
+# packages/apps/Traceur
+kpick 232050 # Merge android-9.0.0_r12
+
 # packages/apps/Trebuchet
 kpick 223666 # Settings: Hide Notification Dots on low RAM devices
+
+# packages/apps/TvSettings
+kpick 232021 # Merge android-9.0.0_r12
 
 # packages/apps/Updater
 kpick 229354 # Updater: Allow Cleartext HTTP communications
 
 # packages/providers/DownloadProvider
+kpick 232023 # Merge android-9.0.0_r12
+
+# packages/providers/MediaProvider
+
+# packages/providers/TelephonyProvider
+kpick 232025 # Merge android-9.0.0_r12
+
+# packages/services/BuiltinPrintService
+kpick 232052 # Merge android-9.0.0_r12
+
+# packages/services/Telecomm
+kpick 232054 # Merge android-9.0.0_r12
 
 # packages/services/Telephony
 kpick 229610 # Telephony: Support muting by RIL command
 kpick 229611 # Telephony: Use a common prop for Huawei RIL hacks (2/2)
+kpick 232026 # Merge android-9.0.0_r12
 
 # system/bt
 kpick 224813 # bt: osi: undef PROPERTY_VALUE_MAX
@@ -1291,6 +1353,7 @@ kpick 229313 # Explicit SBC Dual Channel (SBC HD) support
 kpick 229314 # Allow using alternative (higher) SBC HD bitrates with a property
 kpick 229401 # [DNM] Revert "Return early if vendor-specific command fails"
 kpick 230382 # Fix for Bluetooth device name is resetting to default name after reboot
+kpick 232027 # Merge android-9.0.0_r12
 
 # system/core
 privpick system/core refs/changes/19/206119/2 # init: I hate safety net
@@ -1300,10 +1363,12 @@ kpick 226119 # libion: save errno value
 kpick 226120 # fs_mgr: Wrapped key support for FBE
 kpick 230755 # libsuspend: Bring back earlysuspend
 kpick 231716 # init: Always use libbootloader_message from bootable/recovery namespace
+kpick 232028 # Merge android-9.0.0_r12
 
 # system/extras
 kpick 225426 # f2fs_utils: Add a static libf2fs_sparseblock for minvold
 kpick 225427 # ext4_utils: Fix FS creation for filesystems with exactly 32768 blocks.
+kpick 232055 # Merge android-9.0.0_r12
 
 cd system/extras/
 git stash >/dev/null
@@ -1338,10 +1403,15 @@ kpick -P system/extras/su 225937 # su: Initialize windows size
 
 # system/netd
 kpick 231201 # netd: Allow devices to force-add directly-connected routes
+kpick 232029 # Merge android-9.0.0_r12
+
+# system/security
+kpick 232030 # Merge android-9.0.0_r12
 
 # system/sepolicy
 kpick 223748 # Build sepolicy tools with Android.bp.
 kpick 230613 # Allow webview_zygote to read /dev/ion
+kpick 232031 # Merge android-9.0.0_r12
 
 # system/tool/aidl
 kpick 223133 # AIDL: Add option to generate No-Op methods
@@ -1358,6 +1428,7 @@ kpick 229304 # vold: Add texfat and sdfat support
 kpick 229954 # Move kMajor* constants to a header file
 kpick 229955 # vold: ISO9660 and UDF support
 kpick 231717 # vold: Always use libbootloader_message from bootable/recovery namespace
+kpick 232032 # Merge android-9.0.0_r12
 
 # vendor/lineage
 kpick 223773 # Add IPv6 for Oister and 3. The 3.dk and oister.dk carriers now support IPv6 with the APN ”data.tre.dk”.
@@ -1379,7 +1450,6 @@ kpick 231219 # kernel: Remove deprecated flag errors
 kpick 231220 # kernel: Remove kernel{x}config
 kpick 229589 # lineage: Automatically set soong namespace when setting project pathmap
 kpick 229590 # lineage: Move qcom pathmap setting into "BoardConfig"
-kpick 229506 # Revert "soong_config: Add TARGET_NEEDS_PLATFORM_TEXT_RELOCATIONS"
 kpick 229620 # backuptool: Support non-A/B system-as-root
 kpick 231291 # repopick: add hashtag support
 kpick 231981 # HWComposer: HWC2: allow SkipValidate to be force disabled
