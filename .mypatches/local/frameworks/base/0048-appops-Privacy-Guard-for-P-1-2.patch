@@ -1,5 +1,5 @@
-From 6ce8454676e9d27861a654d1a6a8f716cbd31e5e Mon Sep 17 00:00:00 2001
-From: nx111 <gd.zhangdz@gmail.com>
+From 8aad965ffac1d447d49132bfa1136ed28ba09e27 Mon Sep 17 00:00:00 2001
+From: nx111 <NX111.AimH@gmail.com>
 Date: Mon, 15 Oct 2018 00:22:14 +0800
 Subject: [PATCH 48/48] appops: Privacy Guard for P (1/2)
 
@@ -69,20 +69,6 @@ Date:   Wed Oct 2 22:06:42 2013 -0700
     [2/2] AppOps: Add per Op allowed and ignored counters
 
     Change-Id: Ifb3d25e17dbab082b816a0a655b4796a83af336b
-
-Author: Sam Mortimer <sam@mortimer.me.uk>
-Date:   Sun Oct 20 23:48:00 2013 -0700
-
-    AppOps: track op persistence by name instead of id
-
-    On XML write, include the op name.  On XML read, map
-    the name back to op id (if it exists).
-
-    Persistent AppOp state now follows the op name instead
-    numeric id.  This allows upgrades between versions of
-    android that have different code<>name mappings.
-
-    Change-Id: Iffc02095b6838a34ff999f8db51c2c6739dd0db8
 
 Author: Jorge Ruesga <jorge@ruesga.com>
 Date:   Sat Jan 4 01:34:39 2014 +0100
@@ -357,50 +343,50 @@ Date:   Tue Sep 6 21:33:57 2016 +0800
 
 Change-Id: I5414dd0be6a81e143f5035e58709ac4258c93616
 ---
- core/java/android/app/AppOpsManager.java      | 399 +++++++++++-
+ core/java/android/app/AppOpsManager.java      | 382 +++++++++++++-
  core/java/android/os/UserManager.java         |  12 +
  core/java/android/provider/Settings.java      |  13 +
- .../android/internal/app/IAppOpsService.aidl  |   9 +
+ .../android/internal/app/IAppOpsService.aidl  |   7 +
  core/res/AndroidManifest.xml                  |   3 +
  .../drawable/stat_notify_privacy_guard.xml    |  11 +
- .../layout/permission_confirmation_dialog.xml |  67 ++
- core/res/res/values/cm_strings.xml            |  93 ++-
+ .../layout/permission_confirmation_dialog.xml |  67 +++
+ core/res/res/values/cm_strings.xml            | 101 +++-
  core/res/res/values/config.xml                |   5 +
- core/res/res/values/lineage_arrays.xml        | 175 ++++++
+ core/res/res/values/lineage_arrays.xml        | 189 +++++++
  core/res/res/values/lineage_symbols.xml       |  16 +
  .../SystemUI/res/drawable/stat_sys_su.xml     |  15 +
+ .../android/systemui/BatteryMeterView.java    |   6 +-
  .../src/com/android/systemui/Dependency.java  |   4 +
  .../statusbar/phone/PhoneStatusBarPolicy.java |  21 +
  .../statusbar/policy/SuController.java        |  27 +
  .../statusbar/policy/SuControllerImpl.java    | 137 +++++
- .../java/com/android/server/AppOpsPolicy.java | 440 +++++++++++++
- .../com/android/server/AppOpsService.java     | 578 ++++++++++++++++--
+ .../stack/NotificationStackScrollLayout.java  |   8 -
+ .../com/android/server/AppOpsService.java     | 497 ++++++++++++++++--
  .../android/server/BasePermissionDialog.java  |  84 +++
- .../server/BluetoothManagerService.java       |  12 +-
+ .../server/BluetoothManagerService.java       |  11 +-
  .../com/android/server/PermissionDialog.java  | 145 +++++
- .../server/PermissionDialogReqQueue.java      |  88 +++
- .../server/am/ActivityManagerService.java     |  64 ++
- .../com/android/server/am/ActivityRecord.java |  31 +
+ .../server/PermissionDialogReqQueue.java      |  88 ++++
+ .../server/am/ActivityManagerService.java     |  64 +++
+ .../com/android/server/am/ActivityRecord.java |  30 ++
  .../server/am/ActivityStackSupervisor.java    |   5 +
  .../com/android/server/am/UserController.java |  15 +
  .../server/pm/PackageManagerService.java      |  18 +-
  .../android/server/pm/UserManagerService.java |   2 +
  .../server/pm/UserRestrictionsUtils.java      |   6 +-
  .../android/telephony/TelephonyManager.java   |  12 +
- 30 files changed, 2454 insertions(+), 53 deletions(-)
+ 31 files changed, 1941 insertions(+), 60 deletions(-)
  create mode 100644 core/res/res/drawable/stat_notify_privacy_guard.xml
  create mode 100644 core/res/res/layout/permission_confirmation_dialog.xml
  create mode 100644 core/res/res/values/lineage_arrays.xml
  create mode 100644 packages/SystemUI/res/drawable/stat_sys_su.xml
  create mode 100644 packages/SystemUI/src/com/android/systemui/statusbar/policy/SuController.java
  create mode 100644 packages/SystemUI/src/com/android/systemui/statusbar/policy/SuControllerImpl.java
- create mode 100644 services/core/java/com/android/server/AppOpsPolicy.java
  create mode 100644 services/core/java/com/android/server/BasePermissionDialog.java
  create mode 100644 services/core/java/com/android/server/PermissionDialog.java
  create mode 100644 services/core/java/com/android/server/PermissionDialogReqQueue.java
 
 diff --git a/core/java/android/app/AppOpsManager.java b/core/java/android/app/AppOpsManager.java
-index 6ccf01c008a..14ffc535046 100644
+index 6ccf01c008a2..df69d9822383 100644
 --- a/core/java/android/app/AppOpsManager.java
 +++ b/core/java/android/app/AppOpsManager.java
 @@ -1,5 +1,6 @@
@@ -450,10 +436,10 @@ index 6ccf01c008a..14ffc535046 100644
      public static final int OP_BLUETOOTH_SCAN = 77;
 -    /** @hide */
 -    public static final int _NUM_OP = 78;
-+    /** @hide Boot completed */
-+    public static final int OP_BOOT_COMPLETED = 78;
 +    /** @hide Bluetooth state change */
-+    public static final int OP_BLUETOOTH_CHANGE = 79;
++    public static final int OP_BLUETOOTH_CHANGE = 78;
++    /** @hide Boot completed */
++    public static final int OP_BOOT_COMPLETED = 79;
 +    /** @hide NFC state change */
 +    public static final int OP_NFC_CHANGE = 80;
 +    /** @hide Data connect state change */
@@ -465,114 +451,112 @@ index 6ccf01c008a..14ffc535046 100644
  
      /** Access to coarse location information. */
      public static final String OPSTR_COARSE_LOCATION = "android:coarse_location";
-@@ -597,7 +621,21 @@ public class AppOpsManager {
+@@ -597,6 +621,19 @@ public class AppOpsManager {
      public static final String OPSTR_START_FOREGROUND = "android:start_foreground";
      /** @hide */
      public static final String OPSTR_BLUETOOTH_SCAN = "android:bluetooth_scan";
 +    /** @hide */
++    public static final String OPSTR_WIFI_CHANGE = "android:wifi_change";
++    /** @hide */
 +    public static final String OPSTR_BOOT_COMPLETED = "android:boot_completed";
++    /** @hide */
++    public static final String OPSTR_BLUETOOTH_CHANGE = "android:bluetooth_change";
++    /** @hide */
++    public static final String OPSTR_NFC_CHANGE = "android:nfc_change";
++    /** @hide */
++    public static final String OPSTR_DATA_CONNECT_CHANGE = "android:data_connect_change";
++
 +    /** @hide */
 +    public static final String OPSTR_SU = "android:su";
  
-+    /** @hide */
-+    private static final String OPSTR_WIFI_CHANGE
-+            = "android:wifi_change";
-+    private static final String OPSTR_BLUETOOTH_CHANGE
-+            = "android:bluetooth_change";
-+    private static final String OPSTR_NFC_CHANGE
-+            = "android:nfc_change";
-+    private static final String OPSTR_DATA_CONNECT_CHANGE
-+            = "android:data_connect_change";
-+ 
      // Warning: If an permission is added here it also has to be added to
      // com.android.packageinstaller.permission.utils.EventLogger
-     private static final int[] RUNTIME_AND_APPOP_PERMISSIONS_OPS = {
-@@ -646,6 +684,7 @@ public class AppOpsManager {
+@@ -646,6 +683,7 @@ public class AppOpsManager {
              OP_WRITE_SETTINGS,
              OP_REQUEST_INSTALL_PACKAGES,
              OP_START_FOREGROUND,
-+            OP_SU,
++            OP_SU
      };
  
      /**
-@@ -735,6 +774,11 @@ public class AppOpsManager {
+@@ -735,6 +773,11 @@ public class AppOpsManager {
              OP_MANAGE_IPSEC_TUNNELS,            // MANAGE_IPSEC_HANDOVERS
              OP_START_FOREGROUND,                // START_FOREGROUND
              OP_COARSE_LOCATION,                 // BLUETOOTH_SCAN
-+            OP_BOOT_COMPLETED,                  // BOOT_COMPLETED
 +            OP_BLUETOOTH_CHANGE,                // BLUETOOTH_CHANGE
++            OP_BOOT_COMPLETED,                  // BOOT_COMPLETED
 +            OP_NFC_CHANGE,                      // NFC_CHANGE
 +            OP_DATA_CONNECT_CHANGE,             // DATA_CONNECT_CHANGE
 +            OP_SU,                              // SU
      };
  
      /**
-@@ -819,6 +863,11 @@ public class AppOpsManager {
+@@ -819,6 +862,11 @@ public class AppOpsManager {
              OPSTR_MANAGE_IPSEC_TUNNELS,
              OPSTR_START_FOREGROUND,
              OPSTR_BLUETOOTH_SCAN,
-+            OPSTR_BOOT_COMPLETED,
 +            OPSTR_BLUETOOTH_CHANGE,
++            OPSTR_BOOT_COMPLETED,
 +            OPSTR_NFC_CHANGE,
 +            OPSTR_DATA_CONNECT_CHANGE,
 +            OPSTR_SU,
      };
  
      /**
-@@ -904,6 +953,11 @@ public class AppOpsManager {
+@@ -904,6 +952,11 @@ public class AppOpsManager {
              "MANAGE_IPSEC_TUNNELS",
              "START_FOREGROUND",
              "BLUETOOTH_SCAN",
-+            "BOOT_COMPLETED",
 +            "BLUETOOTH_CHANGE",
++            "BOOT_COMPLETED",
 +            "NFC_CHANGE",
 +            "DATA_CONNECT_CHANGE",
 +            "SU",
      };
  
      /**
-@@ -989,6 +1043,11 @@ public class AppOpsManager {
+@@ -989,6 +1042,11 @@ public class AppOpsManager {
              null, // no permission for OP_MANAGE_IPSEC_TUNNELS
              Manifest.permission.FOREGROUND_SERVICE,
              null, // no permission for OP_BLUETOOTH_SCAN
-+            Manifest.permission.RECEIVE_BOOT_COMPLETED,
 +            null,
++            Manifest.permission.RECEIVE_BOOT_COMPLETED,
 +            Manifest.permission.NFC,
 +            null,
 +            null, // no permission for OP_SU
      };
  
      /**
-@@ -1075,6 +1134,11 @@ public class AppOpsManager {
+@@ -1075,6 +1133,11 @@ public class AppOpsManager {
              null, // MANAGE_IPSEC_TUNNELS
              null, // START_FOREGROUND
              null, // maybe should be UserManager.DISALLOW_SHARE_LOCATION, //BLUETOOTH_SCAN
-+            null, //BOOT_COMPLETED
 +            null, //BLUETOOTH_CHANGE
++            null, //BOOT_COMPLETED
 +            null, //NFC_CHANGE
 +            null, //DATA_CONNECT_CHANGE
 +            UserManager.DISALLOW_SU, //SU TODO: this should really be investigated.
      };
  
      /**
-@@ -1160,6 +1224,11 @@ public class AppOpsManager {
+@@ -1160,6 +1223,11 @@ public class AppOpsManager {
              false, // MANAGE_IPSEC_HANDOVERS
              false, // START_FOREGROUND
              true, // BLUETOOTH_SCAN
-+            true, // BOOT_COMPLETED
 +            true, // BLUETOOTH_CHANGE
++            true, // BOOT_COMPLETED
 +            true, // NFC_CHANGE
 +            true, //DATA_CONNECT_CHANGE
 +            false, // SU
      };
  
      /**
-@@ -1244,6 +1313,190 @@ public class AppOpsManager {
+@@ -1244,6 +1312,190 @@ public class AppOpsManager {
              AppOpsManager.MODE_ERRORED,  // MANAGE_IPSEC_TUNNELS
              AppOpsManager.MODE_ALLOWED,  // OP_START_FOREGROUND
              AppOpsManager.MODE_ALLOWED,  // OP_BLUETOOTH_SCAN
-+            AppOpsManager.MODE_ALLOWED, // OP_BOOT_COMPLETED
 +            AppOpsManager.MODE_ALLOWED, // OP_BLUETOOTH_CHANGE
++            AppOpsManager.MODE_ALLOWED, // OP_BOOT_COMPLETED
 +            AppOpsManager.MODE_ALLOWED, // OP_NFC_CHANGE
 +            AppOpsManager.MODE_ALLOWED,
 +            AppOpsManager.MODE_ALLOWED, // OP_SU
@@ -661,8 +645,8 @@ index 6ccf01c008a..14ffc535046 100644
 +            AppOpsManager.MODE_ERRORED,  // MANAGE_IPSEC_TUNNELS
 +            AppOpsManager.MODE_ALLOWED,  // OP_START_FOREGROUND
 +            AppOpsManager.MODE_ALLOWED,  // OP_BLUETOOTH_SCAN
-+            AppOpsManager.MODE_ALLOWED, // OP_BOOT_COMPLETED
 +            AppOpsManager.MODE_ALLOWED, // OP_BLUETOOTH_CHANGE
++            AppOpsManager.MODE_ALLOWED, // OP_BOOT_COMPLETED
 +            AppOpsManager.MODE_ALLOWED, // OP_NFC_CHANGE
 +            AppOpsManager.MODE_ALLOWED,
 +            AppOpsManager.MODE_ASK, // OP_SU
@@ -750,27 +734,27 @@ index 6ccf01c008a..14ffc535046 100644
 +            false, // MANAGE_IPSEC_HANDOVERS
 +            false, // START_FOREGROUND
 +            true, // BLUETOOTH_SCAN
-+            true, // BOOT_COMPLETED
 +            true, // BLUETOOTH_CHANGE
++            true, // BOOT_COMPLETED
 +            true, // NFC_CHANGE
 +            true, //DATA_CONNECT_CHANGE
 +            false, // SU
      };
  
      /**
-@@ -1332,6 +1585,11 @@ public class AppOpsManager {
+@@ -1332,6 +1584,11 @@ public class AppOpsManager {
              false, // MANAGE_IPSEC_TUNNELS
              false, // START_FOREGROUND
              false, // BLUETOOTH_SCAN
-+            false, // OP_BOOT_COMPLETED
 +            false, // OP_BLUETOOTH_CHANGE
++            false, // OP_BOOT_COMPLETED
 +            false, // OP_NFC_CHANGE
 +            false, // OP_DATA_CONNECT_CHANGE
 +            false, // OP_SU
      };
  
      /**
-@@ -1346,6 +1604,18 @@ public class AppOpsManager {
+@@ -1346,6 +1603,18 @@ public class AppOpsManager {
  
      private static HashMap<String, Integer> sNameToOp = new HashMap<String, Integer>();
  
@@ -789,7 +773,7 @@ index 6ccf01c008a..14ffc535046 100644
      static {
          if (sOpToSwitch.length != _NUM_OP) {
              throw new IllegalStateException("sOpToSwitch length " + sOpToSwitch.length
-@@ -1367,6 +1637,10 @@ public class AppOpsManager {
+@@ -1367,6 +1636,10 @@ public class AppOpsManager {
              throw new IllegalStateException("sOpDefaultMode length " + sOpDefaultMode.length
                      + " should be " + _NUM_OP);
          }
@@ -800,7 +784,7 @@ index 6ccf01c008a..14ffc535046 100644
          if (sOpDisableReset.length != _NUM_OP) {
              throw new IllegalStateException("sOpDisableReset length " + sOpDisableReset.length
                      + " should be " + _NUM_OP);
-@@ -1379,6 +1653,10 @@ public class AppOpsManager {
+@@ -1379,6 +1652,10 @@ public class AppOpsManager {
              throw new IllegalStateException("sOpAllowSYstemRestrictionsBypass length "
                      + sOpRestrictions.length + " should be " + _NUM_OP);
          }
@@ -811,25 +795,26 @@ index 6ccf01c008a..14ffc535046 100644
          for (int i=0; i<_NUM_OP; i++) {
              if (sOpToString[i] != null) {
                  sOpStrToOp.put(sOpToString[i], i);
-@@ -1472,7 +1750,17 @@ public class AppOpsManager {
+@@ -1472,10 +1749,17 @@ public class AppOpsManager {
       * Retrieve the default mode for the operation.
       * @hide
       */
+-    public static int opToDefaultMode(int op) {
 +    public static int opToDefaultMode(int op, boolean isStrict) {
 +        if (isStrict) {
-+            return sOpDefaultStrictMode[op];
-+        }
-+        return sOpDefaultMode[op];
-+    }
-+
-     public static int opToDefaultMode(int op) {
-+        if (isStrictOp(op)) {
 +            return sOpDefaultStrictMode[op];
 +        }
          return sOpDefaultMode[op];
      }
  
-@@ -1571,9 +1859,11 @@ public class AppOpsManager {
++    public static int opToDefaultMode(int op) {
++        return opToDefaultMode(op, false);
++    }
++
+     /**
+      * Retrieve the human readable mode.
+      * @hide
+@@ -1571,9 +1855,11 @@ public class AppOpsManager {
          private final int mProxyUid;
          private final boolean mRunning;
          private final String mProxyPackageName;
@@ -842,7 +827,7 @@ index 6ccf01c008a..14ffc535046 100644
              mOp = op;
              mMode = mode;
              mTimes = new long[_NUM_UID_STATE];
-@@ -1584,10 +1874,17 @@ public class AppOpsManager {
+@@ -1584,10 +1870,17 @@ public class AppOpsManager {
              mRunning = duration == -1;
              mProxyUid = proxyUid;
              mProxyPackageName = proxyPackage;
@@ -861,7 +846,7 @@ index 6ccf01c008a..14ffc535046 100644
              mOp = op;
              mMode = mode;
              mTimes = new long[_NUM_UID_STATE];
-@@ -1598,11 +1895,18 @@ public class AppOpsManager {
+@@ -1598,11 +1891,18 @@ public class AppOpsManager {
              mRunning = running;
              mProxyUid = proxyUid;
              mProxyPackageName = proxyPackage;
@@ -874,7 +859,7 @@ index 6ccf01c008a..14ffc535046 100644
 -            this(op, mode, times, rejectTimes, duration, duration == -1, proxyUid, proxyPackage);
 +                boolean running, int proxyUid, String proxyPackage) {
 +            this(op, mode, times, rejectTimes, duration, running, proxyUid, proxyPackage, 0, 0);
-+        }                 
++        }
 +
 +        public OpEntry(int op, int mode, long[] times, long[] rejectTimes, int duration,
 +                int proxyUid, String proxyPackage,int allowedCount, int ignoredCount) {
@@ -882,7 +867,7 @@ index 6ccf01c008a..14ffc535046 100644
          }
  
          public int getOp() {
-@@ -1669,6 +1973,14 @@ public class AppOpsManager {
+@@ -1669,6 +1969,14 @@ public class AppOpsManager {
              return mProxyPackageName;
          }
  
@@ -897,7 +882,7 @@ index 6ccf01c008a..14ffc535046 100644
          @Override
          public int describeContents() {
              return 0;
-@@ -1684,6 +1996,8 @@ public class AppOpsManager {
+@@ -1684,6 +1992,8 @@ public class AppOpsManager {
              dest.writeBoolean(mRunning);
              dest.writeInt(mProxyUid);
              dest.writeString(mProxyPackageName);
@@ -906,7 +891,7 @@ index 6ccf01c008a..14ffc535046 100644
          }
  
          OpEntry(Parcel source) {
-@@ -1695,6 +2009,8 @@ public class AppOpsManager {
+@@ -1695,6 +2005,8 @@ public class AppOpsManager {
              mRunning = source.readBoolean();
              mProxyUid = source.readInt();
              mProxyPackageName = source.readString();
@@ -915,15 +900,10 @@ index 6ccf01c008a..14ffc535046 100644
          }
  
          public static final Creator<OpEntry> CREATOR = new Creator<OpEntry>() {
-@@ -2603,4 +2919,75 @@ public class AppOpsManager {
+@@ -2603,4 +2915,60 @@ public class AppOpsManager {
          }
          return time;
      }
-+
-+    /** @hide */
-+    public static boolean isStrictEnable() {
-+        return SystemProperties.getBoolean("persist.sys.strict_op_enable", false);
-+    }
 +
 +    /**
 +     * Check if op in strict mode
@@ -947,22 +927,12 @@ index 6ccf01c008a..14ffc535046 100644
 +    }
 +
 +    /** @hide */
-+    public static int stringOpToOp (String op) {
++    public static int stringOpToOp(String op) {
 +        Integer val = sOpStrToOp.get(op);
 +        if (val == null) {
 +            val = OP_NONE;
 +        }
 +        return val;
-+    }
-+
-+    /** @hide */
-+    public boolean isControlAllowed(int op, String packageName) {
-+        boolean isShow = true;
-+        try {
-+            isShow = mService.isControlAllowed(op, packageName);
-+        } catch (RemoteException e) {
-+        }
-+        return isShow;
 +    }
 +
 +    /** @hide */
@@ -992,7 +962,7 @@ index 6ccf01c008a..14ffc535046 100644
 +    }
  }
 diff --git a/core/java/android/os/UserManager.java b/core/java/android/os/UserManager.java
-index b5918519d87..bfe4e4d4eba 100644
+index b5918519d872..bfe4e4d4ebac 100644
 --- a/core/java/android/os/UserManager.java
 +++ b/core/java/android/os/UserManager.java
 @@ -1012,6 +1012,18 @@ public class UserManager {
@@ -1015,7 +985,7 @@ index b5918519d87..bfe4e4d4eba 100644
      public static final int PIN_VERIFICATION_FAILED_INCORRECT = -3;
      /** @hide */
 diff --git a/core/java/android/provider/Settings.java b/core/java/android/provider/Settings.java
-index ae86da43bbd..3b2a7261290 100644
+index ae86da43bbde..3b2a7261290c 100644
 --- a/core/java/android/provider/Settings.java
 +++ b/core/java/android/provider/Settings.java
 @@ -897,6 +897,19 @@ public final class Settings {
@@ -1039,15 +1009,13 @@ index ae86da43bbd..3b2a7261290 100644
       * @hide
       * Activity Action: Show the "app ops" settings screen.
 diff --git a/core/java/com/android/internal/app/IAppOpsService.aidl b/core/java/com/android/internal/app/IAppOpsService.aidl
-index 0ed97247712..394962d5a41 100644
+index 0ed972477123..c2a1a3432133 100644
 --- a/core/java/com/android/internal/app/IAppOpsService.aidl
 +++ b/core/java/com/android/internal/app/IAppOpsService.aidl
-@@ -56,4 +56,13 @@ interface IAppOpsService {
+@@ -56,4 +56,11 @@ interface IAppOpsService {
      boolean isOperationActive(int code, int uid, String packageName);
  
      void startWatchingModeWithFlags(int op, String packageName, int flags, IAppOpsCallback callback);
-+
-+    boolean isControlAllowed(int code, String packageName);
 +
 +    // Privacy guard methods
 +    boolean getPrivacyGuardSettingForPackage(int uid, String packageName);
@@ -1057,7 +1025,7 @@ index 0ed97247712..394962d5a41 100644
 +    void resetCounters();
  }
 diff --git a/core/res/AndroidManifest.xml b/core/res/AndroidManifest.xml
-index 455ad47a5bd..5b1cc33d311 100644
+index 455ad47a5bd0..5b1cc33d3114 100644
 --- a/core/res/AndroidManifest.xml
 +++ b/core/res/AndroidManifest.xml
 @@ -613,6 +613,9 @@
@@ -1072,7 +1040,7 @@ index 455ad47a5bd..5b1cc33d311 100644
      <!-- ====================================================================== -->
 diff --git a/core/res/res/drawable/stat_notify_privacy_guard.xml b/core/res/res/drawable/stat_notify_privacy_guard.xml
 new file mode 100644
-index 00000000000..de3aa7711b1
+index 000000000000..de3aa7711b17
 --- /dev/null
 +++ b/core/res/res/drawable/stat_notify_privacy_guard.xml
 @@ -0,0 +1,11 @@
@@ -1089,7 +1057,7 @@ index 00000000000..de3aa7711b1
 +</vector>
 diff --git a/core/res/res/layout/permission_confirmation_dialog.xml b/core/res/res/layout/permission_confirmation_dialog.xml
 new file mode 100644
-index 00000000000..1727286faaa
+index 000000000000..1727286faaa6
 --- /dev/null
 +++ b/core/res/res/layout/permission_confirmation_dialog.xml
 @@ -0,0 +1,67 @@
@@ -1161,10 +1129,10 @@ index 00000000000..1727286faaa
 +
 +</LinearLayout>
 diff --git a/core/res/res/values/cm_strings.xml b/core/res/res/values/cm_strings.xml
-index a5a33bc633d..c6642fd66e3 100644
+index a5a33bc633df..b6c516bb8f56 100644
 --- a/core/res/res/values/cm_strings.xml
 +++ b/core/res/res/values/cm_strings.xml
-@@ -25,4 +25,95 @@
+@@ -25,4 +25,103 @@
      <!-- ADB notification message-->
      <string name="adb_active_generic_notification_message">Touch to disable debugging.</string>
  
@@ -1197,6 +1165,8 @@ index a5a33bc633d..c6642fd66e3 100644
 +    <string name="app_ops_assist_structure">use assist structure</string>
 +    <string name="app_ops_audio_accessibility_volume">audio accessibility volume</string>
 +    <string name="app_ops_auto_start">start at power up</string>
++    <string name="app_ops_bind_accessibility_service">bind accessibility service</string>
++    <string name="app_ops_bluetooth_scan">bluetooth scan</string>
 +    <string name="app_ops_change_wallpaper">change the wallpaper</string>
 +    <string name="app_ops_delete_call_log">delete your call log</string>
 +    <string name="app_ops_delete_contacts">delete your contacts</string>
@@ -1205,8 +1175,10 @@ index a5a33bc633d..c6642fd66e3 100644
 +    <string name="app_ops_draw_on_top">draw windows on top</string>
 +    <string name="app_ops_get_accounts">get device accounts</string>
 +    <string name="app_ops_get_usage_stats">get app usage stats</string>
++    <string name="app_ops_accept_handover">handover of a call from another app</string>
 +    <string name="app_ops_install_packages">install packages</string>
 +    <string name="app_ops_keep_device_awake">keep your device awake</string>
++    <string name="app_ops_manage_ipsec_tunnels">manage ipsec tunnels</string>
 +    <string name="app_ops_make_phone_call">make a phone call</string>
 +    <string name="app_ops_mock_location">mock your location</string>
 +    <string name="app_ops_modify_calendar">update your calendar</string>
@@ -1231,12 +1203,16 @@ index a5a33bc633d..c6642fd66e3 100644
 +    <string name="app_ops_read_phone_state">access phone state</string>
 +    <string name="app_ops_read_sms">read your SMS messages</string>
 +    <string name="app_ops_receive_sms">receive an SMS message</string>
++    <string name="app_ops_receive_emergency_broadcast">receive an emergency broadcast message</string>
 +    <string name="app_ops_record_audio">record audio</string>
++    <string name="app_ops_request_delete_packages">request delete packages</string>
 +    <string name="app_ops_run_in_background">run in background</string>
++    <string name="app_ops_run_any_in_background">run any in background</string>
 +    <string name="app_ops_scan_wifi">scan Wi-Fi networks</string>
 +    <string name="app_ops_send_mms">send an MMS message</string>
 +    <string name="app_ops_send_sms">send an SMS message</string>
 +    <string name="app_ops_start_at_bootup">start at power up</string>
++    <string name="app_ops_start_foreground">start foreground</string>
 +    <string name="app_ops_su">get root access</string>
 +    <string name="app_ops_toast_window">display toast messages</string>
 +    <string name="app_ops_toggle_bluetooth">toggle Bluetooth</string>
@@ -1262,7 +1238,7 @@ index a5a33bc633d..c6642fd66e3 100644
 +    <string name="app_ops_write_sms">write an SMS message</string>
 +</resources>
 diff --git a/core/res/res/values/config.xml b/core/res/res/values/config.xml
-index 2b0d69df8a2..49244714c31 100644
+index 2b0d69df8a2b..49244714c316 100644
 --- a/core/res/res/values/config.xml
 +++ b/core/res/res/values/config.xml
 @@ -56,6 +56,10 @@
@@ -1286,10 +1262,10 @@ index 2b0d69df8a2..49244714c31 100644
           alpha compositing functionality in hardware.  If set, the window
 diff --git a/core/res/res/values/lineage_arrays.xml b/core/res/res/values/lineage_arrays.xml
 new file mode 100644
-index 00000000000..65149d2a9e5
+index 000000000000..58567d1c8bd1
 --- /dev/null
 +++ b/core/res/res/values/lineage_arrays.xml
-@@ -0,0 +1,175 @@
+@@ -0,0 +1,189 @@
 +<?xml version="1.0" encoding="utf-8"?>
 +<!--
 +     Copyright (C) 2012-2015 The CyanogenMod Project
@@ -1344,8 +1320,8 @@ index 00000000000..65149d2a9e5
 +        <item>@string/app_ops_write_sms</item>
 +        '<!-- OP_RECEIVE_SMS -->
 +        <item>@string/app_ops_receive_sms</item>
-+        <!-- OP_RECEIVE_EMERGENCY_SMS -->
-+        <item>@string/app_ops_receive_sms</item>
++        <!-- OPSTR_RECEIVE_EMERGENCY_BROADCAST -->
++        <item>@string/app_ops_receive_emergency_broadcast</item>
 +        <!-- OP_RECEIVE_MMS -->
 +        <item>@string/app_ops_receive_sms</item>
 +        <!-- OP_RECEIVE_WAP_PUSH -->
@@ -1450,8 +1426,22 @@ index 00000000000..65149d2a9e5
 +        <item>@string/app_ops_app_start_foreground</item>
 +        <!-- OP_ANSWER_PHONE_CALLS -->
 +        <item>@string/app_ops_phone_calls</item>
++        <!-- OP_RUN_ANY_IN_BACKGROUND -->
++        <item>@string/app_ops_run_any_in_background</item>
 +        <!-- OP_CHANGE_WIFI_STATE -->
 +        <item>@string/app_ops_wifi_change</item>
++        <!-- OP_REQUEST_DELETE_PACKAGES -->
++        <item>@string/app_ops_request_delete_packages</item>
++        <!-- OP_BIND_ACCESSIBILITY_SERVICE -->
++        <item>@string/app_ops_bind_accessibility_service</item>
++        <!-- OP_ACCEPT_HANDOVER -->
++        <item>@string/app_ops_accept_handover</item>
++        <!-- OP_MANAGE_IPSEC_TUNNELS -->
++        <item>@string/app_ops_manage_ipsec_tunnels</item>
++        <!-- OP_START_FOREGROUND -->
++        <item>@string/app_ops_start_foreground</item>
++        <!-- OP_BLUETOOTH_SCAN -->
++        <item>@string/app_ops_bluetooth_scan</item>
 +        <!-- OP_BLUETOOTH_CHANGE -->
 +        <item>@string/app_ops_toggle_bluetooth</item>
 +        <!-- OP_BOOT_COMPLETED -->
@@ -1466,7 +1456,7 @@ index 00000000000..65149d2a9e5
 +
 +</resources>
 diff --git a/core/res/res/values/lineage_symbols.xml b/core/res/res/values/lineage_symbols.xml
-index a34d8bdbc37..703a90d4ef2 100644
+index a34d8bdbc37b..703a90d4ef21 100644
 --- a/core/res/res/values/lineage_symbols.xml
 +++ b/core/res/res/values/lineage_symbols.xml
 @@ -33,4 +33,20 @@
@@ -1492,7 +1482,7 @@ index a34d8bdbc37..703a90d4ef2 100644
  </resources>
 diff --git a/packages/SystemUI/res/drawable/stat_sys_su.xml b/packages/SystemUI/res/drawable/stat_sys_su.xml
 new file mode 100644
-index 00000000000..e013c135958
+index 000000000000..e013c135958d
 --- /dev/null
 +++ b/packages/SystemUI/res/drawable/stat_sys_su.xml
 @@ -0,0 +1,15 @@
@@ -1511,8 +1501,26 @@ index 00000000000..e013c135958
 +            android:pathData="M12.49,15.934h-2.373L9.24,21H6.966l0.89-5.066H5.051v-2.089h3.163l0.63-3.584H5.977V8.148h3.238 l0.902-5.141h2.261l-0.902,5.141h2.373l0.914-5.141h2.261l-0.902,5.141h2.719v2.113h-3.089l-0.63,3.584h2.78v2.089h-3.139L13.874,21 H11.6L12.49,15.934Z M10.488,13.845h2.36l0.63-3.584h-2.373L10.488,13.845z" />
 +    </vector>
 +</inset>
+diff --git a/packages/SystemUI/src/com/android/systemui/BatteryMeterView.java b/packages/SystemUI/src/com/android/systemui/BatteryMeterView.java
+index c82d36b59dbd..c877b5982e56 100644
+--- a/packages/SystemUI/src/com/android/systemui/BatteryMeterView.java
++++ b/packages/SystemUI/src/com/android/systemui/BatteryMeterView.java
+@@ -313,12 +313,8 @@ public class BatteryMeterView extends LinearLayout implements
+         final boolean drawPercent =
+                 LineageSettings.System.getIntForUser(getContext().getContentResolver(),
+                         STATUS_BAR_SHOW_BATTERY_PERCENT, 0, mUser) == 1;
+-        final boolean systemSetting = 0 != Settings.System
+-                .getIntForUser(getContext().getContentResolver(),
+-                SHOW_BATTERY_PERCENT, 0, mUser);
+         if ((LineageSettings.System.getIntForUser(getContext().getContentResolver(),
+-                STATUS_BAR_SHOW_BATTERY_PERCENT, 0, mUser) == 2 ||
+-                (mShowPercentAvailable && systemSetting) || mForceShowPercent)
++                STATUS_BAR_SHOW_BATTERY_PERCENT, 0, mUser) == 2 || mForceShowPercent)
+                &&  (!drawPercent || mCharging) || mShowPercent) {
+             mDrawable.setShowPercent(false);
+             if (!showing) {
 diff --git a/packages/SystemUI/src/com/android/systemui/Dependency.java b/packages/SystemUI/src/com/android/systemui/Dependency.java
-index 9c9f0218d74..c4ac1aae421 100644
+index 9c9f0218d74f..c4ac1aae4213 100644
 --- a/packages/SystemUI/src/com/android/systemui/Dependency.java
 +++ b/packages/SystemUI/src/com/android/systemui/Dependency.java
 @@ -89,6 +89,8 @@ import com.android.systemui.statusbar.policy.RotationLockController;
@@ -1534,7 +1542,7 @@ index 9c9f0218d74..c4ac1aae421 100644
          SystemUIFactory.getInstance().injectDependencies(mProviders, mContext);
  
 diff --git a/packages/SystemUI/src/com/android/systemui/statusbar/phone/PhoneStatusBarPolicy.java b/packages/SystemUI/src/com/android/systemui/statusbar/phone/PhoneStatusBarPolicy.java
-index cd28b934caa..ee3894d4cbc 100644
+index cd28b934caa7..ee3894d4cbc7 100644
 --- a/packages/SystemUI/src/com/android/systemui/statusbar/phone/PhoneStatusBarPolicy.java
 +++ b/packages/SystemUI/src/com/android/systemui/statusbar/phone/PhoneStatusBarPolicy.java
 @@ -86,6 +86,7 @@ import com.android.systemui.statusbar.policy.LocationController.LocationChangeCa
@@ -1614,7 +1622,7 @@ index cd28b934caa..ee3894d4cbc 100644
  }
 diff --git a/packages/SystemUI/src/com/android/systemui/statusbar/policy/SuController.java b/packages/SystemUI/src/com/android/systemui/statusbar/policy/SuController.java
 new file mode 100644
-index 00000000000..5f1e52e0bf2
+index 000000000000..5f1e52e0bf22
 --- /dev/null
 +++ b/packages/SystemUI/src/com/android/systemui/statusbar/policy/SuController.java
 @@ -0,0 +1,27 @@
@@ -1647,7 +1655,7 @@ index 00000000000..5f1e52e0bf2
 +}
 diff --git a/packages/SystemUI/src/com/android/systemui/statusbar/policy/SuControllerImpl.java b/packages/SystemUI/src/com/android/systemui/statusbar/policy/SuControllerImpl.java
 new file mode 100644
-index 00000000000..1ba334a3e7f
+index 000000000000..1ba334a3e7ff
 --- /dev/null
 +++ b/packages/SystemUI/src/com/android/systemui/statusbar/policy/SuControllerImpl.java
 @@ -0,0 +1,137 @@
@@ -1788,454 +1796,27 @@ index 00000000000..1ba334a3e7f
 +        }
 +    }
 +}
-diff --git a/services/core/java/com/android/server/AppOpsPolicy.java b/services/core/java/com/android/server/AppOpsPolicy.java
-new file mode 100644
-index 00000000000..94624b8b38d
---- /dev/null
-+++ b/services/core/java/com/android/server/AppOpsPolicy.java
-@@ -0,0 +1,440 @@
-+/* Copyright (c) 2014, The Linux Foundation. All rights reserved.
-+ *
-+ * Redistribution and use in source and binary forms, with or without
-+ * modification, are permitted provided that the following conditions are
-+ * met:
-+ *     * Redistributions of source code must retain the above copyright
-+ *       notice, this list of conditions and the following disclaimer.
-+ *     * Redistributions in binary form must reproduce the above
-+ *       copyright notice, this list of conditions and the following
-+ *       disclaimer in the documentation and/or other materials provided
-+ *       with the distribution.
-+ *     * Neither the name of The Linux Foundation nor the names of its
-+ *       contributors may be used to endorse or promote products derived
-+ *       from this software without specific prior written permission.
-+ *
-+ * THIS SOFTWARE IS PROVIDED "AS IS" AND ANY EXPRESS OR IMPLIED
-+ * WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
-+ * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT
-+ * ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS
-+ * BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
-+ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
-+ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR
-+ * BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
-+ * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
-+ * OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
-+ * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-+ */
-+
-+package com.android.server;
-+
-+import java.io.File;
-+import java.io.FileInputStream;
-+import java.io.FileNotFoundException;
-+import java.io.IOException;
-+import java.util.HashMap;
-+import java.util.Iterator;
-+import java.util.Map;
-+
-+import org.xmlpull.v1.XmlPullParser;
-+import org.xmlpull.v1.XmlPullParserException;
-+
-+import android.app.AppOpsManager;
-+import android.content.Context;
-+import android.content.pm.ApplicationInfo;
-+import android.content.pm.PackageManager.NameNotFoundException;
-+import android.util.Slog;
-+import android.util.SparseArray;
-+import android.util.Xml;
-+
-+import com.android.internal.util.XmlUtils;
-+
-+public class AppOpsPolicy {
-+    static final String TAG = "AppOpsPolicy";
-+    static final boolean DEBUG = false;
-+    final File mFile;
-+    final Context mContext;
-+    public static final int CONTROL_SHOW = 0;
-+
-+    public static final int CONTROL_NOSHOW = 1;
-+
-+    public static final int CONTROL_UNKNOWN = 2;
-+
-+    // Rate limiting thresholds for ask operations
-+    public static final int RATE_LIMIT_OP_COUNT = 3;
-+    public static final int RATE_LIMIT_OPS_TOTAL_PKG_COUNT = 4;
-+    public static final int RATE_LIMIT_OP_DELAY_CEILING = 10;
-+
-+    public static int stringToControl(String show) {
-+        if ("true".equalsIgnoreCase(show)) {
-+            return CONTROL_SHOW;
-+        } else if ("false".equalsIgnoreCase(show)) {
-+            return CONTROL_NOSHOW;
-+        }
-+        return CONTROL_UNKNOWN;
-+    }
-+
-+    HashMap<String, PolicyPkg> mPolicy = new HashMap<String, PolicyPkg>();
-+
-+    public AppOpsPolicy(File file, Context context) {
-+        super();
-+        mFile = file;
-+        mContext = context;
-+    }
-+
-+    public final static class PolicyPkg extends SparseArray<PolicyOp> {
-+        public String packageName;
-+        public int mode;
-+        public int show;
-+        public String type;
-+
-+        public PolicyPkg(String packageName, int mode, int show, String type) {
-+            this.packageName = packageName;
-+            this.mode = mode;
-+            this.show = show;
-+            this.type = type;
-+        }
-+
-+        @Override
-+        public String toString() {
-+            return "PolicyPkg [packageName=" + packageName + ", mode=" + mode
-+                    + ", show=" + show + ", type=" + type + "]";
-+        }
-+
-+    }
-+
-+    public final static class PolicyOp {
-+        public int op;
-+        public int mode;
-+        public int show;
-+
-+        public PolicyOp(int op, int mode, int show) {
-+            this.op = op;
-+            this.mode = mode;
-+            this.show = show;
-+        }
-+
-+        @Override
-+        public String toString() {
-+            return "PolicyOp [op=" + op + ", mode=" + mode + ", show=" + show
-+                    + "]";
-+        }
-+    }
-+
-+    void readPolicy() {
-+        FileInputStream stream;
-+        synchronized (mFile) {
-+            try {
-+                stream = new FileInputStream(mFile);
-+            } catch (FileNotFoundException e) {
-+                Slog.i(TAG, "App ops policy file (" + mFile.getPath()
-+                        + ") not found; Skipping.");
-+                return;
-+            }
-+            boolean success = false;
-+            try {
-+                XmlPullParser parser = Xml.newPullParser();
-+                parser.setInput(stream, null);
-+                int type;
-+                success = true;
-+                while ((type = parser.next()) != XmlPullParser.START_TAG
-+                        && type != XmlPullParser.END_DOCUMENT) {
-+                    ;
-+                }
-+                if (type != XmlPullParser.START_TAG) {
-+                    throw new IllegalStateException("no start tag found");
-+                }
-+
-+                int outerDepth = parser.getDepth();
-+                while ((type = parser.next()) != XmlPullParser.END_DOCUMENT
-+                        && (type != XmlPullParser.END_TAG || parser.getDepth() > outerDepth)) {
-+                    if (type == XmlPullParser.END_TAG
-+                            || type == XmlPullParser.TEXT) {
-+                        continue;
-+                    }
-+
-+                    String tagName = parser.getName();
-+                    if (tagName.equals("user-app")
-+                            || tagName.equals("system-app")) {
-+                        readDefaultPolicy(parser, tagName);
-+                    } else if (tagName.equals("application")) {
-+                        readApplicationPolicy(parser);
-+                    } else {
-+                        Slog.w(TAG, "Unknown element under <appops-policy>: "
-+                                + parser.getName());
-+                        XmlUtils.skipCurrentTag(parser);
-+                    }
-+                }
-+            } catch (IllegalStateException e) {
-+                Slog.w(TAG, "Failed parsing " + e);
-+            } catch (NullPointerException e) {
-+                Slog.w(TAG, "Failed parsing " + e);
-+            } catch (NumberFormatException e) {
-+                Slog.w(TAG, "Failed parsing " + e);
-+            } catch (XmlPullParserException e) {
-+                Slog.w(TAG, "Failed parsing " + e);
-+            } catch (IOException e) {
-+                Slog.w(TAG, "Failed parsing " + e);
-+            } catch (IndexOutOfBoundsException e) {
-+                Slog.w(TAG, "Failed parsing " + e);
-+            } finally {
-+                if (!success) {
-+                    mPolicy.clear();
-+                }
-+                try {
-+                    stream.close();
-+                } catch (IOException e) {
-+                }
-+            }
-+        }
-+    }
-+
-+    private void readDefaultPolicy(XmlPullParser parser, String packageName)
-+            throws NumberFormatException, XmlPullParserException, IOException {
-+        if (!"user-app".equalsIgnoreCase(packageName)
-+                && !"system-app".equalsIgnoreCase(packageName)) {
-+            return;
-+        }
-+        int mode = AppOpsManager.stringToMode(parser.getAttributeValue(null,
-+                "permission"));
-+        int show = stringToControl(parser.getAttributeValue(null, "show"));
-+        if (mode == AppOpsManager.MODE_ERRORED && show == CONTROL_UNKNOWN) {
-+            return;
-+        }
-+        PolicyPkg pkg = this.mPolicy.get(packageName);
-+        if (pkg == null) {
-+            pkg = new PolicyPkg(packageName, mode, show, packageName);
-+            this.mPolicy.put(packageName, pkg);
-+        } else {
-+            Slog.w(TAG, "Duplicate policy found for package: " + packageName
-+                    + " of type: " + packageName);
-+            pkg.mode = mode;
-+            pkg.show = show;
-+        }
-+    }
-+
-+    private void readApplicationPolicy(XmlPullParser parser)
-+            throws NumberFormatException, XmlPullParserException, IOException {
-+        int outerDepth = parser.getDepth();
-+        int type;
-+        while ((type = parser.next()) != XmlPullParser.END_DOCUMENT
-+                && (type != XmlPullParser.END_TAG || parser.getDepth() > outerDepth)) {
-+            if (type == XmlPullParser.END_TAG || type == XmlPullParser.TEXT) {
-+                continue;
-+            }
-+            String tagName = parser.getName();
-+            if (tagName.equals("pkg")) {
-+                readPkgPolicy(parser);
-+            } else {
-+                Slog.w(TAG,
-+                        "Unknown element under <application>: "
-+                                + parser.getName());
-+                XmlUtils.skipCurrentTag(parser);
-+            }
-+        }
-+    }
-+
-+    private void readPkgPolicy(XmlPullParser parser)
-+            throws NumberFormatException, XmlPullParserException, IOException {
-+        String packageName = parser.getAttributeValue(null, "name");
-+        if (packageName == null) {
-+            return;
-+        }
-+        String appType = parser.getAttributeValue(null, "type");
-+        if (appType == null) {
-+            return;
-+        }
-+        int mode = AppOpsManager.stringToMode(parser.getAttributeValue(null,
-+                "permission"));
-+        int show = stringToControl(parser.getAttributeValue(null, "show"));
-+        String key = packageName + "." + appType;
-+        PolicyPkg pkg = this.mPolicy.get(key);
-+        if (pkg == null) {
-+            pkg = new PolicyPkg(packageName, mode, show, appType);
-+            this.mPolicy.put(key, pkg);
-+        } else {
-+            Slog.w(TAG, "Duplicate policy found for package: " + packageName
-+                    + " of type: " + appType);
-+            pkg.mode = mode;
-+            pkg.show = show;
-+        }
-+
-+        int outerDepth = parser.getDepth();
-+        int type;
-+        while ((type = parser.next()) != XmlPullParser.END_DOCUMENT
-+                && (type != XmlPullParser.END_TAG || parser.getDepth() > outerDepth)) {
-+            if (type == XmlPullParser.END_TAG || type == XmlPullParser.TEXT) {
-+                continue;
-+            }
-+            String tagName = parser.getName();
-+            if (tagName.equals("op")) {
-+                readOpPolicy(parser, pkg);
-+            } else {
-+                Slog.w(TAG, "Unknown element under <pkg>: " + parser.getName());
-+                XmlUtils.skipCurrentTag(parser);
-+            }
-+        }
-+    }
-+
-+    private void readOpPolicy(XmlPullParser parser, PolicyPkg pkg)
-+            throws NumberFormatException, XmlPullParserException, IOException {
-+        if (pkg == null) {
-+            return;
-+        }
-+        String opName = parser.getAttributeValue(null, "name");
-+        if (opName == null) {
-+            Slog.w(TAG, "Op name is null");
-+            return;
-+        }
-+        int code = AppOpsManager.stringOpToOp(opName);
-+        if (code == AppOpsManager.OP_NONE) {
-+            Slog.w(TAG, "Unknown Op: " + opName);
-+            return;
-+        }
-+        int mode = AppOpsManager.stringToMode(parser.getAttributeValue(null,
-+                "permission"));
-+        int show = stringToControl(parser.getAttributeValue(null, "show"));
-+        if (mode == AppOpsManager.MODE_ERRORED && show == CONTROL_UNKNOWN) {
-+            return;
-+        }
-+        PolicyOp op = pkg.get(code);
-+        if (op == null) {
-+            op = new PolicyOp(code, mode, show);
-+            pkg.put(code, op);
-+        } else {
-+            Slog.w(TAG, "Duplicate policy found for package: "
-+                    + pkg.packageName + " type: " + pkg.type + " op: " + op.op);
-+            op.mode = mode;
-+            op.show = show;
-+        }
-+    }
-+
-+    void debugPoilcy() {
-+        Iterator<Map.Entry<String, PolicyPkg>> iterator = mPolicy.entrySet()
-+                .iterator();
-+        while (iterator.hasNext()) {
-+            String key = iterator.next().getKey();
-+            if (DEBUG) Slog.d(TAG, "Key: " + key);
-+            PolicyPkg pkg = mPolicy.get(key);
-+            if (pkg == null) {
-+                if (DEBUG)
-+                    Slog.d(TAG, "Pkg is null for key: " + key);
-+                continue;
-+            }
-+            if (DEBUG) Slog.d(TAG, pkg.toString());
-+            for (int i = 0; i < pkg.size(); i++) {
-+                PolicyOp op = pkg.valueAt(i);
-+                if (DEBUG) Slog.d(TAG, op.toString());
-+            }
-+        }
-+    }
-+
-+    private String getAppType(String packageName) {
-+        String appType = null;
-+        ApplicationInfo appInfo = null;
-+        if (mContext != null) {
-+            try {
-+                appInfo = mContext.getPackageManager().getApplicationInfo(
-+                        packageName, 0);
-+            } catch (NameNotFoundException e) {
-+                appInfo = null;
-+            }
-+            if (appInfo != null) {
-+                if ((appInfo.flags & ApplicationInfo.FLAG_SYSTEM) != 0) {
-+                    appType = "system-app";
-+                } else {
-+                    appType = "user-app";
-+                }
-+            }
-+        } else {
-+            Slog.e(TAG, "Context is null");
-+        }
-+        return appType;
-+    }
-+
-+    public boolean isControlAllowed(int code, String packageName) {
-+        boolean isShow = true;
-+        int show = CONTROL_UNKNOWN;
-+        PolicyPkg pkg;
-+        String key;
-+        String type;
-+
-+        if (mPolicy == null) {
-+            return isShow;
-+        }
-+
-+        type = getAppType(packageName);
-+        if (type != null) {
-+            key = type;
-+            pkg = mPolicy.get(key);
-+            if (pkg != null && pkg.show != CONTROL_UNKNOWN) {
-+                show = pkg.show;
-+            }
-+        }
-+        key = packageName;
-+        if (type != null) {
-+            key = key + "." + type;
-+        }
-+        pkg = mPolicy.get(key);
-+        if (pkg != null) {
-+            if (pkg.show != CONTROL_UNKNOWN) {
-+                show = pkg.show;
-+            }
-+            PolicyOp op = pkg.get(code);
-+            if (op != null) {
-+                if (op.show != CONTROL_UNKNOWN) {
-+                    show = op.show;
-+                }
-+            }
-+        }
-+        if (show == CONTROL_NOSHOW) {
-+            isShow = false;
-+        }
-+        return isShow;
-+    }
-+
-+    public int getDefualtMode(int code, String packageName) {
-+        int mode = AppOpsManager.MODE_ERRORED;
-+        PolicyPkg pkg;
-+        String key;
-+        String type;
-+
-+        if (mPolicy == null) {
-+            return mode;
-+        }
-+        if (DEBUG) Slog.d(TAG, "Default mode requested for op=" + code + " package="
-+                + packageName);
-+        type = getAppType(packageName);
-+        if (type != null) {
-+            // Get value based on 'type'
-+            key = type;
-+            pkg = mPolicy.get(key);
-+            if (pkg != null && pkg.mode != AppOpsManager.MODE_ERRORED) {
-+                if (DEBUG) Slog.d(TAG, "Setting value based on type: " + pkg);
-+                mode = pkg.mode;
-+            }
-+        }
-+        // Get value based on 'pkg'.
-+        key = packageName;
-+        if (type != null) {
-+            key = key + "." + type;
-+        }
-+        pkg = mPolicy.get(key);
-+        if (pkg != null) {
-+            if (pkg.mode != AppOpsManager.MODE_ERRORED) {
-+                if (DEBUG) Slog.d(TAG, "Setting value based on packageName: " + pkg);
-+                mode = pkg.mode;
-+            }
-+            // Get value base on 'op'
-+            PolicyOp op = pkg.get(code);
-+            if (op != null) {
-+                if (op.mode != AppOpsManager.MODE_ERRORED) {
-+                    if (DEBUG) Slog.d(TAG, "Setting value based on op: " + op);
-+                    mode = op.mode;
-+                }
-+            }
-+        }
-+        if (DEBUG) Slog.d(TAG, "Returning mode=" + mode);
-+        return mode;
-+    }
-+}
+diff --git a/packages/SystemUI/src/com/android/systemui/statusbar/stack/NotificationStackScrollLayout.java b/packages/SystemUI/src/com/android/systemui/statusbar/stack/NotificationStackScrollLayout.java
+index 249a10ecb183..ff4f215b482f 100644
+--- a/packages/SystemUI/src/com/android/systemui/statusbar/stack/NotificationStackScrollLayout.java
++++ b/packages/SystemUI/src/com/android/systemui/statusbar/stack/NotificationStackScrollLayout.java
+@@ -3998,14 +3998,6 @@ public class NotificationStackScrollLayout extends ViewGroup
+         notifyHeightChangeListener(mShelf);
+     }
+ 
+-    private void updateAntiBurnInTranslation() {
+-        float x = mAntiBurnInOffsetX * mDarkAmount;
+-        if (!onKeyguard()) {
+-            x += getTranslationX();
+-        }
+-        setTranslationX(x);
+-    }
+-
+     private void updatePanelTranslation() {
+         setTranslationX(mVerticalPanelTranslation + mAntiBurnInOffsetX * mInterpolatedDarkAmount);
+     }
 diff --git a/services/core/java/com/android/server/AppOpsService.java b/services/core/java/com/android/server/AppOpsService.java
-index 98b30a6e2cc..0aa3a84f4a7 100644
+index 98b30a6e2cc7..a1f94282bcdb 100644
 --- a/services/core/java/com/android/server/AppOpsService.java
 +++ b/services/core/java/com/android/server/AppOpsService.java
 @@ -1,4 +1,7 @@
@@ -2283,23 +1864,19 @@ index 98b30a6e2cc..0aa3a84f4a7 100644
  
  import libcore.util.EmptyArray;
  
-@@ -119,6 +130,9 @@ public class AppOpsService extends IAppOpsService.Stub {
-     // Constant meaning that any UID should be matched when dispatching callbacks
-     private static final int UID_ANY = -2;
+@@ -170,9 +181,16 @@ public class AppOpsService extends IAppOpsService.Stub {
+             "rc",       // UID_STATE_CACHED
+     };
  
-+    // Location of policy file.
-+    static final String DEFAULT_POLICY_FILE = "/system/etc/appops_policy.xml";
++    // Rate limiting thresholds for ask operations
++    public static final int RATE_LIMIT_OP_COUNT = 3;
++    public static final int RATE_LIMIT_OPS_TOTAL_PKG_COUNT = 4;
++    public static final int RATE_LIMIT_OP_DELAY_CEILING = 10;
 +
-     // Map from process states to the uid states we track.
-     private static final int[] PROCESS_STATE_TO_UID_STATE = new int[] {
-         UID_STATE_PERSISTENT,           // ActivityManager.PROCESS_STATE_PERSISTENT
-@@ -173,6 +187,10 @@ public class AppOpsService extends IAppOpsService.Stub {
      Context mContext;
      final AtomicFile mFile;
      final Handler mHandler;
 +    final Looper mLooper;
-+    final boolean mStrictEnable;
-+    AppOpsPolicy mPolicy;
 +    private PowerManager mPowerManager;
  
      private final AppOpsManagerInternalImpl mAppOpsManagerInternal
@@ -2321,15 +1898,7 @@ index 98b30a6e2cc..0aa3a84f4a7 100644
  
      @VisibleForTesting
      static final class UidState {
-@@ -395,6 +421,7 @@ public class AppOpsService extends IAppOpsService.Stub {
-         }
-     }
- 
-+
-     final static class Op {
-         final UidState uidState;
-         final int uid;
-@@ -408,6 +435,14 @@ public class AppOpsService extends IAppOpsService.Stub {
+@@ -408,6 +434,14 @@ public class AppOpsService extends IAppOpsService.Stub {
          long rejectTime[] = new long[_NUM_UID_STATE];
          int startNesting;
          long startRealtime;
@@ -2344,7 +1913,7 @@ index 98b30a6e2cc..0aa3a84f4a7 100644
  
          Op(UidState _uidState, String _packageName, int _op) {
              uidState = _uidState;
-@@ -415,6 +450,18 @@ public class AppOpsService extends IAppOpsService.Stub {
+@@ -415,6 +449,18 @@ public class AppOpsService extends IAppOpsService.Stub {
              packageName = _packageName;
              op = _op;
              mode = AppOpsManager.opToDefaultMode(op);
@@ -2363,7 +1932,7 @@ index 98b30a6e2cc..0aa3a84f4a7 100644
          }
  
          boolean hasAnyTime() {
-@@ -570,6 +617,13 @@ public class AppOpsService extends IAppOpsService.Stub {
+@@ -570,6 +616,13 @@ public class AppOpsService extends IAppOpsService.Stub {
                  }
                  mClients.remove(mAppToken);
              }
@@ -2377,22 +1946,15 @@ index 98b30a6e2cc..0aa3a84f4a7 100644
          }
      }
  
-@@ -578,11 +632,14 @@ public class AppOpsService extends IAppOpsService.Stub {
+@@ -578,6 +631,7 @@ public class AppOpsService extends IAppOpsService.Stub {
          mFile = new AtomicFile(storagePath, "appops");
          mHandler = handler;
          mConstants = new Constants(mHandler);
 +        mLooper = Looper.myLooper();
-+        mStrictEnable = AppOpsManager.isStrictEnable();
          readState();
      }
  
-     public void publish(Context context) {
-         mContext = context;
-+        readPolicy();
-         ServiceManager.addService(Context.APP_OPS_SERVICE, asBinder());
-         LocalServices.addService(AppOpsManagerInternal.class, mAppOpsManagerInternal);
-     }
-@@ -681,8 +738,44 @@ public class AppOpsService extends IAppOpsService.Stub {
+@@ -681,8 +735,44 @@ public class AppOpsService extends IAppOpsService.Stub {
                                  || mountMode == Zygote.MOUNT_EXTERNAL_WRITE;
                      }
                  });
@@ -2437,7 +1999,7 @@ index 98b30a6e2cc..0aa3a84f4a7 100644
      public void packageRemoved(int uid, String packageName) {
          synchronized (this) {
              UidState uidState = mUidStates.get(uid);
-@@ -818,7 +911,7 @@ public class AppOpsService extends IAppOpsService.Stub {
+@@ -818,7 +908,7 @@ public class AppOpsService extends IAppOpsService.Stub {
                          : curOp.duration;
                  resOps.add(new AppOpsManager.OpEntry(curOp.op, curOp.mode, curOp.time,
                          curOp.rejectTime, (int) duration, running, curOp.proxyUid,
@@ -2446,7 +2008,7 @@ index 98b30a6e2cc..0aa3a84f4a7 100644
              }
          } else {
              for (int j=0; j<ops.length; j++) {
-@@ -833,7 +926,7 @@ public class AppOpsService extends IAppOpsService.Stub {
+@@ -833,7 +923,7 @@ public class AppOpsService extends IAppOpsService.Stub {
                              : curOp.duration;
                      resOps.add(new AppOpsManager.OpEntry(curOp.op, curOp.mode, curOp.time,
                              curOp.rejectTime, (int) duration, running, curOp.proxyUid,
@@ -2455,7 +2017,7 @@ index 98b30a6e2cc..0aa3a84f4a7 100644
                  }
              }
          }
-@@ -846,7 +939,7 @@ public class AppOpsService extends IAppOpsService.Stub {
+@@ -846,7 +936,7 @@ public class AppOpsService extends IAppOpsService.Stub {
              resOps = new ArrayList<>();
              for (int j=0; j<uidOps.size(); j++) {
                  resOps.add(new AppOpsManager.OpEntry(uidOps.keyAt(j), uidOps.valueAt(j),
@@ -2464,7 +2026,7 @@ index 98b30a6e2cc..0aa3a84f4a7 100644
              }
          } else {
              for (int j=0; j<ops.length; j++) {
-@@ -856,7 +949,7 @@ public class AppOpsService extends IAppOpsService.Stub {
+@@ -856,7 +946,7 @@ public class AppOpsService extends IAppOpsService.Stub {
                          resOps = new ArrayList<>();
                      }
                      resOps.add(new AppOpsManager.OpEntry(uidOps.keyAt(index), uidOps.valueAt(index),
@@ -2473,31 +2035,20 @@ index 98b30a6e2cc..0aa3a84f4a7 100644
                  }
              }
          }
-@@ -990,7 +1083,8 @@ public class AppOpsService extends IAppOpsService.Stub {
-         code = AppOpsManager.opToSwitch(code);
- 
-         synchronized (this) {
--            final int defaultMode = AppOpsManager.opToDefaultMode(code);
-+            final int defaultMode = AppOpsManager.opToDefaultMode(code,
-+                    AppOpsManager.isStrictOp(code));
- 
-             UidState uidState = getUidStateLocked(uid, false);
-             if (uidState == null) {
-@@ -1115,7 +1209,7 @@ public class AppOpsService extends IAppOpsService.Stub {
+@@ -1115,7 +1205,7 @@ public class AppOpsService extends IAppOpsService.Stub {
                          }
                          repCbs.addAll(cbs);
                      }
 -                    if (mode == AppOpsManager.opToDefaultMode(op.op)) {
-+                    if (mode == getDefaultMode(code, uid, packageName)) {
++                    if (mode == AppOpsManager.opToDefaultMode(code)) {
                          // If going into the default mode, prune this op
                          // if there is nothing else interesting in it.
                          pruneOp(op, uid, packageName);
-@@ -1271,9 +1365,11 @@ public class AppOpsService extends IAppOpsService.Stub {
+@@ -1271,9 +1361,10 @@ public class AppOpsService extends IAppOpsService.Stub {
                      Ops pkgOps = ent.getValue();
                      for (int j=pkgOps.size()-1; j>=0; j--) {
                          Op curOp = pkgOps.valueAt(j);
-+                        int defaultMode = getDefaultMode(curOp.op, curOp.uid,
-+                                curOp.packageName);
++                        int defaultMode = AppOpsManager.opToDefaultMode(curOp.op);
                          if (AppOpsManager.opAllowsReset(curOp.op)
 -                                && curOp.mode != AppOpsManager.opToDefaultMode(curOp.op)) {
 -                            curOp.mode = AppOpsManager.opToDefaultMode(curOp.op);
@@ -2506,16 +2057,7 @@ index 98b30a6e2cc..0aa3a84f4a7 100644
                              changed = true;
                              uidChanged = true;
                              callbacks = addCallbacks(callbacks, curOp.op, curOp.uid, packageName,
-@@ -1431,7 +1527,7 @@ public class AppOpsService extends IAppOpsService.Stub {
-             }
-             Op op = getOpLocked(code, uid, resolvedPackageName, false);
-             if (op == null) {
--                return AppOpsManager.opToDefaultMode(code);
-+                return getDefaultMode(code, uid, packageName);
-             }
-             return op.mode;
-         }
-@@ -1564,6 +1660,7 @@ public class AppOpsService extends IAppOpsService.Stub {
+@@ -1564,6 +1655,7 @@ public class AppOpsService extends IAppOpsService.Stub {
  
      private int noteOperationUnchecked(int code, int uid, String packageName,
              int proxyUid, String proxyPackageName) {
@@ -2523,7 +2065,7 @@ index 98b30a6e2cc..0aa3a84f4a7 100644
          synchronized (this) {
              final Ops ops = getOpsRawLocked(uid, packageName, true /* edit */,
                      false /* uidMismatchExpected */);
-@@ -1574,6 +1671,7 @@ public class AppOpsService extends IAppOpsService.Stub {
+@@ -1574,6 +1666,7 @@ public class AppOpsService extends IAppOpsService.Stub {
              }
              final Op op = getOpLocked(ops, code, true);
              if (isOpRestrictedLocked(uid, code, packageName)) {
@@ -2531,7 +2073,7 @@ index 98b30a6e2cc..0aa3a84f4a7 100644
                  return AppOpsManager.MODE_IGNORED;
              }
              final UidState uidState = ops.uidState;
-@@ -1598,22 +1696,88 @@ public class AppOpsService extends IAppOpsService.Stub {
+@@ -1598,22 +1691,88 @@ public class AppOpsService extends IAppOpsService.Stub {
              } else {
                  final Op switchOp = switchCode != code ? getOpLocked(ops, switchCode, true) : op;
                  final int mode = switchOp.getMode();
@@ -2580,9 +2122,9 @@ index 98b30a6e2cc..0aa3a84f4a7 100644
 +                    // limiting.
 +                    final boolean isInteractive = mPowerManager.isInteractive();
 +                    if (isInteractive &&
-+                            (ops.uidState.pkgOps.size() < AppOpsPolicy.RATE_LIMIT_OPS_TOTAL_PKG_COUNT
-+                            && op.noteOpCount < AppOpsPolicy.RATE_LIMIT_OP_COUNT
-+                            || op.delayedCount > AppOpsPolicy.RATE_LIMIT_OP_DELAY_CEILING)) {
++                            (ops.uidState.pkgOps.size() < RATE_LIMIT_OPS_TOTAL_PKG_COUNT
++                            && op.noteOpCount < RATE_LIMIT_OP_COUNT
++                            || op.delayedCount > RATE_LIMIT_OP_DELAY_CEILING)) {
 +
 +                        // Reset delayed count, most ops will never need this
 +                        if (op.delayedCount > 0) {
@@ -2628,7 +2170,7 @@ index 98b30a6e2cc..0aa3a84f4a7 100644
      }
  
      @Override
-@@ -1670,6 +1834,7 @@ public class AppOpsService extends IAppOpsService.Stub {
+@@ -1670,6 +1829,7 @@ public class AppOpsService extends IAppOpsService.Stub {
      @Override
      public int startOperation(IBinder token, int code, int uid, String packageName,
              boolean startIfModeDefault) {
@@ -2636,7 +2178,7 @@ index 98b30a6e2cc..0aa3a84f4a7 100644
          verifyIncomingUid(uid);
          verifyIncomingOp(code);
          String resolvedPackageName = resolvePackageName(uid, packageName);
-@@ -1687,6 +1852,7 @@ public class AppOpsService extends IAppOpsService.Stub {
+@@ -1687,6 +1847,7 @@ public class AppOpsService extends IAppOpsService.Stub {
              }
              final Op op = getOpLocked(ops, code, true);
              if (isOpRestrictedLocked(uid, code, resolvedPackageName)) {
@@ -2644,7 +2186,7 @@ index 98b30a6e2cc..0aa3a84f4a7 100644
                  return AppOpsManager.MODE_IGNORED;
              }
              final int switchCode = AppOpsManager.opToSwitch(code);
-@@ -1715,23 +1881,50 @@ public class AppOpsService extends IAppOpsService.Stub {
+@@ -1715,23 +1876,50 @@ public class AppOpsService extends IAppOpsService.Stub {
                      return mode;
                  }
              }
@@ -2710,7 +2252,7 @@ index 98b30a6e2cc..0aa3a84f4a7 100644
      }
  
      @Override
-@@ -1823,6 +2016,7 @@ public class AppOpsService extends IAppOpsService.Stub {
+@@ -1823,6 +2011,7 @@ public class AppOpsService extends IAppOpsService.Stub {
          } finally {
              Binder.restoreCallingIdentity(identity);
          }
@@ -2718,7 +2260,7 @@ index 98b30a6e2cc..0aa3a84f4a7 100644
      }
  
      @Override
-@@ -1854,6 +2048,10 @@ public class AppOpsService extends IAppOpsService.Stub {
+@@ -1854,6 +2043,10 @@ public class AppOpsService extends IAppOpsService.Stub {
      }
  
      private void verifyIncomingUid(int uid) {
@@ -2729,7 +2271,7 @@ index 98b30a6e2cc..0aa3a84f4a7 100644
          if (uid == Binder.getCallingUid()) {
              return;
          }
-@@ -2163,7 +2361,8 @@ public class AppOpsService extends IAppOpsService.Stub {
+@@ -2163,7 +2356,8 @@ public class AppOpsService extends IAppOpsService.Stub {
                  Ops ops = uidState.pkgOps.valueAt(j);
                  if (ops != null) {
                      final Op op = ops.get(AppOpsManager.OP_RUN_IN_BACKGROUND);
@@ -2739,91 +2281,50 @@ index 98b30a6e2cc..0aa3a84f4a7 100644
                          final Op copy = new Op(op.uidState, op.packageName,
                                  AppOpsManager.OP_RUN_ANY_IN_BACKGROUND);
                          copy.mode = op.mode;
-@@ -2278,11 +2477,6 @@ public class AppOpsService extends IAppOpsService.Stub {
- 
-             String tagName = parser.getName();
-             if (tagName.equals("op")) {
--                UidState uidState = getUidStateLocked(uid, true);
--                if (uidState.pkgOps == null) {
--                    uidState.pkgOps = new ArrayMap<>();
--                }
--
-                 int code = Integer
-                         .parseInt(parser.getAttributeValue(null, "n"));
-                 // use op name string if it exists
-@@ -2296,7 +2490,54 @@ public class AppOpsService extends IAppOpsService.Stub {
+@@ -2296,15 +2490,36 @@ public class AppOpsService extends IAppOpsService.Stub {
                          || code >= AppOpsManager._NUM_OP) {
                      continue;
                  }
 -                Op op = new Op(uidState, pkgName, code);
 +
-+                UidState uidState = getUidStateLocked(uid, true);
-+                if (uidState.pkgOps == null) {
-+                    uidState.pkgOps = new ArrayMap<>();
-+                }
-+
 +                Op op = new Op(uidState, pkgName, code, AppOpsManager.MODE_ERRORED);
-+                String mode = parser.getAttributeValue(null, "m");
-+                if (mode != null) {
-+                    op.mode = Integer.parseInt(mode);
-+                } else {
-+                    String sDefualtMode = parser.getAttributeValue(null, "dm");
-+                    int defaultMode;
-+                    if (sDefualtMode != null) {
-+                        defaultMode = Integer.parseInt(sDefualtMode);
-+                    } else {
-+                        defaultMode = getDefaultMode(code, uid, pkgName);
-+                    }
-+                    op.mode = defaultMode;
-+                }
-+                String time = parser.getAttributeValue(null, "t");
-+                if (time != null) {
-+                    op.time[uidState.state] = Long.parseLong(time);
-+                }
-+                time = parser.getAttributeValue(null, "r");
-+                if (time != null) {
-+                    op.rejectTime[uidState.state] = Long.parseLong(time);
-+                }
-+                String dur = parser.getAttributeValue(null, "d");
-+                if (dur != null) {
-+                    op.duration = Integer.parseInt(dur);
-+                }
-+                String proxyUid = parser.getAttributeValue(null, "pu");
-+                if (proxyUid != null) {
-+                    op.proxyUid = Integer.parseInt(proxyUid);
-+                }
-+                String proxyPackageName = parser.getAttributeValue(null, "pp");
-+                if (proxyPackageName != null) {
-+                    op.proxyPackageName = proxyPackageName;
-+                }
-+                String allowed = parser.getAttributeValue(null, "ac");
-+                if (allowed != null) {
-+                    op.allowedCount = Integer.parseInt(allowed);
-+                }
-+                String ignored = parser.getAttributeValue(null, "ic");
-+                if (ignored != null) {
-+                    op.ignoredCount = Integer.parseInt(ignored);
-+                }
  
                  for (int i = parser.getAttributeCount()-1; i >= 0; i--) {
                      final String name = parser.getAttributeName(i);
-@@ -2364,6 +2605,9 @@ public class AppOpsService extends IAppOpsService.Stub {
-                             // Backwards compat.
-                             op.rejectTime[AppOpsManager.UID_STATE_TOP] = Long.parseLong(value);
+                     final String value = parser.getAttributeValue(i);
+                     switch (name) {
++                        case "ac":
++                            op.allowedCount = Integer.parseInt(value);
++                            break;
++                        case "dm":
++                            int defaultMode = AppOpsManager.OP_NONE;
++                            if (value != null) {
++                                defaultMode = Integer.parseInt(value);
++                            } else {
++                                defaultMode = AppOpsManager.opToDefaultMode(code);
++                            }
++                            if (op.mode == AppOpsManager.MODE_ERRORED){
++                                op.mode = defaultMode;
++                            }
++                            break;
++                        case "ic":
++                            op.ignoredCount = Integer.parseInt(value);
++                            break;
+                         case "m":
+                             op.mode = Integer.parseInt(value);
                              break;
 +                        case "n":
 +                        case "ns":
 +                            break;
-                         default:
-                             Slog.w(TAG, "Unknown attribute in 'op' tag: " + name);
+                         case "d":
+                             op.duration = Integer.parseInt(value);
                              break;
-@@ -2458,8 +2702,12 @@ public class AppOpsService extends IAppOpsService.Stub {
+@@ -2458,8 +2673,11 @@ public class AppOpsService extends IAppOpsService.Stub {
                              out.startTag(null, "op");
                              out.attribute(null, "n", Integer.toString(op.getOp()));
                              out.attribute(null, "ns", AppOpsManager.opToName(op.getOp()));
 -                            if (op.getMode() != AppOpsManager.opToDefaultMode(op.getOp())) {
-+                            int defaultMode = getDefaultMode(op.getOp(),
-+                                    pkg.getUid(), pkg.getPackageName());
++                            int defaultMode = AppOpsManager.opToDefaultMode(op.getOp());
 +                            if (op.getMode() != defaultMode) {
                                  out.attribute(null, "m", Integer.toString(op.getMode()));
 +                            } else {
@@ -2831,7 +2332,7 @@ index 98b30a6e2cc..0aa3a84f4a7 100644
                              }
                              for (int k = 0; k < _NUM_UID_STATE; k++) {
                                  final long time = op.getLastTimeFor(k);
-@@ -2485,6 +2733,14 @@ public class AppOpsService extends IAppOpsService.Stub {
+@@ -2485,6 +2703,14 @@ public class AppOpsService extends IAppOpsService.Stub {
                              if (proxyPackageName != null) {
                                  out.attribute(null, "pp", proxyPackageName);
                              }
@@ -2846,7 +2347,7 @@ index 98b30a6e2cc..0aa3a84f4a7 100644
                              out.endTag(null, "op");
                          }
                          out.endTag(null, "uid");
-@@ -3579,6 +3835,175 @@ public class AppOpsService extends IAppOpsService.Stub {
+@@ -3579,6 +3805,156 @@ public class AppOpsService extends IAppOpsService.Stub {
          }
      }
  
@@ -2890,25 +2391,6 @@ index 98b30a6e2cc..0aa3a84f4a7 100644
 +        PermissionDialogReq request = new PermissionDialogReq();
 +        mHandler.post(new AskRunnable(code, uid, packageName, op, request));
 +        return request;
-+    }
-+
-+    private int getDefaultMode(int code, int uid, String packageName) {
-+        int mode = AppOpsManager.opToDefaultMode(code,
-+                isStrict(code, uid, packageName));
-+        if (AppOpsManager.isStrictOp(code) && mPolicy != null) {
-+            int policyMode = mPolicy.getDefualtMode(code, packageName);
-+            if (policyMode != AppOpsManager.MODE_ERRORED) {
-+                mode = policyMode;
-+            }
-+        }
-+        return mode;
-+    }
-+
-+    private boolean isStrict(int code, int uid, String packageName) {
-+        if (!mStrictEnable)
-+            return false;
-+
-+        return UserHandle.isApp(uid);
 +    }
 +
 +    private void printOperationLocked(Op op, int mode, String operation) {
@@ -3000,7 +2482,7 @@ index 98b30a6e2cc..0aa3a84f4a7 100644
 +                        }
 +                        repCbs.addAll(cbs);
 +                    }
-+                    if (mode == getDefaultMode(op.op, op.uid, op.packageName)) {
++                    if (mode == AppOpsManager.opToDefaultMode(op.op)) {
 +                        // If going into the default mode, prune this op
 +                        // if there is nothing else interesting in it.
 +                        pruneOp(op, uid, packageName);
@@ -3022,7 +2504,7 @@ index 98b30a6e2cc..0aa3a84f4a7 100644
      private static String resolvePackageName(int uid, String packageName)  {
          if (uid == Process.ROOT_UID) {
              return "root";
-@@ -3789,4 +4214,75 @@ public class AppOpsService extends IAppOpsService.Stub {
+@@ -3789,4 +4165,57 @@ public class AppOpsService extends IAppOpsService.Stub {
              }
          }
      }
@@ -3035,24 +2517,6 @@ index 98b30a6e2cc..0aa3a84f4a7 100644
 +            default:
 +                break;
 +        }
-+    }
-+
-+    private void readPolicy() {
-+        if (mStrictEnable) {
-+            mPolicy = new AppOpsPolicy(new File(DEFAULT_POLICY_FILE), mContext);
-+            mPolicy.readPolicy();
-+            mPolicy.debugPoilcy();
-+        } else {
-+            mPolicy = null;
-+        }
-+    }
-+
-+    public boolean isControlAllowed(int code, String packageName) {
-+        boolean isShow = true;
-+        if (mPolicy != null) {
-+            isShow = mPolicy.isControlAllowed(code, packageName);
-+        }
-+        return isShow;
 +    }
 +
 +    @Override
@@ -3100,7 +2564,7 @@ index 98b30a6e2cc..0aa3a84f4a7 100644
  }
 diff --git a/services/core/java/com/android/server/BasePermissionDialog.java b/services/core/java/com/android/server/BasePermissionDialog.java
 new file mode 100644
-index 00000000000..e3dbcdabcd1
+index 000000000000..e3dbcdabcd1c
 --- /dev/null
 +++ b/services/core/java/com/android/server/BasePermissionDialog.java
 @@ -0,0 +1,84 @@
@@ -3189,7 +2653,7 @@ index 00000000000..e3dbcdabcd1
 +    private boolean mConsuming = true;
 +}
 diff --git a/services/core/java/com/android/server/BluetoothManagerService.java b/services/core/java/com/android/server/BluetoothManagerService.java
-index aa426d3cd31..79a25bb6e87 100644
+index aa426d3cd31f..f098edeb8977 100644
 --- a/services/core/java/com/android/server/BluetoothManagerService.java
 +++ b/services/core/java/com/android/server/BluetoothManagerService.java
 @@ -1,4 +1,7 @@
@@ -3208,13 +2672,12 @@ index aa426d3cd31..79a25bb6e87 100644
  import android.bluetooth.BluetoothAdapter;
  import android.bluetooth.BluetoothProfile;
  import android.bluetooth.BluetoothProtoEnums;
-@@ -883,7 +887,13 @@ class BluetoothManagerService extends IBluetoothManager.Stub {
+@@ -883,7 +887,12 @@ class BluetoothManagerService extends IBluetoothManager.Stub {
                      + mBinding + " mState = " + BluetoothAdapter.nameForState(mState));
          }
  
 -        synchronized (mReceiver) {
-+        AppOpsManager appOps = (AppOpsManager) mContext
-+                .getSystemService(Context.APP_OPS_SERVICE);
++        AppOpsManager appOps = mContext.getSystemService(AppOpsManager.class);
 +        if (appOps.noteOp(AppOpsManager.OP_BLUETOOTH_CHANGE, callingUid,
 +                packageName) != AppOpsManager.MODE_ALLOWED)
 +            return false;
@@ -3225,7 +2688,7 @@ index aa426d3cd31..79a25bb6e87 100644
              // waive WRITE_SECURE_SETTINGS permission check
 diff --git a/services/core/java/com/android/server/PermissionDialog.java b/services/core/java/com/android/server/PermissionDialog.java
 new file mode 100644
-index 00000000000..fd676b5f893
+index 000000000000..fd676b5f8935
 --- /dev/null
 +++ b/services/core/java/com/android/server/PermissionDialog.java
 @@ -0,0 +1,145 @@
@@ -3376,7 +2839,7 @@ index 00000000000..fd676b5f893
 +}
 diff --git a/services/core/java/com/android/server/PermissionDialogReqQueue.java b/services/core/java/com/android/server/PermissionDialogReqQueue.java
 new file mode 100644
-index 00000000000..5b602e33a60
+index 000000000000..5b602e33a607
 --- /dev/null
 +++ b/services/core/java/com/android/server/PermissionDialogReqQueue.java
 @@ -0,0 +1,88 @@
@@ -3469,7 +2932,7 @@ index 00000000000..5b602e33a60
 +    }
 +}
 diff --git a/services/core/java/com/android/server/am/ActivityManagerService.java b/services/core/java/com/android/server/am/ActivityManagerService.java
-index ab9ccf910bf..54c83f48306 100644
+index ab9ccf910bf6..54c83f483061 100644
 --- a/services/core/java/com/android/server/am/ActivityManagerService.java
 +++ b/services/core/java/com/android/server/am/ActivityManagerService.java
 @@ -1938,6 +1938,9 @@ public class ActivityManagerService extends IActivityManager.Stub
@@ -3551,21 +3014,20 @@ index ab9ccf910bf..54c83f48306 100644
                  idleUids();
              } break;
 diff --git a/services/core/java/com/android/server/am/ActivityRecord.java b/services/core/java/com/android/server/am/ActivityRecord.java
-index c721b7e34f3..54ed40b21d3 100644
+index c721b7e34f3b..0c156ae1a422 100644
 --- a/services/core/java/com/android/server/am/ActivityRecord.java
 +++ b/services/core/java/com/android/server/am/ActivityRecord.java
-@@ -180,6 +180,10 @@ import android.view.RemoteAnimationDefinition;
+@@ -180,6 +180,9 @@ import android.view.RemoteAnimationDefinition;
  import android.view.WindowManager.LayoutParams;
  
  import com.android.internal.R;
-+import com.android.internal.annotations.VisibleForTesting;
 +
 +import lineageos.providers.LineageSettings;
 +
  import com.android.internal.app.ResolverActivity;
  import com.android.internal.content.ReferrerIntent;
  import com.android.internal.util.XmlUtils;
-@@ -1889,6 +1893,33 @@ final class ActivityRecord extends ConfigurationContainer implements AppWindowCo
+@@ -1889,6 +1892,33 @@ final class ActivityRecord extends ConfigurationContainer implements AppWindowCo
              // pause and then resume again later, which will result in a double life-cycle event.
              stack.checkReadyForSleep();
          }
@@ -3600,7 +3062,7 @@ index c721b7e34f3..54ed40b21d3 100644
  
      final void activityStoppedLocked(Bundle newIcicle, PersistableBundle newPersistentState,
 diff --git a/services/core/java/com/android/server/am/ActivityStackSupervisor.java b/services/core/java/com/android/server/am/ActivityStackSupervisor.java
-index c520101d3ff..870d1f009f8 100644
+index c520101d3ff4..870d1f009f8a 100644
 --- a/services/core/java/com/android/server/am/ActivityStackSupervisor.java
 +++ b/services/core/java/com/android/server/am/ActivityStackSupervisor.java
 @@ -394,6 +394,11 @@ public class ActivityStackSupervisor extends ConfigurationContainer implements D
@@ -3616,7 +3078,7 @@ index c520101d3ff..870d1f009f8 100644
       * We don't want to allow the device to go to sleep while in the process
       * of launching an activity.  This is primarily to allow alarm intent
 diff --git a/services/core/java/com/android/server/am/UserController.java b/services/core/java/com/android/server/am/UserController.java
-index 3d93cb938f0..a0830b90c8e 100644
+index 3d93cb938f06..a0830b90c8ea 100644
 --- a/services/core/java/com/android/server/am/UserController.java
 +++ b/services/core/java/com/android/server/am/UserController.java
 @@ -531,6 +531,21 @@ class UserController implements Handler.Callback {
@@ -3642,7 +3104,7 @@ index 3d93cb938f0..a0830b90c8e 100644
  
          Slog.i(TAG, "Sending BOOT_COMPLETE user #" + userId);
 diff --git a/services/core/java/com/android/server/pm/PackageManagerService.java b/services/core/java/com/android/server/pm/PackageManagerService.java
-index 3d39b4cfae6..2b66b4f19b1 100644
+index 3d39b4cfae65..f306b3f2ab40 100644
 --- a/services/core/java/com/android/server/pm/PackageManagerService.java
 +++ b/services/core/java/com/android/server/pm/PackageManagerService.java
 @@ -271,6 +271,8 @@ import android.util.jar.StrictJarFile;
@@ -3686,13 +3148,13 @@ index 3d39b4cfae6..2b66b4f19b1 100644
          mSettings.addSharedUserLPw("android.uid.se", SE_UID,
                  ApplicationInfo.FLAG_SYSTEM, ApplicationInfo.PRIVATE_FLAG_PRIVILEGED);
  
-+        mAppOps = (AppOpsManager) context.getSystemService(Context.APP_OPS_SERVICE);
++        mAppOps = context.getSystemService(AppOpsManager.class);
 +
          String separateProcesses = SystemProperties.get("debug.separate_processes");
          if (separateProcesses != null && separateProcesses.length() > 0) {
              if ("*".equals(separateProcesses)) {
 diff --git a/services/core/java/com/android/server/pm/UserManagerService.java b/services/core/java/com/android/server/pm/UserManagerService.java
-index cac6383ff3d..1a22a84908f 100644
+index cac6383ff3d7..1a22a84908f8 100644
 --- a/services/core/java/com/android/server/pm/UserManagerService.java
 +++ b/services/core/java/com/android/server/pm/UserManagerService.java
 @@ -1358,6 +1358,7 @@ public class UserManagerService extends IUserManager.Stub {
@@ -3712,7 +3174,7 @@ index cac6383ff3d..1a22a84908f 100644
              return user;
          }
 diff --git a/services/core/java/com/android/server/pm/UserRestrictionsUtils.java b/services/core/java/com/android/server/pm/UserRestrictionsUtils.java
-index 9ca02bad50b..975545db440 100644
+index 9ca02bad50bd..975545db440f 100644
 --- a/services/core/java/com/android/server/pm/UserRestrictionsUtils.java
 +++ b/services/core/java/com/android/server/pm/UserRestrictionsUtils.java
 @@ -126,7 +126,8 @@ public class UserRestrictionsUtils {
@@ -3736,7 +3198,7 @@ index 9ca02bad50b..975545db440 100644
  
      /**
 diff --git a/telephony/java/android/telephony/TelephonyManager.java b/telephony/java/android/telephony/TelephonyManager.java
-index 37cdb52f7a3..0dd19574d82 100644
+index 37cdb52f7a35..0dd19574d822 100644
 --- a/telephony/java/android/telephony/TelephonyManager.java
 +++ b/telephony/java/android/telephony/TelephonyManager.java
 @@ -1,4 +1,7 @@

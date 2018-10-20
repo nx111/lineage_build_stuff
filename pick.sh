@@ -854,7 +854,6 @@ kpick 223067 # libc fortify: Ignore open() O_TMPFILE mode bits warning
 kpick 225463 # bionic: Let popen and system fall back to /sbin/sh
 kpick 230099 # Actually restore pre-P mutex behavior
 kpick 232002 # Merge android-9.0.0_r12
-kpick 232143 # remove bionic-compile-time-tests-g++
 
 # boot/recovery
 #kpick 230746 # sr: Get a proper shell environment in recovery
@@ -1266,7 +1265,6 @@ kpick 221756 # StatusBarSettings: Hide battery preference category based on icon
 kpick 229389 # Trust: enforce vendor security patch level check
 kpick 230017 # LineageParts: Re-enable expanded desktop.
 kpick 231163 # LineageParts: Add some missing psychedelics
-kpick 232146 # LineageParts: Reenable Privacy Guard
 
 # packages/apps/ManagedProvisoning
 kpick 232047 # Merge android-9.0.0_r12
@@ -1283,8 +1281,8 @@ kpick 232048 # Merge android-9.0.0_r12
 # packages/apps/Settings
 kpick 225755 # Settings: Hide AOSP theme-related controllers
 kpick 225756 # Settings: fix dark style issues
-kpick 226142 # Settings: Add developer setting for root access
 kpick 226148 # Settings: "Security & location" -> "Security & privacy"
+kpick 226142 # Settings: Add developer setting for root access
 kpick 226150 # Settings: add Trust interface hook
 kpick 226151 # Settings: show Trust brading in confirm_lock_password UI
 kpick 226154 # fingerprint: Allow devices to configure sensor location
