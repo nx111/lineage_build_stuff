@@ -1,0 +1,129 @@
+From 350bf487269293c149a1f5cd9f6518d407abb13c Mon Sep 17 00:00:00 2001
+From: Luca Stefani <luca.stefani.ge1@gmail.com>
+Date: Sun, 14 Oct 2018 11:55:58 +0200
+Subject: [PATCH 15/46] camera: Check if aux camera whitelist is set before
+ restricting cameras
+
+Some devices have a fully featured 3rd camera and adding 20+ camera apps
+to the whitelist is impossible due to the string length limit on
+systemprops. Add a check to see if the prop is even set, and if not,
+check if the blacklist property is set and mark those apps to hide the
+3rd camera from. If a package is not part of the blacklist, just restore
+the original behaviour and expose all the cameras to the app.
+
+Change-Id: I6c3b33c077e8710c73b5d0fa28e1b017d6c43a58
+---
+ core/java/android/hardware/Camera.java        | 14 +++++++++-
+ .../hardware/camera2/CameraManager.java       | 28 +++++++++++++++++--
+ 2 files changed, 39 insertions(+), 3 deletions(-)
+
+diff --git a/core/java/android/hardware/Camera.java b/core/java/android/hardware/Camera.java
+index 972bf4e8991..5ed684ad7b1 100644
+--- a/core/java/android/hardware/Camera.java
++++ b/core/java/android/hardware/Camera.java
+@@ -290,21 +290,33 @@ public class Camera {
+      *   cameras or an error was encountered enumerating them.
+      */
+     public static int getNumberOfCameras() {
+-        boolean exposeAuxCamera = false;
++        boolean exposeAuxCamera = true;
+         String packageName = ActivityThread.currentOpPackageName();
+         /* Force to expose only two cameras
+          * if the package name does not falls in this bucket
+          */
+         String packageList = SystemProperties.get("vendor.camera.aux.packagelist");
++        String packageBlacklist = SystemProperties.get("vendor.camera.aux.packageblacklist");
+         if (packageList.length() > 0) {
+             TextUtils.StringSplitter splitter = new TextUtils.SimpleStringSplitter(',');
+             splitter.setString(packageList);
++            exposeAuxCamera = false;
+             for (String str : splitter) {
+                 if (packageName.equals(str)) {
+                     exposeAuxCamera = true;
+                     break;
+                 }
+             }
++        } else if (packageBlacklist.length() > 0) {
++            TextUtils.StringSplitter splitter = new TextUtils.SimpleStringSplitter(',');
++            splitter.setString(packageBlacklist);
++            exposeAuxCamera = true;
++            for (String str : splitter) {
++                if (packageName.equals(str)) {
++                    exposeAuxCamera = false;
++                    break;
++                }
++            }
+         }
+         int numberOfCameras = _getNumberOfCameras();
+         if (exposeAuxCamera == false && (numberOfCameras > 2)) {
+diff --git a/core/java/android/hardware/camera2/CameraManager.java b/core/java/android/hardware/camera2/CameraManager.java
+index 58033dc1993..caa26d0d28d 100644
+--- a/core/java/android/hardware/camera2/CameraManager.java
++++ b/core/java/android/hardware/camera2/CameraManager.java
+@@ -913,18 +913,30 @@ public final class CameraManager {
+                 // Try to make sure we have an up-to-date list of camera devices.
+                 connectCameraServiceLocked();
+ 
+-                boolean exposeAuxCamera = false;
++                boolean exposeAuxCamera = true;
+                 String packageName = ActivityThread.currentOpPackageName();
+                 String packageList = SystemProperties.get("vendor.camera.aux.packagelist");
++                String packageBlacklist = SystemProperties.get("vendor.camera.aux.packageblacklist");
+                 if (packageList.length() > 0) {
+                     TextUtils.StringSplitter splitter = new TextUtils.SimpleStringSplitter(',');
+                     splitter.setString(packageList);
++                    exposeAuxCamera = false;
+                     for (String str : splitter) {
+                         if (packageName.equals(str)) {
+                             exposeAuxCamera = true;
+                             break;
+                         }
+                     }
++                } else if (packageBlacklist.length() > 0) {
++                    TextUtils.StringSplitter splitter = new TextUtils.SimpleStringSplitter(',');
++                    splitter.setString(packageBlacklist);
++                    exposeAuxCamera = true;
++                    for (String str : splitter) {
++                        if (packageName.equals(str)) {
++                            exposeAuxCamera = false;
++                            break;
++                        }
++                    }
+                 }
+                 int idCount = 0;
+                 for (int i = 0; i < mDeviceStatus.size(); i++) {
+@@ -1122,18 +1134,30 @@ public final class CameraManager {
+             /* Force to ignore the last mono/aux camera status update
+              * if the package name does not falls in this bucket
+              */
+-            boolean exposeMonoCamera = false;
++            boolean exposeMonoCamera = true;
+             String packageName = ActivityThread.currentOpPackageName();
+             String packageList = SystemProperties.get("vendor.camera.aux.packagelist");
++            String packageBlacklist = SystemProperties.get("vendor.camera.aux.packageblacklist");
+             if (packageList.length() > 0) {
+                 TextUtils.StringSplitter splitter = new TextUtils.SimpleStringSplitter(',');
+                 splitter.setString(packageList);
++                exposeMonoCamera = false;
+                 for (String str : splitter) {
+                     if (packageName.equals(str)) {
+                         exposeMonoCamera = true;
+                         break;
+                     }
+                 }
++            } else if (packageBlacklist.length() > 0) {
++                TextUtils.StringSplitter splitter = new TextUtils.SimpleStringSplitter(',');
++                splitter.setString(packageBlacklist);
++                exposeMonoCamera = true;
++                for (String str : splitter) {
++                    if (packageName.equals(str)) {
++                        exposeMonoCamera = false;
++                        break;
++                    }
++                }
+             }
+ 
+             if (exposeMonoCamera == false) {
+-- 
+2.17.1
+

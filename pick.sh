@@ -951,7 +951,7 @@ kpick 224266 # SystemUI: Add Lineage statusbar item holder
 kpick 224267 # SystemUI: Network Traffic [1/3]
 kpick 224446 # SystemUI: Make tablets great again
 kpick 224513 # SystemUI: Disable config_keyguardUserSwitcher on sw600dp
-kpick 224844 # lockscreen: Add option for showing unlock screen directly
+kpick 224844 # lockscreen: Add support for showing unlock screen directly
 kpick 225582 # [TEMP]: Revert "OMS: harden permission checks"
 kpick 225754 # SystemUI: Berry styles
 kpick 226236 # SystemUI: add navbar layout inversion tuning
@@ -993,6 +993,7 @@ kpick 231848 # SystemUI: Add one hand mode triggers
 kpick 231851 # onehand: Take into account cutouts
 kpick 231852 # onehand: Remove guide link
 kpick 232007 # Merge android-9.0.0_r12
+kpick 232197 # appops: Privacy Guard for P (1/2)
 
 # frameworks/native
 kpick 224443 # libbinder: Don't log call trace when waiting for vendor service on non-eng builds
@@ -1263,8 +1264,9 @@ kpick 232022 # Merge android-9.0.0_r12
 kpick 227930 # LineageParts: Bring back and refactor battery icon options
 kpick 221756 # StatusBarSettings: Hide battery preference category based on icon visibility
 kpick 229389 # Trust: enforce vendor security patch level check
-kpick 230017 # LineageParts: Re-enable expanded desktop.
+#kpick 230017 # LineageParts: Re-enable expanded desktop.
 kpick 231163 # LineageParts: Add some missing psychedelics
+kpick 232146 # LineageParts: Reenable Privacy Guard
 
 # packages/apps/ManagedProvisoning
 kpick 232047 # Merge android-9.0.0_r12
@@ -1297,6 +1299,7 @@ kpick 231590 # SimSettings: Add manual SIM provisioning support
 kpick 231826 # Update the white list of Data saver
 kpick 232001 # lockscreen: Forward port option to pass swipe-up-to-unlock
 kpick 232019 # Merge android-9.0.0_r12
+kpick 232198 # settings: appops: privacy guard for p (2/2)
 
 # packages/apps/SettingsIntelligence
 kpick 230519 # Fix dark style issues

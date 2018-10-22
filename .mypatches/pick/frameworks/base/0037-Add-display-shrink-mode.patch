@@ -1,0 +1,3261 @@
+From 29d9e4b7e29e00d907fb77a9ff4256e948fa64a4 Mon Sep 17 00:00:00 2001
+From: Satoshi Sanno <satoshi.sanno@sony.com>
+Date: Thu, 10 Aug 2017 16:03:18 +0900
+Subject: [PATCH 37/46] Add display shrink mode
+
+This commit adds the mechanism of display shrink.
+It shrinks down the display size via specific intent.
+It is for one hand operation to access easily the top of the display.
+
+Bug: 112870197
+Depends-On: I1d7882379daa67c4fd38a6326d7c8cfe204f09e7
+Change-Id: I0ae13130e25f5361d179c52a2035a6dfc2a30812
+---
+ Android.bp                                    |   2 +
+ .../hardware/input/InputManagerInternal.java  |   3 +
+ core/java/android/view/IWindowManager.aidl    |  19 +
+ core/java/android/view/WindowManager.java     |   6 +
+ .../onehand/IOneHandedModeListener.aidl       |   9 +
+ core/res/AndroidManifest.xml                  |   7 +
+ .../res/drawable/onehand_button_pressed.xml   |  13 +
+ .../drawable/onehand_buttons_background.xml   |   5 +
+ .../onehand_move_horizontally_left.xml        |  22 +
+ .../onehand_move_horizontally_right.xml       |  22 +
+ .../res/drawable/onehand_move_vertically.xml  |  20 +
+ .../drawable/onehand_screen_resize_left.xml   |  20 +
+ .../drawable/onehand_screen_resize_right.xml  |  20 +
+ core/res/res/layout/onehand_guide_panel.xml   |  32 +
+ core/res/res/values-ja/strings.xml            |   2 +
+ core/res/res/values/config.xml                |   7 +
+ core/res/res/values/strings.xml               |   5 +
+ core/res/res/values/symbols.xml               |  20 +
+ services/core/Android.bp                      |   1 +
+ .../server/input/InputManagerService.java     |   8 +
+ .../server/policy/PhoneWindowManager.java     |   3 +
+ .../server/policy/WindowManagerPolicy.java    |   4 +
+ .../com/android/server/wm/DisplayContent.java |  88 +-
+ .../server/wm/ScreenRotationAnimation.java    |   2 +-
+ .../com/android/server/wm/WindowAnimator.java |   7 +
+ .../server/wm/WindowManagerService.java       |  62 +-
+ .../com/android/server/wm/WindowState.java    |  42 +-
+ .../server/wm/onehand/EventLogTags.logtags    |   5 +
+ .../wm/onehand/IOneHandedAnimatorProxy.java   | 164 ++++
+ .../wm/onehand/OneHandOperationMonitor.java   |  72 ++
+ .../server/wm/onehand/OneHandedAnimator.java  | 859 ++++++++++++++++++
+ .../wm/onehand/OneHandedAnimatorProxy.java    | 120 +++
+ .../wm/onehand/OneHandedControlPanel.java     | 705 ++++++++++++++
+ .../server/wm/onehand/OneHandedMode.java      | 139 +++
+ .../server/wm/onehand/OneHandedSettings.java  |  78 ++
+ ...droid_server_input_InputManagerService.cpp |  34 +-
+ 36 files changed, 2612 insertions(+), 15 deletions(-)
+ create mode 100644 core/java/com/android/internal/onehand/IOneHandedModeListener.aidl
+ create mode 100644 core/res/res/drawable/onehand_button_pressed.xml
+ create mode 100644 core/res/res/drawable/onehand_buttons_background.xml
+ create mode 100644 core/res/res/drawable/onehand_move_horizontally_left.xml
+ create mode 100644 core/res/res/drawable/onehand_move_horizontally_right.xml
+ create mode 100644 core/res/res/drawable/onehand_move_vertically.xml
+ create mode 100644 core/res/res/drawable/onehand_screen_resize_left.xml
+ create mode 100644 core/res/res/drawable/onehand_screen_resize_right.xml
+ create mode 100644 core/res/res/layout/onehand_guide_panel.xml
+ create mode 100644 services/core/java/com/android/server/wm/onehand/EventLogTags.logtags
+ create mode 100644 services/core/java/com/android/server/wm/onehand/IOneHandedAnimatorProxy.java
+ create mode 100644 services/core/java/com/android/server/wm/onehand/OneHandOperationMonitor.java
+ create mode 100644 services/core/java/com/android/server/wm/onehand/OneHandedAnimator.java
+ create mode 100644 services/core/java/com/android/server/wm/onehand/OneHandedAnimatorProxy.java
+ create mode 100644 services/core/java/com/android/server/wm/onehand/OneHandedControlPanel.java
+ create mode 100644 services/core/java/com/android/server/wm/onehand/OneHandedMode.java
+ create mode 100644 services/core/java/com/android/server/wm/onehand/OneHandedSettings.java
+
+diff --git a/Android.bp b/Android.bp
+index 1f95b08a8df..fb1e8839988 100644
+--- a/Android.bp
++++ b/Android.bp
+@@ -599,6 +599,8 @@ java_library {
+         "lowpan/java/android/net/lowpan/ILowpanManagerListener.aidl",
+         "lowpan/java/android/net/lowpan/ILowpanManager.aidl",
+ 
++        "core/java/com/android/internal/onehand/IOneHandedModeListener.aidl",
++
+         "core/java/android/app/admin/SecurityLogTags.logtags",
+         "core/java/android/content/EventLogTags.logtags",
+         "core/java/android/speech/tts/EventLogTags.logtags",
+diff --git a/core/java/android/hardware/input/InputManagerInternal.java b/core/java/android/hardware/input/InputManagerInternal.java
+index eb7ea67eb88..97ab262f060 100644
+--- a/core/java/android/hardware/input/InputManagerInternal.java
++++ b/core/java/android/hardware/input/InputManagerInternal.java
+@@ -53,4 +53,7 @@ public abstract class InputManagerInternal {
+      * Set whether the input stack should deliver pulse gesture events when the device is asleep.
+      */
+     public abstract void setPulseGestureEnabled(boolean enabled);
++
++    public abstract void updatePointerMappingParameters(int offsetX, int offsetY, float scale,
++            int width, int height);
+ }
+diff --git a/core/java/android/view/IWindowManager.aidl b/core/java/android/view/IWindowManager.aidl
+index 131fe139558..f8355391cc7 100644
+--- a/core/java/android/view/IWindowManager.aidl
++++ b/core/java/android/view/IWindowManager.aidl
+@@ -16,6 +16,7 @@
+ 
+ package android.view;
+ 
++import com.android.internal.onehand.IOneHandedModeListener;
+ import com.android.internal.os.IResultReceiver;
+ import com.android.internal.view.IInputContext;
+ import com.android.internal.view.IInputMethodClient;
+@@ -435,4 +436,22 @@ interface IWindowManager
+      * @param displayId The id of the display.
+      */
+     void dontOverrideDisplayInfo(int displayId);
++
++    // This requires the ONE_HANDED_MODE permission.
++    boolean isOneHandedModeAvailable();
++
++    // This requires the ONE_HANDED_MODE permission.
++    float getOneHandedModeShrinkingScale();
++
++    /**
++     * Registers a listener that will be called when one handed mode state is changed.
++     * This requires the ONE_HANDED_MODE permission.
++     */
++    void registerOneHandedModeListener(IOneHandedModeListener listener);
++
++    /**
++     * Unregisters a listener that will be called when one handed mode state is changed.
++     * This requires the ONE_HANDED_MODE permission.
++     */
++    void unregisterOneHandedModeListener(IOneHandedModeListener listener);
+ }
+diff --git a/core/java/android/view/WindowManager.java b/core/java/android/view/WindowManager.java
+index 53155d7f301..07229a8f42c 100644
+--- a/core/java/android/view/WindowManager.java
++++ b/core/java/android/view/WindowManager.java
+@@ -999,6 +999,12 @@ public interface WindowManager extends ViewManager {
+          */
+         public static final int INVALID_WINDOW_TYPE = -1;
+ 
++        /**
++         * Window type: Windows for OneHandOperation.
++         * @hide
++        */
++        public static final int TYPE_ONEHAND_OVERLAY = LAST_SYSTEM_WINDOW - 3;
++
+         /**
+          * Return true if the window type is an alert window.
+          *
+diff --git a/core/java/com/android/internal/onehand/IOneHandedModeListener.aidl b/core/java/com/android/internal/onehand/IOneHandedModeListener.aidl
+new file mode 100644
+index 00000000000..3f672f1a1b4
+--- /dev/null
++++ b/core/java/com/android/internal/onehand/IOneHandedModeListener.aidl
+@@ -0,0 +1,9 @@
++package com.android.internal.onehand;
++
++/**
++ * @hide
++ **/
++oneway interface IOneHandedModeListener {
++    void onEnterOneHandedMode();
++    void onExitFromOneHandedMode();
++}
+diff --git a/core/res/AndroidManifest.xml b/core/res/AndroidManifest.xml
+index a7f901b0e8b..e8ab3a5af0d 100644
+--- a/core/res/AndroidManifest.xml
++++ b/core/res/AndroidManifest.xml
+@@ -603,6 +603,8 @@
+     <protected-broadcast android:name="android.intent.action.DOCK_IDLE" />
+     <protected-broadcast android:name="android.intent.action.DOCK_ACTIVE" />
+ 
++    <protected-broadcast android:name="com.android.server.wm.onehand.intent.action.ONEHAND_TRIGGER_EVENT" />
++
+     <!-- LineageOS additions -->
+ 
+     <!-- Used to launch a common app (FlipFlap) for devices with flip cover. -->
+@@ -3505,6 +3507,11 @@
+     <permission android:name="android.permission.COPY_PROTECTED_DATA"
+         android:protectionLevel="signature" />
+ 
++    <!-- Allows applications to control one handed mode.
++         @hide -->
++    <permission android:name="android.permission.ONE_HANDED_MODE"
++        android:protectionLevel="signature" />
++
+     <!-- @SystemApi Internal permission protecting access to the encryption methods
+         @hide
+     -->
+diff --git a/core/res/res/drawable/onehand_button_pressed.xml b/core/res/res/drawable/onehand_button_pressed.xml
+new file mode 100644
+index 00000000000..cb81033fc0a
+--- /dev/null
++++ b/core/res/res/drawable/onehand_button_pressed.xml
+@@ -0,0 +1,13 @@
++<?xml version="1.0" encoding="utf-8"?>
++<vector xmlns:android="http://schemas.android.com/apk/res/android"
++    android:width="72dp"
++    android:height="72dp"
++    android:viewportWidth="72"
++    android:viewportHeight="72">
++
++    <path
++        android:fillColor="#FFFFFF"
++        android:fillAlpha="0.25"
++        android:pathData="M36,16 C47.0457,16,56,24.9543,56,36 C56,47.0457,47.0457,56,36,56
++C24.9543,56,16,47.0457,16,36 C16,24.9543,24.9543,16,36,16 Z" />
++</vector>
+\ No newline at end of file
+diff --git a/core/res/res/drawable/onehand_buttons_background.xml b/core/res/res/drawable/onehand_buttons_background.xml
+new file mode 100644
+index 00000000000..e9a357aaaee
+--- /dev/null
++++ b/core/res/res/drawable/onehand_buttons_background.xml
+@@ -0,0 +1,5 @@
++<?xml version="1.0" encoding="utf-8"?>
++<selector xmlns:android="http://schemas.android.com/apk/res/android">
++    <item android:state_pressed="true" android:drawable="@android:drawable/onehand_button_pressed" />
++    <item android:drawable="@color/transparent" />
++</selector>
+\ No newline at end of file
+diff --git a/core/res/res/drawable/onehand_move_horizontally_left.xml b/core/res/res/drawable/onehand_move_horizontally_left.xml
+new file mode 100644
+index 00000000000..c2dc1c06580
+--- /dev/null
++++ b/core/res/res/drawable/onehand_move_horizontally_left.xml
+@@ -0,0 +1,22 @@
++<?xml version="1.0" encoding="utf-8"?>
++<vector xmlns:android="http://schemas.android.com/apk/res/android"
++    android:width="72dp"
++    android:height="72dp"
++    android:viewportWidth="72"
++    android:viewportHeight="72">
++
++    <path
++        android:name="arrow_left"
++        android:strokeColor="#FFFFFF"
++        android:strokeAlpha="0.33"
++        android:strokeWidth="2"
++        android:strokeMiterLimit="10"
++        android:pathData="M39.3,26 L29.3,36 L39.3,46" />
++    <path
++        android:name="circle"
++        android:strokeColor="#FFFFFF"
++        android:strokeAlpha="0.33"
++        android:strokeWidth="2"
++        android:strokeMiterLimit="10"
++        android:pathData="M16,36 C16,47,25,56,36,56 S56,47,56,36 S47,16,36,16 C25,16,16,25,16,36 L16,36 Z" />
++</vector>
+\ No newline at end of file
+diff --git a/core/res/res/drawable/onehand_move_horizontally_right.xml b/core/res/res/drawable/onehand_move_horizontally_right.xml
+new file mode 100644
+index 00000000000..2ce525c1281
+--- /dev/null
++++ b/core/res/res/drawable/onehand_move_horizontally_right.xml
+@@ -0,0 +1,22 @@
++<?xml version="1.0" encoding="utf-8"?>
++<vector xmlns:android="http://schemas.android.com/apk/res/android"
++    android:width="72dp"
++    android:height="72dp"
++    android:viewportWidth="72"
++    android:viewportHeight="72">
++
++    <path
++        android:name="arrow_left"
++        android:strokeColor="#FFFFFF"
++        android:strokeAlpha="0.33"
++        android:strokeWidth="2"
++        android:strokeMiterLimit="10"
++        android:pathData="M32.7,46 L42.7,36 L32.7,26" />
++    <path
++        android:name="circle"
++        android:strokeColor="#FFFFFF"
++        android:strokeAlpha="0.33"
++        android:strokeWidth="2"
++        android:strokeMiterLimit="10"
++        android:pathData="M56,36 C56,25,47,16,36,16 S16,25,16,36 S25,56,36,56 C47,56,56,47,56,36 L56,36 Z" />
++</vector>
+\ No newline at end of file
+diff --git a/core/res/res/drawable/onehand_move_vertically.xml b/core/res/res/drawable/onehand_move_vertically.xml
+new file mode 100644
+index 00000000000..24558607050
+--- /dev/null
++++ b/core/res/res/drawable/onehand_move_vertically.xml
+@@ -0,0 +1,20 @@
++<?xml version="1.0" encoding="utf-8"?>
++<vector xmlns:android="http://schemas.android.com/apk/res/android"
++    android:width="72dp"
++    android:height="72dp"
++    android:viewportWidth="72"
++    android:viewportHeight="72">
++
++    <path
++        android:strokeColor="#FFFFFF"
++        android:strokeAlpha="0.33"
++        android:strokeWidth="2"
++        android:strokeMiterLimit="10"
++        android:pathData="M25,31 L47,31" />
++    <path
++        android:strokeColor="#FFFFFF"
++        android:strokeAlpha="0.33"
++        android:strokeWidth="2"
++        android:strokeMiterLimit="10"
++        android:pathData="M25,37 L47,37" />
++</vector>
+\ No newline at end of file
+diff --git a/core/res/res/drawable/onehand_screen_resize_left.xml b/core/res/res/drawable/onehand_screen_resize_left.xml
+new file mode 100644
+index 00000000000..0ae26a39d1e
+--- /dev/null
++++ b/core/res/res/drawable/onehand_screen_resize_left.xml
+@@ -0,0 +1,20 @@
++<?xml version="1.0" encoding="utf-8"?>
++<vector xmlns:android="http://schemas.android.com/apk/res/android"
++    android:width="72dp"
++    android:height="72dp"
++    android:viewportWidth="72"
++    android:viewportHeight="72">
++
++    <path
++        android:strokeColor="#FFFFFF"
++        android:strokeAlpha="0.33"
++        android:strokeWidth="2"
++        android:strokeMiterLimit="10"
++        android:pathData="M31,49 L31,31 L49,31" />
++    <path
++        android:strokeColor="#FFFFFF"
++        android:strokeAlpha="0.33"
++        android:strokeWidth="2"
++        android:strokeMiterLimit="10"
++        android:pathData="M37,49 L37,37 L49,37" />
++</vector>
+\ No newline at end of file
+diff --git a/core/res/res/drawable/onehand_screen_resize_right.xml b/core/res/res/drawable/onehand_screen_resize_right.xml
+new file mode 100644
+index 00000000000..cca5222cbf5
+--- /dev/null
++++ b/core/res/res/drawable/onehand_screen_resize_right.xml
+@@ -0,0 +1,20 @@
++<?xml version="1.0" encoding="utf-8"?>
++<vector xmlns:android="http://schemas.android.com/apk/res/android"
++    android:width="72dp"
++    android:height="72dp"
++    android:viewportWidth="72"
++    android:viewportHeight="72">
++
++    <path
++        android:strokeColor="#FFFFFF"
++        android:strokeAlpha="0.33"
++        android:strokeWidth="2"
++        android:strokeMiterLimit="10"
++        android:pathData="M23,31 L41,31 L41,49" />
++    <path
++        android:strokeColor="#FFFFFF"
++        android:strokeAlpha="0.33"
++        android:strokeWidth="2"
++        android:strokeMiterLimit="10"
++        android:pathData="M23,37 L35,37 L35,49" />
++</vector>
+\ No newline at end of file
+diff --git a/core/res/res/layout/onehand_guide_panel.xml b/core/res/res/layout/onehand_guide_panel.xml
+new file mode 100644
+index 00000000000..9d2b3bcce47
+--- /dev/null
++++ b/core/res/res/layout/onehand_guide_panel.xml
+@@ -0,0 +1,32 @@
++<?xml version="1.0" encoding="utf-8"?>
++<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
++    android:layout_width="match_parent"
++    android:layout_height="wrap_content"
++    android:paddingTop="16dp"
++    android:paddingStart="16dp"
++    android:paddingEnd="16dp"
++    android:orientation="vertical">
++
++    <TextView
++        android:layout_width="match_parent"
++        android:layout_height="wrap_content"
++        android:layout_gravity="center"
++        android:textAlignment="center"
++        android:textSize="14sp"
++        android:textColor="#737373"
++        android:text="@string/onehand_guide"/>
++
++    <Space
++        android:layout_width="match_parent"
++        android:layout_height="8dp" />
++
++    <TextView android:id="@+id/onehand_link"
++        android:layout_width="wrap_content"
++        android:layout_height="wrap_content"
++        android:layout_gravity="center"
++        android:textAlignment="center"
++        android:textSize="14sp"
++        android:textColor="#8e8e8e"
++        android:padding="8dp"
++        android:text="@string/onehand_link"/>
++</LinearLayout>
+diff --git a/core/res/res/values-ja/strings.xml b/core/res/res/values-ja/strings.xml
+index efee85f830a..ae275f5442d 100644
+--- a/core/res/res/values-ja/strings.xml
++++ b/core/res/res/values-ja/strings.xml
+@@ -1864,6 +1864,8 @@
+     <string name="shortcut_restore_signature_mismatch" msgid="2406209324521327518">"アプリの署名が一致しないため、ショートカットを復元できませんでした"</string>
+     <string name="shortcut_restore_unknown_issue" msgid="8703738064603262597">"ショートカットを復元できませんでした"</string>
+     <string name="shortcut_disabled_reason_unknown" msgid="5276016910284687075">"ショートカットは無効になっています"</string>
++    <string name="onehand_guide">縮小画面の外側をタップして片手モードを終了します</string>
++    <string name="onehand_link">詳細を確認</string>
+     <string name="harmful_app_warning_uninstall" msgid="4837672735619532931">"アンインストール"</string>
+     <string name="harmful_app_warning_open_anyway" msgid="596432803680914321">"開く"</string>
+     <string name="harmful_app_warning_title" msgid="8982527462829423432">"有害なアプリが検出されました"</string>
+diff --git a/core/res/res/values/config.xml b/core/res/res/values/config.xml
+index cf3dbfaf0b2..ef234e9d8be 100644
+--- a/core/res/res/values/config.xml
++++ b/core/res/res/values/config.xml
+@@ -3433,6 +3433,13 @@
+          empty string is passed in -->
+     <string name="config_wlan_network_service_package" translatable="false"></string>
+ 
++    <!-- One-handed mode feature is supported or not. -->
++    <bool name="config_onehanded_mode">true</bool>
++    <!-- Protect zone padding to ignore touch for onehand panel. -->
++    <dimen name="config_onehandProtectZonePadding">30dp</dimen>
++    <!-- Minimum swipe distance to catch the swipe gestures for onehand trigger. -->
++    <dimen name="config_onehandTriggerMinSwipeDistance">100dp</dimen>
++
+     <!-- Wear devices: Controls the radios affected by Activity Mode. -->
+     <string-array name="config_wearActivityModeRadios">
+         <item>"wifi"</item>
+diff --git a/core/res/res/values/strings.xml b/core/res/res/values/strings.xml
+index 3c5159c89bf..7732b07ed2d 100644
+--- a/core/res/res/values/strings.xml
++++ b/core/res/res/values/strings.xml
+@@ -4951,6 +4951,11 @@
+     <string name="volume_dialog_ringer_guidance_vibrate">Calls and notifications will vibrate</string>
+     <string name="volume_dialog_ringer_guidance_silent">Calls and notifications will be muted</string>
+ 
++    <!-- Informative text shown when the device is in One handed mode. It also explains how to exit the mode. -->
++    <string name="onehand_guide" xliff:restype="x-GENERIC/FULLSCREEN/TEXT">Tap blank area to exit One handed mode</string>
++    <!-- Link text shown when the device is in One handed mode. By tapping this link, Settings menu of this mode opens. -->
++    <string name="onehand_link" xliff:restype="x-GENERIC/FULLSCREEN/CAPTION">LEARN MORE</string>
++
+     <!-- Title for the notification channel notifying user of settings system changes. [CHAR LIMIT=NONE] -->
+     <string name="notification_channel_system_changes">System changes</string>
+     <!-- Title for the notification channel notifying user of do not disturb system changes (i.e. Do Not Disturb has changed). [CHAR LIMIT=NONE] -->
+diff --git a/core/res/res/values/symbols.xml b/core/res/res/values/symbols.xml
+index 84261460dde..4ee88e76088 100644
+--- a/core/res/res/values/symbols.xml
++++ b/core/res/res/values/symbols.xml
+@@ -3351,6 +3351,26 @@
+ 
+   <java-symbol type="bool" name="config_keepRestrictedProfilesInBackground" />
+ 
++  <!-- One-handed mode feature is supported or not -->
++  <java-symbol type="bool" name="config_onehanded_mode" />
++
++  <!-- Informative text for OneHandOperation Display Shrink -->
++  <java-symbol type="string" name="onehand_guide" />
++  <java-symbol type="string" name="onehand_link" />
++
++  <!-- One Handed Operation related -->
++  <java-symbol type="drawable" name="onehand_button_pressed" />
++  <java-symbol type="drawable" name="onehand_move_horizontally_left" />
++  <java-symbol type="drawable" name="onehand_move_horizontally_right" />
++  <java-symbol type="drawable" name="onehand_move_vertically" />
++  <java-symbol type="drawable" name="onehand_screen_resize_left" />
++  <java-symbol type="drawable" name="onehand_screen_resize_right" />
++  <java-symbol type="drawable" name="onehand_buttons_background" />
++  <java-symbol type="layout" name="onehand_guide_panel" />
++  <java-symbol type="id" name="onehand_link" />
++  <java-symbol type="dimen" name="config_onehandProtectZonePadding" />
++  <java-symbol type="dimen" name="config_onehandTriggerMinSwipeDistance" />
++
+   <java-symbol type="array" name="config_ringtoneEffectUris" />
+ 
+   <!-- For Wear devices -->
+diff --git a/services/core/Android.bp b/services/core/Android.bp
+index cb7db2694bc..ef755a9e453 100644
+--- a/services/core/Android.bp
++++ b/services/core/Android.bp
+@@ -19,6 +19,7 @@ java_library_static {
+         ":mediaupdateservice_aidl",
+         "java/com/android/server/EventLogTags.logtags",
+         "java/com/android/server/am/EventLogTags.logtags",
++        "java/com/android/server/wm/onehand/EventLogTags.logtags",
+     ],
+ 
+     libs: [
+diff --git a/services/core/java/com/android/server/input/InputManagerService.java b/services/core/java/com/android/server/input/InputManagerService.java
+index af635eb1379..dccfe7aba8d 100644
+--- a/services/core/java/com/android/server/input/InputManagerService.java
++++ b/services/core/java/com/android/server/input/InputManagerService.java
+@@ -240,6 +240,8 @@ public class InputManagerService extends IInputManager.Stub
+     private static native void nativeReloadPointerIcons(long ptr);
+     private static native void nativeSetCustomPointerIcon(long ptr, PointerIcon icon);
+     private static native void nativeSetPointerCapture(long ptr, boolean detached);
++    private static native void nativeUpdatePointerMappingParameters(long ptr, int offsetX,
++            int offsetY, float scale, int width, int height);
+ 
+     // Input event injection constants defined in InputDispatcher.h.
+     private static final int INPUT_EVENT_INJECTION_SUCCEEDED = 0;
+@@ -2251,6 +2253,12 @@ public class InputManagerService extends IInputManager.Stub
+             nativeSetInteractive(mPtr, interactive);
+         }
+ 
++        @Override
++        public void updatePointerMappingParameters(int offsetX, int offsetY, float scale,
++                int width, int height) {
++            nativeUpdatePointerMappingParameters(mPtr, offsetX, offsetY, scale, width, height);
++        }
++
+         @Override
+         public void toggleCapsLock(int deviceId) {
+             nativeToggleCapsLock(mPtr, deviceId);
+diff --git a/services/core/java/com/android/server/policy/PhoneWindowManager.java b/services/core/java/com/android/server/policy/PhoneWindowManager.java
+index 3f7215fb615..f84af0755a8 100644
+--- a/services/core/java/com/android/server/policy/PhoneWindowManager.java
++++ b/services/core/java/com/android/server/policy/PhoneWindowManager.java
+@@ -104,6 +104,7 @@ import static android.view.WindowManager.LayoutParams.TYPE_POINTER;
+ import static android.view.WindowManager.LayoutParams.TYPE_PRESENTATION;
+ import static android.view.WindowManager.LayoutParams.TYPE_PRIORITY_PHONE;
+ import static android.view.WindowManager.LayoutParams.TYPE_PRIVATE_PRESENTATION;
++import static android.view.WindowManager.LayoutParams.TYPE_ONEHAND_OVERLAY;
+ import static android.view.WindowManager.LayoutParams.TYPE_QS_DIALOG;
+ import static android.view.WindowManager.LayoutParams.TYPE_SCREENSHOT;
+ import static android.view.WindowManager.LayoutParams.TYPE_SEARCH_BAR;
+@@ -3152,6 +3153,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
+             case TYPE_PRESENTATION:
+             case TYPE_PRIVATE_PRESENTATION:
+             case TYPE_DOCK_DIVIDER:
++            case TYPE_ONEHAND_OVERLAY:
+                 break;
+         }
+ 
+@@ -3435,6 +3437,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
+             case TYPE_NAVIGATION_BAR:
+             case TYPE_WALLPAPER:
+             case TYPE_DREAM:
++            case TYPE_ONEHAND_OVERLAY:
+                 return false;
+             default:
+                 // Hide only windows below the keyguard host window.
+diff --git a/services/core/java/com/android/server/policy/WindowManagerPolicy.java b/services/core/java/com/android/server/policy/WindowManagerPolicy.java
+index fbcf2c37f53..1746952b48c 100644
+--- a/services/core/java/com/android/server/policy/WindowManagerPolicy.java
++++ b/services/core/java/com/android/server/policy/WindowManagerPolicy.java
+@@ -43,6 +43,7 @@ import static android.view.WindowManager.LayoutParams.TYPE_POINTER;
+ import static android.view.WindowManager.LayoutParams.TYPE_PRESENTATION;
+ import static android.view.WindowManager.LayoutParams.TYPE_PRIORITY_PHONE;
+ import static android.view.WindowManager.LayoutParams.TYPE_PRIVATE_PRESENTATION;
++import static android.view.WindowManager.LayoutParams.TYPE_ONEHAND_OVERLAY;
+ import static android.view.WindowManager.LayoutParams.TYPE_QS_DIALOG;
+ import static android.view.WindowManager.LayoutParams.TYPE_SCREENSHOT;
+ import static android.view.WindowManager.LayoutParams.TYPE_SEARCH_BAR;
+@@ -814,6 +815,9 @@ public interface WindowManagerPolicy extends WindowManagerPolicyConstants {
+         }
+ 
+         switch (type) {
++            case TYPE_ONEHAND_OVERLAY:
++                // the one hand window goes under everything.
++                return  0;
+             case TYPE_WALLPAPER:
+                 // wallpaper is at the bottom, though the window manager may move it.
+                 return  1;
+diff --git a/services/core/java/com/android/server/wm/DisplayContent.java b/services/core/java/com/android/server/wm/DisplayContent.java
+index cd8fdbfbc64..9fbbfdab8f8 100644
+--- a/services/core/java/com/android/server/wm/DisplayContent.java
++++ b/services/core/java/com/android/server/wm/DisplayContent.java
+@@ -54,6 +54,7 @@ import static android.view.WindowManager.LayoutParams.TYPE_DRAWN_APPLICATION;
+ import static android.view.WindowManager.LayoutParams.TYPE_DREAM;
+ import static android.view.WindowManager.LayoutParams.TYPE_INPUT_METHOD;
+ import static android.view.WindowManager.LayoutParams.TYPE_INPUT_METHOD_DIALOG;
++import static android.view.WindowManager.LayoutParams.TYPE_ONEHAND_OVERLAY;
+ import static android.view.WindowManager.LayoutParams.TYPE_STATUS_BAR;
+ import static android.view.WindowManager.LayoutParams.TYPE_SYSTEM_DIALOG;
+ import static android.view.WindowManager.LayoutParams.TYPE_SYSTEM_ERROR;
+@@ -138,6 +139,7 @@ import android.util.ArraySet;
+ import android.util.DisplayMetrics;
+ import android.util.Slog;
+ import android.util.proto.ProtoOutputStream;
++import android.view.animation.Transformation;
+ import android.view.Display;
+ import android.view.DisplayCutout;
+ import android.view.DisplayInfo;
+@@ -377,6 +379,12 @@ class DisplayContent extends WindowContainer<DisplayContent.DisplayChildWindowCo
+      */
+     private SurfaceControl mWindowingLayer;
+ 
++    /**
++     * This contains surfaces of one handed mode UI which are always on bottom of others.
++     * See {@link #mOverlayLayer}
++     */
++    private SurfaceControl mOneHandOverlayLayer;
++
+     /**
+      * Specifies the size of the surfaces in {@link #mOverlayLayer} and {@link #mWindowingLayer}.
+      * <p>
+@@ -399,6 +407,7 @@ class DisplayContent extends WindowContainer<DisplayContent.DisplayChildWindowCo
+     private final float[] mTmpFloats = new float[9];
+ 
+     private MagnificationSpec mMagnificationSpec;
++    private boolean mWasInOneHandMode = false;
+ 
+     private final Consumer<WindowState> mUpdateWindowsForAnimator = w -> {
+         WindowStateAnimator winAnimator = w.mWinAnimator;
+@@ -774,9 +783,17 @@ class DisplayContent extends WindowContainer<DisplayContent.DisplayChildWindowCo
+         final SurfaceControl.Builder b = mService.makeSurfaceBuilder(mSession)
+                 .setSize(mSurfaceSize, mSurfaceSize)
+                 .setOpaque(true);
++        if (isOneHandedModeSupported()) {
++            mOneHandOverlayLayer = b.setName("Display OneHand Overlays").build();
++        }
+         mWindowingLayer = b.setName("Display Root").build();
+         mOverlayLayer = b.setName("Display Overlays").build();
+ 
++        if (isOneHandedModeSupported()) {
++            getPendingTransaction().setLayer(mOneHandOverlayLayer, -1)
++                .setLayerStack(mOneHandOverlayLayer, mDisplayId)
++                .show(mOneHandOverlayLayer);
++        }
+         getPendingTransaction().setLayer(mWindowingLayer, 0)
+                 .setLayerStack(mWindowingLayer, mDisplayId)
+                 .show(mWindowingLayer)
+@@ -846,6 +863,7 @@ class DisplayContent extends WindowContainer<DisplayContent.DisplayChildWindowCo
+             // the parent container managing them (e.g. Tasks).
+             switch (token.windowType) {
+                 case TYPE_WALLPAPER:
++                case TYPE_ONEHAND_OVERLAY:
+                     mBelowAppWindowsContainers.addChild(token);
+                     break;
+                 case TYPE_INPUT_METHOD:
+@@ -3040,6 +3058,11 @@ class DisplayContent extends WindowContainer<DisplayContent.DisplayChildWindowCo
+ 
+         final Rect frame = new Rect(0, 0, dw, dh);
+ 
++        // When One Handed feature is enabled, screen shot region should also be scaled.
++        if (isOneHandedModeSupported()) {
++            mService.mAnimator.mOneHandAnimator.applyTransformationForRect(frame);
++        }
++
+         // The screenshot API does not apply the current screen rotation.
+         int rot = mDisplay.getRotation();
+ 
+@@ -3877,6 +3900,14 @@ class DisplayContent extends WindowContainer<DisplayContent.DisplayChildWindowCo
+             .setParent(mOverlayLayer);
+     }
+ 
++    SurfaceControl.Builder makeScreenRotationAnimationOverlay() {
++        if(isInOneHandedMode()) {
++            return mService.makeSurfaceBuilder(mSession); // no parent is expected.
++        } else {
++            return makeOverlay();
++        }
++    }
++
+     /**
+      * Reparents the given surface to mOverlayLayer.
+      */
+@@ -3884,6 +3915,10 @@ class DisplayContent extends WindowContainer<DisplayContent.DisplayChildWindowCo
+         transaction.reparent(surface, mOverlayLayer.getHandle());
+     }
+ 
++    void reparentToOneHandOverlay(Transaction transaction, SurfaceControl surface) {
++        transaction.reparent(surface, mOneHandOverlayLayer.getHandle());
++    }
++
+     void applyMagnificationSpec(MagnificationSpec spec) {
+         if (spec.scale != 1.0) {
+             mMagnificationSpec = spec;
+@@ -3969,19 +4004,54 @@ class DisplayContent extends WindowContainer<DisplayContent.DisplayChildWindowCo
+         child.assignRelativeLayer(t, mImeWindowsContainers.getSurfaceControl(), 1);
+     }
+ 
++    private boolean isOneHandedModeSupported() {
++        return isDefaultDisplay;
++    }
++
++    private boolean isInOneHandedMode() {
++        return isOneHandedModeSupported()
++                && mService.mAnimator.mOneHandAnimator.getTransformation() != null;
++    }
++
++    private Transformation getOneHandTransformation() {
++        return isOneHandedModeSupported()?
++                mService.mAnimator.mOneHandAnimator.getTransformation() : null;
++    }
++
+     @Override
+     void prepareSurfaces() {
+         final ScreenRotationAnimation screenRotationAnimation =
+                 mService.mAnimator.getScreenRotationAnimationLocked(mDisplayId);
+-        if (screenRotationAnimation != null && screenRotationAnimation.isAnimating()) {
+-            screenRotationAnimation.getEnterTransformation().getMatrix().getValues(mTmpFloats);
+-            mPendingTransaction.setMatrix(mWindowingLayer,
+-                    mTmpFloats[Matrix.MSCALE_X], mTmpFloats[Matrix.MSKEW_Y],
+-                    mTmpFloats[Matrix.MSKEW_X], mTmpFloats[Matrix.MSCALE_Y]);
+-            mPendingTransaction.setPosition(mWindowingLayer,
+-                    mTmpFloats[Matrix.MTRANS_X], mTmpFloats[Matrix.MTRANS_Y]);
+-            mPendingTransaction.setAlpha(mWindowingLayer,
+-                    screenRotationAnimation.getEnterTransformation().getAlpha());
++        final boolean isScreenRotationAnimating =
++                (screenRotationAnimation != null && screenRotationAnimation.isAnimating());
++
++        Transformation oneHandTrans = getOneHandTransformation();
++
++        if (isScreenRotationAnimating || oneHandTrans != null || mWasInOneHandMode) {
++            mTmpMatrix.reset();
++
++            if (oneHandTrans != null) {
++                // setSize prevents children from being drawn outside of shrunk display.
++                mTmpMatrix.postConcat(oneHandTrans.getMatrix());
++                mPendingTransaction.setMatrix(mWindowingLayer, mTmpMatrix, mTmpFloats);
++                mPendingTransaction.setSize(mWindowingLayer, mBaseDisplayWidth, mBaseDisplayHeight);
++                mPendingTransaction.setMatrix(mOverlayLayer, mTmpMatrix, mTmpFloats);
++                mPendingTransaction.setSize(mOverlayLayer, mBaseDisplayWidth, mBaseDisplayHeight);
++            } else if (mWasInOneHandMode) {
++                // Remove the effects of oneHandTrans which was applied previously.
++                mPendingTransaction.setMatrix(mWindowingLayer, mTmpMatrix, mTmpFloats);
++                mPendingTransaction.setSize(mWindowingLayer, mSurfaceSize, mSurfaceSize);
++                mPendingTransaction.setMatrix(mOverlayLayer, mTmpMatrix, mTmpFloats);
++                mPendingTransaction.setSize(mOverlayLayer, mSurfaceSize, mSurfaceSize);
++            }
++            mWasInOneHandMode = (oneHandTrans != null);
++
++            if (isScreenRotationAnimating) {
++                mTmpMatrix.preConcat(screenRotationAnimation.getEnterTransformation().getMatrix());
++                mPendingTransaction.setMatrix(mWindowingLayer, mTmpMatrix, mTmpFloats);
++                mPendingTransaction.setAlpha(mWindowingLayer,
++                        screenRotationAnimation.getEnterTransformation().getAlpha());
++            }
+         }
+ 
+         super.prepareSurfaces();
+diff --git a/services/core/java/com/android/server/wm/ScreenRotationAnimation.java b/services/core/java/com/android/server/wm/ScreenRotationAnimation.java
+index fa8a5c66aee..0eec0b614fa 100644
+--- a/services/core/java/com/android/server/wm/ScreenRotationAnimation.java
++++ b/services/core/java/com/android/server/wm/ScreenRotationAnimation.java
+@@ -262,7 +262,7 @@ class ScreenRotationAnimation {
+ 
+         final SurfaceControl.Transaction t = new SurfaceControl.Transaction();
+         try {
+-            mSurfaceControl = displayContent.makeOverlay()
++            mSurfaceControl = displayContent.makeScreenRotationAnimationOverlay()
+                     .setName("ScreenshotSurface")
+                     .setSize(mWidth, mHeight)
+                     .setSecure(isSecure)
+diff --git a/services/core/java/com/android/server/wm/WindowAnimator.java b/services/core/java/com/android/server/wm/WindowAnimator.java
+index 793ffce2466..d6a145833f1 100644
+--- a/services/core/java/com/android/server/wm/WindowAnimator.java
++++ b/services/core/java/com/android/server/wm/WindowAnimator.java
+@@ -34,6 +34,7 @@ import android.view.SurfaceControl;
+ 
+ import com.android.server.AnimationThread;
+ import com.android.server.policy.WindowManagerPolicy;
++import com.android.server.wm.onehand.IOneHandedAnimatorProxy;
+ 
+ import java.io.PrintWriter;
+ import java.util.ArrayList;
+@@ -96,11 +97,14 @@ public class WindowAnimator {
+     private boolean mInExecuteAfterPrepareSurfacesRunnables;
+ 
+     private final SurfaceControl.Transaction mTransaction = new SurfaceControl.Transaction();
++    final IOneHandedAnimatorProxy mOneHandAnimator;
+ 
+     WindowAnimator(final WindowManagerService service) {
+         mService = service;
+         mContext = service.mContext;
+         mPolicy = service.mPolicy;
++        mOneHandAnimator = IOneHandedAnimatorProxy.create(mContext, mService);
++
+         AnimationThread.getHandler().runWithScissors(
+                 () -> mChoreographer = Choreographer.getSfInstance(), 0 /* timeout */);
+ 
+@@ -194,6 +198,9 @@ public class WindowAnimator {
+                     ++mAnimTransactionSequence;
+                     dc.updateWindowsForAnimator(this);
+                     dc.updateWallpaperForAnimator(this);
++
++                    mAnimating |= mOneHandAnimator.stepAnimationInTransaction(mCurrentTime);
++
+                     dc.prepareSurfaces();
+                 }
+ 
+diff --git a/services/core/java/com/android/server/wm/WindowManagerService.java b/services/core/java/com/android/server/wm/WindowManagerService.java
+index c8cfd5710f6..b18bb70f681 100644
+--- a/services/core/java/com/android/server/wm/WindowManagerService.java
++++ b/services/core/java/com/android/server/wm/WindowManagerService.java
+@@ -248,6 +248,8 @@ import com.android.server.policy.WindowManagerPolicy;
+ import com.android.server.policy.WindowManagerPolicy.ScreenOffListener;
+ import com.android.server.power.ShutdownThread;
+ import com.android.server.utils.PriorityDump;
++import com.android.server.wm.onehand.IOneHandedAnimatorProxy;
++import com.android.internal.onehand.IOneHandedModeListener;
+ 
+ import java.io.BufferedWriter;
+ import java.io.DataInputStream;
+@@ -270,7 +272,7 @@ import java.util.Date;
+ import java.util.List;
+ /** {@hide} */
+ public class WindowManagerService extends IWindowManager.Stub
+-        implements Watchdog.Monitor, WindowManagerPolicy.WindowManagerFuncs {
++        implements Watchdog.Monitor, WindowManagerPolicy.WindowManagerFuncs, IOneHandedAnimatorProxy.IWindowManagerFuncs {
+     private static final String TAG = TAG_WITH_CLASS_NAME ? "WindowManagerService" : TAG_WM;
+ 
+     static final int LAYOUT_REPEAT_THRESHOLD = 4;
+@@ -6185,6 +6187,42 @@ public class WindowManagerService extends IWindowManager.Stub
+         }
+     }
+ 
++    @Override
++    public boolean isOneHandedModeAvailable() {
++        if (!checkCallingPermission(android.Manifest.permission.ONE_HANDED_MODE,
++                "isOneHandedModeAvailable()")) {
++            throw new SecurityException("Requires ONE_HANDED_MODE permission");
++        }
++        return mAnimator.mOneHandAnimator.isOneHandedModeAvailable();
++    }
++
++    @Override
++    public float getOneHandedModeShrinkingScale() {
++        if (!checkCallingPermission(android.Manifest.permission.ONE_HANDED_MODE,
++                "getOneHandedModeShrinkingScale()")) {
++            throw new SecurityException("Requires ONE_HANDED_MODE permission");
++        }
++        return mAnimator.mOneHandAnimator.getShrinkingScale();
++    }
++
++    @Override
++    public void registerOneHandedModeListener(IOneHandedModeListener listener) {
++        if (!checkCallingPermission(android.Manifest.permission.ONE_HANDED_MODE,
++                "registerOneHandedModeListener()")) {
++            throw new SecurityException("Requires ONE_HANDED_MODE permission");
++        }
++        mAnimator.mOneHandAnimator.registerOneHandedModeListener(listener);
++    }
++
++    @Override
++    public void unregisterOneHandedModeListener(IOneHandedModeListener listener) {
++        if (!checkCallingPermission(android.Manifest.permission.ONE_HANDED_MODE,
++                "unregisterOneHandedModeListener()")) {
++            throw new SecurityException("Requires ONE_HANDED_MODE permission");
++        }
++        mAnimator.mOneHandAnimator.unregisterOneHandedModeListener(listener);
++    }
++
+     public void notifyAppRelaunching(IBinder token) {
+         synchronized (mWindowMap) {
+             final AppWindowToken appWindow = mRoot.getAppWindowToken(token);
+@@ -6683,6 +6721,11 @@ public class WindowManagerService extends IWindowManager.Stub
+                     mRoot.forAllWindows(w -> {pw.println(w);}, true /* traverseTopToBottom */);
+                 }
+                 return;
++            } else if ("onehand".equals(cmd)) {
++                synchronized(mWindowMap) {
++                    mAnimator.mOneHandAnimator.dump(pw, args);
++                }
++                return;
+             } else {
+                 // Dumping a single name?
+                 if (!dumpWindows(pw, cmd, args, opti, dumpAll)) {
+@@ -6732,6 +6775,11 @@ public class WindowManagerService extends IWindowManager.Stub
+                 pw.println("-------------------------------------------------------------------------------");
+             }
+             dumpWindowsLocked(pw, dumpAll, null);
++            pw.println();
++            if (dumpAll) {
++                pw.println("-------------------------------------------------------------------------------");
++            }
++            mAnimator.mOneHandAnimator.dump(pw, args);
+         }
+     }
+ 
+@@ -7609,4 +7657,16 @@ public class WindowManagerService extends IWindowManager.Stub
+             }
+         }
+     }
++
++    @Override
++    public Object getSyncRoot() {
++        return mWindowMap;
++    }
++
++    @Override
++    public void scheduleAnimation() {
++        synchronized (mWindowMap) {
++            scheduleAnimationLocked();
++        }
++    }
+ }
+diff --git a/services/core/java/com/android/server/wm/WindowState.java b/services/core/java/com/android/server/wm/WindowState.java
+index bee70a01194..f130b498cb4 100644
+--- a/services/core/java/com/android/server/wm/WindowState.java
++++ b/services/core/java/com/android/server/wm/WindowState.java
+@@ -64,6 +64,7 @@ import static android.view.WindowManager.LayoutParams.TYPE_INPUT_METHOD_DIALOG;
+ import static android.view.WindowManager.LayoutParams.TYPE_MAGNIFICATION_OVERLAY;
+ import static android.view.WindowManager.LayoutParams.TYPE_NAVIGATION_BAR;
+ import static android.view.WindowManager.LayoutParams.TYPE_NAVIGATION_BAR_PANEL;
++import static android.view.WindowManager.LayoutParams.TYPE_ONEHAND_OVERLAY;
+ import static android.view.WindowManager.LayoutParams.TYPE_TOAST;
+ import static android.view.WindowManager.LayoutParams.TYPE_WALLPAPER;
+ import static android.view.WindowManager.LayoutParams.isSystemAlertWindowType;
+@@ -197,6 +198,7 @@ import android.view.WindowManager;
+ import android.view.animation.Animation;
+ import android.view.animation.AnimationUtils;
+ import android.view.animation.Interpolator;
++import android.view.animation.Transformation;
+ 
+ import com.android.internal.annotations.VisibleForTesting;
+ import com.android.internal.util.ToBooleanFunction;
+@@ -808,6 +810,10 @@ class WindowState extends WindowContainer<WindowState> implements WindowManagerP
+         setDrawnStateEvaluated(false /*evaluated*/);
+ 
+         getDisplayContent().reapplyMagnificationSpec();
++
++        if (mSurfaceControl != null && isOneHandedWindow()) {
++            getDisplayContent().reparentToOneHandOverlay(getPendingTransaction(), mSurfaceControl);
++        }
+     }
+ 
+     @Override
+@@ -1535,7 +1541,12 @@ class WindowState extends WindowContainer<WindowState> implements WindowManagerP
+      */
+     boolean isPotentialDragTarget() {
+         return isVisibleNow() && !mRemoved
+-                && mInputChannel != null && mInputWindowHandle != null;
++                && mInputChannel != null && mInputWindowHandle != null
++                && !isOneHandedWindow(); // One handed window does't care about drags.
++    }
++
++    boolean isOneHandedWindow() {
++        return mAttrs.type == TYPE_ONEHAND_OVERLAY;
+     }
+ 
+     /**
+@@ -4368,7 +4379,8 @@ class WindowState extends WindowContainer<WindowState> implements WindowManagerP
+         // to prevent issues with the crop for screenshot.
+         final boolean cropToDecor =
+                 !(inFreeformWindowingMode() && isAnimatingLw()) && !isDockedResizing();
+-        if (cropToDecor) {
++        // The one handed window don't intersect with the decor rect.
++        if (cropToDecor && !isOneHandedWindow()) {
+             // Intersect with the decor rect, offsetted by window position.
+             systemDecorRect.intersect(decorRect.left - left, decorRect.top - top,
+                     decorRect.right - left, decorRect.bottom - top);
+@@ -4616,7 +4628,8 @@ class WindowState extends WindowContainer<WindowState> implements WindowManagerP
+                 mAttrs.type == TYPE_NAVIGATION_BAR ||
+                 // It's tempting to wonder: Have we forgotten the rounded corners overlay?
+                 // worry not: it's a fake TYPE_NAVIGATION_BAR_PANEL
+-                mAttrs.type == TYPE_NAVIGATION_BAR_PANEL) {
++                mAttrs.type == TYPE_NAVIGATION_BAR_PANEL ||
++                mAttrs.type == TYPE_ONEHAND_OVERLAY) {
+             return false;
+         }
+         return true;
+@@ -4665,6 +4678,7 @@ class WindowState extends WindowContainer<WindowState> implements WindowManagerP
+             applyDims(dimmer);
+         }
+         updateSurfacePosition();
++        applyOneHandTransformationIfNeeded();
+ 
+         mWinAnimator.prepareSurfaceLocked(true);
+         super.prepareSurfaces();
+@@ -4767,6 +4781,28 @@ class WindowState extends WindowContainer<WindowState> implements WindowManagerP
+         return false;
+     }
+ 
++    private void applyOneHandTransformationIfNeeded() {
++        if (mSurfaceControl == null || !isOneHandedWindow()) {
++            return;
++        }
++
++        Transformation oneHandTrans =
++                mService.mAnimator.mOneHandAnimator.getTransformationForWindow(this);
++        if (oneHandTrans == null) {
++            return;
++        }
++
++        mTmpMatrix.reset();
++        mTmpMatrix.setTranslate(mSurfacePosition.x, mSurfacePosition.y);
++        mTmpMatrix.postConcat(oneHandTrans.getMatrix());
++
++        final float[] tmpFloats = mService.mTmpFloats;
++        getPendingTransaction().setMatrix(mSurfaceControl, mTmpMatrix, tmpFloats);
++        getPendingTransaction().setAlpha(mSurfaceControl, oneHandTrans.getAlpha());
++
++        mLastSurfacePosition.set((int)tmpFloats[Matrix.MTRANS_X], (int)tmpFloats[Matrix.MTRANS_Y]);
++    }
++
+     @Override
+     void assignLayer(Transaction t, int layer) {
+         // See comment in assignRelativeLayerForImeTargetChild
+diff --git a/services/core/java/com/android/server/wm/onehand/EventLogTags.logtags b/services/core/java/com/android/server/wm/onehand/EventLogTags.logtags
+new file mode 100644
+index 00000000000..b6b7bf497e9
+--- /dev/null
++++ b/services/core/java/com/android/server/wm/onehand/EventLogTags.logtags
+@@ -0,0 +1,5 @@
++# See system/core/logcat/event.logtags for a description of the format of this file.
++
++option java_package com.android.server.wm.onehand
++
++1031000 onehand_action (Action|3),(CurrentApp|3)
+diff --git a/services/core/java/com/android/server/wm/onehand/IOneHandedAnimatorProxy.java b/services/core/java/com/android/server/wm/onehand/IOneHandedAnimatorProxy.java
+new file mode 100644
+index 00000000000..0a15e3f2b75
+--- /dev/null
++++ b/services/core/java/com/android/server/wm/onehand/IOneHandedAnimatorProxy.java
+@@ -0,0 +1,164 @@
++package com.android.server.wm.onehand;
++
++import android.content.Context;
++import android.content.res.Resources;
++import android.graphics.Matrix;
++import android.graphics.Rect;
++import android.os.Build;
++import android.util.Slog;
++import android.view.MagnificationSpec;
++import android.view.SurfaceControl;
++import android.view.animation.Transformation;
++
++import com.android.server.policy.WindowManagerPolicy.WindowState;
++import com.android.internal.onehand.IOneHandedModeListener;
++
++import java.io.PrintWriter;
++
++/**
++ * @hide
++ */
++public abstract class IOneHandedAnimatorProxy {
++
++    public static final boolean DEBUG = false;
++
++    public interface IWindowManagerFuncs {
++        Object getSyncRoot();
++        void scheduleAnimation();
++    }
++
++    abstract public void initialize(Context ctx, IWindowManagerFuncs wms);
++
++    abstract public boolean stepAnimationInTransaction(long currentTime);
++
++    abstract public void applyTransformationForRect(Rect outRect);
++
++    abstract public Transformation getTransformation();
++
++    abstract public Transformation getTransformationForWindow(WindowState win);
++
++    abstract public void notifyOutSideScreenTouch(int x, int y);
++
++    abstract public boolean isOnehandTurnedON();
++
++    abstract public boolean isOneHandedModeAvailable();
++
++    abstract public float getShrinkingScale();
++
++    abstract public void registerOneHandedModeListener(IOneHandedModeListener listener);
++
++    abstract public void unregisterOneHandedModeListener(IOneHandedModeListener listener);
++
++    abstract public void dump(PrintWriter pw, String[] args);
++
++    private static final String PROXY_CLASS_NAME = "com.android.server.wm.onehand.OneHandedAnimatorProxy";
++
++    private static final String TAG = "IOneHandedAnimatorProxy";
++
++    public static Object mSyncRoot = new Object();
++
++    public static IOneHandedAnimatorProxy sInstance = null;
++
++    private static final boolean IS_SUPPORTED
++            = Resources.getSystem().getBoolean(com.android.internal.R.bool.config_onehanded_mode);
++
++    public static IOneHandedAnimatorProxy create(Context ctx, IWindowManagerFuncs wms) {
++        synchronized (mSyncRoot) {
++            if (sInstance == null) {
++                IOneHandedAnimatorProxy proxy = null;
++                if (!IS_SUPPORTED) {
++                    proxy = new EmptyProxy();
++                } else {
++                    try {
++                        @SuppressWarnings("rawtypes")
++                        Class proxyClass = ctx.getClassLoader().loadClass(PROXY_CLASS_NAME);
++                        proxy = (IOneHandedAnimatorProxy)proxyClass.newInstance();
++                    } catch (Exception ex) {
++                        Slog.d(TAG, PROXY_CLASS_NAME + " could not be loaded", ex);
++                        proxy = new EmptyProxy();
++                    }
++                }
++                proxy.initialize(ctx, wms);
++
++                sInstance = proxy;
++            }
++        }
++        return sInstance;
++    }
++
++    public static void notifyOutSideScreenTouchFromNative(int x, int y) {
++        synchronized (mSyncRoot) {
++            if (sInstance != null) {
++                sInstance.notifyOutSideScreenTouch(x, y);
++            }
++        }
++    }
++
++    protected boolean shouldDump() {
++        return !"user".equals(Build.TYPE);
++    }
++
++    /**
++     *  EmptyPorxy is used in products that does not supports OneHanded mini-screen solution.
++     *  The methods of this class do nothing or return values that will not change the
++     *  routine of WindowManagerService/WindowStateAnimator or any other existing codes.
++     */
++    private static class EmptyProxy extends IOneHandedAnimatorProxy {
++        @Override
++        public void initialize(Context ctx, IWindowManagerFuncs wms) {
++        }
++
++        @Override
++        public boolean stepAnimationInTransaction(long currentTime) {
++            return false; // EmptyProxy does not require the animation to be continued.
++        }
++
++        @Override
++        public void applyTransformationForRect(Rect outRect) {
++        }
++
++        @Override
++        public Transformation getTransformation() {
++            return null; // EmptyProxy never provide transformations that may affect the surface.
++        }
++
++        @Override
++        public void notifyOutSideScreenTouch(int x, int y) {
++        }
++
++        @Override
++        public void dump(PrintWriter pw, String[] args) {
++            if (shouldDump()) {
++                pw.println("ONE HANED mini-screen solution is not supported.");
++            }
++        }
++
++        @Override
++        public Transformation getTransformationForWindow(WindowState win) {
++            return null;  // EmptyProxy never provide transformations that may affect the surface.
++        }
++
++        @Override
++        public boolean isOnehandTurnedON() {
++            return false;
++        }
++
++        @Override
++        public boolean isOneHandedModeAvailable() {
++            return false;
++        }
++
++        @Override
++        public float getShrinkingScale() {
++            return 1;
++        }
++
++        @Override
++        public void registerOneHandedModeListener(IOneHandedModeListener listener) {
++        }
++
++        @Override
++        public void unregisterOneHandedModeListener(IOneHandedModeListener listener) {
++        }
++    }
++}
+diff --git a/services/core/java/com/android/server/wm/onehand/OneHandOperationMonitor.java b/services/core/java/com/android/server/wm/onehand/OneHandOperationMonitor.java
+new file mode 100644
+index 00000000000..2eadf97d7d9
+--- /dev/null
++++ b/services/core/java/com/android/server/wm/onehand/OneHandOperationMonitor.java
+@@ -0,0 +1,72 @@
++package com.android.server.wm.onehand;
++
++import android.app.ActivityManager;
++import android.app.ActivityManager.RunningTaskInfo;
++import android.app.KeyguardManager;
++import android.content.Context;
++
++import java.util.List;
++
++public class OneHandOperationMonitor {
++    private static final String TAG = "OneHandOperationMonitor";
++
++    private static final String ACTION_ENTER = "enter";
++    private static final String ACTION_EXIT_OUTSIDE = "exit_outside";
++    private static final String ACTION_EXIT_HOME = "exit_home";
++    private static final String ACTION_MOVE = "move";
++    private static final String ACTION_RESIZE = "resize";
++    private static final String ACTION_SWIPE_LEFT = "swipe_left";
++    private static final String ACTION_SWIPE_RIGHT = "swipe_right";
++
++    private Context mContext;
++
++    public OneHandOperationMonitor(Context context) {
++        mContext = context;
++    }
++
++    public void pushEnter() {
++        EventLogTags.writeOnehandAction(ACTION_ENTER, getCurrentApp());
++    }
++
++    public void pushExitByOutsideScreenTouch() {
++        EventLogTags.writeOnehandAction(ACTION_EXIT_OUTSIDE, getCurrentApp());
++    }
++
++    public void pushExitByHomeButtonTouch() {
++        EventLogTags.writeOnehandAction(ACTION_EXIT_HOME, getCurrentApp());
++    }
++
++    public void pushMove() {
++        EventLogTags.writeOnehandAction(ACTION_MOVE, "");
++    }
++
++    public void pushResize() {
++        EventLogTags.writeOnehandAction(ACTION_RESIZE, "");
++    }
++
++    public void pushSwipeLeft() {
++        EventLogTags.writeOnehandAction(ACTION_SWIPE_LEFT, "");
++    }
++
++    public void pushSwipeRight() {
++        EventLogTags.writeOnehandAction(ACTION_SWIPE_RIGHT, "");
++    }
++
++    private String getCurrentApp() {
++        KeyguardManager km =
++                (KeyguardManager)mContext.getSystemService(Context.KEYGUARD_SERVICE);
++        if (km.inKeyguardRestrictedInputMode()) {
++            return "KEYGUARD";
++        }
++
++        ActivityManager am =
++                (ActivityManager)mContext.getSystemService(Context.ACTIVITY_SERVICE);
++        List<RunningTaskInfo> tasks = am.getRunningTasks(1);
++        if (tasks.size() != 0) {
++            return tasks.get(0).topActivity.getPackageName();
++        }
++
++        return "UNKOWN";
++    }
++}
++
+diff --git a/services/core/java/com/android/server/wm/onehand/OneHandedAnimator.java b/services/core/java/com/android/server/wm/onehand/OneHandedAnimator.java
+new file mode 100644
+index 00000000000..4a834686675
+--- /dev/null
++++ b/services/core/java/com/android/server/wm/onehand/OneHandedAnimator.java
+@@ -0,0 +1,859 @@
++package com.android.server.wm.onehand;
++
++import static com.android.server.wm.onehand.IOneHandedAnimatorProxy.DEBUG;
++
++import com.android.server.LocalServices;
++import com.android.internal.onehand.IOneHandedModeListener;
++
++import android.R;
++import android.accessibilityservice.AccessibilityServiceInfo;
++import android.app.ActivityManager;
++import android.app.ActivityManagerNative;
++import android.app.IUserSwitchObserver;
++import android.app.Service;
++import android.content.BroadcastReceiver;
++import android.content.Context;
++import android.content.Intent;
++import android.content.IntentFilter;
++import android.database.ContentObserver;
++import android.graphics.Matrix;
++import android.graphics.Rect;
++import android.hardware.display.DisplayManager;
++import android.hardware.input.InputManagerInternal;
++import android.net.Uri;
++import android.os.BatteryManager;
++import android.os.BatteryManagerInternal;
++import android.os.Handler;
++import android.os.HandlerThread;
++import android.os.IRemoteCallback;
++import android.os.Message;
++import android.os.RemoteCallbackList;
++import android.os.RemoteException;
++import android.os.SystemProperties;
++import android.os.UserHandle;
++import android.provider.Settings;
++import android.util.Slog;
++import android.view.accessibility.AccessibilityManager;
++import android.view.animation.AccelerateDecelerateInterpolator;
++import android.view.animation.Animation;
++import android.view.animation.AnimationSet;
++import android.view.animation.ScaleAnimation;
++import android.view.animation.Transformation;
++import android.view.animation.TranslateAnimation;
++import android.view.Display;
++import android.view.DisplayInfo;
++import android.view.Gravity;
++import android.view.WindowManager;
++import java.util.List;
++
++import java.io.PrintWriter;
++
++class OneHandedAnimator {
++
++    private static final String TAG = "OneHandAnimator";
++
++    private static final boolean LOCAL_DEBUG =
++            !"user".equals(SystemProperties.get("ro.build.type", ""));
++    private static final boolean VERBOSE_DEBUG = false;
++
++    private static final long TRANSIT_DURATION = 350;
++
++    private static final String ACTION_ONEHAND_TRIGGER_EVENT =
++            "com.android.server.wm.onehand.intent.action.ONEHAND_TRIGGER_EVENT";
++
++    private static final String EXTRA_ALIGNMENT_STATE = "alignment_state";
++    private static final int EXTRA_ALIGNMENT_STATE_UNALIGNED = -1;
++    private static final int EXTRA_ALIGNMENT_STATE_LEFT = 0;
++    private static final int EXTRA_ALIGNMENT_STATE_RIGHT = 1;
++
++    private static final String EXTRA_VERTICAL_POSITION = "vertical_position";
++
++    private static final int MSG_ONEHAND_TURNED_OFF = 1399;
++    private static final long DELAY_TIME = 700;
++
++    private static int sCurrentUser = 0;
++    static int getCurrentUser() {
++        return sCurrentUser;
++    }
++
++    /**
++     * mMode is initialized as OFF
++     */
++    private final OneHandedMode mMode = new OneHandedMode();
++
++    private final Context mContext;
++    private final DisplayManager mDisplayManager;
++    private final IOneHandedAnimatorProxy.IWindowManagerFuncs mWindowManager;
++
++    private final InputManagerInternal mInputManager;
++    private final BatteryManagerInternal mBatteryManager;
++
++    private final DisplayInfo mDefaultDisplayInfo = new DisplayInfo();
++
++    private final Handler mH;
++    private final HandlerThread mMainThread;
++
++    private boolean mPointerMappingSuspended = false;
++
++    private Animation mTransitAnimation = null;
++    private Transformation mTransitTransformation = null;
++
++    final OneHandedControlPanel mPanel;
++
++    private volatile boolean mIsRacedAccessibilityEnabled = false;
++
++    private final OneHandOperationMonitor mOperationMonitor;
++
++    // save the mapping parameters for debug
++    private int mInputLastOffsetX = 0;
++    private int mInputLastOffsetY = 0;
++    private float mInputLastScale = 1;
++
++    volatile boolean isOnehandTurnedOn = false;
++
++    private final RemoteCallbackList<IOneHandedModeListener> mOneHandedModeListeners =
++            new RemoteCallbackList<>();
++
++    private void notifyModeChange(OneHandedMode curMode, OneHandedMode lastMode) {
++        mPanel.notifyModeChanged(curMode, lastMode);
++
++        notifyModeChangeToListenersIfNeeded(curMode, lastMode);
++    }
++
++    private void notifyModeChangeToListenersIfNeeded(
++            OneHandedMode curMode, OneHandedMode lastMode) {
++        final boolean onEnter = (lastMode.isOffMode() && !curMode.isOffMode());
++        final boolean onExit = (!lastMode.isOffMode() && curMode.isOffMode());
++
++        if (!(onEnter || onExit)) {
++            return;
++        }
++
++        final int size = mOneHandedModeListeners.beginBroadcast();
++        if (LOCAL_DEBUG) Slog.v(TAG, "notifyModeChangeToListenersIfNeeded: onEnter=" + onEnter
++                + " onExit=" + onExit + " listeners count=" + size);
++
++        for (int i = 0; i < size; i++) {
++            final IOneHandedModeListener listener = mOneHandedModeListeners.getBroadcastItem(i);
++            try {
++                if (onEnter) {
++                    listener.onEnterOneHandedMode();
++                } else if (onExit) {
++                    listener.onExitFromOneHandedMode();
++                }
++            } catch (RemoteException e) {
++                Slog.e(TAG, "Error delivering one handed mode state changed.", e);
++            }
++        }
++        mOneHandedModeListeners.finishBroadcast();
++        if (LOCAL_DEBUG) Slog.v(TAG, "finish");
++    }
++
++    // OneHandAnimator is an animator of WindowAnimator, and will cooperate with WMS.
++    // mWindowManager.mWindowMap will be the best object for synchronization
++    private Object getSyncRoot() {
++        return mWindowManager.getSyncRoot();
++    }
++
++    private boolean updateDefaultDisplayInfoLocked() {
++        ((WindowManager)mContext.getSystemService(Context.WINDOW_SERVICE))
++            .getDefaultDisplay().getDisplayInfo(mDefaultDisplayInfo);
++        return true;
++    }
++
++    OneHandedAnimator(Context ctx, IOneHandedAnimatorProxy.IWindowManagerFuncs wms) {
++        // One Handed UI Elements uses Material Dark theme.
++        DisplayManager dm = (DisplayManager)ctx.getSystemService(Context.DISPLAY_SERVICE);
++        mContext = ctx.createDisplayContext(dm.getDisplay(Display.DEFAULT_DISPLAY));
++        mContext.setTheme(R.style.Theme_Material);
++
++        mDisplayManager = (DisplayManager)mContext.getSystemService(
++                Context.DISPLAY_SERVICE);
++        mWindowManager = wms;
++
++        mInputManager = LocalServices.getService(InputManagerInternal.class);
++        mBatteryManager = LocalServices.getService(BatteryManagerInternal.class);
++
++        mOperationMonitor = new OneHandOperationMonitor(mContext);
++
++        mMainThread = new HandlerThread("OneHandAnimator");
++        mMainThread.start();
++        mH = new Handler(mMainThread.getLooper()){
++            @Override
++            public void handleMessage(Message msg) {
++                switch (msg.what){
++                    case MSG_ONEHAND_TURNED_OFF:
++                        if (LOCAL_DEBUG) Slog.d(TAG, "set isOnehandTurnedOn false");
++                        isOnehandTurnedOn = false;
++                        break;
++                }
++            }
++        };
++
++        mPanel = new OneHandedControlPanel(mContext, this, mMainThread.getLooper());
++
++        updateDefaultDisplayInfoLocked();
++
++        registerObservers();
++
++        updateIsRacedAccessibilityEnabled();
++
++        if (DEBUG) Slog.v(TAG, "OneHandAnimator ready to run!");
++    }
++
++    private void prepareAnimationLocked(OneHandedMode lastMode) {
++        float startTransX = 0;
++        float startTransY = 0;
++        float startScaleX = 1;
++        float startScaleY = 1;
++
++        Transformation start = null;
++
++        if (mTransitTransformation != null) {
++            /* There are transition animation which is on going
++             * Use current transition state as the start of the animation
++             */
++            start = mTransitTransformation;
++
++            float[] values = new float[9];
++            start.getMatrix().getValues(values);
++
++            startTransX = values[Matrix.MTRANS_X];
++            startTransY = values[Matrix.MTRANS_Y];
++            startScaleX = values[Matrix.MSCALE_X];
++            startScaleY = values[Matrix.MSCALE_Y];
++        } else {
++            /* No transition animation is running, use previous dock state
++             * as the start of the animation
++             */
++            int[] startTrans = new int[2];
++            float[] startScale = new float[1];
++            getTransformationArgsForModeLocked(lastMode, startTrans, startScale);
++            startTransX = startTrans[0];
++            startTransY = startTrans[1];
++            startScaleX = startScale[0];
++            startScaleY = startScale[0];
++            mTransitTransformation = new Transformation();
++
++            mTransitTransformation.getMatrix()
++                            .postScale(startScaleX, startScaleY);
++            mTransitTransformation.getMatrix()
++                            .postTranslate(startTransX, startTransY);
++        }
++
++        int[] toTrans = new int[2];
++        float[] toScale = new float[1];
++
++        getTransformationArgsForModeLocked(mMode, toTrans, toScale);
++
++        TranslateAnimation ta = new TranslateAnimation(
++                startTransX, toTrans[0], startTransY, toTrans[1]);
++
++        ScaleAnimation sa = new ScaleAnimation(
++                startScaleX, toScale[0], startScaleY,toScale[0]);
++
++        AnimationSet anim = new AnimationSet(true);
++        anim.addAnimation(sa);
++        anim.addAnimation(ta);
++
++        anim.setDuration(TRANSIT_DURATION);
++        anim.setInterpolator(new AccelerateDecelerateInterpolator());
++
++        int w = mDefaultDisplayInfo.logicalWidth;
++        int h = mDefaultDisplayInfo.logicalHeight;
++        anim.initialize(w, h, w, h);
++        anim.start();
++
++        if (DEBUG) Slog.v(TAG, "Animation prepared from(" + startTransX +
++                ", " + startTransY + ", " + startScaleX +")" +
++                " to ( " + toTrans[0] + ", " + toTrans[1] +
++                ", " + toScale[0] + ")");
++
++        mTransitAnimation = anim;
++    }
++
++    boolean stepAnimationInTransaction(long now) {
++        /* stepAnimationInTransaction() is called only in WindowAnimator.animateLocked()
++           And WindowManagerService.mWindowMap is locked for sure. We keep the
++           synchronization here just in case if we decided not to use mWindowMap as the synchronization object */
++        synchronized(getSyncRoot()) {
++            boolean more = false;
++            if (mTransitAnimation != null) {
++                mTransitTransformation.getMatrix().reset();
++                more = mTransitAnimation.getTransformation(
++                        now, mTransitTransformation);
++                if (!more) {
++                    mTransitAnimation = null;
++                    mTransitTransformation = null;
++
++                    if (mMode.isOffMode()) {
++                        mPanel.remove();
++                    }
++                }
++            }
++            return more;
++        }
++    }
++
++    private void scheduleWindowAnimationLocked() {
++        mWindowManager.scheduleAnimation();
++    }
++
++    private void getTransformationArgsForModeLocked(OneHandedMode mode,
++                                int[] outTrans, float[] outScale) {
++        getTransformationArgsForMode(mode, outTrans, outScale,
++                mDefaultDisplayInfo.logicalWidth,
++                mDefaultDisplayInfo.logicalHeight);
++    }
++
++    void getTransformationArgsForMode(OneHandedMode mode,
++                                int[] outTrans, float[] outScale,
++                                int containerWidth, int containerHeight) {
++
++        if (outTrans.length != 2) {
++            throw new RuntimeException("Wrong array size");
++        }
++        if (outScale.length != 1) {
++            throw new RuntimeException("Wrong array size");
++        }
++
++        Rect screenRect = new Rect(0, 0, containerWidth
++                                       , containerHeight);
++
++        int scaledW = (int)(screenRect.width() * mode.getScale() + 0.5f);
++        int scaledH = (int)(screenRect.height() * mode.getScale() + 0.5f);
++
++        Rect result = new Rect();
++        Gravity.apply(mode.getGravity(), scaledW, scaledH,
++                screenRect, mode.xAdj, mode.yAdj, result);
++
++        outTrans[0] = result.left;
++        outTrans[1] = result.top;
++        outScale[0] = mode.getScale();
++
++        if (VERBOSE_DEBUG) Slog.v(TAG, "Computing trans for mode: [" + mode + "] result = " + result);
++    }
++
++    Transformation getTransformation() {
++        synchronized(getSyncRoot()) {
++            return getTransformationLocked();
++        }
++    }
++
++    private Transformation getTransformationLocked() {
++        Transformation result = null;
++        if (mTransitTransformation == null) {
++            if (mMode.isOffMode()) {
++                if (VERBOSE_DEBUG) Slog.v(TAG, "getTransformationLocked return null because off mode");
++                return null;
++            }
++            Transformation t = new Transformation();
++
++            int[] trans = new int[2];
++            float[] scale = new float[1];
++
++            getTransformationArgsForModeLocked(mMode, trans, scale);
++            t.getMatrix().postScale(scale[0], scale[0]);
++            t.getMatrix().postTranslate(trans[0], trans[1]);
++            if (VERBOSE_DEBUG) Slog.v(TAG, "Returning direct transform");
++            result = t;
++        } else {
++            if (VERBOSE_DEBUG) Slog.v(TAG, "Returning transition transform");
++            result = new Transformation();
++            result.set(mTransitTransformation);
++        }
++
++        if (VERBOSE_DEBUG) Slog.v(TAG, "getTransformationLocked Transform = " + result.getMatrix().toString());
++
++        if (result.getMatrix().isIdentity() && result.getAlpha() == 1)
++            return null; // no need to continue apply the transformation from us
++        else
++            return result;
++    }
++
++    private final DisplayManager.DisplayListener mDisplayListener =
++            new DisplayManager.DisplayListener() {
++
++        @Override
++        public void onDisplayAdded(int displayId) {
++            if (VERBOSE_DEBUG) Slog.v(TAG, "onDisplayAdded: displayId=" + displayId);
++            if (doesRacedDisplayExist()) {
++                setOneHandedMode(null, false);
++            }
++        }
++
++        @Override
++        public void onDisplayRemoved(int displayId) {
++            if (VERBOSE_DEBUG) Slog.v(TAG, "onDisplayRemoved: displayId=" + displayId);
++            if (doesRacedDisplayExist()) {
++                setOneHandedMode(null, false);
++            }
++        }
++
++        @Override
++        public void onDisplayChanged(int displayId) {
++            synchronized(getSyncRoot()) {
++                if (VERBOSE_DEBUG) Slog.v(TAG, "onDisplayChanged: displayId=" + displayId);
++
++                updateDefaultDisplayInfoLocked();
++                if (mDefaultDisplayInfo.logicalWidth
++                        > mDefaultDisplayInfo.logicalHeight) {
++                    setOneHandedMode(null /* Turn OFF */, true);
++                } else {
++                    scheduleWindowAnimationLocked();
++                    updatePointerMappingParametersLocked();
++                }
++            }
++        }
++    };
++
++    private void registerObservers() {
++        // If the settings disabled us, then stop mini-screen mode
++        OneHandedSettings.registerFeatureEnableDisableObserver(
++                mContext,
++                new ContentObserver(mH) {
++                    @Override
++                    public void onChange(boolean selfChange) {
++                        boolean featureEnabled = OneHandedSettings.isFeatureEnabled(mContext);
++                        if (!featureEnabled) {
++                            setOneHandedMode(null, false);
++                        }
++                    }
++                });
++
++        registerUserSetupCompleteObserver();
++        registerMagnificationSettingsObserver();
++        registerAccessibilityServicesStateChangeListener();
++
++        BroadcastReceiver receiver = new BroadcastReceiver() {
++            @Override
++            public void onReceive(Context context, Intent intent) {
++                String action = intent.getAction();
++                if (action.equals(Intent.ACTION_SCREEN_OFF)) {
++                    if (LOCAL_DEBUG) {
++                        Slog.d(TAG, "ACTION_SCREEN_OFF");
++                    }
++                    setOneHandedMode(null, true);
++
++                } else if (action.equals(Intent.ACTION_BATTERY_CHANGED)) {
++                    if (LOCAL_DEBUG) {
++                        Slog.d(TAG, "ACTION_BATTERY_CHANGED");
++                    }
++                    if (isPoweredByWireless()) {
++                        setOneHandedMode(null, false);
++                    }
++
++                } else if (action.equals(Intent.ACTION_DREAMING_STARTED)) {
++                    if (LOCAL_DEBUG) {
++                        Slog.d(TAG, "ACTION_DREAMING_STARTED");
++                    }
++                    setOneHandedMode(null, false);
++
++                } else if (action.equals(ACTION_ONEHAND_TRIGGER_EVENT)) {
++                    if (LOCAL_DEBUG) {
++                        Slog.d(TAG, "ACTION_ONEHAND_TRIGGER_EVENT");
++                    }
++
++                    boolean enterOneHandedMode = false;
++                    boolean exitOneHandedMode = false;
++                    synchronized(getSyncRoot()) {
++                        boolean featureEnabled = OneHandedSettings.isFeatureEnabled(mContext);
++                        if (!featureEnabled) {
++                            return;
++                        }
++
++                        int alignmentState = intent.getIntExtra(
++                                    EXTRA_ALIGNMENT_STATE,
++                                    EXTRA_ALIGNMENT_STATE_UNALIGNED);
++
++                        if (mMode.isOffMode()) {
++                            if (alignmentState == EXTRA_ALIGNMENT_STATE_UNALIGNED) {
++                                return;
++                            }
++
++                            int xAdj = OneHandedSettings.getSavedXAdj(mContext, 0);
++                            int yAdj = OneHandedSettings.getSavedYAdj(mContext, 0);
++
++                            float scale = getSavedShrinkingScale();
++                            int gravity = alignmentState == EXTRA_ALIGNMENT_STATE_LEFT
++                                    ? (Gravity.LEFT | Gravity.BOTTOM) : (Gravity.RIGHT | Gravity.BOTTOM);
++
++                            if (intent.hasExtra(EXTRA_VERTICAL_POSITION)) {
++                                updateDefaultDisplayInfoLocked();
++                                yAdj = mDefaultDisplayInfo.logicalHeight
++                                        - intent.getIntExtra(EXTRA_VERTICAL_POSITION, 0)
++                                        - (int)(mDefaultDisplayInfo.logicalHeight * scale);
++                            }
++
++                            OneHandedMode newMode = new OneHandedMode(xAdj, yAdj, scale, gravity);
++
++                            if (setOneHandedMode(newMode, false)) {
++                                OneHandedSettings.saveGravity(mContext, newMode.getGravity());
++                                OneHandedSettings.saveYAdj(mContext, newMode.yAdj);
++                                enterOneHandedMode = true;
++                            }
++
++                        } else {
++                            if (alignmentState != EXTRA_ALIGNMENT_STATE_UNALIGNED) {
++                                return;
++                            }
++
++                            if (setOneHandedMode(null, false)) {
++                                exitOneHandedMode = true;
++                            }
++                        }
++                    }
++
++                    // Push without sync root lock to avoid deadlock.
++                    if (enterOneHandedMode) {
++                        mOperationMonitor.pushEnter();
++                    }
++                    if (exitOneHandedMode) {
++                        // Assume that the event was caused by tapping home button.
++                        mOperationMonitor.pushExitByHomeButtonTouch();
++                    }
++                }
++            }
++        };
++
++        IntentFilter filter = new IntentFilter();
++        filter.addAction(Intent.ACTION_SCREEN_OFF);
++        filter.addAction(Intent.ACTION_BATTERY_CHANGED);
++        filter.addAction(Intent.ACTION_DREAMING_STARTED);
++        filter.addAction(ACTION_ONEHAND_TRIGGER_EVENT);
++        filter.setPriority(IntentFilter.SYSTEM_HIGH_PRIORITY);
++        mContext.registerReceiver(receiver, filter, null, mH);
++
++        try {
++            ActivityManagerNative.getDefault().registerUserSwitchObserver(
++                    new IUserSwitchObserver.Stub() {
++                        @Override
++                        public void onUserSwitching(int newUserId, IRemoteCallback reply) {}
++                        @Override
++                        public void onLockedBootComplete(int newUserId) throws RemoteException {}
++                        @Override
++                        public void onForegroundProfileSwitch(int v) {}
++
++                        @Override
++                        public void onUserSwitchComplete(int newUserId) throws RemoteException {
++                            sCurrentUser = ActivityManager.getCurrentUser();
++
++                            mH.post(new Runnable() {
++                                public void run() {
++                                    updateIsRacedAccessibilityEnabled();
++                                    setOneHandedMode(null, false);
++                                }
++                            });
++                        }
++                    }, TAG);
++        } catch (RemoteException e) {
++            e.printStackTrace();
++        }
++    }
++
++    private void registerUserSetupCompleteObserver() {
++        ContentObserver userSetupCompleteObserver = new ContentObserver(mH) {
++            @Override
++            public void onChange(boolean selfChange, Uri uri, int userId) {
++                if (userId == UserHandle.USER_ALL) return;
++
++                if (isUserSetupCompleted(userId)
++                        && OneHandedSettings.isFeatureEnabledSettingNotFound(mContext, userId)) {
++                    OneHandedSettings.setFeatureEnabled(mContext, true, userId);
++                }
++            }
++        };
++
++        mContext.getContentResolver().registerContentObserver(Settings.Secure.getUriFor(
++                Settings.Secure.USER_SETUP_COMPLETE),
++                false, userSetupCompleteObserver, UserHandle.USER_ALL);
++    }
++
++    private void registerMagnificationSettingsObserver() {
++        ContentObserver magnificationObserver = new ContentObserver(mH) {
++            @Override
++            public void onChange(boolean selfChange) {
++                updateIsRacedAccessibilityEnabled();
++                if (mIsRacedAccessibilityEnabled) {
++                    setOneHandedMode(null, false);
++                }
++            }
++        };
++
++        mContext.getContentResolver().registerContentObserver(Settings.Secure.getUriFor(
++                Settings.Secure.ACCESSIBILITY_DISPLAY_MAGNIFICATION_ENABLED),
++                false, magnificationObserver, UserHandle.USER_ALL);
++        mContext.getContentResolver().registerContentObserver(Settings.Secure.getUriFor(
++                Settings.Secure.ACCESSIBILITY_DISPLAY_MAGNIFICATION_NAVBAR_ENABLED),
++                false, magnificationObserver, UserHandle.USER_ALL);
++    }
++
++    private void registerAccessibilityServicesStateChangeListener() {
++        AccessibilityManager am =
++                (AccessibilityManager) mContext.getSystemService(Context.ACCESSIBILITY_SERVICE);
++        am.addAccessibilityServicesStateChangeListener(
++                new AccessibilityManager.AccessibilityServicesStateChangeListener() {
++            @Override
++            public void onAccessibilityServicesStateChanged(AccessibilityManager manager) {
++                updateIsRacedAccessibilityEnabled();
++                if (mIsRacedAccessibilityEnabled) {
++                    setOneHandedMode(null, false);
++                }
++            }
++        }, mH);
++    }
++
++    private boolean isPoweredByWireless() {
++        if (mBatteryManager == null) {
++            // Avoid NPE in tests works on other than SystemServer process.
++            // Normally it will never be null.
++            return false;
++        }
++
++        return mBatteryManager.isPowered(BatteryManager.BATTERY_PLUGGED_WIRELESS);
++    }
++
++    private boolean isUserSetupCompleted() {
++        return isUserSetupCompleted(getCurrentUser());
++    }
++
++    private boolean isUserSetupCompleted(int userId) {
++        return (Settings.Secure.getIntForUser(mContext.getContentResolver(),
++                Settings.Secure.USER_SETUP_COMPLETE,
++                0, userId) != 0);
++    }
++
++    private void updateIsRacedAccessibilityEnabled() {
++        mIsRacedAccessibilityEnabled = (
++                isAccessibilityDisplayMagnificationEnabled()
++                || isAccessibilityDisplayMagnificationNavbarEnabled()
++                || isRacedAccessibilityServiceEnabled());
++    }
++
++    private boolean isAccessibilityDisplayMagnificationEnabled() {
++        return (Settings.Secure.getIntForUser(mContext.getContentResolver(),
++                Settings.Secure.ACCESSIBILITY_DISPLAY_MAGNIFICATION_ENABLED,
++                0, getCurrentUser()) != 0);
++    }
++
++    private boolean isAccessibilityDisplayMagnificationNavbarEnabled() {
++        return (Settings.Secure.getIntForUser(mContext.getContentResolver(),
++                Settings.Secure.ACCESSIBILITY_DISPLAY_MAGNIFICATION_NAVBAR_ENABLED,
++                0, getCurrentUser()) != 0);
++    }
++
++    private boolean isRacedAccessibilityServiceEnabled() {
++        AccessibilityManager am =
++                (AccessibilityManager) mContext.getSystemService(Context.ACCESSIBILITY_SERVICE);
++        List<AccessibilityServiceInfo> serviceInfos =
++                am.getEnabledAccessibilityServiceList(AccessibilityServiceInfo.FEEDBACK_ALL_MASK);
++
++        final int racedCapability = (
++                AccessibilityServiceInfo.CAPABILITY_CAN_REQUEST_TOUCH_EXPLORATION
++                | AccessibilityServiceInfo.CAPABILITY_CAN_CONTROL_MAGNIFICATION);
++
++        for (AccessibilityServiceInfo info : serviceInfos) {
++            if ((info.getCapabilities() & racedCapability) != 0) {
++                return true;
++            }
++        }
++
++        return false;
++    }
++
++    private boolean doesRacedDisplayExist() {
++        Display[] displays = mDisplayManager.getDisplays(
++                DisplayManager.DISPLAY_CATEGORY_PRESENTATION);
++
++        for (Display display : displays) {
++            if (display.getType() == Display.TYPE_WIFI
++                    || display.getType() == Display.TYPE_VIRTUAL) {
++                return true;
++            }
++        }
++        return false;
++    }
++
++    private boolean isOneHandedModeAvailableLocked() {
++        return !(mDefaultDisplayInfo.logicalWidth
++                > mDefaultDisplayInfo.logicalHeight //in landscape mode.
++                || isPoweredByWireless()
++                || !isUserSetupCompleted()
++                || mIsRacedAccessibilityEnabled
++                || doesRacedDisplayExist());
++    }
++
++    boolean setOneHandedMode(OneHandedMode mode, boolean immediate) {
++
++        if (mode == null) {
++            mode = new OneHandedMode(); // Empty OneHandedMode means OFF.
++        }
++
++        if (!OneHandedSettings.isFeatureEnabled(mContext)
++                && !mode.isOffMode()) {
++            if (DEBUG) Slog.v(TAG, "Request of " + mode +
++                    " is ignored because we are disabled by settings.");
++            return false;
++        }
++
++        synchronized(getSyncRoot()) {
++            if (!mMode.equals(mode)) {
++
++                updateDefaultDisplayInfoLocked();
++
++                if (!mode.isOffMode() && !isOneHandedModeAvailableLocked()) {
++                    return false; // Reject the entering request.
++                }
++
++                OneHandedMode lastMode = new OneHandedMode(mMode);
++
++                if (lastMode.isOffMode() && !mode.isOffMode()) {
++                    mDisplayManager.registerDisplayListener(mDisplayListener, mH);
++                    if (!updateDefaultDisplayInfoLocked()) {
++                        mDisplayManager.unregisterDisplayListener(mDisplayListener);
++                        return false;
++                    }
++                    mPanel.install();
++                }
++
++                if (!lastMode.isOffMode() && mode.isOffMode()) {
++                    mDisplayManager.unregisterDisplayListener(mDisplayListener);
++                    if (immediate) {
++                        mPanel.remove();
++                    }
++                }
++
++                mMode.set(mode);
++
++                if (!immediate) {
++                    prepareAnimationLocked(lastMode);
++                }
++
++                scheduleWindowAnimationLocked();
++
++                updatePointerMappingParametersLocked();
++
++                notifyModeChange(mMode, lastMode);
++            }
++        }
++        return true;
++    }
++
++    void suspendPointerMappingUpgration() {
++        synchronized(getSyncRoot()) {
++            mPointerMappingSuspended = true;
++            if (DEBUG) Slog.v(TAG, "pointer mapping suspended");
++        }
++    }
++
++    void unsuspendPointerMappingUpgration() {
++        synchronized(getSyncRoot()) {
++            if (DEBUG) Slog.v(TAG, "pointer mapping unsuspended");
++            mPointerMappingSuspended = false;
++            updatePointerMappingParametersLocked();
++        }
++    }
++
++    private void updatePointerMappingParametersLocked() {
++        if (mInputManager == null) {
++            // Avoid NPE in tests works on other than SystemServer process.
++            // Normally it will never be null.
++            return;
++        }
++
++        if (!mPointerMappingSuspended) {
++            int[] trans = new int[2];
++            float[] scale = new float[1];
++
++            getTransformationArgsForModeLocked(mMode, trans, scale);
++
++            if (DEBUG) Slog.v(TAG, "updating pointer mapping parames dock=" +
++                     mMode + " [" + (-trans[0]) + ", " +
++                    (-trans[1]) + ", " + (1/scale[0]) + "]");
++
++            mInputManager.updatePointerMappingParameters(
++                    -trans[0], -trans[1], 1 / scale[0],
++                    mDefaultDisplayInfo.logicalWidth,
++                    mDefaultDisplayInfo.logicalHeight);
++
++            mInputLastOffsetX = -trans[0];
++            mInputLastOffsetY = -trans[1];
++            mInputLastScale = 1 / scale[0];
++
++            if (mH == null || (scale[0] != 1.0f)) {
++                if (LOCAL_DEBUG) Slog.v(TAG, "mH: " + mH + " set isOnehandTurnedOn: "
++                        + (scale[0] != 1.0f) + " scale[0]: " + scale[0]);
++                isOnehandTurnedOn = (scale[0] != 1.0f);
++                mH.removeMessages(MSG_ONEHAND_TURNED_OFF);
++            } else {
++                if (LOCAL_DEBUG) Slog.v(TAG, "SendEmptyMessage to set isOnehandTurnedOn false scale[0]: "
++                        + scale[0]);
++                mH.removeMessages(MSG_ONEHAND_TURNED_OFF);
++                mH.sendEmptyMessageDelayed(MSG_ONEHAND_TURNED_OFF, DELAY_TIME);
++            }
++        } else {
++            if (DEBUG) Slog.v(TAG, "updating pointer mapping susppended");
++        }
++    }
++
++    OneHandedMode getOneHandMode() {
++        return new OneHandedMode(mMode);
++    }
++
++    void notifyOutSideScreenTouch(final int x, final int y) {
++        mPanel.notifyOutsideScreenTouch(x, y);
++    }
++
++    boolean isOneHandedModeAvailable() {
++        synchronized(getSyncRoot()) {
++            if (!OneHandedSettings.isFeatureEnabled(mContext)) {
++                return false;
++            }
++
++            updateDefaultDisplayInfoLocked();
++            return isOneHandedModeAvailableLocked();
++        }
++    }
++
++    float getSavedShrinkingScale() {
++        synchronized(getSyncRoot()) {
++            return OneHandedSettings.getSavedScale(mContext, OneHandedControlPanel.DEFAULT_SCALE);
++        }
++    }
++
++    void registerOneHandedModeListener(IOneHandedModeListener listener) {
++        if (LOCAL_DEBUG) Slog.v(TAG, "registerOneHandedModeListener: " + listener.asBinder());
++        mOneHandedModeListeners.register(listener);
++    }
++
++    void unregisterOneHandedModeListener(IOneHandedModeListener listener) {
++        if (LOCAL_DEBUG) Slog.v(TAG, "unregisterOneHandedModeListener: " + listener.asBinder());
++        mOneHandedModeListeners.unregister(listener);
++    }
++
++    void dump(PrintWriter pw, String[] args) {
++        pw.print  ("  Persisted Settings:");
++        pw.print  (" enabled="); pw.print(OneHandedSettings.isFeatureEnabled(mContext));
++        pw.print  (" xadj="); pw.print(OneHandedSettings.getSavedXAdj(mContext, 0));
++        pw.print  (" yadj="); pw.print(OneHandedSettings.getSavedYAdj(mContext, 0));
++        pw.print  (" scale="); pw.println(getSavedShrinkingScale());
++        pw.print  (" gravity="); pw.println(OneHandedSettings.getSavedGravity(mContext, Gravity.LEFT | Gravity.BOTTOM));
++
++        pw.print  ("  Current Mode: "); pw.println(mMode.toString());
++        pw.print  ("  Current input pointer mapping:");
++        pw.print  (" offsetX="); pw.print(mInputLastOffsetX);
++        pw.print  (" offsetY="); pw.print(mInputLastOffsetY);
++        pw.print  (" Scale=");   pw.println(mInputLastScale);
++
++        Transformation t = this.getTransformation();
++        pw.print  ("  Last transformation:"); pw.println(t == null ? "null" : t.toString());
++
++        pw.println("  Internal status:");
++        pw.print  ("    mPointerMappingSuspended="); pw.println(mPointerMappingSuspended);
++        pw.print  ("    mDefaultDisplayInfo="); pw.println(mDefaultDisplayInfo.toString());
++        pw.print  ("    mIsRacedAccessibilityEnabled="); pw.println(mIsRacedAccessibilityEnabled);
++        pw.print  ("    Number of listeners="); pw.println(mOneHandedModeListeners.getRegisteredCallbackCount());
++
++        mPanel.dump(pw, args);
++    }
++}
+diff --git a/services/core/java/com/android/server/wm/onehand/OneHandedAnimatorProxy.java b/services/core/java/com/android/server/wm/onehand/OneHandedAnimatorProxy.java
+new file mode 100644
+index 00000000000..2dba1d62945
+--- /dev/null
++++ b/services/core/java/com/android/server/wm/onehand/OneHandedAnimatorProxy.java
+@@ -0,0 +1,120 @@
++package com.android.server.wm.onehand;
++
++import android.content.Context;
++import android.graphics.Rect;
++import android.graphics.RectF;
++import android.view.WindowManager;
++import android.view.animation.Transformation;
++
++import com.android.server.LocalServices;
++import com.android.server.policy.WindowManagerPolicy.WindowState;
++import com.android.internal.onehand.IOneHandedModeListener;
++
++import java.io.PrintWriter;
++
++/**
++ * @hide
++ */
++public class OneHandedAnimatorProxy extends IOneHandedAnimatorProxy {
++
++    private static final String TAG = "OneHandedAnimatorProxy";
++
++    private OneHandedAnimator mAnimator = null;
++    private IWindowManagerFuncs mWms = null;
++
++    public OneHandedAnimatorProxy () {}
++
++    @Override
++    public void initialize(Context ctx, IWindowManagerFuncs wms) {
++        mWms = wms;
++        mAnimator = new OneHandedAnimator(ctx, mWms);
++
++        LocalServices.addService(IOneHandedAnimatorProxy.class, this);
++    }
++
++    @Override
++    public boolean stepAnimationInTransaction(long currentTime) {
++        return mAnimator.stepAnimationInTransaction(currentTime);
++    }
++
++    @Override
++    public void applyTransformationForRect(Rect outRect) {
++        Transformation oneHandT = mAnimator.getTransformation();
++        if (oneHandT != null) {
++            RectF cropF = new RectF(outRect);
++            oneHandT.getMatrix().mapRect(cropF);
++            outRect.left = (int)(cropF.left + 0.5f);
++            outRect.top = (int)(cropF.top + 0.5f);
++            outRect.right = (int)cropF.right;
++            outRect.bottom = (int)cropF.bottom;
++        }
++    }
++
++    @Override
++    public Transformation getTransformation() {
++        return mAnimator.getTransformation();
++    }
++
++    @Override
++    public Transformation getTransformationForWindow(WindowState win) {
++        if (win.getAttrs().type == WindowManager.LayoutParams.TYPE_ONEHAND_OVERLAY) {
++            if (win.getAttrs().getTitle().equals(OneHandedControlPanel.GUIDE_PANEL_WINDOW_NAME)) {
++                return mAnimator.mPanel.getTransformationForGuidePanel(mAnimator.getTransformation());
++            } else if (win.getAttrs().getTitle().equals(OneHandedControlPanel.CONTROL_PANEL_WINDOW_NAME)) {
++                return mAnimator.mPanel.getTransformationForControlPanel(mAnimator.getTransformation());
++            }
++        }
++        return null;
++    }
++
++    @Override
++    public void notifyOutSideScreenTouch(int x, int y) {
++        mAnimator.notifyOutSideScreenTouch(x, y);
++    }
++
++    @Override
++    public void dump(PrintWriter pw, String[] args) {
++        if (shouldDump()) {
++            pw.println("ONE HANDED MINI-SCREEN SOLUTION (dumpsys window onehand)");
++            mAnimator.dump(pw, args);
++        }
++    }
++
++    @Override
++    public boolean isOnehandTurnedON() {
++        if (mAnimator != null) {
++            return mAnimator.isOnehandTurnedOn;
++        }
++        return false;
++    }
++
++    @Override
++    public boolean isOneHandedModeAvailable() {
++        if (mAnimator != null) {
++            return mAnimator.isOneHandedModeAvailable();
++        }
++        return false;
++    }
++
++    @Override
++    public float getShrinkingScale() {
++        if (mAnimator != null) {
++            return mAnimator.getSavedShrinkingScale();
++        }
++        return 1;
++    }
++
++    @Override
++    public void registerOneHandedModeListener(IOneHandedModeListener listener) {
++        if (mAnimator != null) {
++            mAnimator.registerOneHandedModeListener(listener);
++        }
++    }
++
++    @Override
++    public void unregisterOneHandedModeListener(IOneHandedModeListener listener) {
++        if (mAnimator != null) {
++            mAnimator.unregisterOneHandedModeListener(listener);
++        }
++    }
++}
+diff --git a/services/core/java/com/android/server/wm/onehand/OneHandedControlPanel.java b/services/core/java/com/android/server/wm/onehand/OneHandedControlPanel.java
+new file mode 100644
+index 00000000000..7ea6c0a4947
+--- /dev/null
++++ b/services/core/java/com/android/server/wm/onehand/OneHandedControlPanel.java
+@@ -0,0 +1,705 @@
++package com.android.server.wm.onehand;
++
++import static com.android.server.wm.onehand.IOneHandedAnimatorProxy.DEBUG;
++import static android.view.WindowManager.LayoutParams.FLAG_SLIPPERY;
++
++import android.content.BroadcastReceiver;
++import android.content.Context;
++import android.content.Intent;
++import android.content.IntentFilter;
++import android.content.res.Configuration;
++import android.graphics.Color;
++import android.graphics.Matrix;
++import android.graphics.PixelFormat;
++import android.graphics.Point;
++import android.graphics.PointF;
++import android.graphics.Rect;
++import android.graphics.RectF;
++import android.os.Handler;
++import android.os.Looper;
++import android.os.Message;
++import android.os.UserHandle;
++import android.util.Slog;
++import android.view.DisplayInfo;
++import android.view.Gravity;
++import android.view.MotionEvent;
++import android.view.View;
++import android.view.View.MeasureSpec;
++import android.view.View.OnClickListener;
++import android.view.View.OnLayoutChangeListener;
++import android.view.View.OnTouchListener;
++import android.view.ViewGroup.LayoutParams;
++import android.view.WindowManager;
++import android.view.animation.Transformation;
++import android.widget.FrameLayout;
++import android.widget.ImageView;
++import android.widget.RelativeLayout;
++
++import com.android.server.wm.onehand.IOneHandedAnimatorProxy;
++
++import java.io.PrintWriter;
++
++class OneHandedControlPanel {
++
++    private static final String TAG = "OneHandedControlPanel";
++
++    private static final String ACTION_ONEHANDED_MODE_SETUP =
++            "com.android.onehand.intent.action.ONEHANDED_MODE_SETUP";
++
++    private static final float SCREEN_SIZE = 6f; // in inches
++    static final float MIN_SCALE = 4f / SCREEN_SIZE;
++    static final float DEFAULT_SCALE = 0.75f;
++
++    static final String CONTROL_PANEL_WINDOW_NAME = "ONEHAND control panel";
++    static final String GUIDE_PANEL_WINDOW_NAME = "ONEHAND guide panel";
++
++    private final Context mContext;
++    private final OneHandedAnimator mAnimator;
++
++    private final float mProtectZonePadding;
++
++    private View mControlPanelRoot = null;
++    private ImageView mDragIndicator = null;
++    private ImageView mZoom = null;
++    private ImageView mMoveIndicator = null;
++
++    private View mGuidePanelRoot = null;
++    private View mLink = null;
++
++    private final Transformation mTmpControlPanelTrans = new Transformation();
++    private final Transformation mTmpGuidePanelTrans = new Transformation();
++    private float mLastTargetScale = 1;
++    private volatile int mControlPanelLength = 0;
++    private volatile int mLinkBottom = 0;
++
++    private final float[] mTmpMatrixValues = new float[9];
++
++    private final DisplayInfo mDefaultDisplayInfo = new DisplayInfo();
++
++    private final OneHandOperationMonitor mOperationMonitor;
++
++    private final Handler mH;
++
++    private boolean mInstalled = false;
++
++    private class MyHandler extends Handler {
++        static final int MSG_INSTALL = 1;
++        static final int MSG_REMOVE = 2;
++        static final int MSG_RECREATE_PANELS = 3;
++        static final int MSG_MODE_CHANGED = 4;
++        static final int MSG_OUTSIDE_SCREEN_TOUCH = 5;
++
++        public MyHandler(Looper looper) {
++            super(looper);
++        }
++
++        @Override
++        public void handleMessage(Message msg) {
++            int what = msg.what;
++            switch (what) {
++                case MSG_INSTALL:
++                    handleInstall();
++                    break;
++                case MSG_REMOVE:
++                    handleRemove();
++                    break;
++                case MSG_RECREATE_PANELS:
++                    handleRecreatePanels();
++                    break;
++                case MSG_MODE_CHANGED:
++                    handleModeChange((OneHandedMode)msg.obj);
++                    break;
++                case MSG_OUTSIDE_SCREEN_TOUCH:
++                    handleOutsideScreenTouch(msg.arg1, msg.arg2);
++                    break;
++            }
++        }
++    }
++
++    OneHandedControlPanel(Context ctx, OneHandedAnimator animator, Looper mainLooper) {
++        mContext = ctx;
++        mAnimator = animator;
++
++        mProtectZonePadding = mContext.getResources().getDimensionPixelSize(
++                com.android.internal.R.dimen.config_onehandProtectZonePadding);
++
++        mH = new MyHandler(mainLooper);
++        mOperationMonitor = new OneHandOperationMonitor(mContext);
++    }
++
++    private void handleInstall() {
++        if (DEBUG) Slog.v(TAG, "handleInstall: mInstalled=" + mInstalled);
++
++        WindowManager wm = (WindowManager)mContext.getSystemService(Context.WINDOW_SERVICE);
++        if (!wm.getDefaultDisplay().getDisplayInfo(mDefaultDisplayInfo)) {
++            Slog.e(TAG, "Failed get display info");
++            return;
++        }
++
++        if (mGuidePanelRoot == null)
++            createGuidePanel();
++        if (mControlPanelRoot == null)
++            createControlPanel();
++
++        if (!mInstalled) {
++            wm.addView(mGuidePanelRoot, createLpForGuidePanel());
++            wm.addView(mControlPanelRoot, createLpForControlPanel());
++        } else {
++            wm.updateViewLayout(mGuidePanelRoot, createLpForGuidePanel());
++            wm.updateViewLayout(mControlPanelRoot, createLpForControlPanel());
++        }
++
++        mInstalled = true;
++    }
++
++    private void handleRemove() {
++        if (DEBUG) Slog.v(TAG, "handleRemove: mInstalled=" + mInstalled);
++        if (mInstalled) {
++            WindowManager wm = (WindowManager)mContext.getSystemService(Context.WINDOW_SERVICE);
++            wm.removeView(mGuidePanelRoot);
++            wm.removeView(mControlPanelRoot);
++            mGuidePanelRoot = null;
++            mControlPanelRoot = null;
++            mInstalled = false;
++        }
++    }
++
++    private void handleRecreatePanels() {
++        if (DEBUG) Slog.v(TAG, "handleRecreatePanels: mInstalled=" + mInstalled
++                + ", mGuidePanelRoot=" + mGuidePanelRoot);
++
++        // Recreate panels to reflect config to each view.
++        if (mInstalled) {
++            handleRemove();
++            handleInstall();
++            handleModeChange(mAnimator.getOneHandMode());
++        }
++    }
++
++    private void handleModeChange(OneHandedMode curMode) {
++        if (DEBUG) Slog.v(TAG, "handleModeChange: curMode=" + curMode);
++
++        if (mControlPanelRoot == null || curMode.isOffMode())
++            return;
++
++        adjustMode(curMode);
++
++        updateViewPosition(curMode, mMoveIndicator,
++                com.android.internal.R.drawable.onehand_move_horizontally_left,
++                com.android.internal.R.drawable.onehand_move_horizontally_right);
++
++        updateViewPosition(curMode, mZoom,
++                com.android.internal.R.drawable.onehand_screen_resize_left,
++                com.android.internal.R.drawable.onehand_screen_resize_right);
++    }
++
++    private void adjustMode(OneHandedMode curMode) {
++        OneHandedMode newMode = new OneHandedMode(curMode);
++
++        newMode.yAdj = getAdjustedYAdj(newMode.getScale(), newMode.yAdj);
++        newMode.setScale(getAdjustedScale(newMode.getScale(), newMode.yAdj));
++
++        if (!newMode.equals(curMode)) {
++            if (DEBUG) Slog.v(TAG, "adjustMode: curMode=" + curMode + " newMode=" + newMode);
++
++            OneHandedSettings.saveYAdj(mContext, newMode.yAdj);
++            OneHandedSettings.saveScale(mContext, newMode.getScale());
++            mAnimator.setOneHandedMode(newMode, false);
++        }
++    }
++
++    private void updateViewPosition(OneHandedMode curMode, ImageView view, int leftResId, int rightResId) {
++        boolean dockingLeft =
++                ((RelativeLayout.LayoutParams)view.getLayoutParams())
++                    .getRules()[RelativeLayout.ALIGN_PARENT_LEFT] == RelativeLayout.TRUE;
++
++        // We are already in correct side, so nothing need to be done
++        if (dockingLeft == curMode.hasGravity(Gravity.RIGHT)) {
++            if (DEBUG) Slog.v(TAG, "View is already in correct side, so nothing need to do");
++            return;
++        }
++
++        RelativeLayout.LayoutParams lp = (RelativeLayout.LayoutParams)view.getLayoutParams();
++
++        if (curMode.hasGravity(Gravity.RIGHT)) {
++            lp.removeRule(RelativeLayout.ALIGN_PARENT_RIGHT);
++            lp.addRule(RelativeLayout.ALIGN_PARENT_LEFT);
++            view.setImageResource(leftResId);
++        } else {
++            lp.removeRule(RelativeLayout.ALIGN_PARENT_LEFT);
++            lp.addRule(RelativeLayout.ALIGN_PARENT_RIGHT);
++            view.setImageResource(rightResId);
++        }
++
++        view.requestLayout();
++    }
++
++    Transformation getTransformationForGuidePanel(Transformation oneHandedTrans) {
++        if (oneHandedTrans == null || oneHandedTrans.getMatrix() == null || !mInstalled)
++            return null;
++
++        float alpha = computeAlphaFromTransformation(oneHandedTrans);
++        float alphaToHide = computeAlphaToHideGuidePanel(oneHandedTrans);
++        mTmpGuidePanelTrans.setAlpha(alpha * alphaToHide);
++
++        return mTmpGuidePanelTrans;
++    }
++
++    private float computeAlphaToHideGuidePanel(Transformation oneHandedTrans) {
++        if (oneHandedTrans == null || oneHandedTrans.getMatrix() == null) {
++            return 1f;
++        }
++
++        int linkBottom = mLinkBottom;
++        float controlPanelTop = applyTransformationY(oneHandedTrans, -mControlPanelLength);
++
++        if (linkBottom <= 0 || controlPanelTop > linkBottom) {
++            return 1f;
++        }
++
++        // Alpha gradually decreases as the control panel approaches the top edge of device screen.
++        // The decrease is quickly in early stage. And the decrease is slowly in late stage.
++        float earlyStage = 2f * (controlPanelTop / linkBottom) - 1f;
++        float lateStage = (controlPanelTop / linkBottom) / 2f;
++        float alpha = Math.max(earlyStage, lateStage);
++        return Math.max(alpha, 0f);
++    }
++
++    private float applyTransformationY(Transformation oneHandedTrans, int y) {
++        float[] matValues = mTmpMatrixValues;
++        oneHandedTrans.getMatrix().getValues(matValues);
++        return y * matValues[Matrix.MSCALE_Y] + matValues[Matrix.MTRANS_Y];
++    }
++
++    private void handleOutsideScreenTouch(int x, int y) {
++        if (DEBUG) Slog.v(TAG, "handleOutsideScreenTouch: x=" + x + ", y="+y);
++
++        OneHandedMode curMode = mAnimator.getOneHandMode();
++
++        if (curMode.isOffMode())
++            return;
++
++        Rect linkBounds = getBoundsOnScreen(mLink);
++        Point touchPositon = getInverseTransformedPosition(x, y);
++
++        if(linkBounds.contains(touchPositon.x, touchPositon.y)) {
++            launchOneHandedModeSetupActivity();
++            return;
++        }
++
++        mOperationMonitor.pushExitByOutsideScreenTouch();
++        mAnimator.setOneHandedMode(null, false);
++    }
++
++    private Rect getBoundsOnScreen(View view) {
++        int[] outLocation = new int[2];
++        view.getLocationOnScreen(outLocation);
++
++        return new Rect(outLocation[0], outLocation[1], outLocation[0] + view.getWidth(),
++                outLocation[1] + view.getHeight());
++    }
++
++    private Point getInverseTransformedPosition(int x, int y) {
++        int[] trans = new int[2];
++        float[] scale = new float[1];
++
++        mAnimator.getTransformationArgsForMode(mAnimator.getOneHandMode(), trans, scale,
++                mDefaultDisplayInfo.logicalWidth, mDefaultDisplayInfo.logicalHeight);
++
++        return new Point(Math.round(x * scale[0] + trans[0]), Math.round(y * scale[0] + trans[1]));
++    }
++
++    private void launchOneHandedModeSetupActivity() {
++        Intent intent = new Intent(ACTION_ONEHANDED_MODE_SETUP);
++        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
++        intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
++        mContext.startActivityAsUser(intent, UserHandle.CURRENT);
++    }
++
++    private int getAdjustedYAdj(float curScale, int curYAdj) {
++        float curWindowHeight = (mDefaultDisplayInfo.logicalHeight + mControlPanelLength) * curScale;
++
++        if (curWindowHeight + curYAdj > mDefaultDisplayInfo.logicalHeight) {
++            curYAdj = (int)(mDefaultDisplayInfo.logicalHeight - curWindowHeight);
++        }
++
++        if (curYAdj < 0) {
++            curYAdj = 0;
++        }
++        return curYAdj;
++    }
++
++    private float getAdjustedScale(float newScale, int curYAdj) {
++        if (newScale < MIN_SCALE)
++            return MIN_SCALE;
++
++        float maxHeightScale = (float)(mDefaultDisplayInfo.logicalHeight - curYAdj)
++                / (float)(mDefaultDisplayInfo.logicalHeight + mControlPanelLength);
++
++        float maxWidthScale = (float)mDefaultDisplayInfo.logicalWidth
++                / (float)(mDefaultDisplayInfo.logicalWidth + mControlPanelLength);
++
++        float maxScale = Math.min(maxHeightScale, maxWidthScale);
++        if (maxScale > 0 && newScale > maxScale)
++            return maxScale;
++
++        return newScale;
++    }
++
++    private void createGuidePanel() {
++        View root = View.inflate(mContext, com.android.internal.R.layout.onehand_guide_panel, null);
++        mLink = root.findViewById(com.android.internal.R.id.onehand_link);
++        mLink.addOnLayoutChangeListener(new OnLayoutChangeListener() {
++            @Override
++            public void onLayoutChange(View v, int left, int top, int right, int bottom,
++                    int oldLeft, int oldTop, int oldRight, int oldBottom) {
++                mLinkBottom = getBoundsOnScreen(mLink).bottom;
++            }
++        });
++        mGuidePanelRoot = root;
++    }
++
++    private WindowManager.LayoutParams createLpForGuidePanel() {
++        WindowManager.LayoutParams lp = new WindowManager.LayoutParams();
++        lp.width = mDefaultDisplayInfo.logicalWidth;
++        lp.height = mDefaultDisplayInfo.logicalHeight;
++        lp.gravity = Gravity.LEFT | Gravity.TOP;
++        lp.type = WindowManager.LayoutParams.TYPE_ONEHAND_OVERLAY;
++        lp.flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
++                | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
++                | WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
++                | WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
++                | WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED;
++        lp.inputFeatures |= WindowManager.LayoutParams.INPUT_FEATURE_NO_INPUT_CHANNEL;
++        lp.setTitle(GUIDE_PANEL_WINDOW_NAME);
++        lp.format = PixelFormat.TRANSLUCENT;
++        lp.x = 0;
++        lp.y = 0;
++
++        return lp;
++    }
++
++    private void createControlPanel() {
++        // Creating the root view
++        FrameLayout root = new FrameLayout(mContext) {
++            @Override
++            public void onConfigurationChanged(Configuration newConfig) {
++                recreatePanels();
++            }
++        };
++
++        // Creating the BAR container
++        final RelativeLayout r = new RelativeLayout(mContext);
++        root.addView(r, new FrameLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT));
++        r.setOnTouchListener(new OnTouchListener() {
++            OneHandedMode mDownMode = new OneHandedMode();
++            PointF mDownPoint = new PointF();
++
++            @Override
++            public boolean onTouch(View v, MotionEvent event) {
++                switch(event.getActionMasked()) {
++                    case MotionEvent.ACTION_UP:
++                        OneHandedMode curMode = mAnimator.getOneHandMode();
++
++                        if (curMode.isOffMode())
++                            break;
++
++                        if(getProtectZone(v).contains(event.getX(), event.getY()))
++                            break; // do not interact with the touch inside protect zone
++
++                        mOperationMonitor.pushExitByOutsideScreenTouch();
++                        mAnimator.setOneHandedMode(null, false);
++                        break;
++                }
++                return true;
++            }
++        });
++        r.setMotionEventSplittingEnabled(false);
++
++        // An indicator to tell the user that this bar is dragable.
++        final ImageView dragIndicator = new ImageView(mContext);
++        dragIndicator.setBackgroundResource(com.android.internal.R.drawable.onehand_buttons_background);
++        dragIndicator.setImageResource(com.android.internal.R.drawable.onehand_move_vertically);
++        dragIndicator.measure(MeasureSpec.UNSPECIFIED, MeasureSpec.UNSPECIFIED);
++        RelativeLayout.LayoutParams lp = new RelativeLayout.LayoutParams(dragIndicator.getMeasuredWidth(),
++                dragIndicator.getMeasuredHeight());
++        lp.addRule(RelativeLayout.ALIGN_PARENT_TOP);
++        lp.addRule(RelativeLayout.CENTER_HORIZONTAL);
++        dragIndicator.setLayoutParams(lp);
++        r.addView(dragIndicator);
++
++        dragIndicator.setOnTouchListener(new OnTouchListener() {
++            OneHandedMode mDownMode = new OneHandedMode();
++            PointF mDownPoint = new PointF();
++
++            @Override
++            public boolean onTouch(View v, MotionEvent event) {
++                switch(event.getActionMasked()) {
++                    case MotionEvent.ACTION_DOWN:
++                        mAnimator.suspendPointerMappingUpgration();
++                        mDownMode.set(mAnimator.getOneHandMode());
++                        mDownPoint.set(event.getX(), event.getY());
++                        dragIndicator.drawableHotspotChanged(event.getX(), event.getY());
++                        dragIndicator.setPressed(true);
++                        setSlipperyToControlPanel(false);
++                        break;
++                    case MotionEvent.ACTION_MOVE:
++                        int yDelta = (int)((event.getY() - mDownPoint.y + 0.5f) * mDownMode.getScale());
++                        OneHandedMode newMode = new OneHandedMode(mDownMode);
++
++                        if (mDownMode.hasGravity(Gravity.BOTTOM)) {
++                            yDelta = -yDelta;
++                        }
++
++                        newMode.yAdj += yDelta;
++                        newMode.yAdj = getAdjustedYAdj(newMode.getScale(), newMode.yAdj);
++                        OneHandedSettings.saveYAdj(mContext, newMode.yAdj);
++                        mAnimator.setOneHandedMode(newMode, true);
++                        dragIndicator.drawableHotspotChanged(event.getX(), event.getY());
++                        break;
++                    case MotionEvent.ACTION_UP:
++                    case MotionEvent.ACTION_CANCEL:
++                        mAnimator.unsuspendPointerMappingUpgration();
++                        dragIndicator.setPressed(false);
++                        mOperationMonitor.pushMove();
++                        setSlipperyToControlPanel(true);
++                        break;
++                }
++                return true;
++            }
++        });
++
++        // Creating zoom button
++        final ImageView zoom = new ImageView(mContext);
++        zoom.setBackgroundResource(com.android.internal.R.drawable.onehand_buttons_background);
++        zoom.setImageResource(com.android.internal.R.drawable.onehand_screen_resize_left);
++        zoom.measure(MeasureSpec.UNSPECIFIED, MeasureSpec.UNSPECIFIED);
++        lp = new RelativeLayout.LayoutParams(zoom.getMeasuredWidth(), zoom.getMeasuredHeight());
++        lp.addRule(RelativeLayout.ALIGN_PARENT_LEFT);
++        zoom.setLayoutParams(lp);
++        r.addView(zoom);
++
++        zoom.setOnTouchListener(new OnTouchListener() {
++            OneHandedMode mDownMode = new OneHandedMode();
++            PointF mDownPoint = new PointF();
++
++            @Override
++            public boolean onTouch(View v, MotionEvent event) {
++                switch(event.getActionMasked()) {
++                    case MotionEvent.ACTION_DOWN:
++                        mDownMode.set(mAnimator.getOneHandMode());
++                        mDownPoint.set(event.getX(), event.getY());
++
++                        mAnimator.suspendPointerMappingUpgration();
++                        zoom.setPressed(true);
++                        setSlipperyToControlPanel(false);
++                        break;
++                    case MotionEvent.ACTION_MOVE:
++                        float xDelta =  (int)((event.getX() - mDownPoint.x + 0.5f) * mDownMode.getScale());
++                        float yDelta =  (int)((event.getY() - mDownPoint.y + 0.5f) * mDownMode.getScale());
++
++                        if (mDownMode.hasGravity(Gravity.RIGHT)) {
++                            xDelta = -xDelta;
++                        }
++
++                        if (mDownMode.hasGravity(Gravity.BOTTOM)) {
++                            yDelta = -yDelta;
++                        }
++
++                        // Use y as the control
++                        float beforeHeight = mDefaultDisplayInfo.logicalHeight * mDownMode.getScale();
++                        float afterHeight = beforeHeight + yDelta;
++                        float newScale = afterHeight / mDefaultDisplayInfo.logicalHeight;
++
++                        OneHandedMode newMode = new OneHandedMode(mDownMode);
++                        newMode.setScale(getAdjustedScale(newScale, newMode.yAdj));
++                        OneHandedSettings.saveScale(mContext, newMode.getScale());
++                        mAnimator.setOneHandedMode(newMode, true);
++                        break;
++                    case MotionEvent.ACTION_UP:
++                    case MotionEvent.ACTION_CANCEL:
++                        mAnimator.unsuspendPointerMappingUpgration();
++                        zoom.setPressed(false);
++                        mOperationMonitor.pushResize();
++                        setSlipperyToControlPanel(true);
++                        break;
++                }
++                return true;
++            }
++        });
++
++        // Creating the move indicator
++        final ImageView moveIndicator = new ImageView(mContext);
++        moveIndicator.setBackgroundResource(com.android.internal.R.drawable.onehand_buttons_background);
++        moveIndicator.setImageResource(com.android.internal.R.drawable.onehand_move_horizontally_left);
++        moveIndicator.measure(MeasureSpec.UNSPECIFIED, MeasureSpec.UNSPECIFIED);
++        lp = new RelativeLayout.LayoutParams(moveIndicator.getMeasuredWidth(), moveIndicator.getMeasuredHeight());
++        lp.addRule(RelativeLayout.ALIGN_PARENT_LEFT);
++        // lp.addRule(RelativeLayout.ALIGN_PARENT_BOTTOM);
++        lp.addRule(RelativeLayout.CENTER_VERTICAL);
++        moveIndicator.setLayoutParams(lp);
++        r.addView(moveIndicator);
++
++        moveIndicator.setOnClickListener(new OnClickListener() {
++            @Override
++            public void onClick(View v) {
++                OneHandedMode curMode = mAnimator.getOneHandMode();
++
++                if (curMode.isOffMode())
++                    return;
++
++                if (curMode.hasGravity(Gravity.RIGHT)) {
++                    curMode.setGravity(Gravity.LEFT | Gravity.BOTTOM);
++                } else {
++                    curMode.setGravity(Gravity.RIGHT | Gravity.BOTTOM);
++                }
++
++                OneHandedSettings.saveGravity(mContext, curMode.getGravity());
++
++                if (curMode.hasGravity(Gravity.RIGHT)) {
++                    mOperationMonitor.pushSwipeRight();
++                } else {
++                    mOperationMonitor.pushSwipeLeft();
++                }
++
++                mAnimator.setOneHandedMode(curMode, false);
++            }
++        });
++
++        mControlPanelLength = Math.max(zoom.getMeasuredHeight(), moveIndicator.getMeasuredHeight());
++
++        mDragIndicator = dragIndicator;
++        mMoveIndicator = moveIndicator;
++        mZoom = zoom;
++        mControlPanelRoot = root;
++    }
++
++    private WindowManager.LayoutParams createLpForControlPanel() {
++        WindowManager.LayoutParams lp = new WindowManager.LayoutParams();
++        lp.width = mDefaultDisplayInfo.logicalWidth + mControlPanelLength * 2;
++        lp.height = mDefaultDisplayInfo.logicalHeight + mControlPanelLength * 2;
++        lp.gravity = Gravity.LEFT | Gravity.TOP;
++        lp.type = WindowManager.LayoutParams.TYPE_ONEHAND_OVERLAY;
++        lp.flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
++                | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
++                | WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
++                | WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
++                | WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED
++                | WindowManager.LayoutParams.FLAG_SLIPPERY;
++        lp.setTitle(CONTROL_PANEL_WINDOW_NAME);
++        lp.format = PixelFormat.TRANSLUCENT;
++        lp.x = -mControlPanelLength;
++        lp.y = -mControlPanelLength;
++
++        return lp;
++    }
++
++    private void setSlipperyToControlPanel(boolean slippery) {
++        if (mControlPanelRoot == null || mControlPanelRoot.getLayoutParams() == null) {
++            return;
++        }
++
++        WindowManager.LayoutParams lp =
++                (WindowManager.LayoutParams)mControlPanelRoot.getLayoutParams();
++
++        boolean changed = false;
++        if (slippery && (lp.flags & FLAG_SLIPPERY) == 0) {
++            lp.flags |= FLAG_SLIPPERY;
++            changed = true;
++        } else if (!slippery && (lp.flags & FLAG_SLIPPERY) != 0) {
++            lp.flags &= ~FLAG_SLIPPERY;
++            changed = true;
++        }
++        if (changed) {
++            WindowManager wm = (WindowManager)mContext.getSystemService(Context.WINDOW_SERVICE);
++            wm.updateViewLayout(mControlPanelRoot, lp);
++        }
++    }
++
++    private RectF getProtectZone(View view) {
++        OneHandedMode curMode = mAnimator.getOneHandMode();
++
++        RectF protectZone = new RectF(0, 0, view.getWidth(), view.getHeight());
++        protectZone.inset(mControlPanelLength, mControlPanelLength);
++
++        float padding = mProtectZonePadding / curMode.getScale();
++        protectZone.inset(-padding, -padding);
++
++        return protectZone;
++    }
++
++    private float computeAlphaFromTransformation(Transformation oneHandedTrans) {
++        float alpha = 1;
++
++        if (oneHandedTrans != null && oneHandedTrans.getMatrix() != null) {
++            int[] targetTranslate = new int[2];
++            float[] targetScale = new float[1];
++
++            mAnimator.getTransformationArgsForMode(mAnimator.getOneHandMode()
++                    , targetTranslate, targetScale
++                    , mDefaultDisplayInfo.logicalWidth, mDefaultDisplayInfo.logicalHeight);
++
++            float[] matValues = mTmpMatrixValues;
++            oneHandedTrans.getMatrix().getValues(matValues);
++            float currentScale = (matValues[Matrix.MSCALE_X] + matValues[Matrix.MSCALE_Y]) / 2;
++
++            if (targetScale[0] == 1) {
++                alpha = (1 - currentScale) / (1 - mLastTargetScale);
++            } else {
++                mLastTargetScale = targetScale[0];
++                alpha = (1 - currentScale) / (1 - mLastTargetScale);
++            }
++
++            if (alpha > 1)
++                alpha = 1;
++       }
++
++       return alpha;
++    }
++    Transformation getTransformationForControlPanel(Transformation oneHandedTrans) {
++        if (oneHandedTrans == null || !mInstalled)
++            return null;
++
++        float alpha = computeAlphaFromTransformation(oneHandedTrans);
++        mTmpControlPanelTrans.set(oneHandedTrans);
++        mTmpControlPanelTrans.setAlpha(alpha);
++
++        return mTmpControlPanelTrans;
++    }
++
++    void notifyOutsideScreenTouch(int x, int y) {
++        mH.removeMessages(MyHandler.MSG_OUTSIDE_SCREEN_TOUCH);
++        Message msg = mH.obtainMessage(MyHandler.MSG_OUTSIDE_SCREEN_TOUCH
++                , x, y);
++        mH.sendMessage(msg);
++    }
++
++    void notifyModeChanged(OneHandedMode curMode, OneHandedMode lastMode) {
++        Message msg = mH.obtainMessage(MyHandler.MSG_MODE_CHANGED, curMode);
++        mH.sendMessage(msg);
++    }
++
++    void install() {
++        mH.removeMessages(MyHandler.MSG_INSTALL);
++        mH.removeMessages(MyHandler.MSG_REMOVE);
++        mH.sendEmptyMessage(MyHandler.MSG_INSTALL);
++    }
++
++    void remove() {
++        mH.removeMessages(MyHandler.MSG_INSTALL);
++        mH.removeMessages(MyHandler.MSG_REMOVE);
++        mH.sendEmptyMessage(MyHandler.MSG_REMOVE);
++    }
++
++    private void recreatePanels() {
++        mH.removeMessages(MyHandler.MSG_RECREATE_PANELS);
++        mH.sendEmptyMessage(MyHandler.MSG_RECREATE_PANELS);
++    }
++
++    void dump(PrintWriter pw, String[] args) {
++        pw.println("Control Panel Status:");
++        pw.print("  Bar Height="); pw.println(mControlPanelLength);
++        pw.print("  Bar transformation="); pw.println(mTmpControlPanelTrans);
++        pw.print("  mLastTargetScale="); pw.println(mLastTargetScale);
++    }
++}
+diff --git a/services/core/java/com/android/server/wm/onehand/OneHandedMode.java b/services/core/java/com/android/server/wm/onehand/OneHandedMode.java
+new file mode 100644
+index 00000000000..f9fdad3e1ed
+--- /dev/null
++++ b/services/core/java/com/android/server/wm/onehand/OneHandedMode.java
+@@ -0,0 +1,139 @@
++package com.android.server.wm.onehand;
++
++import android.view.Gravity;
++
++class OneHandedMode {
++
++    private static void ensureGravityValid(int gravity) {
++        if ((gravity & ~(Gravity.LEFT | Gravity.RIGHT | Gravity.TOP | Gravity.BOTTOM)) != 0) {
++            throw new RuntimeException("Invalid gravity for OneHandedMode:" + gravity);
++        }
++    }
++
++    private static void ensureScaleValid(float scale) {
++        if (scale <= 0)
++            throw new RuntimeException("Invalid scale for OneHandedMode:" + scale);
++    }
++
++    private static String gravityToString(int gravity) {
++        StringBuilder b = new StringBuilder();
++
++        if ((gravity & Gravity.LEFT)== Gravity.LEFT) {
++            b.append("LEFT");
++        }
++        if ((gravity & Gravity.RIGHT)== Gravity.RIGHT) {
++            b.append("RIGHT");
++        }
++        if ((gravity & Gravity.TOP)== Gravity.TOP) {
++            b.append("-TOP");
++        }
++        if ((gravity & Gravity.BOTTOM)== Gravity.BOTTOM) {
++            b.append("-BOTTOM");
++        }
++        return b.toString();
++    }
++
++    int xAdj;
++    int yAdj;
++    private float mScale;
++    private int mGravity;
++
++    /**
++     * Create a OneHandedMode and initialize it as an OFF mode
++     */
++    OneHandedMode() {
++        reset();
++    }
++
++    /**
++     * Create OneHandedMode
++     * @param x OffsetX, according to gravity
++     * @param y OffsetY, according to gravity
++     * @param scale The scale factor
++     * @param gravity Where the transformed screen docks to;
++     */
++    OneHandedMode(int x, int y, float scale, int gravity) {
++        xAdj = x;
++        yAdj = y;
++        setScale(scale);
++        setGravity(gravity);
++    }
++
++    OneHandedMode(OneHandedMode src) {
++        set(src);
++    }
++
++    int getGravity() {
++        return mGravity;
++    }
++
++    void setGravity(int gravity) {
++        ensureGravityValid(gravity);
++        mGravity = gravity;
++    }
++
++    boolean hasGravity(int gravity) {
++        return ((mGravity & gravity) == gravity);
++    }
++
++    float getScale() {
++        return mScale;
++    }
++
++    void setScale(float scale) {
++        ensureScaleValid(scale);
++        mScale = scale;
++    }
++
++    boolean isOffMode() {
++        return xAdj == 0 && yAdj == 0 && mScale == 1 && mGravity == (Gravity.LEFT | Gravity.TOP);
++    }
++
++    void set(OneHandedMode mode) {
++        xAdj = mode.xAdj;
++        yAdj = mode.yAdj;
++        mScale = mode.mScale;
++        mGravity = mode.mGravity;
++    }
++
++    /**
++     * Reset this instance to OFF mode
++     */
++    void reset() {
++        xAdj = 0;
++        yAdj = 0;
++        setScale(1);
++        setGravity(Gravity.LEFT | Gravity.TOP);
++    }
++
++    int describeContents() {
++        return 0;
++    }
++
++    @Override
++    public boolean equals(Object o) {
++        if (o != null && o instanceof OneHandedMode) {
++            OneHandedMode other = (OneHandedMode)o;
++            return other.xAdj == xAdj
++                    && other.yAdj == yAdj
++                    && other.mScale == mScale
++                    && other.mGravity == mGravity;
++        } else {
++            return false;
++        }
++    }
++
++    @Override
++    public String toString() {
++        StringBuilder b = new StringBuilder();
++        b.append("OneHandedMode: (");
++        b.append(xAdj);
++        b.append(",");
++        b.append(yAdj);
++        b.append("), ");
++        b.append(mScale);
++        b.append(", ");
++        b.append(gravityToString(mGravity));
++        return b.toString();
++    }
++}
+\ No newline at end of file
+diff --git a/services/core/java/com/android/server/wm/onehand/OneHandedSettings.java b/services/core/java/com/android/server/wm/onehand/OneHandedSettings.java
+new file mode 100644
+index 00000000000..e7f8ad29c67
+--- /dev/null
++++ b/services/core/java/com/android/server/wm/onehand/OneHandedSettings.java
+@@ -0,0 +1,78 @@
++package com.android.server.wm.onehand;
++
++import android.content.Context;
++import android.database.ContentObserver;
++import android.os.UserHandle;
++import android.provider.Settings;
++
++class OneHandedSettings {
++
++    private static final String SETTINGS_FEATURE_ENABLED = "com.android.onehand.onehanded_mode";
++    private static final String SETTINGS_YADJ = "com.android.onehand.yadj";
++    private static final String SETTINGS_XADJ = "com.android.onehand.xadj";
++    private static final String SETTINGS_SCALE = "com.android.onehand.scale";
++    private static final String SETTINGS_GRAVITY = "com.android.onehand.gravity";
++
++    final static Object sSync = new Object();
++
++    static void saveGravity(Context ctx, int gravity) {
++        Settings.System.putIntForUser(ctx.getContentResolver(),
++                SETTINGS_GRAVITY, gravity, OneHandedAnimator.getCurrentUser());
++    }
++
++    static void saveScale(Context ctx, float scale) {
++        Settings.System.putFloatForUser(ctx.getContentResolver(),
++                SETTINGS_SCALE, scale, OneHandedAnimator.getCurrentUser());
++    }
++
++    static void saveXAdj(Context ctx, int xadj) {
++        Settings.System.putIntForUser(ctx.getContentResolver(),
++                SETTINGS_XADJ, xadj, OneHandedAnimator.getCurrentUser());
++    }
++
++    static void saveYAdj(Context ctx, int yadj) {
++        Settings.System.putIntForUser(ctx.getContentResolver(),
++                SETTINGS_YADJ, yadj, OneHandedAnimator.getCurrentUser());
++    }
++
++    static void setFeatureEnabled(Context ctx, boolean enabled, int userId) {
++        Settings.System.putIntForUser(ctx.getContentResolver(), SETTINGS_FEATURE_ENABLED, enabled ? 1 : 0, userId);
++    }
++
++    static int getSavedGravity(Context ctx, int defaultGravity) {
++        return Settings.System.getIntForUser(ctx.getContentResolver(), SETTINGS_GRAVITY, defaultGravity, OneHandedAnimator.getCurrentUser());
++    }
++
++    static float getSavedScale(Context ctx, float defaultV) {
++        return Settings.System.getFloatForUser(ctx.getContentResolver(),SETTINGS_SCALE, defaultV, OneHandedAnimator.getCurrentUser());
++    }
++
++    static int getSavedXAdj(Context ctx, int defaultV) {
++        return Settings.System.getIntForUser(ctx.getContentResolver(),SETTINGS_XADJ, defaultV, OneHandedAnimator.getCurrentUser());
++    }
++
++    static int getSavedYAdj(Context ctx, int defaultV) {
++        return Settings.System.getIntForUser(ctx.getContentResolver(),SETTINGS_YADJ, defaultV, OneHandedAnimator.getCurrentUser());
++    }
++
++    static boolean isFeatureEnabled(Context ctx) {
++        return Settings.System.getIntForUser(ctx.getContentResolver(), SETTINGS_FEATURE_ENABLED, 0, OneHandedAnimator.getCurrentUser()) != 0;
++    }
++
++    static boolean isFeatureEnabledSettingNotFound(Context ctx, int userId) {
++        try {
++            Settings.System.getIntForUser(ctx.getContentResolver(), SETTINGS_FEATURE_ENABLED, userId);
++            return false;
++        } catch (Settings.SettingNotFoundException e) {
++            return true;
++        }
++    }
++
++    static void registerFeatureEnableDisableObserver(Context ctx,
++                            ContentObserver observer) {
++        ctx.getContentResolver().registerContentObserver(
++                Settings.System.getUriFor(SETTINGS_FEATURE_ENABLED),
++                true,
++                observer, UserHandle.USER_ALL);
++    }
++}
+diff --git a/services/core/jni/com_android_server_input_InputManagerService.cpp b/services/core/jni/com_android_server_input_InputManagerService.cpp
+index a5940ee89ed..d57deae42d6 100644
+--- a/services/core/jni/com_android_server_input_InputManagerService.cpp
++++ b/services/core/jni/com_android_server_input_InputManagerService.cpp
+@@ -124,7 +124,10 @@ static struct {
+     jmethodID getAffineTransform;
+ } gTouchCalibrationClassInfo;
+ 
+-
++static struct {
++    jclass clazz;
++    jmethodID notifyOutSideScreenTouch;
++} gOneHandedProxyInfo;
+ 
+ // --- Global functions ---
+ 
+@@ -199,6 +202,17 @@ protected:
+ public:
+     NativeInputManager(jobject contextObj, jobject serviceObj, const sp<Looper>& looper);
+ 
++    void updatePointerMappingParameters(int offsetX, int offsetY, float scale, int width,
++            int height) {
++        mInputManager->getDispatcher()->updatePointerMappingParameters(offsetX, offsetY, scale,
++                width, height);
++    }
++
++    virtual void notifyOutSideScreenTouch(int x, int y) {
++        jniEnv()->CallStaticVoidMethod(gOneHandedProxyInfo.clazz,
++                gOneHandedProxyInfo.notifyOutSideScreenTouch, x, y);
++    }
++
+     inline sp<InputManager> getInputManager() const { return mInputManager; }
+ 
+     void dump(std::string& dump);
+@@ -1557,6 +1571,13 @@ static void nativeReloadCalibration(JNIEnv* env, jclass clazz, jlong ptr) {
+     im->reloadCalibration();
+ }
+ 
++static void nativeUpdatePointerMappingParameters(JNIEnv* env, jclass clazz,
++                      jlong ptr, jint offsetX, jint offsetY, jfloat scale,
++                      jint width, jint height) {
++    NativeInputManager* im = reinterpret_cast<NativeInputManager*>(ptr);
++    im->updatePointerMappingParameters(offsetX, offsetY, scale, width, height);
++}
++
+ static void nativeVibrate(JNIEnv* env,
+         jclass /* clazz */, jlong ptr, jint deviceId, jlongArray patternObj,
+         jint repeat, jint token) {
+@@ -1753,6 +1774,8 @@ static const JNINativeMethod gInputManagerMethods[] = {
+             (void*) nativeReloadPointerIcons },
+     { "nativeSetCustomPointerIcon", "(JLandroid/view/PointerIcon;)V",
+             (void*) nativeSetCustomPointerIcon },
++    { "nativeUpdatePointerMappingParameters", "(JIIFII)V",
++            (void*)nativeUpdatePointerMappingParameters },
+ };
+ 
+ #define FIND_CLASS(var, className) \
+@@ -1767,6 +1790,10 @@ static const JNINativeMethod gInputManagerMethods[] = {
+         var = env->GetFieldID(clazz, fieldName, fieldDescriptor); \
+         LOG_FATAL_IF(! (var), "Unable to find field " fieldName);
+ 
++#define GET_STATIC_METHOD_ID(var, clazz, fieldName, fieldDescriptor) \
++    var = env->GetStaticMethodID(clazz, fieldName, fieldDescriptor); \
++    LOG_FATAL_IF(! var, "Unable to find static method " fieldName);
++
+ int register_android_server_InputManager(JNIEnv* env) {
+     int res = jniRegisterNativeMethods(env, "com/android/server/input/InputManagerService",
+             gInputManagerMethods, NELEM(gInputManagerMethods));
+@@ -1885,6 +1912,11 @@ int register_android_server_InputManager(JNIEnv* env) {
+     GET_METHOD_ID(gTouchCalibrationClassInfo.getAffineTransform, gTouchCalibrationClassInfo.clazz,
+             "getAffineTransform", "()[F");
+ 
++    // One Handed
++    FIND_CLASS(gOneHandedProxyInfo.clazz, "com/android/server/wm/onehand/IOneHandedAnimatorProxy");
++    GET_STATIC_METHOD_ID(gOneHandedProxyInfo.notifyOutSideScreenTouch, gOneHandedProxyInfo.clazz, "notifyOutSideScreenTouchFromNative", "(II)V");
++    gOneHandedProxyInfo.clazz = jclass(env->NewGlobalRef(gOneHandedProxyInfo.clazz));
++
+     return 0;
+ }
+ 
+-- 
+2.17.1
+
