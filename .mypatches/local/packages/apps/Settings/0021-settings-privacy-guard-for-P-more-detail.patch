@@ -1,0 +1,3664 @@
+From b43092a114ee701a800a827867e983edda9a96ee Mon Sep 17 00:00:00 2001
+From: nx111 <NX111.AimH@gmail.com>
+Date: Tue, 23 Oct 2018 17:13:19 +0800
+Subject: [PATCH 21/21] settings: privacy guard for P (more detail)
+
+Change-Id: If63743f1c460113addd22e73e5364cdd309a6827
+---
+ AndroidManifest.xml                           |  39 ++
+ proguard.flags                                |   2 +
+ res/drawable/ic_perm_alarm.xml                |  25 ++
+ res/drawable/ic_perm_audio.xml                |  25 ++
+ res/drawable/ic_perm_background.xml           |  25 ++
+ res/drawable/ic_perm_bluetooth.xml            |  25 ++
+ res/drawable/ic_perm_boot.xml                 |  25 ++
+ res/drawable/ic_perm_clipboard.xml            |  25 ++
+ res/drawable/ic_perm_data.xml                 |  25 ++
+ res/drawable/ic_perm_drawontop.xml            |  25 ++
+ res/drawable/ic_perm_location.xml             |  25 ++
+ res/drawable/ic_perm_microphone.xml           |  25 ++
+ res/drawable/ic_perm_nfc.xml                  |  25 ++
+ res/drawable/ic_perm_nosleep.xml              |  25 ++
+ res/drawable/ic_perm_notifications.xml        |  25 ++
+ res/drawable/ic_perm_settings.xml             |  25 ++
+ res/drawable/ic_perm_sms.xml                  |  25 ++
+ res/drawable/ic_perm_su.xml                   |  25 ++
+ res/drawable/ic_perm_vibrate.xml              |  25 ++
+ res/drawable/ic_perm_wifi.xml                 |  25 ++
+ res/layout/app_ops_summary.xml                |  43 ++
+ res/layout/preference_appops.xml              |  80 ++++
+ res/menu/appops_manager.xml                   |  26 ++
+ res/values/cm_arrays.xml                      |  26 ++
+ res/values/cm_plurals.xml                     |  22 +
+ res/values/cm_strings.xml                     | 199 +++++++++
+ res/values/lineage_arrays.xml                 | 360 ++++++++++++++++
+ res/xml/process_stats_summary.xml             |   8 +-
+ res/xml/security_settings_misc.xml            |  90 ++++
+ src/com/android/settings/Settings.java        |  10 +
+ .../android/settings/SettingsActivity.java    | 170 +++++++-
+ src/com/android/settings/Utils.java           | 122 ++++++
+ .../applications/ProcessStatsSummary.java     |  17 +
+ .../applications/appops/AppOpsCategory.java   |  94 +++--
+ .../applications/appops/AppOpsDetails.java    | 387 ++++++++++++++++++
+ .../applications/appops/AppOpsDetailsTop.java |  37 ++
+ .../applications/appops/AppOpsState.java      | 241 +++++++++--
+ .../applications/appops/AppOpsSummary.java    | 272 ++++++++++++
+ .../core/instrumentation/EventLogWriter.java  |  85 ++++
+ .../core/instrumentation/LogWriter.java       |  70 ++++
+ .../RootAccessPreferenceController.java       |   7 +
+ 41 files changed, 2789 insertions(+), 68 deletions(-)
+ create mode 100644 res/drawable/ic_perm_alarm.xml
+ create mode 100644 res/drawable/ic_perm_audio.xml
+ create mode 100644 res/drawable/ic_perm_background.xml
+ create mode 100644 res/drawable/ic_perm_bluetooth.xml
+ create mode 100644 res/drawable/ic_perm_boot.xml
+ create mode 100644 res/drawable/ic_perm_clipboard.xml
+ create mode 100644 res/drawable/ic_perm_data.xml
+ create mode 100644 res/drawable/ic_perm_drawontop.xml
+ create mode 100644 res/drawable/ic_perm_location.xml
+ create mode 100644 res/drawable/ic_perm_microphone.xml
+ create mode 100644 res/drawable/ic_perm_nfc.xml
+ create mode 100644 res/drawable/ic_perm_nosleep.xml
+ create mode 100644 res/drawable/ic_perm_notifications.xml
+ create mode 100644 res/drawable/ic_perm_settings.xml
+ create mode 100644 res/drawable/ic_perm_sms.xml
+ create mode 100644 res/drawable/ic_perm_su.xml
+ create mode 100644 res/drawable/ic_perm_vibrate.xml
+ create mode 100644 res/drawable/ic_perm_wifi.xml
+ create mode 100644 res/layout/app_ops_summary.xml
+ create mode 100644 res/layout/preference_appops.xml
+ create mode 100644 res/menu/appops_manager.xml
+ create mode 100644 res/values/cm_plurals.xml
+ create mode 100644 res/xml/security_settings_misc.xml
+ create mode 100644 src/com/android/settings/applications/appops/AppOpsDetails.java
+ create mode 100644 src/com/android/settings/applications/appops/AppOpsDetailsTop.java
+ create mode 100644 src/com/android/settings/applications/appops/AppOpsSummary.java
+ create mode 100644 src/com/android/settings/core/instrumentation/EventLogWriter.java
+ create mode 100644 src/com/android/settings/core/instrumentation/LogWriter.java
+
+diff --git a/AndroidManifest.xml b/AndroidManifest.xml
+index 145191d7f2..8dba7908fa 100644
+--- a/AndroidManifest.xml
++++ b/AndroidManifest.xml
+@@ -1270,6 +1270,21 @@
+             </intent-filter>
+         </activity>
+ 
++        <activity android:name="Settings$AppOpsSummaryActivity"
++                android:label="@*lineageos.platform:string/privacy_guard_manager_title"
++                android:taskAffinity=""
++                android:excludeFromRecents="true">
++            <intent-filter>
++                <action android:name="android.intent.action.MAIN" />
++                <action android:name="android.settings.APP_OPS_SETTINGS" />
++                <category android:name="android.intent.category.DEFAULT" />
++                <category android:name="android.intent.category.VOICE_LAUNCH" />
++                <category android:name="com.android.settings.SHORTCUT" />
++            </intent-filter>
++            <meta-data android:name="com.android.settings.FRAGMENT_CLASS"
++                android:value="com.android.settings.applications.appops.AppOpsSummary" />
++        </activity>
++
+         <activity android:name="Settings$BackgroundCheckSummaryActivity"
+                 android:label="@string/background_check_title"
+                 android:enabled="false">
+@@ -1281,6 +1296,30 @@
+                 android:value="com.android.settings.applications.appops.BackgroundCheckSummary" />
+         </activity>
+ 
++        <!-- Still need a top-level activity for showing app ops details.  Aliasing
++             trick is so the code that is now a fragment can still be called
++             AppOpsDetails. -->
++        <activity android:name=".applications.appops.AppOpsDetailsTop"
++                  android:label="@*lineageos.platform:string/privacy_guard_manager_title"
++                  android:exported="true"
++                  android:taskAffinity=""
++                  android:excludeFromRecents="true"
++                  android:parentActivityName="Settings$AppOpsSummaryActivity">
++        </activity>
++
++        <!-- Keep compatibility with old shortcuts. -->
++        <activity-alias android:name=".applications.appops.AppOpsDetails"
++                android:label="@*lineageos.platform:string/privacy_guard_manager_title"
++                android:exported="true"
++                android:excludeFromRecents="true"
++                android:targetActivity=".applications.appops.AppOpsDetailsTop">
++            <intent-filter>
++                <action android:name="android.settings.APP_OPS_DETAILS_SETTINGS" />
++                <category android:name="android.intent.category.DEFAULT" />
++                <data android:scheme="package" />
++            </intent-filter>
++        </activity-alias>
++
+         <activity
+             android:name="Settings$LocationSettingsActivity"
+             android:label="@string/location_settings_title"
+diff --git a/proguard.flags b/proguard.flags
+index 43a038b78a..74cb791827 100644
+--- a/proguard.flags
++++ b/proguard.flags
+@@ -29,6 +29,8 @@
+     *** get*();
+ }
+ 
++-keep class com.android.settings.lineageos.*Settings
++
+ # Keep classes that may be inflated from XML.
+ -keepclasseswithmembers class * {
+     public <init>(android.content.Context, android.util.AttributeSet);
+diff --git a/res/drawable/ic_perm_alarm.xml b/res/drawable/ic_perm_alarm.xml
+new file mode 100644
+index 0000000000..3bb90b8a46
+--- /dev/null
++++ b/res/drawable/ic_perm_alarm.xml
+@@ -0,0 +1,25 @@
++<!--
++    Copyright (C) 2016 The Android Open Source Project
++
++    Licensed under the Apache License, Version 2.0 (the "License");
++    you may not use this file except in compliance with the License.
++    You may obtain a copy of the License at
++
++         http://www.apache.org/licenses/LICENSE-2.0
++
++    Unless required by applicable law or agreed to in writing, software
++    distributed under the License is distributed on an "AS IS" BASIS,
++    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++    See the License for the specific language governing permissions and
++    limitations under the License.
++-->
++<vector xmlns:android="http://schemas.android.com/apk/res/android"
++        android:height="24.0dp"
++        android:width="24.0dp"
++        android:viewportWidth="24.0"
++        android:viewportHeight="24.0"
++        android:tint="#FF000000">
++    <path
++        android:fillColor="#FF000000"
++        android:pathData="M12,20A7,7 0 0,1 5,13A7,7 0 0,1 12,6A7,7 0 0,1 19,13A7,7 0 0,1 12,20M12,4A9,9 0 0,0 3,13A9,9 0 0,0 12,22A9,9 0 0,0 21,13A9,9 0 0,0 12,4M12.5,8H11V14L15.75,16.85L16.5,15.62L12.5,13.25V8M7.88,3.39L6.6,1.86L2,5.71L3.29,7.24L7.88,3.39M22,5.72L17.4,1.86L16.11,3.39L20.71,7.25L22,5.72Z" />
++</vector>
+diff --git a/res/drawable/ic_perm_audio.xml b/res/drawable/ic_perm_audio.xml
+new file mode 100644
+index 0000000000..3b9c4d22ce
+--- /dev/null
++++ b/res/drawable/ic_perm_audio.xml
+@@ -0,0 +1,25 @@
++<!--
++    Copyright (C) 2016 The Android Open Source Project
++
++    Licensed under the Apache License, Version 2.0 (the "License");
++    you may not use this file except in compliance with the License.
++    You may obtain a copy of the License at
++
++         http://www.apache.org/licenses/LICENSE-2.0
++
++    Unless required by applicable law or agreed to in writing, software
++    distributed under the License is distributed on an "AS IS" BASIS,
++    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++    See the License for the specific language governing permissions and
++    limitations under the License.
++-->
++<vector xmlns:android="http://schemas.android.com/apk/res/android"
++        android:width="24.0dp"
++        android:height="24.0dp"
++        android:viewportWidth="24.0"
++        android:viewportHeight="24.0"
++        android:tint="#FF000000">
++    <path
++        android:fillColor="#FF000000"
++        android:pathData="M 12 3 v 9.28 c -0.47 -0.17 -0.97 -0.28 -1.5 -0.28 C 8.01 12 6 14.01 6 16.5 S 8.01 21 10.5 21 c 2.31 0 4.2 -1.75 4.45 -4 H 15 V 6 h 4 V 3 h -7 Z"/>
++</vector>
+diff --git a/res/drawable/ic_perm_background.xml b/res/drawable/ic_perm_background.xml
+new file mode 100644
+index 0000000000..8d4ab892f6
+--- /dev/null
++++ b/res/drawable/ic_perm_background.xml
+@@ -0,0 +1,25 @@
++<!--
++    Copyright (C) 2016 The Android Open Source Project
++
++    Licensed under the Apache License, Version 2.0 (the "License");
++    you may not use this file except in compliance with the License.
++    You may obtain a copy of the License at
++
++         http://www.apache.org/licenses/LICENSE-2.0
++
++    Unless required by applicable law or agreed to in writing, software
++    distributed under the License is distributed on an "AS IS" BASIS,
++    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++    See the License for the specific language governing permissions and
++    limitations under the License.
++-->
++<vector xmlns:android="http://schemas.android.com/apk/res/android"
++        android:width="24.0dp"
++        android:height="24.0dp"
++        android:viewportWidth="24.0"
++        android:viewportHeight="24.0"
++        android:tint="#FF000000">
++    <path
++        android:fillColor="#FF000000"
++        android:pathData="M 9 7 H 7 v 2 h 2 V 7 Z m 0 4 H 7 v 2 h 2 v -2 Z m 0 -8 c -1.11 0 -2 0.9 -2 2 h 2 V 3 Z m 4 12 h -2 v 2 h 2 v -2 Z m 6 -12 v 2 h 2 c 0 -1.1 -0.9 -2 -2 -2 Z m -6 0 h -2 v 2 h 2 V 3 Z M 9 17 v -2 H 7 c 0 1.1 0.89 2 2 2 Z m 10 -4 h 2 v -2 h -2 v 2 Z m 0 -4 h 2 V 7 h -2 v 2 Z m 0 8 c 1.1 0 2 -0.9 2 -2 h -2 v 2 Z M 5 7 H 3 v 12 c 0 1.1 0.89 2 2 2 h 12 v -2 H 5 V 7 Z m 10 -2 h 2 V 3 h -2 v 2 Z m 0 12 h 2 v -2 h -2 v 2 Z"/>
++</vector>
+diff --git a/res/drawable/ic_perm_bluetooth.xml b/res/drawable/ic_perm_bluetooth.xml
+new file mode 100644
+index 0000000000..f68ba29959
+--- /dev/null
++++ b/res/drawable/ic_perm_bluetooth.xml
+@@ -0,0 +1,25 @@
++<!--
++    Copyright (C) 2016 The Android Open Source Project
++
++    Licensed under the Apache License, Version 2.0 (the "License");
++    you may not use this file except in compliance with the License.
++    You may obtain a copy of the License at
++
++         http://www.apache.org/licenses/LICENSE-2.0
++
++    Unless required by applicable law or agreed to in writing, software
++    distributed under the License is distributed on an "AS IS" BASIS,
++    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++    See the License for the specific language governing permissions and
++    limitations under the License.
++-->
++<vector xmlns:android="http://schemas.android.com/apk/res/android"
++        android:width="24.0dp"
++        android:height="24.0dp"
++        android:viewportWidth="24.0"
++        android:viewportHeight="24.0"
++        android:tint="#FF000000">
++    <path
++        android:fillColor="#FF000000"
++        android:pathData="M14.88,16.29L13,18.17V14.41M13,5.83L14.88,7.71L13,9.58M17.71,7.71L12,2H11V9.58L6.41,5L5,6.41L10.59,12L5,17.58L6.41,19L11,14.41V22H12L17.71,16.29L13.41,12L17.71,7.71Z"/>
++</vector>
+diff --git a/res/drawable/ic_perm_boot.xml b/res/drawable/ic_perm_boot.xml
+new file mode 100644
+index 0000000000..197877a615
+--- /dev/null
++++ b/res/drawable/ic_perm_boot.xml
+@@ -0,0 +1,25 @@
++<!--
++    Copyright (C) 2016 The Android Open Source Project
++
++    Licensed under the Apache License, Version 2.0 (the "License");
++    you may not use this file except in compliance with the License.
++    You may obtain a copy of the License at
++
++         http://www.apache.org/licenses/LICENSE-2.0
++
++    Unless required by applicable law or agreed to in writing, software
++    distributed under the License is distributed on an "AS IS" BASIS,
++    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++    See the License for the specific language governing permissions and
++    limitations under the License.
++-->
++<vector xmlns:android="http://schemas.android.com/apk/res/android"
++        android:width="24.0dp"
++        android:height="24.0dp"
++        android:viewportWidth="24.0"
++        android:viewportHeight="24.0"
++        android:tint="#FF000000">
++    <path
++        android:fillColor="#FF000000"
++        android:pathData="M12,1C8.14,1 5,4.14 5,8A7,7 0 0,0 12,15C15.86,15 19,11.87 19,8C19,4.14 15.86,1 12,1M12,3.15C14.67,3.15 16.85,5.32 16.85,8C16.85,10.68 14.67,12.85 12,12.85A4.85,4.85 0 0,1 7.15,8A4.85,4.85 0 0,1 12,3.15M11,5V8.69L14.19,10.53L14.94,9.23L12.5,7.82V5M4,16V24H6V21H18V24L22,20L18,16V19H6V16"/>
++</vector>
+diff --git a/res/drawable/ic_perm_clipboard.xml b/res/drawable/ic_perm_clipboard.xml
+new file mode 100644
+index 0000000000..d9a3c4bce8
+--- /dev/null
++++ b/res/drawable/ic_perm_clipboard.xml
+@@ -0,0 +1,25 @@
++<!--
++    Copyright (C) 2016 The Android Open Source Project
++
++    Licensed under the Apache License, Version 2.0 (the "License");
++    you may not use this file except in compliance with the License.
++    You may obtain a copy of the License at
++
++         http://www.apache.org/licenses/LICENSE-2.0
++
++    Unless required by applicable law or agreed to in writing, software
++    distributed under the License is distributed on an "AS IS" BASIS,
++    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++    See the License for the specific language governing permissions and
++    limitations under the License.
++-->
++<vector xmlns:android="http://schemas.android.com/apk/res/android"
++        android:width="24.0dp"
++        android:height="24.0dp"
++        android:viewportWidth="24.0"
++        android:viewportHeight="24.0"
++        android:tint="#FF000000">
++    <path
++        android:fillColor="#FF000000"
++        android:pathData="M17,9H7V7H17M17,13H7V11H17M14,17H7V15H14M12,3A1,1 0 0,1 13,4A1,1 0 0,1 12,5A1,1 0 0,1 11,4A1,1 0 0,1 12,3M19,3H14.82C14.4,1.84 13.3,1 12,1C10.7,1 9.6,1.84 9.18,3H5A2,2 0 0,0 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V5A2,2 0 0,0 19,3Z"/>
++</vector>
+diff --git a/res/drawable/ic_perm_data.xml b/res/drawable/ic_perm_data.xml
+new file mode 100644
+index 0000000000..d258b49c8c
+--- /dev/null
++++ b/res/drawable/ic_perm_data.xml
+@@ -0,0 +1,25 @@
++<!--
++    Copyright (C) 2016 The Android Open Source Project
++
++    Licensed under the Apache License, Version 2.0 (the "License");
++    you may not use this file except in compliance with the License.
++    You may obtain a copy of the License at
++
++         http://www.apache.org/licenses/LICENSE-2.0
++
++    Unless required by applicable law or agreed to in writing, software
++    distributed under the License is distributed on an "AS IS" BASIS,
++    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++    See the License for the specific language governing permissions and
++    limitations under the License.
++-->
++<vector xmlns:android="http://schemas.android.com/apk/res/android"
++        android:width="24.0dp"
++        android:height="24.0dp"
++        android:viewportWidth="24.0"
++        android:viewportHeight="24.0"
++        android:tint="#FF000000">
++    <path
++        android:fillColor="#FF000000"
++        android:pathData="M13,2.05V5.08C16.39,5.57 19,8.47 19,12C19,12.9 18.82,13.75 18.5,14.54L21.12,16.07C21.68,14.83 22,13.45 22,12C22,6.82 18.05,2.55 13,2.05M12,19A7,7 0 0,1 5,12C5,8.47 7.61,5.57 11,5.08V2.05C5.94,2.55 2,6.81 2,12A10,10 0 0,0 12,22C15.3,22 18.23,20.39 20.05,17.91L17.45,16.38C16.17,18 14.21,19 12,19Z"/>
++</vector>
+diff --git a/res/drawable/ic_perm_drawontop.xml b/res/drawable/ic_perm_drawontop.xml
+new file mode 100644
+index 0000000000..170de0cbd2
+--- /dev/null
++++ b/res/drawable/ic_perm_drawontop.xml
+@@ -0,0 +1,25 @@
++<!--
++    Copyright (C) 2016 The Android Open Source Project
++
++    Licensed under the Apache License, Version 2.0 (the "License");
++    you may not use this file except in compliance with the License.
++    You may obtain a copy of the License at
++
++         http://www.apache.org/licenses/LICENSE-2.0
++
++    Unless required by applicable law or agreed to in writing, software
++    distributed under the License is distributed on an "AS IS" BASIS,
++    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++    See the License for the specific language governing permissions and
++    limitations under the License.
++-->
++<vector xmlns:android="http://schemas.android.com/apk/res/android"
++        android:width="24.0dp"
++        android:height="24.0dp"
++        android:viewportWidth="24.0"
++        android:viewportHeight="24.0"
++        android:tint="#FF000000">
++    <path
++        android:fillColor="#FF000000"
++        android:pathData="M 3 13 h 2 v -2 H 3 v 2 Z m 0 4 h 2 v -2 H 3 v 2 Z m 2 4 v -2 H 3 c 0 1.1 0.89 2 2 2 Z M 3 9 h 2 V 7 H 3 v 2 Z m 12 12 h 2 v -2 h -2 v 2 Z m 4 -18 H 9 c -1.11 0 -2 0.9 -2 2 v 10 c 0 1.1 0.89 2 2 2 h 10 c 1.1 0 2 -0.9 2 -2 V 5 c 0 -1.1 -0.9 -2 -2 -2 Z m 0 12 H 9 V 5 h 10 v 10 Z m -8 6 h 2 v -2 h -2 v 2 Z m -4 0 h 2 v -2 H 7 v 2 Z"/>
++</vector>
+diff --git a/res/drawable/ic_perm_location.xml b/res/drawable/ic_perm_location.xml
+new file mode 100644
+index 0000000000..3cba6846d2
+--- /dev/null
++++ b/res/drawable/ic_perm_location.xml
+@@ -0,0 +1,25 @@
++<!--
++    Copyright (C) 2016 The Android Open Source Project
++
++    Licensed under the Apache License, Version 2.0 (the "License");
++    you may not use this file except in compliance with the License.
++    You may obtain a copy of the License at
++
++         http://www.apache.org/licenses/LICENSE-2.0
++
++    Unless required by applicable law or agreed to in writing, software
++    distributed under the License is distributed on an "AS IS" BASIS,
++    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++    See the License for the specific language governing permissions and
++    limitations under the License.
++-->
++<vector xmlns:android="http://schemas.android.com/apk/res/android"
++        android:width="24.0dp"
++        android:height="24.0dp"
++        android:viewportWidth="24.0"
++        android:viewportHeight="24.0"
++        android:tint="#FF000000">
++    <path
++        android:fillColor="#FF000000"
++        android:pathData="M 12 2 C 8.13 2 5 5.13 5 9 c 0 5.25 7 13 7 13 s 7 -7.75 7 -13 c 0 -3.87 -3.13 -7 -7 -7 Z m 0 9.5 c -1.38 0 -2.5 -1.12 -2.5 -2.5 s 1.12 -2.5 2.5 -2.5 s 2.5 1.12 2.5 2.5 s -1.12 2.5 -2.5 2.5 Z"/>
++</vector>
+diff --git a/res/drawable/ic_perm_microphone.xml b/res/drawable/ic_perm_microphone.xml
+new file mode 100644
+index 0000000000..d8063ab63c
+--- /dev/null
++++ b/res/drawable/ic_perm_microphone.xml
+@@ -0,0 +1,25 @@
++<!--
++    Copyright (C) 2016 The Android Open Source Project
++
++    Licensed under the Apache License, Version 2.0 (the "License");
++    you may not use this file except in compliance with the License.
++    You may obtain a copy of the License at
++
++         http://www.apache.org/licenses/LICENSE-2.0
++
++    Unless required by applicable law or agreed to in writing, software
++    distributed under the License is distributed on an "AS IS" BASIS,
++    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++    See the License for the specific language governing permissions and
++    limitations under the License.
++-->
++<vector xmlns:android="http://schemas.android.com/apk/res/android"
++        android:width="24.0dp"
++        android:height="24.0dp"
++        android:viewportWidth="24.0"
++        android:viewportHeight="24.0"
++        android:tint="#FF000000">
++    <path
++        android:fillColor="#FF000000"
++        android:pathData="M12,2A3,3 0 0,1 15,5V11A3,3 0 0,1 12,14A3,3 0 0,1 9,11V5A3,3 0 0,1 12,2M19,11C19,14.53 16.39,17.44 13,17.93V21H11V17.93C7.61,17.44 5,14.53 5,11H7A5,5 0 0,0 12,16A5,5 0 0,0 17,11H19Z"/>
++</vector>
+diff --git a/res/drawable/ic_perm_nfc.xml b/res/drawable/ic_perm_nfc.xml
+new file mode 100644
+index 0000000000..bbc1732b9f
+--- /dev/null
++++ b/res/drawable/ic_perm_nfc.xml
+@@ -0,0 +1,25 @@
++<!--
++    Copyright (C) 2016 The Android Open Source Project
++
++    Licensed under the Apache License, Version 2.0 (the "License");
++    you may not use this file except in compliance with the License.
++    You may obtain a copy of the License at
++
++         http://www.apache.org/licenses/LICENSE-2.0
++
++    Unless required by applicable law or agreed to in writing, software
++    distributed under the License is distributed on an "AS IS" BASIS,
++    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++    See the License for the specific language governing permissions and
++    limitations under the License.
++-->
++<vector xmlns:android="http://schemas.android.com/apk/res/android"
++        android:width="24.0dp"
++        android:height="24.0dp"
++        android:viewportWidth="24.0"
++        android:viewportHeight="24.0"
++        android:tint="#FF000000">
++    <path
++        android:fillColor="#FF000000"
++        android:pathData="M18,6H13A2,2 0 0,0 11,8V10.28C10.41,10.62 10,11.26 10,12A2,2 0 0,0 12,14C13.11,14 14,13.1 14,12C14,11.26 13.6,10.62 13,10.28V8H16V16H8V8H10V6H8L6,6V18H18M20,20H4V4H20M20,2H4A2,2 0 0,0 2,4V20A2,2 0 0,0 4,22H20C21.11,22 22,21.1 22,20V4C22,2.89 21.11,2 20,2Z"/>
++</vector>
+diff --git a/res/drawable/ic_perm_nosleep.xml b/res/drawable/ic_perm_nosleep.xml
+new file mode 100644
+index 0000000000..1483f1f864
+--- /dev/null
++++ b/res/drawable/ic_perm_nosleep.xml
+@@ -0,0 +1,25 @@
++<!--
++    Copyright (C) 2016 The Android Open Source Project
++
++    Licensed under the Apache License, Version 2.0 (the "License");
++    you may not use this file except in compliance with the License.
++    You may obtain a copy of the License at
++
++         http://www.apache.org/licenses/LICENSE-2.0
++
++    Unless required by applicable law or agreed to in writing, software
++    distributed under the License is distributed on an "AS IS" BASIS,
++    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++    See the License for the specific language governing permissions and
++    limitations under the License.
++-->
++<vector xmlns:android="http://schemas.android.com/apk/res/android"
++        android:width="24.0dp"
++        android:height="24.0dp"
++        android:viewportWidth="24.0"
++        android:viewportHeight="24.0"
++        android:tint="#FF000000">
++    <path
++        android:fillColor="#FF000000"
++        android:pathData="M2,5.27L3.28,4L20,20.72L18.73,22L12.73,16H9V14L9.79,13.06L2,5.27M23,12H17V10L20.39,6H17V4H23V6L19.62,10H23V12M9.82,8H15V10L13.54,11.72L9.82,8M7,20H1V18L4.39,14H1V12H7V14L3.62,18H7V20Z"/>
++</vector>
+diff --git a/res/drawable/ic_perm_notifications.xml b/res/drawable/ic_perm_notifications.xml
+new file mode 100644
+index 0000000000..c6f27cdea4
+--- /dev/null
++++ b/res/drawable/ic_perm_notifications.xml
+@@ -0,0 +1,25 @@
++<!--
++    Copyright (C) 2016 The Android Open Source Project
++
++    Licensed under the Apache License, Version 2.0 (the "License");
++    you may not use this file except in compliance with the License.
++    You may obtain a copy of the License at
++
++         http://www.apache.org/licenses/LICENSE-2.0
++
++    Unless required by applicable law or agreed to in writing, software
++    distributed under the License is distributed on an "AS IS" BASIS,
++    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++    See the License for the specific language governing permissions and
++    limitations under the License.
++-->
++<vector xmlns:android="http://schemas.android.com/apk/res/android"
++        android:width="24.0dp"
++        android:height="24.0dp"
++        android:viewportWidth="24.0"
++        android:viewportHeight="24.0"
++        android:tint="#FF000000">
++    <path
++        android:fillColor="#FF000000"
++        android:pathData="M12.0,22.0c1.1,0.0 2.0,-0.9 2.0,-2.0l-4.0,0.0c0.0,1.0 0.89,2.0 2.0,2.0zm6.0,-6.0l0.0,-5.0c0.0,-3.07 -1.64,-5.64 -4.5,-6.32L13.5,4.0c0.0,-0.83 -0.67,-1.5 -1.5,-1.5s-1.0,0.67 -1.5,1.5l0.0,0.68C7.63,5.36 6.0,7.92 6.0,11.0l0.0,5.0l-2.0,2.0l0.0,1.0l16.0,0.0l0.0,-1.0l-2.0,-2.0z"/>
++</vector>
+diff --git a/res/drawable/ic_perm_settings.xml b/res/drawable/ic_perm_settings.xml
+new file mode 100644
+index 0000000000..7562a76773
+--- /dev/null
++++ b/res/drawable/ic_perm_settings.xml
+@@ -0,0 +1,25 @@
++<!--
++    Copyright (C) 2016 The Android Open Source Project
++
++    Licensed under the Apache License, Version 2.0 (the "License");
++    you may not use this file except in compliance with the License.
++    You may obtain a copy of the License at
++
++         http://www.apache.org/licenses/LICENSE-2.0
++
++    Unless required by applicable law or agreed to in writing, software
++    distributed under the License is distributed on an "AS IS" BASIS,
++    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++    See the License for the specific language governing permissions and
++    limitations under the License.
++-->
++<vector xmlns:android="http://schemas.android.com/apk/res/android"
++        android:width="24.0dp"
++        android:height="24.0dp"
++        android:viewportWidth="24.0"
++        android:viewportHeight="24.0"
++        android:tint="#FF000000">
++    <path
++        android:fillColor="#FF000000"
++        android:pathData="M 19.43 12.98 c 0.04 -0.32 0.07 -0.64 0.07 -0.98 s -0.03 -0.66 -0.07 -0.98 l 2.11 -1.65 c 0.19 -0.15 0.24 -0.42 0.12 -0.64 l -2 -3.46 c -0.12 -0.22 -0.39 -0.3 -0.61 -0.22 l -2.49 1 c -0.52 -0.4 -1.08 -0.73 -1.69 -0.98 l -0.38 -2.65 C 14.46 2.18 14.25 2 14 2 h -4 c -0.25 0 -0.46 0.18 -0.49 0.42 l -0.38 2.65 c -0.61 0.25 -1.17 0.59 -1.69 0.98 l -2.49 -1 c -0.23 -0.09 -0.49 0 -0.61 0.22 l -2 3.46 c -0.13 0.22 -0.07 0.49 0.12 0.64 l 2.11 1.65 c -0.04 0.32 -0.07 0.65 -0.07 0.98 s 0.03 0.66 0.07 0.98 l -2.11 1.65 c -0.19 0.15 -0.24 0.42 -0.12 0.64 l 2 3.46 c 0.12 0.22 0.39 0.3 0.61 0.22 l 2.49 -1 c 0.52 0.4 1.08 0.73 1.69 0.98 l 0.38 2.65 c 0.03 0.24 0.24 0.42 0.49 0.42 h 4 c 0.25 0 0.46 -0.18 0.49 -0.42 l 0.38 -2.65 c 0.61 -0.25 1.17 -0.59 1.69 -0.98 l 2.49 1 c 0.23 0.09 0.49 0 0.61 -0.22 l 2 -3.46 c 0.12 -0.22 0.07 -0.49 -0.12 -0.64 l -2.11 -1.65 Z M 12 15.5 c -1.93 0 -3.5 -1.57 -3.5 -3.5 s 1.57 -3.5 3.5 -3.5 s 3.5 1.57 3.5 3.5 s -1.57 3.5 -3.5 3.5 Z"/>
++</vector>
+diff --git a/res/drawable/ic_perm_sms.xml b/res/drawable/ic_perm_sms.xml
+new file mode 100644
+index 0000000000..25b6393268
+--- /dev/null
++++ b/res/drawable/ic_perm_sms.xml
+@@ -0,0 +1,25 @@
++<!--
++    Copyright (C) 2016 The Android Open Source Project
++
++    Licensed under the Apache License, Version 2.0 (the "License");
++    you may not use this file except in compliance with the License.
++    You may obtain a copy of the License at
++
++         http://www.apache.org/licenses/LICENSE-2.0
++
++    Unless required by applicable law or agreed to in writing, software
++    distributed under the License is distributed on an "AS IS" BASIS,
++    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++    See the License for the specific language governing permissions and
++    limitations under the License.
++-->
++<vector xmlns:android="http://schemas.android.com/apk/res/android"
++        android:width="24.0dp"
++        android:height="24.0dp"
++        android:viewportWidth="24.0"
++        android:viewportHeight="24.0"
++        android:tint="#FF000000">
++    <path
++        android:fillColor="#FF000000"
++        android:pathData="M 20 2 H 4 c -1.1 0 -1.99 0.9 -1.99 2 L 2 22 l 4 -4 h 14 c 1.1 0 2 -0.9 2 -2 V 4 c 0 -1.1 -0.9 -2 -2 -2 Z M 9 11 H 7 V 9 h 2 v 2 Z m 4 0 h -2 V 9 h 2 v 2 Z m 4 0 h -2 V 9 h 2 v 2 Z"/>
++</vector>
+diff --git a/res/drawable/ic_perm_su.xml b/res/drawable/ic_perm_su.xml
+new file mode 100644
+index 0000000000..0ae4ef2007
+--- /dev/null
++++ b/res/drawable/ic_perm_su.xml
+@@ -0,0 +1,25 @@
++<!--
++    Copyright (C) 2016 The Android Open Source Project
++
++    Licensed under the Apache License, Version 2.0 (the "License");
++    you may not use this file except in compliance with the License.
++    You may obtain a copy of the License at
++
++         http://www.apache.org/licenses/LICENSE-2.0
++
++    Unless required by applicable law or agreed to in writing, software
++    distributed under the License is distributed on an "AS IS" BASIS,
++    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++    See the License for the specific language governing permissions and
++    limitations under the License.
++-->
++<vector xmlns:android="http://schemas.android.com/apk/res/android"
++        android:width="24.0dp"
++        android:height="24.0dp"
++        android:viewportWidth="24.0"
++        android:viewportHeight="24.0"
++        android:tint="#FF000000">
++    <path
++        android:fillColor="#FF000000"
++        android:pathData="M12.49,15.934h-2.373L9.24,21H6.966l0.89-5.066H5.051v-2.089h3.163l0.63-3.584H5.977V8.148h3.238 l0.902-5.141h2.261l-0.902,5.141h2.373l0.914-5.141h2.261l-0.902,5.141h2.719v2.113h-3.089l-0.63,3.584h2.78v2.089h-3.139L13.874,21 H11.6L12.49,15.934Z M10.488,13.845h2.36l0.63-3.584h-2.373L10.488,13.845z"/>
++</vector>
+diff --git a/res/drawable/ic_perm_vibrate.xml b/res/drawable/ic_perm_vibrate.xml
+new file mode 100644
+index 0000000000..15dade2fef
+--- /dev/null
++++ b/res/drawable/ic_perm_vibrate.xml
+@@ -0,0 +1,25 @@
++<!--
++    Copyright (C) 2016 The Android Open Source Project
++
++    Licensed under the Apache License, Version 2.0 (the "License");
++    you may not use this file except in compliance with the License.
++    You may obtain a copy of the License at
++
++         http://www.apache.org/licenses/LICENSE-2.0
++
++    Unless required by applicable law or agreed to in writing, software
++    distributed under the License is distributed on an "AS IS" BASIS,
++    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++    See the License for the specific language governing permissions and
++    limitations under the License.
++-->
++<vector xmlns:android="http://schemas.android.com/apk/res/android"
++        android:width="24.0dp"
++        android:height="24.0dp"
++        android:viewportWidth="24.0"
++        android:viewportHeight="24.0"
++        android:tint="#FF000000">
++    <path
++        android:fillColor="#FF000000"
++        android:pathData="M0 15h2V9H0v6zm3 2h2V7H3v10zm19-8v6h2V9h-2zm-3 8h2V7h-2v10zM16.5 3h-9C6.67 3 6 3.67 6 4.5v15c0 .83.67 1.5 1.5 1.5h9c.83 0 1.5-.67 1.5-1.5v-15c0-.83-.67-1.5-1.5-1.5zM16 19H8V5h8v14z"/>
++</vector>
+diff --git a/res/drawable/ic_perm_wifi.xml b/res/drawable/ic_perm_wifi.xml
+new file mode 100644
+index 0000000000..db5b4778c7
+--- /dev/null
++++ b/res/drawable/ic_perm_wifi.xml
+@@ -0,0 +1,25 @@
++<!--
++    Copyright (C) 2016 The Android Open Source Project
++
++    Licensed under the Apache License, Version 2.0 (the "License");
++    you may not use this file except in compliance with the License.
++    You may obtain a copy of the License at
++
++         http://www.apache.org/licenses/LICENSE-2.0
++
++    Unless required by applicable law or agreed to in writing, software
++    distributed under the License is distributed on an "AS IS" BASIS,
++    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++    See the License for the specific language governing permissions and
++    limitations under the License.
++-->
++<vector xmlns:android="http://schemas.android.com/apk/res/android"
++        android:width="24.0dp"
++        android:height="24.0dp"
++        android:viewportWidth="24.0"
++        android:viewportHeight="24.0"
++        android:tint="#FF000000">
++    <path
++        android:fillColor="#FF000000"
++        android:pathData="M1 9l2 2c4.97-4.97 13.03-4.97 18 0l2-2C16.93 2.93 7.08 2.93 1 9zm8 8l3 3 3-3c-1.65-1.66-4.34-1.66-6 0zm-4-4l2 2c2.76-2.76 7.24-2.76 10 0l2-2C15.14 9.14 8.87 9.14 5 13z"/>
++</vector>
+diff --git a/res/layout/app_ops_summary.xml b/res/layout/app_ops_summary.xml
+new file mode 100644
+index 0000000000..2073a00569
+--- /dev/null
++++ b/res/layout/app_ops_summary.xml
+@@ -0,0 +1,43 @@
++<?xml version="1.0" encoding="utf-8"?>
++<!--
++/*
++**
++** Copyright 2013, The Android Open Source Project
++**
++** Licensed under the Apache License, Version 2.0 (the "License");
++** you may not use this file except in compliance with the License.
++** You may obtain a copy of the License at
++**
++**     http://www.apache.org/licenses/LICENSE-2.0
++**
++** Unless required by applicable law or agreed to in writing, software
++** distributed under the License is distributed on an "AS IS" BASIS,
++** WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++** See the License for the specific language governing permissions and
++** limitations under the License.
++*/
++-->
++
++<LinearLayout
++    xmlns:android="http://schemas.android.com/apk/res/android"
++    android:layout_width="match_parent"
++    android:layout_height="match_parent"
++    android:orientation="vertical">
++
++    <android.support.v4.view.ViewPager
++            android:id="@+id/pager"
++            android:layout_width="match_parent"
++            android:layout_height="match_parent"
++            android:layout_weight="1">
++        <android.support.v4.view.PagerTabStrip
++                android:id="@+id/tabs"
++                android:layout_width="match_parent"
++                android:layout_height="wrap_content"
++                android:layout_gravity="top"
++                android:textAppearance="@style/TextAppearance.PagerTabs"
++                android:paddingLeft="@dimen/pager_tabs_padding"
++                android:paddingRight="@dimen/pager_tabs_padding">
++        </android.support.v4.view.PagerTabStrip>
++    </android.support.v4.view.ViewPager>
++
++</LinearLayout>
+diff --git a/res/layout/preference_appops.xml b/res/layout/preference_appops.xml
+new file mode 100644
+index 0000000000..db3c86779c
+--- /dev/null
++++ b/res/layout/preference_appops.xml
+@@ -0,0 +1,80 @@
++<?xml version="1.0" encoding="utf-8"?>
++<!-- Copyright (C) 2015 The Android Open Source Project
++     Copyright (C) 2017 The LineageOS Project
++
++     Licensed under the Apache License, Version 2.0 (the "License");
++     you may not use this file except in compliance with the License.
++     You may obtain a copy of the License at
++
++          http://www.apache.org/licenses/LICENSE-2.0
++
++     Unless required by applicable law or agreed to in writing, software
++     distributed under the License is distributed on an "AS IS" BASIS,
++     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++     See the License for the specific language governing permissions and
++     limitations under the License.
++-->
++
++<!-- Based off packages/apps/Settings/res/layout/preference_material_settings.xml
++     but with different paddings -->
++<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
++    android:layout_width="match_parent"
++    android:layout_height="wrap_content"
++    android:minHeight="?android:attr/listPreferredItemHeightSmall"
++    android:gravity="center_vertical"
++    android:paddingStart="16dp"
++    android:paddingEnd="16dp"
++    android:background="?android:attr/activatedBackgroundIndicator"
++    android:clipToPadding="false">
++
++    <LinearLayout
++        android:id="@id/icon_frame"
++        android:layout_width="wrap_content"
++        android:layout_height="wrap_content"
++        android:minWidth="56dp"
++        android:gravity="start|center_vertical"
++        android:orientation="horizontal"
++        android:paddingTop="4dp"
++        android:paddingBottom="4dp">
++        <com.android.internal.widget.PreferenceImageView
++            android:id="@android:id/icon"
++            android:layout_width="wrap_content"
++            android:layout_height="wrap_content"
++            android:maxWidth="48dp"
++            android:maxHeight="48dp" />
++    </LinearLayout>
++
++    <RelativeLayout
++        android:layout_width="wrap_content"
++        android:layout_height="wrap_content"
++        android:layout_weight="1"
++        android:paddingTop="16dp"
++        android:paddingBottom="16dp">
++
++        <TextView android:id="@android:id/title"
++            android:layout_width="wrap_content"
++            android:layout_height="wrap_content"
++            android:singleLine="true"
++            android:textAppearance="?android:attr/textAppearanceListItem"
++            android:ellipsize="marquee" />
++
++        <TextView android:id="@android:id/summary"
++            android:layout_width="wrap_content"
++            android:layout_height="wrap_content"
++            android:layout_below="@android:id/title"
++            android:layout_alignStart="@android:id/title"
++            android:textAppearance="?android:attr/textAppearanceListItemSecondary"
++            android:textColor="?android:attr/textColorSecondary"
++            android:maxLines="10" />
++
++    </RelativeLayout>
++
++    <!-- Preference should place its actual preference widget here. -->
++    <LinearLayout android:id="@android:id/widget_frame"
++        android:layout_width="wrap_content"
++        android:layout_height="match_parent"
++        android:gravity="end|center_vertical"
++        android:paddingStart="16dp"
++        android:orientation="vertical" />
++
++</LinearLayout>
+diff --git a/res/menu/appops_manager.xml b/res/menu/appops_manager.xml
+new file mode 100644
+index 0000000000..f89b73832d
+--- /dev/null
++++ b/res/menu/appops_manager.xml
+@@ -0,0 +1,26 @@
++<?xml version="1.0" encoding="utf-8"?>
++<!-- Copyright (C) 2013 The CyanogenMod Project
++
++     Licensed under the Apache License, Version 2.0 (the "License");
++     you may not use this file except in compliance with the License.
++     You may obtain a copy of the License at
++
++          http://www.apache.org/licenses/LICENSE-2.0
++
++     Unless required by applicable law or agreed to in writing, software
++     distributed under the License is distributed on an "AS IS" BASIS,
++     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++     See the License for the specific language governing permissions and
++     limitations under the License.
++-->
++
++<menu xmlns:android="http://schemas.android.com/apk/res/android">
++    <item android:id="@+id/show_user_apps"
++          android:title="@string/app_ops_show_user_apps"
++          android:checkable="true" />
++    <item android:id="@+id/show_system_apps"
++          android:title="@string/app_ops_show_system_apps"
++          android:checkable="true" />
++    <item android:id="@+id/reset_counters"
++          android:title="@string/app_ops_reset_counters" />
++</menu>
+diff --git a/res/values/cm_arrays.xml b/res/values/cm_arrays.xml
+index a313880f81..7e1cfb818c 100644
+--- a/res/values/cm_arrays.xml
++++ b/res/values/cm_arrays.xml
+@@ -23,4 +23,30 @@
+         <item>@string/security_settings_fingerprint_sensor_location_left</item>
+         <item>@string/security_settings_fingerprint_sensor_location_right</item>
+     </string-array>
++
++
++    <!-- Arrays for root access capability -->
++    <string-array name="root_access_entries" translatable="false">
++        <item>@string/root_access_none</item>
++        <item>@string/root_access_apps</item>
++        <item>@string/root_access_adb</item>
++        <item>@string/root_access_all</item>
++    </string-array>
++
++    <string-array name="root_access_values" translatable="false">
++        <item>0</item>
++        <item>1</item>
++        <item>2</item>
++        <item>3</item>
++    </string-array>
++
++    <string-array name="root_access_entries_adb" translatable="false">
++        <item>@string/root_access_none</item>
++        <item>@string/root_access_adb</item>
++    </string-array>
++
++    <string-array name="root_access_values_adb" translatable="false">
++        <item>0</item>
++        <item>2</item>
++    </string-array>
+ </resources>
+diff --git a/res/values/cm_plurals.xml b/res/values/cm_plurals.xml
+new file mode 100644
+index 0000000000..af6e6ddddb
+--- /dev/null
++++ b/res/values/cm_plurals.xml
+@@ -0,0 +1,22 @@
++<?xml version="1.0" encoding="utf-8"?>
++<!--
++     Copyright (C) 2013-2014 The CyanogenMod Project
++
++     Licensed under the Apache License, Version 2.0 (the "License");
++     you may not use this file except in compliance with the License.
++     You may obtain a copy of the License at
++
++          http://www.apache.org/licenses/LICENSE-2.0
++
++     Unless required by applicable law or agreed to in writing, software
++     distributed under the License is distributed on an "AS IS" BASIS,
++     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++     See the License for the specific language governing permissions and
++     limitations under the License.
++-->
++<resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
++    <plurals name="app_ops_count">
++        <item quantity="one">once</item>
++        <item quantity="other">%d times</item>
++    </plurals>
++</resources>
+diff --git a/res/values/cm_strings.xml b/res/values/cm_strings.xml
+index cbaec6f735..e5e82093d8 100644
+--- a/res/values/cm_strings.xml
++++ b/res/values/cm_strings.xml
+@@ -20,6 +20,202 @@
+     <string name="advanced_reboot_title">Advanced restart</string>
+     <string name="advanced_reboot_summary">When unlocked, include options in the power menu for restarting into recovery or bootloader</string>
+ 
++    <!-- Names of categories of app ops tabs - extension of AOSP -->
++    <string name="app_ops_categories_location">Location</string>
++    <string name="app_ops_categories_personal">Personal</string>
++    <string name="app_ops_categories_messaging">Messaging</string>
++    <string name="app_ops_categories_media">Media</string>
++    <string name="app_ops_categories_device">Device</string>
++    <string name="app_ops_categories_run_in_background">Run in background</string>
++    <string name="app_ops_categories_bootup">Bootup</string>
++    <string name="app_ops_categories_su">Root access</string>
++    <string name="app_ops_categories_other">Other</string>
++
++    <!-- User display names for app ops codes - extension of AOSP -->
++    <string name="app_ops_summaries_access_camera">access the camera</string>
++    <string name="app_ops_summaries_access_location">access your location</string>
++    <string name="app_ops_summaries_access_notifications">read your notifications</string>
++    <string name="app_ops_summaries_activate_vpn">activate a VPN</string>
++    <string name="app_ops_summaries_add_voicemail">add a voicemail</string>
++    <string name="app_ops_summaries_app_start_foreground">start instant app in foreground</string>
++    <string name="app_ops_summaries_assist_screenshot">take a screenshot</string>
++    <string name="app_ops_summaries_assist_structure">use assist structure</string>
++    <string name="app_ops_summaries_audio_accessibility_volume">audio accessibility volume</string>
++    <string name="app_ops_summaries_auto_start">start at power up</string>
++    <string name="app_ops_summaries_bind_accessibility_service">bind accessibility service</string>
++    <string name="app_ops_summaries_bluetooth_scan">bluetooth scan</string>
++    <string name="app_ops_summaries_change_wallpaper">change the wallpaper</string>
++    <string name="app_ops_summaries_delete_call_log">delete your call log</string>
++    <string name="app_ops_summaries_delete_contacts">delete your contacts</string>
++    <string name="app_ops_summaries_delete_mms">delete your MMS messages</string>
++    <string name="app_ops_summaries_delete_sms">delete your SMS messages</string>
++    <string name="app_ops_summaries_draw_on_top">draw windows on top</string>
++    <string name="app_ops_summaries_get_accounts">get device accounts</string>
++    <string name="app_ops_summaries_get_usage_stats">get app usage stats</string>
++    <string name="app_ops_summaries_accept_handover">handover of a call from another app</string>
++    <string name="app_ops_summaries_install_packages">install packages</string>
++    <string name="app_ops_summaries_keep_device_awake">keep your device awake</string>
++    <string name="app_ops_summaries_manage_ipsec_tunnels">manage ipsec tunnels</string>
++    <string name="app_ops_summaries_make_phone_call">make a phone call</string>
++    <string name="app_ops_summaries_mock_location">mock your location</string>
++    <string name="app_ops_summaries_modify_calendar">update your calendar</string>
++    <string name="app_ops_summaries_modify_call_log">update the call log</string>
++    <string name="app_ops_summaries_modify_clipboard">modify the clipboard</string>
++    <string name="app_ops_summaries_modify_contacts">update your contacts</string>
++    <string name="app_ops_summaries_modify_settings">update system settings</string>
++    <string name="app_ops_summaries_mute_unmute_microphone">mute/unmute the microphone</string>
++    <string name="app_ops_summaries_phone_calls">answer phone calls</string>
++    <string name="app_ops_summaries_picture_in_picture">use picture in picture</string>
++    <string name="app_ops_summaries_play_audio">play audio</string>
++    <string name="app_ops_summaries_post_notification">post a notification</string>
++    <string name="app_ops_summaries_project_media">project media</string>
++    <string name="app_ops_summaries_read_calendar">read your calendar</string>
++    <string name="app_ops_summaries_read_call_log">read the call log</string>
++    <string name="app_ops_summaries_read_cell_broadcasts">read cell broadcasts</string>
++    <string name="app_ops_summaries_read_clipboard">read the clipboard</string>
++    <string name="app_ops_summaries_read_contacts">read your contacts</string>
++    <string name="app_ops_summaries_read_external_storage">read external storage</string>
++    <string name="app_ops_summaries_read_mms">read your MMS messages</string>
++    <string name="app_ops_summaries_read_phone_numbers">read phone numbers</string>
++    <string name="app_ops_summaries_read_phone_state">access phone state</string>
++    <string name="app_ops_summaries_read_sms">read your SMS messages</string>
++    <string name="app_ops_summaries_receive_sms">receive an SMS message</string>
++    <string name="app_ops_summaries_receive_emergency_broadcast">receive an emergency broadcast message</string>
++    <string name="app_ops_summaries_record_audio">record audio</string>
++    <string name="app_ops_summaries_request_delete_packages">request delete packages</string>
++    <string name="app_ops_summaries_run_in_background">run in background</string>
++    <string name="app_ops_summaries_run_any_in_background">run any in background</string>
++    <string name="app_ops_summaries_scan_wifi">scan Wi-Fi networks</string>
++    <string name="app_ops_summaries_send_mms">send an MMS message</string>
++    <string name="app_ops_summaries_send_sms">send an SMS message</string>
++    <string name="app_ops_summaries_start_at_bootup">start at power up</string>
++    <string name="app_ops_summaries_start_foreground">start foreground</string>
++    <string name="app_ops_summaries_su">get root access</string>
++    <string name="app_ops_summaries_toast_window">display toast messages</string>
++    <string name="app_ops_summaries_toggle_bluetooth">toggle Bluetooth</string>
++    <string name="app_ops_summaries_toggle_mobile_data">toggle cellular data</string>
++    <string name="app_ops_summaries_toggle_nfc">toggle NFC</string>
++    <string name="app_ops_summaries_toggle_wifi">toggle Wi-Fi</string>
++    <string name="app_ops_summaries_turn_on_screen">turn the screen on</string>
++    <string name="app_ops_summaries_use_alarm_volume">control alarm volume</string>
++    <string name="app_ops_summaries_use_audio_focus">control the audio focus</string>
++    <string name="app_ops_summaries_use_bluetooth_volume">control the Bluetooth volume</string>
++    <string name="app_ops_summaries_use_body_sensors">use body sensors</string>
++    <string name="app_ops_summaries_use_fingerprint">use fingerprint</string>
++    <string name="app_ops_summaries_use_master_volume">control the master volume</string>
++    <string name="app_ops_summaries_use_media_buttons">use the media buttons</string>
++    <string name="app_ops_summaries_use_media_volume">control the media volume</string>
++    <string name="app_ops_summaries_use_notification_volume">control the notification volume</string>
++    <string name="app_ops_summaries_use_ring_volume">control the ringtone volume</string>
++    <string name="app_ops_summaries_use_vibrate">use haptic feedback</string>
++    <string name="app_ops_summaries_use_voice_volume">control the voice call volume</string>
++    <string name="app_ops_summaries_wifi_change">change Wi-Fi state</string>
++    <string name="app_ops_summaries_write_external_storage">write external storage</string>
++    <string name="app_ops_summaries_write_mms">write an MMS message</string>
++    <string name="app_ops_summaries_write_sms">write an SMS message</string>
++
++    <!-- User display names for app ops codes - extension of AOSP -->
++    <string name="app_ops_labels_access_camera">access the camera</string>
++    <string name="app_ops_labels_access_location">access your location</string>
++    <string name="app_ops_labels_access_notifications">read your notifications</string>
++    <string name="app_ops_labels_activate_vpn">activate a VPN</string>
++    <string name="app_ops_labels_add_voicemail">add a voicemail</string>
++    <string name="app_ops_labels_app_start_foreground">start instant app in foreground</string>
++    <string name="app_ops_labels_assist_screenshot">take a screenshot</string>
++    <string name="app_ops_labels_assist_structure">use assist structure</string>
++    <string name="app_ops_labels_audio_accessibility_volume">audio accessibility volume</string>
++    <string name="app_ops_labels_auto_start">start at power up</string>
++    <string name="app_ops_labels_bind_accessibility_service">bind accessibility service</string>
++    <string name="app_ops_labels_bluetooth_scan">bluetooth scan</string>
++    <string name="app_ops_labels_change_wallpaper">change the wallpaper</string>
++    <string name="app_ops_labels_delete_call_log">delete your call log</string>
++    <string name="app_ops_labels_delete_contacts">delete your contacts</string>
++    <string name="app_ops_labels_delete_mms">delete your MMS messages</string>
++    <string name="app_ops_labels_delete_sms">delete your SMS messages</string>
++    <string name="app_ops_labels_draw_on_top">draw windows on top</string>
++    <string name="app_ops_labels_get_accounts">get device accounts</string>
++    <string name="app_ops_labels_get_usage_stats">get app usage stats</string>
++    <string name="app_ops_labels_accept_handover">handover of a call from another app</string>
++    <string name="app_ops_labels_install_packages">install packages</string>
++    <string name="app_ops_labels_keep_device_awake">keep your device awake</string>
++    <string name="app_ops_labels_manage_ipsec_tunnels">manage ipsec tunnels</string>
++    <string name="app_ops_labels_make_phone_call">make a phone call</string>
++    <string name="app_ops_labels_mock_location">mock your location</string>
++    <string name="app_ops_labels_modify_calendar">update your calendar</string>
++    <string name="app_ops_labels_modify_call_log">update the call log</string>
++    <string name="app_ops_labels_modify_clipboard">modify the clipboard</string>
++    <string name="app_ops_labels_modify_contacts">update your contacts</string>
++    <string name="app_ops_labels_modify_settings">update system settings</string>
++    <string name="app_ops_labels_mute_unmute_microphone">mute/unmute the microphone</string>
++    <string name="app_ops_labels_phone_calls">answer phone calls</string>
++    <string name="app_ops_labels_picture_in_picture">use picture in picture</string>
++    <string name="app_ops_labels_play_audio">play audio</string>
++    <string name="app_ops_labels_post_notification">post a notification</string>
++    <string name="app_ops_labels_project_media">project media</string>
++    <string name="app_ops_labels_read_calendar">read your calendar</string>
++    <string name="app_ops_labels_read_call_log">read the call log</string>
++    <string name="app_ops_labels_read_cell_broadcasts">read cell broadcasts</string>
++    <string name="app_ops_labels_read_clipboard">read the clipboard</string>
++    <string name="app_ops_labels_read_contacts">read your contacts</string>
++    <string name="app_ops_labels_read_external_storage">read external storage</string>
++    <string name="app_ops_labels_read_mms">read your MMS messages</string>
++    <string name="app_ops_labels_read_phone_numbers">read phone numbers</string>
++    <string name="app_ops_labels_read_phone_state">access phone state</string>
++    <string name="app_ops_labels_read_sms">read your SMS messages</string>
++    <string name="app_ops_labels_receive_sms">receive an SMS message</string>
++    <string name="app_ops_labels_receive_emergency_broadcast">receive an emergency broadcast message</string>
++    <string name="app_ops_labels_record_audio">record audio</string>
++    <string name="app_ops_labels_request_delete_packages">request delete packages</string>
++    <string name="app_ops_labels_run_in_background">run in background</string>
++    <string name="app_ops_labels_run_any_in_background">run any in background</string>
++    <string name="app_ops_labels_scan_wifi">scan Wi-Fi networks</string>
++    <string name="app_ops_labels_send_mms">send an MMS message</string>
++    <string name="app_ops_labels_send_sms">send an SMS message</string>
++    <string name="app_ops_labels_start_at_bootup">start at power up</string>
++    <string name="app_ops_labels_start_foreground">start foreground</string>
++    <string name="app_ops_labels_su">get root access</string>
++    <string name="app_ops_labels_toast_window">display toast messages</string>
++    <string name="app_ops_labels_toggle_bluetooth">toggle Bluetooth</string>
++    <string name="app_ops_labels_toggle_mobile_data">toggle cellular data</string>
++    <string name="app_ops_labels_toggle_nfc">toggle NFC</string>
++    <string name="app_ops_labels_toggle_wifi">toggle Wi-Fi</string>
++    <string name="app_ops_labels_turn_on_screen">turn the screen on</string>
++    <string name="app_ops_labels_use_alarm_volume">control alarm volume</string>
++    <string name="app_ops_labels_use_audio_focus">control the audio focus</string>
++    <string name="app_ops_labels_use_bluetooth_volume">control the Bluetooth volume</string>
++    <string name="app_ops_labels_use_body_sensors">use body sensors</string>
++    <string name="app_ops_labels_use_fingerprint">use fingerprint</string>
++    <string name="app_ops_labels_use_master_volume">control the master volume</string>
++    <string name="app_ops_labels_use_media_buttons">use the media buttons</string>
++    <string name="app_ops_labels_use_media_volume">control the media volume</string>
++    <string name="app_ops_labels_use_notification_volume">control the notification volume</string>
++    <string name="app_ops_labels_use_ring_volume">control the ringtone volume</string>
++    <string name="app_ops_labels_use_vibrate">use haptic feedback</string>
++    <string name="app_ops_labels_use_voice_volume">control the voice call volume</string>
++    <string name="app_ops_labels_wifi_change">change Wi-Fi state</string>
++    <string name="app_ops_labels_write_external_storage">write external storage</string>
++    <string name="app_ops_labels_write_mms">write an MMS message</string>
++    <string name="app_ops_labels_write_sms">write an SMS message</string>
++
++    <!-- App ops permissions -->
++    <string name="app_ops_permissions_allowed">Allowed</string>
++    <string name="app_ops_permissions_ignored">Ignored</string>
++    <string name="app_ops_permissions_always_ask">Always ask</string>
++
++    <!-- App ops detail -->
++    <string name="app_ops_entry_summary"><xliff:g id="op">%1$s</xliff:g> (used <xliff:g id="count">%2$s</xliff:g>)</string>
++    <string name="app_ops_allowed_count">Allowed <xliff:g id="count" example="2 times">%s</xliff:g></string>
++    <string name="app_ops_ignored_count">Denied <xliff:g id="count" example="2 times">%s</xliff:g></string>
++    <string name="app_ops_both_count">Allowed <xliff:g id="count">%1$s</xliff:g>, denied <xliff:g id="count">%2$s</xliff:g></string>
++    <string name="app_ops_no_blockable_permissions">No permissions available to block</string>
++
++    <!-- App ops menu options -->
++    <string name="app_ops_show_user_apps">Show user apps</string>
++    <string name="app_ops_show_system_apps">Show built-in apps</string>
++    <string name="app_ops_reset_counters">Reset allow/deny counters</string>
++    <string name="app_ops_reset_confirm_title">Confirm counters reset</string>
++    <string name="app_ops_reset_confirm_mesg">Are you sure you wish to reset counters?</string>
++
+     <!-- Sizes for pattern lockscreen -->
+     <string name="lock_pattern_size_3" translatable="false">3 \u00d7 3</string>
+     <string name="lock_pattern_size_4" translatable="false">4 \u00d7 4</string>
+@@ -138,6 +334,9 @@
+     <string name="touchscreen_hovering_title">Touchscreen hovering</string>
+     <string name="touchscreen_hovering_summary">Allows you to hover the screen like a mouse in web browsers, remote desktops, etc</string>
+ 
++    <!-- Memory -->
++    <string name="memory_startup_apps_title">Apps started on boot</string>
++
+     <!-- Manual provisioning support -->
+     <string name="sim_enabler_summary"><xliff:g id="displayName">%1$s</xliff:g> is <xliff:g id="status" example="disabled">%2$s</xliff:g></string>
+     <string name="sim_disabled">disabled</string>
+diff --git a/res/values/lineage_arrays.xml b/res/values/lineage_arrays.xml
+index 8e51beec66..8d76f5fb84 100644
+--- a/res/values/lineage_arrays.xml
++++ b/res/values/lineage_arrays.xml
+@@ -40,4 +40,364 @@
+         <item>0</item>
+         <item>2</item>
+     </string-array>
++
++    <!-- Names of categories of app ops tabs - extension of AOSP -->
++    <string-array name="app_ops_categories_lineage" translatable="false">
++        <item>@string/app_ops_categories_location</item>
++        <item>@string/app_ops_categories_personal</item>
++        <item>@string/app_ops_categories_messaging</item>
++        <item>@string/app_ops_categories_media</item>
++        <item>@string/app_ops_categories_device</item>
++        <item>@string/app_ops_categories_run_in_background</item>
++        <item>@string/app_ops_categories_bootup</item>
++        <item>@string/app_ops_categories_su</item>
++        <item>@string/app_ops_categories_other</item>
++    </string-array>
++
++    <!-- User display names for app ops codes - extension of AOSP -->
++    <string-array name="app_ops_summaries_lineage" translatable="false">
++        <!-- OP_COARSE_LOCATION -->
++        <item>@string/app_ops_summaries_access_location</item>
++        <!-- OP_FINE_LOCATION -->
++        <item>@string/app_ops_summaries_access_location</item>
++        <!-- OP_GPS -->
++        <item>@string/app_ops_summaries_access_location</item>
++        <!-- OP_VIBRATE -->
++        <item>@string/app_ops_summaries_use_vibrate</item>
++        <!-- OP_READ_CONTACTS -->
++        <item>@string/app_ops_summaries_read_contacts</item>
++        <!-- OP_WRITE_CONTACTS -->
++        <item>@string/app_ops_summaries_modify_contacts</item>
++        <!-- OP_READ_CALL_LOG -->
++        <item>@string/app_ops_summaries_read_call_log</item>
++        <!-- OP_WRITE_CALL_LOG -->
++        <item>@string/app_ops_summaries_modify_call_log</item>
++        <!-- OP_READ_CALENDAR -->
++        <item>@string/app_ops_summaries_read_calendar</item>
++        <!-- OP_WRITE_CALENDAR -->
++        <item>@string/app_ops_summaries_modify_calendar</item>
++        <!-- OP_WIFI_SCAN -->
++        <item>@string/app_ops_summaries_scan_wifi</item>
++        <!-- OP_POST_NOTIFICATION -->
++        <item>@string/app_ops_summaries_post_notification</item>
++        <!-- OP_NEIGHBORING_CELLS -->
++        <item>@string/app_ops_summaries_access_location</item>
++        <!-- OP_CALL_PHONE -->
++        <item>@string/app_ops_summaries_make_phone_call</item>
++        <!-- OP_READ_SMS -->
++        <item>@string/app_ops_summaries_read_sms</item>
++        <!-- OP_WRITE_SMS -->
++        <item>@string/app_ops_summaries_write_sms</item>
++        <!-- OP_RECEIVE_SMS -->
++        <item>@string/app_ops_summaries_receive_sms</item>
++        <!-- OPSTR_RECEIVE_EMERGENCY_BROADCAST -->
++        <item>@string/app_ops_summaries_receive_emergency_broadcast</item>
++        <!-- OP_RECEIVE_MMS -->
++        <item>@string/app_ops_summaries_receive_sms</item>
++        <!-- OP_RECEIVE_WAP_PUSH -->
++        <item>@string/app_ops_summaries_receive_sms</item>
++        <!-- OP_SEND_SMS -->
++        <item>@string/app_ops_summaries_send_sms</item>
++        <!-- OP_READ_ICC_SMS -->
++        <item>@string/app_ops_summaries_read_sms</item>
++        <!-- OP_WRITE_ICC_SMS -->
++        <item>@string/app_ops_summaries_write_sms</item>
++        <!-- OP_WRITE_SETTINGS -->
++        <item>@string/app_ops_summaries_modify_settings</item>
++        <!-- OP_SYSTEM_ALERT_WINDOW -->
++        <item>@string/app_ops_summaries_draw_on_top</item>
++        <!-- OP_ACCESS_NOTIFICATIONS -->
++        <item>@string/app_ops_summaries_access_notifications</item>
++        <!-- OP_CAMERA -->
++        <item>@string/app_ops_summaries_access_camera</item>
++        <!-- OP_RECORD_AUDIO -->
++        <item>@string/app_ops_summaries_record_audio</item>
++        <!-- OP_PLAY_AUDIO -->
++        <item>@string/app_ops_summaries_play_audio</item>
++        <!-- OP_READ_CLIPBOARD -->
++        <item>@string/app_ops_summaries_read_clipboard</item>
++        <!-- OP_WRITE_CLIPBOARD -->
++        <item>@string/app_ops_summaries_modify_clipboard</item>
++        <!-- OP_TAKE_MEDIA_BUTTONS -->
++        <item>@string/app_ops_summaries_use_media_buttons</item>
++        <!-- OP_TAKE_AUDIO_FOCUS -->
++        <item>@string/app_ops_summaries_use_audio_focus</item>
++        <!-- OP_AUDIO_MASTER_VOLUME -->
++        <item>@string/app_ops_summaries_use_master_volume</item>
++        <!-- OP_AUDIO_VOICE_VOLUME -->
++        <item>@string/app_ops_summaries_use_voice_volume</item>
++        <!-- OP_AUDIO_RING_VOLUME -->
++        <item>@string/app_ops_summaries_use_ring_volume</item>
++        <!-- OP_AUDIO_MEDIA_VOLUME -->
++        <item>@string/app_ops_summaries_use_media_volume</item>
++        <!-- OP_AUDIO_ALARM_VOLUME -->
++        <item>@string/app_ops_summaries_use_alarm_volume</item>
++        <!-- OP_AUDIO_NOTIFICATION_VOLUME -->
++        <item>@string/app_ops_summaries_use_notification_volume</item>
++        <!-- OP_AUDIO_BLUETOOTH_VOLUME -->
++        <item>@string/app_ops_summaries_use_bluetooth_volume</item>
++        <!-- OP_WAKE_LOCK -->
++        <item>@string/app_ops_summaries_keep_device_awake</item>
++        <!-- OP_MONITOR_LOCATION -->
++        <item>@string/app_ops_summaries_access_location</item>
++        <!-- OP_MONITOR_HIGH_POWER_LOCATION -->
++        <item>@string/app_ops_summaries_access_location</item>
++        <!-- OP_GET_USAGE_STATS -->
++        <item>@string/app_ops_summaries_get_usage_stats</item>
++        <!-- OP_MUTE_MICROPHONE -->
++        <item>@string/app_ops_summaries_mute_unmute_microphone</item>
++        <!-- OP_TOAST_WINDOW -->
++        <item>@string/app_ops_summaries_toast_window</item>
++        <!-- OP_PROJECT_MEDIA -->
++        <item>@string/app_ops_summaries_project_media</item>
++        <!-- OP_ACTIVATE_VPN -->
++        <item>@string/app_ops_summaries_activate_vpn</item>
++        <!-- OP_WRITE_WALLPAPER -->
++        <item>@string/app_ops_summaries_change_wallpaper</item>
++        <!-- OP_ASSIST_STRUCTURE -->
++        <item>@string/app_ops_summaries_assist_structure</item>
++        <!-- OP_ASSIST_SCREENSHOT -->
++        <item>@string/app_ops_summaries_assist_screenshot</item>
++        <!-- OP_READ_PHONE_STATE -->
++        <item>@string/app_ops_summaries_read_phone_state</item>
++        <!-- OP_ADD_VOICEMAIL -->
++        <item>@string/app_ops_summaries_add_voicemail</item>
++        <!-- OP_USE_SIP -->
++        <item>@string/app_ops_summaries_make_phone_call</item>
++        <!-- OP_PROCESS_OUTGOING_CALLS -->
++        <item>@string/app_ops_summaries_make_phone_call</item>
++        <!-- OP_USE_FINGERPRINT -->
++        <item>@string/app_ops_summaries_use_fingerprint</item>
++        <!-- OP_BODY_SENSORS -->
++        <item>@string/app_ops_summaries_use_body_sensors</item>
++        <!-- OP_READ_CELL_BROADCASTS -->
++        <item>@string/app_ops_summaries_read_cell_broadcasts</item>
++        <!-- OP_MOCK_LOCATION -->
++        <item>@string/app_ops_summaries_mock_location</item>
++        <!-- OP_READ_EXTERNAL_STORAGE -->
++        <item>@string/app_ops_summaries_read_external_storage</item>
++        <!-- OP_WRITE_EXTERNAL_STORAGE -->
++        <item>@string/app_ops_summaries_write_external_storage</item>
++        <!-- OP_TURN_SCREEN_ON -->
++        <item>@string/app_ops_summaries_turn_on_screen</item>
++        <!-- OP_GET_ACCOUNTS -->
++        <item>@string/app_ops_summaries_get_accounts</item>
++        <!-- OP_RUN_IN_BACKGROUND -->
++        <item>@string/app_ops_summaries_run_in_background</item>
++        <!-- OP_AUDIO_ACCESSIBILITY_VOLUME -->
++        <item>@string/app_ops_summaries_audio_accessibility_volume</item>
++        <!-- OP_READ_PHONE_NUMBERS -->
++        <item>@string/app_ops_summaries_read_phone_numbers</item>
++        <!-- OP_REQUEST_INSTALL_PACKAGES -->
++        <item>@string/app_ops_summaries_install_packages</item>
++        <!-- OP_PICTURE_IN_PICTURE -->
++        <item>@string/app_ops_summaries_picture_in_picture</item>
++        <!-- OP_INSTANT_APP_START_FOREGROUND -->
++        <item>@string/app_ops_summaries_app_start_foreground</item>
++        <!-- OP_ANSWER_PHONE_CALLS -->
++        <item>@string/app_ops_summaries_phone_calls</item>
++        <!-- OP_RUN_ANY_IN_BACKGROUND -->
++        <item>@string/app_ops_summaries_run_any_in_background</item>
++        <!-- OP_CHANGE_WIFI_STATE -->
++        <item>@string/app_ops_summaries_wifi_change</item>
++        <!-- OP_REQUEST_DELETE_PACKAGES -->
++        <item>@string/app_ops_summaries_request_delete_packages</item>
++        <!-- OP_BIND_ACCESSIBILITY_SERVICE -->
++        <item>@string/app_ops_summaries_bind_accessibility_service</item>
++        <!-- OP_ACCEPT_HANDOVER -->
++        <item>@string/app_ops_summaries_accept_handover</item>
++        <!-- OP_MANAGE_IPSEC_TUNNELS -->
++        <item>@string/app_ops_summaries_manage_ipsec_tunnels</item>
++        <!-- OP_START_FOREGROUND -->
++        <item>@string/app_ops_summaries_start_foreground</item>
++        <!-- OP_BLUETOOTH_SCAN -->
++        <item>@string/app_ops_summaries_bluetooth_scan</item>
++        <!-- OP_BLUETOOTH_CHANGE -->
++        <item>@string/app_ops_summaries_toggle_bluetooth</item>
++        <!-- OP_BOOT_COMPLETED -->
++        <item>@string/app_ops_summaries_start_at_bootup</item>
++        <!-- OP_NFC_CHANGE -->
++        <item>@string/app_ops_summaries_toggle_nfc</item>
++        <!-- OP_DATA_CONNECT_CHANGE -->
++        <item>@string/app_ops_summaries_toggle_mobile_data</item>
++        <!-- OP_SU -->
++        <item>@string/app_ops_summaries_su</item>
++    </string-array>
++
++    <!-- User display names for app ops codes - extension of AOSP -->
++    <string-array name="app_ops_labels_lineage" translatable="false">
++        <!-- OP_COARSE_LOCATION -->
++        <item>@string/app_ops_labels_access_location</item>
++        <!-- OP_FINE_LOCATION -->
++        <item>@string/app_ops_labels_access_location</item>
++        <!-- OP_GPS -->
++        <item>@string/app_ops_labels_access_location</item>
++        <!-- OP_VIBRATE -->
++        <item>@string/app_ops_labels_use_vibrate</item>
++        <!-- OP_READ_CONTACTS -->
++        <item>@string/app_ops_labels_read_contacts</item>
++        <!-- OP_WRITE_CONTACTS -->
++        <item>@string/app_ops_labels_modify_contacts</item>
++        <!-- OP_READ_CALL_LOG -->
++        <item>@string/app_ops_labels_read_call_log</item>
++        <!-- OP_WRITE_CALL_LOG -->
++        <item>@string/app_ops_labels_modify_call_log</item>
++        <!-- OP_READ_CALENDAR -->
++        <item>@string/app_ops_labels_read_calendar</item>
++        <!-- OP_WRITE_CALENDAR -->
++        <item>@string/app_ops_labels_modify_calendar</item>
++        <!-- OP_WIFI_SCAN -->
++        <item>@string/app_ops_labels_scan_wifi</item>
++        <!-- OP_POST_NOTIFICATION -->
++        <item>@string/app_ops_labels_post_notification</item>
++        <!-- OP_NEIGHBORING_CELLS -->
++        <item>@string/app_ops_labels_access_location</item>
++        <!-- OP_CALL_PHONE -->
++        <item>@string/app_ops_labels_make_phone_call</item>
++        <!-- OP_READ_SMS -->
++        <item>@string/app_ops_labels_read_sms</item>
++        <!-- OP_WRITE_SMS -->
++        <item>@string/app_ops_labels_write_sms</item>
++        '<!-- OP_RECEIVE_SMS -->
++        <item>@string/app_ops_labels_receive_sms</item>
++        <!-- OPSTR_RECEIVE_EMERGENCY_BROADCAST -->
++        <item>@string/app_ops_labels_receive_emergency_broadcast</item>
++        <!-- OP_RECEIVE_MMS -->
++        <item>@string/app_ops_labels_receive_sms</item>
++        <!-- OP_RECEIVE_WAP_PUSH -->
++        <item>@string/app_ops_labels_receive_sms</item>
++        <!-- OP_SEND_SMS -->
++        <item>@string/app_ops_labels_send_sms</item>
++        <!-- OP_READ_ICC_SMS -->
++        <item>@string/app_ops_labels_read_sms</item>
++        <!-- OP_WRITE_ICC_SMS -->
++        <item>@string/app_ops_labels_write_sms</item>
++        <!-- OP_WRITE_SETTINGS -->
++        <item>@string/app_ops_labels_modify_settings</item>
++        <!-- OP_SYSTEM_ALERT_WINDOW -->
++        <item>@string/app_ops_labels_draw_on_top</item>
++        <!-- OP_ACCESS_NOTIFICATIONS -->
++        <item>@string/app_ops_labels_access_notifications</item>
++        <!-- OP_CAMERA -->
++        <item>@string/app_ops_labels_access_camera</item>
++        <!-- OP_RECORD_AUDIO -->
++        <item>@string/app_ops_labels_record_audio</item>
++        <!-- OP_PLAY_AUDIO -->
++        <item>@string/app_ops_labels_play_audio</item>
++        <!-- OP_READ_CLIPBOARD -->
++        <item>@string/app_ops_labels_read_clipboard</item>
++        <!-- OP_WRITE_CLIPBOARD -->
++        <item>@string/app_ops_labels_modify_clipboard</item>
++        <!-- OP_TAKE_MEDIA_BUTTONS -->
++        <item>@string/app_ops_labels_use_media_buttons</item>
++        <!-- OP_TAKE_AUDIO_FOCUS -->
++        <item>@string/app_ops_labels_use_audio_focus</item>
++        <!-- OP_AUDIO_MASTER_VOLUME -->
++        <item>@string/app_ops_labels_use_master_volume</item>
++        <!-- OP_AUDIO_VOICE_VOLUME -->
++        <item>@string/app_ops_labels_use_voice_volume</item>
++        <!-- OP_AUDIO_RING_VOLUME -->
++        <item>@string/app_ops_labels_use_ring_volume</item>
++        <!-- OP_AUDIO_MEDIA_VOLUME -->
++        <item>@string/app_ops_labels_use_media_volume</item>
++        <!-- OP_AUDIO_ALARM_VOLUME -->
++        <item>@string/app_ops_labels_use_alarm_volume</item>
++        <!-- OP_AUDIO_NOTIFICATION_VOLUME -->
++        <item>@string/app_ops_labels_use_notification_volume</item>
++        <!-- OP_AUDIO_BLUETOOTH_VOLUME -->
++        <item>@string/app_ops_labels_use_bluetooth_volume</item>
++        <!-- OP_WAKE_LOCK -->
++        <item>@string/app_ops_labels_keep_device_awake</item>
++        <!-- OP_MONITOR_LOCATION -->
++        <item>@string/app_ops_labels_access_location</item>
++        <!-- OP_MONITOR_HIGH_POWER_LOCATION -->
++        <item>@string/app_ops_labels_access_location</item>
++        <!-- OP_GET_USAGE_STATS -->
++        <item>@string/app_ops_labels_get_usage_stats</item>
++        <!-- OP_MUTE_MICROPHONE -->
++        <item>@string/app_ops_labels_mute_unmute_microphone</item>
++        <!-- OP_TOAST_WINDOW -->
++        <item>@string/app_ops_labels_toast_window</item>
++        <!-- OP_PROJECT_MEDIA -->
++        <item>@string/app_ops_labels_project_media</item>
++        <!-- OP_ACTIVATE_VPN -->
++        <item>@string/app_ops_labels_activate_vpn</item>
++        <!-- OP_WRITE_WALLPAPER -->
++        <item>@string/app_ops_labels_change_wallpaper</item>
++        <!-- OP_ASSIST_STRUCTURE -->
++        <item>@string/app_ops_labels_assist_structure</item>
++        <!-- OP_ASSIST_SCREENSHOT -->
++        <item>@string/app_ops_labels_assist_screenshot</item>
++        <!-- OP_READ_PHONE_STATE -->
++        <item>@string/app_ops_labels_read_phone_state</item>
++        <!-- OP_ADD_VOICEMAIL -->
++        <item>@string/app_ops_labels_add_voicemail</item>
++        <!-- OP_USE_SIP -->
++        <item>@string/app_ops_labels_make_phone_call</item>
++        <!-- OP_PROCESS_OUTGOING_CALLS -->
++        <item>@string/app_ops_labels_make_phone_call</item>
++        <!-- OP_USE_FINGERPRINT -->
++        <item>@string/app_ops_labels_use_fingerprint</item>
++        <!-- OP_BODY_SENSORS -->
++        <item>@string/app_ops_labels_use_body_sensors</item>
++        <!-- OP_READ_CELL_BROADCASTS -->
++        <item>@string/app_ops_labels_read_cell_broadcasts</item>
++        <!-- OP_MOCK_LOCATION -->
++        <item>@string/app_ops_labels_mock_location</item>
++        <!-- OP_READ_EXTERNAL_STORAGE -->
++        <item>@string/app_ops_labels_read_external_storage</item>
++        <!-- OP_WRITE_EXTERNAL_STORAGE -->
++        <item>@string/app_ops_labels_write_external_storage</item>
++        <!-- OP_TURN_SCREEN_ON -->
++        <item>@string/app_ops_labels_turn_on_screen</item>
++        <!-- OP_GET_ACCOUNTS -->
++        <item>@string/app_ops_labels_get_accounts</item>
++        <!-- OP_RUN_IN_BACKGROUND -->
++        <item>@string/app_ops_labels_run_in_background</item>
++        <!-- OP_AUDIO_ACCESSIBILITY_VOLUME -->
++        <item>@string/app_ops_labels_audio_accessibility_volume</item>
++        <!-- OP_READ_PHONE_NUMBERS -->
++        <item>@string/app_ops_labels_read_phone_numbers</item>
++        <!-- OP_REQUEST_INSTALL_PACKAGES -->
++        <item>@string/app_ops_labels_install_packages</item>
++        <!-- OP_PICTURE_IN_PICTURE -->
++        <item>@string/app_ops_labels_picture_in_picture</item>
++        <!-- OP_INSTANT_APP_START_FOREGROUND -->
++        <item>@string/app_ops_labels_app_start_foreground</item>
++        <!-- OP_ANSWER_PHONE_CALLS -->
++        <item>@string/app_ops_labels_phone_calls</item>
++        <!-- OP_RUN_ANY_IN_BACKGROUND -->
++        <item>@string/app_ops_labels_run_any_in_background</item>
++        <!-- OP_CHANGE_WIFI_STATE -->
++        <item>@string/app_ops_labels_wifi_change</item>
++        <!-- OP_REQUEST_DELETE_PACKAGES -->
++        <item>@string/app_ops_labels_request_delete_packages</item>
++        <!-- OP_BIND_ACCESSIBILITY_SERVICE -->
++        <item>@string/app_ops_labels_bind_accessibility_service</item>
++        <!-- OP_ACCEPT_HANDOVER -->
++        <item>@string/app_ops_labels_accept_handover</item>
++        <!-- OP_MANAGE_IPSEC_TUNNELS -->
++        <item>@string/app_ops_labels_manage_ipsec_tunnels</item>
++        <!-- OP_START_FOREGROUND -->
++        <item>@string/app_ops_labels_start_foreground</item>
++        <!-- OP_BLUETOOTH_SCAN -->
++        <item>@string/app_ops_labels_bluetooth_scan</item>
++        <!-- OP_BLUETOOTH_CHANGE -->
++        <item>@string/app_ops_labels_toggle_bluetooth</item>
++        <!-- OP_BOOT_COMPLETED -->
++        <item>@string/app_ops_labels_start_at_bootup</item>
++        <!-- OP_NFC_CHANGE -->
++        <item>@string/app_ops_labels_toggle_nfc</item>
++        <!-- OP_DATA_CONNECT_CHANGE -->
++        <item>@string/app_ops_labels_toggle_mobile_data</item>
++        <!-- OP_SU -->
++        <item>@string/app_ops_labels_su</item>
++    </string-array>
++
++    <!-- App ops permissions -->
++    <string-array name="app_ops_permissions">
++        <item>@string/app_ops_permissions_allowed</item>
++        <item>@string/app_ops_permissions_ignored</item>
++        <item>@string/app_ops_permissions_always_ask</item>
++    </string-array>
+ </resources>
+diff --git a/res/xml/process_stats_summary.xml b/res/xml/process_stats_summary.xml
+index 3b3271d769..0e62f5cc0d 100644
+--- a/res/xml/process_stats_summary.xml
++++ b/res/xml/process_stats_summary.xml
+@@ -1,5 +1,7 @@
+ <?xml version="1.0" encoding="utf-8"?>
+-<!-- Copyright (C) 2015 The Android Open Source Project
++<!--
++     Copyright (C) 2015 The Android Open Source Project
++     Copyright (C) 2015-2016 The CyanogenMod Project
+ 
+      Licensed under the Apache License, Version 2.0 (the "License");
+      you may not use this file except in compliance with the License.
+@@ -60,4 +62,8 @@
+         android:key="apps_list"
+         android:title="@string/memory_usage_apps" />
+ 
++    <Preference
++        android:key="apps_startup"
++        android:title="@string/memory_startup_apps_title" />
++
+ </PreferenceScreen>
+diff --git a/res/xml/security_settings_misc.xml b/res/xml/security_settings_misc.xml
+new file mode 100644
+index 0000000000..7234bbced1
+--- /dev/null
++++ b/res/xml/security_settings_misc.xml
+@@ -0,0 +1,90 @@
++<?xml version="1.0" encoding="utf-8"?>
++<!-- Copyright (C) 2011 The Android Open Source Project
++
++     Licensed under the Apache License, Version 2.0 (the "License");
++     you may not use this file except in compliance with the License.
++     You may obtain a copy of the License at
++
++          http://www.apache.org/licenses/LICENSE-2.0
++
++     Unless required by applicable law or agreed to in writing, software
++     distributed under the License is distributed on an "AS IS" BASIS,
++     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++     See the License for the specific language governing permissions and
++     limitations under the License.
++-->
++
++<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
++        xmlns:lineage="http://schemas.android.com/apk/res/lineageos.platform"
++        android:title="@string/security_settings_title">
++
++    <PreferenceCategory android:title="@string/security_passwords_title"
++            android:persistent="false">
++
++        <!-- Privacy Guard -->
++        <org.lineageos.internal.lineageparts.LineagePartsPreference
++            android:key="privacy_guard_manager" />
++
++        <Preference
++            android:key="location"
++            android:title="@string/location_settings_title"
++            android:fragment="com.android.settings.location.LocationSettings">
++        </Preference>
++
++        <SwitchPreference
++            android:key="show_password"
++            android:title="@string/show_password"
++            android:summary="@string/show_password_summary"/>
++
++    </PreferenceCategory>
++
++    <PreferenceCategory>
++
++        <Preference android:key="manage_device_admin"
++                android:title="@string/manage_device_admin"
++                android:persistent="false"
++                android:fragment="com.android.settings.DeviceAdminSettings"/>
++
++        <Preference android:key="enterprise_privacy"
++                android:title="@string/enterprise_privacy_settings"
++                android:persistent="false"
++                android:fragment="com.android.settings.enterprise.EnterprisePrivacySettings"/>
++
++    </PreferenceCategory>
++
++    <Preference android:key="sim_lock_settings"
++        android:title="@string/sim_lock_settings_category"
++        android:persistent="false">
++
++        <intent android:action="android.intent.action.MAIN"
++            android:targetPackage="com.android.settings"
++            android:targetClass="com.android.settings.Settings$IccLockSettingsActivity"/>
++
++    </Preference>
++
++    <Preference
++        android:key="encryption_and_credential"
++        android:title="@string/encryption_and_credential_settings_title"
++        android:summary="@string/encryption_and_credential_settings_summary"
++        android:fragment="com.android.settings.EncryptionAndCredential"/>
++
++    <Preference android:key="manage_trust_agents"
++        android:title="@string/manage_trust_agents"
++        android:persistent="false"
++        android:fragment="com.android.settings.TrustAgentSettings"/>
++
++    <Preference
++        android:key="screen_pinning_settings"
++        android:title="@string/screen_pinning_title"
++        android:summary="@string/switch_off_text"
++        android:fragment="com.android.settings.ScreenPinningSettings"/>
++
++    <Preference android:key="usage_access"
++        android:title="@string/usage_access_title"
++        android:fragment="com.android.settings.applications.ManageApplications">
++        <extra
++            android:name="classname"
++            android:value="com.android.settings.Settings$UsageAccessSettingsActivity" />
++    </Preference>
++
++</PreferenceScreen>
+diff --git a/src/com/android/settings/Settings.java b/src/com/android/settings/Settings.java
+index cd5a9082c9..ace2eb5f8a 100644
+--- a/src/com/android/settings/Settings.java
++++ b/src/com/android/settings/Settings.java
+@@ -18,6 +18,7 @@ package com.android.settings;
+ 
+ import android.os.Bundle;
+ 
++import com.android.settings.applications.appops.AppOpsSummary;
+ import com.android.settings.enterprise.EnterprisePrivacySettings;
+ 
+ /**
+@@ -57,6 +58,15 @@ public class Settings extends SettingsActivity {
+     public static class ManageApplicationsActivity extends SettingsActivity { /* empty */ }
+     public static class ManageAssistActivity extends SettingsActivity { /* empty */ }
+     public static class HighPowerApplicationsActivity extends SettingsActivity { /* empty */ }
++    public static class AppOpsSummaryActivity extends SettingsActivity {
++        @Override
++        public boolean isValidFragment(String className) {
++            if (AppOpsSummary.class.getName().equals(className)) {
++                return true;
++            }
++            return super.isValidFragment(className);
++        }
++    }
+     public static class BackgroundCheckSummaryActivity extends SettingsActivity { /* empty */ }
+     public static class StorageUseActivity extends SettingsActivity { /* empty */ }
+     public static class DevelopmentSettingsDashboardActivity extends SettingsActivity { /* empty */ }
+diff --git a/src/com/android/settings/SettingsActivity.java b/src/com/android/settings/SettingsActivity.java
+index 813253d831..8730578f14 100644
+--- a/src/com/android/settings/SettingsActivity.java
++++ b/src/com/android/settings/SettingsActivity.java
+@@ -56,7 +56,6 @@ import android.widget.Toolbar;
+ 
+ import com.android.internal.util.ArrayUtils;
+ import com.android.settings.Settings.WifiSettingsActivity;
+-import com.android.settings.applications.manageapplications.ManageApplications;
+ import com.android.settings.backup.BackupSettingsActivity;
+ import com.android.settings.core.FeatureFlags;
+ import com.android.settings.core.SubSettingLauncher;
+@@ -69,6 +68,7 @@ import com.android.settings.wfd.WifiDisplaySettings;
+ import com.android.settings.widget.SwitchBar;
+ import com.android.settingslib.core.instrumentation.Instrumentable;
+ import com.android.settingslib.core.instrumentation.SharedPreferencesLogger;
++import com.android.settingslib.core.instrumentation.MetricsFeatureProvider;
+ import com.android.settingslib.development.DevelopmentSettingsEnabler;
+ import com.android.settingslib.drawer.DashboardCategory;
+ import com.android.settingslib.drawer.SettingsDrawerActivity;
+@@ -76,6 +76,7 @@ import com.android.settingslib.utils.ThreadUtils;
+ 
+ import java.util.ArrayList;
+ import java.util.List;
++import java.util.Set;
+ 
+ public class SettingsActivity extends SettingsDrawerActivity
+         implements PreferenceManager.OnPreferenceTreeClickListener,
+@@ -86,6 +87,8 @@ public class SettingsActivity extends SettingsDrawerActivity
+ 
+     // Constants for state save/restore
+     private static final String SAVE_KEY_CATEGORIES = ":settings:categories";
++    @VisibleForTesting
++    static final String SAVE_KEY_SHOW_HOME_AS_UP = ":settings:show_home_as_up";
+ 
+     /**
+      * When starting this activity, the invoking Intent can contain this extra
+@@ -96,6 +99,11 @@ public class SettingsActivity extends SettingsDrawerActivity
+      */
+     public static final String EXTRA_SHOW_FRAGMENT = ":settings:show_fragment";
+ 
++    /**
++     * The metrics category constant for logging source when a setting fragment is opened.
++     */
++    public static final String EXTRA_SOURCE_METRICS_CATEGORY = ":settings:source_metrics";
++
+     /**
+      * When starting this activity and using {@link #EXTRA_SHOW_FRAGMENT},
+      * this extra can also be specified to supply a Bundle of arguments to pass
+@@ -152,12 +160,20 @@ public class SettingsActivity extends SettingsDrawerActivity
+ 
+     private static final String EXTRA_UI_OPTIONS = "settings:ui_options";
+ 
++    private static final int REQUEST_SUGGESTION = 42;
++
+     private String mFragmentClass;
+ 
+     private CharSequence mInitialTitle;
+     private int mInitialTitleResId;
+ 
++    private static final String[] LIKE_SHORTCUT_INTENT_ACTION_ARRAY = {
++            "android.settings.APPLICATION_DETAILS_SETTINGS"
++    };
++
+     private BroadcastReceiver mDevelopmentSettingsListener;
++    private SharedPreferences mDevelopmentPreferences;
++    private SharedPreferences.OnSharedPreferenceChangeListener mDevelopmentPreferencesListener;
+ 
+     private boolean mBatteryPresent = true;
+     private BroadcastReceiver mBatteryInfoReceiver = new BroadcastReceiver() {
+@@ -180,9 +196,13 @@ public class SettingsActivity extends SettingsDrawerActivity
+     private Button mNextButton;
+ 
+     private boolean mIsShowingDashboard;
++    private boolean mIsShortcut;
+ 
+     private ViewGroup mContent;
+ 
++    private ComponentName mCurrentSuggestion;
++    private MetricsFeatureProvider mMetricsFeatureProvider;
++
+     // Categories
+     private ArrayList<DashboardCategory> mCategories = new ArrayList<>();
+ 
+@@ -212,10 +232,6 @@ public class SettingsActivity extends SettingsDrawerActivity
+ 
+     @Override
+     public SharedPreferences getSharedPreferences(String name, int mode) {
+-        if (name.equals(getPackageName() + "_preferences")) {
+-            return new SharedPreferencesLogger(this, getMetricsTag(),
+-                    FeatureFactory.getFactory(this).getMetricsFeatureProvider());
+-        }
+         return super.getSharedPreferences(name, mode);
+     }
+ 
+@@ -230,6 +246,22 @@ public class SettingsActivity extends SettingsDrawerActivity
+         return tag;
+     }
+ 
++    private static boolean isShortCutIntent(final Intent intent) {
++        Set<String> categories = intent.getCategories();
++        return (categories != null) && categories.contains("com.android.settings.SHORTCUT");
++    }
++
++    private static boolean isLikeShortCutIntent(final Intent intent) {
++        String action = intent.getAction();
++        if (action == null) {
++            return false;
++        }
++        for (int i = 0; i < LIKE_SHORTCUT_INTENT_ACTION_ARRAY.length; i++) {
++            if (LIKE_SHORTCUT_INTENT_ACTION_ARRAY[i].equals(action)) return true;
++        }
++        return false;
++    }
++
+     @Override
+     protected void onCreate(Bundle savedState) {
+         super.onCreate(savedState);
+@@ -239,6 +271,7 @@ public class SettingsActivity extends SettingsDrawerActivity
+         final FeatureFactory factory = FeatureFactory.getFactory(this);
+ 
+         mDashboardFeatureProvider = factory.getDashboardFeatureProvider(this);
++        mMetricsFeatureProvider = factory.getMetricsFeatureProvider();
+ 
+         // Should happen before any call to getIntent()
+         getMetaData();
+@@ -251,6 +284,9 @@ public class SettingsActivity extends SettingsDrawerActivity
+         // Getting Intent properties can only be done after the super.onCreate(...)
+         final String initialFragmentName = intent.getStringExtra(EXTRA_SHOW_FRAGMENT);
+ 
++        mIsShortcut = isShortCutIntent(intent) || isLikeShortCutIntent(intent) ||
++                intent.getBooleanExtra(EXTRA_SHOW_FRAGMENT_AS_SHORTCUT, false);
++
+         final ComponentName cn = intent.getComponent();
+         final String className = cn.getClassName();
+ 
+@@ -553,15 +589,93 @@ public class SettingsActivity extends SettingsDrawerActivity
+         String intentClass = intent.getComponent().getClassName();
+         if (intentClass.equals(getClass().getName())) return null;
+ 
+-        if ("com.android.settings.RunningServices".equals(intentClass)
++/*
++        if ("com.android.settings.ManageApplications".equals(intentClass)
++                || "com.android.settings.RunningServices".equals(intentClass)
+                 || "com.android.settings.applications.StorageUse".equals(intentClass)) {
+             // Old names of manage apps.
+-            intentClass = ManageApplications.class.getName();
++            intentClass = com.android.settings.applications.ManageApplications.class.getName();
+         }
++*/
+ 
+         return intentClass;
+     }
+ 
++    /**
++     * Start a new fragment containing a preference panel.  If the preferences
++     * are being displayed in multi-pane mode, the given fragment class will
++     * be instantiated and placed in the appropriate pane.  If running in
++     * single-pane mode, a new activity will be launched in which to show the
++     * fragment.
++     *
++     * @param fragmentClass Full name of the class implementing the fragment.
++     * @param args Any desired arguments to supply to the fragment.
++     * @param titleRes Optional resource identifier of the title of this
++     * fragment.
++     * @param titleText Optional text of the title of this fragment.
++     * @param resultTo Optional fragment that result data should be sent to.
++     * If non-null, resultTo.onActivityResult() will be called when this
++     * preference panel is done.  The launched panel must use
++     * {@link #finishPreferencePanel(Fragment, int, Intent)} when done.
++     * @param resultRequestCode If resultTo is non-null, this is the caller's
++     * request code to be received with the result.
++     */
++    public void startPreferencePanel(Fragment caller, String fragmentClass, Bundle args,
++            int titleRes, CharSequence titleText, Fragment resultTo, int resultRequestCode) {
++        String title = null;
++        if (titleRes < 0) {
++            if (titleText != null) {
++                title = titleText.toString();
++            } else {
++                // There not much we can do in that case
++                title = "";
++            }
++        }
++        Utils.startWithFragment(this, fragmentClass, args, resultTo, resultRequestCode,
++                titleRes, title, mIsShortcut, mMetricsFeatureProvider.getMetricsCategory(caller));
++    }
++
++    /**
++     * Start a new fragment in a new activity containing a preference panel for a given user. If the
++     * preferences are being displayed in multi-pane mode, the given fragment class will be
++     * instantiated and placed in the appropriate pane. If running in single-pane mode, a new
++     * activity will be launched in which to show the fragment.
++     *
++     * @param fragmentClass Full name of the class implementing the fragment.
++     * @param args Any desired arguments to supply to the fragment.
++     * @param titleRes Optional resource identifier of the title of this fragment.
++     * @param titleText Optional text of the title of this fragment.
++     * @param userHandle The user for which the panel has to be started.
++     */
++    public void startPreferencePanelAsUser(Fragment caller, String fragmentClass,
++            Bundle args, int titleRes, CharSequence titleText, UserHandle userHandle) {
++        // This is a workaround.
++        //
++        // Calling startWithFragmentAsUser() without specifying FLAG_ACTIVITY_NEW_TASK to the intent
++        // starting the fragment could cause a native stack corruption. See b/17523189. However,
++        // adding that flag and start the preference panel with the same UserHandler will make it
++        // impossible to use back button to return to the previous screen. See b/20042570.
++        //
++        // We work around this issue by adding FLAG_ACTIVITY_NEW_TASK to the intent, while doing
++        // another check here to call startPreferencePanel() instead of startWithFragmentAsUser()
++        // when we're calling it as the same user.
++        if (userHandle.getIdentifier() == UserHandle.myUserId()) {
++            startPreferencePanel(caller, fragmentClass, args, titleRes, titleText, null, 0);
++        } else {
++            String title = null;
++            if (titleRes < 0) {
++                if (titleText != null) {
++                    title = titleText.toString();
++                } else {
++                    // There not much we can do in that case
++                    title = "";
++                }
++            }
++            Utils.startWithFragmentAsUser(this, fragmentClass, args, titleRes, title,
++                    mIsShortcut, mMetricsFeatureProvider.getMetricsCategory(caller), userHandle);
++        }
++    }
++
+     /**
+      * Called by a preference panel fragment to finish itself.
+      *
+@@ -575,6 +689,25 @@ public class SettingsActivity extends SettingsDrawerActivity
+         finish();
+     }
+ 
++    /**
++     * Start a new fragment.
++     *
++     * @param fragment The fragment to start
++     * @param push If true, the current fragment will be pushed onto the back stack.  If false,
++     * the current fragment will be replaced.
++     */
++    public void startPreferenceFragment(Fragment fragment, boolean push) {
++        FragmentTransaction transaction = getFragmentManager().beginTransaction();
++        transaction.replace(R.id.main_content, fragment);
++        if (push) {
++            transaction.setTransition(FragmentTransaction.TRANSIT_FRAGMENT_OPEN);
++            transaction.addToBackStack(BACK_STACK_PREFS);
++        } else {
++            transaction.setTransition(FragmentTransaction.TRANSIT_FRAGMENT_FADE);
++        }
++        transaction.commitAllowingStateLoss();
++    }
++
+     /**
+      * Switch to a specific Fragment with taking care of validation, Title and BackStack
+      */
+@@ -798,6 +931,29 @@ public class SettingsActivity extends SettingsDrawerActivity
+         return mNextButton;
+     }
+ 
++    @Override
++    public boolean shouldUpRecreateTask(Intent targetIntent) {
++        return super.shouldUpRecreateTask(new Intent(this, SettingsActivity.class));
++    }
++
++    public void startSuggestion(Intent intent) {
++        if (intent == null || ActivityManager.isUserAMonkey()) {
++            return;
++        }
++        mCurrentSuggestion = intent.getComponent();
++        startActivityForResult(intent, REQUEST_SUGGESTION);
++    }
++
++    @Override
++    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
++        if (requestCode == REQUEST_SUGGESTION && mCurrentSuggestion != null
++                && resultCode != RESULT_CANCELED) {
++            getPackageManager().setComponentEnabledSetting(mCurrentSuggestion,
++                    PackageManager.COMPONENT_ENABLED_STATE_DISABLED, PackageManager.DONT_KILL_APP);
++        }
++        super.onActivityResult(requestCode, resultCode, data);
++    }
++
+     @VisibleForTesting
+     Bitmap getBitmapFromXmlResource(int drawableRes) {
+         Drawable drawable = getResources().getDrawable(drawableRes, getTheme());
+diff --git a/src/com/android/settings/Utils.java b/src/com/android/settings/Utils.java
+index b1ed38f6c4..efb657ef1a 100644
+--- a/src/com/android/settings/Utils.java
++++ b/src/com/android/settings/Utils.java
+@@ -381,6 +381,128 @@ public final class Utils extends com.android.settingslib.Utils {
+                 .getUsers().size() > 1;
+     }
+ 
++    /**
++     * Start a new instance of the activity, showing only the given fragment.
++     * When launched in this mode, the given preference fragment will be instantiated and fill the
++     * entire activity.
++     *
++     * @param context The context.
++     * @param fragmentName The name of the fragment to display.
++     * @param args Optional arguments to supply to the fragment.
++     * @param resultTo Option fragment that should receive the result of the activity launch.
++     * @param resultRequestCode If resultTo is non-null, this is the request code in which
++     *                          to report the result.
++     * @param titleResId resource id for the String to display for the title of this set
++     *                   of preferences.
++     * @param title String to display for the title of this set of preferences.
++     * @param metricsCategory The current metricsCategory for logging source when fragment starts
++     */
++    public static void startWithFragment(Context context, String fragmentName, Bundle args,
++            Fragment resultTo, int resultRequestCode, int titleResId,
++            CharSequence title, int metricsCategory) {
++        startWithFragment(context, fragmentName, args, resultTo, resultRequestCode,
++                null /* titleResPackageName */, titleResId, title, false /* not a shortcut */,
++                metricsCategory);
++    }
++
++    /**
++     * Start a new instance of the activity, showing only the given fragment.
++     * When launched in this mode, the given preference fragment will be instantiated and fill the
++     * entire activity.
++     *
++     * @param context The context.
++     * @param fragmentName The name of the fragment to display.
++     * @param args Optional arguments to supply to the fragment.
++     * @param resultTo Option fragment that should receive the result of the activity launch.
++     * @param resultRequestCode If resultTo is non-null, this is the request code in which
++     *                          to report the result.
++     * @param titleResPackageName Optional package name for the resource id of the title.
++     * @param titleResId resource id for the String to display for the title of this set
++     *                   of preferences.
++     * @param title String to display for the title of this set of preferences.
++     * @param metricsCategory The current metricsCategory for logging source when fragment starts
++     */
++    public static void startWithFragment(Context context, String fragmentName, Bundle args,
++            Fragment resultTo, int resultRequestCode, String titleResPackageName, int titleResId,
++            CharSequence title, int metricsCategory) {
++        startWithFragment(context, fragmentName, args, resultTo, resultRequestCode,
++                titleResPackageName, titleResId, title, false /* not a shortcut */,
++                metricsCategory);
++    }
++
++    public static void startWithFragment(Context context, String fragmentName, Bundle args,
++            Fragment resultTo, int resultRequestCode, int titleResId,
++            CharSequence title, boolean isShortcut, int metricsCategory) {
++        Intent intent = onBuildStartFragmentIntent(context, fragmentName, args,
++                null /* titleResPackageName */, titleResId, title, isShortcut, metricsCategory);
++        if (resultTo == null) {
++            context.startActivity(intent);
++        } else {
++            resultTo.getActivity().startActivityForResult(intent, resultRequestCode);
++        }
++    }
++
++    public static void startWithFragment(Context context, String fragmentName, Bundle args,
++            Fragment resultTo, int resultRequestCode, String titleResPackageName, int titleResId,
++            CharSequence title, boolean isShortcut, int metricsCategory) {
++        Intent intent = onBuildStartFragmentIntent(context, fragmentName, args, titleResPackageName,
++                titleResId, title, isShortcut, metricsCategory);
++        if (resultTo == null) {
++            context.startActivity(intent);
++        } else {
++            resultTo.startActivityForResult(intent, resultRequestCode);
++        }
++    }
++
++    public static void startWithFragmentAsUser(Context context, String fragmentName, Bundle args,
++            int titleResId, CharSequence title, boolean isShortcut, int metricsCategory,
++            UserHandle userHandle) {
++        // workaround to avoid crash in b/17523189
++        if (userHandle.getIdentifier() == UserHandle.myUserId()) {
++            startWithFragment(context, fragmentName, args, null, 0, titleResId, title, isShortcut,
++                    metricsCategory);
++        } else {
++            Intent intent = onBuildStartFragmentIntent(context, fragmentName, args,
++                    null /* titleResPackageName */, titleResId, title, isShortcut, metricsCategory);
++            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
++            intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK);
++            context.startActivityAsUser(intent, userHandle);
++        }
++    }
++
++    /**
++     * Build an Intent to launch a new activity showing the selected fragment.
++     * The implementation constructs an Intent that re-launches the current activity with the
++     * appropriate arguments to display the fragment.
++     *
++     *
++     * @param context The Context.
++     * @param fragmentName The name of the fragment to display.
++     * @param args Optional arguments to supply to the fragment.
++     * @param titleResPackageName Optional package name for the resource id of the title.
++     * @param titleResId Optional title resource id to show for this item.
++     * @param title Optional title to show for this item.
++     * @param isShortcut  tell if this is a Launcher Shortcut or not
++     * @param sourceMetricsCategory The context (source) from which an action is performed
++     * @return Returns an Intent that can be launched to display the given
++     * fragment.
++     */
++    public static Intent onBuildStartFragmentIntent(Context context, String fragmentName,
++            Bundle args, String titleResPackageName, int titleResId, CharSequence title,
++            boolean isShortcut, int sourceMetricsCategory) {
++        Intent intent = new Intent(Intent.ACTION_MAIN);
++        intent.setClass(context, SubSettings.class);
++        intent.putExtra(SettingsActivity.EXTRA_SHOW_FRAGMENT, fragmentName);
++        intent.putExtra(SettingsActivity.EXTRA_SHOW_FRAGMENT_ARGUMENTS, args);
++        intent.putExtra(SettingsActivity.EXTRA_SHOW_FRAGMENT_TITLE_RES_PACKAGE_NAME,
++                titleResPackageName);
++        intent.putExtra(SettingsActivity.EXTRA_SHOW_FRAGMENT_TITLE_RESID, titleResId);
++        intent.putExtra(SettingsActivity.EXTRA_SHOW_FRAGMENT_TITLE, title);
++        intent.putExtra(SettingsActivity.EXTRA_SHOW_FRAGMENT_AS_SHORTCUT, isShortcut);
++        intent.putExtra(SettingsActivity.EXTRA_SOURCE_METRICS_CATEGORY, sourceMetricsCategory);
++        return intent;
++    }
++
+     /**
+      * Returns the managed profile of the current user or {@code null} if none is found or a profile
+      * exists but it is disabled.
+diff --git a/src/com/android/settings/applications/ProcessStatsSummary.java b/src/com/android/settings/applications/ProcessStatsSummary.java
+index 53da04c119..68abe9990a 100644
+--- a/src/com/android/settings/applications/ProcessStatsSummary.java
++++ b/src/com/android/settings/applications/ProcessStatsSummary.java
+@@ -1,5 +1,6 @@
+ /*
+  * Copyright (C) 2015 The Android Open Source Project
++ * Copyright (C) 2016 The CyanogenMod Project
+  *
+  * Licensed under the Apache License, Version 2.0 (the "License");
+  * you may not use this file except in compliance with the License.
+@@ -17,6 +18,7 @@ package com.android.settings.applications;
+ 
+ import android.app.Activity;
+ import android.content.Context;
++import android.content.Intent;
+ import android.os.Bundle;
+ import android.support.v7.preference.Preference;
+ import android.support.v7.preference.Preference.OnPreferenceClickListener;
+@@ -25,6 +27,7 @@ import android.text.format.Formatter.BytesResult;
+ 
+ import com.android.internal.logging.nano.MetricsProto.MetricsEvent;
+ import com.android.settings.R;
++import com.android.settings.Settings.AppOpsSummaryActivity;
+ import com.android.settings.SummaryPreference;
+ import com.android.settings.Utils;
+ import com.android.settings.applications.ProcStatsData.MemInfo;
+@@ -40,6 +43,9 @@ public class ProcessStatsSummary extends ProcessStatsBase implements OnPreferenc
+     private static final String KEY_AVERAGY_USED = "average_used";
+     private static final String KEY_FREE = "free";
+     private static final String KEY_APP_LIST = "apps_list";
++    private static final String KEY_APP_STARTUP = "apps_startup";
++
++    private Activity mActivity;
+ 
+     private SummaryPreference mSummaryPref;
+ 
+@@ -48,11 +54,14 @@ public class ProcessStatsSummary extends ProcessStatsBase implements OnPreferenc
+     private Preference mAverageUsed;
+     private Preference mFree;
+     private Preference mAppListPreference;
++    private Preference mAppStartupPreference;
+ 
+     @Override
+     public void onCreate(Bundle icicle) {
+         super.onCreate(icicle);
+ 
++        mActivity = getActivity();
++
+         addPreferencesFromResource(R.xml.process_stats_summary);
+         mSummaryPref = (SummaryPreference) findPreference(KEY_STATUS_HEADER);
+         mPerformance = findPreference(KEY_PERFORMANCE);
+@@ -61,6 +70,8 @@ public class ProcessStatsSummary extends ProcessStatsBase implements OnPreferenc
+         mFree = findPreference(KEY_FREE);
+         mAppListPreference = findPreference(KEY_APP_LIST);
+         mAppListPreference.setOnPreferenceClickListener(this);
++        mAppStartupPreference = findPreference(KEY_APP_STARTUP);
++        mAppStartupPreference.setOnPreferenceClickListener(this);
+     }
+ 
+     @Override
+@@ -123,6 +134,12 @@ public class ProcessStatsSummary extends ProcessStatsBase implements OnPreferenc
+                     .setSourceMetricsCategory(getMetricsCategory())
+                     .launch();
+             return true;
++        } else if (preference == mAppStartupPreference) {
++            Intent intent = new Intent(Intent.ACTION_MAIN);
++            intent.putExtra("appops_tab", getString(R.string.app_ops_categories_bootup));
++            intent.setClass(mActivity, AppOpsSummaryActivity.class);
++            mActivity.startActivity(intent);
++            return true;
+         }
+         return false;
+     }
+diff --git a/src/com/android/settings/applications/appops/AppOpsCategory.java b/src/com/android/settings/applications/appops/AppOpsCategory.java
+index b506ce0ad7..663dcf9a8b 100644
+--- a/src/com/android/settings/applications/appops/AppOpsCategory.java
++++ b/src/com/android/settings/applications/appops/AppOpsCategory.java
+@@ -30,6 +30,7 @@ import android.content.res.Configuration;
+ import android.content.res.Resources;
+ import android.os.Bundle;
+ import android.view.LayoutInflater;
++import android.util.Log;
+ import android.view.View;
+ import android.view.ViewGroup;
+ import android.widget.BaseAdapter;
+@@ -39,6 +40,7 @@ import android.widget.Switch;
+ import android.widget.TextView;
+ 
+ import com.android.settings.R;
++import com.android.settings.SettingsActivity;
+ import com.android.settings.applications.appops.AppOpsState.AppOpEntry;
+ 
+ import java.util.List;
+@@ -46,17 +48,28 @@ import java.util.List;
+ public class AppOpsCategory extends ListFragment implements
+         LoaderManager.LoaderCallbacks<List<AppOpEntry>> {
+ 
++    private static final int RESULT_APP_DETAILS = 1;
++    private static final String LOG_TAG = "SettingsActivity";
++
+     AppOpsState mState;
++    boolean mUserControlled;
+ 
+     // This is the Adapter being used to display the list's data.
+     AppListAdapter mAdapter;
+ 
++    String mCurrentPkgName;
++
+     public AppOpsCategory() {
+     }
+ 
+     public AppOpsCategory(AppOpsState.OpsTemplate template) {
++        this(template, false);
++    }
++
++    public AppOpsCategory(AppOpsState.OpsTemplate template, boolean userControlled) {
+         Bundle args = new Bundle();
+         args.putParcelable("template", template);
++        args.putBoolean("userControlled", userControlled);
+         setArguments(args);
+     }
+ 
+@@ -114,18 +127,22 @@ public class AppOpsCategory extends ListFragment implements
+         final InterestingConfigChanges mLastConfig = new InterestingConfigChanges();
+         final AppOpsState mState;
+         final AppOpsState.OpsTemplate mTemplate;
++        final boolean mUserControlled;
+ 
+         List<AppOpEntry> mApps;
+         PackageIntentReceiver mPackageObserver;
+ 
+-        public AppListLoader(Context context, AppOpsState state, AppOpsState.OpsTemplate template) {
++        public AppListLoader(Context context, AppOpsState state, AppOpsState.OpsTemplate template,
++                boolean userControlled) {
+             super(context);
+             mState = state;
+             mTemplate = template;
++            mUserControlled = userControlled;
+         }
+ 
+         @Override public List<AppOpEntry> loadInBackground() {
+-            return mState.buildState(mTemplate, 0, null, AppOpsState.LABEL_COMPARATOR);
++            return mState.buildState(mTemplate, 0, null,
++                    mUserControlled ? AppOpsState.LABEL_COMPARATOR : AppOpsState.RECENCY_COMPARATOR);
+         }
+ 
+         /**
+@@ -244,13 +261,15 @@ public class AppOpsCategory extends ListFragment implements
+         private final Resources mResources;
+         private final LayoutInflater mInflater;
+         private final AppOpsState mState;
++        private final boolean mUserControlled;
+ 
+         List<AppOpEntry> mList;
+ 
+-        public AppListAdapter(Context context, AppOpsState state) {
++        public AppListAdapter(Context context, AppOpsState state, boolean userControlled) {
+             mResources = context.getResources();
+             mInflater = (LayoutInflater)context.getSystemService(Context.LAYOUT_INFLATER_SERVICE);
+             mState = state;
++            mUserControlled = userControlled;
+         }
+ 
+         public void setData(List<AppOpEntry> data) {
+@@ -287,14 +306,21 @@ public class AppOpsCategory extends ListFragment implements
+             }
+ 
+             AppOpEntry item = getItem(position);
+-            ((ImageView) view.findViewById(R.id.app_icon)).setImageDrawable(
++            ((ImageView)view.findViewById(R.id.app_icon)).setImageDrawable(
+                     item.getAppEntry().getIcon());
+-            ((TextView) view.findViewById(R.id.app_name)).setText(item.getAppEntry().getLabel());
+-            ((TextView) view.findViewById(R.id.op_name)).setText(
+-                    item.getTimeText(mResources, false));
+-            view.findViewById(R.id.op_time).setVisibility(View.GONE);
+-            ((Switch) view.findViewById(R.id.op_switch)).setChecked(
+-                    item.getPrimaryOpMode() == AppOpsManager.MODE_ALLOWED);
++            ((TextView)view.findViewById(R.id.app_name)).setText(item.getAppEntry().getLabel());
++            if (mUserControlled) {
++                ((TextView) view.findViewById(R.id.op_name)).setText(
++                        item.getTimeText(mResources, false));
++                view.findViewById(R.id.op_time).setVisibility(View.GONE);
++                ((Switch) view.findViewById(R.id.op_switch)).setChecked(
++                        item.getPrimaryOpMode() == AppOpsManager.MODE_ALLOWED);
++            } else {
++                ((TextView) view.findViewById(R.id.op_name)).setText(item.getSummaryText(mState));
++                ((TextView) view.findViewById(R.id.op_time)).setText(
++                        item.getTimeText(mResources, false));
++                view.findViewById(R.id.op_switch).setVisibility(View.GONE);
++            }
+ 
+             return view;
+         }
+@@ -304,6 +330,7 @@ public class AppOpsCategory extends ListFragment implements
+     public void onCreate(Bundle savedInstanceState) {
+         super.onCreate(savedInstanceState);
+         mState = new AppOpsState(getActivity());
++        mUserControlled = getArguments().getBoolean("userControlled");
+     }
+ 
+     @Override public void onActivityCreated(Bundle savedInstanceState) {
+@@ -317,7 +344,7 @@ public class AppOpsCategory extends ListFragment implements
+         setHasOptionsMenu(true);
+ 
+         // Create an empty adapter we will use to display the loaded data.
+-        mAdapter = new AppListAdapter(getActivity(), mState);
++        mAdapter = new AppListAdapter(getActivity(), mState, mUserControlled);
+         setListAdapter(mAdapter);
+ 
+         // Start out with a progress indicator.
+@@ -327,20 +354,39 @@ public class AppOpsCategory extends ListFragment implements
+         getLoaderManager().initLoader(0, null, this);
+     }
+ 
++    // utility method used to start sub activity
++    private void startApplicationDetailsActivity() {
++        // start new fragment to display extended information
++        Bundle args = new Bundle();
++        args.putString(AppOpsDetails.ARG_PACKAGE_NAME, mCurrentPkgName);
++
++        Log.d(LOG_TAG," In startApplicationDetailsActivity");
++        SettingsActivity sa = (SettingsActivity) getActivity();
++        sa.startPreferencePanel(this, AppOpsDetails.class.getName(), args,
++                org.lineageos.platform.internal.R.string.privacy_guard_manager_title,
++                null, this, RESULT_APP_DETAILS);
++        Log.d(LOG_TAG," out startApplicationDetailsActivity");
++    }
++
+     @Override public void onListItemClick(ListView l, View v, int position, long id) {
+         AppOpEntry entry = mAdapter.getItem(position);
+         if (entry != null) {
+-            // We treat this as tapping on the check box, toggling the app op state.
+-            Switch sw = v.findViewById(R.id.op_switch);
+-            boolean checked = !sw.isChecked();
+-            sw.setChecked(checked);
+-            AppOpsManager.OpEntry op = entry.getOpEntry(0);
+-            int mode = checked ? AppOpsManager.MODE_ALLOWED : AppOpsManager.MODE_IGNORED;
+-            mState.getAppOpsManager().setMode(op.getOp(),
+-                    entry.getAppEntry().getApplicationInfo().uid,
+-                    entry.getAppEntry().getApplicationInfo().packageName,
+-                    mode);
+-            entry.overridePrimaryOpMode(mode);
++            if (mUserControlled) {
++                // We treat this as tapping on the check box, toggling the app op state.
++                Switch sw = ((Switch) v.findViewById(R.id.op_switch));
++                boolean checked = !sw.isChecked();
++                sw.setChecked(checked);
++                AppOpsManager.OpEntry op = entry.getOpEntry(0);
++                int mode = checked ? AppOpsManager.MODE_ALLOWED : AppOpsManager.MODE_IGNORED;
++                mState.getAppOpsManager().setMode(op.getOp(),
++                        entry.getAppEntry().getApplicationInfo().uid,
++                        entry.getAppEntry().getApplicationInfo().packageName,
++                        mode);
++                entry.overridePrimaryOpMode(mode);
++            } else {
++                mCurrentPkgName = entry.getAppEntry().getApplicationInfo().packageName;
++                startApplicationDetailsActivity();
++            }
+         }
+     }
+ 
+@@ -348,9 +394,9 @@ public class AppOpsCategory extends ListFragment implements
+         Bundle fargs = getArguments();
+         AppOpsState.OpsTemplate template = null;
+         if (fargs != null) {
+-            template = fargs.getParcelable("template");
++            template = (AppOpsState.OpsTemplate)fargs.getParcelable("template");
+         }
+-        return new AppListLoader(getActivity(), mState, template);
++        return new AppListLoader(getActivity(), mState, template, mUserControlled);
+     }
+ 
+     @Override public void onLoadFinished(Loader<List<AppOpEntry>> loader, List<AppOpEntry> data) {
+diff --git a/src/com/android/settings/applications/appops/AppOpsDetails.java b/src/com/android/settings/applications/appops/AppOpsDetails.java
+new file mode 100644
+index 0000000000..1f9f7f0380
+--- /dev/null
++++ b/src/com/android/settings/applications/appops/AppOpsDetails.java
+@@ -0,0 +1,387 @@
++/**
++ * Copyright (C) 2013 The Android Open Source Project
++ * Copyright (C) 2017-2018 The LineageOS Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License"); you may not
++ * use this file except in compliance with the License. You may obtain a copy
++ * of the License at
++ *
++ * http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
++ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
++ * License for the specific language governing permissions and limitations
++ * under the License.
++ */
++
++package com.android.settings.applications.appops;
++
++import android.app.Activity;
++import android.app.AppOpsManager;
++import android.content.Context;
++import android.content.Intent;
++import android.content.pm.ApplicationInfo;
++import android.content.pm.PackageInfo;
++import android.content.pm.PackageManager;
++import android.content.pm.PackageManager.NameNotFoundException;
++import android.content.pm.PermissionGroupInfo;
++import android.content.pm.PermissionInfo;
++import android.content.res.Resources;
++import android.graphics.drawable.Drawable;
++import android.os.Bundle;
++import android.support.v14.preference.SwitchPreference;
++import android.support.v7.preference.ListPreference;
++import android.support.v7.preference.Preference;
++import android.support.v7.preference.Preference.OnPreferenceChangeListener;
++import android.support.v7.preference.PreferenceScreen;
++import android.text.TextUtils;
++import android.util.Log;
++
++import com.android.internal.logging.nano.MetricsProto.MetricsEvent;
++import com.android.settings.R;
++import com.android.settings.SettingsActivity;
++import com.android.settings.SettingsPreferenceFragment;
++import com.android.settings.widget.EntityHeaderController;
++import com.android.settingslib.Utils;
++
++import java.util.HashMap;
++import java.util.List;
++import java.util.StringJoiner;
++
++public class AppOpsDetails extends SettingsPreferenceFragment {
++    static final String TAG = "AppOpsDetails";
++
++    public static final String ARG_PACKAGE_NAME = "package";
++    private static final String KEY_HEADER = "header";
++
++    private AppOpsState mState;
++    private PackageManager mPm;
++    private AppOpsManager mAppOps;
++    private PackageInfo mPackageInfo;
++    private PreferenceScreen mPreferenceScreen;
++
++    private final int MODE_ALLOWED = 0;
++    private final int MODE_IGNORED = 1;
++    private final int MODE_ASK     = 2;
++
++    private final String[] MODE_ENTRIES = {
++            String.valueOf(MODE_ALLOWED),
++            String.valueOf(MODE_IGNORED),
++            String.valueOf(MODE_ASK)
++    };
++
++    private int modeToPosition(int mode) {
++        switch (mode) {
++            case AppOpsManager.MODE_ALLOWED:
++                return MODE_ALLOWED;
++            case AppOpsManager.MODE_IGNORED:
++                return MODE_IGNORED;
++            case AppOpsManager.MODE_ASK:
++                return MODE_ASK;
++            default:
++                return MODE_IGNORED;
++        }
++    }
++
++    private int positionToMode(int position) {
++        switch (position) {
++            case MODE_ALLOWED:
++                return AppOpsManager.MODE_ALLOWED;
++            case MODE_IGNORED:
++                return AppOpsManager.MODE_IGNORED;
++            case MODE_ASK:
++                return AppOpsManager.MODE_ASK;
++            default:
++                return AppOpsManager.MODE_IGNORED;
++        }
++    }
++
++    private static HashMap<Integer, Integer> OP_ICONS = new HashMap<>();
++
++    static {
++        OP_ICONS.put(AppOpsManager.OP_AUDIO_ALARM_VOLUME, R.drawable.ic_perm_alarm);
++        OP_ICONS.put(AppOpsManager.OP_BLUETOOTH_CHANGE, R.drawable.ic_perm_bluetooth);
++        OP_ICONS.put(AppOpsManager.OP_BOOT_COMPLETED, R.drawable.ic_perm_boot);
++        OP_ICONS.put(AppOpsManager.OP_CHANGE_WIFI_STATE, R.drawable.ic_perm_wifi);
++        OP_ICONS.put(AppOpsManager.OP_DATA_CONNECT_CHANGE, R.drawable.ic_perm_data);
++        OP_ICONS.put(AppOpsManager.OP_GET_USAGE_STATS, R.drawable.ic_perm_data);
++        OP_ICONS.put(AppOpsManager.OP_GPS, R.drawable.ic_perm_location);
++        OP_ICONS.put(AppOpsManager.OP_MUTE_MICROPHONE, R.drawable.ic_perm_microphone);
++        OP_ICONS.put(AppOpsManager.OP_NFC_CHANGE, R.drawable.ic_perm_nfc);
++        OP_ICONS.put(AppOpsManager.OP_POST_NOTIFICATION, R.drawable.ic_perm_notifications);
++        OP_ICONS.put(AppOpsManager.OP_READ_CLIPBOARD, R.drawable.ic_perm_clipboard);
++        OP_ICONS.put(AppOpsManager.OP_RUN_IN_BACKGROUND, R.drawable.ic_perm_background);
++        OP_ICONS.put(AppOpsManager.OP_SU, R.drawable.ic_perm_su);
++        OP_ICONS.put(AppOpsManager.OP_SYSTEM_ALERT_WINDOW, R.drawable.ic_perm_drawontop);
++        OP_ICONS.put(AppOpsManager.OP_TAKE_AUDIO_FOCUS, R.drawable.ic_perm_audio);
++        OP_ICONS.put(AppOpsManager.OP_TOAST_WINDOW, R.drawable.ic_perm_notifications);
++        OP_ICONS.put(AppOpsManager.OP_VIBRATE, R.drawable.ic_perm_vibrate);
++        OP_ICONS.put(AppOpsManager.OP_WAKE_LOCK, R.drawable.ic_perm_nosleep);
++        OP_ICONS.put(AppOpsManager.OP_WIFI_SCAN, R.drawable.ic_perm_wifi);
++        OP_ICONS.put(AppOpsManager.OP_WRITE_CLIPBOARD, R.drawable.ic_perm_clipboard);
++        OP_ICONS.put(AppOpsManager.OP_WRITE_SETTINGS, R.drawable.ic_perm_settings);
++        OP_ICONS.put(AppOpsManager.OP_WRITE_SMS , R.drawable.ic_perm_sms);
++    }
++
++    private boolean isPlatformSigned() {
++        final int match = mPm.checkSignatures("android", mPackageInfo.packageName);
++        return match >= PackageManager.SIGNATURE_MATCH;
++    }
++
++    // Utility method to set application label and icon.
++    private void setAppHeader(PackageInfo pkgInfo) {
++        ApplicationInfo appInfo = pkgInfo.applicationInfo;
++        String appLabel = mPm.getApplicationLabel(appInfo).toString();
++        String label;
++        try {
++            label = appInfo.loadLabel(mPm).toString();
++        } catch (Throwable t) {
++            Log.e(TAG, "Error loading application label for " + appLabel, t);
++            label = appLabel;
++        }
++
++        final Activity activity = getActivity();
++        final Preference pref = EntityHeaderController
++                .newInstance(getActivity(), this /* fragment */, null /* header */)
++                .setIcon(mPm.getApplicationIcon(appInfo))
++                .setLabel(label)
++                .setPackageName(appInfo.packageName)
++                .setUid(appInfo.uid)
++                .setHasAppInfoLink(true)
++                .setButtonActions(EntityHeaderController.ActionType.ACTION_NONE,
++                        EntityHeaderController.ActionType.ACTION_NONE)
++                .done(getActivity(), getPrefContext());
++        pref.setKey(KEY_HEADER);
++        getPreferenceScreen().addPreference(pref);
++    }
++
++    private String retrieveAppEntry() {
++        final Bundle args = getArguments();
++        String packageName = (args != null) ? args.getString(ARG_PACKAGE_NAME) : null;
++        if (packageName == null) {
++            Intent intent = (args == null) ?
++                    getActivity().getIntent() : (Intent) args.getParcelable("intent");
++            if (intent != null) {
++                packageName = intent.getData().getSchemeSpecificPart();
++            }
++        }
++        try {
++            mPackageInfo = mPm.getPackageInfo(packageName,
++                    PackageManager.MATCH_DISABLED_COMPONENTS |
++                    PackageManager.MATCH_ANY_USER);
++        } catch (NameNotFoundException e) {
++            Log.e(TAG, "Exception when retrieving package:" + packageName, e);
++            mPackageInfo = null;
++        }
++
++        return packageName;
++    }
++
++    private boolean refreshUi() {
++        if (mPackageInfo == null) {
++            return false;
++        }
++
++        mPreferenceScreen.removeAll();
++        setAppHeader(mPackageInfo);
++
++        AppOpsState.OpsTemplate[] allTemplates = getTemplates();
++        for (AppOpsState.OpsTemplate tpl : allTemplates) {
++            List<AppOpsState.AppOpEntry> entries = mState.buildState(tpl,
++                    mPackageInfo.applicationInfo.uid, mPackageInfo.packageName, true);
++            for (final AppOpsState.AppOpEntry entry : entries) {
++                String perm = null;
++                int op = 0;
++                // Find the first permission with a known name
++                for (int i = 0; i < entry.getNumOpEntry() && perm == null; i++) {
++                    op = entry.getOpEntry(i).getOp();
++                    perm = AppOpsManager.opToPermission(op);
++                }
++                Drawable icon = getIconByPermission(perm);
++                if (icon == null && op != 0 && OP_ICONS.containsKey(op)) {
++                    icon = getActivity().getDrawable(OP_ICONS.get(op));
++                }
++                icon.setTint(Utils.getColorAttr(getActivity(), android.R.attr.colorControlNormal));
++
++                final AppOpsManager.OpEntry firstOp = entry.getOpEntry(0);
++                final int switchOp = AppOpsManager.opToSwitch(firstOp.getOp());
++
++                // ListPreference for 3 states: ask, allow, deny
++                if (AppOpsManager.isStrictOp(switchOp)) {
++                    ListPreference listPref = getListPrefForEntry(entry, icon);
++                    mPreferenceScreen.addPreference(listPref);
++                } else {
++                    SwitchPreference switchPref = getSwitchPrefForEntry(entry, icon);
++                    mPreferenceScreen.addPreference(switchPref);
++                }
++            }
++        }
++
++        if (mPreferenceScreen.getPreferenceCount() == 0) {
++            Preference noBlockablePermissionsPref = getNoBlockablePermissionsPref();
++            mPreferenceScreen.addPreference(noBlockablePermissionsPref);
++        }
++
++        return true;
++    }
++
++    private AppOpsState.OpsTemplate[] getTemplates() {
++        /* If we are platform signed, only show the root switch, this
++         * one is safe to toggle while other permission-based ones could
++         * certainly cause system-wide problems
++         */
++        if (isPlatformSigned()) {
++            return new AppOpsState.OpsTemplate[]{ AppOpsState.SU_TEMPLATE };
++        }
++
++        int length = AppOpsState.ALL_PERMS_TEMPLATES.length;
++        AppOpsState.OpsTemplate[] allTemplates = new AppOpsState.OpsTemplate[length];
++        // Loop all existing templates and set the visibility of each perm to true
++        for (int i = 0; i < length; i++) {
++            AppOpsState.OpsTemplate tpl = AppOpsState.ALL_PERMS_TEMPLATES[i];
++            for (int j = 0; j < tpl.ops.length; j++) {
++                // we only want to use the template's orderings, not the visibility
++                tpl.showPerms[j] = true;
++            }
++
++            allTemplates[i] = tpl;
++        }
++
++        return allTemplates;
++    }
++
++    private Drawable getIconByPermission(String perm) {
++        Drawable icon = null;
++        if (perm != null) {
++            try {
++                PermissionInfo pi = mPm.getPermissionInfo(perm, 0);
++                if (pi.group != null) {
++                    PermissionGroupInfo pgi = mPm.getPermissionGroupInfo(pi.group, 0);
++                    if (pgi.icon != 0) {
++                        icon = pgi.loadIcon(mPm);
++                    }
++                }
++            } catch (NameNotFoundException e) {
++            }
++        }
++        return icon;
++    }
++
++    private ListPreference getListPrefForEntry(final AppOpsState.AppOpEntry entry, Drawable icon) {
++        final Resources res = getActivity().getResources();
++
++        final AppOpsManager.OpEntry firstOp = entry.getOpEntry(0);
++        final AppOpsManager.PackageOps pkgOps = entry.getPackageOps();
++        final int uid = pkgOps.getUid();
++        final String pkgName = pkgOps.getPackageName();
++        final int switchOp = AppOpsManager.opToSwitch(firstOp.getOp());
++        final int mode = mAppOps.checkOpNoThrow(switchOp, uid, pkgName);
++        final CharSequence opName = entry.getSwitchText(mState);
++
++        ListPreference listPref = new ListPreference(getActivity());
++        listPref.setLayoutResource(R.layout.preference_appops);
++        listPref.setIcon(icon);
++        listPref.setTitle(opName);
++        listPref.setDialogTitle(opName);
++        listPref.setEntries(R.array.app_ops_permissions);
++        listPref.setEntryValues(MODE_ENTRIES);
++        listPref.setValueIndex(modeToPosition(mode));
++        String summary = getSummary(listPref.getEntry(), entry.getCountsText(res),
++                entry.getTimeText(res, true));
++        listPref.setSummary(summary);
++        listPref.setOnPreferenceChangeListener(new OnPreferenceChangeListener() {
++            @Override
++            public boolean onPreferenceChange(Preference preference, Object newValue) {
++                ListPreference listPref = (ListPreference) preference;
++                String value = newValue.toString();
++                int selectedIndex = listPref.findIndexOfValue(value);
++                mAppOps.setMode(switchOp, uid, pkgName, positionToMode(selectedIndex));
++                String summary = getSummary(listPref.getEntries()[selectedIndex],
++                        entry.getCountsText(res), entry.getTimeText(res, true));
++                listPref.setSummary(summary);
++                return true;
++            }
++        });
++
++        return listPref;
++    }
++
++    private SwitchPreference getSwitchPrefForEntry(final AppOpsState.AppOpEntry entry,
++                                                   Drawable icon) {
++        final Resources res = getActivity().getResources();
++
++        final AppOpsManager.OpEntry firstOp = entry.getOpEntry(0);
++        final AppOpsManager.PackageOps pkgOps = entry.getPackageOps();
++        final int uid = pkgOps.getUid();
++        final String pkgName = pkgOps.getPackageName();
++        final int switchOp = AppOpsManager.opToSwitch(firstOp.getOp());
++        final int mode = mAppOps.checkOpNoThrow(switchOp, uid, pkgName);
++        final CharSequence opName = entry.getSwitchText(mState);
++
++        SwitchPreference switchPref = new SwitchPreference(getActivity());
++        switchPref.setLayoutResource(R.layout.preference_appops);
++        switchPref.setIcon(icon);
++        switchPref.setTitle(opName);
++        String summary = getSummary(entry.getCountsText(res), entry.getTimeText(res, true));
++        switchPref.setSummary(summary);
++        switchPref.setChecked(mode == AppOpsManager.MODE_ALLOWED);
++        switchPref.setOnPreferenceChangeListener(new OnPreferenceChangeListener() {
++            @Override
++            public boolean onPreferenceChange(Preference preference,
++                                              Object newValue) {
++                Boolean isChecked = (Boolean) newValue;
++                mAppOps.setMode(switchOp, uid, pkgName,
++                        isChecked ? AppOpsManager.MODE_ALLOWED
++                                : AppOpsManager.MODE_IGNORED);
++                return true;
++            }
++        });
++
++        return switchPref;
++    }
++
++    private Preference getNoBlockablePermissionsPref() {
++        Preference emptyPref = new Preference(getActivity());
++        emptyPref.setTitle(R.string.app_ops_no_blockable_permissions);
++        emptyPref.setSelectable(false);
++        emptyPref.setEnabled(false);
++        return emptyPref;
++    }
++
++    /** Called when the activity is first created. */
++    @Override
++    public void onCreate(Bundle icicle) {
++        super.onCreate(icicle);
++
++        mState = new AppOpsState(getActivity());
++        mPm = getActivity().getPackageManager();
++        mAppOps = (AppOpsManager)getActivity().getSystemService(Context.APP_OPS_SERVICE);
++        mPreferenceScreen = getPreferenceManager().createPreferenceScreen(getActivity());
++        retrieveAppEntry();
++
++        setPreferenceScreen(mPreferenceScreen);
++        setHasOptionsMenu(true);
++    }
++
++    @Override
++    public int getMetricsCategory() {
++        return MetricsEvent.APP_OPS_DETAILS;
++    }
++
++    @Override
++    public void onResume() {
++        super.onResume();
++        refreshUi();
++    }
++
++    private String getSummary(CharSequence... lines) {
++        StringJoiner sj = new StringJoiner("\n");
++        for (CharSequence line : lines) {
++            if (!TextUtils.isEmpty(line)) {
++                sj.add(line);
++            }
++        }
++        return sj.toString();
++    }
++}
+diff --git a/src/com/android/settings/applications/appops/AppOpsDetailsTop.java b/src/com/android/settings/applications/appops/AppOpsDetailsTop.java
+new file mode 100644
+index 0000000000..0353bb39e7
+--- /dev/null
++++ b/src/com/android/settings/applications/appops/AppOpsDetailsTop.java
+@@ -0,0 +1,37 @@
++/**
++ * Copyright (C) 2015 The CyanogenMod Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License"); you may not
++ * use this file except in compliance with the License. You may obtain a copy
++ * of the License at
++ *
++ * http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
++ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
++ * License for the specific language governing permissions and limitations
++ * under the License.
++ */
++
++package com.android.settings.applications.appops;
++
++import android.content.Intent;
++import android.preference.PreferenceActivity;
++
++public class AppOpsDetailsTop extends PreferenceActivity {
++
++    @Override
++    public Intent getIntent() {
++        Intent modIntent = new Intent(super.getIntent());
++        modIntent.putExtra(EXTRA_SHOW_FRAGMENT, AppOpsDetails.class.getName());
++        modIntent.putExtra(EXTRA_NO_HEADERS, true);
++        return modIntent;
++    }
++
++    @Override
++    protected boolean isValidFragment(String fragmentName) {
++        if (AppOpsDetails.class.getName().equals(fragmentName)) return true;
++        return false;
++    }
++}
+diff --git a/src/com/android/settings/applications/appops/AppOpsState.java b/src/com/android/settings/applications/appops/AppOpsState.java
+index 2686b8c144..7684c4629e 100644
+--- a/src/com/android/settings/applications/appops/AppOpsState.java
++++ b/src/com/android/settings/applications/appops/AppOpsState.java
+@@ -1,5 +1,6 @@
+ /*
+  * Copyright (C) 2013 The Android Open Source Project
++ * Copyright (C) 2018 The LineageOS Project
+  *
+  * Licensed under the Apache License, Version 2.0 (the "License");
+  * you may not use this file except in compliance with the License.
+@@ -16,6 +17,7 @@
+ 
+ package com.android.settings.applications.appops;
+ 
++import android.app.Activity;
+ import android.app.AppOpsManager;
+ import android.content.Context;
+ import android.content.pm.ApplicationInfo;
+@@ -23,6 +25,7 @@ import android.content.pm.PackageInfo;
+ import android.content.pm.PackageManager;
+ import android.content.pm.PackageManager.NameNotFoundException;
+ import android.content.res.Resources;
++import android.content.SharedPreferences;
+ import android.graphics.drawable.Drawable;
+ import android.os.Parcel;
+ import android.os.Parcelable;
+@@ -38,7 +41,9 @@ import java.util.ArrayList;
+ import java.util.Collections;
+ import java.util.Comparator;
+ import java.util.HashMap;
++import java.util.HashSet;
+ import java.util.List;
++import java.util.Set;
+ 
+ public class AppOpsState {
+     static final String TAG = "AppOpsState";
+@@ -50,12 +55,17 @@ public class AppOpsState {
+     final CharSequence[] mOpSummaries;
+     final CharSequence[] mOpLabels;
+ 
++    List<AppOpEntry> mApps;
++
++    private SharedPreferences mPreferences;
++
+     public AppOpsState(Context context) {
+         mContext = context;
+         mAppOps = (AppOpsManager)context.getSystemService(Context.APP_OPS_SERVICE);
+         mPm = context.getPackageManager();
+-        mOpSummaries = context.getResources().getTextArray(R.array.app_ops_summaries);
+-        mOpLabels = context.getResources().getTextArray(R.array.app_ops_labels);
++        mOpSummaries = context.getResources().getTextArray(R.array.app_ops_summaries_lineage);
++        mOpLabels = context.getResources().getTextArray(R.array.app_ops_labels_lineage);
++        mPreferences = context.getSharedPreferences("appops_manager", Activity.MODE_PRIVATE);
+     }
+ 
+     public static class OpsTemplate implements Parcelable {
+@@ -180,6 +190,7 @@ public class AppOpsState {
+                     false,
+                     false,
+                     false,
++                    false,
+                     false }
+             );
+ 
+@@ -193,7 +204,11 @@ public class AppOpsState {
+                     AppOpsManager.OP_PROJECT_MEDIA,
+                     AppOpsManager.OP_ACTIVATE_VPN,
+                     AppOpsManager.OP_ASSIST_STRUCTURE,
+-                    AppOpsManager.OP_ASSIST_SCREENSHOT},
++                    AppOpsManager.OP_ASSIST_SCREENSHOT,
++                    AppOpsManager.OP_CHANGE_WIFI_STATE,
++                    AppOpsManager.OP_BLUETOOTH_CHANGE,
++                    AppOpsManager.OP_NFC_CHANGE,
++                    AppOpsManager.OP_DATA_CONNECT_CHANGE },
+             new boolean[] { false,
+                     true,
+                     true,
+@@ -203,7 +218,11 @@ public class AppOpsState {
+                     false,
+                     false,
+                     false,
+-                    false }
++                    false,
++                    true,
++                    true,
++                    true,
++                    true }
+             );
+ 
+     public static final OpsTemplate RUN_IN_BACKGROUND_TEMPLATE = new OpsTemplate(
+@@ -211,9 +230,62 @@ public class AppOpsState {
+             new boolean[] { false }
+             );
+ 
++    public static final OpsTemplate BOOTUP_TEMPLATE = new OpsTemplate(
++            new int[] { AppOpsManager.OP_BOOT_COMPLETED },
++            new boolean[] { true }
++            );
++
++    public static final OpsTemplate SU_TEMPLATE = new OpsTemplate(
++            new int[] { AppOpsManager.OP_SU },
++            new boolean[] { false }
++            );
++
++    // this template should contain all ops which are not part of any other template in
++    // ALL_TEMPLATES
++    public static final OpsTemplate REMAINING_TEMPLATE = new OpsTemplate(
++            new int[] { AppOpsManager.OP_GET_USAGE_STATS,
++                    AppOpsManager.OP_TOAST_WINDOW,
++                    AppOpsManager.OP_WRITE_WALLPAPER,
++                    AppOpsManager.OP_READ_PHONE_STATE,
++                    AppOpsManager.OP_ADD_VOICEMAIL,
++                    AppOpsManager.OP_USE_SIP,
++                    AppOpsManager.OP_PROCESS_OUTGOING_CALLS,
++                    AppOpsManager.OP_USE_FINGERPRINT,
++                    AppOpsManager.OP_BODY_SENSORS,
++                    AppOpsManager.OP_READ_CELL_BROADCASTS,
++                    AppOpsManager.OP_MOCK_LOCATION,
++                    AppOpsManager.OP_READ_EXTERNAL_STORAGE,
++                    AppOpsManager.OP_WRITE_EXTERNAL_STORAGE,
++                    AppOpsManager.OP_TURN_SCREEN_ON,
++                    AppOpsManager.OP_GET_ACCOUNTS },
++            new boolean[] { true,
++                    true,
++                    true,
++                    true,
++                    true,
++                    true,
++                    true,
++                    true,
++                    true,
++                    true,
++                    true,
++                    true,
++                    true,
++                    true,
++                    true }
++    );
++
+     public static final OpsTemplate[] ALL_TEMPLATES = new OpsTemplate[] {
+             LOCATION_TEMPLATE, PERSONAL_TEMPLATE, MESSAGING_TEMPLATE,
+-            MEDIA_TEMPLATE, DEVICE_TEMPLATE, RUN_IN_BACKGROUND_TEMPLATE
++            MEDIA_TEMPLATE, DEVICE_TEMPLATE, RUN_IN_BACKGROUND_TEMPLATE,
++            BOOTUP_TEMPLATE, SU_TEMPLATE
++    };
++
++    // this template contains all permissions grouped by templates
++    public static final OpsTemplate[] ALL_PERMS_TEMPLATES = new OpsTemplate[] {
++            LOCATION_TEMPLATE, PERSONAL_TEMPLATE, MESSAGING_TEMPLATE,
++            MEDIA_TEMPLATE, DEVICE_TEMPLATE, RUN_IN_BACKGROUND_TEMPLATE,
++            BOOTUP_TEMPLATE, SU_TEMPLATE, REMAINING_TEMPLATE
+     };
+ 
+     /**
+@@ -378,30 +450,59 @@ public class AppOpsState {
+         }
+ 
+         private CharSequence getCombinedText(ArrayList<AppOpsManager.OpEntry> ops,
+-                CharSequence[] items) {
+-            if (ops.size() == 1) {
+-                return items[ops.get(0).getOp()];
+-            } else {
+-                StringBuilder builder = new StringBuilder();
+-                for (int i=0; i<ops.size(); i++) {
+-                    if (i > 0) {
+-                        builder.append(", ");
+-                    }
+-                    builder.append(items[ops.get(i).getOp()]);
++                CharSequence[] items, Resources res, boolean withTerseCounts) {
++            StringBuilder builder = new StringBuilder();
++            for (int i=0; i<ops.size(); i++) {
++                if (i > 0) {
++                    builder.append(", ");
++                }
++                AppOpsManager.OpEntry op = ops.get(i);
++                int count = op.getAllowedCount() + op.getIgnoredCount();
++
++                if (withTerseCounts && count > 0) {
++                    String quantity = res.getQuantityString(R.plurals.app_ops_count,
++                            count, count);
++                    builder.append(res.getString(R.string.app_ops_entry_summary,
++                            items[op.getOp()], quantity));
++                } else {
++                    builder.append(items[op.getOp()]);
+                 }
+-                return builder.toString();
+             }
++            return builder.toString();
++        }
++
++        public CharSequence getCountsText(Resources res) {
++            AppOpsManager.OpEntry op = mOps.get(0);
++            int allowed = op.getAllowedCount();
++            int denied = op.getIgnoredCount();
++
++            if (allowed == 0 && denied == 0) {
++                return null;
++            }
++
++            CharSequence allowedQuantity = res.getQuantityString(R.plurals.app_ops_count,
++                    allowed, allowed);
++            CharSequence deniedQuantity = res.getQuantityString(R.plurals.app_ops_count,
++                    denied, denied);
++
++            if (denied == 0) {
++                return res.getString(R.string.app_ops_allowed_count, allowedQuantity);
++            } else if (allowed == 0) {
++                return res.getString(R.string.app_ops_ignored_count, deniedQuantity);
++            }
++            return res.getString(R.string.app_ops_both_count, allowedQuantity, deniedQuantity);
+         }
+ 
+         public CharSequence getSummaryText(AppOpsState state) {
+-            return getCombinedText(mOps, state.mOpSummaries);
++            return getCombinedText(mOps, state.mOpSummaries, state.mContext.getResources(), true);
+         }
+ 
+         public CharSequence getSwitchText(AppOpsState state) {
++            final Resources res = state.mContext.getResources();
+             if (mSwitchOps.size() > 0) {
+-                return getCombinedText(mSwitchOps, state.mOpLabels);
++                return getCombinedText(mSwitchOps, state.mOpLabels, res, false);
+             } else {
+-                return getCombinedText(mOps, state.mOpLabels);
++                return getCombinedText(mOps, state.mOpLabels, res, false);
+             }
+         }
+ 
+@@ -501,19 +602,34 @@ public class AppOpsState {
+     }
+ 
+     private AppEntry getAppEntry(final Context context, final HashMap<String, AppEntry> appEntries,
+-            final String packageName, ApplicationInfo appInfo) {
++            final String packageName, ApplicationInfo appInfo, boolean applyFilters) {
++
++        if (appInfo == null) {
++            try {
++                appInfo = mPm.getApplicationInfo(packageName,
++                        PackageManager.GET_DISABLED_COMPONENTS
++                        | PackageManager.GET_UNINSTALLED_PACKAGES);
++            } catch (PackageManager.NameNotFoundException e) {
++                Log.w(TAG, "Unable to find info for package " + packageName);
++                return null;
++            }
++        }
++
++        if (applyFilters) {
++            // Hide user apps if needed
++            if (!shouldShowUserApps() &&
++                    (appInfo.flags & ApplicationInfo.FLAG_SYSTEM) == 0) {
++                return null;
++            }
++            // Hide system apps if needed
++            if (!shouldShowSystemApps() &&
++                     (appInfo.flags & ApplicationInfo.FLAG_SYSTEM) != 0) {
++                return null;
++            }
++        }
++
+         AppEntry appEntry = appEntries.get(packageName);
+         if (appEntry == null) {
+-            if (appInfo == null) {
+-                try {
+-                    appInfo = mPm.getApplicationInfo(packageName,
+-                            PackageManager.MATCH_DISABLED_COMPONENTS
+-                            | PackageManager.MATCH_ANY_USER);
+-                } catch (PackageManager.NameNotFoundException e) {
+-                    Log.w(TAG, "Unable to find info for package " + packageName);
+-                    return null;
+-                }
+-            }
+             appEntry = new AppEntry(this, appInfo);
+             appEntry.loadLabel(context);
+             appEntries.put(packageName, appEntry);
+@@ -521,12 +637,35 @@ public class AppOpsState {
+         return appEntry;
+     }
+ 
+-    public List<AppOpEntry> buildState(OpsTemplate tpl, int uid, String packageName) {
+-        return buildState(tpl, uid, packageName, RECENCY_COMPARATOR);
++    private boolean shouldShowUserApps() {
++        return mPreferences.getBoolean("show_user_apps", true);
++    }
++
++    private boolean shouldShowSystemApps() {
++        return mPreferences.getBoolean("show_system_apps", true);
++    }
++
++    public List<AppOpEntry> buildState(OpsTemplate tpl, int uid, String packageName,
++            boolean privacyGuard) {
++        return buildState(tpl, uid, packageName, RECENCY_COMPARATOR, privacyGuard);
+     }
+ 
+     public List<AppOpEntry> buildState(OpsTemplate tpl, int uid, String packageName,
+             Comparator<AppOpEntry> comparator) {
++        return buildState(tpl, uid, packageName, comparator, false);
++    }
++
++    private boolean isPrivacyGuardOp(int op) {
++        for (int privacyGuardOp : AppOpsManager.PRIVACY_GUARD_OP_STATES) {
++            if (privacyGuardOp == op) {
++                return true;
++            }
++        }
++        return false;
++    }
++
++    public List<AppOpEntry> buildState(OpsTemplate tpl, int uid, String packageName,
++            Comparator<AppOpEntry> comparator, boolean privacyGuard) {
+         final Context context = mContext;
+ 
+         final HashMap<String, AppEntry> appEntries = new HashMap<String, AppEntry>();
+@@ -535,7 +674,25 @@ public class AppOpsState {
+         final ArrayList<String> perms = new ArrayList<String>();
+         final ArrayList<Integer> permOps = new ArrayList<Integer>();
+         final int[] opToOrder = new int[AppOpsManager._NUM_OP];
++
++        final Set<Integer> privacyGuardOps = new HashSet<>();
++
+         for (int i=0; i<tpl.ops.length; i++) {
++            if (privacyGuard && isPrivacyGuardOp(tpl.ops[i])) {
++                // If there's a permission for this Privacy Guard OP, then
++                // we don't have to treat it in a special way. The application
++                // should have the permission declared if it uses it, so we
++                // will add this later when we query PackageManager
++                String perm = AppOpsManager.opToPermission(tpl.ops[i]);
++                if (perm != null) {
++                    if (DEBUG) Log.d(TAG, "Adding " + AppOpsManager.opToName(tpl.ops[i])
++                            + " (" + tpl.ops[i] + ") to privacyGuardOps");
++                    privacyGuardOps.add(tpl.ops[i]);
++                } else {
++                    if (DEBUG) Log.d(TAG, "Not adding " + AppOpsManager.opToName(tpl.ops[i])
++                            + " (" + tpl.ops[i] + ") with perm " + perm + " to privacyGuardOps");
++                }
++            }
+             if (tpl.showPerms[i]) {
+                 String perm = AppOpsManager.opToPermission(tpl.ops[i]);
+                 if (perm != null && !perms.contains(perm)) {
+@@ -546,6 +703,9 @@ public class AppOpsState {
+             }
+         }
+ 
++        // Whether to apply hide user / system app filters
++        final boolean applyFilters = (packageName == null);
++
+         List<AppOpsManager.PackageOps> pkgs;
+         if (packageName != null) {
+             pkgs = mAppOps.getOpsForPackage(uid, packageName, tpl.ops);
+@@ -556,12 +716,21 @@ public class AppOpsState {
+         if (pkgs != null) {
+             for (int i=0; i<pkgs.size(); i++) {
+                 AppOpsManager.PackageOps pkgOps = pkgs.get(i);
+-                AppEntry appEntry = getAppEntry(context, appEntries, pkgOps.getPackageName(), null);
++                AppEntry appEntry = getAppEntry(context, appEntries, pkgOps.getPackageName(), null,
++                        applyFilters);
+                 if (appEntry == null) {
+                     continue;
+                 }
+                 for (int j=0; j<pkgOps.getOps().size(); j++) {
+                     AppOpsManager.OpEntry opEntry = pkgOps.getOps().get(j);
++                    if (privacyGuard && privacyGuardOps.contains(opEntry.getOp())) {
++                        // This OP is here because the user enabled Privacy Guard
++                        // for this application.
++                        if (DEBUG) Log.d(TAG, "Not adding "
++                                + AppOpsManager.opToName(opEntry.getOp())
++                                + " (" + opEntry.getOp() + ")");
++                        continue;
++                    }
+                     addOp(entries, pkgOps, appEntry, opEntry, packageName == null,
+                             packageName == null ? 0 : opToOrder[opEntry.getOp()]);
+                 }
+@@ -584,7 +753,7 @@ public class AppOpsState {
+         for (int i=0; i<apps.size(); i++) {
+             PackageInfo appInfo = apps.get(i);
+             AppEntry appEntry = getAppEntry(context, appEntries, appInfo.packageName,
+-                    appInfo.applicationInfo);
++                    appInfo.applicationInfo, applyFilters);
+             if (appEntry == null) {
+                 continue;
+             }
+@@ -593,7 +762,7 @@ public class AppOpsState {
+             if (appInfo.requestedPermissions != null) {
+                 for (int j=0; j<appInfo.requestedPermissions.length; j++) {
+                     if (appInfo.requestedPermissionsFlags != null) {
+-                        if ((appInfo.requestedPermissionsFlags[j]
++                        if (!privacyGuard && (appInfo.requestedPermissionsFlags[j]
+                                 & PackageInfo.REQUESTED_PERMISSION_GRANTED) == 0) {
+                             if (DEBUG) Log.d(TAG, "Pkg " + appInfo.packageName + " perm "
+                                     + appInfo.requestedPermissions[j] + " not granted; skipping");
+@@ -618,7 +787,7 @@ public class AppOpsState {
+ 
+                         }
+                         AppOpsManager.OpEntry opEntry = new AppOpsManager.OpEntry(
+-                                permOps.get(k), AppOpsManager.MODE_ALLOWED, 0, 0, 0, -1, null);
++                                permOps.get(k), AppOpsManager.MODE_ALLOWED, 0, 0, 0, -1, null, 0, 0);
+                         dummyOps.add(opEntry);
+                         addOp(entries, pkgOps, appEntry, opEntry, packageName == null,
+                                 packageName == null ? 0 : opToOrder[opEntry.getOp()]);
+diff --git a/src/com/android/settings/applications/appops/AppOpsSummary.java b/src/com/android/settings/applications/appops/AppOpsSummary.java
+new file mode 100644
+index 0000000000..04ca79416a
+--- /dev/null
++++ b/src/com/android/settings/applications/appops/AppOpsSummary.java
+@@ -0,0 +1,272 @@
++/**
++ * Copyright (C) 2013 The Android Open Source Project
++ * Copyright (C) 2016 The CyanogenMod Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License"); you may not
++ * use this file except in compliance with the License. You may obtain a copy
++ * of the License at
++ *
++ * http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
++ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
++ * License for the specific language governing permissions and limitations
++ * under the License.
++ */
++
++package com.android.settings.applications.appops;
++
++import android.app.Activity;
++import android.app.AlertDialog;
++import android.app.AppOpsManager;
++import android.app.Fragment;
++import android.app.FragmentManager;
++import android.content.Context;
++import android.content.DialogInterface;
++import android.content.res.Resources;
++import android.content.SharedPreferences;
++import android.os.Bundle;
++import android.preference.PreferenceFrameLayout;
++import android.support.v13.app.FragmentPagerAdapter;
++import android.support.v4.view.PagerTabStrip;
++import android.support.v4.view.ViewPager;
++import android.util.Pair;
++import android.util.TypedValue;
++import android.view.LayoutInflater;
++import android.view.Menu;
++import android.view.MenuInflater;
++import android.view.MenuItem;
++import android.view.View;
++import android.view.ViewGroup;
++
++import com.android.internal.logging.nano.MetricsProto.MetricsEvent;
++import com.android.settings.core.InstrumentedPreferenceFragment;
++
++import java.util.ArrayList;
++import java.util.Arrays;
++import java.util.List;
++
++import com.android.settings.development.RootAccessPreferenceController;
++import com.android.settings.R;
++
++public class AppOpsSummary extends InstrumentedPreferenceFragment {
++    // layout inflater object used to inflate views
++    private LayoutInflater mInflater;
++    
++    private ViewGroup mContentContainer;
++    private View mRootView;
++    private ViewPager mViewPager;
++
++    private MyPagerAdapter mAdapter;
++
++    private Activity mActivity;
++    private SharedPreferences mPreferences;
++
++    @Override
++    public int getMetricsCategory() {
++        return MetricsEvent.APP_OPS_SUMMARY;
++    }
++
++    static class MyPagerAdapter extends FragmentPagerAdapter
++            implements ViewPager.OnPageChangeListener {
++        private List<Pair<CharSequence, AppOpsState.OpsTemplate>> mPageData;
++        private int mCurPos;
++
++        public MyPagerAdapter(FragmentManager fm,
++                List<Pair<CharSequence, AppOpsState.OpsTemplate>> data) {
++            super(fm);
++            mPageData = data;
++        }
++
++        @Override
++        public Fragment getItem(int position) {
++            return new AppOpsCategory(mPageData.get(position).second);
++        }
++
++        @Override
++        public int getCount() {
++            return mPageData.size();
++        }
++
++        @Override
++        public CharSequence getPageTitle(int position) {
++            return mPageData.get(position).first;
++        }
++
++        @Override
++        public void onPageScrolled(int position, float positionOffset, int positionOffsetPixels) {
++        }
++
++        @Override
++        public void onPageSelected(int position) {
++            mCurPos = position;
++        }
++
++        public int getCurrentPage() {
++            return mCurPos;
++        }
++
++        @Override
++        public void onPageScrollStateChanged(int state) {
++            if (state == ViewPager.SCROLL_STATE_IDLE) {
++                //updateCurrentTab(mCurPos);
++            }
++        }
++    }
++
++    private void resetAdapter() {
++        // trigger adapter load, preserving the selected page
++        int curPos = mAdapter.getCurrentPage();
++        mViewPager.setAdapter(mAdapter);
++        mViewPager.setOnPageChangeListener(mAdapter);
++        mViewPager.setCurrentItem(curPos);
++    }
++
++    @Override
++    public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
++        // initialize the inflater
++        mInflater = inflater;
++
++        View rootView = mInflater.inflate(R.layout.app_ops_summary,
++                container, false);
++        mContentContainer = container;
++        mRootView = rootView;
++
++        CharSequence[] pageNames = getResources().getTextArray(R.array.app_ops_categories_lineage);
++        AppOpsState.OpsTemplate[] templates = AppOpsState.ALL_PERMS_TEMPLATES;
++        assert(pageNames.length == templates.length);
++
++        int specificTab = -1;
++        Bundle bundle = getArguments();
++        if (bundle != null) {
++            specificTab = Arrays.asList(pageNames).indexOf(bundle.getString("appops_tab", ""));
++        }
++
++        List<Pair<CharSequence, AppOpsState.OpsTemplate>> pageData = new ArrayList<>();
++        for (int i = 0; i < pageNames.length; i++) {
++            pageData.add(Pair.create(pageNames[i], templates[i]));
++        }
++        filterPageData(pageData, specificTab);
++
++        mViewPager = (ViewPager) rootView.findViewById(R.id.pager);
++        mAdapter = new MyPagerAdapter(getChildFragmentManager(), pageData);
++        mViewPager.setAdapter(mAdapter);
++        mViewPager.setOnPageChangeListener(mAdapter);
++        PagerTabStrip tabs = (PagerTabStrip) rootView.findViewById(R.id.tabs);
++
++        // HACK - https://code.google.com/p/android/issues/detail?id=213359
++        ((ViewPager.LayoutParams)tabs.getLayoutParams()).isDecor = true;
++
++        Resources.Theme theme = tabs.getContext().getTheme();
++        TypedValue typedValue = new TypedValue();
++        theme.resolveAttribute(android.R.attr.colorAccent, typedValue, true);
++        final int colorAccent = getContext().getColor(typedValue.resourceId);
++        tabs.setTabIndicatorColor(colorAccent);
++
++        // We have to do this now because PreferenceFrameLayout looks at it
++        // only when the view is added.
++        if (container instanceof PreferenceFrameLayout) {
++            ((PreferenceFrameLayout.LayoutParams) rootView.getLayoutParams()).removeBorders = true;
++        }
++
++        mActivity = getActivity();
++
++        return rootView;
++    }
++
++    private void filterPageData(List<Pair<CharSequence, AppOpsState.OpsTemplate>> data, int tab) {
++        if (tab >= 0 && tab < data.size()) {
++            Pair<CharSequence, AppOpsState.OpsTemplate> item = data.get(tab);
++            data.clear();
++            data.add(item);
++        } else if (!RootAccessPreferenceController.isRootForAppsEnabled()) {
++            for (Pair<CharSequence, AppOpsState.OpsTemplate> item : data) {
++                if (item.second == AppOpsState.SU_TEMPLATE) {
++                    data.remove(item);
++                    return;
++                }
++            }
++        }
++    }
++
++    private boolean shouldShowUserApps() {
++        return mPreferences.getBoolean("show_user_apps", true);
++    }
++
++    private boolean shouldShowSystemApps() {
++        return mPreferences.getBoolean("show_system_apps", true);
++    }
++
++    @Override
++    public void onActivityCreated(Bundle savedInstanceState) {
++        super.onActivityCreated(savedInstanceState);
++
++        // get shared preferences
++        mPreferences = mActivity.getSharedPreferences("appops_manager", Activity.MODE_PRIVATE);
++
++        setHasOptionsMenu(true);
++    }
++
++    @Override
++    public void onCreateOptionsMenu(Menu menu, MenuInflater inflater) {
++        super.onCreateOptionsMenu(menu, inflater);
++        inflater.inflate(R.menu.appops_manager, menu);
++        menu.findItem(R.id.show_user_apps).setChecked(shouldShowUserApps());
++        menu.findItem(R.id.show_system_apps).setChecked(shouldShowSystemApps());
++    }
++
++    private void resetCounters() {
++        final AppOpsManager appOps =
++                (AppOpsManager) mActivity.getSystemService(Context.APP_OPS_SERVICE);
++        if (appOps == null) {
++            return;
++        }
++        appOps.resetCounters();
++        // reload content
++        resetAdapter();
++    }
++
++    private void resetCountersConfirm() {
++        new AlertDialog.Builder(getActivity())
++            .setIcon(android.R.drawable.ic_dialog_alert)
++            .setTitle(R.string.app_ops_reset_confirm_title)
++            .setMessage(R.string.app_ops_reset_confirm_mesg)
++            .setPositiveButton(android.R.string.ok, new DialogInterface.OnClickListener()
++                {
++                    @Override
++                    public void onClick(DialogInterface dialog, int which) {
++                        resetCounters();
++                    }
++                })
++            .setNegativeButton(android.R.string.cancel, null)
++            .show();
++    }
++
++    @Override
++    public boolean onOptionsItemSelected(MenuItem item) {
++        switch (item.getItemId()) {
++            case R.id.show_user_apps:
++                final String prefNameUserApps = "show_user_apps";
++                // set the menu checkbox and save it in shared preference
++                item.setChecked(!item.isChecked());
++                mPreferences.edit().putBoolean(prefNameUserApps, item.isChecked()).commit();
++                // reload content
++                resetAdapter();
++                return true;
++            case R.id.show_system_apps:
++                final String prefNameSysApps = "show_system_apps";
++                // set the menu checkbox and save it in shared preference
++                item.setChecked(!item.isChecked());
++                mPreferences.edit().putBoolean(prefNameSysApps, item.isChecked()).commit();
++                // reload view content
++                resetAdapter();
++                return true;
++            case R.id.reset_counters:
++                resetCountersConfirm();
++                return true;
++            default:
++                return super.onContextItemSelected(item);
++        }
++    }
++}
+diff --git a/src/com/android/settings/core/instrumentation/EventLogWriter.java b/src/com/android/settings/core/instrumentation/EventLogWriter.java
+new file mode 100644
+index 0000000000..e7628e8b6b
+--- /dev/null
++++ b/src/com/android/settings/core/instrumentation/EventLogWriter.java
+@@ -0,0 +1,85 @@
++/*
++ * Copyright (C) 2016 The Android Open Source Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++package com.android.settings.core.instrumentation;
++
++import android.content.Context;
++import android.metrics.LogMaker;
++import android.util.Pair;
++
++import com.android.internal.logging.MetricsLogger;
++import com.android.internal.logging.nano.MetricsProto;
++
++/**
++ * {@link LogWriter} that writes data to eventlog.
++ */
++public class EventLogWriter implements LogWriter {
++
++    public void visible(Context context, int source, int category) {
++        final LogMaker logMaker = new LogMaker(category)
++                .setType(MetricsProto.MetricsEvent.TYPE_OPEN)
++                .addTaggedData(MetricsProto.MetricsEvent.FIELD_CONTEXT, source);
++        MetricsLogger.action(logMaker);
++    }
++
++    public void hidden(Context context, int category) {
++        MetricsLogger.hidden(context, category);
++    }
++
++    public void action(Context context, int category, Pair<Integer, Object>... taggedData) {
++        action(context, category, "", taggedData);
++    }
++
++    public void actionWithSource(Context context, int source, int category) {
++        final LogMaker logMaker = new LogMaker(category)
++                .setType(MetricsProto.MetricsEvent.TYPE_ACTION);
++        if (source != MetricsProto.MetricsEvent.VIEW_UNKNOWN) {
++            logMaker.addTaggedData(MetricsProto.MetricsEvent.FIELD_CONTEXT, source);
++        }
++        MetricsLogger.action(logMaker);
++    }
++
++    public void action(Context context, int category, int value) {
++        MetricsLogger.action(context, category, Integer.toString(value));
++    }
++
++    public void action(Context context, int category, boolean value) {
++        MetricsLogger.action(context, category, Boolean.toString(value));
++    }
++
++    public void action(Context context, int category, String pkg,
++            Pair<Integer, Object>... taggedData) {
++        if (taggedData == null || taggedData.length == 0) {
++            MetricsLogger.action(context, category, pkg);
++        } else {
++            final LogMaker logMaker = new LogMaker(category)
++                    .setType(MetricsProto.MetricsEvent.TYPE_ACTION)
++                    .setPackageName(pkg);
++            for (Pair<Integer, Object> pair : taggedData) {
++                logMaker.addTaggedData(pair.first, pair.second);
++            }
++            MetricsLogger.action(logMaker);
++        }
++    }
++
++    public void count(Context context, String name, int value) {
++        MetricsLogger.count(context, name, value);
++    }
++
++    public void histogram(Context context, String name, int bucket) {
++        MetricsLogger.histogram(context, name, bucket);
++    }
++}
+diff --git a/src/com/android/settings/core/instrumentation/LogWriter.java b/src/com/android/settings/core/instrumentation/LogWriter.java
+new file mode 100644
+index 0000000000..584217d85c
+--- /dev/null
++++ b/src/com/android/settings/core/instrumentation/LogWriter.java
+@@ -0,0 +1,70 @@
++/*
++ * Copyright (C) 2016 The Android Open Source Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++package com.android.settings.core.instrumentation;
++
++import android.content.Context;
++import android.util.Pair;
++
++/**
++ * Generic log writer interface.
++ */
++public interface LogWriter {
++
++    /**
++     * Logs a visibility event when view becomes visible.
++     */
++    void visible(Context context, int source, int category);
++
++    /**
++     * Logs a visibility event when view becomes hidden.
++     */
++    void hidden(Context context, int category);
++
++    /**
++     * Logs an user action.
++     */
++    void action(Context context, int category, Pair<Integer, Object>... taggedData);
++
++    /**
++     * Logs an user action.
++     */
++    void actionWithSource(Context context, int source, int category);
++
++    /**
++     * Logs an user action.
++     */
++    void action(Context context, int category, int value);
++
++    /**
++     * Logs an user action.
++     */
++    void action(Context context, int category, boolean value);
++
++    /**
++     * Logs an user action.
++     */
++    void action(Context context, int category, String pkg, Pair<Integer, Object>... taggedData);
++
++    /**
++     * Logs a count.
++     */
++    void count(Context context, String name, int value);
++
++    /**
++     * Logs a histogram event.
++     */
++    void histogram(Context context, String name, int bucket);
++}
+diff --git a/src/com/android/settings/development/RootAccessPreferenceController.java b/src/com/android/settings/development/RootAccessPreferenceController.java
+index 4db32ccf6c..7e40e92ba7 100644
+--- a/src/com/android/settings/development/RootAccessPreferenceController.java
++++ b/src/com/android/settings/development/RootAccessPreferenceController.java
+@@ -108,6 +108,13 @@ public class RootAccessPreferenceController extends DeveloperOptionsPreferenceCo
+         updatePreference();
+     }
+ 
++    public static boolean isRootForAppsEnabled() {
++        int value = SystemProperties.getInt(ROOT_ACCESS_PROPERTY, 0);
++        boolean daemonState =
++                SystemProperties.get("init.svc.su_daemon", "absent").equals("running");
++        return daemonState && (value == 1 || value == 3);
++    }
++
+     private void writeRootAccessOptions(Object newValue) {
+         String oldValue = SystemProperties.get(ROOT_ACCESS_PROPERTY, "0");
+         SystemProperties.set(ROOT_ACCESS_PROPERTY, newValue.toString());
+-- 
+2.17.1
+
