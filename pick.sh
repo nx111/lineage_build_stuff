@@ -840,7 +840,6 @@ kpick 224917 # DO NOT MERGE: klte-common: Requisite bring-up BS change
 # device/samsung/msm8974-common
 kpick 231350 # msm8974-common: Set TARGET_NEEDS_NETD_DIRECT_CONNECT_RULE to true
 kpick 228677 # msm8974-common: Make the external camera provider ignore internal cameras
-kpick 224916 # DO NOT MERGE: msm8974-common: sepolicy: Just make it build
 
 # device/samsung/qcom-common
 
@@ -865,13 +864,11 @@ kpick 222733 # core: Disable vendor restrictions
 kpick 222742 # build: Use project pathmap for recovery
 kpick 222760 # Add LOCAL_AIDL_FLAGS
 kpick 227111 # releasetools: Store the build.prop file in the OTA zip
-kpick 229491 # build: Automatically replace old-style kernel header includes with new header lib
 
 # build/soong
 kpick 222648 # Allow providing flex and bison binaries
 kpick 224613 # soong: Add LOCAL_AIDL_FLAGS handling
 kpick 226443 # soong: Add additional_deps attribute for libraries and binaries
-kpick 229411 # soong sbox: Add option to allow copying all generated output
 kpick 232004 # Merge android-9.0.0_r12
 
 # dalvik
@@ -912,7 +909,6 @@ kpick 230233 # common: allow sensors HIDL HAL to access /dev/sensors
 kpick 230234 # common: allow wifi HIDL HAL to read tombstones
 kpick 230235 # common: grant DRM HIDL HAL ownership access to /data/{misc,vendor}/media/
 kpick 230236 # common: label /sys/devices/virtual/graphics as sysfs_graphics
-kpick 230237 # common: allow vendor_init to create /data/dpm
 kpick 230238 # common: create proc_kernel_sched domain to restrict perf hal access
 kpick 230239 # common: allow uevent to control sysfs_mmc_host via vold
 kpick 230828 # legacy: Label more power_supply sysfs
@@ -921,6 +917,10 @@ kpick 230830 # legacy: Resolve hal_bluetooth_default denial
 kpick 230831 # sepolicy: Allow android service to write on tombstones
 kpick 230833 # legacy: Correctly label display.qservice
 kpick 230834 # legacy: allow init to read /proc/device-tree
+kpick 230832 # Revert "sepol: hostapd is now hal_wifi_hostapd"
+kpick 231049 # Change to compile due to hostapd.te removal
+kpick 231054 # NFC: Add nfc data file context and rename property
+kpick 230237 # common: allow vendor_init to create /data/dpm
 
 # development
 kpick 232005 # Merge android-9.0.0_r12
@@ -933,7 +933,6 @@ kpick 227261 # Cast BT_VND_OP_ANT_USERIAL_{OPEN,CLOSE} to bt_vendor_opcode_t in 
 kpick 223413 # perfetto_cmd: Resolve missing O_CREAT mode
 
 # external/tinycompress
-kpick 229414 # tinycompress: Use generated kernel headers
 
 # external/zlib
 kpick 225237 # zlib: Fix build under Android 6.0 and higher
@@ -951,7 +950,6 @@ kpick 224266 # SystemUI: Add Lineage statusbar item holder
 kpick 224267 # SystemUI: Network Traffic [1/3]
 kpick 224446 # SystemUI: Make tablets great again
 kpick 224513 # SystemUI: Disable config_keyguardUserSwitcher on sw600dp
-kpick 224844 # lockscreen: Add support for showing unlock screen directly
 kpick 225582 # [TEMP]: Revert "OMS: harden permission checks"
 kpick 225754 # SystemUI: Berry styles
 kpick 226236 # SystemUI: add navbar layout inversion tuning
@@ -1048,14 +1046,12 @@ kpick 223411 # interfaces: Add id HAL definition
 # hardware/lineage/lineagehw
 
 # hardware/nxp/nfc
-kpick 223192 # nfc: Restore pn548 support to 1.1 HAL
 #kpick 223193 # nxp: Rename HAL to @1.1-service-nxp
 #kpick 223194 # nxp: Begin restoring pn547
 
 # hardware/qcom/audio
 kpick 222690 # audio: Use kernel headers
 kpick 223338 # Revert "msm8x74: remove from top level makefile"
-kpick 230749 # audio: Use generated kernel headers
 kpick 232009 # Merge android-9.0.0_r12
 
 # hardware/qcom/audio-caf/msm8974
@@ -1149,9 +1145,7 @@ kpick 224954 # keymaster: move to /vendor
 
 # hardware/qcom/media
 kpick 224289 # Add -Wno-error to compile with global -Werror.
-kpick 222695 # media: Add missing links
 kpick 224305 # media: Use kernel headers
-kpick 230750 # media: Use generated kernel headers
 kpick 224955 # Revert "msm8974: remove from top level makefile"
 kpick 224956 # mm-video: venc: Correct a typo in variable name
 kpick 224957 # media: vdec: Include nativebase headers
@@ -1208,7 +1202,6 @@ kpick 231194 # power: properly initialize cluster states
 
 # lineage-sdk
 kpick 225581 # lineage-sdk: Make styles init at system services ready
-kpick 226810 # lineage-sdk: Bump PREF_HAS_MIGRATED_LINEAGE_SETTINGS for 16.0
 kpick 227931 # lineagesdk: Refactor battery icon options
 kpick 230272 # sdk: Remove VOLUME_KEYS_CONTROL_RING_STREAM
 kpick 230284 # Revert "[3/3] cmsdk: add burnIn protection setting"
@@ -1297,7 +1290,6 @@ kpick 229479 # Settings: Improve phone number preference ordering
 kpick 231518 # Settings: Check if we have any color modes declared in overlay
 kpick 231590 # SimSettings: Add manual SIM provisioning support
 kpick 231826 # Update the white list of Data saver
-kpick 232001 # lockscreen: Forward port option to pass swipe-up-to-unlock
 kpick 232019 # Merge android-9.0.0_r12
 kpick 232198 # settings: appops: privacy guard for p (2/2)
 
@@ -1442,17 +1434,12 @@ kpick 231249 # roomservice.py: adapt to lineage-16.0
 kpick 226123 # soong_config: Add new flags for HW FDE
 kpick 226125 # soong_config: Add flag for legacy HW FDE
 kpick 226126 # soong_config: Add flag for crypto waiting on QSEE to start
-kpick 229508 # lineage: Move some kernel definitions to BoardConfigKernel
-kpick 229412 # vendor/lineage: Add soong generator module type
-kpick 229415 # lineage: Dynamically generate kernel headers using lineage generator
-kpick 229505 # vendor/lineage: Remove kernel.mk headers generation
 kpick 227392 # lineage: Dynamically add custom APNs
-kpick 231219 # kernel: Remove deprecated flag errors
-kpick 231220 # kernel: Remove kernel{x}config
 kpick 229589 # lineage: Automatically set soong namespace when setting project pathmap
 kpick 229590 # lineage: Move qcom pathmap setting into "BoardConfig"
 kpick 229620 # backuptool: Support non-A/B system-as-root
 kpick 231291 # repopick: add hashtag support
+kpick 231537 # repopick: Try to fast-forward first
 kpick 231981 # HWComposer: HWC2: allow SkipValidate to be force disabled
 
 # vendor/qcom/opensource/cryptfs_hw
@@ -1460,7 +1447,6 @@ kpick 226128 # cryptfs_hw: Add compatibility for pre-O hw crypto
 kpick 226129 # cryptfs_hw: Featureize support for waiting on QSEE to start
 kpick 226130 # cryptfs_hw: add missing logging tag
 kpick 226403 # cryptfs_hw: Remove unused variable
-kpick 230271 # cryptfs_hw: Use generated kernel headers
 
 #-----------------------
 # translations
