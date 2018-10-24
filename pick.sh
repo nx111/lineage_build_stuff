@@ -980,7 +980,7 @@ kpick 229606 # ConsumerIR: Support Huawei's DSP chip implementation
 kpick 229612 # Performance: Memory Optimizations.
 kpick 230016 # Implement expanded desktop feature
 kpick 230388 # base: show bluetooth battery status when available
-kpick 230600 # FingerprintService: add property to prevent cleanup of unused fingerprints
+kpick 230600 # FingerprintService: add overlay to prevent cleanup of unused fingerprints
 kpick 231796 # SignalClusterView: Hide signal icons for disabled SIMs
 kpick 231797 # Keyguard: Remove carrier text for disabled SIMs
 kpick 231823 # Do not move the multi-window divider when showing IME
