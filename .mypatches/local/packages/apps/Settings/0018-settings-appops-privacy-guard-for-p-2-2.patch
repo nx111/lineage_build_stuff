@@ -1,7 +1,7 @@
-From b8e861de1dbc5a6ddf9283a8d7bb4c9682c68a81 Mon Sep 17 00:00:00 2001
+From fec13f35206bf24eb9174758160e1770fa04f494 Mon Sep 17 00:00:00 2001
 From: nx111 <NX111.AimH@gmail.com>
 Date: Tue, 16 Oct 2018 02:06:09 +0800
-Subject: [PATCH 05/19] settings: appops: privacy guard for p (2/2)
+Subject: [PATCH 18/19] settings: appops: privacy guard for p (2/2)
 
 Author: Bruno Martins <bgcngm@gmail.com>  2017-12-04 21:30:16
         NX111 AimH <NX111.AimH@gmail.com> 2018-10-24 12:20:00
@@ -434,7 +434,7 @@ Change-Id: Id810e21d735adcf8fb8c32519828ef9a23f3e684
  .../android/settings/SettingsActivity.java    | 170 +++++++-
  src/com/android/settings/Utils.java           | 122 ++++++
  .../applications/ProcessStatsSummary.java     |  17 +
- .../applications/appops/AppOpsCategory.java   |  91 ++--
+ .../applications/appops/AppOpsCategory.java   |  87 +++-
  .../applications/appops/AppOpsDetails.java    | 406 ++++++++++++++++++
  .../applications/appops/AppOpsDetailsTop.java |  37 ++
  .../applications/appops/AppOpsState.java      | 241 +++++++++--
@@ -442,7 +442,7 @@ Change-Id: Id810e21d735adcf8fb8c32519828ef9a23f3e684
  .../core/instrumentation/EventLogWriter.java  |  85 ++++
  .../core/instrumentation/LogWriter.java       |  70 +++
  .../RootAccessPreferenceController.java       |   7 +
- 42 files changed, 2830 insertions(+), 68 deletions(-)
+ 42 files changed, 2828 insertions(+), 66 deletions(-)
  create mode 100644 res/drawable/ic_perm_alarm.xml
  create mode 100644 res/drawable/ic_perm_audio.xml
  create mode 100644 res/drawable/ic_perm_background.xml
@@ -475,10 +475,10 @@ Change-Id: Id810e21d735adcf8fb8c32519828ef9a23f3e684
  create mode 100644 src/com/android/settings/core/instrumentation/LogWriter.java
 
 diff --git a/AndroidManifest.xml b/AndroidManifest.xml
-index dc05c41beb..edc8b4d761 100644
+index 145191d7f2..8dba7908fa 100644
 --- a/AndroidManifest.xml
 +++ b/AndroidManifest.xml
-@@ -1256,6 +1256,21 @@
+@@ -1270,6 +1270,21 @@
              </intent-filter>
          </activity>
  
@@ -500,7 +500,7 @@ index dc05c41beb..edc8b4d761 100644
          <activity android:name="Settings$BackgroundCheckSummaryActivity"
                  android:label="@string/background_check_title"
                  android:enabled="false">
-@@ -1267,6 +1282,30 @@
+@@ -1281,6 +1296,30 @@
                  android:value="com.android.settings.applications.appops.BackgroundCheckSummary" />
          </activity>
  
@@ -1361,7 +1361,7 @@ index 0000000000..af6e6ddddb
 +    </plurals>
 +</resources>
 diff --git a/res/values/cm_strings.xml b/res/values/cm_strings.xml
-index 4c56ee31ba..e25d2b9870 100644
+index 9040cf8374..ba3ca2ae77 100644
 --- a/res/values/cm_strings.xml
 +++ b/res/values/cm_strings.xml
 @@ -20,6 +20,202 @@
@@ -1567,7 +1567,7 @@ index 4c56ee31ba..e25d2b9870 100644
      <!-- Sizes for pattern lockscreen -->
      <string name="lock_pattern_size_3" translatable="false">3 \u00d7 3</string>
      <string name="lock_pattern_size_4" translatable="false">4 \u00d7 4</string>
-@@ -126,6 +322,9 @@
+@@ -138,6 +334,9 @@
      <string name="touchscreen_hovering_title">Touchscreen hovering</string>
      <string name="touchscreen_hovering_summary">Allows you to hover the screen like a mouse in web browsers, remote desktops, etc</string>
  
@@ -2065,7 +2065,7 @@ index 0000000000..7234bbced1
 +
 +</PreferenceScreen>
 diff --git a/src/com/android/settings/Settings.java b/src/com/android/settings/Settings.java
-index 0ad964b65b..95d42ed4ea 100644
+index cd5a9082c9..ace2eb5f8a 100644
 --- a/src/com/android/settings/Settings.java
 +++ b/src/com/android/settings/Settings.java
 @@ -18,6 +18,7 @@ package com.android.settings;
@@ -2076,7 +2076,7 @@ index 0ad964b65b..95d42ed4ea 100644
  import com.android.settings.enterprise.EnterprisePrivacySettings;
  
  /**
-@@ -56,6 +57,15 @@ public class Settings extends SettingsActivity {
+@@ -57,6 +58,15 @@ public class Settings extends SettingsActivity {
      public static class ManageApplicationsActivity extends SettingsActivity { /* empty */ }
      public static class ManageAssistActivity extends SettingsActivity { /* empty */ }
      public static class HighPowerApplicationsActivity extends SettingsActivity { /* empty */ }
@@ -2588,7 +2588,7 @@ index 53da04c119..68abe9990a 100644
          return false;
      }
 diff --git a/src/com/android/settings/applications/appops/AppOpsCategory.java b/src/com/android/settings/applications/appops/AppOpsCategory.java
-index b506ce0ad7..0e836f6c29 100644
+index b506ce0ad7..46e431489c 100644
 --- a/src/com/android/settings/applications/appops/AppOpsCategory.java
 +++ b/src/com/android/settings/applications/appops/AppOpsCategory.java
 @@ -39,6 +39,7 @@ import android.widget.Switch;
@@ -2670,20 +2670,15 @@ index b506ce0ad7..0e836f6c29 100644
          }
  
          public void setData(List<AppOpEntry> data) {
-@@ -287,14 +305,21 @@ public class AppOpsCategory extends ListFragment implements
-             }
- 
-             AppOpEntry item = getItem(position);
--            ((ImageView) view.findViewById(R.id.app_icon)).setImageDrawable(
-+            ((ImageView)view.findViewById(R.id.app_icon)).setImageDrawable(
+@@ -290,11 +308,18 @@ public class AppOpsCategory extends ListFragment implements
+             ((ImageView) view.findViewById(R.id.app_icon)).setImageDrawable(
                      item.getAppEntry().getIcon());
--            ((TextView) view.findViewById(R.id.app_name)).setText(item.getAppEntry().getLabel());
+             ((TextView) view.findViewById(R.id.app_name)).setText(item.getAppEntry().getLabel());
 -            ((TextView) view.findViewById(R.id.op_name)).setText(
 -                    item.getTimeText(mResources, false));
 -            view.findViewById(R.id.op_time).setVisibility(View.GONE);
 -            ((Switch) view.findViewById(R.id.op_switch)).setChecked(
 -                    item.getPrimaryOpMode() == AppOpsManager.MODE_ALLOWED);
-+            ((TextView)view.findViewById(R.id.app_name)).setText(item.getAppEntry().getLabel());
 +            if (mUserControlled) {
 +                ((TextView) view.findViewById(R.id.op_name)).setText(
 +                        item.getTimeText(mResources, false));
@@ -2770,7 +2765,7 @@ index b506ce0ad7..0e836f6c29 100644
          AppOpsState.OpsTemplate template = null;
          if (fargs != null) {
 -            template = fargs.getParcelable("template");
-+            template = (AppOpsState.OpsTemplate)fargs.getParcelable("template");
++            template = (AppOpsState.OpsTemplate) fargs.getParcelable("template");
          }
 -        return new AppListLoader(getActivity(), mState, template);
 +        return new AppListLoader(getActivity(), mState, template, mUserControlled);
@@ -3633,7 +3628,7 @@ index 2686b8c144..7684c4629e 100644
                                  packageName == null ? 0 : opToOrder[opEntry.getOp()]);
 diff --git a/src/com/android/settings/applications/appops/AppOpsSummary.java b/src/com/android/settings/applications/appops/AppOpsSummary.java
 new file mode 100644
-index 0000000000..04ca79416a
+index 0000000000..be1e9d61d2
 --- /dev/null
 +++ b/src/com/android/settings/applications/appops/AppOpsSummary.java
 @@ -0,0 +1,272 @@
@@ -3692,7 +3687,7 @@ index 0000000000..04ca79416a
 +public class AppOpsSummary extends InstrumentedPreferenceFragment {
 +    // layout inflater object used to inflate views
 +    private LayoutInflater mInflater;
-+    
++
 +    private ViewGroup mContentContainer;
 +    private View mRootView;
 +    private ViewPager mViewPager;
@@ -3795,7 +3790,7 @@ index 0000000000..04ca79416a
 +        PagerTabStrip tabs = (PagerTabStrip) rootView.findViewById(R.id.tabs);
 +
 +        // HACK - https://code.google.com/p/android/issues/detail?id=213359
-+        ((ViewPager.LayoutParams)tabs.getLayoutParams()).isDecor = true;
++        ((ViewPager.LayoutParams) tabs.getLayoutParams()).isDecor = true;
 +
 +        Resources.Theme theme = tabs.getContext().getTheme();
 +        TypedValue typedValue = new TypedValue();
