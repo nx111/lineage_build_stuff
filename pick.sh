@@ -1025,6 +1025,8 @@ kpick 231595 # Enable vendor Telephony plugin
 kpick 231596 # Enable vendor Telephony plugin: MSIM Changes
 kpick 231598 # Telephony: Send INITIAL_ATTACH only when it is applicable.
 kpick 232039 # Merge android-9.0.0_r12
+kpick 232365 # SimPhoneBook: Add ANR/EMAIL support for USIM phonebook.
+kpick 232366 # MSIM: Fix to set Mcc & Mnc with correct subId
 
 # hardware/boardcom/libbt
 #kpick 225155 # Broadcom BT: Add support fm/bt via v4l2.
@@ -1197,6 +1199,7 @@ kpick 226080 # libril: Replace strncpy with strlcpy.
 kpick 227453 # power: remove getFeature functionality
 kpick 227454 # power: Add Lineage power hints
 kpick 231194 # power: properly initialize cluster states
+kpick 231960 # bauth: Add enumerate function
 
 # kernel/samsung/msm8974
 
@@ -1274,24 +1277,25 @@ kpick 232017 # Merge android-9.0.0_r12
 kpick 232048 # Merge android-9.0.0_r12
 
 # packages/apps/Settings
-kpick 225755 # Settings: Hide AOSP theme-related controllers
-kpick 225756 # Settings: fix dark style issues
 kpick 226148 # Settings: "Security & location" -> "Security & privacy"
 kpick 226142 # Settings: Add developer setting for root access
 kpick 226150 # Settings: add Trust interface hook
 kpick 226151 # Settings: show Trust brading in confirm_lock_password UI
+kpick 232198 # settings: appops: privacy guard for p (2/2)
 kpick 226154 # fingerprint: Allow devices to configure sensor location
+kpick 225755 # Settings: Hide AOSP theme-related controllers
+kpick 225756 # Settings: fix dark style issues
 kpick 227120 # Settings: Check interfaces before enabling ADB over network
+kpick 229479 # Settings: Improve phone number preference ordering
+kpick 231590 # SimSettings: Add manual SIM provisioning support
 kpick 227929 # Settings: Remove battery percentage switch
 kpick 229167 # Settings: Hide Night Mode suggestion if LiveDisplay feature is present
 kpick 229312 # Add Dual Channel into Bluetooth Audio Channel Mode developer options menu
 kpick 229453 # Settings: use LineageHW serial number
-kpick 229479 # Settings: Improve phone number preference ordering
 kpick 231518 # Settings: Check if we have any color modes declared in overlay
 kpick 231590 # SimSettings: Add manual SIM provisioning support
 kpick 231826 # Update the white list of Data saver
 kpick 232019 # Merge android-9.0.0_r12
-kpick 232198 # settings: appops: privacy guard for p (2/2)
 
 # packages/apps/SettingsIntelligence
 kpick 230519 # Fix dark style issues
@@ -1380,17 +1384,18 @@ if [ -f $topdir/.mypatches/su.xml ]; then
 fi
 
 # system/extras/su
-kpick -P system/extras/su 226017 # su: Fully rebrand
-kpick -P system/extras/su 225873 # su: strlcpy is always a friend
-kpick -P system/extras/su 225879 # su: Run clang format
-kpick -P system/extras/su 225880 # su: Move to cutils/properties.h
-kpick -P system/extras/su 225875 # su: Enable Clang Tidy
-kpick -P system/extras/su 225885 # su: Remove Sammy hacks
-kpick -P system/extras/su 225888 # su: Fix a clang tidy warning
-kpick -P system/extras/su 225889 # su: Cleanup includes
-kpick -P system/extras/su 225890 # su: Use shared libraries
-kpick -P system/extras/su 225936 # su: Remove mount of emulated storage
-kpick -P system/extras/su 225937 # su: Initialize windows size
+kpick 232428 # su: strlcpy is always a friend
+kpick 232429 # su: Run clang format
+kpick 232430 # su: Move to cutils/properties.h
+kpick 232431 # su: Enable Clang Tidy
+kpick 232432 # su: Remove Sammy hacks
+kpick 232433 # su: Fix a clang tidy warning
+kpick 232434 # su: Cleanup includes
+kpick 232435 # su: Use shared libraries
+kpick 232436 # su: Remove useless casts
+kpick 232437 # su: Remove mount of emulated storage
+kpick 232438 # su: Initialize windows size
+kpick 232427 # su: Update AppOps API calls
 
 # system/libvintf
 
@@ -1441,6 +1446,7 @@ kpick 229620 # backuptool: Support non-A/B system-as-root
 kpick 231291 # repopick: add hashtag support
 kpick 231537 # repopick: Try to fast-forward first
 kpick 231981 # HWComposer: HWC2: allow SkipValidate to be force disabled
+kpick 232189 # verity_tool: Implement status getter
 
 # vendor/qcom/opensource/cryptfs_hw
 kpick 226128 # cryptfs_hw: Add compatibility for pre-O hw crypto

@@ -1,15 +1,12 @@
-From fec13f35206bf24eb9174758160e1770fa04f494 Mon Sep 17 00:00:00 2001
-From: nx111 <NX111.AimH@gmail.com>
-Date: Tue, 16 Oct 2018 02:06:09 +0800
-Subject: [PATCH 18/19] settings: appops: privacy guard for p (2/2)
+From edccda2d9db66ce39bdb6b53f04e42c302b6e2b2 Mon Sep 17 00:00:00 2001
+From: Bruno Martins <bgcngm@gmail.com>
+Date: Mon, 4 Dec 2017 13:30:16 +0000
+Subject: [PATCH 05/19] settings: appops: privacy guard for p (2/2)
 
-Author: Bruno Martins <bgcngm@gmail.com>  2017-12-04 21:30:16
-        NX111 AimH <NX111.AimH@gmail.com> 2018-10-24 12:20:00
+This had been partially split into CMParts, now LineageParts.
+The AppOps functionality still lives here.
 
-    This had been partially split into CMParts, now LineageParts.
-    The AppOps functionality still lives here.
-
-    Squash of the following changes, adapted to the Lineage SDK:
+Squash of the following changes, adapted to the Lineage SDK:
 
     Author: Steve Kondik <shade@chemlab.org>
     Date:   Tue Feb 25 14:02:16 2014 +0100
@@ -396,7 +393,36 @@ Author: Bruno Martins <bgcngm@gmail.com>  2017-12-04 21:30:16
         bringing back the UI inconsistency solved with f02e0409eafcccbbaa.
         This doesn't happen with the current set of OPs.
 
-        Change-Id: Iddc92b3547187e24140a328d50c5ac09bc1a7ccf
+        Change-Id: Iddc92b3547187e24140a328d50c5ac09bc1a7ccfa
+
+   Author: Tobias Tefke <tobias.tefke@gmail.com>
+   Date: Sun, 11 Mar 2018 17:58:28 +0100
+
+       Privacy Guard: Add icon for VPN permission
+
+       Change-Id: I5f940c1966f9df755bc2643414b34b0303eac0a1
+
+   Author: Tobias Tefke <tobias.tefke@gmail.com>
+   Date: Sun, 11 Mar 2018 11:33:37 +0100
+
+       Privacy Guard: Avoid NPE when tinting permission icons
+
+       If PG can't retrieve the icon for a certain permission, a null reference
+       is returned. If tint is being set afterwards, a NPE will be thrown.
+
+   Change-Id: I266579ad60e6d0fc3323d07bcd9bcd9c0d4bd990
+
+   Author: Dan Pasanen <dan.pasanen@gmail.com>
+   Date: Thu, 15 Mar 2018 20:40:44 -0500
+
+       PrivacyGuard: add a couple more missing icons
+
+       * Add new icon for "Turn on screen" (ic_phone_android from
+         https://github.com/google/material-design-icons)
+
+       * Use music note icon for media volume
+
+       Change-Id: I9c8d314906b973319c7aeb7d0d173c7a12925b94
 
 Change-Id: Id810e21d735adcf8fb8c32519828ef9a23f3e684
 ---
@@ -426,23 +452,19 @@ Change-Id: Id810e21d735adcf8fb8c32519828ef9a23f3e684
  res/layout/preference_appops.xml              |  80 ++++
  res/menu/appops_manager.xml                   |  26 ++
  res/values/cm_plurals.xml                     |  22 +
- res/values/cm_strings.xml                     | 199 +++++++++
+ res/values/cm_strings.xml                     | 209 +++++++++
  res/values/lineage_arrays.xml                 | 360 ++++++++++++++++
  res/xml/process_stats_summary.xml             |   8 +-
  res/xml/security_settings_misc.xml            |  90 ++++
  src/com/android/settings/Settings.java        |  10 +
- .../android/settings/SettingsActivity.java    | 170 +++++++-
- src/com/android/settings/Utils.java           | 122 ++++++
  .../applications/ProcessStatsSummary.java     |  17 +
- .../applications/appops/AppOpsCategory.java   |  87 +++-
+ .../applications/appops/AppOpsCategory.java   |  93 +++-
  .../applications/appops/AppOpsDetails.java    | 406 ++++++++++++++++++
  .../applications/appops/AppOpsDetailsTop.java |  37 ++
  .../applications/appops/AppOpsState.java      | 241 +++++++++--
  .../applications/appops/AppOpsSummary.java    | 272 ++++++++++++
- .../core/instrumentation/EventLogWriter.java  |  85 ++++
- .../core/instrumentation/LogWriter.java       |  70 +++
  .../RootAccessPreferenceController.java       |   7 +
- 42 files changed, 2828 insertions(+), 66 deletions(-)
+ 38 files changed, 2404 insertions(+), 59 deletions(-)
  create mode 100644 res/drawable/ic_perm_alarm.xml
  create mode 100644 res/drawable/ic_perm_audio.xml
  create mode 100644 res/drawable/ic_perm_background.xml
@@ -471,14 +493,12 @@ Change-Id: Id810e21d735adcf8fb8c32519828ef9a23f3e684
  create mode 100644 src/com/android/settings/applications/appops/AppOpsDetails.java
  create mode 100644 src/com/android/settings/applications/appops/AppOpsDetailsTop.java
  create mode 100644 src/com/android/settings/applications/appops/AppOpsSummary.java
- create mode 100644 src/com/android/settings/core/instrumentation/EventLogWriter.java
- create mode 100644 src/com/android/settings/core/instrumentation/LogWriter.java
 
 diff --git a/AndroidManifest.xml b/AndroidManifest.xml
-index 145191d7f2..8dba7908fa 100644
+index dc05c41beb..edc8b4d761 100644
 --- a/AndroidManifest.xml
 +++ b/AndroidManifest.xml
-@@ -1270,6 +1270,21 @@
+@@ -1256,6 +1256,21 @@
              </intent-filter>
          </activity>
  
@@ -500,7 +520,7 @@ index 145191d7f2..8dba7908fa 100644
          <activity android:name="Settings$BackgroundCheckSummaryActivity"
                  android:label="@string/background_check_title"
                  android:enabled="false">
-@@ -1281,6 +1296,30 @@
+@@ -1267,6 +1282,30 @@
                  android:value="com.android.settings.applications.appops.BackgroundCheckSummary" />
          </activity>
  
@@ -1361,10 +1381,10 @@ index 0000000000..af6e6ddddb
 +    </plurals>
 +</resources>
 diff --git a/res/values/cm_strings.xml b/res/values/cm_strings.xml
-index 9040cf8374..ba3ca2ae77 100644
+index 4c56ee31ba..fe46bc3e96 100644
 --- a/res/values/cm_strings.xml
 +++ b/res/values/cm_strings.xml
-@@ -20,6 +20,202 @@
+@@ -20,6 +20,212 @@
      <string name="advanced_reboot_title">Advanced restart</string>
      <string name="advanced_reboot_summary">When unlocked, include options in the power menu for restarting into recovery or bootloader</string>
  
@@ -1380,66 +1400,71 @@ index 9040cf8374..ba3ca2ae77 100644
 +    <string name="app_ops_categories_other">Other</string>
 +
 +    <!-- User display names for app ops codes - extension of AOSP -->
++    <string name="app_ops_summaries_accept_handover">handover of a call from another app</string>
 +    <string name="app_ops_summaries_access_camera">access the camera</string>
-+    <string name="app_ops_summaries_access_location">access your location</string>
-+    <string name="app_ops_summaries_access_notifications">read your notifications</string>
-+    <string name="app_ops_summaries_activate_vpn">activate a VPN</string>
-+    <string name="app_ops_summaries_add_voicemail">add a voicemail</string>
++    <string name="app_ops_summaries_access_notifications">access notifications</string>
++    <string name="app_ops_summaries_activate_vpn">activate VPN</string>
++    <string name="app_ops_summaries_add_voicemail">add voicemail</string>
 +    <string name="app_ops_summaries_app_start_foreground">start instant app in foreground</string>
-+    <string name="app_ops_summaries_assist_screenshot">take a screenshot</string>
-+    <string name="app_ops_summaries_assist_structure">use assist structure</string>
++    <string name="app_ops_summaries_assist_screenshot">assist screenshot</string>
++    <string name="app_ops_summaries_assist_structure">assist structure</string>
 +    <string name="app_ops_summaries_audio_accessibility_volume">audio accessibility volume</string>
 +    <string name="app_ops_summaries_auto_start">start at power up</string>
 +    <string name="app_ops_summaries_bind_accessibility_service">bind accessibility service</string>
 +    <string name="app_ops_summaries_bluetooth_scan">bluetooth scan</string>
 +    <string name="app_ops_summaries_change_wallpaper">change the wallpaper</string>
++    <string name="app_ops_summaries_coarse_location">coarse location</string>
 +    <string name="app_ops_summaries_delete_call_log">delete your call log</string>
 +    <string name="app_ops_summaries_delete_contacts">delete your contacts</string>
 +    <string name="app_ops_summaries_delete_mms">delete your MMS messages</string>
 +    <string name="app_ops_summaries_delete_sms">delete your SMS messages</string>
-+    <string name="app_ops_summaries_draw_on_top">draw windows on top</string>
-+    <string name="app_ops_summaries_get_accounts">get device accounts</string>
++    <string name="app_ops_summaries_draw_on_top">draw on top</string>
++    <string name="app_ops_summaries_fine_location">fine location</string>
++    <string name="app_ops_summaries_get_accounts">get accounts</string>
 +    <string name="app_ops_summaries_get_usage_stats">get app usage stats</string>
-+    <string name="app_ops_summaries_accept_handover">handover of a call from another app</string>
++    <string name="app_ops_summaries_gps">GPS</string>
 +    <string name="app_ops_summaries_install_packages">install packages</string>
 +    <string name="app_ops_summaries_keep_device_awake">keep your device awake</string>
-+    <string name="app_ops_summaries_manage_ipsec_tunnels">manage ipsec tunnels</string>
 +    <string name="app_ops_summaries_make_phone_call">make a phone call</string>
-+    <string name="app_ops_summaries_mock_location">mock your location</string>
-+    <string name="app_ops_summaries_modify_calendar">update your calendar</string>
-+    <string name="app_ops_summaries_modify_call_log">update the call log</string>
-+    <string name="app_ops_summaries_modify_clipboard">modify the clipboard</string>
-+    <string name="app_ops_summaries_modify_contacts">update your contacts</string>
-+    <string name="app_ops_summaries_modify_settings">update system settings</string>
-+    <string name="app_ops_summaries_mute_unmute_microphone">mute/unmute the microphone</string>
++    <string name="app_ops_summaries_manage_ipsec_tunnels">manage ipsec tunnels</string>
++    <string name="app_ops_summaries_mock_location">mock location</string>
++    <string name="app_ops_summaries_modify_calendar">modify calendar</string>
++    <string name="app_ops_summaries_modify_call_log">modify call log</string>
++    <string name="app_ops_summaries_modify_clipboard">modify clipboard</string>
++    <string name="app_ops_summaries_modify_contacts">modify contacts</string>
++    <string name="app_ops_summaries_modify_settings">modify settings</string>
++    <string name="app_ops_summaries_monitor_high_power_location">monitor high power location</string>
++    <string name="app_ops_summaries_monitor_location">monitor location</string>
++    <string name="app_ops_summaries_mute_unmute_microphone">mute/unmute microphone</string>
++    <string name="app_ops_summaries_neighboring_cells">neighboring cells</string>
 +    <string name="app_ops_summaries_phone_calls">answer phone calls</string>
 +    <string name="app_ops_summaries_picture_in_picture">use picture in picture</string>
 +    <string name="app_ops_summaries_play_audio">play audio</string>
 +    <string name="app_ops_summaries_post_notification">post a notification</string>
 +    <string name="app_ops_summaries_project_media">project media</string>
-+    <string name="app_ops_summaries_read_calendar">read your calendar</string>
-+    <string name="app_ops_summaries_read_call_log">read the call log</string>
++    <string name="app_ops_summaries_read_calendar">read calendar</string>
++    <string name="app_ops_summaries_read_call_log">read call log</string>
 +    <string name="app_ops_summaries_read_cell_broadcasts">read cell broadcasts</string>
-+    <string name="app_ops_summaries_read_clipboard">read the clipboard</string>
-+    <string name="app_ops_summaries_read_contacts">read your contacts</string>
++    <string name="app_ops_summaries_read_clipboard">read clipboard</string>
++    <string name="app_ops_summaries_read_contacts">read contacts</string>
 +    <string name="app_ops_summaries_read_external_storage">read external storage</string>
 +    <string name="app_ops_summaries_read_mms">read your MMS messages</string>
 +    <string name="app_ops_summaries_read_phone_numbers">read phone numbers</string>
-+    <string name="app_ops_summaries_read_phone_state">access phone state</string>
-+    <string name="app_ops_summaries_read_sms">read your SMS messages</string>
-+    <string name="app_ops_summaries_receive_sms">receive an SMS message</string>
++    <string name="app_ops_summaries_read_phone_state">read phone state</string>
++    <string name="app_ops_summaries_read_sms">read SMS</string>
 +    <string name="app_ops_summaries_receive_emergency_broadcast">receive an emergency broadcast message</string>
++    <string name="app_ops_summaries_receive_sms">receive SMS</string>
 +    <string name="app_ops_summaries_record_audio">record audio</string>
 +    <string name="app_ops_summaries_request_delete_packages">request delete packages</string>
-+    <string name="app_ops_summaries_run_in_background">run in background</string>
 +    <string name="app_ops_summaries_run_any_in_background">run any in background</string>
++    <string name="app_ops_summaries_run_in_background">run in background</string>
 +    <string name="app_ops_summaries_scan_wifi">scan Wi-Fi networks</string>
 +    <string name="app_ops_summaries_send_mms">send an MMS message</string>
-+    <string name="app_ops_summaries_send_sms">send an SMS message</string>
++    <string name="app_ops_summaries_send_sms">send SMS</string>
 +    <string name="app_ops_summaries_start_at_bootup">start at power up</string>
 +    <string name="app_ops_summaries_start_foreground">start foreground</string>
 +    <string name="app_ops_summaries_su">get root access</string>
-+    <string name="app_ops_summaries_toast_window">display toast messages</string>
++    <string name="app_ops_summaries_toast_window">display toasts</string>
 +    <string name="app_ops_summaries_toggle_bluetooth">toggle Bluetooth</string>
 +    <string name="app_ops_summaries_toggle_mobile_data">toggle cellular data</string>
 +    <string name="app_ops_summaries_toggle_nfc">toggle NFC</string>
@@ -1458,92 +1483,97 @@ index 9040cf8374..ba3ca2ae77 100644
 +    <string name="app_ops_summaries_use_vibrate">use haptic feedback</string>
 +    <string name="app_ops_summaries_use_voice_volume">control the voice call volume</string>
 +    <string name="app_ops_summaries_wifi_change">change Wi-Fi state</string>
-+    <string name="app_ops_summaries_write_external_storage">write external storage</string>
++    <string name="app_ops_summaries_write_external_storage">write to external storage</string>
 +    <string name="app_ops_summaries_write_mms">write an MMS message</string>
-+    <string name="app_ops_summaries_write_sms">write an SMS message</string>
++    <string name="app_ops_summaries_write_sms">write SMS</string>
 +
 +    <!-- User display names for app ops codes - extension of AOSP -->
-+    <string name="app_ops_labels_access_camera">access the camera</string>
-+    <string name="app_ops_labels_access_location">access your location</string>
-+    <string name="app_ops_labels_access_notifications">read your notifications</string>
-+    <string name="app_ops_labels_activate_vpn">activate a VPN</string>
-+    <string name="app_ops_labels_add_voicemail">add a voicemail</string>
-+    <string name="app_ops_labels_app_start_foreground">start instant app in foreground</string>
-+    <string name="app_ops_labels_assist_screenshot">take a screenshot</string>
-+    <string name="app_ops_labels_assist_structure">use assist structure</string>
-+    <string name="app_ops_labels_audio_accessibility_volume">audio accessibility volume</string>
-+    <string name="app_ops_labels_auto_start">start at power up</string>
-+    <string name="app_ops_labels_bind_accessibility_service">bind accessibility service</string>
-+    <string name="app_ops_labels_bluetooth_scan">bluetooth scan</string>
-+    <string name="app_ops_labels_change_wallpaper">change the wallpaper</string>
-+    <string name="app_ops_labels_delete_call_log">delete your call log</string>
-+    <string name="app_ops_labels_delete_contacts">delete your contacts</string>
-+    <string name="app_ops_labels_delete_mms">delete your MMS messages</string>
-+    <string name="app_ops_labels_delete_sms">delete your SMS messages</string>
-+    <string name="app_ops_labels_draw_on_top">draw windows on top</string>
-+    <string name="app_ops_labels_get_accounts">get device accounts</string>
-+    <string name="app_ops_labels_get_usage_stats">get app usage stats</string>
-+    <string name="app_ops_labels_accept_handover">handover of a call from another app</string>
-+    <string name="app_ops_labels_install_packages">install packages</string>
-+    <string name="app_ops_labels_keep_device_awake">keep your device awake</string>
-+    <string name="app_ops_labels_manage_ipsec_tunnels">manage ipsec tunnels</string>
-+    <string name="app_ops_labels_make_phone_call">make a phone call</string>
-+    <string name="app_ops_labels_mock_location">mock your location</string>
-+    <string name="app_ops_labels_modify_calendar">update your calendar</string>
-+    <string name="app_ops_labels_modify_call_log">update the call log</string>
-+    <string name="app_ops_labels_modify_clipboard">modify the clipboard</string>
-+    <string name="app_ops_labels_modify_contacts">update your contacts</string>
-+    <string name="app_ops_labels_modify_settings">update system settings</string>
-+    <string name="app_ops_labels_mute_unmute_microphone">mute/unmute the microphone</string>
-+    <string name="app_ops_labels_phone_calls">answer phone calls</string>
-+    <string name="app_ops_labels_picture_in_picture">use picture in picture</string>
-+    <string name="app_ops_labels_play_audio">play audio</string>
-+    <string name="app_ops_labels_post_notification">post a notification</string>
-+    <string name="app_ops_labels_project_media">project media</string>
-+    <string name="app_ops_labels_read_calendar">read your calendar</string>
-+    <string name="app_ops_labels_read_call_log">read the call log</string>
-+    <string name="app_ops_labels_read_cell_broadcasts">read cell broadcasts</string>
-+    <string name="app_ops_labels_read_clipboard">read the clipboard</string>
-+    <string name="app_ops_labels_read_contacts">read your contacts</string>
-+    <string name="app_ops_labels_read_external_storage">read external storage</string>
-+    <string name="app_ops_labels_read_mms">read your MMS messages</string>
-+    <string name="app_ops_labels_read_phone_numbers">read phone numbers</string>
-+    <string name="app_ops_labels_read_phone_state">access phone state</string>
-+    <string name="app_ops_labels_read_sms">read your SMS messages</string>
-+    <string name="app_ops_labels_receive_sms">receive an SMS message</string>
-+    <string name="app_ops_labels_receive_emergency_broadcast">receive an emergency broadcast message</string>
-+    <string name="app_ops_labels_record_audio">record audio</string>
-+    <string name="app_ops_labels_request_delete_packages">request delete packages</string>
-+    <string name="app_ops_labels_run_in_background">run in background</string>
-+    <string name="app_ops_labels_run_any_in_background">run any in background</string>
-+    <string name="app_ops_labels_scan_wifi">scan Wi-Fi networks</string>
-+    <string name="app_ops_labels_send_mms">send an MMS message</string>
-+    <string name="app_ops_labels_send_sms">send an SMS message</string>
-+    <string name="app_ops_labels_start_at_bootup">start at power up</string>
-+    <string name="app_ops_labels_start_foreground">start foreground</string>
-+    <string name="app_ops_labels_su">get root access</string>
-+    <string name="app_ops_labels_toast_window">display toast messages</string>
-+    <string name="app_ops_labels_toggle_bluetooth">toggle Bluetooth</string>
-+    <string name="app_ops_labels_toggle_mobile_data">toggle cellular data</string>
-+    <string name="app_ops_labels_toggle_nfc">toggle NFC</string>
-+    <string name="app_ops_labels_toggle_wifi">toggle Wi-Fi</string>
-+    <string name="app_ops_labels_turn_on_screen">turn the screen on</string>
-+    <string name="app_ops_labels_use_alarm_volume">control alarm volume</string>
-+    <string name="app_ops_labels_use_audio_focus">control the audio focus</string>
-+    <string name="app_ops_labels_use_bluetooth_volume">control the Bluetooth volume</string>
-+    <string name="app_ops_labels_use_body_sensors">use body sensors</string>
-+    <string name="app_ops_labels_use_fingerprint">use fingerprint</string>
-+    <string name="app_ops_labels_use_master_volume">control the master volume</string>
-+    <string name="app_ops_labels_use_media_buttons">use the media buttons</string>
-+    <string name="app_ops_labels_use_media_volume">control the media volume</string>
-+    <string name="app_ops_labels_use_notification_volume">control the notification volume</string>
-+    <string name="app_ops_labels_use_ring_volume">control the ringtone volume</string>
-+    <string name="app_ops_labels_use_vibrate">use haptic feedback</string>
-+    <string name="app_ops_labels_use_voice_volume">control the voice call volume</string>
-+    <string name="app_ops_labels_wifi_change">change Wi-Fi state</string>
-+    <string name="app_ops_labels_write_external_storage">write external storage</string>
-+    <string name="app_ops_labels_write_mms">write an MMS message</string>
-+    <string name="app_ops_labels_write_sms">write an SMS message</string>
++    <string name="app_ops_labels_accept_handover">Handover of a call from another app</string>
++    <string name="app_ops_labels_access_camera">Access the camera</string>
++    <string name="app_ops_labels_access_notifications">Access notifications</string>
++    <string name="app_ops_labels_activate_vpn">Activate VPN</string>
++    <string name="app_ops_labels_add_voicemail">Add voicemail</string>
++    <string name="app_ops_labels_app_start_foreground">Start instant app in foreground</string>
++    <string name="app_ops_labels_assist_screenshot">Assist screenshot</string>
++    <string name="app_ops_labels_assist_structure">Assist structure</string>
++    <string name="app_ops_labels_audio_accessibility_volume">Audio accessibility volume</string>
++    <string name="app_ops_labels_auto_start">Start at power up</string>
++    <string name="app_ops_labels_bind_accessibility_service">Bind accessibility service</string>
++    <string name="app_ops_labels_bluetooth_scan">Bluetooth scan</string>
++    <string name="app_ops_labels_change_wallpaper">Change the wallpaper</string>
++    <string name="app_ops_labels_coarse_location">Coarse location</string>
++    <string name="app_ops_labels_delete_call_log">Delete your call log</string>
++    <string name="app_ops_labels_delete_contacts">Delete your contacts</string>
++    <string name="app_ops_labels_delete_mms">Delete your MMS messages</string>
++    <string name="app_ops_labels_delete_sms">Delete your SMS messages</string>
++    <string name="app_ops_labels_draw_on_top">Draw on top</string>
++    <string name="app_ops_labels_fine_location">Fine location</string>
++    <string name="app_ops_labels_get_accounts">Get accounts</string>
++    <string name="app_ops_labels_get_usage_stats">Get usage stats</string>
++    <string name="app_ops_labels_gps">GPS</string>
++    <string name="app_ops_labels_install_packages">Install packages</string>
++    <string name="app_ops_labels_keep_device_awake">Keep your device awake</string>
++    <string name="app_ops_labels_make_phone_call">Make a phone call</string>
++    <string name="app_ops_labels_manage_ipsec_tunnels">Manage ipsec tunnels</string>
++    <string name="app_ops_labels_mock_location">Mock location</string>
++    <string name="app_ops_labels_modify_calendar">Modify calendar</string>
++    <string name="app_ops_labels_modify_call_log">Modify call log</string>
++    <string name="app_ops_labels_modify_clipboard">Modify clipboard</string>
++    <string name="app_ops_labels_modify_contacts">Modify contacts</string>
++    <string name="app_ops_labels_modify_settings">Modify settings</string>
++    <string name="app_ops_labels_monitor_high_power_location">Monitor high power location</string>
++    <string name="app_ops_labels_monitor_location">Monitor location</string>
++    <string name="app_ops_labels_mute_unmute_microphone">Mute/unmute microphone</string>
++    <string name="app_ops_labels_neighboring_cells">Neighboring cells</string>
++    <string name="app_ops_labels_phone_calls">Answer phone calls</string>
++    <string name="app_ops_labels_picture_in_picture">Use picture in picture</string>
++    <string name="app_ops_labels_play_audio">Play audio</string>
++    <string name="app_ops_labels_post_notification">Post a notification</string>
++    <string name="app_ops_labels_project_media">Project media</string>
++    <string name="app_ops_labels_read_calendar">Read calendar</string>
++    <string name="app_ops_labels_read_call_log">Read call log</string>
++    <string name="app_ops_labels_read_cell_broadcasts">Read cell broadcasts</string>
++    <string name="app_ops_labels_read_clipboard">Read clipboard</string>
++    <string name="app_ops_labels_read_contacts">Read contacts</string>
++    <string name="app_ops_labels_read_external_storage">Read external storage</string>
++    <string name="app_ops_labels_read_mms">Read your MMS messages</string>
++    <string name="app_ops_labels_read_phone_numbers">Read phone numbers</string>
++    <string name="app_ops_labels_read_phone_state">Read phone state</string>
++    <string name="app_ops_labels_read_sms">Read SMS</string>
++    <string name="app_ops_labels_receive_emergency_broadcast">Receive an emergency broadcast message</string>
++    <string name="app_ops_labels_receive_sms">Receive SMS</string>
++    <string name="app_ops_labels_record_audio">Record audio</string>
++    <string name="app_ops_labels_request_delete_packages">Request delete packages</string>
++    <string name="app_ops_labels_run_any_in_background">Run any in background</string>
++    <string name="app_ops_labels_run_in_background">Run in background</string>
++    <string name="app_ops_labels_scan_wifi">Scan Wi-Fi networks</string>
++    <string name="app_ops_labels_send_mms">Send an MMS message</string>
++    <string name="app_ops_labels_send_sms">Send SMS</string>
++    <string name="app_ops_labels_start_at_bootup">Start at power up</string>
++    <string name="app_ops_labels_start_foreground">Start foreground</string>
++    <string name="app_ops_labels_su">Get root access</string>
++    <string name="app_ops_labels_toast_window">Display toasts</string>
++    <string name="app_ops_labels_toggle_bluetooth">Toggle Bluetooth</string>
++    <string name="app_ops_labels_toggle_mobile_data">Toggle cellular data</string>
++    <string name="app_ops_labels_toggle_nfc">Toggle NFC</string>
++    <string name="app_ops_labels_toggle_wifi">Toggle Wi-Fi</string>
++    <string name="app_ops_labels_turn_on_screen">Turn the screen on</string>
++    <string name="app_ops_labels_use_alarm_volume">Control alarm volume</string>
++    <string name="app_ops_labels_use_audio_focus">Control the audio focus</string>
++    <string name="app_ops_labels_use_bluetooth_volume">Control the Bluetooth volume</string>
++    <string name="app_ops_labels_use_body_sensors">Use body sensors</string>
++    <string name="app_ops_labels_use_fingerprint">Use fingerprint</string>
++    <string name="app_ops_labels_use_master_volume">Control the master volume</string>
++    <string name="app_ops_labels_use_media_buttons">Use the media buttons</string>
++    <string name="app_ops_labels_use_media_volume">Control the media volume</string>
++    <string name="app_ops_labels_use_notification_volume">Control the notification volume</string>
++    <string name="app_ops_labels_use_ring_volume">Control the ringtone volume</string>
++    <string name="app_ops_labels_use_vibrate">Use haptic feedback</string>
++    <string name="app_ops_labels_use_voice_volume">Control the voice call volume</string>
++    <string name="app_ops_labels_wifi_change">Change Wi-Fi state</string>
++    <string name="app_ops_labels_write_external_storage">Write to external storage</string>
++    <string name="app_ops_labels_write_mms">Write an MMS message</string>
++    <string name="app_ops_labels_write_sms">Write SMS</string>
 +
 +    <!-- App ops permissions -->
 +    <string name="app_ops_permissions_allowed">Allowed</string>
@@ -1567,7 +1597,7 @@ index 9040cf8374..ba3ca2ae77 100644
      <!-- Sizes for pattern lockscreen -->
      <string name="lock_pattern_size_3" translatable="false">3 \u00d7 3</string>
      <string name="lock_pattern_size_4" translatable="false">4 \u00d7 4</string>
-@@ -138,6 +334,9 @@
+@@ -126,6 +332,9 @@
      <string name="touchscreen_hovering_title">Touchscreen hovering</string>
      <string name="touchscreen_hovering_summary">Allows you to hover the screen like a mouse in web browsers, remote desktops, etc</string>
  
@@ -1578,7 +1608,7 @@ index 9040cf8374..ba3ca2ae77 100644
      <string name="directly_show_lock">Direct unlock</string>
      <string name="directly_show_lock_summary">Skip the swipe to unlock screen and immediately begin key entry</string>
 diff --git a/res/values/lineage_arrays.xml b/res/values/lineage_arrays.xml
-index 8e51beec66..8d76f5fb84 100644
+index 8e51beec66..9377953e21 100644
 --- a/res/values/lineage_arrays.xml
 +++ b/res/values/lineage_arrays.xml
 @@ -40,4 +40,364 @@
@@ -1602,11 +1632,11 @@ index 8e51beec66..8d76f5fb84 100644
 +    <!-- User display names for app ops codes - extension of AOSP -->
 +    <string-array name="app_ops_summaries_lineage" translatable="false">
 +        <!-- OP_COARSE_LOCATION -->
-+        <item>@string/app_ops_summaries_access_location</item>
++        <item>@string/app_ops_summaries_coarse_location</item>
 +        <!-- OP_FINE_LOCATION -->
-+        <item>@string/app_ops_summaries_access_location</item>
++        <item>@string/app_ops_summaries_fine_location</item>
 +        <!-- OP_GPS -->
-+        <item>@string/app_ops_summaries_access_location</item>
++        <item>@string/app_ops_summaries_gps</item>
 +        <!-- OP_VIBRATE -->
 +        <item>@string/app_ops_summaries_use_vibrate</item>
 +        <!-- OP_READ_CONTACTS -->
@@ -1626,7 +1656,7 @@ index 8e51beec66..8d76f5fb84 100644
 +        <!-- OP_POST_NOTIFICATION -->
 +        <item>@string/app_ops_summaries_post_notification</item>
 +        <!-- OP_NEIGHBORING_CELLS -->
-+        <item>@string/app_ops_summaries_access_location</item>
++        <item>@string/app_ops_summaries_neighboring_cells</item>
 +        <!-- OP_CALL_PHONE -->
 +        <item>@string/app_ops_summaries_make_phone_call</item>
 +        <!-- OP_READ_SMS -->
@@ -1684,9 +1714,9 @@ index 8e51beec66..8d76f5fb84 100644
 +        <!-- OP_WAKE_LOCK -->
 +        <item>@string/app_ops_summaries_keep_device_awake</item>
 +        <!-- OP_MONITOR_LOCATION -->
-+        <item>@string/app_ops_summaries_access_location</item>
++        <item>@string/app_ops_summaries_monitor_location</item>
 +        <!-- OP_MONITOR_HIGH_POWER_LOCATION -->
-+        <item>@string/app_ops_summaries_access_location</item>
++        <item>@string/app_ops_summaries_monitor_high_power_location</item>
 +        <!-- OP_GET_USAGE_STATS -->
 +        <item>@string/app_ops_summaries_get_usage_stats</item>
 +        <!-- OP_MUTE_MICROPHONE -->
@@ -1772,11 +1802,11 @@ index 8e51beec66..8d76f5fb84 100644
 +    <!-- User display names for app ops codes - extension of AOSP -->
 +    <string-array name="app_ops_labels_lineage" translatable="false">
 +        <!-- OP_COARSE_LOCATION -->
-+        <item>@string/app_ops_labels_access_location</item>
++        <item>@string/app_ops_labels_coarse_location</item>
 +        <!-- OP_FINE_LOCATION -->
-+        <item>@string/app_ops_labels_access_location</item>
++        <item>@string/app_ops_labels_fine_location</item>
 +        <!-- OP_GPS -->
-+        <item>@string/app_ops_labels_access_location</item>
++        <item>@string/app_ops_labels_gps</item>
 +        <!-- OP_VIBRATE -->
 +        <item>@string/app_ops_labels_use_vibrate</item>
 +        <!-- OP_READ_CONTACTS -->
@@ -1796,7 +1826,7 @@ index 8e51beec66..8d76f5fb84 100644
 +        <!-- OP_POST_NOTIFICATION -->
 +        <item>@string/app_ops_labels_post_notification</item>
 +        <!-- OP_NEIGHBORING_CELLS -->
-+        <item>@string/app_ops_labels_access_location</item>
++        <item>@string/app_ops_labels_neighboring_cells</item>
 +        <!-- OP_CALL_PHONE -->
 +        <item>@string/app_ops_labels_make_phone_call</item>
 +        <!-- OP_READ_SMS -->
@@ -1854,9 +1884,9 @@ index 8e51beec66..8d76f5fb84 100644
 +        <!-- OP_WAKE_LOCK -->
 +        <item>@string/app_ops_labels_keep_device_awake</item>
 +        <!-- OP_MONITOR_LOCATION -->
-+        <item>@string/app_ops_labels_access_location</item>
++        <item>@string/app_ops_labels_monitor_location</item>
 +        <!-- OP_MONITOR_HIGH_POWER_LOCATION -->
-+        <item>@string/app_ops_labels_access_location</item>
++        <item>@string/app_ops_labels_monitor_high_power_location</item>
 +        <!-- OP_GET_USAGE_STATS -->
 +        <item>@string/app_ops_labels_get_usage_stats</item>
 +        <!-- OP_MUTE_MICROPHONE -->
@@ -2065,7 +2095,7 @@ index 0000000000..7234bbced1
 +
 +</PreferenceScreen>
 diff --git a/src/com/android/settings/Settings.java b/src/com/android/settings/Settings.java
-index cd5a9082c9..ace2eb5f8a 100644
+index 0ad964b65b..95d42ed4ea 100644
 --- a/src/com/android/settings/Settings.java
 +++ b/src/com/android/settings/Settings.java
 @@ -18,6 +18,7 @@ package com.android.settings;
@@ -2076,7 +2106,7 @@ index cd5a9082c9..ace2eb5f8a 100644
  import com.android.settings.enterprise.EnterprisePrivacySettings;
  
  /**
-@@ -57,6 +58,15 @@ public class Settings extends SettingsActivity {
+@@ -56,6 +57,15 @@ public class Settings extends SettingsActivity {
      public static class ManageApplicationsActivity extends SettingsActivity { /* empty */ }
      public static class ManageAssistActivity extends SettingsActivity { /* empty */ }
      public static class HighPowerApplicationsActivity extends SettingsActivity { /* empty */ }
@@ -2092,429 +2122,8 @@ index cd5a9082c9..ace2eb5f8a 100644
      public static class BackgroundCheckSummaryActivity extends SettingsActivity { /* empty */ }
      public static class StorageUseActivity extends SettingsActivity { /* empty */ }
      public static class DevelopmentSettingsDashboardActivity extends SettingsActivity { /* empty */ }
-diff --git a/src/com/android/settings/SettingsActivity.java b/src/com/android/settings/SettingsActivity.java
-index 813253d831..8730578f14 100644
---- a/src/com/android/settings/SettingsActivity.java
-+++ b/src/com/android/settings/SettingsActivity.java
-@@ -56,7 +56,6 @@ import android.widget.Toolbar;
- 
- import com.android.internal.util.ArrayUtils;
- import com.android.settings.Settings.WifiSettingsActivity;
--import com.android.settings.applications.manageapplications.ManageApplications;
- import com.android.settings.backup.BackupSettingsActivity;
- import com.android.settings.core.FeatureFlags;
- import com.android.settings.core.SubSettingLauncher;
-@@ -69,6 +68,7 @@ import com.android.settings.wfd.WifiDisplaySettings;
- import com.android.settings.widget.SwitchBar;
- import com.android.settingslib.core.instrumentation.Instrumentable;
- import com.android.settingslib.core.instrumentation.SharedPreferencesLogger;
-+import com.android.settingslib.core.instrumentation.MetricsFeatureProvider;
- import com.android.settingslib.development.DevelopmentSettingsEnabler;
- import com.android.settingslib.drawer.DashboardCategory;
- import com.android.settingslib.drawer.SettingsDrawerActivity;
-@@ -76,6 +76,7 @@ import com.android.settingslib.utils.ThreadUtils;
- 
- import java.util.ArrayList;
- import java.util.List;
-+import java.util.Set;
- 
- public class SettingsActivity extends SettingsDrawerActivity
-         implements PreferenceManager.OnPreferenceTreeClickListener,
-@@ -86,6 +87,8 @@ public class SettingsActivity extends SettingsDrawerActivity
- 
-     // Constants for state save/restore
-     private static final String SAVE_KEY_CATEGORIES = ":settings:categories";
-+    @VisibleForTesting
-+    static final String SAVE_KEY_SHOW_HOME_AS_UP = ":settings:show_home_as_up";
- 
-     /**
-      * When starting this activity, the invoking Intent can contain this extra
-@@ -96,6 +99,11 @@ public class SettingsActivity extends SettingsDrawerActivity
-      */
-     public static final String EXTRA_SHOW_FRAGMENT = ":settings:show_fragment";
- 
-+    /**
-+     * The metrics category constant for logging source when a setting fragment is opened.
-+     */
-+    public static final String EXTRA_SOURCE_METRICS_CATEGORY = ":settings:source_metrics";
-+
-     /**
-      * When starting this activity and using {@link #EXTRA_SHOW_FRAGMENT},
-      * this extra can also be specified to supply a Bundle of arguments to pass
-@@ -152,12 +160,20 @@ public class SettingsActivity extends SettingsDrawerActivity
- 
-     private static final String EXTRA_UI_OPTIONS = "settings:ui_options";
- 
-+    private static final int REQUEST_SUGGESTION = 42;
-+
-     private String mFragmentClass;
- 
-     private CharSequence mInitialTitle;
-     private int mInitialTitleResId;
- 
-+    private static final String[] LIKE_SHORTCUT_INTENT_ACTION_ARRAY = {
-+            "android.settings.APPLICATION_DETAILS_SETTINGS"
-+    };
-+
-     private BroadcastReceiver mDevelopmentSettingsListener;
-+    private SharedPreferences mDevelopmentPreferences;
-+    private SharedPreferences.OnSharedPreferenceChangeListener mDevelopmentPreferencesListener;
- 
-     private boolean mBatteryPresent = true;
-     private BroadcastReceiver mBatteryInfoReceiver = new BroadcastReceiver() {
-@@ -180,9 +196,13 @@ public class SettingsActivity extends SettingsDrawerActivity
-     private Button mNextButton;
- 
-     private boolean mIsShowingDashboard;
-+    private boolean mIsShortcut;
- 
-     private ViewGroup mContent;
- 
-+    private ComponentName mCurrentSuggestion;
-+    private MetricsFeatureProvider mMetricsFeatureProvider;
-+
-     // Categories
-     private ArrayList<DashboardCategory> mCategories = new ArrayList<>();
- 
-@@ -212,10 +232,6 @@ public class SettingsActivity extends SettingsDrawerActivity
- 
-     @Override
-     public SharedPreferences getSharedPreferences(String name, int mode) {
--        if (name.equals(getPackageName() + "_preferences")) {
--            return new SharedPreferencesLogger(this, getMetricsTag(),
--                    FeatureFactory.getFactory(this).getMetricsFeatureProvider());
--        }
-         return super.getSharedPreferences(name, mode);
-     }
- 
-@@ -230,6 +246,22 @@ public class SettingsActivity extends SettingsDrawerActivity
-         return tag;
-     }
- 
-+    private static boolean isShortCutIntent(final Intent intent) {
-+        Set<String> categories = intent.getCategories();
-+        return (categories != null) && categories.contains("com.android.settings.SHORTCUT");
-+    }
-+
-+    private static boolean isLikeShortCutIntent(final Intent intent) {
-+        String action = intent.getAction();
-+        if (action == null) {
-+            return false;
-+        }
-+        for (int i = 0; i < LIKE_SHORTCUT_INTENT_ACTION_ARRAY.length; i++) {
-+            if (LIKE_SHORTCUT_INTENT_ACTION_ARRAY[i].equals(action)) return true;
-+        }
-+        return false;
-+    }
-+
-     @Override
-     protected void onCreate(Bundle savedState) {
-         super.onCreate(savedState);
-@@ -239,6 +271,7 @@ public class SettingsActivity extends SettingsDrawerActivity
-         final FeatureFactory factory = FeatureFactory.getFactory(this);
- 
-         mDashboardFeatureProvider = factory.getDashboardFeatureProvider(this);
-+        mMetricsFeatureProvider = factory.getMetricsFeatureProvider();
- 
-         // Should happen before any call to getIntent()
-         getMetaData();
-@@ -251,6 +284,9 @@ public class SettingsActivity extends SettingsDrawerActivity
-         // Getting Intent properties can only be done after the super.onCreate(...)
-         final String initialFragmentName = intent.getStringExtra(EXTRA_SHOW_FRAGMENT);
- 
-+        mIsShortcut = isShortCutIntent(intent) || isLikeShortCutIntent(intent) ||
-+                intent.getBooleanExtra(EXTRA_SHOW_FRAGMENT_AS_SHORTCUT, false);
-+
-         final ComponentName cn = intent.getComponent();
-         final String className = cn.getClassName();
- 
-@@ -553,15 +589,93 @@ public class SettingsActivity extends SettingsDrawerActivity
-         String intentClass = intent.getComponent().getClassName();
-         if (intentClass.equals(getClass().getName())) return null;
- 
--        if ("com.android.settings.RunningServices".equals(intentClass)
-+/*
-+        if ("com.android.settings.ManageApplications".equals(intentClass)
-+                || "com.android.settings.RunningServices".equals(intentClass)
-                 || "com.android.settings.applications.StorageUse".equals(intentClass)) {
-             // Old names of manage apps.
--            intentClass = ManageApplications.class.getName();
-+            intentClass = com.android.settings.applications.ManageApplications.class.getName();
-         }
-+*/
- 
-         return intentClass;
-     }
- 
-+    /**
-+     * Start a new fragment containing a preference panel.  If the preferences
-+     * are being displayed in multi-pane mode, the given fragment class will
-+     * be instantiated and placed in the appropriate pane.  If running in
-+     * single-pane mode, a new activity will be launched in which to show the
-+     * fragment.
-+     *
-+     * @param fragmentClass Full name of the class implementing the fragment.
-+     * @param args Any desired arguments to supply to the fragment.
-+     * @param titleRes Optional resource identifier of the title of this
-+     * fragment.
-+     * @param titleText Optional text of the title of this fragment.
-+     * @param resultTo Optional fragment that result data should be sent to.
-+     * If non-null, resultTo.onActivityResult() will be called when this
-+     * preference panel is done.  The launched panel must use
-+     * {@link #finishPreferencePanel(Fragment, int, Intent)} when done.
-+     * @param resultRequestCode If resultTo is non-null, this is the caller's
-+     * request code to be received with the result.
-+     */
-+    public void startPreferencePanel(Fragment caller, String fragmentClass, Bundle args,
-+            int titleRes, CharSequence titleText, Fragment resultTo, int resultRequestCode) {
-+        String title = null;
-+        if (titleRes < 0) {
-+            if (titleText != null) {
-+                title = titleText.toString();
-+            } else {
-+                // There not much we can do in that case
-+                title = "";
-+            }
-+        }
-+        Utils.startWithFragment(this, fragmentClass, args, resultTo, resultRequestCode,
-+                titleRes, title, mIsShortcut, mMetricsFeatureProvider.getMetricsCategory(caller));
-+    }
-+
-+    /**
-+     * Start a new fragment in a new activity containing a preference panel for a given user. If the
-+     * preferences are being displayed in multi-pane mode, the given fragment class will be
-+     * instantiated and placed in the appropriate pane. If running in single-pane mode, a new
-+     * activity will be launched in which to show the fragment.
-+     *
-+     * @param fragmentClass Full name of the class implementing the fragment.
-+     * @param args Any desired arguments to supply to the fragment.
-+     * @param titleRes Optional resource identifier of the title of this fragment.
-+     * @param titleText Optional text of the title of this fragment.
-+     * @param userHandle The user for which the panel has to be started.
-+     */
-+    public void startPreferencePanelAsUser(Fragment caller, String fragmentClass,
-+            Bundle args, int titleRes, CharSequence titleText, UserHandle userHandle) {
-+        // This is a workaround.
-+        //
-+        // Calling startWithFragmentAsUser() without specifying FLAG_ACTIVITY_NEW_TASK to the intent
-+        // starting the fragment could cause a native stack corruption. See b/17523189. However,
-+        // adding that flag and start the preference panel with the same UserHandler will make it
-+        // impossible to use back button to return to the previous screen. See b/20042570.
-+        //
-+        // We work around this issue by adding FLAG_ACTIVITY_NEW_TASK to the intent, while doing
-+        // another check here to call startPreferencePanel() instead of startWithFragmentAsUser()
-+        // when we're calling it as the same user.
-+        if (userHandle.getIdentifier() == UserHandle.myUserId()) {
-+            startPreferencePanel(caller, fragmentClass, args, titleRes, titleText, null, 0);
-+        } else {
-+            String title = null;
-+            if (titleRes < 0) {
-+                if (titleText != null) {
-+                    title = titleText.toString();
-+                } else {
-+                    // There not much we can do in that case
-+                    title = "";
-+                }
-+            }
-+            Utils.startWithFragmentAsUser(this, fragmentClass, args, titleRes, title,
-+                    mIsShortcut, mMetricsFeatureProvider.getMetricsCategory(caller), userHandle);
-+        }
-+    }
-+
-     /**
-      * Called by a preference panel fragment to finish itself.
-      *
-@@ -575,6 +689,25 @@ public class SettingsActivity extends SettingsDrawerActivity
-         finish();
-     }
- 
-+    /**
-+     * Start a new fragment.
-+     *
-+     * @param fragment The fragment to start
-+     * @param push If true, the current fragment will be pushed onto the back stack.  If false,
-+     * the current fragment will be replaced.
-+     */
-+    public void startPreferenceFragment(Fragment fragment, boolean push) {
-+        FragmentTransaction transaction = getFragmentManager().beginTransaction();
-+        transaction.replace(R.id.main_content, fragment);
-+        if (push) {
-+            transaction.setTransition(FragmentTransaction.TRANSIT_FRAGMENT_OPEN);
-+            transaction.addToBackStack(BACK_STACK_PREFS);
-+        } else {
-+            transaction.setTransition(FragmentTransaction.TRANSIT_FRAGMENT_FADE);
-+        }
-+        transaction.commitAllowingStateLoss();
-+    }
-+
-     /**
-      * Switch to a specific Fragment with taking care of validation, Title and BackStack
-      */
-@@ -798,6 +931,29 @@ public class SettingsActivity extends SettingsDrawerActivity
-         return mNextButton;
-     }
- 
-+    @Override
-+    public boolean shouldUpRecreateTask(Intent targetIntent) {
-+        return super.shouldUpRecreateTask(new Intent(this, SettingsActivity.class));
-+    }
-+
-+    public void startSuggestion(Intent intent) {
-+        if (intent == null || ActivityManager.isUserAMonkey()) {
-+            return;
-+        }
-+        mCurrentSuggestion = intent.getComponent();
-+        startActivityForResult(intent, REQUEST_SUGGESTION);
-+    }
-+
-+    @Override
-+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-+        if (requestCode == REQUEST_SUGGESTION && mCurrentSuggestion != null
-+                && resultCode != RESULT_CANCELED) {
-+            getPackageManager().setComponentEnabledSetting(mCurrentSuggestion,
-+                    PackageManager.COMPONENT_ENABLED_STATE_DISABLED, PackageManager.DONT_KILL_APP);
-+        }
-+        super.onActivityResult(requestCode, resultCode, data);
-+    }
-+
-     @VisibleForTesting
-     Bitmap getBitmapFromXmlResource(int drawableRes) {
-         Drawable drawable = getResources().getDrawable(drawableRes, getTheme());
-diff --git a/src/com/android/settings/Utils.java b/src/com/android/settings/Utils.java
-index b1ed38f6c4..efb657ef1a 100644
---- a/src/com/android/settings/Utils.java
-+++ b/src/com/android/settings/Utils.java
-@@ -381,6 +381,128 @@ public final class Utils extends com.android.settingslib.Utils {
-                 .getUsers().size() > 1;
-     }
- 
-+    /**
-+     * Start a new instance of the activity, showing only the given fragment.
-+     * When launched in this mode, the given preference fragment will be instantiated and fill the
-+     * entire activity.
-+     *
-+     * @param context The context.
-+     * @param fragmentName The name of the fragment to display.
-+     * @param args Optional arguments to supply to the fragment.
-+     * @param resultTo Option fragment that should receive the result of the activity launch.
-+     * @param resultRequestCode If resultTo is non-null, this is the request code in which
-+     *                          to report the result.
-+     * @param titleResId resource id for the String to display for the title of this set
-+     *                   of preferences.
-+     * @param title String to display for the title of this set of preferences.
-+     * @param metricsCategory The current metricsCategory for logging source when fragment starts
-+     */
-+    public static void startWithFragment(Context context, String fragmentName, Bundle args,
-+            Fragment resultTo, int resultRequestCode, int titleResId,
-+            CharSequence title, int metricsCategory) {
-+        startWithFragment(context, fragmentName, args, resultTo, resultRequestCode,
-+                null /* titleResPackageName */, titleResId, title, false /* not a shortcut */,
-+                metricsCategory);
-+    }
-+
-+    /**
-+     * Start a new instance of the activity, showing only the given fragment.
-+     * When launched in this mode, the given preference fragment will be instantiated and fill the
-+     * entire activity.
-+     *
-+     * @param context The context.
-+     * @param fragmentName The name of the fragment to display.
-+     * @param args Optional arguments to supply to the fragment.
-+     * @param resultTo Option fragment that should receive the result of the activity launch.
-+     * @param resultRequestCode If resultTo is non-null, this is the request code in which
-+     *                          to report the result.
-+     * @param titleResPackageName Optional package name for the resource id of the title.
-+     * @param titleResId resource id for the String to display for the title of this set
-+     *                   of preferences.
-+     * @param title String to display for the title of this set of preferences.
-+     * @param metricsCategory The current metricsCategory for logging source when fragment starts
-+     */
-+    public static void startWithFragment(Context context, String fragmentName, Bundle args,
-+            Fragment resultTo, int resultRequestCode, String titleResPackageName, int titleResId,
-+            CharSequence title, int metricsCategory) {
-+        startWithFragment(context, fragmentName, args, resultTo, resultRequestCode,
-+                titleResPackageName, titleResId, title, false /* not a shortcut */,
-+                metricsCategory);
-+    }
-+
-+    public static void startWithFragment(Context context, String fragmentName, Bundle args,
-+            Fragment resultTo, int resultRequestCode, int titleResId,
-+            CharSequence title, boolean isShortcut, int metricsCategory) {
-+        Intent intent = onBuildStartFragmentIntent(context, fragmentName, args,
-+                null /* titleResPackageName */, titleResId, title, isShortcut, metricsCategory);
-+        if (resultTo == null) {
-+            context.startActivity(intent);
-+        } else {
-+            resultTo.getActivity().startActivityForResult(intent, resultRequestCode);
-+        }
-+    }
-+
-+    public static void startWithFragment(Context context, String fragmentName, Bundle args,
-+            Fragment resultTo, int resultRequestCode, String titleResPackageName, int titleResId,
-+            CharSequence title, boolean isShortcut, int metricsCategory) {
-+        Intent intent = onBuildStartFragmentIntent(context, fragmentName, args, titleResPackageName,
-+                titleResId, title, isShortcut, metricsCategory);
-+        if (resultTo == null) {
-+            context.startActivity(intent);
-+        } else {
-+            resultTo.startActivityForResult(intent, resultRequestCode);
-+        }
-+    }
-+
-+    public static void startWithFragmentAsUser(Context context, String fragmentName, Bundle args,
-+            int titleResId, CharSequence title, boolean isShortcut, int metricsCategory,
-+            UserHandle userHandle) {
-+        // workaround to avoid crash in b/17523189
-+        if (userHandle.getIdentifier() == UserHandle.myUserId()) {
-+            startWithFragment(context, fragmentName, args, null, 0, titleResId, title, isShortcut,
-+                    metricsCategory);
-+        } else {
-+            Intent intent = onBuildStartFragmentIntent(context, fragmentName, args,
-+                    null /* titleResPackageName */, titleResId, title, isShortcut, metricsCategory);
-+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-+            intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK);
-+            context.startActivityAsUser(intent, userHandle);
-+        }
-+    }
-+
-+    /**
-+     * Build an Intent to launch a new activity showing the selected fragment.
-+     * The implementation constructs an Intent that re-launches the current activity with the
-+     * appropriate arguments to display the fragment.
-+     *
-+     *
-+     * @param context The Context.
-+     * @param fragmentName The name of the fragment to display.
-+     * @param args Optional arguments to supply to the fragment.
-+     * @param titleResPackageName Optional package name for the resource id of the title.
-+     * @param titleResId Optional title resource id to show for this item.
-+     * @param title Optional title to show for this item.
-+     * @param isShortcut  tell if this is a Launcher Shortcut or not
-+     * @param sourceMetricsCategory The context (source) from which an action is performed
-+     * @return Returns an Intent that can be launched to display the given
-+     * fragment.
-+     */
-+    public static Intent onBuildStartFragmentIntent(Context context, String fragmentName,
-+            Bundle args, String titleResPackageName, int titleResId, CharSequence title,
-+            boolean isShortcut, int sourceMetricsCategory) {
-+        Intent intent = new Intent(Intent.ACTION_MAIN);
-+        intent.setClass(context, SubSettings.class);
-+        intent.putExtra(SettingsActivity.EXTRA_SHOW_FRAGMENT, fragmentName);
-+        intent.putExtra(SettingsActivity.EXTRA_SHOW_FRAGMENT_ARGUMENTS, args);
-+        intent.putExtra(SettingsActivity.EXTRA_SHOW_FRAGMENT_TITLE_RES_PACKAGE_NAME,
-+                titleResPackageName);
-+        intent.putExtra(SettingsActivity.EXTRA_SHOW_FRAGMENT_TITLE_RESID, titleResId);
-+        intent.putExtra(SettingsActivity.EXTRA_SHOW_FRAGMENT_TITLE, title);
-+        intent.putExtra(SettingsActivity.EXTRA_SHOW_FRAGMENT_AS_SHORTCUT, isShortcut);
-+        intent.putExtra(SettingsActivity.EXTRA_SOURCE_METRICS_CATEGORY, sourceMetricsCategory);
-+        return intent;
-+    }
-+
-     /**
-      * Returns the managed profile of the current user or {@code null} if none is found or a profile
-      * exists but it is disabled.
 diff --git a/src/com/android/settings/applications/ProcessStatsSummary.java b/src/com/android/settings/applications/ProcessStatsSummary.java
-index 53da04c119..68abe9990a 100644
+index 53da04c119..de091d00cd 100644
 --- a/src/com/android/settings/applications/ProcessStatsSummary.java
 +++ b/src/com/android/settings/applications/ProcessStatsSummary.java
 @@ -1,5 +1,6 @@
@@ -2532,7 +2141,7 @@ index 53da04c119..68abe9990a 100644
  import android.os.Bundle;
  import android.support.v7.preference.Preference;
  import android.support.v7.preference.Preference.OnPreferenceClickListener;
-@@ -25,6 +27,7 @@ import android.text.format.Formatter.BytesResult;
+@@ -25,12 +27,15 @@ import android.text.format.Formatter.BytesResult;
  
  import com.android.internal.logging.nano.MetricsProto.MetricsEvent;
  import com.android.settings.R;
@@ -2540,17 +2149,23 @@ index 53da04c119..68abe9990a 100644
  import com.android.settings.SummaryPreference;
  import com.android.settings.Utils;
  import com.android.settings.applications.ProcStatsData.MemInfo;
-@@ -40,6 +43,9 @@ public class ProcessStatsSummary extends ProcessStatsBase implements OnPreferenc
+ import com.android.settings.core.SubSettingLauncher;
+ import com.android.settings.dashboard.SummaryLoader;
+ 
++import static com.android.settings.SettingsActivity.EXTRA_SHOW_FRAGMENT_ARGUMENTS;
++
+ public class ProcessStatsSummary extends ProcessStatsBase implements OnPreferenceClickListener {
+ 
+     private static final String KEY_STATUS_HEADER = "status_header";
+@@ -40,6 +45,7 @@ public class ProcessStatsSummary extends ProcessStatsBase implements OnPreferenc
      private static final String KEY_AVERAGY_USED = "average_used";
      private static final String KEY_FREE = "free";
      private static final String KEY_APP_LIST = "apps_list";
 +    private static final String KEY_APP_STARTUP = "apps_startup";
-+
-+    private Activity mActivity;
  
      private SummaryPreference mSummaryPref;
  
-@@ -48,11 +54,14 @@ public class ProcessStatsSummary extends ProcessStatsBase implements OnPreferenc
+@@ -48,6 +54,7 @@ public class ProcessStatsSummary extends ProcessStatsBase implements OnPreferenc
      private Preference mAverageUsed;
      private Preference mFree;
      private Preference mAppListPreference;
@@ -2558,14 +2173,7 @@ index 53da04c119..68abe9990a 100644
  
      @Override
      public void onCreate(Bundle icicle) {
-         super.onCreate(icicle);
- 
-+        mActivity = getActivity();
-+
-         addPreferencesFromResource(R.xml.process_stats_summary);
-         mSummaryPref = (SummaryPreference) findPreference(KEY_STATUS_HEADER);
-         mPerformance = findPreference(KEY_PERFORMANCE);
-@@ -61,6 +70,8 @@ public class ProcessStatsSummary extends ProcessStatsBase implements OnPreferenc
+@@ -61,6 +68,8 @@ public class ProcessStatsSummary extends ProcessStatsBase implements OnPreferenc
          mFree = findPreference(KEY_FREE);
          mAppListPreference = findPreference(KEY_APP_LIST);
          mAppListPreference.setOnPreferenceClickListener(this);
@@ -2574,37 +2182,43 @@ index 53da04c119..68abe9990a 100644
      }
  
      @Override
-@@ -123,6 +134,12 @@ public class ProcessStatsSummary extends ProcessStatsBase implements OnPreferenc
+@@ -123,6 +132,14 @@ public class ProcessStatsSummary extends ProcessStatsBase implements OnPreferenc
                      .setSourceMetricsCategory(getMetricsCategory())
                      .launch();
              return true;
 +        } else if (preference == mAppStartupPreference) {
 +            Intent intent = new Intent(Intent.ACTION_MAIN);
-+            intent.putExtra("appops_tab", getString(R.string.app_ops_categories_bootup));
-+            intent.setClass(mActivity, AppOpsSummaryActivity.class);
-+            mActivity.startActivity(intent);
++            Bundle args = new Bundle();
++            args.putString("appops_tab", getString(R.string.app_ops_categories_bootup));
++            intent.putExtra(EXTRA_SHOW_FRAGMENT_ARGUMENTS, args);
++            intent.setClass(getContext(), AppOpsSummaryActivity.class);
++            startActivity(intent);
 +            return true;
          }
          return false;
      }
 diff --git a/src/com/android/settings/applications/appops/AppOpsCategory.java b/src/com/android/settings/applications/appops/AppOpsCategory.java
-index b506ce0ad7..46e431489c 100644
+index b506ce0ad7..4a80035679 100644
 --- a/src/com/android/settings/applications/appops/AppOpsCategory.java
 +++ b/src/com/android/settings/applications/appops/AppOpsCategory.java
-@@ -39,6 +39,7 @@ import android.widget.Switch;
+@@ -38,25 +38,40 @@ import android.widget.ListView;
+ import android.widget.Switch;
  import android.widget.TextView;
  
++import com.android.internal.logging.nano.MetricsProto;
  import com.android.settings.R;
 +import com.android.settings.SettingsActivity;
  import com.android.settings.applications.appops.AppOpsState.AppOpEntry;
++import com.android.settings.core.SubSettingLauncher;
  
  import java.util.List;
-@@ -46,17 +47,28 @@ import java.util.List;
+ 
  public class AppOpsCategory extends ListFragment implements
          LoaderManager.LoaderCallbacks<List<AppOpEntry>> {
  
-+    private static final int RESULT_APP_DETAILS = 1;
 +    private static final String LOG_TAG = "SettingsActivity";
++
++    private static final int RESULT_APP_DETAILS = 1;
 +
      AppOpsState mState;
 +    boolean mUserControlled;
@@ -2628,7 +2242,7 @@ index b506ce0ad7..46e431489c 100644
          setArguments(args);
      }
  
-@@ -114,18 +126,22 @@ public class AppOpsCategory extends ListFragment implements
+@@ -114,18 +129,22 @@ public class AppOpsCategory extends ListFragment implements
          final InterestingConfigChanges mLastConfig = new InterestingConfigChanges();
          final AppOpsState mState;
          final AppOpsState.OpsTemplate mTemplate;
@@ -2648,12 +2262,12 @@ index b506ce0ad7..46e431489c 100644
  
          @Override public List<AppOpEntry> loadInBackground() {
 -            return mState.buildState(mTemplate, 0, null, AppOpsState.LABEL_COMPARATOR);
-+            return mState.buildState(mTemplate, 0, null,
-+                    mUserControlled ? AppOpsState.LABEL_COMPARATOR : AppOpsState.RECENCY_COMPARATOR);
++            return mState.buildState(mTemplate, 0, null, mUserControlled ?
++                    AppOpsState.LABEL_COMPARATOR : AppOpsState.RECENCY_COMPARATOR);
          }
  
          /**
-@@ -244,13 +260,15 @@ public class AppOpsCategory extends ListFragment implements
+@@ -244,13 +263,15 @@ public class AppOpsCategory extends ListFragment implements
          private final Resources mResources;
          private final LayoutInflater mInflater;
          private final AppOpsState mState;
@@ -2670,7 +2284,7 @@ index b506ce0ad7..46e431489c 100644
          }
  
          public void setData(List<AppOpEntry> data) {
-@@ -290,11 +308,18 @@ public class AppOpsCategory extends ListFragment implements
+@@ -290,11 +311,18 @@ public class AppOpsCategory extends ListFragment implements
              ((ImageView) view.findViewById(R.id.app_icon)).setImageDrawable(
                      item.getAppEntry().getIcon());
              ((TextView) view.findViewById(R.id.app_name)).setText(item.getAppEntry().getLabel());
@@ -2694,7 +2308,7 @@ index b506ce0ad7..46e431489c 100644
  
              return view;
          }
-@@ -304,6 +329,7 @@ public class AppOpsCategory extends ListFragment implements
+@@ -304,6 +332,7 @@ public class AppOpsCategory extends ListFragment implements
      public void onCreate(Bundle savedInstanceState) {
          super.onCreate(savedInstanceState);
          mState = new AppOpsState(getActivity());
@@ -2702,7 +2316,7 @@ index b506ce0ad7..46e431489c 100644
      }
  
      @Override public void onActivityCreated(Bundle savedInstanceState) {
-@@ -317,7 +343,7 @@ public class AppOpsCategory extends ListFragment implements
+@@ -317,7 +346,7 @@ public class AppOpsCategory extends ListFragment implements
          setHasOptionsMenu(true);
  
          // Create an empty adapter we will use to display the loaded data.
@@ -2711,20 +2325,23 @@ index b506ce0ad7..46e431489c 100644
          setListAdapter(mAdapter);
  
          // Start out with a progress indicator.
-@@ -327,20 +353,37 @@ public class AppOpsCategory extends ListFragment implements
+@@ -327,20 +356,40 @@ public class AppOpsCategory extends ListFragment implements
          getLoaderManager().initLoader(0, null, this);
      }
  
 +    // utility method used to start sub activity
 +    private void startApplicationDetailsActivity() {
 +        // start new fragment to display extended information
-+        Bundle args = new Bundle();
++        final Bundle args = new Bundle();
 +        args.putString(AppOpsDetails.ARG_PACKAGE_NAME, mCurrentPkgName);
 +
-+        SettingsActivity sa = (SettingsActivity) getActivity();
-+        sa.startPreferencePanel(this, AppOpsDetails.class.getName(), args,
-+                org.lineageos.platform.internal.R.string.privacy_guard_manager_title,
-+                null, this, RESULT_APP_DETAILS);
++        new SubSettingLauncher(getContext())
++                .setDestination(AppOpsDetails.class.getName())
++                .setTitle(org.lineageos.platform.internal.R.string.privacy_guard_manager_title)
++                .setArguments(args)
++                .setSourceMetricsCategory(MetricsProto.MetricsEvent.VIEW_UNKNOWN)
++                .setResultListener(this, RESULT_APP_DETAILS)
++                .launch();
 +    }
 +
      @Override public void onListItemClick(ListView l, View v, int position, long id) {
@@ -2760,7 +2377,7 @@ index b506ce0ad7..46e431489c 100644
          }
      }
  
-@@ -348,9 +391,9 @@ public class AppOpsCategory extends ListFragment implements
+@@ -348,9 +397,9 @@ public class AppOpsCategory extends ListFragment implements
          Bundle fargs = getArguments();
          AppOpsState.OpsTemplate template = null;
          if (fargs != null) {
@@ -3903,173 +3520,6 @@ index 0000000000..be1e9d61d2
 +                return super.onContextItemSelected(item);
 +        }
 +    }
-+}
-diff --git a/src/com/android/settings/core/instrumentation/EventLogWriter.java b/src/com/android/settings/core/instrumentation/EventLogWriter.java
-new file mode 100644
-index 0000000000..e7628e8b6b
---- /dev/null
-+++ b/src/com/android/settings/core/instrumentation/EventLogWriter.java
-@@ -0,0 +1,85 @@
-+/*
-+ * Copyright (C) 2016 The Android Open Source Project
-+ *
-+ * Licensed under the Apache License, Version 2.0 (the "License");
-+ * you may not use this file except in compliance with the License.
-+ * You may obtain a copy of the License at
-+ *
-+ *      http://www.apache.org/licenses/LICENSE-2.0
-+ *
-+ * Unless required by applicable law or agreed to in writing, software
-+ * distributed under the License is distributed on an "AS IS" BASIS,
-+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-+ * See the License for the specific language governing permissions and
-+ * limitations under the License.
-+ */
-+
-+package com.android.settings.core.instrumentation;
-+
-+import android.content.Context;
-+import android.metrics.LogMaker;
-+import android.util.Pair;
-+
-+import com.android.internal.logging.MetricsLogger;
-+import com.android.internal.logging.nano.MetricsProto;
-+
-+/**
-+ * {@link LogWriter} that writes data to eventlog.
-+ */
-+public class EventLogWriter implements LogWriter {
-+
-+    public void visible(Context context, int source, int category) {
-+        final LogMaker logMaker = new LogMaker(category)
-+                .setType(MetricsProto.MetricsEvent.TYPE_OPEN)
-+                .addTaggedData(MetricsProto.MetricsEvent.FIELD_CONTEXT, source);
-+        MetricsLogger.action(logMaker);
-+    }
-+
-+    public void hidden(Context context, int category) {
-+        MetricsLogger.hidden(context, category);
-+    }
-+
-+    public void action(Context context, int category, Pair<Integer, Object>... taggedData) {
-+        action(context, category, "", taggedData);
-+    }
-+
-+    public void actionWithSource(Context context, int source, int category) {
-+        final LogMaker logMaker = new LogMaker(category)
-+                .setType(MetricsProto.MetricsEvent.TYPE_ACTION);
-+        if (source != MetricsProto.MetricsEvent.VIEW_UNKNOWN) {
-+            logMaker.addTaggedData(MetricsProto.MetricsEvent.FIELD_CONTEXT, source);
-+        }
-+        MetricsLogger.action(logMaker);
-+    }
-+
-+    public void action(Context context, int category, int value) {
-+        MetricsLogger.action(context, category, Integer.toString(value));
-+    }
-+
-+    public void action(Context context, int category, boolean value) {
-+        MetricsLogger.action(context, category, Boolean.toString(value));
-+    }
-+
-+    public void action(Context context, int category, String pkg,
-+            Pair<Integer, Object>... taggedData) {
-+        if (taggedData == null || taggedData.length == 0) {
-+            MetricsLogger.action(context, category, pkg);
-+        } else {
-+            final LogMaker logMaker = new LogMaker(category)
-+                    .setType(MetricsProto.MetricsEvent.TYPE_ACTION)
-+                    .setPackageName(pkg);
-+            for (Pair<Integer, Object> pair : taggedData) {
-+                logMaker.addTaggedData(pair.first, pair.second);
-+            }
-+            MetricsLogger.action(logMaker);
-+        }
-+    }
-+
-+    public void count(Context context, String name, int value) {
-+        MetricsLogger.count(context, name, value);
-+    }
-+
-+    public void histogram(Context context, String name, int bucket) {
-+        MetricsLogger.histogram(context, name, bucket);
-+    }
-+}
-diff --git a/src/com/android/settings/core/instrumentation/LogWriter.java b/src/com/android/settings/core/instrumentation/LogWriter.java
-new file mode 100644
-index 0000000000..584217d85c
---- /dev/null
-+++ b/src/com/android/settings/core/instrumentation/LogWriter.java
-@@ -0,0 +1,70 @@
-+/*
-+ * Copyright (C) 2016 The Android Open Source Project
-+ *
-+ * Licensed under the Apache License, Version 2.0 (the "License");
-+ * you may not use this file except in compliance with the License.
-+ * You may obtain a copy of the License at
-+ *
-+ *      http://www.apache.org/licenses/LICENSE-2.0
-+ *
-+ * Unless required by applicable law or agreed to in writing, software
-+ * distributed under the License is distributed on an "AS IS" BASIS,
-+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-+ * See the License for the specific language governing permissions and
-+ * limitations under the License.
-+ */
-+package com.android.settings.core.instrumentation;
-+
-+import android.content.Context;
-+import android.util.Pair;
-+
-+/**
-+ * Generic log writer interface.
-+ */
-+public interface LogWriter {
-+
-+    /**
-+     * Logs a visibility event when view becomes visible.
-+     */
-+    void visible(Context context, int source, int category);
-+
-+    /**
-+     * Logs a visibility event when view becomes hidden.
-+     */
-+    void hidden(Context context, int category);
-+
-+    /**
-+     * Logs an user action.
-+     */
-+    void action(Context context, int category, Pair<Integer, Object>... taggedData);
-+
-+    /**
-+     * Logs an user action.
-+     */
-+    void actionWithSource(Context context, int source, int category);
-+
-+    /**
-+     * Logs an user action.
-+     */
-+    void action(Context context, int category, int value);
-+
-+    /**
-+     * Logs an user action.
-+     */
-+    void action(Context context, int category, boolean value);
-+
-+    /**
-+     * Logs an user action.
-+     */
-+    void action(Context context, int category, String pkg, Pair<Integer, Object>... taggedData);
-+
-+    /**
-+     * Logs a count.
-+     */
-+    void count(Context context, String name, int value);
-+
-+    /**
-+     * Logs a histogram event.
-+     */
-+    void histogram(Context context, String name, int bucket);
 +}
 diff --git a/src/com/android/settings/development/RootAccessPreferenceController.java b/src/com/android/settings/development/RootAccessPreferenceController.java
 index 4db32ccf6c..7e40e92ba7 100644
