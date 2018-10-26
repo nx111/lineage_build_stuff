@@ -958,9 +958,6 @@ kpick 226358 # settings: Allow accessing LineageSettings via settings command
 kpick 226398 # frameworks: base: Port password retention feature
 kpick 226399 # Use fdeCheckPassword error code to indicate pw failure
 kpick 226400 # LockSettingsService: Support for separate clear key api
-kpick 226401 # AppOps: track op persistence by name instead of id
-kpick 226587 # Camera: Expose Aux camera to apps present in the whitelist
-kpick 226588 # camera: Check if aux camera whitelist is set before restricting cameras
 kpick 226600 # PhoneWindowManager: Check if proposed rotation is in range
 kpick 226615 # NavigationBarView: Avoid NPE before mPanelView is created
 kpick 227108 # SystemUI: Fix several issues in the ADB over Network tile
@@ -1260,7 +1257,7 @@ kpick 232022 # Merge android-9.0.0_r12
 kpick 227930 # LineageParts: Bring back and refactor battery icon options
 kpick 221756 # StatusBarSettings: Hide battery preference category based on icon visibility
 kpick 229389 # Trust: enforce vendor security patch level check
-#kpick 230017 # LineageParts: Re-enable expanded desktop.
+kpick 230017 # LineageParts: Re-enable expanded desktop.
 kpick 231163 # LineageParts: Add some missing psychedelics
 kpick 232146 # LineageParts: Reenable Privacy Guard
 
@@ -1356,7 +1353,6 @@ kpick 232027 # Merge android-9.0.0_r12
 privpick system/core refs/changes/19/206119/2 # init: I hate safety net
 kpick 223085 # adbd: Disable "adb root" by system property (2/3)
 kpick 224264 # debuggerd: Resolve tombstoned missing O_CREAT mode
-kpick 226119 # libion: save errno value
 kpick 226120 # fs_mgr: Wrapped key support for FBE
 kpick 230755 # libsuspend: Bring back earlysuspend
 kpick 231716 # init: Always use libbootloader_message from bootable/recovery namespace
@@ -1392,7 +1388,6 @@ kpick 232432 # su: Remove Sammy hacks
 kpick 232433 # su: Fix a clang tidy warning
 kpick 232434 # su: Cleanup includes
 kpick 232435 # su: Use shared libraries
-kpick 232436 # su: Remove useless casts
 kpick 232437 # su: Remove mount of emulated storage
 kpick 232438 # su: Initialize windows size
 kpick 232427 # su: Update AppOps API calls
@@ -1446,7 +1441,6 @@ kpick 229620 # backuptool: Support non-A/B system-as-root
 kpick 231291 # repopick: add hashtag support
 kpick 231537 # repopick: Try to fast-forward first
 kpick 231981 # HWComposer: HWC2: allow SkipValidate to be force disabled
-kpick 232189 # verity_tool: Implement status getter
 
 # vendor/qcom/opensource/cryptfs_hw
 kpick 226128 # cryptfs_hw: Add compatibility for pre-O hw crypto
