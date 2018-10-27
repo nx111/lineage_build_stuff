@@ -879,6 +879,7 @@ kpick 225476 # dexdeps: Ignore static initializers on analysis.
 #kpick 225945 # sepolicy: Update to match new qcom sepolicy
 kpick 229423 # selinux: add domain for snap
 kpick 229424 # selinux: add domain for Gallery
+kpick 232512 # sepolicy: Address lineage-iosched denials
 
 # device/qcom/sepolicy
 kpick 228566 # qcom: Label vendor files with (vendor|system/vendor) instead of vendor
@@ -924,6 +925,7 @@ kpick 230237 # common: allow vendor_init to create /data/dpm
 
 # development
 kpick 232005 # Merge android-9.0.0_r12
+kpick 232511 # make-key: Enforce PBEv1 password-protected signing keys
 
 # external/ant-wireless/ant_native
 kpick 227260 # Update bt vendor callbacks array in vfs code
@@ -1422,6 +1424,7 @@ kpick 229954 # Move kMajor* constants to a header file
 kpick 229955 # vold: ISO9660 and UDF support
 kpick 231717 # vold: Always use libbootloader_message from bootable/recovery namespace
 kpick 232032 # Merge android-9.0.0_r12
+kpick 231354 # Switch pattern/PIN constants to match values in cryptfs.h
 
 # vendor/lineage
 kpick 223773 # Add IPv6 for Oister and 3. The 3.dk and oister.dk carriers now support IPv6 with the APN ”data.tre.dk”.
