@@ -804,7 +804,6 @@ git reset --hard $(git branch -a | grep "remotes/m/$default_branch" | cut -d'>' 
 cd $topdir
 
 kpick 223886 # manifest: Re-add hardware/qcom/data/ipacfg-mgr
-kpick 227745 # lineage: Enable FM apps
 kpick 225583 # manifest: Enable lineage styles overlays
 kpick 227747 # lineage: Enable weather apps
 kpick 226755 # lineage: Enable cryptfs_hw
@@ -830,8 +829,6 @@ fi       # continue pick or not
 
 # ================= DEVICE STUFF =========================
 
-# device/samsung/kltechnduo
-
 # device/samsung/klte-common
 kpick 231209 # klte-common: nfc: pn547: Use prebuilt NFC HAL from 15.1
 kpick 225192 # klte-common: Align ril.h to samsung_msm8974-common P libril changes
@@ -840,8 +837,6 @@ kpick 224917 # DO NOT MERGE: klte-common: Requisite bring-up BS change
 # device/samsung/msm8974-common
 kpick 231350 # msm8974-common: Set TARGET_NEEDS_NETD_DIRECT_CONNECT_RULE to true
 kpick 228677 # msm8974-common: Make the external camera provider ignore internal cameras
-
-# device/samsung/qcom-common
 
 # kernel/samsung/msm8974
 
@@ -979,7 +974,6 @@ kpick 229606 # ConsumerIR: Support Huawei's DSP chip implementation
 kpick 229612 # Performance: Memory Optimizations.
 kpick 230016 # Implement expanded desktop feature
 kpick 230388 # base: show bluetooth battery status when available
-kpick 230600 # FingerprintService: add overlay to prevent cleanup of unused fingerprints
 kpick 231796 # SignalClusterView: Hide signal icons for disabled SIMs
 kpick 231797 # Keyguard: Remove carrier text for disabled SIMs
 kpick 231823 # Do not move the multi-window divider when showing IME
@@ -1007,10 +1001,6 @@ kpick 231980 # HWComposer: HWC2: allow SkipValidate to be force disabled
 kpick 232008 # Merge android-9.0.0_r12
 
 # frameworks/opt/net/wifi
-kpick 224675 # libwifi-hal: add flag to wait for kernel driver to get ready
-kpick 224676 # wifi: Check whether dev node is accessible or not before opening
-kpick 224677 # wifi: don't check if WIFI_DRIVER_STATE_CTRL_PARAM is readable
-kpick 225551 # wifi: Not reset country code for Dual SIM if any slot is active
 kpick 232038 # Merge android-9.0.0_r12
 
 # frameworks/opt/telephony
@@ -1075,57 +1065,6 @@ kpick 224958 # msm8960/8974: Include string.h where it is necessary
 # hardware/qcom/display-caf/msm8974
 
 # hardware/qcom/fm
-kpick 226731 # Use BOARD_HAVE_QCOM_FM flag
-kpick 226745 # fm_hci/helium: Exclude from OSS builds
-kpick 226683 # Bring back libfm_jni for devices using AOSP FM app
-kpick 226685 # jni/libfm_jni: fix calibration data path for legacy fm_qsoc_patches
-kpick 226692 # jni/libfm_jni: Skip loading FM firmware if requested
-kpick 226687 # libfm_jni: Do not come here unless QCOM_HARDWARE is in use
-kpick 226688 # libfm_jni: Add support for internal antenna hardware
-kpick 226689 # libfm_jni: Improve and fix FM jni logs
-kpick 226737 # libfm_jni: Fix strchr implicit char* typecast in ConfFileParser
-kpick 226738 # libfm_jni: Add jni core headers dependency
-kpick 226742 # jni/libfm_jni: Remove unused variables
-kpick 226743 # libfm_jni: Resolve fread assignment to condition cast
-kpick 223685 # jni/libfm_jni: Resolve FM_DEVICE_PATH R/O open flag
-kpick 226744 # jni/libfm_jni: Ignore unused parameters from APIs
-kpick 223678 # libfm_jni: use proper nativehelper headers
-kpick 223684 # jni: Resolve equality comparisons with extraneous parentheses
-kpick 223687 # jni: Resolve V4L2_CID_AUDIO_MUTE redefinitions
-kpick 223692 # jni: Resolve -Wwritable-strings warnings in helium FW library variables
-kpick 226741 # Allow library to be used by apps directly
-kpick 226694 # FM: Break bootclasspath dependency
-kpick 226696 # FM: Re-vamp UI
-kpick 226697 # FM: Restore seek arrows
-kpick 226710 # FM: Make default country an overlay
-kpick 226699 # FM: Re-add RDS fields to UI
-kpick 226700 # FM: Scanned frequencies are saved in ascending ordering
-kpick 226701 # FM: Call unregister in onPause
-kpick 226702 # FM: Switch file extension to aac
-kpick 226714 # FM: Add property to force use internal antenna
-kpick 226727 # FM: Cleanup resources
-kpick 226705 # FM: add Indonesia
-kpick 226732 # FM: materialize
-kpick 226709 # FM: retune last frequency when resume after call
-kpick 226711 # FM: Store tag num/value in sequence
-kpick 226712 # FM: reenable radio text visibility after station info updated
-kpick 226713 # FM: Launch station list automatically after scan
-kpick 226715 # FM: fix mRadioTextScroller usage in transmitter activity
-kpick 226716 # FM: Fix status text to reflect when FM is enabled.
-kpick 226717 # FM: The collect channel disappear when quit FM
-kpick 226718 # FM: Ensure scan state is kept in sync
-kpick 226719 # FM: Keep track of scanned frequencies in service
-kpick 226721 # FM: Select band based on country
-kpick 226722 # FM: improved band selection
-kpick 226723 # FM: Localization of band types
-kpick 226724 # FM: Fix settings UI bugs
-kpick 226725 # FM: Fix headphone icon
-kpick 226726 # FM: Update India bands
-kpick 226729 # FM: Convert regional band arrays to string references
-kpick 226734 # FM: Fix KHz->kHz
-kpick 226735 # FM: Convert FM transmitter notifications to use NotificationChannel
-kpick 226736 # FM: Revamp notifications
-kpick 226740 # FM: adaptive icon
 
 # hardware/qcom/gps
 kpick 223351 # Revert "msm8974: deprecate msm8974"
@@ -1183,24 +1122,8 @@ kpick 227614 # Disable IOemHook implemenation in rild.
 kpick 230737 # libril: Fix manual network selection with old modem
 
 # hardware/samsung
-kpick 225628 # Sending empty strings instead of NULL for some RIL requests
-kpick 225629 # libril: Remove LOCAL_CLANG
-kpick 225630 # libril: Fix Const-Correctness for RIL_RadioFunctions
-kpick 225631 # libril: Remove unused code
-kpick 225632 # libril: Fix double freeing of memory in SAP service and add null-checks.
-kpick 225633 # libril: Store the system time when NITZ is received.
-kpick 225634 # libril: Add DISABLE_RILD_OEM_HOOK.
-kpick 225635 # libril: Change rild initial sequence to guarantee non-null function pointer before rild register its hidl service
-kpick 226075 # libril: remove unused variables/functions
-kpick 226076 # libsecril-client-sap: remove unused variables
-kpick 226077 # libsecril-client: remove unused variables/functions
-kpick 226080 # libril: Replace strncpy with strlcpy.
-kpick 227453 # power: remove getFeature functionality
-kpick 227454 # power: Add Lineage power hints
 kpick 231194 # power: properly initialize cluster states
 kpick 231960 # bauth: Add enumerate function
-
-# kernel/samsung/msm8974
 
 # lineage-sdk
 kpick 225581 # lineage-sdk: Make styles init at system services ready
@@ -1268,6 +1191,7 @@ kpick 232047 # Merge android-9.0.0_r12
 
 # packages/apps/Nfc
 kpick 232016 # Merge android-9.0.0_r12
+kpick 232697 # NFCService: Add sysprop to prevent FW download during boot with NFC off.
 
 # packages/apps/PackagesInstaller
 kpick 232017 # Merge android-9.0.0_r12
@@ -1442,8 +1366,9 @@ kpick 229589 # lineage: Automatically set soong namespace when setting project p
 kpick 229590 # lineage: Move qcom pathmap setting into "BoardConfig"
 kpick 229620 # backuptool: Support non-A/B system-as-root
 kpick 231291 # repopick: add hashtag support
-kpick 231537 # repopick: Try to fast-forward first
 kpick 231981 # HWComposer: HWC2: allow SkipValidate to be force disabled
+kpick 232659 # vendor/lineage: Build TrebuchetQuickStep
+kpick 232663 # overlay: Hide the option to show battery percentage
 
 # vendor/qcom/opensource/cryptfs_hw
 kpick 226128 # cryptfs_hw: Add compatibility for pre-O hw crypto
