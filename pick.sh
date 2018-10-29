@@ -896,7 +896,13 @@ kpick 228586 # common: Fix labelling of lcd-backlight
 kpick 228587 # sepolicy: Allow perf HAL to set freq props
 
 # device/qcom/sepolicy-legacy
-kpick 228608 # sepolicy-legacy: Treat BT vendor properties like non-vendor ones.
+kpick 230828 # legacy: Label more power_supply sysfs
+kpick 230829 # legacy: Resolve hal_gnss_default denial
+kpick 230830 # legacy: Resolve hal_bluetooth_default denial
+kpick 230833 # legacy: Correctly label display.qservice
+kpick 230834 # legacy: allow init to read /proc/device-tree
+kpick 231054 # NFC: Add nfc data file context and rename property
+kpick 230237 # common: allow vendor_init to create /data/dpm
 kpick 230229 # mm-qcamera-daemon: fix denial
 kpick 230230 # common: fix sensors denial
 kpick 230231 # common: grant cnss-daemon access to sysfs_net
@@ -907,16 +913,6 @@ kpick 230235 # common: grant DRM HIDL HAL ownership access to /data/{misc,vendor
 kpick 230236 # common: label /sys/devices/virtual/graphics as sysfs_graphics
 kpick 230238 # common: create proc_kernel_sched domain to restrict perf hal access
 kpick 230239 # common: allow uevent to control sysfs_mmc_host via vold
-kpick 230828 # legacy: Label more power_supply sysfs
-kpick 230829 # legacy: Resolve hal_gnss_default denial
-kpick 230830 # legacy: Resolve hal_bluetooth_default denial
-kpick 230831 # sepolicy: Allow android service to write on tombstones
-kpick 230833 # legacy: Correctly label display.qservice
-kpick 230834 # legacy: allow init to read /proc/device-tree
-kpick 230832 # Revert "sepol: hostapd is now hal_wifi_hostapd"
-kpick 231049 # Change to compile due to hostapd.te removal
-kpick 231054 # NFC: Add nfc data file context and rename property
-kpick 230237 # common: allow vendor_init to create /data/dpm
 
 # development
 kpick 232005 # Merge android-9.0.0_r12
@@ -985,6 +981,7 @@ kpick 231851 # onehand: Take into account cutouts
 kpick 231852 # onehand: Remove guide link
 kpick 232007 # Merge android-9.0.0_r12
 kpick 232197 # appops: Privacy Guard for P (1/2)
+kpick 227123 # Camera2: Fix photo snap delay on front cam.
 
 # frameworks/native
 kpick 224443 # libbinder: Don't log call trace when waiting for vendor service on non-eng builds
@@ -1142,6 +1139,7 @@ kpick 232042 # Merge android-9.0.0_r12
 # packages/apps/Camera2
 kpick 224752 # Use mCameraAgentNg for getting camera info when available
 kpick 225265 # Add Storage preference (1/2)
+kpick 227123 # Camera2: Fix photo snap delay on front cam.
 kpick 232011 # Merge android-9.0.0_r12
 
 # packages/apps/Carrierconfig
@@ -1242,7 +1240,6 @@ kpick 223666 # Settings: Hide Notification Dots on low RAM devices
 kpick 232021 # Merge android-9.0.0_r12
 
 # packages/apps/Updater
-kpick 229354 # Updater: Allow Cleartext HTTP communications
 
 # packages/providers/DownloadProvider
 kpick 232023 # Merge android-9.0.0_r12
@@ -1265,14 +1262,10 @@ kpick 232026 # Merge android-9.0.0_r12
 
 # system/bt
 kpick 224813 # bt: osi: undef PROPERTY_VALUE_MAX
-kpick 225422 # Bluetooth: Read BLE vendor capability to proceed on Secure conn
-kpick 223945 # Prevent abort in case of command timeout
-kpick 225423 # Add support to force disable enhanced sco commands
 kpick 229125 # Increase maximum Bluetooth SBC codec bitpool and bitrate values
 kpick 229313 # Explicit SBC Dual Channel (SBC HD) support
 kpick 229314 # Allow using alternative (higher) SBC HD bitrates with a property
 kpick 229401 # [DNM] Revert "Return early if vendor-specific command fails"
-kpick 230382 # Fix for Bluetooth device name is resetting to default name after reboot
 kpick 232027 # Merge android-9.0.0_r12
 
 # system/core
@@ -1369,6 +1362,7 @@ kpick 231291 # repopick: add hashtag support
 kpick 231981 # HWComposer: HWC2: allow SkipValidate to be force disabled
 kpick 232659 # vendor/lineage: Build TrebuchetQuickStep
 kpick 232663 # overlay: Hide the option to show battery percentage
+kpick 232747 # config: Move vendor/extra inclusion before Lineage configuration
 
 # vendor/qcom/opensource/cryptfs_hw
 kpick 226128 # cryptfs_hw: Add compatibility for pre-O hw crypto
