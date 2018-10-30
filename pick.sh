@@ -1329,7 +1329,6 @@ kpick 232031 # Merge android-9.0.0_r12
 kpick 223133 # AIDL: Add option to generate No-Op methods
 
 # system/update/engine
-kpick 225430 # update_engine: run backuptool script before normal postinstall script
 
 # system/vold
 kpick 226109 # vold: Add Hardware FDE feature
