@@ -855,7 +855,6 @@ kpick 230747 # update_verifier: skip verity to determine successful on lineage b
 kpick 231718 # recovery: Declare a soong namespace
 
 # build/make
-kpick 222733 # core: Disable vendor restrictions
 kpick 222742 # build: Use project pathmap for recovery
 kpick 222760 # Add LOCAL_AIDL_FLAGS
 kpick 227111 # releasetools: Store the build.prop file in the OTA zip
@@ -893,13 +892,11 @@ kpick 228583 # sepolicy: allow vold to read persist dirs
 kpick 228584 # sepolicy: Fix video4linux "name" node labeling
 kpick 228585 # sepolicy: Allow mm-qcamerad to access v4L "name" node
 kpick 228586 # common: Fix labelling of lcd-backlight
-kpick 228587 # sepolicy: Allow perf HAL to set freq props
 
 # device/qcom/sepolicy-legacy
 kpick 230828 # legacy: Label more power_supply sysfs
 kpick 230829 # legacy: Resolve hal_gnss_default denial
 kpick 230830 # legacy: Resolve hal_bluetooth_default denial
-kpick 230833 # legacy: Correctly label display.qservice
 kpick 230834 # legacy: allow init to read /proc/device-tree
 kpick 231054 # NFC: Add nfc data file context and rename property
 kpick 230237 # common: allow vendor_init to create /data/dpm
@@ -1043,6 +1040,7 @@ kpick 223338 # Revert "msm8x74: remove from top level makefile"
 kpick 232009 # Merge android-9.0.0_r12
 
 # hardware/qcom/audio-caf/msm8974
+kpick 232752 # audio: Use generated kernel headers
 
 # hardware/qcom/bootctl
 kpick 232041 # Merge android-9.0.0_r12
@@ -1060,6 +1058,7 @@ kpick 223346 # msm8974: libexternal should depend on libmedia
 kpick 224958 # msm8960/8974: Include string.h where it is necessary
 
 # hardware/qcom/display-caf/msm8974
+kpick 232754 # display: Use generated kernel headers
 
 # hardware/qcom/fm
 
@@ -1088,6 +1087,7 @@ kpick 224956 # mm-video: venc: Correct a typo in variable name
 kpick 224957 # media: vdec: Include nativebase headers
 
 # hardware/qcom/media-caf/msm8974
+kpick 232755 # media: Use generated kernel headers
 
 # hardware/qcom/power
 kpick 230513 # power: msm8960: Implement performance profiles
@@ -1119,6 +1119,7 @@ kpick 227614 # Disable IOemHook implemenation in rild.
 kpick 230737 # libril: Fix manual network selection with old modem
 
 # hardware/samsung
+#kpick 228524 # power: Convert power HAL to native binderized HAL
 kpick 231194 # power: properly initialize cluster states
 kpick 231960 # bauth: Add enumerate function
 
@@ -1207,7 +1208,6 @@ kpick 226154 # fingerprint: Allow devices to configure sensor location
 kpick 225755 # Settings: Hide AOSP theme-related controllers
 kpick 225756 # Settings: fix dark style issues
 kpick 227120 # Settings: Check interfaces before enabling ADB over network
-kpick 229479 # Settings: Improve phone number preference ordering
 kpick 231590 # SimSettings: Add manual SIM provisioning support
 kpick 227929 # Settings: Remove battery percentage switch
 kpick 229167 # Settings: Hide Night Mode suggestion if LiveDisplay feature is present
@@ -1220,9 +1220,6 @@ kpick 232019 # Merge android-9.0.0_r12
 
 # packages/apps/SettingsIntelligence
 kpick 230519 # Fix dark style issues
-kpick 231538 # SettingsIntelligence: Match Settings style
-kpick 231539 # SettingsIntelligence: Regen database on build version change
-kpick 231825 # Increase time limit of search task
 
 # packages/apps/Stk
 kpick 232020 # Merge android-9.0.0_r12
