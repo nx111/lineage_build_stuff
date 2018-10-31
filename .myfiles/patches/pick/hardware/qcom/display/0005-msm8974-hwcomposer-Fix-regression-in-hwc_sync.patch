@@ -1,0 +1,109 @@
+From b47da2eef919817144cbdc0101c840c47aed17a1 Mon Sep 17 00:00:00 2001
+From: Alex Naidis <alex.naidis@linux.com>
+Date: Fri, 23 Dec 2016 00:40:12 +0100
+Subject: [PATCH 5/8] msm8974: hwcomposer: Fix regression in hwc_sync
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Hwc_sync is in the hotpath of display
+rendering and gets called every ~17ms
+during active rerendering.
+
+Reading the property "debug.egl.swapinterval"
+on every execution of hwc_sync causes a major
+regression where the execution of hwc_sync
+is much slower than it can be.
+
+Doing I/O in hotpaths is inacceptable
+and can cause an unnecessary constant
+I/O load, additionally to the slowdown
+in display rendering which was caused
+in this case.
+
+As solution, we condition this debugging
+feature with "DISPLAY_DEBUG_SWAPINTERVAL",
+so it can be enabled when explicitly needed.
+
+Gralloc is not directly affected by the regression,
+it was adjusted to match the conditioning
+of the swapinterval debugging feature.
+
+The HALs of msm8084,msm8226,msm8909,msm8960 and
+msm8994 are affected by the regression and
+get patched by this patch. Newer HALs
+are not affected.
+
+The stats contained in this patch were
+collected using a Nextbit Robin (MSM8992),
+which uses the msm8994 HAL.
+
+Test: Manual testing for proper conditioning.
+Test: Running full CTS suite without DISPLAY_DEBUG_SWAPINTERVAL set.
+
+Change-Id: If08595d37ac0c1a19edd8d296289a21c9f95512a
+Signed-off-by: Alex Naidis <alex.naidis@linux.com>
+Keep msm8974 in sync with the rest, post removal
+Signed-off-by: D. Andrei Măceș <Andrei.Maces@alumni.nd.edu>
+---
+ msm8974/common.mk                   | 4 ++++
+ msm8974/libgralloc/framebuffer.cpp  | 2 ++
+ msm8974/libhwcomposer/hwc_utils.cpp | 2 ++
+ 3 files changed, 8 insertions(+)
+
+diff --git a/msm8974/common.mk b/msm8974/common.mk
+index 6cd33ecc4..135f90d36 100644
+--- a/msm8974/common.mk
++++ b/msm8974/common.mk
+@@ -25,6 +25,10 @@ ifneq ($(filter msm8974 msm8x74 msm8610 apq8084,$(TARGET_BOARD_PLATFORM)),)
+     common_flags += -DMDSS_TARGET
+ endif
+ 
++ifeq ($(DISPLAY_DEBUG_SWAPINTERVAL),true)
++    common_flags += -DDEBUG_SWAPINTERVAL
++endif
++
+ ifeq ($(TARGET_FORCE_HWC_FOR_VIRTUAL_DISPLAYS), true)
+     common_flags += -DFORCE_HWC_FOR_VIRTUAL_DISPLAYS
+ endif
+diff --git a/msm8974/libgralloc/framebuffer.cpp b/msm8974/libgralloc/framebuffer.cpp
+index 36c883ddc..a632d784e 100644
+--- a/msm8974/libgralloc/framebuffer.cpp
++++ b/msm8974/libgralloc/framebuffer.cpp
+@@ -64,6 +64,7 @@ struct fb_context_t {
+ static int fb_setSwapInterval(struct framebuffer_device_t* dev,
+                               int interval)
+ {
++#ifdef DEBUG_SWAPINTERVAL
+     //XXX: Get the value here and implement along with
+     //single vsync in HWC
+     char pval[PROPERTY_VALUE_MAX];
+@@ -71,6 +72,7 @@ static int fb_setSwapInterval(struct framebuffer_device_t* dev,
+     int property_interval = atoi(pval);
+     if (property_interval >= 0)
+         interval = property_interval;
++#endif
+ 
+     private_module_t* m = reinterpret_cast<private_module_t*>(
+         dev->common.module);
+diff --git a/msm8974/libhwcomposer/hwc_utils.cpp b/msm8974/libhwcomposer/hwc_utils.cpp
+index 33799234e..6563c5bc4 100644
+--- a/msm8974/libhwcomposer/hwc_utils.cpp
++++ b/msm8974/libhwcomposer/hwc_utils.cpp
+@@ -617,11 +617,13 @@ int hwc_sync(hwc_context_t *ctx, hwc_display_contents_1_t* list, int dpy,
+     data.rel_fen_fd = &releaseFd;
+     data.retire_fen_fd = &retireFd;
+ 
++#ifdef DEBUG_SWAPINTERVAL
+     char property[PROPERTY_VALUE_MAX];
+     if(property_get("debug.egl.swapinterval", property, "1") > 0) {
+         if(atoi(property) == 0)
+             swapzero = true;
+     }
++#endif
+ 
+     for(uint32_t i = 0; i < ctx->mLayerRotMap[dpy]->getCount(); i++) {
+         int rotFd = ctx->mRotMgr->getRotDevFd();
+-- 
+2.17.1
+

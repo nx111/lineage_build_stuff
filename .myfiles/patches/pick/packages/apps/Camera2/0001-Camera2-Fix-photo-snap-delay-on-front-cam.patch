@@ -1,0 +1,77 @@
+From b5924692e2bfdedb7b53f93b997b07500c710ce7 Mon Sep 17 00:00:00 2001
+From: Meticulus <theonejohnnyd@gmail.com>
+Date: Mon, 9 Jan 2017 10:42:52 -0600
+Subject: [PATCH 1/4] Camera2: Fix photo snap delay on front cam.
+
+* As i suspected the front cam is trying to do auto-focus
+  before snapping the photo, only, there is no auto-focus on
+  the front cam so... Also, the "PictureTakerFactory", which
+  implicity makes the decision about whether to wait for 'AF',
+  does so without any info about whether 'AF' is supported on
+  the camera??? So, I had to pass in the info about which camera
+  it is, because 'AF' is supported on the rear camera but not the
+  front.
+
+* Additionally, in my testing, the setting for 'AF' is "auto" even
+  though it can not be set in the ui.
+
+Change-Id: Ic0f9ffc7332163b7b087d0684c6ba82febda5406
+---
+ .../android/camera/one/v2/SimpleOneCameraFactory.java    | 2 +-
+ .../android/camera/one/v2/photo/PictureTakerFactory.java | 9 +++++----
+ 2 files changed, 6 insertions(+), 5 deletions(-)
+
+diff --git a/src/com/android/camera/one/v2/SimpleOneCameraFactory.java b/src/com/android/camera/one/v2/SimpleOneCameraFactory.java
+index 59d94cf54..da654c7be 100644
+--- a/src/com/android/camera/one/v2/SimpleOneCameraFactory.java
++++ b/src/com/android/camera/one/v2/SimpleOneCameraFactory.java
+@@ -214,7 +214,7 @@ public class SimpleOneCameraFactory implements OneCameraFactory {
+                     pictureTaker = PictureTakerFactory.create(Loggers.tagFactory(), mainExecutor,
+                             cameraCommandExecutor, imageSaverBuilder,
+                             frameServerComponent.provideFrameServer(),
+-                            meteredZoomedRequestBuilder, managedImageReader, flashSetting)
++                            meteredZoomedRequestBuilder, managedImageReader, flashSetting, characteristics.getCameraDirection())
+                             .providePictureTaker();
+                 }
+ 
+diff --git a/src/com/android/camera/one/v2/photo/PictureTakerFactory.java b/src/com/android/camera/one/v2/photo/PictureTakerFactory.java
+index 68ca5a752..5fca0fcab 100644
+--- a/src/com/android/camera/one/v2/photo/PictureTakerFactory.java
++++ b/src/com/android/camera/one/v2/photo/PictureTakerFactory.java
+@@ -43,20 +43,21 @@ public final class PictureTakerFactory {
+             FrameServer frameServer,
+             RequestBuilder.Factory rootRequestBuilder,
+             ManagedImageReader sharedImageReader,
+-            Supplier<OneCamera.PhotoCaptureParameters.Flash> flashMode) {
++            Supplier<OneCamera.PhotoCaptureParameters.Flash> flashMode,
++            OneCamera.Facing direction) {
+         // When flash is ON, always use the ConvergedImageCaptureCommand which
+         // performs the AF & AE precapture sequence.
+         ImageCaptureCommand flashOnCommand = new ConvergedImageCaptureCommand(
+                 sharedImageReader, frameServer, rootRequestBuilder,
+                 CameraDevice.TEMPLATE_STILL_CAPTURE, CameraDevice.TEMPLATE_STILL_CAPTURE,
+-                Arrays.asList(rootRequestBuilder), true /* ae */, true /* af */);
++                Arrays.asList(rootRequestBuilder), true /* ae */, direction == OneCamera.Facing.BACK ? true : false /* af */);
+ 
+         // When flash is OFF, wait for AF convergence, but not AE convergence
+         // (which can be very slow).
+         ImageCaptureCommand flashOffCommand = new ConvergedImageCaptureCommand(
+                 sharedImageReader, frameServer, rootRequestBuilder,
+                 CameraDevice.TEMPLATE_STILL_CAPTURE, CameraDevice.TEMPLATE_STILL_CAPTURE,
+-                Arrays.asList(rootRequestBuilder), false /* ae */, true /* af */);
++                Arrays.asList(rootRequestBuilder), false /* ae */, direction == OneCamera.Facing.BACK ? true : false /* af */);
+ 
+         // When flash is AUTO, wait for AF & AE.
+         // TODO OPTIMIZE If the last converged-AE state indicates that flash is
+@@ -64,7 +65,7 @@ public final class PictureTakerFactory {
+         ImageCaptureCommand flashAutoCommand = new ConvergedImageCaptureCommand(
+                 sharedImageReader, frameServer, rootRequestBuilder,
+                 CameraDevice.TEMPLATE_STILL_CAPTURE, CameraDevice.TEMPLATE_STILL_CAPTURE,
+-                Arrays.asList(rootRequestBuilder), true /* ae */, true /* af */);
++                Arrays.asList(rootRequestBuilder), true /* ae */, direction == OneCamera.Facing.BACK ? true : false /* af */);
+ 
+         ImageCaptureCommand flashBasedCommand = new FlashBasedPhotoCommand(logFactory, flashMode,
+                 flashOnCommand, flashAutoCommand, flashOffCommand);
+-- 
+2.17.1
+

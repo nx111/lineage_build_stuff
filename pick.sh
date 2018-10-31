@@ -39,15 +39,15 @@ function patch_local()
     cd $(gettop)
     topdir=$(gettop)
     va_patches_dir=$1
-    search_dir=".mypatches"
+    search_dir=".myfiles/patches"
 
-    if [ ! -z $va_patches_dir -a -d "$topdir/.mypatches/$va_patches_dir" ]; then
-        search_dir=".mypatches/$va_patches_dir"
-    elif [ -d "$topdir/.mypatches/pick/$va_patches_dir" -o -d "$topdir/.mypatches/local/$va_patches_dir" ]; then
-        search_dir=".mypatches/local/$va_patches_dir .mypatches/pick/$va_patches_dir"
+    if [ ! -z $va_patches_dir -a -d "$topdir/patches/$va_patches_dir" ]; then
+        search_dir=".myfiles/patches/$va_patches_dir"
+    elif [ -d "$topdir/.myfiles/patches/pick/$va_patches_dir" -o -d "$topdir/.myfiles/patches/local/$va_patches_dir" ]; then
+        search_dir=".myfiles/patches/local/$va_patches_dir .myfiles/patches/pick/$va_patches_dir"
     fi
 
-    find $search_dir -type f -name "*.patch" -o -name "*.diff" | sed -e "s/\.mypatches\///" -e "s/\//:/" |sort -t : -k 2 | while read line; do
+    find $search_dir -type f -name "*.patch" -o -name "*.diff" | sed -e "s/\.myfiles\/\patches\///" -e "s/\//:/" |sort -t : -k 2 | while read line; do
          f=$(echo $line | sed -e "s/:/\//")
          patchfile=$(basename $f)
          project=$(echo $f |  sed -e "s/^pick\///" -e "s/^local\///"  | sed "s/\/[^\/]*$//")
@@ -72,11 +72,11 @@ function patch_local()
 
              ext=${patchfile##*.}
              #rm -rf .git/rebase-apply
-             changeid=$(grep "Change-Id: " $topdir/.mypatches/$f | tail -n 1 | sed -e "s/ \{1,\}/ /g" -e "s/^ //g" | cut -d' ' -f2)
+             changeid=$(grep "Change-Id: " $topdir/.myfiles/patches/$f | tail -n 1 | sed -e "s/ \{1,\}/ /g" -e "s/^ //g" | cut -d' ' -f2)
              if [ "$changeid" != "" ]; then
                   if ! git log  -100 | grep "Change-Id: $changeid" >/dev/null 2>/dev/null; then 
                        echo "    patching: $f ..."
-                       git am -3 -q   --keep-cr --committer-date-is-author-date < $topdir/.mypatches/$f
+                       git am -3 -q   --keep-cr --committer-date-is-author-date < $topdir/.myfiles/patches/$f
                        rc=$?
                        if [ $rc -ne 0 ]; then
                              first=0
@@ -100,9 +100,9 @@ function patch_local()
     done
 
     cd $topdir
-    if [ "$va_patches_dir" = "local" -a -d $topdir/.mypatches/overwrite ]; then
-        search_dir=.mypatches/overwrite
-        find $search_dir -type f | sed -e "s/\.mypatches\/overwrite\///"  | while read f; do
+    if [ "$va_patches_dir" = "local" -a -d $topdir/.myfiles/patches/overwrite ]; then
+        search_dir=.myfiles/patches/overwrite
+        find $search_dir -type f | sed -e "s/\.myfiles\/\patches\/overwrite\///"  | while read f; do
              [ -f $line ] && cp $search_dir/$f $f
         done
     fi
@@ -112,17 +112,17 @@ function patch_local()
 function reset_overwrite_projects()
 {
     cd $topdir
-    [ -f .mypatches/overwrite/projects.list ] && rm -f .mypatches/overwrite/projects.list
-    [ -d ".mypatches/overwrite" ] || return
-    find ".mypatches/overwrite" -type f | sed -e "s/\.mypatches\/overwrite\///"  | while read f; do
+    [ -f .myfiles/patches/overwrite/projects.list ] && rm -f .myfiles/patches/overwrite/projects.list
+    [ -d ".myfiles/patches/overwrite" ] || return
+    find ".myfiles/patches/overwrite" -type f | sed -e "s/\.myfiles\/\patches\/overwrite\///"  | while read f; do
         while [ $f != $(dirname $f) -a ! -d $(dirname $f)/.git ]; do
               f=$(dirname $f)
         done
         f=$(dirname $f)
         if [ -d $topdir/$f ]; then
-            if ! grep -q $f .mypatches/overwrite/projects.list 2>/dev/null ; then
+            if ! grep -q $f .myfiles/patches/overwrite/projects.list 2>/dev/null ; then
                 git -C $topdir/$f stash >/dev/null
-                echo $f >> .mypatches/overwrite/projects.list
+                echo $f >> .myfiles/patches/overwrite/projects.list
             fi
         fi
     done
@@ -134,8 +134,8 @@ function projects_reset()
     topdir=$(gettop)
     default_branch=$(cat .repo/manifest.xml | grep "default revision" | cut -d= -f2 | sed -e "s/\"//g" -e "s/refs\/heads\///")
 
-    find .mypatches -type d | sed -e "s/\.mypatches\///" |sort -n | while read project; do
-         [ "$f" = ".mypatches" ] && continue
+    find .myfiles/patches -type d | sed -e "s/\.myfiles\/\patches\///" |sort -n | while read project; do
+         [ "$f" = "patches" ] && continue
          if ! grep -q "^$project\$" $topdir/.repo/project.list; then
               continue
          fi
@@ -153,7 +153,7 @@ function projects_snapshot()
 {
     cd $(gettop)
     topdir=$(gettop)
-    snapshot_file=$topdir/.mypatches/snapshot.list
+    snapshot_file=$topdir/.myfiles/patches/snapshot.list
     local vproject=""
     [ "$1" != "" ] && vproject=$(echo $1 | sed -e 's/\/$//')
     rm -f $snapshot_file.new
@@ -202,23 +202,23 @@ function projects_snapshot()
          fi
 
 
-         [ -d $topdir/.mypatches/pick/$project ] || mkdir -p $topdir/.mypatches/pick/$project
-         rm -rf $topdir/.mypatches/pick/$project/*.patch
-         rm -rf $topdir/.mypatches/pick/$project/*.diff
+         [ -d $topdir/.myfiles/patches/pick/$project ] || mkdir -p $topdir/.myfiles/patches/pick/$project
+         rm -rf $topdir/.myfiles/patches/pick/$project/*.patch
+         rm -rf $topdir/.myfiles/patches/pick/$project/*.diff
 
-         git format-patch "$commit_id" -o $topdir/.mypatches/pick/$project/ | sed -e "s:.*/:              :"
+         git format-patch "$commit_id" -o $topdir/.myfiles/patches/pick/$project/ | sed -e "s:.*/:              :"
 
-         patches_count=$(find $topdir/.mypatches/pick/$project -maxdepth 1 -name "*.patch" -o -name "*.diff" | wc -l)
+         patches_count=$(find $topdir/.myfiles/patches/pick/$project -maxdepth 1 -name "*.patch" -o -name "*.diff" | wc -l)
          if [ $patches_count -eq 0 ]; then
-              rmdir -p --ignore-fail-on-non-empty $topdir/.mypatches/pick/$project
-         elif [ -d $topdir/.mypatches/local/$project ]; then
-              find $topdir/.mypatches/local/$project -maxdepth 1 -type f -name "*.patch" -o -name "*.diff" | while read patchfile; do
+              rmdir -p --ignore-fail-on-non-empty $topdir/.myfiles/patches/pick/$project
+         elif [ -d $topdir/.myfiles/patches/local/$project ]; then
+              find $topdir/.myfiles/patches/local/$project -maxdepth 1 -type f -name "*.patch" -o -name "*.diff" | while read patchfile; do
                    patch_file_name=$(basename $patchfile)
                    changeid=$(grep "Change-Id: " $patchfile | tail -n 1 | sed -e "s/ \{1,\}/ /g" -e "s/^ //g" | cut -d' ' -f2)
                    #echo "$project >  $patchfile  ==== Change-Id:$changeid"
                    if [ "$changeid" != "" ]; then
-                       if grep -q "Change-Id: $changeid" -r $topdir/.mypatches/pick/$project; then
-                           pick_patch=$(grep -H "Change-Id: $changeid" -r $topdir/.mypatches/pick/$project | sed -n 1p | cut -d: -f1)
+                       if grep -q "Change-Id: $changeid" -r $topdir/.myfiles/patches/pick/$project; then
+                           pick_patch=$(grep -H "Change-Id: $changeid" -r $topdir/.myfiles/patches/pick/$project | sed -n 1p | cut -d: -f1)
                            pick_patch_name=$(basename $pick_patch)
                            if echo $patch_file_name | grep -qE "\[WIP\]|\[SKIP\]|\[ALWAYS\]" ; then
                                [ "${patch_file_name:5:5}" = "[WIP]" ] && rm -f $patchfile && \
@@ -232,7 +232,7 @@ function projects_snapshot()
                                mv $pick_patch $(dirname $patchfile)/
                            else
                                rm -f $patchfile
-                               mv $pick_patch $topdir/.mypatches/local/$project/
+                               mv $pick_patch $topdir/.myfiles/patches/local/$project/
                            fi
                        elif ! echo $patchfile | grep -qE "\[WIP\]|\[SKIP\]|\[ALWAYS\]"; then
                            rm -f $patchfile
@@ -240,10 +240,10 @@ function projects_snapshot()
                    fi
               done
          fi
-         [ -d $topdir/.mypatches/pick/$project ] && find $topdir/.mypatches/pick/$project -type d | xargs rmdir --ignore-fail-on-non-empty >/dev/null 2>/dev/null
-         [ -d $topdir/.mypatches/local/$project ] && find $topdir/.mypatches/local/$project -type d | xargs rmdir --ignore-fail-on-non-empty >/dev/null 2>/dev/null
+         [ -d $topdir/.myfiles/patches/pick/$project ] && find $topdir/.myfiles/patches/pick/$project -type d | xargs rmdir --ignore-fail-on-non-empty >/dev/null 2>/dev/null
+         [ -d $topdir/.myfiles/patches/local/$project ] && find $topdir/.myfiles/patches/local/$project -type d | xargs rmdir --ignore-fail-on-non-empty >/dev/null 2>/dev/null
     done
-    find $topdir/.mypatches -type d | xargs rmdir --ignore-fail-on-non-empty >/dev/null 2>/dev/null
+    find $topdir/.myfiles/patches -type d | xargs rmdir --ignore-fail-on-non-empty >/dev/null 2>/dev/null
 
     [ "$1" = "" -a -f $snapshot_file.new ] && \
     mv $snapshot_file.new $snapshot_file
@@ -269,7 +269,7 @@ function restore_snapshot()
 {
     topdir=$(gettop)
     cd $topdir
-    snapshot_file=$topdir/.mypatches/snapshot.list
+    snapshot_file=$topdir/.myfiles/patches/snapshot.list
     [ -f "$snapshot_file" ] || return -1
     cat $snapshot_file | while read line; do
          project=$(echo $line | cut -d, -f1 | sed -e "s/^ *//g" -e "s/ *$//g")
@@ -290,10 +290,10 @@ function restore_snapshot()
          fi 
 
          searchdir=""
-         [ -d $topdir/.mypatches/pick/$project ] && searchdir="$searchdir $topdir/.mypatches/pick/$project"
-         [ -d $topdir/.mypatches/local/$project ] && searchdir="$searchdir $topdir/.mypatches/local/$project"
+         [ -d $topdir/.myfiles/patches/pick/$project ] && searchdir="$searchdir $topdir/.myfiles/patches/pick/$project"
+         [ -d $topdir/.myfiles/patches/local/$project ] && searchdir="$searchdir $topdir/.myfiles/patches/local/$project"
          [ "$searchdir" != "" ] && \
-         find $searchdir -type f -name "*.patch" -o -name "*.diff" | sed -e "s:$topdir/.mypatches/::"  -e "s|\/|:|" |sort -t : -k 2 | while read line; do
+         find $searchdir -type f -name "*.patch" -o -name "*.diff" | sed -e "s:$topdir/patches/::"  -e "s|\/|:|" |sort -t : -k 2 | while read line; do
              rm -rf $topdir/$project/.git/rebase-apply
              f=$(echo $line | sed -e "s/:/\//")
              fdir=$(dirname $f | sed -e "s:$project/::" | sed -e "s:^[^/]*/::g" |sed -e "s:\[.*::g" | sed -e "s:/$::")
@@ -303,11 +303,11 @@ function restore_snapshot()
                   echo "         skipping: $f"
                   continue
              fi
-             changeid=$(grep "Change-Id: " $topdir/.mypatches/$f | tail -n 1 | sed -e "s/ \{1,\}/ /g" -e "s/^ //g" | cut -d' ' -f2)
+             changeid=$(grep "Change-Id: " $topdir/.myfiles/patches/$f | tail -n 1 | sed -e "s/ \{1,\}/ /g" -e "s/^ //g" | cut -d' ' -f2)
              if [ "$changeid" != "" ]; then
                   if ! git log  -100 | grep "Change-Id: $changeid" >/dev/null 2>/dev/null; then 
                       echo "         apply patch: $f ..."
-                      git am -3 -q  --keep-cr --committer-date-is-author-date < $topdir/.mypatches/$f
+                      git am -3 -q  --keep-cr --committer-date-is-author-date < $topdir/.myfiles/patches/$f
                       rc=$?
                       if [ $rc -ne 0 ]; then
                              first=0
@@ -346,29 +346,29 @@ function rrCache()
 {
     [ $# -eq 0 ] && return -1
     if [ "$1" = "-backup" -o "$1" = "backup" ]; then
-         [ -f $topdir/.mypatches/rr-cache/rr-cache.list ] && \
-         find $topdir/.mypatches/rr-cache/ -mindepth 1 -maxdepth 1 -type d | xargs rm -rf  &&\
-         cat $topdir/.mypatches/rr-cache/rr-cache.list | while read line; do
+         [ -f $topdir/.myfiles/patches/rr-cache/rr-cache.list ] && \
+         find $topdir/.myfiles/patches/rr-cache/ -mindepth 1 -maxdepth 1 -type d | xargs rm -rf  &&\
+         cat $topdir/.myfiles/patches/rr-cache/rr-cache.list | while read line; do
              project=$(echo $line | sed -e "s: \{2,\}: :g" | sed -e "s:^ ::g" | cut -d' ' -f2)
              rrid=$(echo $line | sed -e "s: \{2,\}: :g" | sed -e "s:^ ::g" | cut -d' ' -f1)
              if [ -d $topdir/$project/.git/rr-cache/$rrid ]; then
-                  rm -rf  $topdir/.mypatches/rr-cache/$project/$rrid
-                  rmdir -p --ignore-fail-on-non-empty $topdir/.mypatches/rr-cache/$project >/dev/null 2>/dev/null
+                  rm -rf  $topdir/.myfiles/patches/rr-cache/$project/$rrid
+                  rmdir -p --ignore-fail-on-non-empty $topdir/.myfiles/patches/rr-cache/$project >/dev/null 2>/dev/null
                   if  [ -d $topdir/$project/.git/rr-cache/$rrid ] && find $topdir/$project/.git/rr-cache/$rrid -name "postimage*" > /dev/null 2>/dev/null; then
-                      [ -d $topdir/.mypatches/rr-cache/$project/$rrid ] || mkdir -p $topdir/.mypatches/rr-cache/$project/$rrid
-                      cp -r $topdir/$project/.git/rr-cache/$rrid $topdir/.mypatches/rr-cache/$project/
+                      [ -d $topdir/.myfiles/patches/rr-cache/$project/$rrid ] || mkdir -p $topdir/.myfiles/patches/rr-cache/$project/$rrid
+                      cp -r $topdir/$project/.git/rr-cache/$rrid $topdir/.myfiles/patches/rr-cache/$project/
                   fi
              fi
          done
     elif [ "$1" = "-restore" -o "$1" = "restore" ]; then
-         [ -f  $topdir/.mypatches/rr-cache/rr-cache.list ] && \
-         cat $topdir/.mypatches/rr-cache/rr-cache.list | while read line; do
+         [ -f  $topdir/.myfiles/patches/rr-cache/rr-cache.list ] && \
+         cat $topdir/.myfiles/patches/rr-cache/rr-cache.list | while read line; do
              project=$(echo $line | sed -e "s: \{2,\}: :g" | sed -e "s:^ ::g" | cut -d' ' -f2)
              rrid=$(echo $line | sed -e "s: \{2,\}: :g" | sed -e "s:^ ::g" | cut -d' ' -f1)
-             if [ -d $topdir/.mypatches/rr-cache/$project/$rrid ] && [ ! -z "$(ls -A $topdir/.mypatches/rr-cache/$project/$rrid)" ]; then
+             if [ -d $topdir/.myfiles/patches/rr-cache/$project/$rrid ] && [ ! -z "$(ls -A $topdir/.myfiles/patches/rr-cache/$project/$rrid)" ]; then
                    rm -rf $topdir/$project/.git/rr-cache/$rrid
                    [ -d $topdir/$project/.git/rr-cache/$rrid ] || mkdir -p $topdir/$project/.git/rr-cache/$rrid
-                   cp -r $topdir/.mypatches/rr-cache/$project/$rrid/* $topdir/$project/.git/rr-cache/$rrid/
+                   cp -r $topdir/.myfiles/patches/rr-cache/$project/$rrid/* $topdir/$project/.git/rr-cache/$rrid/
              fi
          done
     fi
@@ -413,12 +413,12 @@ function get_active_rrcache()
             #echo "$key ?= $md5num   ----->  $rrf"
             if [ "$key" = "$md5num" ]; then
                rrid=$(basename $(dirname $rrf))
-               [ -d $topdir/.mypatches/rr-cache ] || mkdir -p $topdir/.mypatches/rr-cache
-               [ "$script_file" == "bash" -a ! -f $topdir/.mypatches/rr-cache/rr_cache_list ] && rr_cache_list="rr-cache.list"
+               [ -d $topdir/.myfiles/patches/rr-cache ] || mkdir -p $topdir/.myfiles/patches/rr-cache
+               [ "$script_file" == "bash" -a ! -f $topdir/.myfiles/patches/rr-cache/rr_cache_list ] && rr_cache_list="rr-cache.list"
                 
-               [ -f $topdir/.mypatches/rr-cache/$rr_cache_list ] || touch $topdir/.mypatches/rr-cache/$rr_cache_list
-               if ! grep -q "$rrid $project" $topdir/.mypatches/rr-cache/$rr_cache_list; then
-                    echo "$rrid $project" >> $topdir/.mypatches/rr-cache/$rr_cache_list
+               [ -f $topdir/.myfiles/patches/rr-cache/$rr_cache_list ] || touch $topdir/.myfiles/patches/rr-cache/$rr_cache_list
+               if ! grep -q "$rrid $project" $topdir/.myfiles/patches/rr-cache/$rr_cache_list; then
+                    echo "$rrid $project" >> $topdir/.myfiles/patches/rr-cache/$rr_cache_list
                fi
             fi
         done < $rrtmp
@@ -687,8 +687,8 @@ function privpick() {
 
 function apply_force_changes(){
     [ -z $topdir ] && topdir=$(gettop)
-    [ -d "$topdir/.mypatches/local/vendor/lineage"  ] || return 0
-    find $topdir/.mypatches/local/vendor/lineage/ -type f -name "*-\[ALWAYS\]-*.patch" -o -name "*-\[ALWAYS\]-*.diff" \
+    [ -d "$topdir/.myfiles/patches/local/vendor/lineage"  ] || return 0
+    find $topdir/.myfiles/patches/local/vendor/lineage/ -type f -name "*-\[ALWAYS\]-*.patch" -o -name "*-\[ALWAYS\]-*.diff" \
       | while read f; do
          cd $topdir/vendor/lineage;
          if ! git am -3 -q   --keep-cr --committer-date-is-author-date < $f; then
@@ -809,6 +809,7 @@ kpick 227747 # lineage: Enable weather apps
 kpick 226755 # lineage: Enable cryptfs_hw
 kpick 231968 # manifest: android-9.0.0_r10 -> android-9.0.0_r12
 kpick 231971 # manifest: sync gcc4.9 from aosp oreo
+#kpick 232785 # lineage: Ship Snap and Trebuchet
 
 android_head=$(cd android;git log -n 1 | sed -n 1p | cut -d' ' -f2;cd $topdir)
 
@@ -979,6 +980,7 @@ kpick 231852 # onehand: Remove guide link
 kpick 232007 # Merge android-9.0.0_r12
 kpick 232197 # appops: Privacy Guard for P (1/2)
 kpick 227123 # Camera2: Fix photo snap delay on front cam.
+kpick 232796 # NetworkManagement : Add ability to restrict app vpn usage
 
 # frameworks/native
 kpick 224443 # libbinder: Don't log call trace when waiting for vendor service on non-eng builds
@@ -1171,8 +1173,6 @@ kpick 232015 # Merge android-9.0.0_r12
 
 # packages/apps/Jelly
 kpick 231418 # Automatic translation import
-kpick 231710 # Jelly: Set proper mime type when downloading files
-kpick 231711 # Jelly: Grant REQUEST_INSTALL_PACKAGES permission
 
 # packages/apps/LatinIME
 kpick 232022 # Merge android-9.0.0_r12
@@ -1199,15 +1199,15 @@ kpick 232017 # Merge android-9.0.0_r12
 kpick 232048 # Merge android-9.0.0_r12
 
 # packages/apps/Settings
-kpick 226148 # Settings: "Security & location" -> "Security & privacy"
-kpick 226142 # Settings: Add developer setting for root access
 kpick 226150 # Settings: add Trust interface hook
 kpick 226151 # Settings: show Trust brading in confirm_lock_password UI
-kpick 232198 # settings: appops: privacy guard for p (2/2)
+kpick 226148 # Settings: "Security & location" -> "Security & privacy"
 kpick 226154 # fingerprint: Allow devices to configure sensor location
 kpick 225755 # Settings: Hide AOSP theme-related controllers
 kpick 225756 # Settings: fix dark style issues
 kpick 227120 # Settings: Check interfaces before enabling ADB over network
+kpick 226142 # Settings: Add developer setting for root access
+kpick 232198 # Settings: appops: Privacy Guard for P (2/2)
 kpick 231590 # SimSettings: Add manual SIM provisioning support
 kpick 227929 # Settings: Remove battery percentage switch
 kpick 229167 # Settings: Hide Night Mode suggestion if LiveDisplay feature is present
@@ -1217,6 +1217,8 @@ kpick 231518 # Settings: Check if we have any color modes declared in overlay
 kpick 231590 # SimSettings: Add manual SIM provisioning support
 kpick 231826 # Update the white list of Data saver
 kpick 232019 # Merge android-9.0.0_r12
+kpick 232442 # Settings: Root appops access in developer settings
+kpick 232793 # Settings: per-app VPN data restriction
 
 # packages/apps/SettingsIntelligence
 kpick 230519 # Fix dark style issues
@@ -1285,8 +1287,8 @@ git clean -xdf >/dev/null
 cd $topdir
 kpick 225428 # extras: remove su
 
-if [ -f $topdir/.mypatches/su.xml ]; then
-   cp $topdir/.mypatches/su.xml $topdir/.repo/local_manifests/su.xml
+if [ -f $topdir/.myfiles/patches/su.xml ]; then
+   cp $topdir/.myfiles/patches/su.xml $topdir/.repo/local_manifests/su.xml
 
    #if [ -d $topdir/system/extras/su ]; then
    #   cd $topdir/system/extras/su
@@ -1313,6 +1315,7 @@ kpick 232427 # su: Update AppOps API calls
 # system/netd
 kpick 231201 # netd: Allow devices to force-add directly-connected routes
 kpick 232029 # Merge android-9.0.0_r12
+kpick 232794 # NetD : Allow passing in interface names for vpn app restriction
 
 # system/security
 kpick 232030 # Merge android-9.0.0_r12
@@ -1355,6 +1358,7 @@ kpick 229589 # lineage: Automatically set soong namespace when setting project p
 kpick 229590 # lineage: Move qcom pathmap setting into "BoardConfig"
 kpick 229620 # backuptool: Support non-A/B system-as-root
 kpick 231291 # repopick: add hashtag support
+kpick 231599 # privapp-permissions: Add new Gallery permissions
 kpick 231981 # HWComposer: HWC2: allow SkipValidate to be force disabled
 kpick 232659 # vendor/lineage: Build TrebuchetQuickStep
 kpick 232663 # overlay: Hide the option to show battery percentage
@@ -1376,7 +1380,7 @@ echo "---------------------------------------------------------------"
 
 [ $op_pick_remote_only -eq 0 ] && patch_local local
 [ -f $script_file.tmp ] && mv $script_file.tmp $script_file.new
-[ -f $topdir/.mypatches/rr-cache/rr-cache.tmp ] && \
-   mv $topdir/.mypatches/rr-cache/rr-cache.tmp $topdir/.mypatches/rr-cache/rr-cache.list
+[ -f $topdir/.myfiles/patches/rr-cache/rr-cache.tmp ] && \
+   mv $topdir/.myfiles/patches/rr-cache/rr-cache.tmp $topdir/.myfiles/patches/rr-cache/rr-cache.list
 rrCache backup # backup rr-cache
 

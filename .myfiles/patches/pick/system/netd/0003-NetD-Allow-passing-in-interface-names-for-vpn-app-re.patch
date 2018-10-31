@@ -1,0 +1,97 @@
+From 7fa6b261b26cff8e35325a0f84f666d3061834bc Mon Sep 17 00:00:00 2001
+From: Uldiniad <olivercscott@gmail.com>
+Date: Tue, 30 Oct 2018 23:59:08 +0000
+Subject: [PATCH 3/3] NetD : Allow passing in interface names for vpn app
+ restriction
+
+Change-Id: I7cb0c895db60dcf6b4fe59732ec6c0ec3c212a04
+---
+ server/BandwidthController.cpp | 13 +++++++++++++
+ server/BandwidthController.h   |  3 +++
+ server/CommandListener.cpp     | 18 ++++++++++++++++++
+ 3 files changed, 34 insertions(+)
+
+diff --git a/server/BandwidthController.cpp b/server/BandwidthController.cpp
+index 4a7c7de..fae2937 100644
+--- a/server/BandwidthController.cpp
++++ b/server/BandwidthController.cpp
+@@ -306,6 +306,7 @@ int BandwidthController::enableBandwidthControl(bool force) {
+     mSharedQuotaBytes = mSharedAlertBytes = 0;
+ 
+     restrictAppUidsOnData.clear();
++    restrictAppUidsOnVpn.clear();
+     restrictAppUidsOnWlan.clear();
+ 
+     flushCleanTables(false);
+@@ -373,6 +374,18 @@ int BandwidthController::removeRestrictAppsOnData(const std::string& iface, int
+                                        IptOpDelete);
+ }
+ 
++int BandwidthController::addRestrictAppsOnVpn(const std::string& iface, int numUids,
++                                               char *appUids[]) {
++    return manipulateRestrictAppsInOut(iface, toStrVec(numUids, appUids), restrictAppUidsOnVpn,
++                                       IptOpInsert);
++}
++
++int BandwidthController::removeRestrictAppsOnVpn(const std::string& iface, int numUids,
++                                                  char *appUids[]) {
++    return manipulateRestrictAppsInOut(iface, toStrVec(numUids, appUids), restrictAppUidsOnVpn,
++                                       IptOpDelete);
++}
++
+ int BandwidthController::addRestrictAppsOnWlan(const std::string& iface, int numUids,
+                                                char *appUids[]) {
+     return manipulateRestrictAppsInOut(iface, toStrVec(numUids, appUids), restrictAppUidsOnWlan,
+diff --git a/server/BandwidthController.h b/server/BandwidthController.h
+index cb1bed4..f69bac1 100644
+--- a/server/BandwidthController.h
++++ b/server/BandwidthController.h
+@@ -54,6 +54,8 @@ public:
+ 
+     int addRestrictAppsOnData(const std::string& iface, int numUids, char *appUids[]);
+     int removeRestrictAppsOnData(const std::string& iface, int numUids, char *appUids[]);
++    int addRestrictAppsOnVpn(const std::string& iface, int numUids, char *appUids[]);
++    int removeRestrictAppsOnVpn(const std::string& iface, int numUids, char *appUids[]);
+     int addRestrictAppsOnWlan(const std::string& iface, int numUids, char *appUids[]);
+     int removeRestrictAppsOnWlan(const std::string& iface, int numUids, char *appUids[]);
+ 
+@@ -154,6 +156,7 @@ public:
+     std::set<std::string> mSharedQuotaIfaces;
+ 
+     std::vector<int /*appUid*/> restrictAppUidsOnData;
++    std::vector<int /*appUid*/> restrictAppUidsOnVpn;
+     std::vector<int /*appUid*/> restrictAppUidsOnWlan;
+ };
+ 
+diff --git a/server/CommandListener.cpp b/server/CommandListener.cpp
+index 68d5fa7..a26e37f 100644
+--- a/server/CommandListener.cpp
++++ b/server/CommandListener.cpp
+@@ -891,6 +891,24 @@ int CommandListener::BandwidthControlCmd::runCommand(SocketClient *cli, int argc
+         sendGenericOkFail(cli, rc);
+         return 0;
+     }
++    if (!strcmp(argv[1], "addrestrictappsonvpn")) {
++        if (argc < 4) {
++            sendGenericSyntaxError(cli, "addrestrictappsonvpn <interface> <appUid> ...");
++            return 0;
++        }
++        int rc = gCtls->bandwidthCtrl.addRestrictAppsOnVpn(argv[2], argc - 3, argv + 3);
++        sendGenericOkFail(cli, rc);
++        return 0;
++    }
++    if (!strcmp(argv[1], "removerestrictappsonvpn")) {
++        if (argc < 4) {
++            sendGenericSyntaxError(cli, "removerestrictappsonvpn <inteface> <appUid> ...");
++            return 0;
++        }
++        int rc = gCtls->bandwidthCtrl.removeRestrictAppsOnVpn(argv[2], argc - 3, argv + 3);
++        sendGenericOkFail(cli, rc);
++        return 0;
++    }
+     if (!strcmp(argv[1], "addrestrictappsonwlan")) {
+         if (argc < 4) {
+             sendGenericSyntaxError(cli, "addrestrictappsonwlan <interface> <appUid> ...");
+-- 
+2.17.1
+
