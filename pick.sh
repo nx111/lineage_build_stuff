@@ -41,7 +41,7 @@ function patch_local()
     va_patches_dir=$1
     search_dir=".myfiles/patches"
 
-    if [ ! -z $va_patches_dir -a -d "$topdir/patches/$va_patches_dir" ]; then
+    if [ ! -z $va_patches_dir -a -d "$topdir/.myfiles/patches/$va_patches_dir" ]; then
         search_dir=".myfiles/patches/$va_patches_dir"
     elif [ -d "$topdir/.myfiles/patches/pick/$va_patches_dir" -o -d "$topdir/.myfiles/patches/local/$va_patches_dir" ]; then
         search_dir=".myfiles/patches/local/$va_patches_dir .myfiles/patches/pick/$va_patches_dir"
@@ -967,7 +967,6 @@ kpick 229309 # Allow SBC as HD audio codec in Bluetooth device configuration
 kpick 229606 # ConsumerIR: Support Huawei's DSP chip implementation
 kpick 229612 # Performance: Memory Optimizations.
 kpick 230016 # Implement expanded desktop feature
-kpick 230388 # base: show bluetooth battery status when available
 kpick 231796 # SignalClusterView: Hide signal icons for disabled SIMs
 kpick 231797 # Keyguard: Remove carrier text for disabled SIMs
 kpick 231823 # Do not move the multi-window divider when showing IME
@@ -1063,6 +1062,7 @@ kpick 224958 # msm8960/8974: Include string.h where it is necessary
 kpick 232754 # display: Use generated kernel headers
 
 # hardware/qcom/fm
+kpick 232924 # fm: Fix wrong BT SOC property name
 
 # hardware/qcom/gps
 kpick 223351 # Revert "msm8974: deprecate msm8974"
@@ -1214,7 +1214,6 @@ kpick 229167 # Settings: Hide Night Mode suggestion if LiveDisplay feature is pr
 kpick 229312 # Add Dual Channel into Bluetooth Audio Channel Mode developer options menu
 kpick 229453 # Settings: use LineageHW serial number
 kpick 231518 # Settings: Check if we have any color modes declared in overlay
-kpick 231590 # SimSettings: Add manual SIM provisioning support
 kpick 231826 # Update the white list of Data saver
 kpick 232019 # Merge android-9.0.0_r12
 kpick 232442 # Settings: Root appops access in developer settings
@@ -1363,6 +1362,7 @@ kpick 231981 # HWComposer: HWC2: allow SkipValidate to be force disabled
 kpick 232659 # vendor/lineage: Build TrebuchetQuickStep
 kpick 232663 # overlay: Hide the option to show battery percentage
 kpick 232747 # config: Move vendor/extra inclusion before Lineage configuration
+kpick 232918 # extract_utils: Redirect vdexextractor log to /dev/null
 
 # vendor/qcom/opensource/cryptfs_hw
 kpick 226128 # cryptfs_hw: Add compatibility for pre-O hw crypto
