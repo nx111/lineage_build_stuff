@@ -1,0 +1,905 @@
+From 4450d0d9dd6ba201ac304d52e177d8772c043b36 Mon Sep 17 00:00:00 2001
+From: Joey <joey@lineageos.org>
+Date: Wed, 10 Oct 2018 08:44:12 +0200
+Subject: [PATCH 26/31] Revert "Removing support for app prediction from
+ Launcher3"
+
+This reverts commit b1d222e9a76cc733cead3343a4b7c1e39daa190c.
+
+Change-Id: I5d7ed938c9817527c251a08b57a7f1e6564f3e28
+---
+ res/values/attrs.xml                          |   2 +
+ res/values/dimens.xml                         |   1 +
+ res/xml/device_profiles.xml                   |  11 ++
+ .../launcher3/InvariantDeviceProfile.java     |  15 +-
+ .../allapps/AllAppsContainerView.java         |  80 ++++++++-
+ .../launcher3/allapps/AllAppsGridAdapter.java |  32 +++-
+ .../allapps/AllAppsRecyclerView.java          |  29 ++-
+ .../launcher3/allapps/AllAppsStore.java       |   5 +
+ .../allapps/AlphabeticalAppsList.java         | 166 +++++++++++++++++-
+ .../android/launcher3/config/BaseFlags.java   |   2 +
+ .../launcher3/util/ComponentKeyMapper.java    |  48 +++++
+ 11 files changed, 369 insertions(+), 22 deletions(-)
+ create mode 100644 src/com/android/launcher3/util/ComponentKeyMapper.java
+
+diff --git a/res/values/attrs.xml b/res/values/attrs.xml
+index 30091a5f7..fce13ddf1 100644
+--- a/res/values/attrs.xml
++++ b/res/values/attrs.xml
+@@ -101,6 +101,8 @@
+         <!-- numFolderRows & numFolderColumns defaults to numRows & numColumns, if not specified -->
+         <attr name="numFolderRows" format="integer" />
+         <attr name="numFolderColumns" format="integer" />
++        <!-- minAllAppsPredictionColumns defaults to numColumns, if not specified -->
++        <attr name="minAllAppsPredictionColumns" format="integer" />
+         <!-- numHotseatIcons defaults to numColumns, if not specified -->
+         <attr name="numHotseatIcons" format="integer" />
+ 
+diff --git a/res/values/dimens.xml b/res/values/dimens.xml
+index 3bb7a797a..efec7717d 100644
+--- a/res/values/dimens.xml
++++ b/res/values/dimens.xml
+@@ -86,6 +86,7 @@
+     <dimen name="all_apps_header_tab_height">50dp</dimen>
+     <dimen name="all_apps_tabs_indicator_height">2dp</dimen>
+     <dimen name="all_apps_header_top_padding">36dp</dimen>
++    <dimen name="all_apps_prediction_row_divider_height">17dp</dimen>
+     <dimen name="all_apps_work_profile_tab_footer_top_padding">16dp</dimen>
+     <dimen name="all_apps_work_profile_tab_footer_bottom_padding">20dp</dimen>
+     <dimen name="all_apps_tabs_side_padding">12dp</dimen>
+diff --git a/res/xml/device_profiles.xml b/res/xml/device_profiles.xml
+index a34f22515..30c1c54c0 100644
+--- a/res/xml/device_profiles.xml
++++ b/res/xml/device_profiles.xml
+@@ -25,6 +25,7 @@
+         launcher:numColumns="3"
+         launcher:numFolderRows="2"
+         launcher:numFolderColumns="3"
++        launcher:minAllAppsPredictionColumns="3"
+         launcher:iconSize="48"
+         launcher:iconTextSize="13.0"
+         launcher:numHotseatIcons="3"
+@@ -39,6 +40,7 @@
+         launcher:numColumns="3"
+         launcher:numFolderRows="3"
+         launcher:numFolderColumns="3"
++        launcher:minAllAppsPredictionColumns="3"
+         launcher:iconSize="48"
+         launcher:iconTextSize="13.0"
+         launcher:numHotseatIcons="3"
+@@ -53,6 +55,7 @@
+         launcher:numColumns="4"
+         launcher:numFolderRows="3"
+         launcher:numFolderColumns="4"
++        launcher:minAllAppsPredictionColumns="4"
+         launcher:iconSize="48"
+         launcher:iconTextSize="13.0"
+         launcher:numHotseatIcons="5"
+@@ -67,6 +70,7 @@
+         launcher:numColumns="4"
+         launcher:numFolderRows="3"
+         launcher:numFolderColumns="4"
++        launcher:minAllAppsPredictionColumns="4"
+         launcher:iconSize="48"
+         launcher:iconTextSize="13.0"
+         launcher:numHotseatIcons="5"
+@@ -81,6 +85,7 @@
+         launcher:numColumns="4"
+         launcher:numFolderRows="4"
+         launcher:numFolderColumns="4"
++        launcher:minAllAppsPredictionColumns="4"
+         launcher:iconSize="48"
+         launcher:iconTextSize="13.0"
+         launcher:numHotseatIcons="5"
+@@ -95,6 +100,7 @@
+         launcher:numColumns="4"
+         launcher:numFolderRows="4"
+         launcher:numFolderColumns="4"
++        launcher:minAllAppsPredictionColumns="4"
+         launcher:iconSize="54"
+         launcher:iconTextSize="13.0"
+         launcher:numHotseatIcons="5"
+@@ -109,6 +115,7 @@
+         launcher:numColumns="4"
+         launcher:numFolderRows="4"
+         launcher:numFolderColumns="4"
++        launcher:minAllAppsPredictionColumns="4"
+         launcher:iconSize="54"
+         launcher:iconTextSize="13.0"
+         launcher:numHotseatIcons="5"
+@@ -123,6 +130,7 @@
+         launcher:numColumns="5"
+         launcher:numFolderRows="4"
+         launcher:numFolderColumns="4"
++        launcher:minAllAppsPredictionColumns="4"
+         launcher:iconSize="56"
+         launcher:iconTextSize="14.4"
+         launcher:numHotseatIcons="5"
+@@ -137,6 +145,7 @@
+         launcher:numColumns="6"
+         launcher:numFolderRows="4"
+         launcher:numFolderColumns="5"
++        launcher:minAllAppsPredictionColumns="4"
+         launcher:iconSize="64"
+         launcher:iconTextSize="14.4"
+         launcher:numHotseatIcons="7"
+@@ -151,6 +160,7 @@
+         launcher:numColumns="6"
+         launcher:numFolderRows="4"
+         launcher:numFolderColumns="5"
++        launcher:minAllAppsPredictionColumns="4"
+         launcher:iconSize="76"
+         launcher:iconTextSize="14.4"
+         launcher:numHotseatIcons="7"
+@@ -165,6 +175,7 @@
+         launcher:numColumns="7"
+         launcher:numFolderRows="6"
+         launcher:numFolderColumns="6"
++        launcher:minAllAppsPredictionColumns="4"
+         launcher:iconSize="100"
+         launcher:iconTextSize="20.0"
+         launcher:numHotseatIcons="7"
+diff --git a/src/com/android/launcher3/InvariantDeviceProfile.java b/src/com/android/launcher3/InvariantDeviceProfile.java
+index 2e6abb8ac..1faa0731a 100644
+--- a/src/com/android/launcher3/InvariantDeviceProfile.java
++++ b/src/com/android/launcher3/InvariantDeviceProfile.java
+@@ -71,6 +71,12 @@ public class InvariantDeviceProfile {
+     public int numRows;
+     public int numColumns;
+ 
++    /**
++     * The minimum number of predicted apps in all apps.
++     */
++    //@Deprecated
++    int minAllAppsPredictionColumns;
++
+     /**
+      * Number of icons per row and column in the folder.
+      */
+@@ -101,13 +107,13 @@ public class InvariantDeviceProfile {
+ 
+     private InvariantDeviceProfile(Context context, InvariantDeviceProfile p) {
+         this(context, p.name, p.minWidthDps, p.minHeightDps, p.numRows, p.numColumns,
+-                p.numFolderRows, p.numFolderColumns,
++                p.numFolderRows, p.numFolderColumns, p.numHotseatIcons,
+                 p.iconSize, p.landscapeIconSize, p.iconTextSize, p.numHotseatIcons,
+                 p.defaultLayoutId, p.demoModeLayoutId);
+     }
+ 
+-    private InvariantDeviceProfile(Context context, String n, float w, float h, int r, int c, int fr, int fc,
+-            float is, float lis, float its, int hs, int dlId, int dmlId) {
++    InvariantDeviceProfile(Context context, String n, float w, float h, int r, int c, int fr, int fc,
++                           int maapc, float is, float lis, float its, int hs, int dlId, int dmlId) {
+         name = n;
+         minWidthDps = w;
+         minHeightDps = h;
+@@ -115,6 +121,7 @@ public class InvariantDeviceProfile {
+         numColumns = c;
+         numFolderRows = fr;
+         numFolderColumns = fc;
++        minAllAppsPredictionColumns = maapc;
+         iconSize = is;
+         landscapeIconSize = lis;
+         iconTextSize = its;
+@@ -153,6 +160,7 @@ public class InvariantDeviceProfile {
+         demoModeLayoutId = closestProfile.demoModeLayoutId;
+         numFolderRows = closestProfile.numFolderRows;
+         numFolderColumns = closestProfile.numFolderColumns;
++        minAllAppsPredictionColumns = closestProfile.minAllAppsPredictionColumns;
+ 
+         iconSize = interpolatedDeviceProfileOut.iconSize;
+         landscapeIconSize = interpolatedDeviceProfileOut.landscapeIconSize;
+@@ -210,6 +218,7 @@ public class InvariantDeviceProfile {
+                             numColumns,
+                             a.getInt(R.styleable.InvariantDeviceProfile_numFolderRows, numRows),
+                             a.getInt(R.styleable.InvariantDeviceProfile_numFolderColumns, numColumns),
++                            a.getInt(R.styleable.InvariantDeviceProfile_minAllAppsPredictionColumns, numColumns),
+                             iconSize,
+                             a.getFloat(R.styleable.InvariantDeviceProfile_landscapeIconSize, iconSize),
+                             a.getFloat(R.styleable.InvariantDeviceProfile_iconTextSize, 0),
+diff --git a/src/com/android/launcher3/allapps/AllAppsContainerView.java b/src/com/android/launcher3/allapps/AllAppsContainerView.java
+index fdf32af6d..d3aede050 100644
+--- a/src/com/android/launcher3/allapps/AllAppsContainerView.java
++++ b/src/com/android/launcher3/allapps/AllAppsContainerView.java
+@@ -51,12 +51,16 @@ import com.android.launcher3.Utilities;
+ import com.android.launcher3.config.FeatureFlags;
+ import com.android.launcher3.keyboard.FocusedItemDecorator;
+ import com.android.launcher3.userevent.nano.LauncherLogProto.Target;
++import com.android.launcher3.util.ComponentKey;
++import com.android.launcher3.util.ComponentKeyMapper;
+ import com.android.launcher3.util.ItemInfoMatcher;
+ import com.android.launcher3.util.Themes;
+ import com.android.launcher3.views.BottomUserEducationView;
+ import com.android.launcher3.views.RecyclerViewFastScroller;
+ import com.android.launcher3.views.SpringRelativeLayout;
+ 
++import java.util.List;
++
+ /**
+  * The all apps view container.
+  */
+@@ -83,7 +87,11 @@ public class AllAppsContainerView extends SpringRelativeLayout implements DragSo
+ 
+     private SpannableStringBuilder mSearchQueryBuilder = null;
+ 
++    private int mNumAppsPerRow;
++    private int mNumPredictedAppsPerRow;
++
+     private boolean mUsingTabs;
++    private boolean mHasPredictions = false;
+     private boolean mSearchModeWhileUsingTabs = false;
+ 
+     private RecyclerViewFastScroller mTouchHandler;
+@@ -261,6 +269,21 @@ public class AllAppsContainerView extends SpringRelativeLayout implements DragSo
+         return mSearchUiManager;
+     }
+ 
++    @Override
++    protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
++        DeviceProfile grid = mLauncher.getDeviceProfile();
++
++        if (mNumAppsPerRow != grid.inv.numColumns ||
++                mNumPredictedAppsPerRow != grid.inv.numColumns) {
++            mNumAppsPerRow = grid.inv.numColumns;
++            mNumPredictedAppsPerRow = grid.inv.numColumns;
++            for (int i = 0; i < mAH.length; i++) {
++                mAH[i].applyNumsPerRow();
++            }
++        }
++        super.onMeasure(widthMeasureSpec, heightMeasureSpec);
++    }
++
+     @Override
+     public boolean dispatchKeyEvent(KeyEvent event) {
+         mSearchUiManager.preDispatchKeyEvent(event);
+@@ -336,11 +359,16 @@ public class AllAppsContainerView extends SpringRelativeLayout implements DragSo
+             mAH[AdapterHolder.MAIN].setup(mViewPager.getChildAt(0), mPersonalMatcher);
+             mAH[AdapterHolder.WORK].setup(mViewPager.getChildAt(1), mWorkMatcher);
+             onTabChanged(mViewPager.getNextPage());
++            setupHeader();
+         } else {
+             mAH[AdapterHolder.MAIN].setup(findViewById(R.id.apps_list_view), null);
+             mAH[AdapterHolder.WORK].recyclerView = null;
++            if (FeatureFlags.ALL_APPS_PREDICTION_ROW_VIEW) {
++                setupHeader();
++            } else {
++                mHeader.setVisibility(View.GONE);
++            }
+         }
+-        setupHeader();
+ 
+         mAllAppsStore.registerIconContainer(mAH[AdapterHolder.MAIN].recyclerView);
+         mAllAppsStore.registerIconContainer(mAH[AdapterHolder.WORK].recyclerView);
+@@ -388,10 +416,29 @@ public class AllAppsContainerView extends SpringRelativeLayout implements DragSo
+         }
+     }
+ 
++    public void setPredictedApps(List<ComponentKeyMapper<AppInfo>> apps) {
++        mAH[AdapterHolder.MAIN].appsList.setPredictedApps(apps);
++        boolean hasPredictions = !apps.isEmpty();
++        if (mHasPredictions != hasPredictions) {
++            mHasPredictions = hasPredictions;
++            if (FeatureFlags.ALL_APPS_PREDICTION_ROW_VIEW) {
++                setupHeader();
++            }
++        }
++    }
++
++    public AppInfo findApp(ComponentKey mapper) {
++        return mAllAppsStore.getApp(mapper);
++    }
++
+     public AlphabeticalAppsList getApps() {
+         return mAH[AdapterHolder.MAIN].appsList;
+     }
+ 
++    public boolean isUsingTabs() {
++        return mUsingTabs;
++    }
++
+     public FloatingHeaderView getFloatingHeaderView() {
+         return mHeader;
+     }
+@@ -410,12 +457,18 @@ public class AllAppsContainerView extends SpringRelativeLayout implements DragSo
+     }
+ 
+     public void setupHeader() {
++        if (mHeader == null) {
++            return;
++        }
+         mHeader.setVisibility(View.VISIBLE);
+         mHeader.setup(mAH, mAH[AllAppsContainerView.AdapterHolder.WORK].recyclerView == null);
+ 
+         int padding = mHeader.getMaxTranslation();
++        if (mHasPredictions && !mUsingTabs) {
++            padding += mHeader.getPaddingTop() + mHeader.getPaddingBottom();
++        }
+         for (int i = 0; i < mAH.length; i++) {
+-            mAH[i].padding.top = padding;
++            mAH[i].paddingTopForTabs = padding;
+             mAH[i].applyPadding();
+         }
+     }
+@@ -445,6 +498,13 @@ public class AllAppsContainerView extends SpringRelativeLayout implements DragSo
+         }
+     }
+ 
++    public void setRecyclerViewPaddingTop(int top) {
++        for (int i = 0; i < mAH.length; i++) {
++            mAH[i].padding.top = top;
++            mAH[i].applyPadding();
++        }
++    }
++
+     public void setRecyclerViewVerticalFadingEdgeEnabled(boolean enabled) {
+         for (int i = 0; i < mAH.length; i++) {
+             mAH[i].applyVerticalFadingEdgeEnabled(enabled);
+@@ -510,6 +570,7 @@ public class AllAppsContainerView extends SpringRelativeLayout implements DragSo
+         final LinearLayoutManager layoutManager;
+         final AlphabeticalAppsList appsList;
+         final Rect padding = new Rect();
++        int paddingTopForTabs;
+         AllAppsRecyclerView recyclerView;
+         boolean verticalFadingEdge;
+ 
+@@ -535,11 +596,24 @@ public class AllAppsContainerView extends SpringRelativeLayout implements DragSo
+             adapter.setIconFocusListener(focusedItemDecorator.getFocusListener());
+             applyVerticalFadingEdgeEnabled(verticalFadingEdge);
+             applyPadding();
++            applyNumsPerRow();
+         }
+ 
+         void applyPadding() {
+             if (recyclerView != null) {
+-                recyclerView.setPadding(padding.left, padding.top, padding.right, padding.bottom);
++                int paddingTop = mUsingTabs || FeatureFlags.ALL_APPS_PREDICTION_ROW_VIEW
++                        ? paddingTopForTabs : padding.top;
++                recyclerView.setPadding(padding.left, paddingTop, padding.right, padding.bottom);
++            }
++        }
++
++        void applyNumsPerRow() {
++            if (mNumAppsPerRow > 0) {
++                if (recyclerView != null) {
++                    recyclerView.setNumAppsPerRow(mLauncher.getDeviceProfile(), mNumAppsPerRow);
++                }
++                adapter.setNumAppsPerRow(mNumAppsPerRow);
++                appsList.setNumAppsPerRow(mNumAppsPerRow, mNumPredictedAppsPerRow);
+             }
+         }
+ 
+diff --git a/src/com/android/launcher3/allapps/AllAppsGridAdapter.java b/src/com/android/launcher3/allapps/AllAppsGridAdapter.java
+index 27fc53a82..ff47473d2 100644
+--- a/src/com/android/launcher3/allapps/AllAppsGridAdapter.java
++++ b/src/com/android/launcher3/allapps/AllAppsGridAdapter.java
+@@ -53,21 +53,27 @@ public class AllAppsGridAdapter extends RecyclerView.Adapter<AllAppsGridAdapter.
+ 
+     // A normal icon
+     public static final int VIEW_TYPE_ICON = 1 << 1;
++    // A prediction icon
++    public static final int VIEW_TYPE_PREDICTION_ICON = 1 << 2;
+     // The message shown when there are no filtered results
+-    public static final int VIEW_TYPE_EMPTY_SEARCH = 1 << 2;
++    public static final int VIEW_TYPE_EMPTY_SEARCH = 1 << 3;
+     // The message to continue to a market search when there are no filtered results
+-    public static final int VIEW_TYPE_SEARCH_MARKET = 1 << 3;
++    public static final int VIEW_TYPE_SEARCH_MARKET = 1 << 4;
+ 
+     // We use various dividers for various purposes.  They share enough attributes to reuse layouts,
+     // but differ in enough attributes to require different view types
+ 
+     // A divider that separates the apps list and the search market button
+-    public static final int VIEW_TYPE_ALL_APPS_DIVIDER = 1 << 4;
+-    public static final int VIEW_TYPE_WORK_TAB_FOOTER = 1 << 5;
++    public static final int VIEW_TYPE_ALL_APPS_DIVIDER = 1 << 5;
++    // The divider that separates prediction icons from the app list
++    public static final int VIEW_TYPE_PREDICTION_DIVIDER = 1 << 6;
++    public static final int VIEW_TYPE_WORK_TAB_FOOTER = 1 << 7;
+ 
+     // Common view type masks
+     public static final int VIEW_TYPE_MASK_DIVIDER = VIEW_TYPE_ALL_APPS_DIVIDER;
+     public static final int VIEW_TYPE_MASK_ICON = VIEW_TYPE_ICON;
++    public static final int VIEW_TYPE_MASK_HAS_SPRINGS = VIEW_TYPE_MASK_ICON
++            | VIEW_TYPE_PREDICTION_DIVIDER;
+ 
+ 
+     public interface BindViewCallback {
+@@ -179,7 +185,7 @@ public class AllAppsGridAdapter extends RecyclerView.Adapter<AllAppsGridAdapter.
+     private final GridLayoutManager mGridLayoutMgr;
+     private final GridSpanSizer mGridSizer;
+ 
+-    private final int mAppsPerRow;
++    private int mAppsPerRow;
+ 
+     private BindViewCallback mBindViewCallback;
+     private OnFocusChangeListener mIconFocusListener;
+@@ -215,6 +221,18 @@ public class AllAppsGridAdapter extends RecyclerView.Adapter<AllAppsGridAdapter.
+         return (viewType & viewTypeMask) != 0;
+     }
+ 
++    /**
++     * Sets the number of apps per row.
++     */
++    public void setNumAppsPerRow(int appsPerRow) {
++        mAppsPerRow = appsPerRow;
++        mGridLayoutMgr.setSpanCount(appsPerRow);
++    }
++
++    public int getNumAppsPerRow() {
++        return mAppsPerRow;
++    }
++
+     public void setIconFocusListener(OnFocusChangeListener focusListener) {
+         mIconFocusListener = focusListener;
+     }
+@@ -247,6 +265,7 @@ public class AllAppsGridAdapter extends RecyclerView.Adapter<AllAppsGridAdapter.
+     public ViewHolder onCreateViewHolder(ViewGroup parent, int viewType) {
+         switch (viewType) {
+             case VIEW_TYPE_ICON:
++            case VIEW_TYPE_PREDICTION_ICON:
+                 BubbleTextView icon = (BubbleTextView) mLayoutInflater.inflate(
+                         R.layout.all_apps_icon, parent, false);
+                 icon.setOnClickListener(ItemClickHandler.INSTANCE);
+@@ -270,6 +289,7 @@ public class AllAppsGridAdapter extends RecyclerView.Adapter<AllAppsGridAdapter.
+                     }
+                 });
+                 return new ViewHolder(searchMarketView);
++            case VIEW_TYPE_PREDICTION_DIVIDER:
+             case VIEW_TYPE_ALL_APPS_DIVIDER:
+                 return new ViewHolder(mLayoutInflater.inflate(
+                         R.layout.all_apps_divider, parent, false));
+@@ -285,6 +305,7 @@ public class AllAppsGridAdapter extends RecyclerView.Adapter<AllAppsGridAdapter.
+     public void onBindViewHolder(ViewHolder holder, int position) {
+         switch (holder.getItemViewType()) {
+             case VIEW_TYPE_ICON:
++            case VIEW_TYPE_PREDICTION_ICON:
+                 AppInfo info = mApps.getAdapterItems().get(position).appInfo;
+                 BubbleTextView icon = (BubbleTextView) holder.itemView;
+                 icon.reset();
+@@ -338,5 +359,4 @@ public class AllAppsGridAdapter extends RecyclerView.Adapter<AllAppsGridAdapter.
+         AlphabeticalAppsList.AdapterItem item = mApps.getAdapterItems().get(position);
+         return item.viewType;
+     }
+-
+ }
+diff --git a/src/com/android/launcher3/allapps/AllAppsRecyclerView.java b/src/com/android/launcher3/allapps/AllAppsRecyclerView.java
+index a6c1346f6..647dd0af2 100644
+--- a/src/com/android/launcher3/allapps/AllAppsRecyclerView.java
++++ b/src/com/android/launcher3/allapps/AllAppsRecyclerView.java
+@@ -28,13 +28,14 @@ import android.view.MotionEvent;
+ import android.view.View;
+ 
+ import com.android.launcher3.BaseRecyclerView;
++import com.android.launcher3.BubbleTextView;
+ import com.android.launcher3.DeviceProfile;
+ import com.android.launcher3.ItemInfo;
+-import com.android.launcher3.Launcher;
+ import com.android.launcher3.LauncherAppState;
+ import com.android.launcher3.R;
+ import com.android.launcher3.graphics.DrawableFactory;
+ import com.android.launcher3.logging.UserEventDispatcher.LogContainerProvider;
++import com.android.launcher3.touch.SwipeDetector;
+ import com.android.launcher3.userevent.nano.LauncherLogProto.ContainerType;
+ import com.android.launcher3.userevent.nano.LauncherLogProto.Target;
+ import com.android.launcher3.views.RecyclerViewFastScroller;
+@@ -48,7 +49,7 @@ public class AllAppsRecyclerView extends BaseRecyclerView implements LogContaine
+ 
+     private AlphabeticalAppsList mApps;
+     private AllAppsFastScrollHelper mFastScrollHelper;
+-    private final int mNumAppsPerRow;
++    private int mNumAppsPerRow;
+ 
+     // The specific view heights that we use to calculate scroll
+     private SparseIntArray mViewHeights = new SparseIntArray();
+@@ -91,15 +92,19 @@ public class AllAppsRecyclerView extends BaseRecyclerView implements LogContaine
+         return mApps;
+     }
+ 
+-    private void updatePoolSize() {
+-        DeviceProfile grid = Launcher.getLauncher(getContext()).getDeviceProfile();
++    /**
++     * Sets the number of apps per row in this recycler view.
++     */
++    public void setNumAppsPerRow(DeviceProfile grid, int numAppsPerRow) {
++        mNumAppsPerRow = numAppsPerRow;
+         RecyclerView.RecycledViewPool pool = getRecycledViewPool();
+         int approxRows = (int) Math.ceil(grid.availableHeightPx / grid.allAppsIconSizePx);
+         pool.setMaxRecycledViews(AllAppsGridAdapter.VIEW_TYPE_EMPTY_SEARCH, 1);
+         pool.setMaxRecycledViews(AllAppsGridAdapter.VIEW_TYPE_ALL_APPS_DIVIDER, 1);
+         pool.setMaxRecycledViews(AllAppsGridAdapter.VIEW_TYPE_SEARCH_MARKET, 1);
+         pool.setMaxRecycledViews(AllAppsGridAdapter.VIEW_TYPE_ICON, approxRows * mNumAppsPerRow);
+-
++        pool.setMaxRecycledViews(AllAppsGridAdapter.VIEW_TYPE_PREDICTION_ICON, mNumAppsPerRow);
++        pool.setMaxRecycledViews(AllAppsGridAdapter.VIEW_TYPE_PREDICTION_DIVIDER, 1);
+         mViewHeights.clear();
+         mViewHeights.put(AllAppsGridAdapter.VIEW_TYPE_ICON, grid.allAppsCellHeightPx);
+     }
+@@ -133,7 +138,6 @@ public class AllAppsRecyclerView extends BaseRecyclerView implements LogContaine
+     @Override
+     protected void onSizeChanged(int w, int h, int oldw, int oldh) {
+         updateEmptySearchBackgroundBounds();
+-        updatePoolSize();
+     }
+ 
+     @Override
+@@ -141,6 +145,19 @@ public class AllAppsRecyclerView extends BaseRecyclerView implements LogContaine
+         if (mApps.hasFilter()) {
+             targetParent.containerType = ContainerType.SEARCHRESULT;
+         } else {
++            if (v instanceof BubbleTextView) {
++                BubbleTextView icon = (BubbleTextView) v;
++                int position = getChildPosition(icon);
++                if (position != NO_POSITION) {
++                    List<AlphabeticalAppsList.AdapterItem> items = mApps.getAdapterItems();
++                    AlphabeticalAppsList.AdapterItem item = items.get(position);
++                    if (item.viewType == AllAppsGridAdapter.VIEW_TYPE_PREDICTION_ICON) {
++                        targetParent.containerType = ContainerType.PREDICTION;
++                        target.predictedRank = item.rowAppIndex;
++                        return;
++                    }
++                }
++            }
+             targetParent.containerType = ContainerType.ALLAPPS;
+         }
+     }
+diff --git a/src/com/android/launcher3/allapps/AllAppsStore.java b/src/com/android/launcher3/allapps/AllAppsStore.java
+index dc3489290..35914d806 100644
+--- a/src/com/android/launcher3/allapps/AllAppsStore.java
++++ b/src/com/android/launcher3/allapps/AllAppsStore.java
+@@ -24,6 +24,7 @@ import com.android.launcher3.ItemInfo;
+ import com.android.launcher3.PromiseAppInfo;
+ import com.android.launcher3.util.ComponentKey;
+ import com.android.launcher3.util.PackageUserKey;
++import com.android.launcher3.util.ComponentKeyMapper;
+ 
+ import java.util.ArrayList;
+ import java.util.Collection;
+@@ -71,6 +72,10 @@ public class AllAppsStore {
+         }
+     }
+ 
++    public AppInfo getApp(ComponentKeyMapper<AppInfo> mapper) {
++        return mapper.getItem(mComponentToAppMap);
++    }
++
+     /**
+      * Adds or updates existing apps in the list
+      */
+diff --git a/src/com/android/launcher3/allapps/AlphabeticalAppsList.java b/src/com/android/launcher3/allapps/AlphabeticalAppsList.java
+index 434918d2a..29b32b06c 100644
+--- a/src/com/android/launcher3/allapps/AlphabeticalAppsList.java
++++ b/src/com/android/launcher3/allapps/AlphabeticalAppsList.java
+@@ -17,13 +17,19 @@ package com.android.launcher3.allapps;
+ 
+ import android.content.Context;
+ import android.content.pm.PackageManager;
++import android.os.Process;
++import android.support.annotation.NonNull;
++import android.support.annotation.Nullable;
++import android.util.Log;
+ 
+ import com.android.launcher3.AppInfo;
+ import com.android.launcher3.Launcher;
+ import com.android.launcher3.Utilities;
+ import com.android.launcher3.compat.AlphabeticIndexCompat;
++import com.android.launcher3.config.FeatureFlags;
+ import com.android.launcher3.shortcuts.DeepShortcutManager;
+ import com.android.launcher3.util.ComponentKey;
++import com.android.launcher3.util.ComponentKeyMapper;
+ import com.android.launcher3.util.ItemInfoMatcher;
+ import com.android.launcher3.util.LabelComparator;
+ 
+@@ -41,6 +47,8 @@ import java.util.TreeMap;
+ public class AlphabeticalAppsList implements AllAppsStore.OnUpdateListener {
+ 
+     public static final String TAG = "AlphabeticalAppsList";
++    private static final boolean DEBUG = false;
++    private static final boolean DEBUG_PREDICTIONS = false;
+ 
+     private static final int FAST_SCROLL_FRACTION_DISTRIBUTE_BY_ROWS_FRACTION = 0;
+     private static final int FAST_SCROLL_FRACTION_DISTRIBUTE_BY_NUM_SECTIONS = 1;
+@@ -87,6 +95,13 @@ public class AlphabeticalAppsList implements AllAppsStore.OnUpdateListener {
+         // The index of this app not including sections
+         public int appIndex = -1;
+ 
++        public static AdapterItem asPredictedApp(int pos, String sectionName, AppInfo appInfo,
++                int appIndex) {
++            AdapterItem item = asApp(pos, sectionName, appInfo, appIndex);
++            item.viewType = AllAppsGridAdapter.VIEW_TYPE_PREDICTION_ICON;
++            return item;
++        }
++
+         public static AdapterItem asApp(int pos, String sectionName, AppInfo appInfo,
+                 int appIndex) {
+             AdapterItem item = new AdapterItem();
+@@ -105,6 +120,13 @@ public class AlphabeticalAppsList implements AllAppsStore.OnUpdateListener {
+             return item;
+         }
+ 
++        public static AdapterItem asPredictionDivider(int pos) {
++            AdapterItem item = new AdapterItem();
++            item.viewType = AllAppsGridAdapter.VIEW_TYPE_PREDICTION_DIVIDER;
++            item.position = pos;
++            return item;
++        }
++
+         public static AdapterItem asAllAppsDivider(int pos) {
+             AdapterItem item = new AdapterItem();
+             item.viewType = AllAppsGridAdapter.VIEW_TYPE_ALL_APPS_DIVIDER;
+@@ -129,7 +151,7 @@ public class AlphabeticalAppsList implements AllAppsStore.OnUpdateListener {
+ 
+     private final Launcher mLauncher;
+ 
+-    // The set of apps from the system
++    // The set of apps from the system not including predictions
+     private final List<AppInfo> mApps = new ArrayList<>();
+     private final AllAppsStore mAllAppsStore;
+ 
+@@ -139,6 +161,10 @@ public class AlphabeticalAppsList implements AllAppsStore.OnUpdateListener {
+     private final ArrayList<AdapterItem> mAdapterItems = new ArrayList<>();
+     // The set of sections that we allow fast-scrolling to (includes non-merged sections)
+     private final List<FastScrollSectionInfo> mFastScrollerSections = new ArrayList<>();
++    // The set of predicted app component names
++    private final List<ComponentKeyMapper<AppInfo>> mPredictedAppComponents = new ArrayList<>();
++    // The set of predicted apps resolved from the component names and the current set of apps
++    private final List<AppInfo> mPredictedApps = new ArrayList<>();
+     // Is it the work profile app list.
+     private final boolean mIsWork;
+ 
+@@ -148,7 +174,8 @@ public class AlphabeticalAppsList implements AllAppsStore.OnUpdateListener {
+     private AllAppsGridAdapter mAdapter;
+     private AlphabeticIndexCompat mIndexer;
+     private AppInfoComparator mAppNameComparator;
+-    private final int mNumAppsPerRow;
++    private int mNumAppsPerRow;
++    private int mNumPredictedAppsPerRow;
+     private int mNumAppRowsInAdapter;
+     private ItemInfoMatcher mItemFilter;
+ 
+@@ -158,7 +185,6 @@ public class AlphabeticalAppsList implements AllAppsStore.OnUpdateListener {
+         mIndexer = new AlphabeticIndexCompat(context);
+         mAppNameComparator = new AppInfoComparator(context);
+         mIsWork = isWork;
+-        mNumAppsPerRow = mLauncher.getDeviceProfile().inv.numColumns;
+         mAllAppsStore.addUpdateListener(this);
+     }
+ 
+@@ -167,6 +193,16 @@ public class AlphabeticalAppsList implements AllAppsStore.OnUpdateListener {
+         onAppsUpdated();
+     }
+ 
++    /**
++     * Sets the number of apps per row.
++     */
++    public void setNumAppsPerRow(int numAppsPerRow, int numPredictedAppsPerRow) {
++        mNumAppsPerRow = numAppsPerRow;
++        mNumPredictedAppsPerRow = numPredictedAppsPerRow;
++
++        updateAdapterItems();
++    }
++
+     /**
+      * Sets the adapter to notify when this dataset changes.
+      */
+@@ -181,6 +217,13 @@ public class AlphabeticalAppsList implements AllAppsStore.OnUpdateListener {
+         return mApps;
+     }
+ 
++    /**
++     * Returns the predicted apps.
++     */
++    public List<AppInfo> getPredictedApps() {
++        return mPredictedApps;
++    }
++
+     /**
+      * Returns fast scroller sections of all the current filtered applications.
+      */
+@@ -196,7 +239,7 @@ public class AlphabeticalAppsList implements AllAppsStore.OnUpdateListener {
+     }
+ 
+     /**
+-     * Returns the number of rows of applications
++     * Returns the number of rows of applications (not including predictions)
+      */
+     public int getNumAppRows() {
+         return mNumAppRowsInAdapter;
+@@ -236,6 +279,80 @@ public class AlphabeticalAppsList implements AllAppsStore.OnUpdateListener {
+         return false;
+     }
+ 
++    private List<AppInfo> processPredictedAppComponents(List<ComponentKeyMapper<AppInfo>> components) {
++        if (mAllAppsStore.getApps().isEmpty()) {
++            // Apps have not been bound yet.
++            return Collections.emptyList();
++        }
++
++        List<AppInfo> predictedApps = new ArrayList<>();
++        for (ComponentKeyMapper<AppInfo> mapper : components) {
++            AppInfo info = mAllAppsStore.getApp(mapper);
++            if (info != null) {
++                predictedApps.add(info);
++            } else {
++                if (FeatureFlags.IS_DOGFOOD_BUILD) {
++                    Log.e(TAG, "Predicted app not found: " + mapper);
++                }
++            }
++            // Stop at the number of predicted apps
++            if (predictedApps.size() == mNumPredictedAppsPerRow) {
++                break;
++            }
++        }
++        return predictedApps;
++    }
++
++    /**
++     * Sets the current set of predicted apps.
++     *
++     * This can be called before we get the full set of applications, we should merge the results
++     * only in onAppsUpdated() which is idempotent.
++     *
++     * If the number of predicted apps is the same as the previous list of predicted apps,
++     * we can optimize by swapping them in place.
++     */
++    public void setPredictedApps(List<ComponentKeyMapper<AppInfo>> apps) {
++        mPredictedAppComponents.clear();
++        mPredictedAppComponents.addAll(apps);
++
++        List<AppInfo> newPredictedApps = processPredictedAppComponents(apps);
++        // We only need to do work if any of the visible predicted apps have changed.
++        if (!newPredictedApps.equals(mPredictedApps)) {
++            if (newPredictedApps.size() == mPredictedApps.size()) {
++                swapInNewPredictedApps(newPredictedApps);
++            } else {
++                // We need to update the appIndex of all the items.
++                onAppsUpdated();
++            }
++        }
++    }
++
++    /**
++     * Swaps out the old predicted apps with the new predicted apps, in place. This optimization
++     * allows us to skip an entire relayout that would otherwise be called by notifyDataSetChanged.
++     *
++     * Note: This should only be called if the # of predicted apps is the same.
++     *       This method assumes that predicted apps are the first items in the adapter.
++     */
++    private void swapInNewPredictedApps(List<AppInfo> apps) {
++        mPredictedApps.clear();
++        mPredictedApps.addAll(apps);
++
++        int size = apps.size();
++        for (int i = 0; i < size; ++i) {
++            AppInfo info = apps.get(i);
++            AdapterItem orgItem = mAdapterItems.get(i);
++            AdapterItem newItem = AdapterItem.asPredictedApp(orgItem.position, "", info,
++                    orgItem.appIndex);
++            newItem.rowAppIndex = orgItem.rowAppIndex;
++
++            mAdapterItems.set(i, newItem);
++            mFilteredApps.set(i, info);
++            mAdapter.notifyItemChanged(i);
++        }
++    }
++
+     /**
+      * Updates internals when the set of apps are updated.
+      */
+@@ -316,6 +433,47 @@ public class AlphabeticalAppsList implements AllAppsStore.OnUpdateListener {
+         mFastScrollerSections.clear();
+         mAdapterItems.clear();
+ 
++        if (!FeatureFlags.ALL_APPS_PREDICTION_ROW_VIEW) {
++            if (DEBUG_PREDICTIONS) {
++                if (mPredictedAppComponents.isEmpty() && !mApps.isEmpty()) {
++                    mPredictedAppComponents.add(new ComponentKeyMapper<AppInfo>(new ComponentKey(mApps.get(0).componentName,
++                            Process.myUserHandle())));
++                    mPredictedAppComponents.add(new ComponentKeyMapper<AppInfo>(new ComponentKey(mApps.get(0).componentName,
++                            Process.myUserHandle())));
++                    mPredictedAppComponents.add(new ComponentKeyMapper<AppInfo>(new ComponentKey(mApps.get(0).componentName,
++                            Process.myUserHandle())));
++                    mPredictedAppComponents.add(new ComponentKeyMapper<AppInfo>(new ComponentKey(mApps.get(0).componentName,
++                            Process.myUserHandle())));
++                }
++            }
++
++            // Process the predicted app components
++            mPredictedApps.clear();
++            if (mPredictedAppComponents != null && !mPredictedAppComponents.isEmpty() && !hasFilter()) {
++                mPredictedApps.addAll(processPredictedAppComponents(mPredictedAppComponents));
++
++                if (!mPredictedApps.isEmpty()) {
++                    // Add a section for the predictions
++                    lastFastScrollerSectionInfo = new FastScrollSectionInfo("");
++                    mFastScrollerSections.add(lastFastScrollerSectionInfo);
++
++                    // Add the predicted app items
++                    for (AppInfo info : mPredictedApps) {
++                        AdapterItem appItem = AdapterItem.asPredictedApp(position++, "", info,
++                                appIndex++);
++                        if (lastFastScrollerSectionInfo.fastScrollToItem == null) {
++                            lastFastScrollerSectionInfo.fastScrollToItem = appItem;
++                        }
++                        mAdapterItems.add(appItem);
++                        mFilteredApps.add(info);
++                    }
++
++                    mAdapterItems.add(AdapterItem.asPredictionDivider(position++));
++                }
++            }
++
++        }
++
+         // Recreate the filtered and sectioned apps (for convenience for the grid layout) from the
+         // ordered set of sections
+         for (AppInfo info : getFiltersAppInfos()) {
+diff --git a/src/com/android/launcher3/config/BaseFlags.java b/src/com/android/launcher3/config/BaseFlags.java
+index 8e6b27b16..90ac1869c 100644
+--- a/src/com/android/launcher3/config/BaseFlags.java
++++ b/src/com/android/launcher3/config/BaseFlags.java
+@@ -51,6 +51,8 @@ abstract class BaseFlags {
+ 
+     // When enabled shows a work profile tab in all apps
+     public static final boolean ALL_APPS_TABS_ENABLED = true;
++    // When enabled prediction row is rendered as it's own custom view
++    public static final boolean ALL_APPS_PREDICTION_ROW_VIEW = true;
+ 
+     // When true, overview shows screenshots in the orientation they were taken rather than
+     // trying to make them fit the orientation the device is in.
+diff --git a/src/com/android/launcher3/util/ComponentKeyMapper.java b/src/com/android/launcher3/util/ComponentKeyMapper.java
+new file mode 100644
+index 000000000..a7f0d764e
+--- /dev/null
++++ b/src/com/android/launcher3/util/ComponentKeyMapper.java
+@@ -0,0 +1,48 @@
++package com.android.launcher3.util;
++
++/**
++ * Copyright (C) 2017 The Android Open Source Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++import android.support.annotation.Nullable;
++
++import java.util.Map;
++
++public class ComponentKeyMapper<T> {
++
++    protected final ComponentKey mComponentKey;
++
++    public ComponentKeyMapper(ComponentKey key) {
++        this.mComponentKey = key;
++    }
++
++    public @Nullable T getItem(Map<ComponentKey, T> map) {
++        return map.get(mComponentKey);
++    }
++
++    public String getPackage() {
++        return mComponentKey.componentName.getPackageName();
++    }
++
++    public String getComponentClass() {
++        return mComponentKey.componentName.getClassName();
++    }
++
++    @Override
++    public String toString() {
++        return mComponentKey.toString();
++    }
++
++}
+-- 
+2.17.1
+

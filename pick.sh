@@ -11,12 +11,11 @@ op_snap_project=""
 op_patches_dir=""
 op_base_pick=0
 default_remote="github"
-script_file="pick.sh"
+script_file="$0"
 conflict_resolved=0
 checkcount=200
 
 [ "$0" != "bash" ] && script_file=$(realpath $0)
-#echo "script_file:$script_file"
 
 ##### apply patch saved first ########
 function get_defaul_remote()
@@ -430,6 +429,85 @@ function get_active_rrcache()
 function kpick()
 {
     topdir=$(gettop)
+    local vars=""
+    local query=""
+    local is_topic_op=0
+    local is_query_op=0
+    local changeNumber
+
+    logfile=$topdir/.pick_tmp.log
+    errfile=$(echo $logfile | sed -e "s/\.log$/\.err/")
+    change_number_list=$topdir/.change_number_list
+    target_script=""
+
+    rm -f $logfile $errfile $change_number_list
+
+    for op in $*; do
+        if [ -z "$changeNumber" ] && [[ $op =~ ^[0-9]+$ ]] && [ $op -gt 1000 ]; then
+             changeNumber=$op
+        elif echo $op | grep -q "[[:digit:]]*-[[:digit:]]*"; then
+             query="$query $op"
+        elif  [ "$op" = "-t" -o "$op" = "--topic" ]; then
+             is_topic_op=1
+             query="$query $op"
+        elif  [ "$op" = "-Q" -o "$op" = "--query" ]; then
+             is_query_op=1
+             query="$query $op"
+        elif [ $is_topic_op -eq 1 ]; then
+             query="$query $op"
+             is_topic_op=0
+        elif [ $is_query_op -eq 1 ]; then
+             query="$query $op"
+             is_query_op=0
+        else
+           vars="$vars $op"
+        fi
+    done
+    if  [ "$changeNumber" != "" ]; then
+         rm -f $logfile $errfile $change_number_list
+         kpick_action $vars $changeNumber
+         return 0
+    fi
+    repopick --test > $logfile 2>$errfile
+    
+    if [ -f $errfile ] && grep -q "error: unrecognized arguments: --test" $errfile; then
+         echo "repopick not support --test options"
+         rm -f $logfile $errfile $change_number_list
+         return -1
+    fi
+
+    [ ! -f $script_file.tmp -a "$script_file" != "bash" ] && cp $script_file $script_file.tmp
+    if [ -f $script_file.tmp ]; then
+         target_script=$script_file.tmp
+    elif [ -f $script_file.new ]; then
+         target_script=$script_file.new
+    fi
+
+    local mLine=0
+    if [ -f $target_script ]; then
+        mLine=$(grep -n "^[[:space:]]*kpick $*" $target_script | cut -d: -f1 )
+        sed -e "s/\([[:space:]]*kpick $*\)/#\1/" -i   $target_script
+    fi
+    repopick --test $query | cut -d" " -f 5 > $change_number_list || return -1
+    [ -f $change_number_list ] || return 0
+    while read line; do
+        number=$(echo $line | sed -e "s/  / /g")
+        if [ -f $target_script ]; then
+           sed "${mLine}akpick $number" -i  $target_script
+           mLine=$(grep -n "^[[:space:]]*kpick $number" $target_script | cut -d: -f1 )
+        fi
+    done < $change_number_list
+
+    while read line; do
+        number=$(echo $line | cut -d" " -f 3)
+        kpick_action $vars $number
+    done < $change_number_list
+    rm -f $logfile $errfile $change_number_list
+}
+
+function kpick_action()
+{
+    topdir=$(gettop)
     conflict_resolved=0
     op_force_pick=0
     logfile=$topdir/.pick_tmp.log
@@ -443,6 +521,8 @@ function kpick()
     local topic=""
     local m_parent=1
     local nops=""
+    local op
+
     for op in $*; do
         if [ $op_is_m_parent -eq 1 ]; then
              [[ $op =~ ^[0-9]+$ ]] && [ $op -lt 10 ] && m_parent=$op
@@ -459,13 +539,7 @@ function kpick()
         nops="$nops $op"
     done
     if  [ "$changeNumber" = "" ]; then
-         if [ "$topic" != "" ]; then
-               echo ">>> Picking topic [$topic] ..."
-         else
-               echo ">>> Picking $nops ..."
-         fi
-         repopick $nops || exit -1
-         return 0
+         return -1
     fi
     echo ">>> Picking change $changeNumber ..."
     LANG=en_US repopick -c $checkcount $nops >$logfile 2>$errfile
@@ -479,7 +553,6 @@ function kpick()
     fi
     subject=$(echo $subject | sed "s/\"/\\\\\"/g" | sed "s/'/\\\\\'/g" | sed "s/\&/\\\&/g")
     subject=$(echo $subject | sed "s/\`/\\\\\`/g" | sed -e "s/|/\\\|/g")
-    #echo " ---subject=$subject"
     fix_repopick_output $logfile
     cat $logfile | sed -e "/ERROR: git command failed/d" | sed "/Force-picking a closed change/d"
     project=$(cat $logfile | grep "Project path" | cut -d: -f2 | sed "s/ //g")
@@ -656,24 +729,49 @@ function kpick()
         if [ -f $logfile -a ! -z $changeNumber ]; then
             if grep -q -E "Change status is MERGED.|nothing to commit|git command resulted with an empty commit" $logfile; then
                [ ! -f $script_file.tmp -a "$script_file" != "bash" ] && cp $script_file $script_file.tmp
-               [ -f $script_file.tmp ] && \
-                  eval  sed -E \"/[[:space:]]*kpick[[:space:]]\{1,\}$changeNumber[[:space:]]*.*/d\" -i $script_file.tmp
+               if [ -f $script_file.tmp ]; then
+                    target_script=$script_file.tmp
+               elif [ -f $script_file.new ]; then
+                    target_script=$script_file.new
+               fi
+               [ ! -z $target_script -a -f $target_script ] && \
+                  eval  sed -E \"/[[:space:]]*kpick[[:space:]]\{1,\}$changeNumber[[:space:]]*.*/d\" -i $target_script
             elif grep -q -E "Change status is ABANDONED." $logfile; then
                [ ! -f $script_file.tmp -a "$script_file" != "bash" ] && cp $script_file $script_file.tmp
-               [ -f $script_file.tmp ] && \
-               eval  sed -E \"/[[:space:]]*kpick[[:space:]]\{1,\}$changeNumber[[:space:]]*.*/d\" -i $script_file.tmp
+               if [ -f $script_file.tmp ]; then
+                    target_script=$script_file.tmp
+               elif [ -f $script_file.new ]; then
+                    target_script=$script_file.new
+               fi
+               [ ! -z $target_script -a -f $target_script ] && \
+               eval  sed -E \"/[[:space:]]*kpick[[:space:]]\{1,\}$changeNumber[[:space:]]*.*/d\" -i $target_script
             elif grep -q -E "Change $changeNumber not found, skipping" $logfile; then
                [ ! -f $script_file.tmp -a "$script_file" != "bash" ] && cp $script_file $script_file.tmp
-               [ -f $script_file.tmp ] && \
-               eval  sed -E \"/[[:space:]]*kpick[[:space:]]\{1,\}$changeNumber[[:space:]]*.*/d\" -i $script_file.tmp
+               if [ -f $script_file.tmp ]; then
+                    target_script=$script_file.tmp
+               elif [ -f $script_file.new ]; then
+                    target_script=$script_file.new
+               fi
+               [ ! -z $target_script -a -f $target_script ] && \
+               eval  sed -E \"/[[:space:]]*kpick[[:space:]]\{1,\}$changeNumber[[:space:]]*.*/d\" -i $target_script
             elif grep -q "could not determine the project path for" $errfile; then
                [ ! -f $script_file.tmp -a "$script_file" != "bash" ] && cp $script_file $script_file.tmp
-               [ -f $script_file.tmp ] && \
-               eval  sed -E \"/[[:space:]]*kpick[[:space:]]\{1,\}$changeNumber[[:space:]]*.*/d\" -i $script_file.tmp
+               if [ -f $script_file.tmp ]; then
+                    target_script=$script_file.tmp
+               elif [ -f $script_file.new ]; then
+                    target_script=$script_file.new
+               fi
+               [ ! -z $target_script -a -f $target_script ] && \
+               eval  sed -E \"/[[:space:]]*kpick[[:space:]]\{1,\}$changeNumber[[:space:]]*.*/d\" -i $target_script
             elif [ "$changeNumber" != "" -a "$subject" != "" ]; then
                [ ! -f $script_file.tmp -a "$script_file" != "bash" ] && cp $script_file $script_file.tmp
-               [ -f $script_file.tmp ] && \
-               eval  "sed -e \"s|^[[:space:]]*kpick[[:space:]]\{1,\}\($changeNumber\)[[:space:]]*.*|kpick \1 \# $subject|g\" -i $script_file.tmp"
+               if [ -f $script_file.tmp ]; then
+                    target_script=$script_file.tmp
+               elif [ -f $script_file.new ]; then
+                    target_script=$script_file.new
+               fi
+               [ ! -z $target_script -a -f $target_script ] && \
+               eval  "sed -e \"s|^[[:space:]]*kpick[[:space:]]\{1,\}\($changeNumber\)[[:space:]]*.*|kpick \1 \# $subject|g\" -i $target_script"
             fi
          fi
     fi
@@ -809,7 +907,7 @@ kpick 227747 # lineage: Enable weather apps
 kpick 226755 # lineage: Enable cryptfs_hw
 kpick 231968 # manifest: android-9.0.0_r10 -> android-9.0.0_r12
 kpick 231971 # manifest: sync gcc4.9 from aosp oreo
-#kpick 232785 # lineage: Ship Snap and Trebuchet
+kpick 232785 # lineage: Ship Snap and Trebuchet
 
 android_head=$(cd android;git log -n 1 | sed -n 1p | cut -d' ' -f2;cd $topdir)
 
@@ -978,8 +1076,8 @@ kpick 231851 # onehand: Take into account cutouts
 kpick 231852 # onehand: Remove guide link
 kpick 232007 # Merge android-9.0.0_r12
 kpick 232197 # appops: Privacy Guard for P (1/2)
-kpick 227123 # Camera2: Fix photo snap delay on front cam.
 kpick 232796 # NetworkManagement : Add ability to restrict app vpn usage
+kpick 233369 # Add auth framework for outgoing SMS messages.
 
 # frameworks/native
 kpick 224443 # libbinder: Don't log call trace when waiting for vendor service on non-eng builds
@@ -1041,7 +1139,6 @@ kpick 223338 # Revert "msm8x74: remove from top level makefile"
 kpick 232009 # Merge android-9.0.0_r12
 
 # hardware/qcom/audio-caf/msm8974
-kpick 232752 # audio: Use generated kernel headers
 
 # hardware/qcom/bootctl
 kpick 232041 # Merge android-9.0.0_r12
@@ -1059,7 +1156,6 @@ kpick 223346 # msm8974: libexternal should depend on libmedia
 kpick 224958 # msm8960/8974: Include string.h where it is necessary
 
 # hardware/qcom/display-caf/msm8974
-kpick 232754 # display: Use generated kernel headers
 
 # hardware/qcom/fm
 kpick 232924 # fm: Fix wrong BT SOC property name
@@ -1089,7 +1185,6 @@ kpick 224956 # mm-video: venc: Correct a typo in variable name
 kpick 224957 # media: vdec: Include nativebase headers
 
 # hardware/qcom/media-caf/msm8974
-kpick 232755 # media: Use generated kernel headers
 
 # hardware/qcom/power
 kpick 230513 # power: msm8960: Implement performance profiles
@@ -1108,6 +1203,7 @@ kpick 231895 # VNDK: Added required libs
 kpick 231896 # power: Turn on/off display in SDM439
 kpick 231897 # power: qcom: powerHal for sdm439 and sdm429
 kpick 231898 # Power: Naming convention change
+kpick 233027 # Cache SOC ID checks for future queries
 
 # hardware/qcom/wlan-caf
 kpick 226638 # wcnss_qmi: Generate a fixed random mac address if the NV doesn't provide one
@@ -1170,6 +1266,73 @@ kpick 232015 # Merge android-9.0.0_r12
 # packages/apps/Email
 
 # packages/apps/Gallery2
+kpick 233034 # Fix ProGuard error.
+kpick 233035 # Float.NaN != ... always evaluates to true, use Float.isNaN.
+kpick 233036 # Fix misc-macro-parentheses warnings in Gallery2.
+kpick 233037 # Add missing includes.
+kpick 233038 # Revert "Fix compiling errors in P"
+kpick 233039 # Stop using junit classes in production
+kpick 233040 # Gallery2: Fix NaN comparisons
+kpick 233041 # Gallery2: Fix CollectionIncompatibleType
+kpick 233042 # Rename android.utils.Pools to com.android.photos.util.Pools
+kpick 233043 # Fix build Gallery2
+kpick 233044 # Use explicit support library prebuilts
+kpick 233045 # Fix proguard failure when using javac
+kpick 233046 # Fix makefile include for support-v4
+kpick 233047 # Move <permission> tags to correct parent element
+kpick 233048 # Fix build with proguard
+kpick 233049 # Use -Werror in packages/apps/Gallery2
+kpick 233050 # Move Gallery2 over to AAPT2 and new v4 modules
+kpick 233051 # Gallery2: Remove slideshow option if there are only videos
+kpick 233052 # Gallery2: Support GIF animation
+kpick 233053 # SnapdragonGallery: Fix FC when init() before setContentView
+kpick 233054 # SnapdragonGallery: Fix multithread synchronization in screenReceiver
+kpick 233055 # SnapdragonGallery: Fix dialog dismiss when home
+kpick 233056 # SnapdragonGallery: Fix crash show dialog when activity finished
+kpick 233057 # Don't show Camera Icon when no pictures found in Albums
+kpick 233058 # SDGallery:Fix monkey FC when url from pick activity is null
+kpick 233059 # Fix FC of parsing uri is null
+kpick 233060 # Fix the issue of view don't reload when onPause
+kpick 233061 # Add new rule about watermark
+kpick 233062 # Rename app back to Gallery
+kpick 233063 # FaceDetect: Catch linker errors during initialization
+kpick 233064 # FaceDetect: Catch more linker errors during initialization
+kpick 233065 # Gallery: TileImageView: fix NPE
+kpick 233066 # Gallery2: Bump minsdk and targetsdk version
+kpick 233067 # Gallery2: Try to open existing camera
+kpick 233068 # Gallery2: Fix crash of gallery on showing details
+kpick 233069 # Gallery2: Add record time to details view
+kpick 233070 # Gallery2: Remove CAF translations
+kpick 233071 # Gallery2: Modify AOSP EL translations
+kpick 233072 # Gallery2: Store DATE_TAKEN as milliseconds
+kpick 233073 # Gallery2: Reduce logspam in video player
+kpick 233074 # Gallery2: Remove invalid comment from manifest
+kpick 233075 # Gallery2: Make sure no NPE happens
+kpick 233076 # Gallery2: Move & improve CAF strings
+kpick 233077 # Gallery2: Update theme
+kpick 233078 # Gallery2: Update menu
+kpick 233079 # Gallery2: Change all share intents to chooser style
+kpick 233080 # Gallery2: Replace hamburger menu with bottom bar
+kpick 233081 # Gallery2: Disable dummy starting window
+kpick 233082 # Gallery2: Everyone or no one
+kpick 233083 # Gallery2: Fix up audio effects dialog
+kpick 233084 # Gallery2: Remove 3D overscroll effect
+kpick 233085 # Gallery2: Enable frames in the editor
+kpick 233086 # Gallery2: Remove more possible NPEs
+kpick 233087 # Gallery2: Properly declare the own permissions
+kpick 233088 # Gallery2: Support the newly added media file types in MTP mode
+kpick 233089 # Gallery2: Increase the size of the tiles when decoding images
+kpick 233090 # Gallery2: Fix views overlap
+kpick 233091 # Gallery2: Fix potential crash
+kpick 233092 # Gallery2: Fix various issues and glitches
+kpick 233093 # Gallery: Kill media effect dialog on movies
+kpick 233094 # Fix crash after deleting a video on Albums tab
+kpick 233095 # Gallery2: Get rid of packages monitor
+kpick 233096 # Gallery: define app category
+kpick 233097 # Gallery: adaptive-icon
+kpick 233098 # Fix can't enable speaker with bluetooth headset
+kpick 233099 # Gallery: use platform cert
+kpick 233100 # Move Gallery2 to androidx.
 
 # packages/apps/Jelly
 kpick 231418 # Automatic translation import
@@ -1222,6 +1385,214 @@ kpick 232793 # Settings: per-app VPN data restriction
 # packages/apps/SettingsIntelligence
 kpick 230519 # Fix dark style issues
 
+# packages/apps/Snap
+kpick 233131 # Revert "SnapdragonCamera: Forbid volume key can take picture"
+kpick 233132 # Revert "SnapdragonCamera: Reduce number of countdown timer option"
+kpick 233133 # Revert "SnapdragonCamera: Add missing permissions"
+kpick 233134 # Revert "SnapdragonCamera:Fix icons overlap"
+kpick 233135 # Revert "Add judgement for compiling"
+kpick 233136 # Rename SnapdragonCamera to Snap
+kpick 233137 # tests: fix class name
+kpick 233138 # Snap: Fix jni compiler warnings
+kpick 233139 # snap: Fix module name conflict
+kpick 233140 # Snap: Use AOSP app label
+kpick 233141 # Snap: Remove old icons
+kpick 233142 # Snap: update icon
+kpick 233143 # SnapdragonCamera: Initialize overlay before control-by-intent
+kpick 233144 # SnapdragonCamera: Re-enable ZSL after exiting HDR mode
+kpick 233145 # SnapdragonCamera: Hide UI after error-checking video preferences
+kpick 233146 # camera: Add parameter debugging support
+kpick 233147 # camera: Cleanup and compatibility fixes
+kpick 233148 # camera: Remove the luma-adaptation seekbar
+kpick 233149 # camera: Add all focus modes, scene modes, and color effects.
+kpick 233150 # Camera: Add red-eye flash mode support
+kpick 233151 # camera: Check if video sizes are available
+kpick 233152 # camera: Proper fix for the missing video-sizes issue
+kpick 233153 # Camera2: enable antibanding by default
+kpick 233154 # camera: Remove ICS hack to stop preview after takePicture
+kpick 233155 # Camera2: Preview needs to be stopped when changing resolution
+kpick 233156 # Camera: fix preview for landscape devices
+kpick 233157 # Camera2: More thorough compatibility fixes
+kpick 233158 # Camera: Fix saturation, contrast, sharpness parameters
+kpick 233159 # camera: Make some parameter lookups safer
+kpick 233160 # Camera2: Don't report incorrect supported picture formats
+kpick 233161 # Camera2: some aapt warnings cleanup
+kpick 233162 # Camera2: Remove CAF video duration code
+kpick 233163 # Camera2: implement exposure compensation settings in video mode
+kpick 233164 # Camera: separate settings for color effects
+kpick 233165 # Camera: Change volume hard key button to zoom function
+kpick 233166 # Camera2: implement volume key zoom in video mode
+kpick 233167 # Camera: Powerkey shutter (2/2)
+kpick 233168 # Camera2: tweak volume key zoom and cleanup
+kpick 233169 # Camera: Cleanup hardware key handling
+kpick 233170 # Camera: Handle keys only while in app
+kpick 233171 # Camera2: Headset shutter mode
+kpick 233172 # Camera2: Add option to set max screen brightness
+kpick 233173 # SnapdragonCamera: Reset camera state after taking picture
+kpick 233174 # Snap: Fix filtering of unsupported camcorder color effects
+kpick 233175 # Snap: Add ISO values for sony devices
+kpick 233176 # add additional ISO values
+kpick 233177 # add support for non-standard iso keys and values
+kpick 233178 # add support for luminance-condition parameter
+kpick 233179 # option to set manufacturer specific parameters on startup
+kpick 233180 # add options to restart preview onPictureTaken
+kpick 233181 # Snap: make openLegacy an option
+kpick 233182 # Snap: Add touch-to-focus timeout duration settings
+kpick 233183 # Snap: add support for shutter speed
+kpick 233184 # Snap: add support for mw_continuous-picture focus mode
+kpick 233185 # Snap: add fallback for invalid video qualities
+kpick 233186 # SnapdragonCamera: Fix incorrect viewfinder ratio for 13.1MP shots
+kpick 233187 # Snap: restart preview when shutter-speed gets disabled
+kpick 233188 # CameraActivity: Handle NPE when film strip view is null
+kpick 233189 # Snap: Remove CAF Chinese translations
+kpick 233190 # Snap: Fix aapt warnings
+kpick 233191 # Snap: Fall back to default quality instead of 352x288
+kpick 233192 # Snap: Fix NPE when parameters.getSupportedVideoSizes() is null
+kpick 233193 # Move mApplicationContext to init()
+kpick 233194 # Snap: special handling of hdr-mode parameter for lge devices
+kpick 233195 # Snap: Support for HTC's HDR mode
+kpick 233196 # Snap: Remove touch AF/AEC option
+kpick 233197 # Snap: Actually select the highest quality video by default
+kpick 233198 # SnapdragonCamera: Add option to control antibanding in camcorder
+kpick 233199 # SnapdragonCamera: Fix overly-aggressive auto rotation
+kpick 233200 # SnapdragonCamera: Remove 'off' option for antibanding
+kpick 233201 # Snap: Don't enable ZSL when disabling HDR
+kpick 233202 # SnapdragonCamera: Fix UI alignment glitches when nav-bar is enabled
+kpick 233203 # Snap: do not restart preview during longshots
+kpick 233204 # Snap: Don't crash when hardcoded gallery intent fails
+kpick 233205 # SnapdragonCamera: Set camera parameters before restarting preview
+kpick 233206 # Fix crash if Exif-Tag buffer-length and component-count are both 0
+kpick 233207 # Snap: Cleanup flash icons
+kpick 233208 # Snap: Don't crash if user saved preference is not valid
+kpick 233209 # SnapdragonCamera: Scale up bitrate for HSR recordings
+kpick 233210 # Snap: Fix filtering of unsupported HFR/HSR modes
+kpick 233211 # Snap: Remove auto HDR option when not supported
+kpick 233212 # Snap: Remove video snapshot size when not supported
+kpick 233213 # Snap: Remove face detection option if not supported
+kpick 233214 # Snap: fix camera hang on LGE G4 when flash got used
+kpick 233215 # Snap: Fix incorrect preview layout surface size in landscape mode
+kpick 233216 # Snap: Do not crash when cur-focus-scale is null
+kpick 233217 # Snap: Fall back to REVIEW intent before VIEW intent
+kpick 233218 # Fix view index tracking.
+kpick 233219 # Snap: Support override maker and model exif tag
+kpick 233220 # Snap: force enable zsl for lge hdr
+kpick 233221 # Snap: Extend user menu, disable dev menu
+kpick 233222 # Snap: Make developer menu more accessible
+kpick 233223 # Snap: Always allow 100% JPEG quality to be set
+kpick 233224 # Snap: Unbreak auto-HDR
+kpick 233225 # snap: Always turn touch-af-aec on
+kpick 233226 # snap: Add constrained longshot mode
+kpick 233227 # Snap: Remove storage menu if no external storage available
+kpick 233228 # Snap: Fix possible NPE
+kpick 233229 # CameraNext: dynamically generate available photo resolutions
+kpick 233230 # Snap: add auto-hdr option to photo menu
+kpick 233231 # Allow to re-open Snap from recent menu
+kpick 233232 # Add orientation correction for landscape devices
+kpick 233233 # camera: Touch focus support for camcorder
+kpick 233234 # Camera2: Prevent autofocus when video snapshot is in progress
+kpick 233235 # Camera2: Prevent propogating CancelAutoFocus during Video Recording
+kpick 233236 # Snap: Set parameters before starting preview
+kpick 233237 # SnapdragonCamera: Add focus-mode option to camcorder
+kpick 233238 # SnapdragonCamera: Always lock AE and AWB when auto-focus is used
+kpick 233239 # SnapdragonCamera: Lock AE and AWB for tap-to-focus in camcorder
+kpick 233240 # SnapdragonCamera: Unlock AE/AWB after taking a photo with ZSL
+kpick 233241 # Snap: Expose video snapshot size setting
+kpick 233242 # Snap: Add focus time support in camcorder
+kpick 233243 # Snap: Add ability to set the tap-to-focus duration to 0 sec
+kpick 233244 # Snap: Cleanup focus time duration entries
+kpick 233245 # Snap: Separate default focus time between camera/video
+kpick 233246 # Snap: Fix crash when set infinite touch-focus duration
+kpick 233247 # Camera2: Only autofocus before a snap if we are actually in "auto" mode.
+kpick 233248 # camera: Keep touch focus intact during back-to-back ZSL shots
+kpick 233249 # snap: Fixes for advanced features and scene modes
+kpick 233250 # snap: Additional fixes for auto-HDR mode
+kpick 233251 # Snap: grant android.permission.RECEIVE_BOOT_COMPLETED permisions
+kpick 233252 # Snap: initial materialization
+kpick 233253 # Snap: Material toasts
+kpick 233254 # Snap: remove captureUI pngdrawables
+kpick 233255 # Remove unused menu indicators code.
+kpick 233256 # Snap: update shutter button style
+kpick 233257 # Snap: Add icons to all remaining preferences
+kpick 233258 # Snap: Add icons to all scene modes
+kpick 233259 # snap: Adjust top bar icon order
+kpick 233260 # De-uglify menu.
+kpick 233261 # Use material versions of share/delete/edit icons.
+kpick 233262 # Snap: update caf icons
+kpick 233263 # CameraNext: Fallback to do copy exif if exif not exist
+kpick 233264 # CameraNext: don't crash when pref is not boolean
+kpick 233265 # Show UI when pano stitch starts and remove cancel condition
+kpick 233266 # snap: Panorama fixes
+kpick 233267 # Fix broken filenames for cropped images
+kpick 233268 # CropActivity: notify MediaScanner on save complete
+kpick 233269 # CameraNext: stop updating the pano progress bar on pause
+kpick 233270 # Grant read URI permission for playback of video capture
+kpick 233271 # Make panorama able to go 270 degrees in landscape
+kpick 233272 # CameraNext: Update focus behavior for panoramas
+kpick 233273 # Stop data loader on activity destroy.
+kpick 233274 # Initialize focus manager in onResume().
+kpick 233275 # Snap: prevent NPE when checking if controls are visible
+kpick 233276 # Snap: detect and use Camera2 if available
+kpick 233277 # Snap: CaptureModule: check if ZSL is supported before using it
+kpick 233278 # Snap: Allow switching beyond just 2 cameras
+kpick 233279 # Always apply frame size reduction to panorama pictures
+kpick 233280 # Snap: Simulate back button press when menu back button is pressed
+kpick 233281 # Add overlay for restarting camera preview for additional cameras
+kpick 233282 # Focus only when tapping the preview
+kpick 233283 # Never ignore finger swipes in gallery mode
+kpick 233284 # Initialize focus overlay manager if it is not initialized.
+kpick 233285 # Camera: Set preview fps after recording.
+kpick 233286 # Snapdragon Camera: Avoid possible race condition
+kpick 233287 # Snapdragon Camera: Use consistent API for preview fps reset
+kpick 233288 # SnapdragonCamera: Longshot with Burst Functionality.
+kpick 233289 # Protect against multiple shutter callbacks per frame in longshot mode.
+kpick 233290 # ListPreference: prevent ArrayIndexOutOfBoundsException
+kpick 233291 # VideoModule: don't set negative HFR value
+kpick 233292 # SnapdragonCamera: Fix shutter button clicks in rapid succession getting ignored
+kpick 233293 # SnapdragonCamera: Enforce 120ms delay in between shutter clicks
+kpick 233294 # Snap: Render zoom circle in the center of the camera preview
+kpick 233295 # Snap: Don't do touch-to-focus on top of UI elements
+kpick 233296 # SnapdragonCamera: Add missing toast on HSR/HFR override
+kpick 233297 # Snap: Show remaining photos on initial start
+kpick 233298 # Snap: Disable warped pano preview
+kpick 233299 # Snap: Increase default pano capture pixels to 1440x1000
+kpick 233300 # Snap: Adjust scene and filter mode layout dimensions
+kpick 233301 # Snap: Don't close slide out menu after selecting scene mode
+kpick 233302 # Snap: Fix swipe right to open menu
+kpick 233303 # Snap: Fix filter mode button after disabling HDR mode
+kpick 233304 # Snap: Remove "help screen on first start" feature
+kpick 233305 # Snap: Arrange video menu so it's similar to photo menu
+kpick 233306 # Snap: Fix panorama layout
+kpick 233307 # Snap: Update HDR icons
+kpick 233308 # Removed littlemock dependency and cleanup
+kpick 233309 # Snap: Rip out hdr-need-1x option
+kpick 233310 # Snap: check tags before using them
+kpick 233311 # QuickReader: initial commit
+kpick 233312 # Snap: add QReader to module switch
+kpick 233313 # QuickReader: Match switch icon size and fill color with other icons
+kpick 233314 # Snap: update shutter buttons on CaptureUI
+kpick 233315 # Snap: Add missing thumbnails for filter modes
+kpick 233316 # Snap: Update pano and video icons to be more like photo icons
+kpick 233317 # Snap: Port all string improvements from cm-14.1
+kpick 233318 # Snap: Minor string fix
+kpick 233319 # Snap: adaptive icon
+kpick 233320 # Snap: Convert "save best" dialog text to a quantity string
+kpick 233321 # Snap: Fix "Convert "save best" dialog text to a quantity string"
+kpick 233322 # Do not crash if we don't have support for RAW files
+kpick 233323 # Snap: don't try to set up cameras with ids greater than MAX_NUM_CAM
+kpick 233324 # Snap: add missing null check on isCamera2Supported
+kpick 233325 # Snap: fix copy and paste fail
+kpick 233326 # Drop new focus indicator into Camera2.
+kpick 233327 # Snap: Add support for focus distance
+kpick 233328 # Snap: Configure focus ring preview dimensions
+kpick 233329 # Snap: Check for ACCESS_FINE_LOCATION instead of ACCESS_COARSE_LOCATION
+kpick 233330 # Snap: remove unused shutter buttons
+kpick 233331 # SnapdragonCamera: Panorama, replace border drawable
+kpick 233332 # Snap: turn developer category title into a translatable string
+kpick 233333 # Snap: Allow quickreader to work with secure device
+kpick 233334 # CameraSettings: Do not crash if zoom ratios are not exposed
+kpick 233335 # Snap: use platform cert
+kpick 233336 # Automatic translation import
+
 # packages/apps/Stk
 kpick 232020 # Merge android-9.0.0_r12
 
@@ -1232,7 +1603,37 @@ kpick 232049 # Merge android-9.0.0_r12
 kpick 232050 # Merge android-9.0.0_r12
 
 # packages/apps/Trebuchet
-kpick 223666 # Settings: Hide Notification Dots on low RAM devices
+kpick 223666 # Trebuchet: Hide Notification Dots on low RAM devices
+kpick 233101 # Trebuchet: update build configs
+kpick 233102 # Create LineageLauncher
+kpick 233103 # Launcher3: Google Feed integration
+kpick 233104 # Launcher3: exclude from recents
+kpick 233105 # Fix overlapping FloatingViewType IntDef
+kpick 233106 # Use View.getHeight() instead of Canvas.getHeight() for PageIndicatorDots
+kpick 233107 # Lint fix: IS_DEBUG_DEVICE: Implied default locale
+kpick 233108 # Launcher3: No Calendarwidget 4x4 widget displayed
+kpick 233109 # Launcher3: Stability NullPointer issue
+kpick 233110 # Workspace: Allow resizing any widget
+kpick 233111 # PagedView: fix pointer index out of range
+kpick 233112 # logging: prevent NPE at logDeepShortcutsOpen
+kpick 233113 # Launcher3: Can't search out local app by Chinese
+kpick 233114 # DeviceProfile: fix divide by zero
+kpick 233115 # Provider: Initialize createEmptyRowOnFirstScreen without QSB
+kpick 233116 # config: enable LAUNCHER3_PROMISE_APPS_IN_ALL_APPS
+kpick 233117 # proguard: Also keep FixedScaleDrawable
+kpick 233118 # Change app name to Trebuchet
+kpick 233119 # Trebuchet: adaptive icon
+kpick 233120 # Trebuchet: prefer our wallpaper picker if possible
+kpick 233121 # Trebuchet: allow non-developers to change icon shape
+kpick 233122 # Trebuchet: update icon shape configurations
+kpick 233123 # Launcher3: custom grid
+kpick 233124 # Trebuchet: add toggle for desktop and drawer labels
+kpick 233125 # Revert "Removing support for app prediction from Launcher3"
+kpick 233126 # Update default workspace
+kpick 233127 # Change icon drawable padding
+kpick 233128 # Apply icon size modifications from old Trebuchet
+kpick 233129 # Increase to 5 rows on some device profiles
+kpick 233130 # Disable QSB on first screen by default
 
 # packages/apps/TvSettings
 kpick 232021 # Merge android-9.0.0_r12
@@ -1320,7 +1721,6 @@ kpick 232794 # NetD : Allow passing in interface names for vpn app restriction
 kpick 232030 # Merge android-9.0.0_r12
 
 # system/sepolicy
-kpick 223748 # Build sepolicy tools with Android.bp.
 kpick 230613 # Allow webview_zygote to read /dev/ion
 kpick 232031 # Merge android-9.0.0_r12
 

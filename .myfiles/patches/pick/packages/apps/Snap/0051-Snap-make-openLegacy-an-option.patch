@@ -1,0 +1,119 @@
+From 2cc5113d0375f8315e14392b8e41059e565244e3 Mon Sep 17 00:00:00 2001
+From: codeworkx <codeworkx@cyanogenmod.org>
+Date: Thu, 22 Dec 2016 20:05:52 +0100
+Subject: [PATCH 051/206] Snap: make openLegacy an option
+
+Using openLegacy on QCamera3 forces it to use QCamera2
+and fall back to api v1 which is not what we want on v2 devices.
+
+Change-Id: Ic392a4ae9403ebae36940ddf0727237d9cb9e8f0
+---
+ res/values/config.xml                         |  6 +++
+ .../camera/AndroidCameraManagerImpl.java      | 46 ++++++++++++-------
+ 2 files changed, 36 insertions(+), 16 deletions(-)
+
+diff --git a/res/values/config.xml b/res/values/config.xml
+index de0ca1cf6..b998fd277 100644
+--- a/res/values/config.xml
++++ b/res/values/config.xml
+@@ -28,6 +28,12 @@
+          of the fullscreen pano preview. -->
+     <bool name="enable_warped_pano_preview">true</bool>
+ 
++    <!-- Opens back camera using openLegacy() and forces api v1 -->
++    <bool name="back_camera_open_legacy">true</bool>
++
++    <!-- Opens front camera using openLegacy() and forces api v1 -->
++    <bool name="front_camera_open_legacy">true</bool>
++
+     <!-- Restart preview for back camera onPictureTaken -->
+     <bool name="back_camera_restart_preview_onPictureTaken">false</bool>
+ 
+diff --git a/src/com/android/camera/AndroidCameraManagerImpl.java b/src/com/android/camera/AndroidCameraManagerImpl.java
+index 2c1f73bd7..98297bc59 100644
+--- a/src/com/android/camera/AndroidCameraManagerImpl.java
++++ b/src/com/android/camera/AndroidCameraManagerImpl.java
+@@ -17,14 +17,17 @@
+ package com.android.camera;
+ 
+ import static com.android.camera.util.CameraUtil.Assert;
++import com.android.camera.app.CameraApp;
+ 
+ import java.io.IOException;
+ 
+ import android.annotation.TargetApi;
++import android.content.Context;
+ import android.graphics.SurfaceTexture;
+ import android.hardware.Camera;
+ import android.hardware.Camera.AutoFocusCallback;
+ import android.hardware.Camera.AutoFocusMoveCallback;
++import android.hardware.Camera.CameraInfo;
+ import android.hardware.Camera.ErrorCallback;
+ import android.hardware.Camera.FaceDetectionListener;
+ import android.hardware.Camera.OnZoomChangeListener;
+@@ -46,6 +49,7 @@ import android.os.ConditionVariable;
+ import java.lang.reflect.Method;
+ 
+ import org.codeaurora.snapcam.wrapper.CameraWrapper;
++import org.codeaurora.snapcam.R;
+ 
+ /**
+  * A class to implement {@link CameraManager} of the Android camera framework.
+@@ -235,28 +239,38 @@ class AndroidCameraManagerImpl implements CameraManager {
+             try {
+                 switch (msg.what) {
+                     case OPEN_CAMERA:
+-                        try {
+-                            Method openMethod = Class.forName("android.hardware.Camera").getMethod(
+-                                    "openLegacy", int.class, int.class);
+-                            mCamera = (android.hardware.Camera) openMethod.invoke(
+-                                    null, msg.arg1, CAMERA_HAL_API_VERSION_1_0);
+-                        } catch (Exception e) {
+-                            /* Retry with open if openLegacy doesn't exist/fails */
+-                            Log.v(TAG, "openLegacy failed due to " + e.getMessage()
+-                                    + ", using open instead");
+-                            mCamera = android.hardware.Camera.open(msg.arg1);
++                        int cameraId = msg.arg1;
++                        Context context = CameraApp.getContext();
++
++                        boolean backCameraOpenLegacy = context.getResources().
++                                getBoolean(R.bool.back_camera_open_legacy);
++                        boolean frontCameraOpenLegacy = context.getResources().
++                                getBoolean(R.bool.front_camera_open_legacy);
++
++                        CameraHolder.CameraInfo info = CameraHolder.instance().getCameraInfo()[cameraId];
++
++                        if (info.facing == CameraInfo.CAMERA_FACING_BACK && backCameraOpenLegacy ||
++                                info.facing == CameraInfo.CAMERA_FACING_FRONT && frontCameraOpenLegacy) {
++                            try {
++                                Method openMethod = Class.forName("android.hardware.Camera").getMethod(
++                                        "openLegacy", int.class, int.class);
++                                mCamera = (android.hardware.Camera) openMethod.invoke(
++                                        null, cameraId, CAMERA_HAL_API_VERSION_1_0);
++                            } catch (Exception e) {
++                                /* Retry with open if openLegacy doesn't exist/fails */
++                                Log.v(TAG, "openLegacy failed due to " + e.getMessage()
++                                        + ", using open instead");
++                                mCamera = android.hardware.Camera.open(cameraId);
++                            }
++                        } else {
++                            mCamera = android.hardware.Camera.open(cameraId);
+                         }
+ 
+                         if (mCamera != null) {
+                             mParametersIsDirty = true;
+-
+-                            // Get a instance of Camera.Parameters for later use.
+-                            if (mParamsToSet == null) {
+-                                mParamsToSet = mCamera.getParameters();
+-                            }
+                         } else {
+                             if (msg.obj != null) {
+-                                ((CameraOpenErrorCallback) msg.obj).onDeviceOpenFailure(msg.arg1);
++                                ((CameraOpenErrorCallback) msg.obj).onDeviceOpenFailure(cameraId);
+                             }
+                         }
+                         return;
+-- 
+2.17.1
+

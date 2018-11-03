@@ -1,0 +1,177 @@
+From 922c71e5e4576c5f7cefd5cb1074fd53e491284b Mon Sep 17 00:00:00 2001
+From: Rashed Abdel-Tawab <rashed@linux.com>
+Date: Thu, 6 Sep 2018 08:48:26 -0700
+Subject: [PATCH 14/24] lineage: Dynamically add custom APNs
+
+For Example new devices need the new Sprint APNs, so add a new board flag for
+them to set that will make the build system add the new APNs to
+the APN config XML. If the flag is not set, continue to use the
+old APNs.
+To add or replace APNs, the custom_apns.py script has been
+added. If CUSTOM_APNS_FILE is defined, custom_apns.py
+is run and generates a new version of apns-conf.xml.
+
+Change-Id: I7ff12a4342de2a7663b2b66fd627244214a8dc71
+---
+ config/data_only.mk               |  6 +--
+ config/telephony.mk               |  4 +-
+ prebuilt/common/Android.mk        | 28 ++++++++++++++
+ prebuilt/common/etc/apns-conf.xml |  3 --
+ tools/custom_apns.py              | 63 +++++++++++++++++++++++++++++++
+ 5 files changed, 96 insertions(+), 8 deletions(-)
+ create mode 100644 tools/custom_apns.py
+
+diff --git a/config/data_only.mk b/config/data_only.mk
+index e46b33c3..e45a2d5c 100644
+--- a/config/data_only.mk
++++ b/config/data_only.mk
+@@ -1,8 +1,8 @@
+ # World APN list
+-PRODUCT_COPY_FILES += \
+-    vendor/lineage/prebuilt/common/etc/apns-conf.xml:system/etc/apns-conf.xml
++PRODUCT_PACKAGES += \
++    apns-conf.xml
+ 
+ # Telephony packages
+ PRODUCT_PACKAGES += \
+     Stk \
+-    CellBroadcastReceiver
+\ No newline at end of file
++    CellBroadcastReceiver
+diff --git a/config/telephony.mk b/config/telephony.mk
+index 5f23cc48..069e82a1 100644
+--- a/config/telephony.mk
++++ b/config/telephony.mk
+@@ -3,8 +3,8 @@ PRODUCT_COPY_FILES += \
+     vendor/lineage/prebuilt/common/etc/sensitive_pn.xml:system/etc/sensitive_pn.xml
+ 
+ # World APN list
+-PRODUCT_COPY_FILES += \
+-    vendor/lineage/prebuilt/common/etc/apns-conf.xml:system/etc/apns-conf.xml
++PRODUCT_PACKAGES += \
++    apns-conf.xml
+ 
+ # Telephony packages
+ PRODUCT_PACKAGES += \
+diff --git a/prebuilt/common/Android.mk b/prebuilt/common/Android.mk
+index f15b178c..83eecee9 100644
+--- a/prebuilt/common/Android.mk
++++ b/prebuilt/common/Android.mk
+@@ -8,3 +8,31 @@ LOCAL_MODULE_TAGS := optional
+ LOCAL_MODULE_CLASS := EXECUTABLES
+ LOCAL_MODULE_PATH := $(TARGET_OUT_OPTIONAL_EXECUTABLES)
+ include $(BUILD_PREBUILT)
++
++################################
++# Copies the APN list file into system/etc for the product as apns-conf.xml.
++# In the case where $(CUSTOM_APNS_FILE) is defined, the content of $(CUSTOM_APNS_FILE)
++# is added or replaced to the $(DEFAULT_APNS_FILE).
++include $(CLEAR_VARS)
++
++LOCAL_MODULE := apns-conf.xml
++LOCAL_MODULE_CLASS := ETC
++
++DEFAULT_APNS_FILE := vendor/lineage/prebuilt/common/etc/apns-conf.xml
++
++ifdef CUSTOM_APNS_FILE
++CUSTOM_APNS_SCRIPT := vendor/lineage/tools/custom_apns.py
++FINAL_APNS_FILE := $(local-generated-sources-dir)/apns-conf.xml
++
++$(FINAL_APNS_FILE): PRIVATE_SCRIPT := $(CUSTOM_APNS_SCRIPT)
++$(FINAL_APNS_FILE): PRIVATE_CUSTOM_APNS_FILE := $(CUSTOM_APNS_FILE)
++$(FINAL_APNS_FILE): $(CUSTOM_APNS_SCRIPT) $(DEFAULT_APNS_FILE)
++	rm -f $@
++	python $(PRIVATE_SCRIPT) $@ $(PRIVATE_CUSTOM_APNS_FILE)
++else
++FINAL_APNS_FILE := $(DEFAULT_APNS_FILE)
++endif
++
++LOCAL_PREBUILT_MODULE_FILE := $(FINAL_APNS_FILE)
++
++include $(BUILD_PREBUILT)
+diff --git a/prebuilt/common/etc/apns-conf.xml b/prebuilt/common/etc/apns-conf.xml
+index 1b65f694..42ad48e7 100644
+--- a/prebuilt/common/etc/apns-conf.xml
++++ b/prebuilt/common/etc/apns-conf.xml
+@@ -1360,9 +1360,6 @@
+   <apn carrier="Sprint LTE internet" mcc="310" mnc="120" apn="n.ispsn" type="default,mms,supl,hipri,dun" mmsc="http://mms.sprintpcs.com" mmsproxy="68.28.31.7" mmsport="80" protocol="IPV4V6" roaming_protocol="IPV4V6" bearer="14" />
+   <apn carrier="Sprint EHRPD internet" mcc="310" mnc="120" apn="n.ispsn" type="default,mms,supl,hipri" mmsc="http://mms.sprintpcs.com" mmsproxy="68.28.31.7" mmsport="80" protocol="IPV4V6" roaming_protocol="IPV4V6" bearer="13" />
+   <apn carrier="Sprint internet" mcc="310" mnc="120" apn="n.ispsn" type="mms,supl,hipri" mmsc="http://mms.sprintpcs.com" mmsproxy="68.28.31.7" mmsport="80" protocol="IPV4V6" roaming_protocol="IPV4V6" />
+-  <apn carrier="Sprint LTE internet 2" mcc="310" mnc="120" apn="x.ispsn" type="default,mms,supl,hipri,dun" mmsc="http://mms.sprintpcs.com" mmsproxy="oap7.sprintpcs.com" mmsport="80" protocol="IPV4V6" roaming_protocol="IPV4V6" bearer="14" />
+-  <apn carrier="Sprint EHRPD internet 2" mcc="310" mnc="120" apn="x.ispsn" type="default,mms,supl,hipri" mmsc="http://mms.sprintpcs.com" mmsproxy="oap7.sprintpcs.com" mmsport="80" protocol="IPV4V6" roaming_protocol="IPV4V6" bearer="13" />
+-  <apn carrier="Sprint internet 2" mcc="310" mnc="120" apn="x.ispsn" type="mms,supl,hipri" mmsc="http://mms.sprintpcs.com" mmsproxy="oap7.sprintpcs.com" mmsport="80" protocol="IPV4V6" roaming_protocol="IPV4V6" /> 
+   <apn carrier="Boost" mcc="310" mnc="120" apn="cinet.spcs" type="supl,mms,dun,fota" mmsc="http://mm.myboostmobile.com" mmsproxy="68.28.31.7" mmsport="80" protocol="IPV4V6" roaming_protocol="IPV4V6" />
+   <apn carrier="Credo Mobile" mcc="310" mnc="120" apn="n.w1.ispsn" type="mms" mmsc="http://mms.plspictures.com" mmsproxy="68.28.31.7" mmsport="80" protocol="IPV4V6" roaming_protocol="IPV4V6" />
+   <apn carrier="Ting" mcc="310" mnc="120" apn="n.t8.ispsn" type="supl,mms" mmsc="http://mms.plspictures.com" mmsproxy="68.28.31.7" mmsport="80" protocol="IPV4V6" roaming_protocol="IPV4V6" />
+diff --git a/tools/custom_apns.py b/tools/custom_apns.py
+new file mode 100644
+index 00000000..1c83f123
+--- /dev/null
++++ b/tools/custom_apns.py
+@@ -0,0 +1,63 @@
++#!/usr/bin/env python
++#
++# Copyright (C) 2018 The LineageOS Project
++#
++# Licensed under the Apache License, Version 2.0 (the "License");
++# you may not use this file except in compliance with the License.
++# You may obtain a copy of the License at
++#
++#      http://www.apache.org/licenses/LICENSE-2.0
++#
++# Unless required by applicable law or agreed to in writing, software
++# distributed under the License is distributed on an "AS IS" BASIS,
++# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++# See the License for the specific language governing permissions and
++# limitations under the License.
++#
++
++import sys
++from xml.dom.minidom import parseString
++
++def main(argv):
++    reload(sys)
++    sys.setdefaultencoding('utf8')
++    original_file = 'vendor/lineage/prebuilt/common/etc/apns-conf.xml'
++
++    if len(argv) == 3:
++        output_file_path = argv[1]
++        custom_override_file = argv[2]
++    else:
++        raise ValueError("Wrong number of arguments %s" % len(argv))
++
++    custom_apn_names = []
++    with open(custom_override_file, 'r') as f:
++        for line in f:
++            xmltree = parseString(line)
++            carrier = xmltree.getElementsByTagName('apn')[0].getAttribute('carrier')
++            custom_apn_names.append(carrier)
++    f.close()
++
++    with open(original_file, 'r') as input_file:
++        with open(output_file_path, 'w') as output_file:
++            for line in input_file:
++                writeOriginalLine = True
++                for apn in custom_apn_names:
++                    if apn in line:
++                        with open(custom_override_file, 'r') as custom_file:
++                            for override_line in custom_file:
++                                if apn in override_line:
++                                    output_file.write(override_line)
++                                    writeOriginalLine = False
++                                    custom_apn_names.remove(apn)
++                if writeOriginalLine:
++                    if "</apns>" in line:
++                        if custom_apn_names:
++                            for apn in custom_apn_names:
++                                with open(custom_override_file, 'r') as custom_file:
++                                    for override_line in custom_file:
++                                        if apn in override_line:
++                                            output_file.write(override_line)
++                    output_file.write(line)
++
++if __name__ == '__main__':
++    main(sys.argv)
+-- 
+2.17.1
+
