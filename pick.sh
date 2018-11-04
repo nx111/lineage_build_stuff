@@ -484,7 +484,7 @@ function kpick()
     fi
 
     local mLine=0
-    if [ -f $target_script ]; then
+    if [ ! -z $target_script -a -f $target_script ]; then
         mLine=$(grep -n "^[[:space:]]*kpick $*" $target_script | cut -d: -f1 )
         sed -e "s/\([[:space:]]*kpick $*\)/#\1/" -i   $target_script
     fi
@@ -492,7 +492,7 @@ function kpick()
     [ -f $change_number_list ] || return 0
     while read line; do
         number=$(echo $line | sed -e "s/  / /g")
-        if [ -f $target_script ]; then
+        if [ ! -z $target_script -a -f $target_script ]; then
            sed "${mLine}akpick $number" -i  $target_script
            mLine=$(grep -n "^[[:space:]]*kpick $number" $target_script | cut -d: -f1 )
         fi
@@ -826,12 +826,13 @@ for op in $*; do
     elif [ $op_project_snapshot -eq 1 -a  -d "$(gettop)/$op" ]; then
          op_snap_project=$op
     elif [ "$op" = "-nop" ]; then
-          return 0
+          exit 0
     elif [ "$op" = "-base" ]; then
          op_base_pick=1
     else
          echo "kpick $op"
          kpick $op
+         exit $?
     fi
 done
 
@@ -949,7 +950,6 @@ kpick 230099 # Actually restore pre-P mutex behavior
 kpick 232002 # Merge android-9.0.0_r12
 
 # boot/recovery
-#kpick 230746 # sr: Get a proper shell environment in recovery
 kpick 230747 # update_verifier: skip verity to determine successful on lineage builds
 kpick 231718 # recovery: Declare a soong namespace
 
@@ -957,6 +957,7 @@ kpick 231718 # recovery: Declare a soong namespace
 kpick 222742 # build: Use project pathmap for recovery
 kpick 222760 # Add LOCAL_AIDL_FLAGS
 kpick 227111 # releasetools: Store the build.prop file in the OTA zip
+kpick 233421 # pie-gsi tracking
 
 # build/soong
 kpick 222648 # Allow providing flex and bison binaries
@@ -1013,6 +1014,7 @@ kpick 230239 # common: allow uevent to control sysfs_mmc_host via vold
 # development
 kpick 232005 # Merge android-9.0.0_r12
 kpick 232511 # make-key: Enforce PBEv1 password-protected signing keys
+kpick 233422 # pie-gsi tracking
 
 # external/ant-wireless/ant_native
 kpick 227260 # Update bt vendor callbacks array in vfs code
@@ -1078,6 +1080,7 @@ kpick 232007 # Merge android-9.0.0_r12
 kpick 232197 # appops: Privacy Guard for P (1/2)
 kpick 232796 # NetworkManagement : Add ability to restrict app vpn usage
 kpick 233369 # Add auth framework for outgoing SMS messages.
+kpick 233519 # Fixes crash when getting panel before setting components
 
 # frameworks/native
 kpick 224443 # libbinder: Don't log call trace when waiting for vendor service on non-eng builds
@@ -1175,7 +1178,15 @@ kpick 225034 # msm8974: Add -Wno-error to compile with global -Werror.
 kpick 232010 # Merge android-9.0.0_r12
 
 # hardware/qcom/keymaster
+#kpick 224948-224954
+kpick 224948 # Keymaster: Support for 64bit userspace and 32bit TZ
+kpick 224949 # keymaster: Set HEAP_MASK_COMPATIBILITY by platform for QCOM_HARDWARE
+kpick 224950 # Keymaster: Check if keymaster TZ app is loaded
+kpick 224951 # keymaster: Featureize support for waiting on QSEE to start
+kpick 224952 # keymaster: add TARGET_PROVIDES_KEYMASTER
+kpick 224953 # keymaster: Fix compiler warnings
 kpick 224954 # keymaster: move to /vendor
+kpick 233465 # keymaster: Use generated kernel headers
 
 # hardware/qcom/media
 kpick 224289 # Add -Wno-error to compile with global -Werror.
@@ -1642,8 +1653,11 @@ kpick 232021 # Merge android-9.0.0_r12
 
 # packages/providers/DownloadProvider
 kpick 232023 # Merge android-9.0.0_r12
+kpick 233424 # pie-gsi tracking
 
 # packages/providers/MediaProvider
+kpick 233425 # pie-gsi tracking
+kpick 233460 # MediaProvider: Add read storage permission
 
 # packages/providers/TelephonyProvider
 kpick 232025 # Merge android-9.0.0_r12
@@ -1716,6 +1730,7 @@ kpick 232427 # su: Update AppOps API calls
 kpick 231201 # netd: Allow devices to force-add directly-connected routes
 kpick 232029 # Merge android-9.0.0_r12
 kpick 232794 # NetD : Allow passing in interface names for vpn app restriction
+kpick 233423 # pie-gsi tracking
 
 # system/security
 kpick 232030 # Merge android-9.0.0_r12
