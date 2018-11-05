@@ -1050,12 +1050,10 @@ kpick 226398 # frameworks: base: Port password retention feature
 kpick 226399 # Use fdeCheckPassword error code to indicate pw failure
 kpick 226400 # LockSettingsService: Support for separate clear key api
 kpick 226600 # PhoneWindowManager: Check if proposed rotation is in range
-kpick 226615 # NavigationBarView: Avoid NPE before mPanelView is created
 kpick 227108 # SystemUI: Fix several issues in the ADB over Network tile
 kpick 227290 # PowerProfile: allow overriding default power profile
 kpick 227291 # [DNM] Revert "Handle public volumes and otherwise invalid UUIDs."
 kpick 227821 # GlobalScreenshot: Fix screenshot not saved with some languages
-kpick 227839 # storage: Set all sdcards to visible
 kpick 227896 # SystemUI: Add Profiles tile
 kpick 221716 # Where's my circle battery, dude?
 kpick 228664 # [dnm][temp]display: Don't animate screen brightness when turning the screen on
@@ -1080,7 +1078,6 @@ kpick 232007 # Merge android-9.0.0_r12
 kpick 232197 # appops: Privacy Guard for P (1/2)
 kpick 232796 # NetworkManagement : Add ability to restrict app vpn usage
 kpick 233369 # Add auth framework for outgoing SMS messages.
-kpick 233519 # Fixes crash when getting panel before setting components
 
 # frameworks/native
 kpick 224443 # libbinder: Don't log call trace when waiting for vendor service on non-eng builds
@@ -1137,7 +1134,6 @@ kpick 223411 # interfaces: Add id HAL definition
 #kpick 223194 # nxp: Begin restoring pn547
 
 # hardware/qcom/audio
-kpick 222690 # audio: Use kernel headers
 kpick 223338 # Revert "msm8x74: remove from top level makefile"
 kpick 232009 # Merge android-9.0.0_r12
 
@@ -1657,7 +1653,6 @@ kpick 233424 # pie-gsi tracking
 
 # packages/providers/MediaProvider
 kpick 233425 # pie-gsi tracking
-kpick 233460 # MediaProvider: Add read storage permission
 
 # packages/providers/TelephonyProvider
 kpick 232025 # Merge android-9.0.0_r12
@@ -1680,6 +1675,8 @@ kpick 229313 # Explicit SBC Dual Channel (SBC HD) support
 kpick 229314 # Allow using alternative (higher) SBC HD bitrates with a property
 kpick 229401 # [DNM] Revert "Return early if vendor-specific command fails"
 kpick 232027 # Merge android-9.0.0_r12
+kpick 233607 # Run the wakelock JNI callbacks on the JNI thread
+kpick 233608 # Fix "Disable Absolute Volume" Bluetooth developer option
 
 # system/core
 privpick system/core refs/changes/19/206119/2 # init: I hate safety net
