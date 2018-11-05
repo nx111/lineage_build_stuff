@@ -13,7 +13,7 @@ op_base_pick=0
 default_remote="github"
 script_file="$0"
 conflict_resolved=0
-checkcount=200
+checkcount=500
 
 [ "$0" != "bash" ] && script_file=$(realpath $0)
 
@@ -909,6 +909,7 @@ kpick 226755 # lineage: Enable cryptfs_hw
 kpick 231968 # manifest: android-9.0.0_r10 -> android-9.0.0_r12
 kpick 231971 # manifest: sync gcc4.9 from aosp oreo
 kpick 232785 # lineage: Ship Snap and Trebuchet
+kpick 233629 # lineage: Enable Exchange
 
 android_head=$(cd android;git log -n 1 | sed -n 1p | cut -d' ' -f2;cd $topdir)
 
@@ -1078,6 +1079,7 @@ kpick 232007 # Merge android-9.0.0_r12
 kpick 232197 # appops: Privacy Guard for P (1/2)
 kpick 232796 # NetworkManagement : Add ability to restrict app vpn usage
 kpick 233369 # Add auth framework for outgoing SMS messages.
+kpick 233633 # Phone ringtone setting for Multi SIM device
 
 # frameworks/native
 kpick 224443 # libbinder: Don't log call trace when waiting for vendor service on non-eng builds
@@ -1388,6 +1390,7 @@ kpick 231826 # Update the white list of Data saver
 kpick 232019 # Merge android-9.0.0_r12
 kpick 232442 # Settings: Root appops access in developer settings
 kpick 232793 # Settings: per-app VPN data restriction
+kpick 233634 # Phone ringtone setting for Multi SIM device
 
 # packages/apps/SettingsIntelligence
 kpick 230519 # Fix dark style issues
@@ -1662,6 +1665,7 @@ kpick 232052 # Merge android-9.0.0_r12
 
 # packages/services/Telecomm
 kpick 232054 # Merge android-9.0.0_r12
+kpick 233635 # Phone ringtone setting for Multi SIM device
 
 # packages/services/Telephony
 kpick 229610 # Telephony: Support muting by RIL command
@@ -1775,6 +1779,7 @@ kpick 232659 # vendor/lineage: Build TrebuchetQuickStep
 kpick 232663 # overlay: Hide the option to show battery percentage
 kpick 232747 # config: Move vendor/extra inclusion before Lineage configuration
 kpick 232918 # extract_utils: Redirect vdexextractor log to /dev/null
+kpick 233630 # lineage: Consider techpack/audio when generating kernel headers
 
 # vendor/qcom/opensource/cryptfs_hw
 kpick 226128 # cryptfs_hw: Add compatibility for pre-O hw crypto

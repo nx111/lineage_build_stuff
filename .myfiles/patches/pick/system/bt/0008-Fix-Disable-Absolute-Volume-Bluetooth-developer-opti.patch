@@ -1,0 +1,104 @@
+From 42975b2b37462a84050bd0f567072e67a25dee0f Mon Sep 17 00:00:00 2001
+From: Ted <tedwang@google.com>
+Date: Fri, 17 Aug 2018 18:49:37 +0800
+Subject: [PATCH 8/8] Fix "Disable Absolute Volume" Bluetooth developer option
+
+Do not report device support absolute volume while
+"Disable Absolute Volume" in developer option is enabled or
+the remote device is listed in the interoperability database.
+
+Test: manually adjust volume when Disable Absolute Volume is enabled
+Bug: 112193362
+Change-Id: Id63a22dba0d8a871035774fc86b66d32e9225b48
+---
+ device/Android.bp                   |  1 +
+ profile/avrcp/Android.bp            |  3 +++
+ profile/avrcp/connection_handler.cc | 24 ++++++++++++++++++++++--
+ 3 files changed, 26 insertions(+), 2 deletions(-)
+
+diff --git a/device/Android.bp b/device/Android.bp
+index f72a16b6c..0b7cda7a9 100644
+--- a/device/Android.bp
++++ b/device/Android.bp
+@@ -3,6 +3,7 @@
+ cc_library_static {
+     name: "libbtdevice",
+     defaults: ["fluoride_defaults"],
++    host_supported: true,
+     local_include_dirs: [
+         "include",
+     ],
+diff --git a/profile/avrcp/Android.bp b/profile/avrcp/Android.bp
+index 1e2786116..35096a254 100644
+--- a/profile/avrcp/Android.bp
++++ b/profile/avrcp/Android.bp
+@@ -38,6 +38,9 @@ cc_test {
+         "libgmock",
+         "lib-bt-packets",
+         "libosi",
++        "liblog",
++        "libcutils",
++        "libbtdevice",
+         "avrcp-target-service",
+     ],
+     sanitize: {
+diff --git a/profile/avrcp/connection_handler.cc b/profile/avrcp/connection_handler.cc
+index 874bf772d..66237edeb 100644
+--- a/profile/avrcp/connection_handler.cc
++++ b/profile/avrcp/connection_handler.cc
+@@ -28,7 +28,9 @@
+ // TODO (apanicke): Remove dependency on this header once we cleanup feature
+ // handling.
+ #include "bta/include/bta_av_api.h"
++#include "device/include/interop.h"
+ #include "osi/include/allocator.h"
++#include "osi/include/properties.h"
+ 
+ namespace bluetooth {
+ namespace avrcp {
+@@ -41,6 +43,20 @@ ConnectionHandler* ConnectionHandler::Get() {
+   return instance_;
+ }
+ 
++bool IsAbsoluteVolumeEnabled(const RawAddress* bdaddr) {
++  char volume_disabled[PROPERTY_VALUE_MAX] = {0};
++  osi_property_get("persist.bluetooth.disableabsvol", volume_disabled, "false");
++  if (strncmp(volume_disabled, "true", 4) == 0) {
++    LOG(INFO) << "Absolute volume disabled by property";
++    return false;
++  }
++  if (interop_match_addr(INTEROP_DISABLE_ABSOLUTE_VOLUME, bdaddr)) {
++    LOG(INFO) << "Absolute volume disabled by IOP table";
++    return false;
++  }
++  return true;
++}
++
+ bool ConnectionHandler::Initialize(const ConnectionCallback& callback,
+                                    AvrcpInterface* avrcp, SdpInterface* sdp,
+                                    VolumeInterface* vol) {
+@@ -428,7 +444,9 @@ void ConnectionHandler::SdpCb(const RawAddress& bdaddr, SdpCallback cb,
+           if (categories & AVRC_SUPF_CT_CAT2) {
+             LOG(INFO) << __PRETTY_FUNCTION__ << ": Device " << bdaddr.ToString()
+                       << " supports advanced control";
+-            peer_features |= (BTA_AV_FEAT_ADV_CTRL);
++            if (IsAbsoluteVolumeEnabled(&bdaddr)) {
++              peer_features |= (BTA_AV_FEAT_ADV_CTRL);
++            }
+           }
+           if (categories & AVRC_SUPF_CT_BROWSE) {
+             LOG(INFO) << __PRETTY_FUNCTION__ << ": Device " << bdaddr.ToString()
+@@ -467,7 +485,9 @@ void ConnectionHandler::SdpCb(const RawAddress& bdaddr, SdpCallback cb,
+           if (categories & AVRC_SUPF_CT_CAT2) {
+             LOG(INFO) << __PRETTY_FUNCTION__ << ": Device " << bdaddr.ToString()
+                       << " supports advanced control";
+-            peer_features |= (BTA_AV_FEAT_ADV_CTRL);
++            if (IsAbsoluteVolumeEnabled(&bdaddr)) {
++              peer_features |= (BTA_AV_FEAT_ADV_CTRL);
++            }
+           }
+         }
+       }
+-- 
+2.17.1
+

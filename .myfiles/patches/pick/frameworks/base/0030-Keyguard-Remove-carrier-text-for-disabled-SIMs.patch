@@ -1,0 +1,91 @@
+From 6fe8fe8adb9c50d6416b6df956b9d2da04a3e3f3 Mon Sep 17 00:00:00 2001
+From: Michael W <baddaemon87@gmail.com>
+Date: Sat, 2 Jun 2018 17:52:56 +0200
+Subject: [PATCH 30/47] Keyguard: Remove carrier text for disabled SIMs
+
+* By setting the State to "NOT_READY", the behaviour of the carrier text
+  on the lockscreen is the same as it would be with one SIM only
+
+Change-Id: Iafe7ad820e59f4d960383309a7c4e1a87581cc51
+---
+ .../keyguard/KeyguardUpdateMonitor.java       | 29 ++++++++++++++++++-
+ 1 file changed, 28 insertions(+), 1 deletion(-)
+
+diff --git a/packages/SystemUI/src/com/android/keyguard/KeyguardUpdateMonitor.java b/packages/SystemUI/src/com/android/keyguard/KeyguardUpdateMonitor.java
+index 4f8d81f19cc..dd5156a18dc 100644
+--- a/packages/SystemUI/src/com/android/keyguard/KeyguardUpdateMonitor.java
++++ b/packages/SystemUI/src/com/android/keyguard/KeyguardUpdateMonitor.java
+@@ -87,6 +87,9 @@ import com.android.systemui.shared.system.ActivityManagerWrapper;
+ 
+ import com.google.android.collect.Lists;
+ 
++import org.lineageos.internal.util.TelephonyExtUtils;
++import org.lineageos.internal.util.TelephonyExtUtils.ProvisioningChangedListener;
++
+ import java.io.FileDescriptor;
+ import java.io.PrintWriter;
+ import java.lang.ref.WeakReference;
+@@ -105,7 +108,8 @@ import java.util.Map.Entry;
+  * the device, and {@link #getFailedUnlockAttempts()}, {@link #reportFailedAttempt()}
+  * and {@link #clearFailedUnlockAttempts()}.  Maybe we should rename this 'KeyguardContext'...
+  */
+-public class KeyguardUpdateMonitor implements TrustManager.TrustListener {
++public class KeyguardUpdateMonitor implements TrustManager.TrustListener,
++        ProvisioningChangedListener {
+ 
+     private static final String TAG = "KeyguardUpdateMonitor";
+     private static final boolean DEBUG = KeyguardConstants.DEBUG;
+@@ -190,6 +194,7 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener {
+     private final Context mContext;
+     HashMap<Integer, SimData> mSimDatas = new HashMap<Integer, SimData>();
+     HashMap<Integer, ServiceState> mServiceStates = new HashMap<Integer, ServiceState>();
++    HashMap<Integer, State> mProvisionStates = new HashMap<Integer, State>();
+ 
+     private int mRingMode;
+     private int mPhoneState;
+@@ -348,6 +353,12 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener {
+         }
+     };
+ 
++    @Override
++    public void onProvisioningChanged(int slotId, boolean isProvisioned) {
++        mProvisionStates.put(slotId, isProvisioned ? State.UNKNOWN : State.NOT_READY);
++        handleSimSubscriptionInfoChanged();
++    }
++
+     private OnSubscriptionsChangedListener mSubscriptionListener =
+             new OnSubscriptionsChangedListener() {
+         @Override
+@@ -1446,6 +1457,8 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener {
+                 cb.onBootCompleted();
+             }
+         }
++
++        TelephonyExtUtils.getInstance(mContext).addListener(this);
+     }
+ 
+     /**
+@@ -1884,6 +1897,20 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener {
+             Log.w(TAG, "Unknown sim state: " + simState);
+             state = State.UNKNOWN;
+         }
++
++        // Try to get provision-status from telephony extensions and override the state if valid
++        TelephonyExtUtils extTelephony = TelephonyExtUtils.getInstance(mContext);
++        if (extTelephony.hasService()) {
++            State extState = mProvisionStates.get(slotId);
++            if (extState == null) {
++                extState = extTelephony.isSlotProvisioned(slotId) ? State.UNKNOWN : State.NOT_READY;
++                mProvisionStates.put(slotId, extState);
++            }
++            if (extState != null && extState != State.UNKNOWN) {
++                state = extState;
++            }
++        }
++
+         SimData data = mSimDatas.get(subId);
+         final boolean changed;
+         if (data == null) {
+-- 
+2.17.1
+
