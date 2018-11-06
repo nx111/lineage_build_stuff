@@ -13,7 +13,7 @@ op_base_pick=0
 default_remote="github"
 script_file="$0"
 conflict_resolved=0
-checkcount=500
+maxCount=500
 
 [ "$0" != "bash" ] && script_file=$(realpath $0)
 
@@ -488,7 +488,7 @@ function kpick()
         mLine=$(grep -n "^[[:space:]]*kpick $*" $target_script | cut -d: -f1 )
         sed -e "s/\([[:space:]]*kpick $*\)/#\1/" -i   $target_script
     fi
-    repopick --test $query | cut -d" " -f 5 > $change_number_list || return -1
+    repopick --test $query | grep "Testing change number" | cut -d" " -f 4 > $change_number_list || return -1
     [ -f $change_number_list ] || return 0
     while read line; do
         number=$(echo $line | sed -e "s/  / /g")
@@ -522,6 +522,7 @@ function kpick_action()
     local m_parent=1
     local nops=""
     local op
+    local count=$maxCount
 
     for op in $*; do
         if [ $op_is_m_parent -eq 1 ]; then
@@ -541,8 +542,22 @@ function kpick_action()
     if  [ "$changeNumber" = "" ]; then
          return -1
     fi
+
+    # calculate check Count
+    repopick --test $changeNumber > $logfile 2>$errfile
+    if [ -f $errfile ] && ! grep -q "error: unrecognized arguments: --test" $errfile; then
+          local project_dir=$(grep "\--> Project path:" $logfile | cut -d: -f2 | sed  "s/ //g")
+          if [ ! -z $project_dir -a -d $topdir/$project_dir ]; then
+              cd $topdir/$project_dir
+              default_branch=$(grep "^[[:space:]]*<default revision=" $topdir/.repo/manifests/default.xml | sed -e 's:[^"]*"\(.*\)":\1:' | sed -e "s:refs/heads/::g")
+              count=$(git log --pretty="format:%D" --max-count=$maxCount | grep -n "m/$default_branch" | cut -d: -f1)
+              [ -z $count ] && count=$maxCount
+              cd $topdir
+          fi
+    fi
+
     echo ">>> Picking change $changeNumber ..."
-    LANG=en_US repopick -c $checkcount $nops >$logfile 2>$errfile
+    LANG=en_US repopick -c $count $nops >$logfile 2>$errfile
     rc=$?
     local subject=$(grep -Ri -- '--> Subject:' $logfile | sed 's/--> Subject:[[:space:]]*//g')
     if [ "${subject:0:1}" = '"' ]; then
@@ -606,7 +621,7 @@ function kpick_action()
               echo ""
               sleep 2
               [ $tries -ge 2 ] && https_proxy=""
-              LANG=en_US https_proxy="$https_proxy" repopick -c $checkcount $nops >$logfile 2>$errfile
+              LANG=en_US https_proxy="$https_proxy" repopick -c $count $nops >$logfile 2>$errfile
               rc=$?
               if [ $rc -ne 0 ]; then
                   #cat $logfile | sed -e "/ERROR: git command failed/d"
@@ -672,7 +687,7 @@ function kpick_action()
                     cd $topdir
               else
                     cd $topdir
-                    LANG=en_US repopick -c $checkcount $nops >$logfile 2>$errfile
+                    LANG=en_US repopick -c $count $nops >$logfile 2>$errfile
                     rc=$?
               fi
               if [ $rc -eq 0 ]; then
@@ -826,7 +841,7 @@ for op in $*; do
     elif [ $op_project_snapshot -eq 1 -a  -d "$(gettop)/$op" ]; then
          op_snap_project=$op
     elif [ "$op" = "-nop" ]; then
-          exit 0
+          return 0
     elif [ "$op" = "-base" ]; then
          op_base_pick=1
     else
@@ -1154,7 +1169,7 @@ kpick 223343 # msm8974: Move QCOM HALs to vendor partition
 kpick 223344 # msm8974: hwcomposer: Fix regression in hwc_sync
 kpick 223345 # msm8974: libgralloc: Fix adding offset to the mapped base address
 kpick 223346 # msm8974: libexternal should depend on libmedia
-kpick 224958 # msm8960/8974: Include string.h where it is necessary
+kpick 224958 # msm8960/8974/8084: Include string.h where it is necessary
 
 # hardware/qcom/display-caf/msm8974
 
@@ -1679,8 +1694,6 @@ kpick 229313 # Explicit SBC Dual Channel (SBC HD) support
 kpick 229314 # Allow using alternative (higher) SBC HD bitrates with a property
 kpick 229401 # [DNM] Revert "Return early if vendor-specific command fails"
 kpick 232027 # Merge android-9.0.0_r12
-kpick 233607 # Run the wakelock JNI callbacks on the JNI thread
-kpick 233608 # Fix "Disable Absolute Volume" Bluetooth developer option
 
 # system/core
 privpick system/core refs/changes/19/206119/2 # init: I hate safety net
@@ -1696,7 +1709,7 @@ kpick 225426 # f2fs_utils: Add a static libf2fs_sparseblock for minvold
 kpick 225427 # ext4_utils: Fix FS creation for filesystems with exactly 32768 blocks.
 kpick 232055 # Merge android-9.0.0_r12
 
-cd system/extras/
+cd $topdir/system/extras/
 git stash >/dev/null
 git clean -xdf >/dev/null
 cd $topdir
