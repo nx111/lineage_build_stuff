@@ -1,0 +1,130 @@
+From 5417711efea2980fcf1617e7a73fc9119bd3208a Mon Sep 17 00:00:00 2001
+From: Luca Stefani <luca.stefani.ge1@gmail.com>
+Date: Tue, 6 Nov 2018 14:42:28 +0100
+Subject: [PATCH 4/4] [SQUSH][DNM] Merge tag 'android-9.0.0_r16' into
+ lineage-16.0
+
+commit a5471138c51014e1cfa84a50bf3c7da26e5a06cb
+Merge: 9747eed8 40c869b0
+Author: TreeHugger Robot <treehugger-gerrit@google.com>
+Date:   Sat Jun 30 00:46:02 2018 +0000
+
+    Merge "Remove workaround for cortex-a55/a75" into pi-dev
+
+commit 40c869b0aeff3df0d34a6b0540c1a04c142552ff
+Author: Yi Kong <yikong@google.com>
+Date:   Sun Jun 17 02:15:24 2018 -0700
+
+    Remove workaround for cortex-a55/a75
+
+    Test: m checkbuild
+    Test: boot on a55/a75 device, pass bionic tests
+    Bug: 110235326
+    Change-Id: I5ab2102352a6efe1173b3097875e6e779d4a1a09
+    Merged-In: I5ab2102352a6efe1173b3097875e6e779d4a1a09
+    (cherry picked from commit 9a350e644b4e5762df5838e007a55af68449c937)
+
+commit 9747eed816fda6b1766f20dfb84b43ffe4abc1be
+Author: Yi Kong <yikong@google.com>
+Date:   Thu Jun 14 22:38:10 2018 -0700
+
+    Update ToolingCFlags overrides to include other new architectures
+
+    Bug: 110235326
+    Test: m checkbuild
+    Change-Id: Ifaa35db08d35ed3cb14fce3e9c5643f26bc3f706
+    Merged-In: I9d0ada05d95bb260500c1d694332a73363b0f299
+    (cherry picked from commit 32a779171b78615b231d0680872942d2dd07b519)
+
+commit 39299e61610198b3d3c511a58ea540471d8e29c2
+Author: Logan Chien <loganchien@google.com>
+Date:   Wed Jun 13 22:32:16 2018 +0800
+
+    Fix VNDK-Ext ABI check regression
+
+    VNDK-Ext are modules with `vndk.enabled: true` but not having
+    `vendor_available: true`.  In addition, VNDK-Ext should be checked by
+    source ABI checker.  This change fixes the regression introduced in
+
+    Bug: 110142940
+    Test: Create libminijail_ext, break some ABIs, and see an error.
+    Merged-In: I8b47ac12d2e132f641129c9549ed22c3971d6c89
+    Change-Id: I8b47ac12d2e132f641129c9549ed22c3971d6c89
+    (cherry picked from commit ef1ff3de9804d8e99df06f0874c974b3f1e85e36)
+    Signed-off-by: Jayant Chowdhary <jchowdhary@google.com>
+
+Change-Id: I815c3addf68e52cc152b2f4b4f34fb3e888a38cc
+---
+ cc/config/arm64_device.go | 9 +++------
+ cc/config/arm_device.go   | 4 ++--
+ cc/sabi.go                | 9 +++++++--
+ 3 files changed, 12 insertions(+), 10 deletions(-)
+
+diff --git a/cc/config/arm64_device.go b/cc/config/arm64_device.go
+index 11625e80..8be33a85 100644
+--- a/cc/config/arm64_device.go
++++ b/cc/config/arm64_device.go
+@@ -50,15 +50,12 @@ var (
+ 			"-mcpu=cortex-a53",
+ 		},
+ 		"cortex-a55": []string{
+-			// The cortex-a55 target is not yet supported,
+-			// so use cortex-a53.
+-			"-mcpu=cortex-a53",
++			"-mcpu=cortex-a55",
+ 		},
+ 		"cortex-a75": []string{
+-			// Use the cortex-a53 since it is similar to the little
++			// Use the cortex-a55 since it is similar to the little
+ 			// core (cortex-a55) and is sensitive to ordering.
+-			// The cortex-a55 target is not yet supported.
+-			"-mcpu=cortex-a53",
++			"-mcpu=cortex-a55",
+ 		},
+ 		"kryo": []string{
+ 			// Use the cortex-a57 cpu since some compilers
+diff --git a/cc/config/arm_device.go b/cc/config/arm_device.go
+index 4e0f6e05..cad1b161 100644
+--- a/cc/config/arm_device.go
++++ b/cc/config/arm_device.go
+@@ -98,7 +98,7 @@ var (
+ 			"-D__ARM_FEATURE_LPAE=1",
+ 		},
+ 		"cortex-a55": []string{
+-			"-mcpu=cortex-a53",
++			"-mcpu=cortex-a55",
+ 			"-mfpu=neon-fp-armv8",
+ 			// Fake an ARM compiler flag as these processors support LPAE which GCC/clang
+ 			// don't advertise.
+@@ -107,7 +107,7 @@ var (
+ 			"-D__ARM_FEATURE_LPAE=1",
+ 		},
+ 		"cortex-a75": []string{
+-			"-mcpu=cortex-a53",
++			"-mcpu=cortex-a55",
+ 			"-mfpu=neon-fp-armv8",
+ 			// Fake an ARM compiler flag as these processors support LPAE which GCC/clang
+ 			// don't advertise.
+diff --git a/cc/sabi.go b/cc/sabi.go
+index f5a7c774..42b2f352 100644
+--- a/cc/sabi.go
++++ b/cc/sabi.go
+@@ -74,8 +74,13 @@ func (sabimod *sabi) flags(ctx ModuleContext, flags Flags) Flags {
+ 
+ 	// RSClang does not support recent mcpu option likes exynos-m2.
+ 	// So we need overriding mcpu option when we want to use it.
+-	if ctx.Arch().CpuVariant == "exynos-m2" {
+-		flags.ToolingCFlags = append(flags.ToolingCFlags, "-mcpu=cortex-a53")
++	mappedArch := map[string]string{
++		"exynos-m2":  "cortex-a53",
++		"cortex-a55": "cortex-a53",
++		"cortex-a75": "cortex-a57",
++	}
++	if arch, ok := mappedArch[ctx.Arch().CpuVariant]; ok {
++		flags.ToolingCFlags = append(flags.ToolingCFlags, "-mcpu="+arch)
+ 	}
+ 
+ 	return flags
+-- 
+2.17.1
+
