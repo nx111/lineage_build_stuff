@@ -1148,6 +1148,10 @@ kpick 225506 # Camed HAL extension: Added support in HIDL for Extended FD.
 kpick 225507 # camera: Only link and use vendor.qti.hardware.camera.device if specified
 kpick 226402 # keymasterV4_0: Tags support for FBE wrapped key.
 kpick 233762 # [SQUSH][DNM] Merge tag 'android-9.0.0_r16' into lineage-16.0
+kpick 233911 # Tuning of binder buffer for ARM devices
+kpick 233865 # wifi: Fetch softap interface name for creating ap_iface operations.
+kpick 233866 # wifi: Add provision to create/remove dynamic interface(s).
+kpick 233867 # wifi: Add logic to create secondary interface for STA mode too.
 
 # hardware/lineage/interfaces
 kpick 223374 # interfaces: Add 2.0 livedisplay interfaces
@@ -1239,6 +1243,7 @@ kpick 231896 # power: Turn on/off display in SDM439
 kpick 231897 # power: qcom: powerHal for sdm439 and sdm429
 kpick 231898 # Power: Naming convention change
 kpick 233027 # Cache SOC ID checks for future queries
+kpick 233846 # Reduce hwbinder buffer size for power HAL
 
 # hardware/qcom/wlan-caf
 kpick 226638 # wcnss_qmi: Generate a fixed random mac address if the NV doesn't provide one
