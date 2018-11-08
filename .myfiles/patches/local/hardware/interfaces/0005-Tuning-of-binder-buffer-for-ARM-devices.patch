@@ -1,4 +1,4 @@
-From 1f0e501588a3600e46f7e7d72e260b71e8e743ff Mon Sep 17 00:00:00 2001
+From 60aba7697ceb37da5d001925248a54438b9cc573 Mon Sep 17 00:00:00 2001
 From: Hari Veerubhotla <vsubrahm@codeaurora.org>
 Date: Tue, 3 Jul 2018 12:42:42 +0530
 Subject: [PATCH 5/8] Tuning of binder buffer for ARM devices
@@ -62,6 +62,21 @@ Date:   Fri Sep 14 11:15:57 2018 +0530
 
     Change-Id: I14b77a2476be57a121ba4e036737b5a19bdc86fd
 
+Author:	Purushottam Kushwaha <pkushwah@codeaurora.org>
+Date:   Wed Sep 19 11:32:08 2018 +0530
+
+    Binder: limit hw binder buffer size for 32bit platform.
+
+    Hardware binder by default consumes 1 MB of buffer, though the HALs
+    are using hardly 1 page (4KB).
+
+    This commit introduces a configurable binder buffer size via persist
+    property: "persist.vendor.wifi.wifihal.hw.binder.size"
+    Default value when this property is not configured is 4 (for 4KB)
+
+    Change-Id: I4c2ed5ec2a295892fb6f37c583580a33d035fe10
+    CRs-Fixed: 2318236
+
 Author: Vinay Verma <vvinay@codeaurora.org>
 Date:   Fri Sep 14 11:25:46 2018 +0530
 
@@ -117,26 +132,28 @@ Date:   Wed Sep 26 17:38:56 2018 +0530
 Change-Id: I171eea605aaa1cc0288bf9bd950fb90764ca22e3
 ---
  .../all-versions/default/service/Android.mk   |  6 ++++++
- .../all-versions/default/service/service.cpp  | 18 +++++++++++++++++
- boot/1.0/default/Android.bp                   |  9 ++++++++-
- boot/1.0/default/service.cpp                  |  3 +++
+ .../all-versions/default/service/service.cpp  | 21 +++++++++++++++++++
+ boot/1.0/default/Android.bp                   |  9 +++++++-
+ boot/1.0/default/service.cpp                  |  4 ++++
  cas/1.0/default/Android.bp                    |  6 ++++++
- cas/1.0/default/service.cpp                   |  8 ++++++++
+ cas/1.0/default/service.cpp                   |  8 +++++++
  configstore/1.1/default/Android.mk            |  5 +++++
- configstore/1.1/default/service.cpp           |  6 ++++++
- graphics/allocator/2.0/default/Android.bp     |  8 ++++++++
- graphics/allocator/2.0/default/service.cpp    |  5 +++++
- graphics/composer/2.1/default/Android.bp      |  8 ++++++++
- graphics/composer/2.1/default/service.cpp     |  5 +++++
+ configstore/1.1/default/service.cpp           |  8 +++++++
+ graphics/allocator/2.0/default/Android.bp     |  8 +++++++
+ graphics/allocator/2.0/default/service.cpp    |  8 +++++++
+ graphics/composer/2.1/default/Android.bp      |  8 +++++++
+ graphics/composer/2.1/default/service.cpp     |  8 +++++++
  light/2.0/default/Android.bp                  | 11 ++++++++--
- light/2.0/default/service.cpp                 |  4 ++++
+ light/2.0/default/service.cpp                 |  8 +++++++
  power/1.0/default/Android.bp                  |  6 ++++++
- power/1.0/default/service.cpp                 |  6 ++++++
+ power/1.0/default/service.cpp                 |  8 +++++++
  sensors/1.0/default/Android.bp                |  7 +++++++
- sensors/1.0/default/service.cpp               | 20 +++++++++++++++++++
- vibrator/1.0/default/Android.bp               |  8 ++++++++
- vibrator/1.0/default/service.cpp              |  3 +++
- 20 files changed, 149 insertions(+), 3 deletions(-)
+ sensors/1.0/default/service.cpp               | 21 +++++++++++++++++++
+ vibrator/1.0/default/Android.bp               |  8 +++++++
+ vibrator/1.0/default/service.cpp              |  4 ++++
+ wifi/1.2/default/Android.mk                   |  5 +++++
+ wifi/1.2/default/service.cpp                  | 20 ++++++++++++++++++
+ 22 files changed, 194 insertions(+), 3 deletions(-)
 
 diff --git a/audio/common/all-versions/default/service/Android.mk b/audio/common/all-versions/default/service/Android.mk
 index 43d7fe19..73d03f10 100644
@@ -163,22 +180,23 @@ index 43d7fe19..73d03f10 100644
 +
  include $(BUILD_EXECUTABLE)
 diff --git a/audio/common/all-versions/default/service/service.cpp b/audio/common/all-versions/default/service/service.cpp
-index c7ce638e..afcca081 100644
+index c7ce638e..f82a26f2 100644
 --- a/audio/common/all-versions/default/service/service.cpp
 +++ b/audio/common/all-versions/default/service/service.cpp
-@@ -26,11 +26,29 @@
- #include <binder/ProcessState.h>
+@@ -27,10 +27,31 @@
  #include <hidl/HidlTransportSupport.h>
  #include <hidl/LegacySupport.h>
+ 
++#ifdef ARCH_ARM_32
 +#include <hwbinder/ProcessState.h>
 +#include <cutils/properties.h>
- 
++#endif
++
  using namespace android::hardware;
  using android::OK;
  
-+
 +#ifdef ARCH_ARM_32
-+//default h/w binder memsize is 1 MB
++// default h/w binder memsize is 1 MB
 +#define DEFAULT_HW_BINDER_MEM_SIZE_KB 1024
 +
 +size_t getHWBinderMmapSize(){
@@ -193,6 +211,7 @@ index c7ce638e..afcca081 100644
 +#ifdef ARCH_ARM_32
 +    android::hardware::ProcessState::initWithMmapSize(getHWBinderMmapSize());
 +#endif
++
      android::ProcessState::initWithDriver("/dev/vndbinder");
      // start a threadpool for vndbinder interactions
      android::ProcessState::self()->startThreadPool();
@@ -216,16 +235,17 @@ index 6cfbf32e..f64eb91c 100644
 +    },
  }
 diff --git a/boot/1.0/default/service.cpp b/boot/1.0/default/service.cpp
-index f3996efe..d49f4d40 100644
+index f3996efe..8c924945 100644
 --- a/boot/1.0/default/service.cpp
 +++ b/boot/1.0/default/service.cpp
-@@ -22,5 +22,8 @@ using ::android::hardware::boot::V1_0::IBootControl;
+@@ -22,5 +22,9 @@ using ::android::hardware::boot::V1_0::IBootControl;
  using android::hardware::defaultPassthroughServiceImplementation;
  
  int main (int /* argc */, char * /* argv */ []) {
 +#ifdef ARCH_ARM_32
 +    android::hardware::ProcessState::initWithMmapSize((size_t)8192);
 +#endif
++
      return defaultPassthroughServiceImplementation<IBootControl>();
  }
 diff --git a/cas/1.0/default/Android.bp b/cas/1.0/default/Android.bp
@@ -249,7 +269,7 @@ index 544162ba..f65a9905 100644
 +    },
  }
 diff --git a/cas/1.0/default/service.cpp b/cas/1.0/default/service.cpp
-index 04a8ad97..c47be7a8 100644
+index 04a8ad97..91ee8acf 100644
 --- a/cas/1.0/default/service.cpp
 +++ b/cas/1.0/default/service.cpp
 @@ -23,12 +23,20 @@
@@ -266,15 +286,15 @@ index 04a8ad97..c47be7a8 100644
  using android::hardware::cas::V1_0::IMediaCasService;
  
  int main() {
-+    #ifdef ARCH_ARM_32
-+        android::hardware::ProcessState::initWithMmapSize((size_t)16384);
-+    #endif
++#ifdef ARCH_ARM_32
++    android::hardware::ProcessState::initWithMmapSize((size_t)16384);
++#endif
 +
      ALOGD("android.hardware.cas@1.0-service starting...");
  
      // The CAS HAL may communicate to other vendor components via
 diff --git a/configstore/1.1/default/Android.mk b/configstore/1.1/default/Android.mk
-index 40f621b3..ed711c87 100644
+index 40f621b3..4a878665 100644
 --- a/configstore/1.1/default/Android.mk
 +++ b/configstore/1.1/default/Android.mk
 @@ -18,6 +18,7 @@ include $(LOCAL_PATH)/surfaceflinger.mk
@@ -290,29 +310,31 @@ index 40f621b3..ed711c87 100644
      android.hardware.configstore@1.1
  
 +ifeq ($(TARGET_ARCH),arm)
-+LOCAL_CFLAGS := -DARCH_ARM_32
++    LOCAL_CFLAGS := -DARCH_ARM_32
 +endif
 +
  include $(BUILD_EXECUTABLE)
  
  # seccomp filter for configstore
 diff --git a/configstore/1.1/default/service.cpp b/configstore/1.1/default/service.cpp
-index 3b4e7745..9d031f92 100644
+index 3b4e7745..6f30c0ad 100644
 --- a/configstore/1.1/default/service.cpp
 +++ b/configstore/1.1/default/service.cpp
-@@ -19,6 +19,7 @@
- #include <android/hardware/configstore/1.1/ISurfaceFlingerConfigs.h>
+@@ -20,6 +20,10 @@
  #include <hidl/HidlTransportSupport.h>
  #include <hwminijail/HardwareMinijail.h>
-+#include <hwbinder/ProcessState.h>
  
++#ifdef ARCH_ARM_32
++#include <hwbinder/ProcessState.h>
++#endif
++
  #include "SurfaceFlingerConfigs.h"
  
-@@ -32,6 +33,11 @@ using android::status_t;
+ using android::hardware::configureRpcThreadpool;
+@@ -32,6 +36,10 @@ using android::status_t;
  using android::OK;
  
  int main() {
-+
 +#ifdef ARCH_ARM_32
 +    android::hardware::ProcessState::initWithMmapSize((size_t)(32768));
 +#endif
@@ -341,23 +363,25 @@ index 9980ae0f..9841e01d 100644
 +    },
  }
 diff --git a/graphics/allocator/2.0/default/service.cpp b/graphics/allocator/2.0/default/service.cpp
-index bc0539a6..ca1fee4f 100644
+index bc0539a6..60ed232a 100644
 --- a/graphics/allocator/2.0/default/service.cpp
 +++ b/graphics/allocator/2.0/default/service.cpp
-@@ -19,10 +19,15 @@
- #include <android/hardware/graphics/allocator/2.0/IAllocator.h>
+@@ -20,9 +20,17 @@
  
  #include <hidl/LegacySupport.h>
-+#include <hwbinder/ProcessState.h>
  
++#ifdef ARCH_ARM_32
++#include <hwbinder/ProcessState.h>
++#endif
++
  using android::hardware::defaultPassthroughServiceImplementation;
  using android::hardware::graphics::allocator::V2_0::IAllocator;
  
  int main() {
-+
 +#ifdef ARCH_ARM_32
 +    android::hardware::ProcessState::initWithMmapSize((size_t)(32768));
 +#endif
++
      return defaultPassthroughServiceImplementation<IAllocator>(4);
  }
 diff --git a/graphics/composer/2.1/default/Android.bp b/graphics/composer/2.1/default/Android.bp
@@ -385,27 +409,28 @@ index 2de1e3ca..858d32a0 100644
 +    },
  }
 diff --git a/graphics/composer/2.1/default/service.cpp b/graphics/composer/2.1/default/service.cpp
-index 82a33f6a..bfaf328d 100644
+index 82a33f6a..980f6785 100644
 --- a/graphics/composer/2.1/default/service.cpp
 +++ b/graphics/composer/2.1/default/service.cpp
-@@ -22,6 +22,7 @@
- 
+@@ -23,10 +23,18 @@
  #include <binder/ProcessState.h>
  #include <hidl/LegacySupport.h>
-+#include <hwbinder/ProcessState.h>
  
++#ifdef ARCH_ARM_32
++#include <hwbinder/ProcessState.h>
++#endif
++
  using android::hardware::graphics::composer::V2_1::IComposer;
  using android::hardware::defaultPassthroughServiceImplementation;
-@@ -40,5 +41,9 @@ int main() {
-         ALOGE("Couldn't set SCHED_FIFO: %d", errno);
-     }
  
+ int main() {
 +#ifdef ARCH_ARM_32
 +    android::hardware::ProcessState::initWithMmapSize((size_t)(32768));
 +#endif
 +
-     return defaultPassthroughServiceImplementation<IComposer>(4);
- }
+     // the conventional HAL might start binder services
+     android::ProcessState::initWithDriver("/dev/vndbinder");
+     android::ProcessState::self()->setThreadPoolMaxThreadCount(4);
 diff --git a/light/2.0/default/Android.bp b/light/2.0/default/Android.bp
 index 8b5f7802..4e124270 100644
 --- a/light/2.0/default/Android.bp
@@ -432,15 +457,17 @@ index 8b5f7802..4e124270 100644
 +    },
 +}
 diff --git a/light/2.0/default/service.cpp b/light/2.0/default/service.cpp
-index 70ae5655..0fc4795f 100644
+index 70ae5655..d33c3799 100644
 --- a/light/2.0/default/service.cpp
 +++ b/light/2.0/default/service.cpp
-@@ -18,10 +18,14 @@
- 
+@@ -19,9 +19,17 @@
  #include <android/hardware/light/2.0/ILight.h>
  #include <hidl/LegacySupport.h>
-+#include <hwbinder/ProcessState.h>
  
++#ifdef ARCH_ARM_32
++#include <hwbinder/ProcessState.h>
++#endif
++
  using android::hardware::light::V2_0::ILight;
  using android::hardware::defaultPassthroughServiceImplementation;
  
@@ -448,6 +475,7 @@ index 70ae5655..0fc4795f 100644
 +#ifdef ARCH_ARM_32
 +    android::hardware::ProcessState::initWithMmapSize((size_t)(32768));
 +#endif
++
      return defaultPassthroughServiceImplementation<ILight>();
  }
 diff --git a/power/1.0/default/Android.bp b/power/1.0/default/Android.bp
@@ -468,24 +496,25 @@ index 4f43b95a..9b6fe4f7 100644
 +    },
  }
 diff --git a/power/1.0/default/service.cpp b/power/1.0/default/service.cpp
-index e8618b84..d5619192 100644
+index e8618b84..97a14036 100644
 --- a/power/1.0/default/service.cpp
 +++ b/power/1.0/default/service.cpp
-@@ -18,10 +18,16 @@
- 
+@@ -19,9 +19,17 @@
  #include <android/hardware/power/1.0/IPower.h>
  #include <hidl/LegacySupport.h>
+ 
 +#ifdef ARCH_ARM_32
 +#include <hwbinder/ProcessState.h>
 +#endif
- 
++
  using android::hardware::power::V1_0::IPower;
  using android::hardware::defaultPassthroughServiceImplementation;
  
  int main() {
-+    #ifdef ARCH_ARM_32
-+        android::hardware::ProcessState::initWithMmapSize((size_t)16384);
-+    #endif
++#ifdef ARCH_ARM_32
++    android::hardware::ProcessState::initWithMmapSize((size_t)16384);
++#endif
++
      return defaultPassthroughServiceImplementation<IPower>();
  }
 diff --git a/sensors/1.0/default/Android.bp b/sensors/1.0/default/Android.bp
@@ -513,10 +542,10 @@ index 2485b058..6338821e 100644
 +    },
  }
 diff --git a/sensors/1.0/default/service.cpp b/sensors/1.0/default/service.cpp
-index 65f6d816..c413d1a0 100644
+index 65f6d816..3636b85c 100644
 --- a/sensors/1.0/default/service.cpp
 +++ b/sensors/1.0/default/service.cpp
-@@ -19,10 +19,30 @@
+@@ -19,10 +19,31 @@
  #include <android/hardware/sensors/1.0/ISensors.h>
  #include <hidl/LegacySupport.h>
  
@@ -544,6 +573,7 @@ index 65f6d816..c413d1a0 100644
 +#ifdef ARCH_ARM_32
 +    android::hardware::ProcessState::initWithMmapSize((size_t)getHWBinderMmapSize());
 +#endif
++
      /* Sensors framework service needs at least two threads.
       * One thread blocks on a "poll"
       * The second thread is needed for all other HAL methods.
@@ -566,18 +596,81 @@ index 0c7d1557..c977942c 100644
 +    },
  }
 diff --git a/vibrator/1.0/default/service.cpp b/vibrator/1.0/default/service.cpp
-index 7cc07446..ab585f38 100644
+index 7cc07446..a4b43f43 100644
 --- a/vibrator/1.0/default/service.cpp
 +++ b/vibrator/1.0/default/service.cpp
-@@ -22,5 +22,8 @@ using android::hardware::vibrator::V1_0::IVibrator;
+@@ -22,5 +22,9 @@ using android::hardware::vibrator::V1_0::IVibrator;
  using android::hardware::defaultPassthroughServiceImplementation;
  
  int main() {
 +#ifdef ARCH_ARM_32
 +    android::hardware::ProcessState::initWithMmapSize((size_t)8192);
 +#endif
++
      return defaultPassthroughServiceImplementation<IVibrator>();
  }
+diff --git a/wifi/1.2/default/Android.mk b/wifi/1.2/default/Android.mk
+index 39196901..f59108a8 100644
+--- a/wifi/1.2/default/Android.mk
++++ b/wifi/1.2/default/Android.mk
+@@ -70,6 +70,10 @@ LOCAL_MODULE := android.hardware.wifi@1.0-service
+ LOCAL_MODULE_RELATIVE_PATH := hw
+ LOCAL_PROPRIETARY_MODULE := true
+ LOCAL_CPPFLAGS := -Wall -Werror -Wextra
++ifeq ($(TARGET_ARCH),arm)
++    LOCAL_CPPFLAGS += -DARCH_ARM_32
++endif
++
+ LOCAL_SRC_FILES := \
+     service.cpp
+ LOCAL_SHARED_LIBRARIES := \
+@@ -80,6 +84,7 @@ LOCAL_SHARED_LIBRARIES := \
+     liblog \
+     libnl \
+     libutils \
++    libhwbinder \
+     libwifi-hal \
+     libwifi-system-iface \
+     android.hardware.wifi@1.0 \
+diff --git a/wifi/1.2/default/service.cpp b/wifi/1.2/default/service.cpp
+index 01d22bd8..be562578 100644
+--- a/wifi/1.2/default/service.cpp
++++ b/wifi/1.2/default/service.cpp
+@@ -19,6 +19,11 @@
+ #include <utils/Looper.h>
+ #include <utils/StrongPointer.h>
+ 
++#ifdef ARCH_ARM_32
++#include <hwbinder/ProcessState.h>
++#include <cutils/properties.h>
++#endif
++
+ #include "wifi.h"
+ #include "wifi_feature_flags.h"
+ #include "wifi_legacy_hal.h"
+@@ -32,7 +37,22 @@ using android::hardware::wifi::V1_2::implementation::legacy_hal::WifiLegacyHal;
+ using android::hardware::wifi::V1_2::implementation::mode_controller::
+     WifiModeController;
+ 
++#ifdef ARCH_ARM_32
++#define DEFAULT_WIFIHAL_HW_BINDER_SIZE_KB 4
++size_t getHWBinderMmapSize() {
++    size_t value = 0;
++    value = property_get_int32("persist.vendor.wifi.wifihal.hw.binder.size", DEFAULT_WIFIHAL_HW_BINDER_SIZE_KB);
++    if (!value) value = DEFAULT_WIFIHAL_HW_BINDER_SIZE_KB; // deafult to 1 page of 4 Kb
++
++    return 1024 * value;
++}
++#endif /* ARCH_ARM_32 */
++
+ int main(int /*argc*/, char** argv) {
++#ifdef ARCH_ARM_32
++    android::hardware::ProcessState::initWithMmapSize(getHWBinderMmapSize());
++#endif /* ARCH_ARM_32 */
++
+     android::base::InitLogging(
+         argv, android::base::LogdLogger(android::base::SYSTEM));
+     LOG(INFO) << "Wifi Hal is booting up...";
 -- 
 2.17.1
 

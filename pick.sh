@@ -1101,6 +1101,7 @@ kpick 232197 # appops: Privacy Guard for P (1/2)
 kpick 232796 # NetworkManagement : Add ability to restrict app vpn usage
 kpick 233369 # Add auth framework for outgoing SMS messages.
 kpick 233633 # Phone ringtone setting for Multi SIM device
+kpick 233717 # [DNM][HACK] Persist user brightness model
 kpick 233758 # [SQUSH][DNM] Merge tag 'android-9.0.0_r16' into lineage-16.0
 
 # frameworks/native
@@ -1242,8 +1243,6 @@ kpick 231895 # VNDK: Added required libs
 kpick 231896 # power: Turn on/off display in SDM439
 kpick 231897 # power: qcom: powerHal for sdm439 and sdm429
 kpick 231898 # Power: Naming convention change
-kpick 233027 # Cache SOC ID checks for future queries
-kpick 233846 # Reduce hwbinder buffer size for power HAL
 
 # hardware/qcom/wlan-caf
 kpick 226638 # wcnss_qmi: Generate a fixed random mac address if the NV doesn't provide one
@@ -1376,6 +1375,7 @@ kpick 233100 # Move Gallery2 to androidx.
 
 # packages/apps/Jelly
 kpick 231418 # Automatic translation import
+kpick 233975 # Jelly: Fix shortcut creation for websites without favicon
 
 # packages/apps/KeyChain
 kpick 233786 # [SQUSH][DNM] Merge tag 'android-9.0.0_r16' into lineage-16.0
@@ -1812,7 +1812,6 @@ kpick 231599 # privapp-permissions: Add new Gallery permissions
 kpick 231981 # HWComposer: HWC2: allow SkipValidate to be force disabled
 kpick 232659 # vendor/lineage: Build TrebuchetQuickStep
 kpick 232663 # overlay: Hide the option to show battery percentage
-kpick 232747 # config: Move vendor/extra inclusion before Lineage configuration
 kpick 232918 # extract_utils: Redirect vdexextractor log to /dev/null
 kpick 233630 # lineage: Consider techpack/audio when generating kernel headers
 
