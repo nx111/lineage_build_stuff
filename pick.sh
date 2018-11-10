@@ -14,6 +14,7 @@ default_remote="github"
 script_file="$0"
 conflict_resolved=0
 maxCount=500
+minCount=20
 
 [ "$0" != "bash" ] && script_file=$(realpath $0)
 
@@ -558,6 +559,8 @@ function kpick_action()
           fi
     fi
 
+    [ $count -lt $minCount ] && count=$minCount
+
     echo ">>> Picking change $changeNumber ..."
     LANG=en_US repopick -c $count $nops >$logfile 2>$errfile
     rc=$?
@@ -1058,13 +1061,13 @@ kpick 230387 # CameraService: Support calling addStates in enumerateProviders
 kpick 230642 # CameraService: Initialize CameraParameters for the cameras and cache them onFirstRef
 kpick 231348 # camera: Allow to use boottime as timestamp reference
 kpick 233756 # [SQUSH][DNM] Merge tag 'android-9.0.0_r16' into lineage-16.0
+kpick 234010 # libstagefright: omx: Add support for loading prebuilt ddp decoder lib
 
 # frameworks/base
 kpick 224266 # SystemUI: Add Lineage statusbar item holder
 kpick 224267 # SystemUI: Network Traffic [1/3]
 kpick 224446 # SystemUI: Make tablets great again
 kpick 224513 # SystemUI: Disable config_keyguardUserSwitcher on sw600dp
-kpick 225582 # [TEMP]: Revert "OMS: harden permission checks"
 kpick 225754 # SystemUI: Berry styles
 kpick 226236 # SystemUI: add navbar layout inversion tuning
 kpick 226343 # CameraServiceProxy: Loosen UID check
@@ -1103,6 +1106,7 @@ kpick 233369 # Add auth framework for outgoing SMS messages.
 kpick 233633 # Phone ringtone setting for Multi SIM device
 kpick 233717 # [DNM][HACK] Persist user brightness model
 kpick 233758 # [SQUSH][DNM] Merge tag 'android-9.0.0_r16' into lineage-16.0
+kpick 234004 # fw/b SystemUI: Update styles to use internal API
 
 # frameworks/native
 kpick 224443 # libbinder: Don't log call trace when waiting for vendor service on non-eng builds
@@ -1217,8 +1221,6 @@ kpick 224954 # keymaster: move to /vendor
 kpick 233465 # keymaster: Use generated kernel headers
 
 # hardware/qcom/media
-kpick 224289 # Add -Wno-error to compile with global -Werror.
-kpick 224305 # media: Use kernel headers
 kpick 224955 # Revert "msm8974: remove from top level makefile"
 kpick 224956 # mm-video: venc: Correct a typo in variable name
 kpick 224957 # media: vdec: Include nativebase headers
@@ -1266,6 +1268,7 @@ kpick 227931 # lineagesdk: Refactor battery icon options
 kpick 230272 # sdk: Remove VOLUME_KEYS_CONTROL_RING_STREAM
 kpick 230284 # Revert "[3/3] cmsdk: add burnIn protection setting"
 kpick 230856 # sdk: Don't clear calling identify when calling IOverlayManager.setEnabled()
+kpick 234003 # lineage-sdk: Move styles API from public to internal
 
 # packages/apps/Bluetooth
 kpick 229310 # SBC Dual Channel (SBC HD Audio) support
@@ -1387,12 +1390,12 @@ kpick 229389 # Trust: enforce vendor security patch level check
 kpick 230017 # LineageParts: Re-enable expanded desktop.
 kpick 231163 # LineageParts: Add some missing psychedelics
 kpick 232146 # LineageParts: Reenable Privacy Guard
+kpick 234002 # LineageParts: Update styles to use internal API
 
 # packages/apps/ManagedProvisoning
 kpick 233787 # [SQUSH][DNM] Merge tag 'android-9.0.0_r16' into lineage-16.0
 
 # packages/apps/Nfc
-kpick 232697 # NFCService: Add sysprop to prevent FW download during boot with NFC off.
 kpick 233788 # [SQUSH][DNM] Merge tag 'android-9.0.0_r16' into lineage-16.0
 
 # packages/apps/PackagesInstaller
@@ -1814,6 +1817,7 @@ kpick 232659 # vendor/lineage: Build TrebuchetQuickStep
 kpick 232663 # overlay: Hide the option to show battery percentage
 kpick 232918 # extract_utils: Redirect vdexextractor log to /dev/null
 kpick 233630 # lineage: Consider techpack/audio when generating kernel headers
+kpick 234011 # lineage: Add media_codecs_ddp for AC3 audio
 
 # vendor/qcom/opensource/cryptfs_hw
 kpick 226128 # cryptfs_hw: Add compatibility for pre-O hw crypto
