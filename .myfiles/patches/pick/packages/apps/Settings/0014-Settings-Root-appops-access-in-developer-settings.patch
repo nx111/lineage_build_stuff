@@ -1,0 +1,170 @@
+From c8a75c20f46384d80627165aa7cd75b9178a19cf Mon Sep 17 00:00:00 2001
+From: Adrian DC <radian.dc@gmail.com>
+Date: Fri, 5 Aug 2016 09:11:44 +0200
+Subject: [PATCH 14/21] Settings: Root appops access in developer settings
+
+ * Allow users to directly access the root app settings,
+    as the feature is mostly unknown and often a reason
+    for users to try using alternatives to CM root
+
+ * Use the appops extra intent to link the su tab,
+    introduced in I79d963ecbadc624dc45a398387a348691318b6be
+
+ * Implements the PreferenceClickListener from 126013
+
+Change-Id: Ia5bc9d56fb11700b19d73336fad13c0a936091ff
+Signed-off-by: Adrian DC <radian.dc@gmail.com>
+---
+ res/values/cm_strings.xml                     |  4 +
+ res/xml/development_settings.xml              |  5 +
+ .../DevelopmentSettingsDashboardFragment.java |  1 +
+ .../RootAppOpsPreferenceController.java       | 94 +++++++++++++++++++
+ 4 files changed, 104 insertions(+)
+ create mode 100644 src/com/android/settings/development/RootAppOpsPreferenceController.java
+
+diff --git a/res/values/cm_strings.xml b/res/values/cm_strings.xml
+index 74633f9620..6ab7118fe7 100644
+--- a/res/values/cm_strings.xml
++++ b/res/values/cm_strings.xml
+@@ -348,6 +348,10 @@
+     <string name="root_access_adb">ADB only</string>
+     <string name="root_access_all">Apps and ADB</string>
+ 
++    <!-- Preference link for root appops -->
++    <string name="root_appops_title">Manage root accesses</string>
++    <string name="root_appops_summary">View and control the root rules</string>
++
+     <!-- Touchscreen gesture settings -->
+     <string name="touchscreen_gesture_settings_title">Touchscreen gestures</string>
+     <string name="touchscreen_gesture_settings_summary">Perform various touchscreen gestures for quick actions</string>
+diff --git a/res/xml/development_settings.xml b/res/xml/development_settings.xml
+index 7b8502f55c..8413ba831f 100644
+--- a/res/xml/development_settings.xml
++++ b/res/xml/development_settings.xml
+@@ -130,6 +130,11 @@
+             android:key="root_access"
+             android:title="@string/root_access"
+             android:persistent="false" />
++
++        <Preference
++            android:key="root_appops"
++            android:title="@string/root_appops_title"
++            android:summary="@string/root_appops_summary" />
+     </PreferenceCategory>
+ 
+     <PreferenceCategory
+diff --git a/src/com/android/settings/development/DevelopmentSettingsDashboardFragment.java b/src/com/android/settings/development/DevelopmentSettingsDashboardFragment.java
+index f109b0e4b0..6de530dc4e 100644
+--- a/src/com/android/settings/development/DevelopmentSettingsDashboardFragment.java
++++ b/src/com/android/settings/development/DevelopmentSettingsDashboardFragment.java
+@@ -486,6 +486,7 @@ public class DevelopmentSettingsDashboardFragment extends RestrictedDashboardFra
+         controllers.add(new ShortcutManagerThrottlingPreferenceController(context));
+         controllers.add(new EnableGnssRawMeasFullTrackingPreferenceController(context));
+         controllers.add(new RootAccessPreferenceController(context, fragment));
++        controllers.add(new RootAppOpsPreferenceController(context));
+         controllers.add(new DefaultLaunchPreferenceController(context, "running_apps"));
+         controllers.add(new DefaultLaunchPreferenceController(context, "demo_mode"));
+         controllers.add(new DefaultLaunchPreferenceController(context, "quick_settings_tiles"));
+diff --git a/src/com/android/settings/development/RootAppOpsPreferenceController.java b/src/com/android/settings/development/RootAppOpsPreferenceController.java
+new file mode 100644
+index 0000000000..7a6b0f1a7b
+--- /dev/null
++++ b/src/com/android/settings/development/RootAppOpsPreferenceController.java
+@@ -0,0 +1,94 @@
++/*
++ * Copyright (C) 2018 The LineageOS Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++package com.android.settings.development;
++
++import android.content.Context;
++import android.content.Intent;
++import android.os.Build;
++import android.os.Bundle;
++import android.os.ServiceManager;
++import android.os.UserManager;
++import android.provider.Settings;
++import android.support.annotation.VisibleForTesting;
++import android.support.v7.preference.ListPreference;
++import android.support.v7.preference.Preference;
++import android.support.v7.preference.PreferenceScreen;
++
++import com.android.settings.R;
++import com.android.settings.Utils;
++import com.android.settings.core.PreferenceControllerMixin;
++import com.android.settings.Settings.AppOpsSummaryActivity;
++import com.android.settingslib.development.DeveloperOptionsPreferenceController;
++
++import static com.android.settings.SettingsActivity.EXTRA_SHOW_FRAGMENT_ARGUMENTS;
++
++public class RootAppOpsPreferenceController extends DeveloperOptionsPreferenceController
++        implements Preference.OnPreferenceClickListener, PreferenceControllerMixin {
++
++    private static final String TAG = "RootAppOpsPreferenceController";
++    private static final String PREF_KEY = "root_appops";
++
++    public RootAppOpsPreferenceController(Context context) {
++        super(context);
++    }
++
++    @Override
++    public boolean isAvailable() {
++        // User builds don't get root, and eng always gets root
++        return Build.IS_DEBUGGABLE || "eng".equals(Build.TYPE);
++    }
++
++    @Override
++    public String getPreferenceKey() {
++        return PREF_KEY;
++    }
++
++    @Override
++    public void displayPreference(PreferenceScreen screen) {
++        super.displayPreference(screen);
++
++        mPreference.setOnPreferenceClickListener(this);
++
++        if (!RootAccessPreferenceController.isRootForAppsEnabled() || !isAdminUser()) {
++            mPreference.setEnabled(false);
++        }
++    }
++
++    @Override
++    protected void onDeveloperOptionsSwitchEnabled() {
++        if (isAdminUser()) {
++            mPreference.setEnabled(true);
++        }
++    }
++
++    @Override
++    public boolean onPreferenceClick(Preference preference) {
++        Intent intent = new Intent(Intent.ACTION_MAIN);
++        Bundle args = new Bundle();
++        args.putString("appops_tab",
++                mContext.getResources().getString(R.string.app_ops_categories_su));
++        intent.putExtra(EXTRA_SHOW_FRAGMENT_ARGUMENTS, args);
++        intent.setClass(mContext, AppOpsSummaryActivity.class);
++        mContext.startActivity(intent);
++        return true;
++    }
++
++    @VisibleForTesting
++    boolean isAdminUser() {
++        return ((UserManager) mContext.getSystemService(Context.USER_SERVICE)).isAdminUser();
++    }
++}
+-- 
+2.17.1
+

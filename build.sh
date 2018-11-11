@@ -33,7 +33,11 @@ fi
 
 [ "$workdir" = "" ] && workdir=`pwd`
 export CCACHE_DIR=$workdir/.ccache
-$workdir/prebuilts/misc/linux-x86/ccache/ccache -M 30G
+if [ _$(which ccache) != "_" ]; then
+    ccache -M 30G
+else
+    $workdir/prebuilts/misc/linux-x86/ccache/ccache -M 30G
+fi
 
 export JACK_SERVER_VM_ARGUMENTS="-Dfile.encoding=UTF-8 -XX:+TieredCompilation -Xmx4096m"
 

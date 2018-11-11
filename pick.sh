@@ -923,7 +923,6 @@ git reset --hard $(git branch -a | grep "remotes/m/$default_branch" | cut -d'>' 
 cd $topdir
 
 kpick 223886 # manifest: Re-add hardware/qcom/data/ipacfg-mgr
-kpick 225583 # manifest: Enable lineage styles overlays
 kpick 227747 # lineage: Enable weather apps
 kpick 226755 # lineage: Enable cryptfs_hw
 kpick 231968 # manifest: android-9.0.0_r10 -> android-9.0.0_r16
@@ -1068,7 +1067,6 @@ kpick 224266 # SystemUI: Add Lineage statusbar item holder
 kpick 224267 # SystemUI: Network Traffic [1/3]
 kpick 224446 # SystemUI: Make tablets great again
 kpick 224513 # SystemUI: Disable config_keyguardUserSwitcher on sw600dp
-kpick 225754 # SystemUI: Berry styles
 kpick 226236 # SystemUI: add navbar layout inversion tuning
 kpick 226343 # CameraServiceProxy: Loosen UID check
 kpick 226358 # settings: Allow accessing LineageSettings via settings command
@@ -1106,7 +1104,6 @@ kpick 233369 # Add auth framework for outgoing SMS messages.
 kpick 233633 # Phone ringtone setting for Multi SIM device
 kpick 233717 # [DNM][HACK] Persist user brightness model
 kpick 233758 # [SQUSH][DNM] Merge tag 'android-9.0.0_r16' into lineage-16.0
-kpick 234004 # fw/b SystemUI: Update styles to use internal API
 
 # frameworks/native
 kpick 224443 # libbinder: Don't log call trace when waiting for vendor service on non-eng builds
@@ -1121,6 +1118,7 @@ kpick 230610 # APP may display abnormally in landscape LCM
 kpick 231828 # Translate pointer motion events for OneHandOperation Display Shrink
 kpick 231980 # HWComposer: HWC2: allow SkipValidate to be force disabled
 kpick 233757 # [SQUSH][DNM] Merge tag 'android-9.0.0_r16' into lineage-16.0
+kpick 234062 # Revert screenshot changes to exclude black cutout
 
 # frameworks/opt/net/wifi
 kpick 233759 # [SQUSH][DNM] Merge tag 'android-9.0.0_r16' into lineage-16.0
@@ -1161,7 +1159,6 @@ kpick 233867 # wifi: Add logic to create secondary interface for STA mode too.
 # hardware/lineage/interfaces
 kpick 223374 # interfaces: Add 2.0 livedisplay interfaces
 kpick 223410 # interfaces: Add touch HIDL interface definitions
-kpick 223411 # interfaces: Add id HAL definition
 
 # hardware/lineage/lineagehw
 
@@ -1193,7 +1190,6 @@ kpick 224958 # msm8960/8974/8084: Include string.h where it is necessary
 # hardware/qcom/display-caf/msm8974
 
 # hardware/qcom/fm
-kpick 232924 # fm: Fix wrong BT SOC property name
 
 # hardware/qcom/gps
 kpick 223351 # Revert "msm8974: deprecate msm8974"
@@ -1263,12 +1259,9 @@ kpick 231194 # power: properly initialize cluster states
 kpick 231960 # bauth: Add enumerate function
 
 # lineage-sdk
-kpick 225581 # lineage-sdk: Make styles init at system services ready
 kpick 227931 # lineagesdk: Refactor battery icon options
 kpick 230272 # sdk: Remove VOLUME_KEYS_CONTROL_RING_STREAM
 kpick 230284 # Revert "[3/3] cmsdk: add burnIn protection setting"
-kpick 230856 # sdk: Don't clear calling identify when calling IOverlayManager.setEnabled()
-kpick 234003 # lineage-sdk: Move styles API from public to internal
 
 # packages/apps/Bluetooth
 kpick 229310 # SBC Dual Channel (SBC HD Audio) support
@@ -1300,7 +1293,6 @@ kpick 233784 # [SQUSH][DNM] Merge tag 'android-9.0.0_r16' into lineage-16.0
 # packages/apps/Dialer
 
 # packages/apps/DocumentsUI
-kpick 225289 # DocumentsUI: support night mode
 kpick 233785 # [SQUSH][DNM] Merge tag 'android-9.0.0_r16' into lineage-16.0
 
 # packages/apps/Eleven
@@ -1390,7 +1382,6 @@ kpick 229389 # Trust: enforce vendor security patch level check
 kpick 230017 # LineageParts: Re-enable expanded desktop.
 kpick 231163 # LineageParts: Add some missing psychedelics
 kpick 232146 # LineageParts: Reenable Privacy Guard
-kpick 234002 # LineageParts: Update styles to use internal API
 
 # packages/apps/ManagedProvisoning
 kpick 233787 # [SQUSH][DNM] Merge tag 'android-9.0.0_r16' into lineage-16.0
@@ -1405,12 +1396,9 @@ kpick 233789 # [SQUSH][DNM] Merge tag 'android-9.0.0_r16' into lineage-16.0
 kpick 233790 # [SQUSH][DNM] Merge tag 'android-9.0.0_r16' into lineage-16.0
 
 # packages/apps/Settings
-kpick 226150 # Settings: add Trust interface hook
 kpick 226151 # Settings: show Trust brading in confirm_lock_password UI
 kpick 226148 # Settings: "Security & location" -> "Security & privacy"
 kpick 226154 # fingerprint: Allow devices to configure sensor location
-kpick 225755 # Settings: Hide AOSP theme-related controllers
-kpick 225756 # Settings: fix dark style issues
 kpick 227120 # Settings: Check interfaces before enabling ADB over network
 kpick 226142 # Settings: Add developer setting for root access
 kpick 232198 # Settings: appops: Privacy Guard for P (2/2)
@@ -1425,9 +1413,10 @@ kpick 232442 # Settings: Root appops access in developer settings
 kpick 232793 # Settings: per-app VPN data restriction
 kpick 233634 # Phone ringtone setting for Multi SIM device
 kpick 233791 # [SQUSH][DNM] Merge tag 'android-9.0.0_r16' into lineage-16.0
+kpick 234020 # Settings: Launch the development tools
+kpick 234021 # Settings: Add icons for development tools and bug report
 
 # packages/apps/SettingsIntelligence
-kpick 230519 # Fix dark style issues
 
 # packages/apps/Snap
 kpick 233131 # Revert "SnapdragonCamera: Forbid volume key can take picture"
@@ -1776,6 +1765,7 @@ kpick 233811 # [SQUSH][DNM] Merge tag 'android-9.0.0_r16' into lineage-16.0
 kpick 233812 # [SQUSH][DNM] Merge tag 'android-9.0.0_r16' into lineage-16.0
 
 # system/sepolicy
+kpick 230151 # Fix storaged access to /sys/block/mmcblk0/stat after c936223c
 kpick 230613 # Allow webview_zygote to read /dev/ion
 kpick 233813 # [SQUSH][DNM] Merge tag 'android-9.0.0_r16' into lineage-16.0
 
