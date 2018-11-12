@@ -1,0 +1,79 @@
+From 94e369e4f35953a226df6cbd56bb4dcd6e8ec90c Mon Sep 17 00:00:00 2001
+From: Nick Kralevich <nnk@google.com>
+Date: Sun, 11 Nov 2018 08:39:20 -0800
+Subject: [PATCH 15/15] Set bin directories to 0751
+
+Currently, /system/bin, /system/xbin, /product/bin, and /vendor/bin
+are 0755, which allows any process to iterate through those
+directories and list out the contents. For the vast majority of
+processes, this is unnecessary. They only need to know whether a
+particular binary exists or doesn't exist, but they don't need to
+know the other binaries within those directories.
+
+Allowing this is particularly problematic for SELinux. In particular,
+some third party Android applications try to examine every file in
+the bin directories, generating SELinux audit noise along the
+way. This audit noise makes it harder to see real bugs, and falsely
+implies an architectural dependency between the application and random
+files in directories like /system/bin.
+
+This change removes the ability to list the contents of the various bin
+directories, preventing random probing by such apps. The ability to
+execute files, or to probe a specific file by name, remain unchanged.
+
+Addresses SELinux denials similar to the following:
+  avc: denied { getattr } for comm="Thread-11" path="/system/bin/atrace" dev="dm-0" ino=189 scontext=u:r:untrusted_app_27:s0:c512,c768 tcontext=u:object_r:atrace_exec:s0 tclass=file permissive=0 app=uk.co.santander.santanderUK
+  avc: denied { getattr } for comm="Binder:26637_2" path="/system/bin/atrace" dev="dm-0" ino=168 scontext=u:r:untrusted_app_25:s0:c512,c768 tcontext=u:object_r:atrace_exec:s0 tclass=file permissive=0 app=com.tencent.mm
+  avc: denied { getattr } for comm="Thread-12" path="/system/bin/apexd" dev="dm-0" ino=451 scontext=u:r:untrusted_app_27:s0:c512,c768 tcontext=u:object_r:apexd_exec:s0 tclass=file permissive=1 app=com.grppl.android.shell.CMBlloydsTSB73
+
+Shell access to these directories continues to be allowed, to allow for
+host-side CTS tests.
+
+Also adjust the indentation of some clang directives, to make the
+presubmit hooks happy.
+
+Test: Device boots and no apparent problems.
+Change-Id: Ibe75682fac1983d39f3f479a5850ab5a96f6627d
+---
+ libcutils/fs_config.cpp | 11 ++++++-----
+ 1 file changed, 6 insertions(+), 5 deletions(-)
+
+diff --git a/libcutils/fs_config.cpp b/libcutils/fs_config.cpp
+index f9fddb6d6..43633be52 100644
+--- a/libcutils/fs_config.cpp
++++ b/libcutils/fs_config.cpp
+@@ -60,7 +60,7 @@ static inline uint64_t get8LE(const uint8_t* src) {
+ // way up to the root.
+ 
+ static const struct fs_path_config android_dirs[] = {
+-    // clang-format off
++        // clang-format off
+     { 00770, AID_SYSTEM,       AID_CACHE,        0, "cache" },
+     { 00555, AID_ROOT,         AID_ROOT,         0, "config" },
+     { 00771, AID_SYSTEM,       AID_SYSTEM,       0, "data/app" },
+@@ -80,17 +80,18 @@ static const struct fs_path_config android_dirs[] = {
+     { 00775, AID_ROOT,         AID_ROOT,         0, "data/preloads" },
+     { 00771, AID_SYSTEM,       AID_SYSTEM,       0, "data" },
+     { 00755, AID_ROOT,         AID_SYSTEM,       0, "mnt" },
+-    { 00755, AID_ROOT,         AID_SHELL,        0, "product/bin" },
++    { 00751, AID_ROOT,         AID_SHELL,        0, "product/bin" },
+     { 00750, AID_ROOT,         AID_SHELL,        0, "sbin" },
+     { 00777, AID_ROOT,         AID_ROOT,         0, "sdcard" },
+     { 00751, AID_ROOT,         AID_SDCARD_R,     0, "storage" },
+-    { 00755, AID_ROOT,         AID_SHELL,        0, "system/bin" },
++    { 00751, AID_ROOT,         AID_SHELL,        0, "system/bin" },
+     { 00755, AID_ROOT,         AID_ROOT,         0, "system/etc/ppp" },
+     { 00755, AID_ROOT,         AID_SHELL,        0, "system/vendor" },
+-    { 00755, AID_ROOT,         AID_SHELL,        0, "system/xbin" },
++    { 00751, AID_ROOT,         AID_SHELL,        0, "system/xbin" },
++    { 00751, AID_ROOT,         AID_SHELL,        0, "vendor/bin" },
+     { 00755, AID_ROOT,         AID_SHELL,        0, "vendor" },
+     { 00755, AID_ROOT,         AID_ROOT,         0, 0 },
+-    // clang-format on
++        // clang-format on
+ };
+ #ifndef __ANDROID_VNDK__
+ auto __for_testing_only__android_dirs = android_dirs;
+-- 
+2.17.1
+

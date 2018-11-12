@@ -1370,7 +1370,6 @@ kpick 233100 # Move Gallery2 to androidx.
 
 # packages/apps/Jelly
 kpick 231418 # Automatic translation import
-kpick 233975 # Jelly: Fix shortcut creation for websites without favicon
 
 # packages/apps/KeyChain
 kpick 233786 # [SQUSH][DNM] Merge tag 'android-9.0.0_r16' into lineage-16.0
@@ -1711,8 +1710,11 @@ kpick 229401 # [DNM] Revert "Return early if vendor-specific command fails"
 kpick 233808 # [SQUSH][DNM] Merge tag 'android-9.0.0_r16' into lineage-16.0
 
 # system/core
-privpick system/core refs/changes/19/206119/2 # init: I hate safety net
+kpick -f 227110 # init: I hate safety net
+kpick 226917 # Switch root to /system in first stage mount
+kpick 226923 # init: First Stage Mount observe nofail mount flag
 kpick 223085 # adbd: Disable "adb root" by system property (2/3)
+kpick 223500 # Add back fuse support
 kpick 224264 # debuggerd: Resolve tombstoned missing O_CREAT mode
 kpick 226120 # fs_mgr: Wrapped key support for FBE
 kpick 230755 # libsuspend: Bring back earlysuspend
