@@ -1,0 +1,47 @@
+From 80e51edeeb957f302553a9e2d94e6d3d1a643155 Mon Sep 17 00:00:00 2001
+From: Emilian Peev <epeevs@codeaurora.org>
+Date: Tue, 2 Jun 2015 14:50:30 +0300
+Subject: [PATCH 152/201] Snapdragon Camera: Avoid possible race condition
+
+ Camera open and preview start are currently
+ executed in a separate thread different from the
+ main handler thread. If the main thread tries to
+ switch the camera immediately after the open camera
+ thread starts a race condition is possible. This
+ race condition can lead to a failing assert in
+ CameraHolder which can receive two camera open
+ requests one after another. To resolve this
+ the main handler thread needs to check whether
+ an open camera thread got initialized and started
+ previously. If the check is positive, it needs
+ to wait until the separate thread finishes before
+ proceeding with the camera switch sequence.
+
+Change-Id: I409e3158bc976120de31540351ea8e55fddbca46
+---
+ src/com/android/camera/PhotoModule.java | 9 +++++++++
+ 1 file changed, 9 insertions(+)
+
+diff --git a/src/com/android/camera/PhotoModule.java b/src/com/android/camera/PhotoModule.java
+index 9ee1a561e..5a1cf61ef 100644
+--- a/src/com/android/camera/PhotoModule.java
++++ b/src/com/android/camera/PhotoModule.java
+@@ -743,6 +743,15 @@ public class PhotoModule
+         mSnapshotOnIdle = false;
+         setCameraId(mCameraId);
+ 
++        try {
++            if (mOpenCameraThread != null) {
++                mOpenCameraThread.join();
++            }
++        } catch (InterruptedException e) {
++            e.printStackTrace();
++        }
++        mOpenCameraThread = null;
++
+         // from onPause
+         try {
+             if (mOpenCameraThread != null) {
+-- 
+2.17.1
+

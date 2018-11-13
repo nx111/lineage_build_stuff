@@ -1,0 +1,59 @@
+From 184b450b27f9b488f51710efc4ff3e6131246356 Mon Sep 17 00:00:00 2001
+From: "Christopher R. Palmer" <crpalmer@gmail.com>
+Date: Thu, 14 Jan 2016 05:17:44 -0500
+Subject: [PATCH 065/201] Snap: Actually select the highest quality video by
+ default
+
+Prior to this commit Snap assumes that the HAL returns the
+list of supported video sizes in descending order of quality and
+simply picks the first one from the list as the default quality.
+
+Instead, find the first matching entry of pref_video_quality_entryvalues
+that the HAL indicated was supported.
+
+Change-Id: Ifea79e0e16a9015557539e098317536a32b9ff1f
+---
+ src/com/android/camera/CameraSettings.java | 9 ++++++++-
+ src/com/android/camera/VideoModule.java    | 2 +-
+ 2 files changed, 9 insertions(+), 2 deletions(-)
+
+diff --git a/src/com/android/camera/CameraSettings.java b/src/com/android/camera/CameraSettings.java
+index c779bbb88..a1a46d219 100755
+--- a/src/com/android/camera/CameraSettings.java
++++ b/src/com/android/camera/CameraSettings.java
+@@ -513,11 +513,18 @@ public class CameraSettings {
+     }
+ 
+     public static String getSupportedHighestVideoQuality(
+-            int cameraId, Parameters parameters) {
++            Context context, int cameraId, Parameters parameters) {
+         // When launching the camera app first time, we will set the video quality
+         // to the first one (i.e. highest quality) in the supported list
+         List<String> supported = getSupportedVideoQualities(cameraId, parameters);
+         assert (supported != null) : "No supported video quality is found";
++        for (String candidate : context.getResources().getStringArray(
++                R.array.pref_video_quality_entryvalues)) {
++            if (supported.indexOf(candidate) >= 0) {
++                return candidate;
++            }
++        }
++        Log.w(TAG, "No supported video size matches, using the first reported size");
+         return supported.get(0);
+     }
+ 
+diff --git a/src/com/android/camera/VideoModule.java b/src/com/android/camera/VideoModule.java
+index 09efbb23f..50097800c 100644
+--- a/src/com/android/camera/VideoModule.java
++++ b/src/com/android/camera/VideoModule.java
+@@ -885,7 +885,7 @@ public class VideoModule implements CameraModule,
+             } else {
+                 // check for highest quality supported
+                 videoQuality = CameraSettings.getSupportedHighestVideoQuality(
+-                        mCameraId, mParameters);
++                        mActivity, mCameraId, mParameters);
+             }
+             mPreferences.edit().putString(CameraSettings.KEY_VIDEO_QUALITY, videoQuality).apply();
+         }
+-- 
+2.17.1
+

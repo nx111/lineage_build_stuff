@@ -1,0 +1,62 @@
+From 3d7b4163c43beab6742fc011d105b5a1921051f2 Mon Sep 17 00:00:00 2001
+From: Steve Kondik <shade@chemlab.org>
+Date: Tue, 3 Dec 2013 18:33:47 +0530
+Subject: [PATCH 115/201] camera: Keep touch focus intact during back-to-back
+ ZSL shots
+
+ * If ZSL is enabled, we should not resetTouchFocus between shots.
+ * Instead, re-kick the timer for each shot. If I set a focus point,
+   I want that point to stick while I take a succession of shots.
+
+Change-Id: I407bb1e248cc902355d0294f47b071cc8a32fac3
+---
+ src/com/android/camera/FocusOverlayManager.java | 12 +++++++++++-
+ src/com/android/camera/PhotoModule.java         |  2 +-
+ 2 files changed, 12 insertions(+), 2 deletions(-)
+
+diff --git a/src/com/android/camera/FocusOverlayManager.java b/src/com/android/camera/FocusOverlayManager.java
+index a03163af5..cac59582a 100644
+--- a/src/com/android/camera/FocusOverlayManager.java
++++ b/src/com/android/camera/FocusOverlayManager.java
+@@ -526,6 +526,15 @@ public class FocusOverlayManager {
+         return mMeteringArea;
+     }
+ 
++    public void restartTouchFocusTimer() {
++        if (mZslEnabled && (mFocusArea != null) && (mFocusTime != 0x7FFFFFFF)) {
++            mHandler.removeMessages(RESET_TOUCH_FOCUS);
++            mHandler.sendEmptyMessageDelayed(RESET_TOUCH_FOCUS, mFocusTime);
++        } else {
++            resetTouchFocus();
++        }
++    }
++
+     public void updateFocusUI() {
+         if (!mInitialized) return;
+         // Show only focus indicator or face indicator.
+@@ -626,7 +635,8 @@ public class FocusOverlayManager {
+     }
+ 
+     private boolean needAutoFocusCall() {
+-        return getFocusMode(false).equals(Parameters.FOCUS_MODE_AUTO);
++        return getFocusMode(false).equals(Parameters.FOCUS_MODE_AUTO) &&
++            !(mZslEnabled && (mHandler.hasMessages(RESET_TOUCH_FOCUS)));
+     }
+ 
+     public void setZslEnable(boolean value) {
+diff --git a/src/com/android/camera/PhotoModule.java b/src/com/android/camera/PhotoModule.java
+index 0741f9761..8509022fb 100644
+--- a/src/com/android/camera/PhotoModule.java
++++ b/src/com/android/camera/PhotoModule.java
+@@ -1427,7 +1427,7 @@ public class PhotoModule
+                 }
+             } else if ((mReceivedSnapNum == mBurstSnapNum)
+                         && (mCameraState != LONGSHOT)){
+-                mFocusManager.resetTouchFocus();
++                mFocusManager.restartTouchFocusTimer();
+                 if (CameraUtil.FOCUS_MODE_CONTINUOUS_PICTURE.equals(mFocusManager.getFocusMode(false))
+                         || CameraUtil.FOCUS_MODE_MW_CONTINUOUS_PICTURE.equals(mFocusManager.getFocusMode(false))) {
+                     mCameraDevice.cancelAutoFocus();
+-- 
+2.17.1
+

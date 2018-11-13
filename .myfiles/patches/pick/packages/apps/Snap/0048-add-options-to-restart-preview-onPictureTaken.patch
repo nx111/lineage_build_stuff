@@ -1,0 +1,88 @@
+From 9b6b95c3370d959a7a5f2ec616e4f1d235f635ae Mon Sep 17 00:00:00 2001
+From: codeworkx <codeworkx@cyanogenmod.org>
+Date: Mon, 16 Jan 2006 00:10:40 +0100
+Subject: [PATCH 048/201] add options to restart preview onPictureTaken
+
+Change-Id: I7ce9d6f2323e367743e6d4c9662b846d3052f2a4
+---
+ res/values/config.xml                   |  6 ++++++
+ src/com/android/camera/PhotoModule.java | 18 +++++++++++++++++-
+ 2 files changed, 23 insertions(+), 1 deletion(-)
+
+diff --git a/res/values/config.xml b/res/values/config.xml
+index b6f39052a..de0ca1cf6 100644
+--- a/res/values/config.xml
++++ b/res/values/config.xml
+@@ -28,6 +28,12 @@
+          of the fullscreen pano preview. -->
+     <bool name="enable_warped_pano_preview">true</bool>
+ 
++    <!-- Restart preview for back camera onPictureTaken -->
++    <bool name="back_camera_restart_preview_onPictureTaken">false</bool>
++
++    <!-- Restart preview for front camera onPictureTaken -->
++    <bool name="front_camera_restart_preview_onPictureTaken">false</bool>
++
+     <!-- Set's manufacturer specific parameters on startup.
+          Example: lge-camera=1;cam-mode=0 -->
+     <string name="manufacturer_key_values"></string>
+diff --git a/src/com/android/camera/PhotoModule.java b/src/com/android/camera/PhotoModule.java
+index 123b5d02f..6ead35138 100644
+--- a/src/com/android/camera/PhotoModule.java
++++ b/src/com/android/camera/PhotoModule.java
+@@ -68,6 +68,7 @@ import android.widget.SeekBar.OnSeekBarChangeListener;
+ import android.widget.LinearLayout;
+ import android.widget.TextView;
+ 
++import com.android.camera.app.CameraApp;
+ import com.android.camera.CameraManager.CameraAFCallback;
+ import com.android.camera.CameraManager.CameraAFMoveCallback;
+ import com.android.camera.CameraManager.CameraPictureCallback;
+@@ -256,6 +257,8 @@ public class PhotoModule
+     private byte[] mLastJpegData;
+     private int mLastJpegOrientation = 0;
+ 
++    private static Context mApplicationContext;
++
+     private Runnable mDoSnapRunnable = new Runnable() {
+         @Override
+         public void run() {
+@@ -913,6 +916,8 @@ public class PhotoModule
+             return;
+         }
+ 
++        mApplicationContext = CameraApp.getContext();
++
+         // Initialize location service.
+         boolean recordLocation = RecordLocationPreference.get(mPreferences,
+                 CameraSettings.KEY_RECORD_LOCATION);
+@@ -1377,6 +1382,18 @@ public class PhotoModule
+                     && (mCameraState != LONGSHOT)
+                     && (mSnapshotMode != CameraInfoWrapper.CAMERA_SUPPORT_MODE_ZSL)
+                     && (mReceivedSnapNum == mBurstSnapNum);
++
++            boolean backCameraRestartPreviewOnPictureTaken =
++                mApplicationContext.getResources().getBoolean(R.bool.back_camera_restart_preview_onPictureTaken);
++            boolean frontCameraRestartPreviewOnPictureTaken =
++                mApplicationContext.getResources().getBoolean(R.bool.front_camera_restart_preview_onPictureTaken);
++
++            CameraInfo info = CameraHolder.instance().getCameraInfo()[mCameraId];
++            if ((info.facing == CameraInfo.CAMERA_FACING_BACK && backCameraRestartPreviewOnPictureTaken)
++                || (info.facing == CameraInfo.CAMERA_FACING_FRONT && frontCameraRestartPreviewOnPictureTaken)) {
++                needRestartPreview = true;
++            }
++
+             if (needRestartPreview) {
+                 setupPreview();
+                 if (CameraUtil.FOCUS_MODE_CONTINUOUS_PICTURE.equals(
+@@ -1417,7 +1434,6 @@ public class PhotoModule
+                             .findPreference(CameraSettings.KEY_SELFIE_MIRROR);
+                     if (selfieMirrorPref != null && selfieMirrorPref.getValue() != null &&
+                             selfieMirrorPref.getValue().equalsIgnoreCase("enable")) {
+-                        CameraInfo info = CameraHolder.instance().getCameraInfo()[mCameraId];
+                         jpegData = flipJpeg(jpegData, info.orientation, orientation);
+                         jpegData = addExifTags(jpegData, orientation);
+                     }
+-- 
+2.17.1
+

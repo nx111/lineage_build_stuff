@@ -1,0 +1,81 @@
+From c5887929de79d1058562305599850db0a805702b Mon Sep 17 00:00:00 2001
+From: Steve Kondik <shade@chemlab.org>
+Date: Mon, 23 Dec 2013 18:03:46 -0800
+Subject: [PATCH 063/201] Snap: Support for HTC's HDR mode
+
+ * HDR was never actually working on CM because we did not instruct the
+   camera to take all exposures. The HAL tells us that we'll get one
+   JPEG, but we should snap 3 times. We handle this behavior in the
+   framework now, but we should honor the num-jpegs-per-shutter value in
+   the JPEG callback.
+
+Change-Id: I7124bf08985ae23b21ac4e294fb889ac4106946b
+---
+ src/com/android/camera/PhotoModule.java     | 12 ++----------
+ src/com/android/camera/util/CameraUtil.java | 13 +++++++++++--
+ 2 files changed, 13 insertions(+), 12 deletions(-)
+
+diff --git a/src/com/android/camera/PhotoModule.java b/src/com/android/camera/PhotoModule.java
+index 97868183f..de103dc48 100644
+--- a/src/com/android/camera/PhotoModule.java
++++ b/src/com/android/camera/PhotoModule.java
+@@ -1357,11 +1357,7 @@ public class PhotoModule
+             if(mSnapshotMode == CameraInfoWrapper.CAMERA_SUPPORT_MODE_ZSL) {
+                 Log.v(TAG, "JpegPictureCallback : in zslmode");
+                 mParameters = mCameraDevice.getParameters();
+-                if (CameraUtil.isBurstSupported(mParameters)) {
+-                    mBurstSnapNum = mParameters.getInt("num-snaps-per-shutter");
+-                } else {
+-                    mBurstSnapNum = 1;
+-                }
++                mBurstSnapNum = CameraUtil.getNumSnapsPerShutter(mParameters);
+             }
+             Log.v(TAG, "JpegPictureCallback: Received = " + mReceivedSnapNum +
+                       "Burst count = " + mBurstSnapNum);
+@@ -1772,11 +1768,7 @@ public class PhotoModule
+             mParameters = mCameraDevice.getParameters();
+         }
+ 
+-        try {
+-            mBurstSnapNum = mParameters.getInt("num-snaps-per-shutter");
+-        }catch (NumberFormatException ex){
+-            mBurstSnapNum = 1;
+-        }
++        mBurstSnapNum = CameraUtil.getNumSnapsPerShutter(mParameters);
+         mReceivedSnapNum = 0;
+         mPreviewRestartSupport = PersistUtil.isPreviewRestartEnabled();
+         mPreviewRestartSupport &= CameraSettings.isInternalPreviewSupported(
+diff --git a/src/com/android/camera/util/CameraUtil.java b/src/com/android/camera/util/CameraUtil.java
+index 8c6f11ba9..1b54567cb 100755
+--- a/src/com/android/camera/util/CameraUtil.java
++++ b/src/com/android/camera/util/CameraUtil.java
+@@ -43,6 +43,7 @@ import android.net.Uri;
+ import android.os.Handler;
+ import android.os.ParcelFileDescriptor;
+ import android.telephony.TelephonyManager;
++import android.text.TextUtils;
+ import android.util.DisplayMetrics;
+ import android.util.Log;
+ import android.util.TypedValue;
+@@ -213,8 +214,16 @@ public class CameraUtil {
+         return (params.get(key) != null && !"null".equals(params.get(key)));
+     }
+ 
+-    public static boolean isBurstSupported(Parameters params) {
+-        return isSupported(params, "num-snaps-per-shutter");
++    public static int getNumSnapsPerShutter(Parameters params) {
++        String numJpegs = params.get("num-jpegs-per-shutter");
++        if (!TextUtils.isEmpty(numJpegs)) {
++            return Integer.valueOf(numJpegs);
++        }
++        String numSnaps = params.get("num-snaps-per-shutter");
++        if (!TextUtils.isEmpty(numSnaps)) {
++            return Integer.valueOf(numSnaps);
++        }
++        return 1;
+     }
+ 
+     // Private intent extras. Test only.
+-- 
+2.17.1
+

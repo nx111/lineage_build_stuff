@@ -1,0 +1,84 @@
+From 3a92ec5649c97441af20bdc96c2950b213c08019 Mon Sep 17 00:00:00 2001
+From: codeworkx <codeworkx@cyanogenmod.org>
+Date: Tue, 5 Jan 2016 23:54:52 +0100
+Subject: [PATCH 046/201] add support for luminance-condition parameter
+
+Change-Id: Idf845a5f55abf9b72f61ac4bac59ee2258043482
+---
+ src/com/android/camera/CameraSettings.java  |  4 ++++
+ src/com/android/camera/PhotoModule.java     | 12 ++++++++++++
+ src/com/android/camera/util/CameraUtil.java | 13 +++++++++++++
+ 3 files changed, 29 insertions(+)
+
+diff --git a/src/com/android/camera/CameraSettings.java b/src/com/android/camera/CameraSettings.java
+index ebdcbb931..c15769891 100755
+--- a/src/com/android/camera/CameraSettings.java
++++ b/src/com/android/camera/CameraSettings.java
+@@ -183,6 +183,10 @@ public class CameraSettings {
+     public static final String KEY_QC_INSTANT_CAPTURE = "instant-capture";
+     public static final String KEY_QC_INSTANT_CAPTURE_VALUES = "instant-capture-values";
+ 
++    public static final String KEY_LUMINANCE_CONITION = "luminance-condition";
++    public static final String LUMINANCE_CONITION_LOW = "low";
++    public static final String LUMINANCE_CONITION_HIGH = "high";
++
+     public static final String KEY_INTERNAL_PREVIEW_RESTART = "internal-restart";
+     public static final String KEY_QC_ZSL_HDR_SUPPORTED = "zsl-hdr-supported";
+     public static final String KEY_QC_LONGSHOT_SUPPORTED = "longshot-supported";
+diff --git a/src/com/android/camera/PhotoModule.java b/src/com/android/camera/PhotoModule.java
+index ce8c2aa24..123b5d02f 100644
+--- a/src/com/android/camera/PhotoModule.java
++++ b/src/com/android/camera/PhotoModule.java
+@@ -1734,6 +1734,13 @@ public class PhotoModule
+             mParameters = mCameraDevice.getParameters();
+         }
+ 
++         // LGE G4: Disable hdr if luminance is low and flash get's used
++        if (CameraUtil.isLowLuminance(mParameters)) {
++            mParameters.set(CameraSettings.KEY_SNAPCAM_HDR_MODE, "0");
++            mCameraDevice.setParameters(mParameters);
++            mParameters = mCameraDevice.getParameters();
++        }
++
+         try {
+             mBurstSnapNum = mParameters.getInt("num-snaps-per-shutter");
+         }catch (NumberFormatException ex){
+@@ -1782,6 +1789,11 @@ public class PhotoModule
+                     mRawPictureCallback, mPostViewPictureCallback,
+                     new JpegPictureCallback(loc));
+             setCameraState(SNAPSHOT_IN_PROGRESS);
++
++            // LGE G4: Preview needs to be restarted when flash got used while luminance is low
++            if (CameraUtil.isLowLuminance(mParameters)) {
++                setupPreview();
++            }
+         }
+ 
+         mNamedImages.nameNewImage(mCaptureStartTime, mRefocus);
+diff --git a/src/com/android/camera/util/CameraUtil.java b/src/com/android/camera/util/CameraUtil.java
+index c7f9da9fe..eff689196 100755
+--- a/src/com/android/camera/util/CameraUtil.java
++++ b/src/com/android/camera/util/CameraUtil.java
+@@ -1097,6 +1097,19 @@ public class CameraUtil {
+             }
+         }
+     }
++
++    public static boolean isLowLuminance(Parameters parameters) {
++        String lC = parameters.get(CameraSettings.KEY_LUMINANCE_CONITION);
++
++        if (lC != null) {
++            if (lC.equals(CameraSettings.LUMINANCE_CONITION_LOW)) {
++                Log.d(TAG, "Parameter " + CameraSettings.KEY_LUMINANCE_CONITION + "=" + CameraSettings.LUMINANCE_CONITION_LOW);
++                return true;
++            }
++        }
++        return false;
++   }
++
+    public static String getFilpModeString(int value){
+         switch(value){
+             case 0:
+-- 
+2.17.1
+

@@ -1,0 +1,190 @@
+From 2391fed4c5cab042c01a8b22267ce0c28a21bf58 Mon Sep 17 00:00:00 2001
+From: andralex8 <andralex8@gmail.com>
+Date: Sun, 28 May 2017 16:56:39 +0200
+Subject: [PATCH 099/201] Add orientation correction for landscape devices
+
+Snap does not correctly handle devices with a landscape screen as rotation
+is 0 when device is in landscape while Snap assume that 0 is portrait.
+This lead to a rotated gui and a deformed preview.
+
+This commit:
+- Solve the gui rotation for Photo, Video and Panorama modules
+- Solve the deformed preview for Photo and Video (Panorama preview was ok with gui fix)
+- Solve the PhotoMenu rotation (all devices, it was also broken on portrait devices)
+
+Change-Id: Ic0b95904da6e13946c7e46e2e571b26da498db02
+---
+ src/com/android/camera/PhotoModule.java             |  5 ++++-
+ src/com/android/camera/PhotoUI.java                 |  4 ++++
+ src/com/android/camera/VideoModule.java             | 11 ++++++++---
+ src/com/android/camera/VideoUI.java                 |  3 +++
+ src/com/android/camera/WideAnglePanoramaModule.java |  7 +++++--
+ 5 files changed, 24 insertions(+), 6 deletions(-)
+
+diff --git a/src/com/android/camera/PhotoModule.java b/src/com/android/camera/PhotoModule.java
+index fdd768453..ebabc0986 100644
+--- a/src/com/android/camera/PhotoModule.java
++++ b/src/com/android/camera/PhotoModule.java
+@@ -297,6 +297,7 @@ public class PhotoModule
+     private boolean mMirror;
+     private boolean mFirstTimeInitialized;
+     private boolean mIsImageCaptureIntent;
++    private int mOrientationOffset;
+ 
+     private int mCameraState = INIT;
+     private boolean mSnapshotOnIdle = false;
+@@ -563,6 +564,7 @@ public class PhotoModule
+     public void init(CameraActivity activity, View parent) {
+         mActivity = activity;
+         mRootView = parent;
++        mOrientationOffset = CameraUtil.isDefaultToPortrait(mActivity) ? 0 : 90;
+         mPreferences = ComboPreferences.get(mActivity);
+         if (mPreferences == null) {
+             mPreferences = new ComboPreferences(mActivity);
+@@ -1744,7 +1746,7 @@ public class PhotoModule
+         }
+ 
+         // Set rotation and gps data.
+-        int orientation = mOrientation;
++        int orientation = (mOrientation + mOrientationOffset) % 360;
+         mJpegRotation = CameraUtil.getJpegRotation(mCameraId, orientation);
+         String pictureFormat = mParameters.get(KEY_PICTURE_FORMAT);
+         Location loc = getLocationAccordPictureFormat(pictureFormat);
+@@ -2211,6 +2213,7 @@ public class PhotoModule
+         // the camera then point the camera to floor or sky, we still have
+         // the correct orientation.
+         if (orientation == OrientationEventListener.ORIENTATION_UNKNOWN) return;
++        orientation = (orientation - mOrientationOffset + 360) % 360;
+         int oldOrientation = mOrientation;
+         mOrientation = CameraUtil.roundOrientation(orientation, mOrientation);
+         if (oldOrientation != mOrientation) {
+diff --git a/src/com/android/camera/PhotoUI.java b/src/com/android/camera/PhotoUI.java
+index 3bd318195..798996375 100755
+--- a/src/com/android/camera/PhotoUI.java
++++ b/src/com/android/camera/PhotoUI.java
+@@ -361,6 +361,9 @@ public class PhotoUI implements PieListener,
+         FrameLayout.LayoutParams lp;
+         float scaledTextureWidth, scaledTextureHeight;
+         int rotation = CameraUtil.getDisplayRotation(mActivity);
++        if(!CameraUtil.isDefaultToPortrait(mActivity)) {
++        rotation = (rotation - 90) % 360;
++        }
+         mScreenRatio = CameraUtil.determineRatio(ratio);
+         if (mScreenRatio == CameraUtil.RATIO_16_9
+                 && CameraUtil.determinCloseRatio(ratio) == CameraUtil.RATIO_4_3) {
+@@ -1399,6 +1402,7 @@ public class PhotoUI implements PieListener,
+             RotateImageView v = (RotateImageView) mReviewImage;
+             v.setOrientation(orientation, animation);
+         }
++        mOrientation = orientation;
+     }
+ 
+     public void tryToCloseSubList() {
+diff --git a/src/com/android/camera/VideoModule.java b/src/com/android/camera/VideoModule.java
+index 22079f116..4f88c8b06 100644
+--- a/src/com/android/camera/VideoModule.java
++++ b/src/com/android/camera/VideoModule.java
+@@ -178,6 +178,7 @@ public class VideoModule implements CameraModule,
+     // true.
+     private int mDisplayRotation;
+     private int mCameraDisplayOrientation;
++    private int mOrientationOffset;
+ 
+     private int mDesiredPreviewWidth;
+     private int mDesiredPreviewHeight;
+@@ -490,6 +491,8 @@ public class VideoModule implements CameraModule,
+     public void init(CameraActivity activity, View root) {
+         mActivity = activity;
+         mUI = new VideoUI(activity, this, root);
++        mOrientationOffset = CameraUtil.isDefaultToPortrait(mActivity) ? 0 : 90;
++
+         mPreferences = ComboPreferences.get(mActivity);
+         if (mPreferences == null) {
+             mPreferences = new ComboPreferences(mActivity);
+@@ -598,7 +601,8 @@ public class VideoModule implements CameraModule,
+             }
+ 
+             // Set rotation and gps data.
+-            int rotation = CameraUtil.getJpegRotation(mCameraId, mOrientation);
++            int orientation = (mOrientation + mOrientationOffset) % 360;
++            int rotation = CameraUtil.getJpegRotation(mCameraId, orientation);
+             mParameters.setRotation(rotation);
+             Location loc = mLocationManager.getCurrentLocation();
+             CameraUtil.setGpsParameters(mParameters, loc);
+@@ -679,6 +683,7 @@ public class VideoModule implements CameraModule,
+         // the camera then point the camera to floor or sky, we still have
+         // the correct orientation.
+         if (orientation == OrientationEventListener.ORIENTATION_UNKNOWN) return;
++        orientation = (orientation - mOrientationOffset + 360) % 360;
+         int newOrientation = CameraUtil.roundOrientation(orientation, mOrientation);
+ 
+         if (mOrientation != newOrientation) {
+@@ -1708,9 +1713,9 @@ public class VideoModule implements CameraModule,
+         if (mOrientation != OrientationEventListener.ORIENTATION_UNKNOWN) {
+             CameraInfo info = CameraHolder.instance().getCameraInfo()[mCameraId];
+             if (info.facing == CameraInfo.CAMERA_FACING_FRONT) {
+-                rotation = (info.orientation - mOrientation + 360) % 360;
++                rotation = (info.orientation - mOrientation - mOrientationOffset + 360) % 360;
+             } else {  // back-facing camera
+-                rotation = (info.orientation + mOrientation) % 360;
++                rotation = (info.orientation + mOrientation + mOrientationOffset) % 360;
+             }
+         }
+         mMediaRecorder.setOrientationHint(rotation);
+diff --git a/src/com/android/camera/VideoUI.java b/src/com/android/camera/VideoUI.java
+index ef8739242..04d3c4add 100755
+--- a/src/com/android/camera/VideoUI.java
++++ b/src/com/android/camera/VideoUI.java
+@@ -400,6 +400,9 @@ public class VideoUI implements PieRenderer.PieListener,
+ 
+         float scaledTextureWidth, scaledTextureHeight;
+         int rotation = CameraUtil.getDisplayRotation(mActivity);
++        if(!CameraUtil.isDefaultToPortrait(mActivity)) {
++        rotation = (rotation - 90) % 360;
++        }
+         mScreenRatio = CameraUtil.determineRatio(ratio);
+         if (mScreenRatio == CameraUtil.RATIO_16_9
+                 && CameraUtil.determinCloseRatio(ratio) == CameraUtil.RATIO_4_3) {
+diff --git a/src/com/android/camera/WideAnglePanoramaModule.java b/src/com/android/camera/WideAnglePanoramaModule.java
+index 4e0da9fbe..ebf640f73 100644
+--- a/src/com/android/camera/WideAnglePanoramaModule.java
++++ b/src/com/android/camera/WideAnglePanoramaModule.java
+@@ -133,6 +133,7 @@ public class WideAnglePanoramaModule
+     // respectively.
+     private int mDeviceOrientation;
+     private int mDeviceOrientationAtCapture;
++    private int mOrientationOffset;
+     private int mCameraOrientation;
+     private int mOrientationCompensation;
+     private boolean mOrientationLocked;
+@@ -197,6 +198,7 @@ public class WideAnglePanoramaModule
+             // the camera then point the camera to floor or sky, we still have
+             // the correct orientation.
+             if (orientation == ORIENTATION_UNKNOWN) return;
++            orientation = (orientation - mOrientationOffset + 360) % 360;
+             int oldOrientation = mDeviceOrientation;
+             mDeviceOrientation = CameraUtil.roundOrientation(orientation, mDeviceOrientation);
+             // When the screen is unlocked, display rotation may change. Always
+@@ -230,6 +232,7 @@ public class WideAnglePanoramaModule
+     public void init(CameraActivity activity, View parent) {
+         mActivity = activity;
+         mRootView = parent;
++        mOrientationOffset = CameraUtil.isDefaultToPortrait(mActivity) ? 0 : 90;
+ 
+         mOrientationManager = new OrientationManager(activity);
+         mCaptureState = CAPTURE_STATE_VIEWFINDER;
+@@ -728,9 +731,9 @@ public class WideAnglePanoramaModule
+         if (mUsingFrontCamera) {
+             // mCameraOrientation is negative with respect to the front facing camera.
+             // See document of android.hardware.Camera.Parameters.setRotation.
+-            orientation = (mDeviceOrientationAtCapture - mCameraOrientation - 360) % 360;
++            orientation = (mDeviceOrientationAtCapture - mCameraOrientation - mOrientationOffset + 360) % 360;
+         } else {
+-            orientation = (mDeviceOrientationAtCapture + mCameraOrientation) % 360;
++            orientation = (mDeviceOrientationAtCapture + mCameraOrientation + mOrientationOffset) % 360;
+         }
+         return orientation;
+     }
+-- 
+2.17.1
+

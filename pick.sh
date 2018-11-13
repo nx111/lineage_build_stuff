@@ -712,7 +712,17 @@ function kpick_action()
               breakout=0
               break
           fi
+
           [ -f $errfile ] && cat $errfile
+          echo  "  >> please resolv it, then press ENTER to continue, or press 'a' abort it ..."
+          ch=$(sed q </dev/tty)
+          if [ "$ch" != "a" ]; then
+                cd $topdir
+                LANG=en_US repopick -c $count $nops >$logfile 2>$errfile
+                rc=$?
+                continue
+          fi
+
           echo "  >>**** repopick failed !"
           breakout=-1
           break
@@ -924,6 +934,7 @@ cd $topdir
 
 kpick 223886 # manifest: Re-add hardware/qcom/data/ipacfg-mgr
 kpick 227747 # lineage: Enable weather apps
+#kpick 227748 # lineage: Enable qcom thermal/vr HALs
 kpick 226755 # lineage: Enable cryptfs_hw
 kpick 231968 # manifest: android-9.0.0_r10 -> android-9.0.0_r16
 kpick 231971 # manifest: sync gcc4.9 from aosp oreo
@@ -956,7 +967,7 @@ kpick 224917 # DO NOT MERGE: klte-common: Requisite bring-up BS change
 
 # device/samsung/msm8974-common
 kpick 231350 # msm8974-common: Set TARGET_NEEDS_NETD_DIRECT_CONNECT_RULE to true
-kpick 228677 # msm8974-common: Make the external camera provider ignore internal cameras
+kpick 234191 # msm8974-common: Disable netd active FTP helper
 
 # kernel/samsung/msm8974
 
@@ -1034,6 +1045,7 @@ kpick 230235 # common: grant DRM HIDL HAL ownership access to /data/{misc,vendor
 kpick 230236 # common: label /sys/devices/virtual/graphics as sysfs_graphics
 kpick 230238 # common: create proc_kernel_sched domain to restrict perf hal access
 kpick 230239 # common: allow uevent to control sysfs_mmc_host via vold
+kpick 234248 # sepolicy : set write permissions for sysfs_boot_adsp.
 
 # development
 kpick 232511 # make-key: Enforce PBEv1 password-protected signing keys
@@ -1104,6 +1116,7 @@ kpick 233369 # Add auth framework for outgoing SMS messages.
 kpick 233633 # Phone ringtone setting for Multi SIM device
 kpick 233717 # [DNM][HACK] Persist user brightness model
 kpick 233758 # [SQUSH][DNM] Merge tag 'android-9.0.0_r16' into lineage-16.0
+#kpick 234168 # Binder: Fix improper JNI call for dumpProxyDebugInfo
 
 # frameworks/native
 kpick 224443 # libbinder: Don't log call trace when waiting for vendor service on non-eng builds
@@ -1138,8 +1151,8 @@ kpick 232366 # MSIM: Fix to set Mcc & Mnc with correct subId
 kpick 233760 # [SQUSH][DNM] Merge tag 'android-9.0.0_r16' into lineage-16.0
 
 # hardware/boardcom/libbt
-#kpick 225155 # Broadcom BT: Add support fm/bt via v4l2.
-#kpick 226447 # libbt: Make sure that we don't load pre-patch when looking for patch
+kpick 225155 # Broadcom BT: Add support fm/bt via v4l2.
+kpick 234177 # libbt: Fix logic check when FW_PRE_PATCH is not used.
 
 # hardware/boardcom/nfc
 
@@ -1241,6 +1254,12 @@ kpick 231895 # VNDK: Added required libs
 kpick 231896 # power: Turn on/off display in SDM439
 kpick 231897 # power: qcom: powerHal for sdm439 and sdm429
 kpick 231898 # Power: Naming convention change
+
+# hardware/qcom/thermal
+kpick 234178 # thermal: Use project pathmap
+
+# hardware/qcom/vr
+kpick 234179 # vr: Use project pathmap
 
 # hardware/qcom/wlan-caf
 kpick 226638 # wcnss_qmi: Generate a fixed random mac address if the NV doesn't provide one
@@ -1421,8 +1440,6 @@ kpick 234021 # Settings: Add icons for development tools and bug report
 kpick 233131 # Revert "SnapdragonCamera: Forbid volume key can take picture"
 kpick 233132 # Revert "SnapdragonCamera: Reduce number of countdown timer option"
 kpick 233133 # Revert "SnapdragonCamera: Add missing permissions"
-kpick 233134 # Revert "SnapdragonCamera:Fix icons overlap"
-kpick 233135 # Revert "Add judgement for compiling"
 kpick 233136 # Rename SnapdragonCamera to Snap
 kpick 233137 # tests: fix class name
 kpick 233138 # Snap: Fix jni compiler warnings
@@ -1605,7 +1622,6 @@ kpick 233314 # Snap: update shutter buttons on CaptureUI
 kpick 233315 # Snap: Add missing thumbnails for filter modes
 kpick 233316 # Snap: Update pano and video icons to be more like photo icons
 kpick 233317 # Snap: Port all string improvements from cm-14.1
-kpick 233318 # Snap: Minor string fix
 kpick 233319 # Snap: adaptive icon
 kpick 233320 # Snap: Convert "save best" dialog text to a quantity string
 kpick 233321 # Snap: Fix "Convert "save best" dialog text to a quantity string"
@@ -1623,7 +1639,7 @@ kpick 233332 # Snap: turn developer category title into a translatable string
 kpick 233333 # Snap: Allow quickreader to work with secure device
 kpick 233334 # CameraSettings: Do not crash if zoom ratios are not exposed
 kpick 233335 # Snap: use platform cert
-kpick 233336 # Automatic translation import
+kpick 233336 # Import translations from 15.1
 
 # packages/apps/Stk
 kpick 233792 # [SQUSH][DNM] Merge tag 'android-9.0.0_r16' into lineage-16.0
@@ -1635,37 +1651,6 @@ kpick 233793 # [SQUSH][DNM] Merge tag 'android-9.0.0_r16' into lineage-16.0
 kpick 233794 # [SQUSH][DNM] Merge tag 'android-9.0.0_r16' into lineage-16.0
 
 # packages/apps/Trebuchet
-kpick 223666 # Trebuchet: Hide Notification Dots on low RAM devices
-kpick 233101 # Trebuchet: update build configs
-kpick 233102 # Create LineageLauncher
-kpick 233103 # Launcher3: Google Feed integration
-kpick 233104 # Launcher3: exclude from recents
-kpick 233105 # Fix overlapping FloatingViewType IntDef
-kpick 233106 # Use View.getHeight() instead of Canvas.getHeight() for PageIndicatorDots
-kpick 233107 # Lint fix: IS_DEBUG_DEVICE: Implied default locale
-kpick 233108 # Launcher3: No Calendarwidget 4x4 widget displayed
-kpick 233109 # Launcher3: Stability NullPointer issue
-kpick 233110 # Workspace: Allow resizing any widget
-kpick 233111 # PagedView: fix pointer index out of range
-kpick 233112 # logging: prevent NPE at logDeepShortcutsOpen
-kpick 233113 # Launcher3: Can't search out local app by Chinese
-kpick 233114 # DeviceProfile: fix divide by zero
-kpick 233115 # Provider: Initialize createEmptyRowOnFirstScreen without QSB
-kpick 233116 # config: enable LAUNCHER3_PROMISE_APPS_IN_ALL_APPS
-kpick 233117 # proguard: Also keep FixedScaleDrawable
-kpick 233118 # Change app name to Trebuchet
-kpick 233119 # Trebuchet: adaptive icon
-kpick 233120 # Trebuchet: prefer our wallpaper picker if possible
-kpick 233121 # Trebuchet: allow non-developers to change icon shape
-kpick 233122 # Trebuchet: update icon shape configurations
-kpick 233123 # Launcher3: custom grid
-kpick 233124 # Trebuchet: add toggle for desktop and drawer labels
-kpick 233125 # Revert "Removing support for app prediction from Launcher3"
-kpick 233126 # Update default workspace
-kpick 233127 # Change icon drawable padding
-kpick 233128 # Apply icon size modifications from old Trebuchet
-kpick 233129 # Increase to 5 rows on some device profiles
-kpick 233130 # Disable QSB on first screen by default
 
 # packages/apps/TvSettings
 kpick 233818 # [SQUSH][DNM] Merge tag 'android-9.0.0_r16' into lineage-16.0
@@ -1758,10 +1743,11 @@ kpick 232427 # su: Update AppOps API calls
 # system/libvintf
 
 # system/netd
-kpick 231201 # netd: Allow devices to force-add directly-connected routes
 kpick 232794 # NetD : Allow passing in interface names for vpn app restriction
 kpick 233423 # pie-gsi tracking
 kpick 233811 # [SQUSH][DNM] Merge tag 'android-9.0.0_r16' into lineage-16.0
+kpick 231201 # netd: Allow devices to force-add directly-connected routes
+kpick 234190 # netd: Allow devices to opt-out of the tethering active FTP helper
 
 # system/security
 kpick 233812 # [SQUSH][DNM] Merge tag 'android-9.0.0_r16' into lineage-16.0
@@ -1816,6 +1802,9 @@ kpick 226128 # cryptfs_hw: Add compatibility for pre-O hw crypto
 kpick 226129 # cryptfs_hw: Featureize support for waiting on QSEE to start
 kpick 226130 # cryptfs_hw: add missing logging tag
 kpick 226403 # cryptfs_hw: Remove unused variable
+
+# vendor/qcom/opensource/thermal-engine
+kpick 234181 # Remove Android.mk
 
 #-----------------------
 # translations

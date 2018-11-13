@@ -1,0 +1,67 @@
+From e6b4d5565d8d9711c31e957e3ea2676bdf817f51 Mon Sep 17 00:00:00 2001
+From: "Kevin F. Haggerty" <haggertk@lineageos.org>
+Date: Mon, 12 Nov 2018 20:23:43 -0700
+Subject: [PATCH 5/5] netd: Allow devices to opt-out of the tethering active
+ FTP helper
+
+* AOSP change 4cef4147bfc1c8708c32972191690e1cd449e2e1 enabled a
+  conntrack helper for active FTP connections with tethering. This
+  does not play well with legacy nf_conntrack kernel implementations.
+* Allow affected devices to opt-out so that tethering actually starts
+
+Change-Id: Ic063142492eb20725e5aab1bbaebac82d74f4211
+---
+ server/TetherController.cpp     | 2 ++
+ server/TetherControllerTest.cpp | 4 ++++
+ 2 files changed, 6 insertions(+)
+
+diff --git a/server/TetherController.cpp b/server/TetherController.cpp
+index bec8b10..2af1abd 100644
+--- a/server/TetherController.cpp
++++ b/server/TetherController.cpp
+@@ -638,10 +638,12 @@ int TetherController::setForwardRules(bool add, const char *intIface, const char
+     }
+ 
+     std::vector<std::string> v4 = {
++#ifndef OMIT_NETD_TETHER_FTP_HELPER
+         "*raw",
+         StringPrintf("%s %s -p tcp --dport 21 -i %s -j CT --helper ftp",
+                      op, LOCAL_RAW_PREROUTING, intIface),
+         "COMMIT",
++#endif
+         "*filter",
+         StringPrintf("%s %s -i %s -o %s -m state --state ESTABLISHED,RELATED -g %s",
+                      op, LOCAL_FORWARD, extIface, intIface, LOCAL_TETHER_COUNTERS_CHAIN),
+diff --git a/server/TetherControllerTest.cpp b/server/TetherControllerTest.cpp
+index 6e77bfe..91531de 100644
+--- a/server/TetherControllerTest.cpp
++++ b/server/TetherControllerTest.cpp
+@@ -127,10 +127,12 @@ protected:
+             "COMMIT\n", intIf);
+ 
+         std::vector<std::string> v4Cmds = {
++#ifndef OMIT_NETD_TETHER_FTP_HELPER
+             "*raw",
+             StringPrintf("-A tetherctrl_raw_PREROUTING -p tcp --dport 21 -i %s -j CT --helper ftp",
+                          intIf),
+             "COMMIT",
++#endif
+             "*filter",
+             StringPrintf("-A tetherctrl_FORWARD -i %s -o %s -m state --state"
+                          " ESTABLISHED,RELATED -g tetherctrl_counters", extIf, intIf),
+@@ -199,10 +201,12 @@ protected:
+             "COMMIT\n", intIf);
+ 
+         std::vector<std::string> v4Cmds = {
++#ifndef OMIT_NETD_TETHER_FTP_HELPER
+             "*raw",
+             StringPrintf("-D tetherctrl_raw_PREROUTING -p tcp --dport 21 -i %s -j CT --helper ftp",
+                          intIf),
+             "COMMIT",
++#endif
+             "*filter",
+             StringPrintf("-D tetherctrl_FORWARD -i %s -o %s -m state --state"
+                          " ESTABLISHED,RELATED -g tetherctrl_counters", extIf, intIf),
+-- 
+2.17.1
+

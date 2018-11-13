@@ -1,0 +1,123 @@
+From 166782fa75683de626c16984ed133f1645dc9b9f Mon Sep 17 00:00:00 2001
+From: Sultanxda <sultanxda@gmail.com>
+Date: Sun, 6 Dec 2015 10:30:28 -0800
+Subject: [PATCH 110/201] Snap: Add ability to set the tap-to-focus duration to
+ 0 sec
+
+Setting a tap-to-focus duration of 0 seconds allows for a quick, manual
+refocus of the subject without interfering with the exposure. This is
+particularly useful when recording videos.
+
+[mikeioannina]: Adapted to Snap
+
+Change-Id: Ie3d92e50f755c938e9725438ba5baad0d0985485
+Signed-off-by: Sultanxda <sultanxda@gmail.com>
+---
+ res/values/cm_arrays.xml                      |  4 +++-
+ res/values/cm_strings.xml                     |  1 +
+ .../android/camera/FocusOverlayManager.java   | 23 ++++++++++++-------
+ 3 files changed, 19 insertions(+), 9 deletions(-)
+
+diff --git a/res/values/cm_arrays.xml b/res/values/cm_arrays.xml
+index 7a1aeded0..1a44ad17c 100644
+--- a/res/values/cm_arrays.xml
++++ b/res/values/cm_arrays.xml
+@@ -27,6 +27,7 @@
+ 
+     <!-- Touch focus duration -->
+     <string-array name="pref_camera_focustime_duration_entries" translatable="false">
++        <item>@string/pref_camera_focustime_entry_0</item>
+         <item>@string/pref_camera_focustime_entry_5</item>
+         <item>@string/pref_camera_focustime_entry_10</item>
+         <item>@string/pref_camera_focustime_entry_15</item>
+@@ -37,12 +38,13 @@
+ 
+     <!-- Stored in milliseconds -->
+     <string-array name="pref_camera_focustime_duration_values" translatable="false">
++        <item>200</item>
+         <item>5000</item>
+         <item>10000</item>
+         <item>15000</item>
+         <item>20000</item>
+         <item>30000</item>
+-        <item>0</item>
++        <item>0x7FFFFFFF</item>
+     </string-array>
+ 
+     <!-- Shutter speed -->
+diff --git a/res/values/cm_strings.xml b/res/values/cm_strings.xml
+index 9d539e9a1..da19da3e2 100644
+--- a/res/values/cm_strings.xml
++++ b/res/values/cm_strings.xml
+@@ -112,6 +112,7 @@
+     <string name="pref_camera_focustime_title">Touch focus duration</string>
+     <string name="pref_camera_focustime_default" translatable="false">5000</string>
+ 
++    <string name="pref_camera_focustime_entry_0">0s</string>
+     <string name="pref_camera_focustime_entry_5">5s</string>
+     <string name="pref_camera_focustime_entry_10">10s</string>
+     <string name="pref_camera_focustime_entry_15">15s</string>
+diff --git a/src/com/android/camera/FocusOverlayManager.java b/src/com/android/camera/FocusOverlayManager.java
+index 00e7a535a..cdf84825f 100644
+--- a/src/com/android/camera/FocusOverlayManager.java
++++ b/src/com/android/camera/FocusOverlayManager.java
+@@ -286,8 +286,10 @@ public class FocusOverlayManager {
+             if (focused) {
+                 mState = STATE_SUCCESS;
+                 // Lock exposure and white balance
+-                setAeAwbLock(true);
+-                mListener.setFocusParameters();
++                if (mFocusTime != 200) {
++                    setAeAwbLock(true);
++                    mListener.setFocusParameters();
++                }
+             } else {
+                 mState = STATE_FAIL;
+             }
+@@ -300,15 +302,17 @@ public class FocusOverlayManager {
+             if (focused) {
+                 mState = STATE_SUCCESS;
+                 // Lock exposure and white balance
+-                setAeAwbLock(true);
+-                mListener.setFocusParameters();
++                if (mFocusTime != 200) {
++                    setAeAwbLock(true);
++                    mListener.setFocusParameters();
++                }
+             } else {
+                 mState = STATE_FAIL;
+             }
+             updateFocusUI();
+             // If this is triggered by touch focus, cancel focus after a
+             // while.
+-            if ((mFocusArea != null) && (mFocusTime != 0)) {
++            if (mFocusArea != null) {
+                 mHandler.sendEmptyMessageDelayed(RESET_TOUCH_FOCUS, mFocusTime);
+             }
+             if (shutterButtonPressed) {
+@@ -410,6 +414,11 @@ public class FocusOverlayManager {
+         // Stop face detection because we want to specify focus and metering area.
+         mListener.stopFaceDetection();
+ 
++        if (mFocusTime == 200) {
++            setAeAwbLock(true);
++            mListener.setFocusParameters();
++        }
++
+         // Set the focus area and metering area.
+         mListener.setFocusParameters();
+         if (mFocusAreaSupported) {
+@@ -417,9 +426,7 @@ public class FocusOverlayManager {
+         } else {  // Just show the indicator in all other cases.
+             updateFocusUI();
+             mHandler.removeMessages(RESET_TOUCH_FOCUS);
+-            if (mFocusTime != 0) {
+-                mHandler.sendEmptyMessageDelayed(RESET_TOUCH_FOCUS, mFocusTime);
+-            }
++            mHandler.sendEmptyMessageDelayed(RESET_TOUCH_FOCUS, mFocusTime);
+         }
+     }
+ 
+-- 
+2.17.1
+
