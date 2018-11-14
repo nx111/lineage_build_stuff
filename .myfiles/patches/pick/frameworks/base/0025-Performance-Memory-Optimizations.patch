@@ -1,7 +1,7 @@
-From 45180df6b44515e6474be0377192542b8c1d12cf Mon Sep 17 00:00:00 2001
+From 9da4f12a16e289991a689ca8f0a2c971bc534a1d Mon Sep 17 00:00:00 2001
 From: Shashi Shekar Shankar <ssbang@codeaurora.org>
 Date: Mon, 5 Jan 2015 17:40:39 +0530
-Subject: [PATCH 25/47] Performance: Memory Optimizations.
+Subject: [PATCH 25/46] Performance: Memory Optimizations.
 
 The following optimizations are squashed in this change.
 
@@ -192,7 +192,7 @@ index ca715b51a32..d53b6ca8f9c 100644
  
                  // Retry.
 diff --git a/services/core/java/com/android/server/am/ActivityManagerConstants.java b/services/core/java/com/android/server/am/ActivityManagerConstants.java
-index 6550d06b8a1..91dad66a297 100644
+index d14c1a1adf7..f891ed2b606 100644
 --- a/services/core/java/com/android/server/am/ActivityManagerConstants.java
 +++ b/services/core/java/com/android/server/am/ActivityManagerConstants.java
 @@ -20,6 +20,8 @@ import android.content.ContentResolver;
@@ -204,9 +204,9 @@ index 6550d06b8a1..91dad66a297 100644
  import android.provider.Settings;
  import android.util.KeyValueListParser;
  import android.util.Slog;
-@@ -68,7 +70,8 @@ final class ActivityManagerConstants extends ContentObserver {
-     static final String KEY_BOUND_SERVICE_CRASH_MAX_RETRY = "service_crash_max_retry";
+@@ -69,7 +71,8 @@ final class ActivityManagerConstants extends ContentObserver {
      static final String KEY_PROCESS_START_ASYNC = "process_start_async";
+     static final String KEY_TOP_TO_FGS_GRACE_DURATION = "top_to_fgs_grace_duration";
  
 -    private static final int DEFAULT_MAX_CACHED_PROCESSES = 32;
 +    private static final int DEFAULT_MAX_CACHED_PROCESSES =
@@ -214,7 +214,7 @@ index 6550d06b8a1..91dad66a297 100644
      private static final long DEFAULT_BACKGROUND_SETTLE_TIME = 60*1000;
      private static final long DEFAULT_FGSERVICE_MIN_SHOWN_TIME = 2*1000;
      private static final long DEFAULT_FGSERVICE_MIN_REPORT_TIME = 3*1000;
-@@ -224,6 +227,17 @@ final class ActivityManagerConstants extends ContentObserver {
+@@ -233,6 +236,17 @@ final class ActivityManagerConstants extends ContentObserver {
      // process limit.
      public int CUR_MAX_CACHED_PROCESSES;
  
@@ -232,7 +232,7 @@ index 6550d06b8a1..91dad66a297 100644
      // The maximum number of empty app processes we will let sit around.
      public int CUR_MAX_EMPTY_PROCESSES;
  
-@@ -258,7 +272,11 @@ final class ActivityManagerConstants extends ContentObserver {
+@@ -274,7 +288,11 @@ final class ActivityManagerConstants extends ContentObserver {
      }
  
      public static int computeEmptyProcessLimit(int totalProcessLimit) {
@@ -245,7 +245,7 @@ index 6550d06b8a1..91dad66a297 100644
      }
  
      @Override
-@@ -346,8 +364,9 @@ final class ActivityManagerConstants extends ContentObserver {
+@@ -374,8 +392,9 @@ final class ActivityManagerConstants extends ContentObserver {
          // to consider the same level the point where we do trimming regardless of any
          // additional enforced limit.
          final int rawMaxEmptyProcesses = computeEmptyProcessLimit(MAX_CACHED_PROCESSES);
@@ -257,7 +257,7 @@ index 6550d06b8a1..91dad66a297 100644
      }
  
      void dump(PrintWriter pw) {
-@@ -412,4 +431,24 @@ final class ActivityManagerConstants extends ContentObserver {
+@@ -442,4 +461,24 @@ final class ActivityManagerConstants extends ContentObserver {
          pw.print("  CUR_TRIM_EMPTY_PROCESSES="); pw.println(CUR_TRIM_EMPTY_PROCESSES);
          pw.print("  CUR_TRIM_CACHED_PROCESSES="); pw.println(CUR_TRIM_CACHED_PROCESSES);
      }
@@ -283,7 +283,7 @@ index 6550d06b8a1..91dad66a297 100644
 +    }
  }
 diff --git a/services/core/java/com/android/server/am/ActivityManagerService.java b/services/core/java/com/android/server/am/ActivityManagerService.java
-index 637c2774f28..eeab1b6cd28 100644
+index cb7240cec22..116251f275a 100644
 --- a/services/core/java/com/android/server/am/ActivityManagerService.java
 +++ b/services/core/java/com/android/server/am/ActivityManagerService.java
 @@ -1951,6 +1951,16 @@ public class ActivityManagerService extends IActivityManager.Stub
@@ -303,7 +303,7 @@ index 637c2774f28..eeab1b6cd28 100644
      /**
       * Flag whether the current user is a "monkey", i.e. whether
       * the UI is driven by a UI automation tool.
-@@ -25007,6 +25017,9 @@ public class ActivityManagerService extends IActivityManager.Stub
+@@ -25050,6 +25060,9 @@ public class ActivityManagerService extends IActivityManager.Stub
          int nextCachedAdj = curCachedAdj+1;
          int curEmptyAdj = ProcessList.CACHED_APP_MIN_ADJ;
          int nextEmptyAdj = curEmptyAdj+2;
@@ -313,7 +313,7 @@ index 637c2774f28..eeab1b6cd28 100644
  
          boolean retryCycles = false;
  
-@@ -25017,6 +25030,34 @@ public class ActivityManagerService extends IActivityManager.Stub
+@@ -25060,6 +25073,34 @@ public class ActivityManagerService extends IActivityManager.Stub
          }
          for (int i=N-1; i>=0; i--) {
              ProcessRecord app = mLruProcesses.get(i);
@@ -348,7 +348,7 @@ index 637c2774f28..eeab1b6cd28 100644
              if (!app.killedByAm && app.thread != null) {
                  app.procStateChanged = false;
                  computeOomAdjLocked(app, ProcessList.UNKNOWN_ADJ, TOP_APP, true, now);
-@@ -25171,6 +25212,14 @@ public class ActivityManagerService extends IActivityManager.Stub
+@@ -25214,6 +25255,14 @@ public class ActivityManagerService extends IActivityManager.Stub
                  }
              }
          }
@@ -364,7 +364,7 @@ index 637c2774f28..eeab1b6cd28 100644
          incrementProcStateSeqAndNotifyAppsLocked();
  
 diff --git a/services/core/java/com/android/server/am/ActivityRecord.java b/services/core/java/com/android/server/am/ActivityRecord.java
-index 50d94503203..c721b7e34f3 100644
+index e9205d48cf0..a94f22d5d4b 100644
 --- a/services/core/java/com/android/server/am/ActivityRecord.java
 +++ b/services/core/java/com/android/server/am/ActivityRecord.java
 @@ -312,6 +312,7 @@ final class ActivityRecord extends ConfigurationContainer implements AppWindowCo
@@ -375,7 +375,7 @@ index 50d94503203..c721b7e34f3 100644
      boolean nowVisible;     // is this activity's window visible?
      boolean mClientVisibilityDeferred;// was the visibility change message to client deferred?
      boolean idle;           // has the activity gone idle?
-@@ -2096,6 +2097,7 @@ final class ActivityRecord extends ConfigurationContainer implements AppWindowCo
+@@ -2100,6 +2101,7 @@ final class ActivityRecord extends ConfigurationContainer implements AppWindowCo
              if (DEBUG_SWITCH) Log.v(TAG_SWITCH, "windowsVisibleLocked(): " + this);
              if (!nowVisible) {
                  nowVisible = true;
@@ -383,7 +383,7 @@ index 50d94503203..c721b7e34f3 100644
                  lastVisibleTime = SystemClock.uptimeMillis();
                  if (idle || mStackSupervisor.isStoppingNoHistoryActivity()) {
                      // If this activity was already idle or there is an activity that must be
-@@ -2128,6 +2130,7 @@ final class ActivityRecord extends ConfigurationContainer implements AppWindowCo
+@@ -2132,6 +2134,7 @@ final class ActivityRecord extends ConfigurationContainer implements AppWindowCo
          synchronized (service) {
              if (DEBUG_SWITCH) Log.v(TAG_SWITCH, "windowsGone(): " + this);
              nowVisible = false;
@@ -392,10 +392,10 @@ index 50d94503203..c721b7e34f3 100644
      }
  
 diff --git a/services/core/java/com/android/server/am/ActivityStack.java b/services/core/java/com/android/server/am/ActivityStack.java
-index aea29ac066a..8d6aab98fb0 100644
+index f58f717878f..807927599ed 100644
 --- a/services/core/java/com/android/server/am/ActivityStack.java
 +++ b/services/core/java/com/android/server/am/ActivityStack.java
-@@ -2401,6 +2401,7 @@ class ActivityStack<T extends StackWindowController> extends ConfigurationContai
+@@ -2411,6 +2411,7 @@ class ActivityStack<T extends StackWindowController> extends ConfigurationContai
          mStackSupervisor.mGoingToSleepActivities.remove(next);
          next.sleeping = false;
          mStackSupervisor.mActivitiesWaitingForVisibleActivity.remove(next);
@@ -403,7 +403,7 @@ index aea29ac066a..8d6aab98fb0 100644
  
          if (DEBUG_SWITCH) Slog.v(TAG_SWITCH, "Resuming " + next);
  
-@@ -3445,6 +3446,7 @@ class ActivityStack<T extends StackWindowController> extends ConfigurationContai
+@@ -3455,6 +3456,7 @@ class ActivityStack<T extends StackWindowController> extends ConfigurationContai
  
      final void stopActivityLocked(ActivityRecord r) {
          if (DEBUG_SWITCH) Slog.d(TAG_SWITCH, "Stopping: " + r);

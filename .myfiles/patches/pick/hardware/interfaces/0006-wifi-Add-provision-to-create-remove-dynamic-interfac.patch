@@ -1,0 +1,289 @@
+From 5abfa75d008ec8bc35210f839bcd7b2b433bd6e5 Mon Sep 17 00:00:00 2001
+From: Purushottam Kushwaha <pkushwah@codeaurora.org>
+Date: Thu, 7 Jun 2018 23:05:16 +0530
+Subject: [PATCH 6/7] wifi: Add provision to create/remove dynamic
+ interface(s).
+
+This commit does following:
+ - Add/Remove softap interface at runtime, if needed.
+ - Use wlan.concurrent.interface as default softap interface.
+ - Add build time support to enable SAP+SAP feature using
+   QC_WIFI_HIDL_FEATURE_DUAL_AP flag. if enabled use wlan.interface
+   as second SAP interface.
+
+Change-Id: Icde3d54eda0f142e20f33cdb7ed95152eeee0bec
+CRs-Fixed: 2257197
+---
+ wifi/1.2/default/Android.mk             |  3 +
+ wifi/1.2/default/wifi_chip.cpp          | 74 +++++++++++++++++++++----
+ wifi/1.2/default/wifi_chip.h            |  3 +
+ wifi/1.2/default/wifi_feature_flags.cpp |  8 +++
+ wifi/1.2/default/wifi_feature_flags.h   |  1 +
+ wifi/1.2/default/wifi_legacy_hal.cpp    | 29 ++++++++++
+ wifi/1.2/default/wifi_legacy_hal.h      |  7 +++
+ 7 files changed, 114 insertions(+), 11 deletions(-)
+
+diff --git a/wifi/1.2/default/Android.mk b/wifi/1.2/default/Android.mk
+index f59108a8..72403334 100644
+--- a/wifi/1.2/default/Android.mk
++++ b/wifi/1.2/default/Android.mk
+@@ -30,6 +30,9 @@ endif
+ ifdef WIFI_HIDL_FEATURE_DISABLE_AP
+ LOCAL_CPPFLAGS += -DWIFI_HIDL_FEATURE_DISABLE_AP
+ endif
++ifdef QC_WIFI_HIDL_FEATURE_DUAL_AP
++LOCAL_CPPFLAGS += -DQC_WIFI_HIDL_FEATURE_DUAL_AP
++endif
+ LOCAL_SRC_FILES := \
+     hidl_struct_util.cpp \
+     hidl_sync_util.cpp \
+diff --git a/wifi/1.2/default/wifi_chip.cpp b/wifi/1.2/default/wifi_chip.cpp
+index aa447a03..27252070 100644
+--- a/wifi/1.2/default/wifi_chip.cpp
++++ b/wifi/1.2/default/wifi_chip.cpp
+@@ -21,6 +21,7 @@
+ #include <cutils/properties.h>
+ #include <sys/stat.h>
+ #include <sys/sysmacros.h>
++#include <net/if.h>
+ 
+ #include "hidl_return_util.h"
+ #include "hidl_struct_util.h"
+@@ -105,12 +106,6 @@ std::string getP2pIfaceName() {
+     return buffer.data();
+ }
+ 
+-std::string getApIfaceName() {
+-    std::array<char, PROPERTY_VALUE_MAX> buffer;
+-    property_get("persist.vendor.wifi.softap.interface", buffer.data(), "");
+-    return buffer.data();
+-}
+-
+ // delete files that meet either conditions:
+ // 1. older than a predefined time in the wifi tombstone dir.
+ // 2. Files in excess to a predefined amount, starting from the oldest ones
+@@ -602,6 +597,7 @@ void WifiChip::invalidateAndRemoveAllIfaces() {
+     invalidateAndClearAll(nan_ifaces_);
+     invalidateAndClearAll(p2p_ifaces_);
+     invalidateAndClearAll(sta_ifaces_);
++    invalidateAndClearAll(created_ap_ifaces_);
+     // Since all the ifaces are invalid now, all RTT controller objects
+     // using those ifaces also need to be invalidated.
+     for (const auto& rtt : rtt_controllers_) {
+@@ -750,11 +746,28 @@ std::pair<WifiStatus, sp<IWifiApIface>> WifiChip::createApIfaceInternal() {
+     if (!canCurrentModeSupportIfaceOfType(IfaceType::AP)) {
+         return {createWifiStatus(WifiStatusCode::ERROR_NOT_AVAILABLE), {}};
+     }
+-    std::string ifname = getApIfaceName();
+-    if (ifname.empty())
++
++    std::string ifname = "";
++    bool iface_created = false;
++    if (feature_flags_.lock()->isDualInterfaceSupported())
++        ifname = qcAllocateApIfaceName();
++    else
+         ifname = allocateApOrStaIfaceName();
++
++    if (!if_nametoindex(ifname.c_str())) {
++        legacy_hal::wifi_error legacy_status =
++            legacy_hal_.lock()->QcAddInterface(getWlan0IfaceName(), ifname,
++                                               (uint32_t)IfaceType::AP);
++        if (legacy_status != legacy_hal::WIFI_SUCCESS) {
++            LOG(ERROR) << "Failed to add interface: " << ifname << " "
++                       << legacyErrorToString(legacy_status);
++            return {createWifiStatusFromLegacyError(legacy_status), {}};
++        }
++        iface_created = true;
++    }
+     sp<WifiApIface> iface = new WifiApIface(ifname, legacy_hal_);
+     ap_ifaces_.push_back(iface);
++    if (iface_created) created_ap_ifaces_.push_back(iface);
+     for (const auto& callback : event_cb_handler_.getCallbacks()) {
+         if (!callback->onIfaceAdded(IfaceType::AP, ifname).isOk()) {
+             LOG(ERROR) << "Failed to invoke onIfaceAdded callback";
+@@ -785,6 +798,16 @@ WifiStatus WifiChip::removeApIfaceInternal(const std::string& ifname) {
+     if (!iface.get()) {
+         return createWifiStatus(WifiStatusCode::ERROR_INVALID_ARGS);
+     }
++
++    if (findUsingName(created_ap_ifaces_, ifname) != nullptr) {
++        legacy_hal::wifi_error legacy_status =
++            legacy_hal_.lock()->QcRemoveInterface(getWlan0IfaceName(), ifname);
++        if (legacy_status != legacy_hal::WIFI_SUCCESS) {
++            LOG(ERROR) << "Failed to remove interface: " << ifname << " "
++                       << legacyErrorToString(legacy_status);
++        }
++        invalidateAndClear(created_ap_ifaces_, iface);
++    }
+     invalidateAndClear(ap_ifaces_, iface);
+     for (const auto& callback : event_cb_handler_.getCallbacks()) {
+         if (!callback->onIfaceRemoved(IfaceType::AP, ifname).isOk()) {
+@@ -1225,9 +1248,21 @@ void WifiChip::populateModes() {
+               {chip_iface_combination_2}};
+           modes_ = {chip_mode};
+         } else {
+-          const IWifiChip::ChipMode chip_mode = {
+-            kV2ChipModeId,
+-            {chip_iface_combination_1, chip_iface_combination_2}};
++          IWifiChip::ChipMode chip_mode;
++          if (feature_flags_.lock()->isQcDualApSupported()) {
++            const IWifiChip::ChipIfaceCombinationLimit
++                chip_iface_combination_limit_4 = {{IfaceType::AP}, 2};
++            const IWifiChip::ChipIfaceCombination chip_iface_combination_3 = {
++                {chip_iface_combination_limit_4}};
++            chip_mode = {kV2ChipModeId,
++                         {chip_iface_combination_1,
++                          chip_iface_combination_2,
++                          chip_iface_combination_3}};
++          } else {
++            chip_mode = {kV2ChipModeId,
++                         {chip_iface_combination_1,
++                          chip_iface_combination_2}};
++          }
+           modes_ = {chip_mode};
+         }
+     } else {
+@@ -1393,6 +1428,23 @@ std::string WifiChip::allocateApOrStaIfaceName() {
+     return {};
+ }
+ 
++// Return "wlan1", if "wlan1" is not already in use, else return "wlan0".
++// This is based on the assumption that we'll have a max of 2 concurrent
++// AP ifaces.
++std::string WifiChip::qcAllocateApIfaceName() {
++    auto ap_iface = findUsingName(ap_ifaces_, getWlan1IfaceName());
++    if (!ap_iface.get()) {
++        return getWlan1IfaceName();
++    }
++    ap_iface = findUsingName(ap_ifaces_, getWlan0IfaceName());
++    if (!ap_iface.get()) {
++        return getWlan0IfaceName();
++    }
++    // This should never happen. We screwed up somewhere if it did.
++    CHECK(0) << "wlan0 and wlan1 in use already!";
++    return {};
++}
++
+ bool WifiChip::writeRingbufferFilesInternal() {
+     if (!removeOldFilesInternal()) {
+         LOG(ERROR) << "Error occurred while deleting old tombstone files";
+diff --git a/wifi/1.2/default/wifi_chip.h b/wifi/1.2/default/wifi_chip.h
+index ada94588..94e55e82 100644
+--- a/wifi/1.2/default/wifi_chip.h
++++ b/wifi/1.2/default/wifi_chip.h
+@@ -216,6 +216,7 @@ class WifiChip : public V1_2::IWifiChip {
+     bool canCurrentModeSupportIfaceOfType(IfaceType type);
+     bool isValidModeId(ChipModeId mode_id);
+     std::string allocateApOrStaIfaceName();
++    std::string qcAllocateApIfaceName();
+     bool writeRingbufferFilesInternal();
+ 
+     ChipId chip_id_;
+@@ -239,6 +240,8 @@ class WifiChip : public V1_2::IWifiChip {
+     hidl_callback_util::HidlCallbackHandler<IWifiChipEventCallback>
+         event_cb_handler_;
+ 
++    std::vector<sp<WifiApIface>> created_ap_ifaces_;
++
+     DISALLOW_COPY_AND_ASSIGN(WifiChip);
+ };
+ 
+diff --git a/wifi/1.2/default/wifi_feature_flags.cpp b/wifi/1.2/default/wifi_feature_flags.cpp
+index 778944dd..78b6320e 100644
+--- a/wifi/1.2/default/wifi_feature_flags.cpp
++++ b/wifi/1.2/default/wifi_feature_flags.cpp
+@@ -32,6 +32,11 @@ static const bool wifiHidlFeatureDisableAp = true;
+ #else
+ static const bool wifiHidlFeatureDisableAp = false;
+ #endif  // WIFI_HIDL_FEATURE_DISABLE_AP
++#ifdef QC_WIFI_HIDL_FEATURE_DUAL_AP
++static const bool qcWifiHidlFeatureDualAp = true;
++#else
++static const bool qcWifiHidlFeatureDualAp = false;
++#endif  // QC_WIFI_HIDL_FEATURE_DUAL_AP
+ 
+ }  // namespace
+ 
+@@ -50,6 +55,9 @@ bool WifiFeatureFlags::isDualInterfaceSupported() {
+ bool WifiFeatureFlags::isApDisabled() {
+   return wifiHidlFeatureDisableAp;
+ }
++bool WifiFeatureFlags::isQcDualApSupported() {
++  return qcWifiHidlFeatureDualAp;
++}
+ 
+ }  // namespace feature_flags
+ }  // namespace implementation
+diff --git a/wifi/1.2/default/wifi_feature_flags.h b/wifi/1.2/default/wifi_feature_flags.h
+index 4a7b2d22..b1413a02 100644
+--- a/wifi/1.2/default/wifi_feature_flags.h
++++ b/wifi/1.2/default/wifi_feature_flags.h
+@@ -32,6 +32,7 @@ class WifiFeatureFlags {
+     virtual bool isAwareSupported();
+     virtual bool isDualInterfaceSupported();
+     virtual bool isApDisabled();
++    virtual bool isQcDualApSupported();
+ };
+ 
+ }  // namespace feature_flags
+diff --git a/wifi/1.2/default/wifi_legacy_hal.cpp b/wifi/1.2/default/wifi_legacy_hal.cpp
+index 375204c7..eaddc4e2 100644
+--- a/wifi/1.2/default/wifi_legacy_hal.cpp
++++ b/wifi/1.2/default/wifi_legacy_hal.cpp
+@@ -1383,6 +1383,35 @@ WifiLegacyHal::getGscanCachedResults(const std::string& iface_name) {
+     return {status, std::move(cached_scan_results)};
+ }
+ 
++wifi_error WifiLegacyHal::QcAddInterface(const std::string& iface_name,
++                                         const std::string& new_ifname,
++                                         uint32_t type) {
++    wifi_error status = global_func_table_.wifi_add_or_remove_virtual_intf(
++                           getIfaceHandle(iface_name),
++                           new_ifname.c_str(), type, true);
++
++    if (status == WIFI_SUCCESS) {
++        // refresh list of handlers now.
++        iface_name_to_handle_.clear();
++        status = retrieveIfaceHandles();
++    }
++    return status;
++}
++
++wifi_error WifiLegacyHal::QcRemoveInterface(const std::string& iface_name,
++                                            const std::string& ifname) {
++    wifi_error status =  global_func_table_.wifi_add_or_remove_virtual_intf(
++                             getIfaceHandle(iface_name),
++                             ifname.c_str(), 0, false);
++
++    if (status == WIFI_SUCCESS) {
++        // refresh list of handlers now.
++        iface_name_to_handle_.clear();
++        status = retrieveIfaceHandles();
++    }
++    return status;
++}
++
+ void WifiLegacyHal::invalidate() {
+     global_handle_ = nullptr;
+     iface_name_to_handle_.clear();
+diff --git a/wifi/1.2/default/wifi_legacy_hal.h b/wifi/1.2/default/wifi_legacy_hal.h
+index 60905ab3..2c00d6cd 100644
+--- a/wifi/1.2/default/wifi_legacy_hal.h
++++ b/wifi/1.2/default/wifi_legacy_hal.h
+@@ -354,6 +354,13 @@ class WifiLegacyHal {
+     wifi_error setCountryCode(const std::string& iface_name,
+                               std::array<int8_t, 2> code);
+ 
++    wifi_error QcAddInterface(const std::string& iface_name,
++                              const std::string& new_ifname,
++                              uint32_t type);
++    wifi_error QcRemoveInterface(const std::string& iface_name,
++                                 const std::string& ifname);
++
++
+    private:
+     // Retrieve interface handles for all the available interfaces.
+     wifi_error retrieveIfaceHandles();
+-- 
+2.17.1
+

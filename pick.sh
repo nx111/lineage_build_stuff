@@ -18,6 +18,13 @@ minCount=20
 
 [ "$0" != "bash" ] && script_file=$(realpath $0)
 
+int_handler()
+{
+    # Kill the parent process of the script.
+    kill $PPID
+    exit 1
+}
+
 ##### apply patch saved first ########
 function get_defaul_remote()
 {
@@ -157,6 +164,8 @@ function projects_snapshot()
     local vproject=""
     [ "$1" != "" ] && vproject=$(echo $1 | sed -e 's/\/$//')
     rm -f $snapshot_file.new
+    trap 'int_handler' INT
+
     cat $topdir/.repo/project.list | while read project; do
          [ "$1" != "" -a "$project" != "$vproject" ] && continue
          [ -d "$topdir/$project" ] || continue
@@ -271,6 +280,8 @@ function restore_snapshot()
     cd $topdir
     snapshot_file=$topdir/.myfiles/patches/snapshot.list
     [ -f "$snapshot_file" ] || return -1
+
+    trap 'int_handler' INT
     cat $snapshot_file | while read line; do
          project=$(echo $line | cut -d, -f1 | sed -e "s/^ *//g" -e "s/ *$//g")
          basecommit=$(echo $line | cut -d, -f2 | sed -e "s/^ *//g" -e "s/ *$//g")
@@ -913,6 +924,8 @@ fi
 #---------------------------------#
 ###################################
 
+trap 'int_handler' INT
+
 if [ $0 != "bash" -a ! -f $0.tmp -a $op_pick_continue -eq 0 ]; then    # continue pick or not
 rm -f $topdir/.repo/local_manifests/su.xml
 repo sync vendor/lineage >/dev/null
@@ -936,7 +949,6 @@ kpick 223886 # manifest: Re-add hardware/qcom/data/ipacfg-mgr
 kpick 227747 # lineage: Enable weather apps
 #kpick 227748 # lineage: Enable qcom thermal/vr HALs
 kpick 226755 # lineage: Enable cryptfs_hw
-kpick 231968 # manifest: android-9.0.0_r10 -> android-9.0.0_r16
 kpick 231971 # manifest: sync gcc4.9 from aosp oreo
 kpick 232785 # lineage: Ship Snap and Trebuchet
 kpick 233629 # lineage: Enable Exchange
@@ -981,7 +993,6 @@ kpick 223063 # Restore android_alarm.h kernel uapi header
 kpick 223067 # libc fortify: Ignore open() O_TMPFILE mode bits warning
 kpick 225463 # bionic: Let popen and system fall back to /sbin/sh
 kpick 230099 # Actually restore pre-P mutex behavior
-kpick 233752 # [SQUSH][DNM] Merge tag 'android-9.0.0_r16' into lineage-16.0
 
 # boot/recovery
 kpick 230747 # update_verifier: skip verity to determine successful on lineage builds
@@ -992,13 +1003,11 @@ kpick 222742 # build: Use project pathmap for recovery
 kpick 222760 # Add LOCAL_AIDL_FLAGS
 kpick 227111 # releasetools: Store the build.prop file in the OTA zip
 kpick 233421 # pie-gsi tracking
-kpick 233750 # [SQUSH][DNM] Merge tag 'android-9.0.0_r16' into lineage-16.0
 
 # build/soong
 kpick 222648 # Allow providing flex and bison binaries
 kpick 224613 # soong: Add LOCAL_AIDL_FLAGS handling
 kpick 226443 # soong: Add additional_deps attribute for libraries and binaries
-kpick 233751 # [SQUSH][DNM] Merge tag 'android-9.0.0_r16' into lineage-16.0
 
 # dalvik
 kpick 225475 # dexdeps: Add option for --include-lineage-classes.
@@ -1050,7 +1059,6 @@ kpick 234248 # sepolicy : set write permissions for sysfs_boot_adsp.
 # development
 kpick 232511 # make-key: Enforce PBEv1 password-protected signing keys
 kpick 233422 # pie-gsi tracking
-kpick 233753 # [SQUSH][DNM] Merge tag 'android-9.0.0_r16' into lineage-16.0
 
 # external/ant-wireless/ant_native
 kpick 227260 # Update bt vendor callbacks array in vfs code
@@ -1058,7 +1066,6 @@ kpick 227261 # Cast BT_VND_OP_ANT_USERIAL_{OPEN,CLOSE} to bt_vendor_opcode_t in 
 
 # external/perfetto
 kpick 223413 # perfetto_cmd: Resolve missing O_CREAT mode
-kpick 233755 # [SQUSH][DNM] Merge tag 'android-9.0.0_r16' into lineage-16.0
 
 # external/tinycompress
 
@@ -1071,7 +1078,6 @@ kpick 225239 # zlib: crc optimization for arm64
 kpick 230387 # CameraService: Support calling addStates in enumerateProviders
 kpick 230642 # CameraService: Initialize CameraParameters for the cameras and cache them onFirstRef
 kpick 231348 # camera: Allow to use boottime as timestamp reference
-kpick 233756 # [SQUSH][DNM] Merge tag 'android-9.0.0_r16' into lineage-16.0
 kpick 234010 # libstagefright: omx: Add support for loading prebuilt ddp decoder lib
 
 # frameworks/base
@@ -1115,8 +1121,7 @@ kpick 232796 # NetworkManagement : Add ability to restrict app vpn usage
 kpick 233369 # Add auth framework for outgoing SMS messages.
 kpick 233633 # Phone ringtone setting for Multi SIM device
 kpick 233717 # [DNM][HACK] Persist user brightness model
-kpick 233758 # [SQUSH][DNM] Merge tag 'android-9.0.0_r16' into lineage-16.0
-#kpick 234168 # Binder: Fix improper JNI call for dumpProxyDebugInfo
+kpick 234168 # Binder: Fix improper JNI call for dumpProxyDebugInfo
 
 # frameworks/native
 kpick 224443 # libbinder: Don't log call trace when waiting for vendor service on non-eng builds
@@ -1130,11 +1135,8 @@ kpick 229607 # HACK: SF: Force client composition for all layers
 kpick 230610 # APP may display abnormally in landscape LCM
 kpick 231828 # Translate pointer motion events for OneHandOperation Display Shrink
 kpick 231980 # HWComposer: HWC2: allow SkipValidate to be force disabled
-kpick 233757 # [SQUSH][DNM] Merge tag 'android-9.0.0_r16' into lineage-16.0
-kpick 234062 # Revert screenshot changes to exclude black cutout
 
 # frameworks/opt/net/wifi
-kpick 233759 # [SQUSH][DNM] Merge tag 'android-9.0.0_r16' into lineage-16.0
 
 # frameworks/opt/telephony
 kpick 227125 # RIL: Allow overriding RadioResponse and RadioIndication
@@ -1148,7 +1150,6 @@ kpick 231596 # Enable vendor Telephony plugin: MSIM Changes
 kpick 231598 # Telephony: Send INITIAL_ATTACH only when it is applicable.
 kpick 232365 # SimPhoneBook: Add ANR/EMAIL support for USIM phonebook.
 kpick 232366 # MSIM: Fix to set Mcc & Mnc with correct subId
-kpick 233760 # [SQUSH][DNM] Merge tag 'android-9.0.0_r16' into lineage-16.0
 
 # hardware/boardcom/libbt
 kpick 225155 # Broadcom BT: Add support fm/bt via v4l2.
@@ -1157,13 +1158,11 @@ kpick 234177 # libbt: Fix logic check when FW_PRE_PATCH is not used.
 # hardware/boardcom/nfc
 
 # hardware/boardcom/wlan
-kpick 233761 # [SQUSH][DNM] Merge tag 'android-9.0.0_r16' into lineage-16.0
 
 # hardware/interfaces
 kpick 225506 # Camed HAL extension: Added support in HIDL for Extended FD.
 kpick 225507 # camera: Only link and use vendor.qti.hardware.camera.device if specified
 kpick 226402 # keymasterV4_0: Tags support for FBE wrapped key.
-kpick 233762 # [SQUSH][DNM] Merge tag 'android-9.0.0_r16' into lineage-16.0
 kpick 233911 # Tuning of binder buffer for ARM devices
 kpick 233865 # wifi: Fetch softap interface name for creating ap_iface operations.
 kpick 233866 # wifi: Add provision to create/remove dynamic interface(s).
@@ -1181,12 +1180,10 @@ kpick 223410 # interfaces: Add touch HIDL interface definitions
 
 # hardware/qcom/audio
 kpick 223338 # Revert "msm8x74: remove from top level makefile"
-kpick 233763 # [SQUSH][DNM] Merge tag 'android-9.0.0_r16' into lineage-16.0
 
 # hardware/qcom/audio-caf/msm8974
 
 # hardware/qcom/bootctl
-kpick 233764 # [SQUSH][DNM] Merge tag 'android-9.0.0_r16' into lineage-16.0
 
 # hardware/qcom/bt-caf
 
@@ -1216,7 +1213,6 @@ kpick 223358 # msm8974: Fix logging level and remove nmea log
 kpick 223359 # msm8974: Don't rely on transitively included headers
 kpick 223360 # msm8974: Return the correct length of nmea sentence
 kpick 225034 # msm8974: Add -Wno-error to compile with global -Werror.
-kpick 233765 # [SQUSH][DNM] Merge tag 'android-9.0.0_r16' into lineage-16.0
 
 # hardware/qcom/keymaster
 #kpick 224948-224954
@@ -1233,7 +1229,6 @@ kpick 233465 # keymaster: Use generated kernel headers
 kpick 224955 # Revert "msm8974: remove from top level makefile"
 kpick 224956 # mm-video: venc: Correct a typo in variable name
 kpick 224957 # media: vdec: Include nativebase headers
-kpick 233766 # [SQUSH][DNM] Merge tag 'android-9.0.0_r16' into lineage-16.0
 
 # hardware/qcom/media-caf/msm8974
 
@@ -1256,10 +1251,8 @@ kpick 231897 # power: qcom: powerHal for sdm439 and sdm429
 kpick 231898 # Power: Naming convention change
 
 # hardware/qcom/thermal
-kpick 234178 # thermal: Use project pathmap
 
 # hardware/qcom/vr
-kpick 234179 # vr: Use project pathmap
 
 # hardware/qcom/wlan-caf
 kpick 226638 # wcnss_qmi: Generate a fixed random mac address if the NV doesn't provide one
@@ -1285,7 +1278,6 @@ kpick 230284 # Revert "[3/3] cmsdk: add burnIn protection setting"
 # packages/apps/Bluetooth
 kpick 229310 # SBC Dual Channel (SBC HD Audio) support
 kpick 229311 # Assume optional codecs are supported if were supported previously
-kpick 233768 # [SQUSH][DNM] Merge tag 'android-9.0.0_r16' into lineage-16.0
 
 # packages/apps/Calender
 
@@ -1293,26 +1285,20 @@ kpick 233768 # [SQUSH][DNM] Merge tag 'android-9.0.0_r16' into lineage-16.0
 kpick 224752 # Use mCameraAgentNg for getting camera info when available
 kpick 225265 # Add Storage preference (1/2)
 kpick 227123 # Camera2: Fix photo snap delay on front cam.
-kpick 233767 # [SQUSH][DNM] Merge tag 'android-9.0.0_r16' into lineage-16.0
 
 # packages/apps/Carrierconfig
-kpick 233769 # [SQUSH][DNM] Merge tag 'android-9.0.0_r16' into lineage-16.0
 
 # packages/apps/CellBroadcastReciver
 kpick 229303 # Only enable presidential CMAS alerts if user is a monkey
-kpick 233770 # [SQUSH][DNM] Merge tag 'android-9.0.0_r16' into lineage-16.0
 
 # packages/apps/Contacts
-kpick 233783 # [SQUSH][DNM] Merge tag 'android-9.0.0_r16' into lineage-16.0
 
 # packages/apps/DeskClock
 kpick 226131 # DeskClock: Add support of power off alarm feature
-kpick 233784 # [SQUSH][DNM] Merge tag 'android-9.0.0_r16' into lineage-16.0
 
 # packages/apps/Dialer
 
 # packages/apps/DocumentsUI
-kpick 233785 # [SQUSH][DNM] Merge tag 'android-9.0.0_r16' into lineage-16.0
 
 # packages/apps/Eleven
 
@@ -1339,7 +1325,6 @@ kpick 233050 # Move Gallery2 over to AAPT2 and new v4 modules
 kpick 233051 # Gallery2: Remove slideshow option if there are only videos
 kpick 233052 # Gallery2: Support GIF animation
 kpick 233053 # SnapdragonGallery: Fix FC when init() before setContentView
-kpick 233054 # SnapdragonGallery: Fix multithread synchronization in screenReceiver
 kpick 233055 # SnapdragonGallery: Fix dialog dismiss when home
 kpick 233056 # SnapdragonGallery: Fix crash show dialog when activity finished
 kpick 233057 # Don't show Camera Icon when no pictures found in Albums
@@ -1391,7 +1376,6 @@ kpick 233100 # Move Gallery2 to androidx.
 kpick 231418 # Automatic translation import
 
 # packages/apps/KeyChain
-kpick 233786 # [SQUSH][DNM] Merge tag 'android-9.0.0_r16' into lineage-16.0
 
 # packages/apps/LineageParts
 kpick 227930 # LineageParts: Bring back and refactor battery icon options
@@ -1402,16 +1386,12 @@ kpick 231163 # LineageParts: Add some missing psychedelics
 kpick 232146 # LineageParts: Reenable Privacy Guard
 
 # packages/apps/ManagedProvisoning
-kpick 233787 # [SQUSH][DNM] Merge tag 'android-9.0.0_r16' into lineage-16.0
 
 # packages/apps/Nfc
-kpick 233788 # [SQUSH][DNM] Merge tag 'android-9.0.0_r16' into lineage-16.0
 
 # packages/apps/PackagesInstaller
-kpick 233789 # [SQUSH][DNM] Merge tag 'android-9.0.0_r16' into lineage-16.0
 
 # packages/apps/PhoneCommon
-kpick 233790 # [SQUSH][DNM] Merge tag 'android-9.0.0_r16' into lineage-16.0
 
 # packages/apps/Settings
 kpick 226151 # Settings: show Trust brading in confirm_lock_password UI
@@ -1421,7 +1401,6 @@ kpick 227120 # Settings: Check interfaces before enabling ADB over network
 kpick 226142 # Settings: Add developer setting for root access
 kpick 232198 # Settings: appops: Privacy Guard for P (2/2)
 kpick 231590 # SimSettings: Add manual SIM provisioning support
-kpick 227929 # Settings: Remove battery percentage switch
 kpick 229167 # Settings: Hide Night Mode suggestion if LiveDisplay feature is present
 kpick 229312 # Add Dual Channel into Bluetooth Audio Channel Mode developer options menu
 kpick 229453 # Settings: use LineageHW serial number
@@ -1430,7 +1409,6 @@ kpick 231826 # Update the white list of Data saver
 kpick 232442 # Settings: Root appops access in developer settings
 kpick 232793 # Settings: per-app VPN data restriction
 kpick 233634 # Phone ringtone setting for Multi SIM device
-kpick 233791 # [SQUSH][DNM] Merge tag 'android-9.0.0_r16' into lineage-16.0
 kpick 234020 # Settings: Launch the development tools
 kpick 234021 # Settings: Add icons for development tools and bug report
 
@@ -1527,7 +1505,6 @@ kpick 233219 # Snap: Support override maker and model exif tag
 kpick 233220 # Snap: force enable zsl for lge hdr
 kpick 233221 # Snap: Extend user menu, disable dev menu
 kpick 233222 # Snap: Make developer menu more accessible
-kpick 233223 # Snap: Always allow 100% JPEG quality to be set
 kpick 233224 # Snap: Unbreak auto-HDR
 kpick 233225 # snap: Always turn touch-af-aec on
 kpick 233226 # snap: Add constrained longshot mode
@@ -1586,7 +1563,6 @@ kpick 233278 # Snap: Allow switching beyond just 2 cameras
 kpick 233279 # Always apply frame size reduction to panorama pictures
 kpick 233280 # Snap: Simulate back button press when menu back button is pressed
 kpick 233281 # Add overlay for restarting camera preview for additional cameras
-kpick 233282 # Focus only when tapping the preview
 kpick 233283 # Never ignore finger swipes in gallery mode
 kpick 233284 # Initialize focus overlay manager if it is not initialized.
 kpick 233285 # Camera: Set preview fps after recording.
@@ -1642,49 +1618,38 @@ kpick 233335 # Snap: use platform cert
 kpick 233336 # Import translations from 15.1
 
 # packages/apps/Stk
-kpick 233792 # [SQUSH][DNM] Merge tag 'android-9.0.0_r16' into lineage-16.0
 
 # packages/apps/StorageManager
-kpick 233793 # [SQUSH][DNM] Merge tag 'android-9.0.0_r16' into lineage-16.0
 
 # packages/apps/Traceur
-kpick 233794 # [SQUSH][DNM] Merge tag 'android-9.0.0_r16' into lineage-16.0
 
 # packages/apps/Trebuchet
 
 # packages/apps/TvSettings
-kpick 233818 # [SQUSH][DNM] Merge tag 'android-9.0.0_r16' into lineage-16.0
 
 # packages/apps/Updater
 
 # packages/inputmethods/LatinIME
-kpick 233795 # [SQUSH][DNM] Merge tag 'android-9.0.0_r16' into lineage-16.0
 
 # packages/providers/ContactsProvider
-kpick 233801 # [SQUSH][DNM] Merge tag 'android-9.0.0_r16' into lineage-16.0
 
 # packages/providers/DownloadProvider
 kpick 233424 # pie-gsi tracking
-kpick 233802 # [SQUSH][DNM] Merge tag 'android-9.0.0_r16' into lineage-16.0
 
 # packages/providers/MediaProvider
 kpick 233425 # pie-gsi tracking
 kpick 233083 # Gallery2: Fix up audio effects dialog
 
 # packages/providers/TelephonyProvider
-kpick 233804 # [SQUSH][DNM] Merge tag 'android-9.0.0_r16' into lineage-16.0
 
 # packages/services/BuiltinPrintService
-kpick 233805 # [SQUSH][DNM] Merge tag 'android-9.0.0_r16' into lineage-16.0
 
 # packages/services/Telecomm
 kpick 233635 # Phone ringtone setting for Multi SIM device
-kpick 233806 # [SQUSH][DNM] Merge tag 'android-9.0.0_r16' into lineage-16.0
 
 # packages/services/Telephony
 kpick 229610 # Telephony: Support muting by RIL command
 kpick 229611 # Telephony: Use a common prop for Huawei RIL hacks (2/2)
-kpick 233807 # [SQUSH][DNM] Merge tag 'android-9.0.0_r16' into lineage-16.0
 
 # system/bt
 kpick 224813 # bt: osi: undef PROPERTY_VALUE_MAX
@@ -1692,24 +1657,21 @@ kpick 229125 # Increase maximum Bluetooth SBC codec bitpool and bitrate values
 kpick 229313 # Explicit SBC Dual Channel (SBC HD) support
 kpick 229314 # Allow using alternative (higher) SBC HD bitrates with a property
 kpick 229401 # [DNM] Revert "Return early if vendor-specific command fails"
-kpick 233808 # [SQUSH][DNM] Merge tag 'android-9.0.0_r16' into lineage-16.0
 
 # system/core
 kpick -f 227110 # init: I hate safety net
-kpick 226917 # Switch root to /system in first stage mount
-kpick 226923 # init: First Stage Mount observe nofail mount flag
+#kpick 226917 # Switch root to /system in first stage mount
+#kpick 226923 # init: First Stage Mount observe nofail mount flag
 kpick 223085 # adbd: Disable "adb root" by system property (2/3)
-kpick 223500 # Add back fuse support
+#kpick 223500 # Add back fuse support
 kpick 224264 # debuggerd: Resolve tombstoned missing O_CREAT mode
 kpick 226120 # fs_mgr: Wrapped key support for FBE
 kpick 230755 # libsuspend: Bring back earlysuspend
 kpick 231716 # init: Always use libbootloader_message from bootable/recovery namespace
-kpick 233809 # [SQUSH][DNM] Merge tag 'android-9.0.0_r16' into lineage-16.0
 
 # system/extras
 kpick 225426 # f2fs_utils: Add a static libf2fs_sparseblock for minvold
 kpick 225427 # ext4_utils: Fix FS creation for filesystems with exactly 32768 blocks.
-kpick 233810 # [SQUSH][DNM] Merge tag 'android-9.0.0_r16' into lineage-16.0
 
 cd $topdir/system/extras/
 git stash >/dev/null
@@ -1745,17 +1707,14 @@ kpick 232427 # su: Update AppOps API calls
 # system/netd
 kpick 232794 # NetD : Allow passing in interface names for vpn app restriction
 kpick 233423 # pie-gsi tracking
-kpick 233811 # [SQUSH][DNM] Merge tag 'android-9.0.0_r16' into lineage-16.0
 kpick 231201 # netd: Allow devices to force-add directly-connected routes
 kpick 234190 # netd: Allow devices to opt-out of the tethering active FTP helper
 
 # system/security
-kpick 233812 # [SQUSH][DNM] Merge tag 'android-9.0.0_r16' into lineage-16.0
 
 # system/sepolicy
 kpick 230151 # Fix storaged access to /sys/block/mmcblk0/stat after c936223c
 kpick 230613 # Allow webview_zygote to read /dev/ion
-kpick 233813 # [SQUSH][DNM] Merge tag 'android-9.0.0_r16' into lineage-16.0
 
 # system/tool/aidl
 kpick 223133 # AIDL: Add option to generate No-Op methods
@@ -1771,7 +1730,6 @@ kpick 229304 # vold: Add texfat and sdfat support
 kpick 229954 # Move kMajor* constants to a header file
 kpick 229955 # vold: ISO9660 and UDF support
 kpick 231717 # vold: Always use libbootloader_message from bootable/recovery namespace
-kpick 233814 # [SQUSH][DNM] Merge tag 'android-9.0.0_r16' into lineage-16.0
 
 # vendor/lineage
 kpick 223773 # Add IPv6 for Oister and 3. The 3.dk and oister.dk carriers now support IPv6 with the APN ”data.tre.dk”.
@@ -1793,8 +1751,6 @@ kpick 231599 # privapp-permissions: Add new Gallery permissions
 kpick 231981 # HWComposer: HWC2: allow SkipValidate to be force disabled
 kpick 232659 # vendor/lineage: Build TrebuchetQuickStep
 kpick 232663 # overlay: Hide the option to show battery percentage
-kpick 232918 # extract_utils: Redirect vdexextractor log to /dev/null
-kpick 233630 # lineage: Consider techpack/audio when generating kernel headers
 kpick 234011 # lineage: Add media_codecs_ddp for AC3 audio
 
 # vendor/qcom/opensource/cryptfs_hw
@@ -1804,7 +1760,6 @@ kpick 226130 # cryptfs_hw: add missing logging tag
 kpick 226403 # cryptfs_hw: Remove unused variable
 
 # vendor/qcom/opensource/thermal-engine
-kpick 234181 # Remove Android.mk
 
 #-----------------------
 # translations

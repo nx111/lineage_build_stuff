@@ -1,7 +1,7 @@
-From cacf2a33c109e986bc7cdce3f003b1864f71a1bf Mon Sep 17 00:00:00 2001
+From bbc5c1ec55ff068593cd104763b3c08fd5f6201e Mon Sep 17 00:00:00 2001
 From: Kyrylo Mikos <kiril.mik.os@gmail.com>
 Date: Mon, 17 Nov 2014 13:56:05 +0200
-Subject: [PATCH 26/47] Implement expanded desktop feature
+Subject: [PATCH 26/46] Implement expanded desktop feature
 
 This squashes the following commits:
 
@@ -30,7 +30,7 @@ Change-Id: Ib0900349115442274fb08eb172de2567a8b00295
  rename services/core/java/com/android/server/policy/PolicyControl.java => core/java/android/view/WindowManagerPolicyControl.java (58%)
 
 diff --git a/core/java/android/provider/Settings.java b/core/java/android/provider/Settings.java
-index f999b779c22..b8f5f27bcc2 100644
+index 6a545fe7ece..be9e5b8d403 100644
 --- a/core/java/android/provider/Settings.java
 +++ b/core/java/android/provider/Settings.java
 @@ -11617,7 +11617,7 @@ public final class Settings {
@@ -59,28 +59,28 @@ index f999b779c22..b8f5f27bcc2 100644
           * Defines global zen mode.  ZEN_MODE_OFF, ZEN_MODE_IMPORTANT_INTERRUPTIONS,
           * or ZEN_MODE_NO_INTERRUPTIONS.
 diff --git a/core/java/android/view/WindowManager.java b/core/java/android/view/WindowManager.java
-index 53155d7f301..8f15b04fefd 100644
+index 7182c3f5e80..bd5cba7338e 100644
 --- a/core/java/android/view/WindowManager.java
 +++ b/core/java/android/view/WindowManager.java
-@@ -1698,6 +1698,24 @@ public interface WindowManager extends ViewManager {
-         @RequiresPermission(permission.STATUS_BAR_SERVICE)
-         public static final int PRIVATE_FLAG_IS_SCREEN_DECOR = 0x00400000;
+@@ -1707,6 +1707,24 @@ public interface WindowManager extends ViewManager {
+          */
+         public static final int PRIVATE_FLAG_STATUS_BAR_EXPANDED = 0x00800000;
  
 +        /**
 +         * @hide
 +         */
-+        public static final int PRIVATE_FLAG_STATUS_HIDE_FORCED = 0x00800000;
++        public static final int PRIVATE_FLAG_STATUS_HIDE_FORCED = 0x01000000;
 +
 +        /**
 +         * @hide
 +         */
-+        public static final int PRIVATE_FLAG_NAV_HIDE_FORCED = 0x01000000;
++        public static final int PRIVATE_FLAG_NAV_HIDE_FORCED = 0x02000000;
 +
 +        /**
 +         * The window had not set FULLSCREEN flag so don't handle it as fullscreen in layoutWindowLw
 +         * @hide
 +         */
-+        public static final int PRIVATE_FLAG_WAS_NOT_FULLSCREEN = 0x02000000;
++        public static final int PRIVATE_FLAG_WAS_NOT_FULLSCREEN = 0x04000000;
 +
 +        /**
 +         * Window flag: Overrides default power key behavior
@@ -375,7 +375,7 @@ index 48e72bc5036..0a6072b7a15 100644
              return mBlacklist.contains(packageName) || mBlacklist.contains(ALL);
          }
 diff --git a/services/core/java/com/android/server/policy/BarController.java b/services/core/java/com/android/server/policy/BarController.java
-index eca6f9f1ec4..f2466bdd668 100644
+index 14c985c090a..ca70816f75d 100644
 --- a/services/core/java/com/android/server/policy/BarController.java
 +++ b/services/core/java/com/android/server/policy/BarController.java
 @@ -28,6 +28,7 @@ import android.util.Slog;
@@ -421,22 +421,23 @@ index 4aa24465215..368d1680f95 100644
                      disabled, mConfirmed));
              if (!disabled
 diff --git a/services/core/java/com/android/server/policy/PhoneWindowManager.java b/services/core/java/com/android/server/policy/PhoneWindowManager.java
-index ef98038aad1..384e0e00722 100644
+index 9f32f32adc4..4bab1103c19 100644
 --- a/services/core/java/com/android/server/policy/PhoneWindowManager.java
 +++ b/services/core/java/com/android/server/policy/PhoneWindowManager.java
-@@ -75,8 +75,11 @@ import static android.view.WindowManager.LayoutParams.PRIVATE_FLAG_INHERIT_TRANS
+@@ -75,9 +75,12 @@ import static android.view.WindowManager.LayoutParams.PRIVATE_FLAG_INHERIT_TRANS
  import static android.view.WindowManager.LayoutParams.PRIVATE_FLAG_IS_ROUNDED_CORNERS_OVERLAY;
  import static android.view.WindowManager.LayoutParams.PRIVATE_FLAG_IS_SCREEN_DECOR;
  import static android.view.WindowManager.LayoutParams.PRIVATE_FLAG_KEYGUARD;
 +import static android.view.WindowManager.LayoutParams.PRIVATE_FLAG_NAV_HIDE_FORCED;
  import static android.view.WindowManager.LayoutParams.PRIVATE_FLAG_SHOW_FOR_ALL_USERS;
+ import static android.view.WindowManager.LayoutParams.PRIVATE_FLAG_STATUS_BAR_EXPANDED;
 +import static android.view.WindowManager.LayoutParams.PRIVATE_FLAG_STATUS_HIDE_FORCED;
  import static android.view.WindowManager.LayoutParams.PRIVATE_FLAG_SYSTEM_ERROR;
 +import static android.view.WindowManager.LayoutParams.PRIVATE_FLAG_WAS_NOT_FULLSCREEN;
  import static android.view.WindowManager.LayoutParams.ROTATION_ANIMATION_CROSSFADE;
  import static android.view.WindowManager.LayoutParams.ROTATION_ANIMATION_JUMPCUT;
  import static android.view.WindowManager.LayoutParams.ROTATION_ANIMATION_ROTATE;
-@@ -259,6 +262,7 @@ import android.view.ViewConfiguration;
+@@ -260,6 +263,7 @@ import android.view.ViewConfiguration;
  import android.view.WindowManager;
  import android.view.WindowManager.LayoutParams;
  import android.view.WindowManagerGlobal;
@@ -444,7 +445,7 @@ index ef98038aad1..384e0e00722 100644
  import android.view.accessibility.AccessibilityEvent;
  import android.view.accessibility.AccessibilityManager;
  import android.view.animation.Animation;
-@@ -929,6 +933,8 @@ public class PhoneWindowManager implements WindowManagerPolicy {
+@@ -930,6 +934,8 @@ public class PhoneWindowManager implements WindowManagerPolicy {
      private static final int MSG_REQUEST_TRANSIENT_BARS_ARG_NAVIGATION = 1;
  
      private LineageHardwareManager mLineageHardware;
@@ -453,7 +454,7 @@ index ef98038aad1..384e0e00722 100644
  
      private CameraManager mCameraManager;
      private String mRearFlashCameraId;
-@@ -2934,7 +2940,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
+@@ -2935,7 +2941,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
              }
          }
          synchronized (mWindowManagerFuncs.getWindowManagerLock()) {
@@ -462,7 +463,7 @@ index ef98038aad1..384e0e00722 100644
          }
          if (updateRotation) {
              updateRotation(true);
-@@ -5088,9 +5094,9 @@ public class PhoneWindowManager implements WindowManagerPolicy {
+@@ -5081,9 +5087,9 @@ public class PhoneWindowManager implements WindowManagerPolicy {
      public boolean getLayoutHintLw(WindowManager.LayoutParams attrs, Rect taskBounds,
              DisplayFrames displayFrames, Rect outFrame, Rect outContentInsets, Rect outStableInsets,
              Rect outOutsets, DisplayCutout.ParcelableWrapper outDisplayCutout) {
@@ -475,7 +476,7 @@ index ef98038aad1..384e0e00722 100644
          final int sysUiVis = requestedSysUiVis | getImpliedSysUiFlagsForLayout(attrs);
          final int displayRotation = displayFrames.mRotation;
          final int displayWidth = displayFrames.mDisplayWidth;
-@@ -5595,6 +5601,19 @@ public class PhoneWindowManager implements WindowManagerPolicy {
+@@ -5587,6 +5593,19 @@ public class PhoneWindowManager implements WindowManagerPolicy {
          pf.set((fl & FLAG_LAYOUT_IN_SCREEN) == 0 ? attached.getFrameLw() : df);
      }
  
@@ -495,7 +496,7 @@ index ef98038aad1..384e0e00722 100644
      private void applyStableConstraints(int sysui, int fl, Rect r, DisplayFrames displayFrames) {
          if ((sysui & View.SYSTEM_UI_FLAG_LAYOUT_STABLE) == 0) {
              return;
-@@ -5637,10 +5656,10 @@ public class PhoneWindowManager implements WindowManagerPolicy {
+@@ -5629,10 +5648,10 @@ public class PhoneWindowManager implements WindowManagerPolicy {
          }
  
          final int type = attrs.type;
@@ -509,7 +510,7 @@ index ef98038aad1..384e0e00722 100644
          final int sysUiFl = requestedSysUiFl | getImpliedSysUiFlagsForLayout(attrs);
  
          final Rect pf = mTmpParentFrame;
-@@ -5806,7 +5825,8 @@ public class PhoneWindowManager implements WindowManagerPolicy {
+@@ -5798,7 +5817,8 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                          of.set(displayFrames.mUnrestricted);
                      }
  
@@ -519,7 +520,7 @@ index ef98038aad1..384e0e00722 100644
                          if (win.isVoiceInteraction()) {
                              cf.set(displayFrames.mVoiceContent);
                          } else {
-@@ -5815,6 +5835,8 @@ public class PhoneWindowManager implements WindowManagerPolicy {
+@@ -5807,6 +5827,8 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                              } else {
                                  cf.set(displayFrames.mContent);
                              }
@@ -528,7 +529,7 @@ index ef98038aad1..384e0e00722 100644
                          }
                      } else {
                          // Full screen windows are always given a layout that is as if the status
-@@ -5828,6 +5850,8 @@ public class PhoneWindowManager implements WindowManagerPolicy {
+@@ -5820,6 +5842,8 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                      } else {
                          vf.set(cf);
                      }
@@ -537,7 +538,7 @@ index ef98038aad1..384e0e00722 100644
                  }
              } else if (layoutInScreen || (sysUiFl
                      & (View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-@@ -5921,6 +5945,8 @@ public class PhoneWindowManager implements WindowManagerPolicy {
+@@ -5913,6 +5937,8 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                  } else {
                      vf.set(cf);
                  }
@@ -546,7 +547,7 @@ index ef98038aad1..384e0e00722 100644
              } else if (attached != null) {
                  if (DEBUG_LAYOUT) Slog.v(TAG, "layoutWindowLw(" + attrs.getTitle()
                          + "): attached to " + attached);
-@@ -5967,6 +5993,8 @@ public class PhoneWindowManager implements WindowManagerPolicy {
+@@ -5959,6 +5985,8 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                      } else {
                          vf.set(cf);
                      }
@@ -555,7 +556,7 @@ index ef98038aad1..384e0e00722 100644
                  }
              }
          }
-@@ -6108,6 +6136,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
+@@ -6100,6 +6128,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
          top += win.getGivenContentInsetsLw().top;
          displayFrames.mContent.bottom = Math.min(displayFrames.mContent.bottom, top);
          displayFrames.mVoiceContent.bottom = Math.min(displayFrames.mVoiceContent.bottom, top);
@@ -563,7 +564,7 @@ index ef98038aad1..384e0e00722 100644
          top = win.getVisibleFrameLw().top;
          top += win.getGivenVisibleInsetsLw().top;
          displayFrames.mCurrent.bottom = Math.min(displayFrames.mCurrent.bottom, top);
-@@ -6147,7 +6176,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
+@@ -6139,7 +6168,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
          final boolean affectsSystemUi = win.canAffectSystemUiFlags();
          if (DEBUG_LAYOUT) Slog.i(TAG, "Win " + win + ": affectsSystemUi=" + affectsSystemUi);
          applyKeyguardPolicyLw(win, imeTarget);
@@ -572,7 +573,7 @@ index ef98038aad1..384e0e00722 100644
          if (mTopFullscreenOpaqueWindowState == null && affectsSystemUi
                  && attrs.type == TYPE_INPUT_METHOD) {
              mForcingShowNavBar = true;
-@@ -6390,8 +6419,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
+@@ -6381,8 +6410,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
          if (mTopFullscreenOpaqueWindowState == null) {
              return false;
          }
@@ -582,7 +583,7 @@ index ef98038aad1..384e0e00722 100644
          if (localLOGV) {
              Slog.d(TAG, "frame: " + mTopFullscreenOpaqueWindowState.getFrameLw());
              Slog.d(TAG, "attr: " + mTopFullscreenOpaqueWindowState.getAttrs()
-@@ -8911,11 +8939,35 @@ public class PhoneWindowManager implements WindowManagerPolicy {
+@@ -8902,11 +8930,35 @@ public class PhoneWindowManager implements WindowManagerPolicy {
              return 0;
          }
  
@@ -620,7 +621,7 @@ index ef98038aad1..384e0e00722 100644
          }
  
          final int fullscreenVisibility = updateLightStatusBarLw(0 /* vis */,
-@@ -8966,7 +9018,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
+@@ -8957,7 +9009,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
              // If the top fullscreen-or-dimming window is also the top fullscreen, respect
              // its light flag.
              vis &= ~View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
@@ -629,7 +630,7 @@ index ef98038aad1..384e0e00722 100644
                      & View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
          } else if (statusColorWin != null && statusColorWin.isDimming()) {
              // Otherwise if it's dimming, clear the light flag.
-@@ -8985,7 +9037,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
+@@ -8976,7 +9028,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
          final boolean imeWindowCanNavColorWindow = imeWindow != null
                  && imeWindow.isVisibleLw()
                  && navBarPosition == NAV_BAR_BOTTOM
@@ -638,7 +639,7 @@ index ef98038aad1..384e0e00722 100644
                  & WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS) != 0;
  
          if (opaque != null && opaqueOrDimming == opaque) {
-@@ -9008,7 +9060,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
+@@ -8999,7 +9051,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
  
          // The IME window and the dimming window are competing.  Check if the dimming window can be
          // IME target or not.
@@ -647,7 +648,7 @@ index ef98038aad1..384e0e00722 100644
              // The IME window is above the dimming window.
              return imeWindow;
          } else {
-@@ -9025,7 +9077,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
+@@ -9016,7 +9068,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
              if (navColorWin == imeWindow || navColorWin == opaque) {
                  // Respect the light flag.
                  vis &= ~View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
@@ -656,7 +657,7 @@ index ef98038aad1..384e0e00722 100644
                          & View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
              } else if (navColorWin == opaqueOrDimming && navColorWin.isDimming()) {
                  // Clear the light flag for dimming window.
-@@ -9092,7 +9144,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
+@@ -9083,7 +9135,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                  (vis & View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY) != 0;
          final boolean hideStatusBarWM =
                  mTopFullscreenOpaqueWindowState != null
@@ -665,7 +666,7 @@ index ef98038aad1..384e0e00722 100644
                          & WindowManager.LayoutParams.FLAG_FULLSCREEN) != 0;
          final boolean hideStatusBarSysui =
                  (vis & View.SYSTEM_UI_FLAG_FULLSCREEN) != 0;
-@@ -9557,7 +9609,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
+@@ -9548,7 +9600,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
          mGlobalKeyManager.dump(prefix, pw);
          mStatusBarController.dump(pw, prefix);
          mNavigationBarController.dump(pw, prefix);
@@ -674,7 +675,7 @@ index ef98038aad1..384e0e00722 100644
  
          if (mWakeGestureListener != null) {
              mWakeGestureListener.dump(pw, prefix);
-@@ -9635,6 +9687,28 @@ public class PhoneWindowManager implements WindowManagerPolicy {
+@@ -9626,6 +9678,28 @@ public class PhoneWindowManager implements WindowManagerPolicy {
          }
      }
  
@@ -704,10 +705,10 @@ index ef98038aad1..384e0e00722 100644
          switch (allowAll) {
              case -1:
 diff --git a/services/core/java/com/android/server/policy/WindowManagerPolicy.java b/services/core/java/com/android/server/policy/WindowManagerPolicy.java
-index fbcf2c37f53..00d2a11bd16 100644
+index 809cf799168..d77248bb726 100644
 --- a/services/core/java/com/android/server/policy/WindowManagerPolicy.java
 +++ b/services/core/java/com/android/server/policy/WindowManagerPolicy.java
-@@ -624,6 +624,8 @@ public interface WindowManagerPolicy extends WindowManagerPolicyConstants {
+@@ -626,6 +626,8 @@ public interface WindowManagerPolicy extends WindowManagerPolicyConstants {
           */
          void screenTurningOff(ScreenOffListener listener);
  
@@ -739,10 +740,10 @@ index dc6b49127f7..64edfef4ed8 100644
          mDisplayCutout = mDisplayInfoCutout;
          mDisplayCutoutSafe.set(Integer.MIN_VALUE, Integer.MIN_VALUE,
 diff --git a/services/core/java/com/android/server/wm/WindowManagerService.java b/services/core/java/com/android/server/wm/WindowManagerService.java
-index c8cfd5710f6..59c7a9bce8c 100644
+index 136ac5486f7..06907911cad 100644
 --- a/services/core/java/com/android/server/wm/WindowManagerService.java
 +++ b/services/core/java/com/android/server/wm/WindowManagerService.java
-@@ -3212,6 +3212,11 @@ public class WindowManagerService extends IWindowManager.Stub
+@@ -3218,6 +3218,11 @@ public class WindowManagerService extends IWindowManager.Stub
          return mPointerEventDispatcher != null;
      }
  
