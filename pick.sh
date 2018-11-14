@@ -1083,7 +1083,6 @@ kpick 234010 # libstagefright: omx: Add support for loading prebuilt ddp decoder
 # frameworks/base
 kpick 224266 # SystemUI: Add Lineage statusbar item holder
 kpick 224267 # SystemUI: Network Traffic [1/3]
-kpick 224446 # SystemUI: Make tablets great again
 kpick 224513 # SystemUI: Disable config_keyguardUserSwitcher on sw600dp
 kpick 226236 # SystemUI: add navbar layout inversion tuning
 kpick 226343 # CameraServiceProxy: Loosen UID check
@@ -1122,6 +1121,7 @@ kpick 233369 # Add auth framework for outgoing SMS messages.
 kpick 233633 # Phone ringtone setting for Multi SIM device
 kpick 233717 # [DNM][HACK] Persist user brightness model
 kpick 234168 # Binder: Fix improper JNI call for dumpProxyDebugInfo
+kpick 234318 # Wifi: Check for WiFiService's existence before its access
 
 # frameworks/native
 kpick 224443 # libbinder: Don't log call trace when waiting for vendor service on non-eng builds
@@ -1150,6 +1150,7 @@ kpick 231596 # Enable vendor Telephony plugin: MSIM Changes
 kpick 231598 # Telephony: Send INITIAL_ATTACH only when it is applicable.
 kpick 232365 # SimPhoneBook: Add ANR/EMAIL support for USIM phonebook.
 kpick 232366 # MSIM: Fix to set Mcc & Mnc with correct subId
+kpick 234319 # LocaleTracker: Add null check before accessing WifiManager
 
 # hardware/boardcom/libbt
 kpick 225155 # Broadcom BT: Add support fm/bt via v4l2.
@@ -1274,6 +1275,7 @@ kpick 231960 # bauth: Add enumerate function
 kpick 227931 # lineagesdk: Refactor battery icon options
 kpick 230272 # sdk: Remove VOLUME_KEYS_CONTROL_RING_STREAM
 kpick 230284 # Revert "[3/3] cmsdk: add burnIn protection setting"
+kpick 234317 # ProfileManager: Don't start before decrypted
 
 # packages/apps/Bluetooth
 kpick 229310 # SBC Dual Channel (SBC HD Audio) support
