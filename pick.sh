@@ -831,7 +831,11 @@ function apply_force_changes(){
       | while read f; do
          cd $topdir/vendor/lineage;
          if ! git am -3 -q   --keep-cr --committer-date-is-author-date < $f; then
-            exit -1
+             if [ "$script_file" != "bash" ]; then
+                 int_handler
+             else
+                 return -1
+             fi
          fi
     done
 }
@@ -1120,7 +1124,7 @@ kpick 232796 # NetworkManagement : Add ability to restrict app vpn usage
 kpick 233369 # Add auth framework for outgoing SMS messages.
 kpick 233633 # Phone ringtone setting for Multi SIM device
 kpick 233717 # [DNM][HACK] Persist user brightness model
-kpick 234168 # Binder: Fix improper JNI call for dumpProxyDebugInfo
+#kpick 234168 # Binder: Fix improper JNI call for dumpProxyDebugInfo
 kpick 234318 # Wifi: Check for WiFiService's existence before its access
 
 # frameworks/native
@@ -1154,7 +1158,6 @@ kpick 234319 # LocaleTracker: Add null check before accessing WifiManager
 
 # hardware/boardcom/libbt
 kpick 225155 # Broadcom BT: Add support fm/bt via v4l2.
-kpick 234177 # libbt: Fix logic check when FW_PRE_PATCH is not used.
 
 # hardware/boardcom/nfc
 
@@ -1296,7 +1299,7 @@ kpick 229303 # Only enable presidential CMAS alerts if user is a monkey
 # packages/apps/Contacts
 
 # packages/apps/DeskClock
-kpick 226131 # DeskClock: Add support of power off alarm feature
+kpick 234353 # Release the wakelock before worker thread termination
 
 # packages/apps/Dialer
 
