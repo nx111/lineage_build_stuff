@@ -1389,6 +1389,9 @@ kpick 232146 # LineageParts: Reenable Privacy Guard
 
 # packages/apps/ManagedProvisoning
 
+# packages/apps/Message
+kpick 234351 # Allow intent shared subject or title to be mms subject
+
 # packages/apps/Nfc
 
 # packages/apps/PackagesInstaller
@@ -1754,6 +1757,7 @@ kpick 231981 # HWComposer: HWC2: allow SkipValidate to be force disabled
 kpick 232659 # vendor/lineage: Build TrebuchetQuickStep
 kpick 232663 # overlay: Hide the option to show battery percentage
 kpick 234011 # lineage: Add media_codecs_ddp for AC3 audio
+kpick 234352 # lineage-iosched: restorecon slice_idle on scheduler change
 
 # vendor/qcom/opensource/cryptfs_hw
 kpick 226128 # cryptfs_hw: Add compatibility for pre-O hw crypto
