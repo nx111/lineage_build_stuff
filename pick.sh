@@ -455,7 +455,7 @@ function kpick()
     rm -f $logfile $errfile $change_number_list
 
     for op in $*; do
-        if [ -z "$changeNumber" ] && [[ $op =~ ^[0-9]+$ ]] && [ $op -gt 1000 ]; then
+        if [ -z "$changeNumber" ] && [[ $op =~ ^[0-9]+$ || $op =~ ^[0-9]+\/[0-9]+$ ]] && [ $(echo $op | cut -d/ -f1) -gt 1000 ]; then
              changeNumber=$op
         elif echo $op | grep -q "[[:digit:]]*-[[:digit:]]*"; then
              query="$query $op"
@@ -546,7 +546,7 @@ function kpick_action()
              op_is_topic=0
         fi
         [ "$op" = "-m" ] && op_is_m_parent=1 && continue
-        [ -z "$changeNumber" ] && [[ $op =~ ^[0-9]+$ ]] && [ $op -gt 1000 ] && changeNumber=$op
+        [ -z "$changeNumber" ] &&  [[ $op =~ ^[0-9]+$ || $op =~ ^[0-9]+\/[0-9]+$ ]] && [ $(echo $op | cut -d/ -f1) -gt 1000 ] && changeNumber=$op
         [ "$op" = "-f" ] && op_force_pick=1
         [ "$op" = "-t" ] && op_is_topic=1
         nops="$nops $op"
@@ -795,7 +795,7 @@ function kpick_action()
                fi
                [ ! -z $target_script -a -f $target_script ] && \
                eval  sed -E \"/[[:space:]]*kpick[[:space:]]\{1,\}$changeNumber[[:space:]]*.*/d\" -i $target_script
-            elif grep -q "could not determine the project path for" $errfile; then
+            elif [ -f $errfile ] && grep -q "could not determine the project path for" $errfile; then
                [ ! -f $script_file.tmp -a "$script_file" != "bash" ] && cp $script_file $script_file.tmp
                if [ -f $script_file.tmp ]; then
                     target_script=$script_file.tmp

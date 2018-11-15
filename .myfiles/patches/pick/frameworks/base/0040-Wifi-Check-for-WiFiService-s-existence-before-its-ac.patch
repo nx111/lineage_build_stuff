@@ -1,4 +1,4 @@
-From 6089c2ad3935cfd6139b3063456794426366a9d4 Mon Sep 17 00:00:00 2001
+From d817c700bd900f21f8825a1ebc3eb8cf4b2c37f5 Mon Sep 17 00:00:00 2001
 From: Abhishek Srivastava <cabsriv@codeaurora.org>
 Date: Mon, 9 Jul 2018 19:05:28 +0530
 Subject: [PATCH 40/45] Wifi: Check for WiFiService's existence before its
@@ -13,53 +13,55 @@ before the access in all the components of systemUI.
 Change-Id: I5fb753df8874b962622ef6921b9cbc518381203c
 CRs-Fixed: 2276734
 ---
- .../src/com/android/settingslib/wifi/WifiTracker.java    | 2 +-
+ .../src/com/android/settingslib/wifi/WifiTracker.java    | 6 +++---
  .../systemui/statusbar/policy/HotspotControllerImpl.java | 7 ++++---
  .../systemui/statusbar/policy/WifiSignalController.java  | 9 ++++++---
- 3 files changed, 11 insertions(+), 7 deletions(-)
+ 3 files changed, 13 insertions(+), 9 deletions(-)
 
 diff --git a/packages/SettingsLib/src/com/android/settingslib/wifi/WifiTracker.java b/packages/SettingsLib/src/com/android/settingslib/wifi/WifiTracker.java
-index d8f0886730d..0270796680c 100644
+index d8f0886730d..da64c523141 100644
 --- a/packages/SettingsLib/src/com/android/settingslib/wifi/WifiTracker.java
 +++ b/packages/SettingsLib/src/com/android/settingslib/wifi/WifiTracker.java
-@@ -207,7 +207,6 @@ public class WifiTracker implements LifecycleObserver, OnStart, OnStop, OnDestro
+@@ -206,9 +206,6 @@ public class WifiTracker implements LifecycleObserver, OnStart, OnStop, OnDestro
+         mListener = new WifiListenerExecutor(wifiListener);
          mConnectivityManager = connectivityManager;
  
-         // check if verbose logging developer option has been turned on or off
+-        // check if verbose logging developer option has been turned on or off
 -        sVerboseLogging = (mWifiManager.getVerboseLoggingLevel() > 0);
- 
+-
          mFilter = filter;
  
-@@ -729,6 +728,7 @@ public class WifiTracker implements LifecycleObserver, OnStart, OnStop, OnDestro
-         @Override
+         mNetworkRequest = new NetworkRequest.Builder()
+@@ -730,6 +727,9 @@ public class WifiTracker implements LifecycleObserver, OnStart, OnStop, OnDestro
          public void onReceive(Context context, Intent intent) {
              String action = intent.getAction();
-+            sVerboseLogging = (mWifiManager.getVerboseLoggingLevel() > 0);
  
++            // Check if verbose logging developer option has been turned on or off
++            sVerboseLogging = (mWifiManager.getVerboseLoggingLevel() > 0);
++
              if (WifiManager.WIFI_STATE_CHANGED_ACTION.equals(action)) {
                  updateWifiState(
+                         intent.getIntExtra(WifiManager.EXTRA_WIFI_STATE,
 diff --git a/packages/SystemUI/src/com/android/systemui/statusbar/policy/HotspotControllerImpl.java b/packages/SystemUI/src/com/android/systemui/statusbar/policy/HotspotControllerImpl.java
-index 3c16329e6f1..bdc6a46083f 100644
+index 3c16329e6f1..f18eef07e22 100644
 --- a/packages/SystemUI/src/com/android/systemui/statusbar/policy/HotspotControllerImpl.java
 +++ b/packages/SystemUI/src/com/android/systemui/statusbar/policy/HotspotControllerImpl.java
-@@ -114,11 +114,12 @@ public class HotspotControllerImpl implements HotspotController, WifiManager.Sof
+@@ -114,9 +114,10 @@ public class HotspotControllerImpl implements HotspotController, WifiManager.Sof
      private void updateWifiStateListeners(boolean shouldListen) {
          mWifiStateReceiver.setListening(shouldListen);
          if (shouldListen) {
 -            mWifiManager.registerSoftApCallback(
-+            if(mWifiManager != null)
+-                    this,
+-                    Dependency.get(Dependency.MAIN_HANDLER));
++            if (mWifiManager != null)
 +                mWifiManager.registerSoftApCallback(
-                     this,
-                     Dependency.get(Dependency.MAIN_HANDLER));
--        } else {
--            mWifiManager.unregisterSoftApCallback(this);
-+            } else {
-+                mWifiManager.unregisterSoftApCallback(this);
++                        this,
++                        Dependency.get(Dependency.MAIN_HANDLER));
+         } else {
+             mWifiManager.unregisterSoftApCallback(this);
          }
-     }
- 
 diff --git a/packages/SystemUI/src/com/android/systemui/statusbar/policy/WifiSignalController.java b/packages/SystemUI/src/com/android/systemui/statusbar/policy/WifiSignalController.java
-index e5e576d6b80..b9bccefc4e6 100644
+index e5e576d6b80..312b0a305f5 100644
 --- a/packages/SystemUI/src/com/android/systemui/statusbar/policy/WifiSignalController.java
 +++ b/packages/SystemUI/src/com/android/systemui/statusbar/policy/WifiSignalController.java
 @@ -59,9 +59,12 @@ public class WifiSignalController extends
@@ -69,7 +71,7 @@ index e5e576d6b80..b9bccefc4e6 100644
 -        Messenger wifiMessenger = wifiManager.getWifiServiceMessenger();
 -        if (wifiMessenger != null) {
 -            mWifiChannel.connect(context, handler, wifiMessenger);
-+        if(wifiManager != null){
++        if (wifiManager != null) {
 +            Messenger wifiMessenger = wifiManager.getWifiServiceMessenger();
 +
 +            if (wifiMessenger != null) {
