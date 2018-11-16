@@ -955,7 +955,6 @@ kpick 227747 # lineage: Enable weather apps
 kpick 226755 # lineage: Enable cryptfs_hw
 kpick 231971 # manifest: sync gcc4.9 from aosp oreo
 kpick 232785 # lineage: Ship Snap and Trebuchet
-kpick 233629 # lineage: Enable Exchange
 
 android_head=$(cd android;git log -n 1 | sed -n 1p | cut -d' ' -f2;cd $topdir)
 
@@ -980,6 +979,9 @@ fi       # continue pick or not
 kpick 231209 # klte-common: nfc: pn547: Use prebuilt NFC HAL from 15.1
 kpick 225192 # klte-common: Align ril.h to samsung_msm8974-common P libril changes
 kpick 224917 # DO NOT MERGE: klte-common: Requisite bring-up BS change
+kpick 234488 # klte-common: sepolicy: Resolve fingerprint HAL denials
+kpick 234489 # klte-common: Move change of ownership of ES705 UART later
+kpick 234490 # klte-common: restorecon I/O scheduler tunables before touching them
 
 # device/samsung/msm8974-common
 kpick 231350 # msm8974-common: Set TARGET_NEEDS_NETD_DIRECT_CONNECT_RULE to true
@@ -1101,7 +1103,6 @@ kpick 227291 # [DNM] Revert "Handle public volumes and otherwise invalid UUIDs."
 kpick 227821 # GlobalScreenshot: Fix screenshot not saved with some languages
 kpick 227896 # SystemUI: Add Profiles tile
 kpick 221716 # Where's my circle battery, dude?
-kpick 228664 # [dnm][temp]display: Don't animate screen brightness when turning the screen on
 kpick 229166 # NightDisplayController: report unavailable if livedisplay feature is present
 kpick 229230 # SystemUI: allow the power menu to be relocated
 kpick 229307 # Add CHANNEL_MODE_DUAL_CHANNEL constant
@@ -1124,7 +1125,7 @@ kpick 232796 # NetworkManagement : Add ability to restrict app vpn usage
 kpick 233369 # Add auth framework for outgoing SMS messages.
 kpick 233633 # Phone ringtone setting for Multi SIM device
 kpick 233717 # [DNM][HACK] Persist user brightness model
-#kpick 234168 # Binder: Fix improper JNI call for dumpProxyDebugInfo
+kpick 234168 # Binder: Fix improper JNI call for dumpProxyDebugInfo
 kpick 234318 # Wifi: Check for WiFiService's existence before its access
 
 # frameworks/native
@@ -1389,6 +1390,7 @@ kpick 229389 # Trust: enforce vendor security patch level check
 kpick 230017 # LineageParts: Re-enable expanded desktop.
 kpick 231163 # LineageParts: Add some missing psychedelics
 kpick 232146 # LineageParts: Reenable Privacy Guard
+kpick 234438 # PartsActivity: Prevent actionbar NPE
 
 # packages/apps/ManagedProvisoning
 
@@ -1670,7 +1672,7 @@ kpick 229401 # [DNM] Revert "Return early if vendor-specific command fails"
 kpick -f 227110 # init: I hate safety net
 #kpick 226917 # Switch root to /system in first stage mount
 #kpick 226923 # init: First Stage Mount observe nofail mount flag
-kpick 223085 # adbd: Disable "adb root" by system property (2/3)
+#kpick 223085 # adbd: Disable "adb root" by system property (2/3)
 #kpick 223500 # Add back fuse support
 kpick 224264 # debuggerd: Resolve tombstoned missing O_CREAT mode
 kpick 226120 # fs_mgr: Wrapped key support for FBE
@@ -1760,7 +1762,7 @@ kpick 231981 # HWComposer: HWC2: allow SkipValidate to be force disabled
 kpick 232659 # vendor/lineage: Build TrebuchetQuickStep
 kpick 232663 # overlay: Hide the option to show battery percentage
 kpick 234011 # lineage: Add media_codecs_ddp for AC3 audio
-kpick 234352 # lineage-iosched: restorecon slice_idle on scheduler change
+kpick 234352 # lineage-iosched: restorecon scheduler tuneables before touching them
 
 # vendor/qcom/opensource/cryptfs_hw
 kpick 226128 # cryptfs_hw: Add compatibility for pre-O hw crypto
