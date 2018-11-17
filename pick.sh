@@ -445,6 +445,7 @@ function kpick()
     local query=""
     local is_topic_op=0
     local is_query_op=0
+    local extract_changeset=0
     local changeNumber
 
     logfile=$topdir/.pick_tmp.log
@@ -457,11 +458,13 @@ function kpick()
     for op in $*; do
         if [ -z "$changeNumber" ] && [[ $op =~ ^[0-9]+$ || $op =~ ^[0-9]+\/[0-9]+$ ]] && [ $(echo $op | cut -d/ -f1) -gt 1000 ]; then
              changeNumber=$op
-        elif echo $op | grep -q "[[:digit:]]*-[[:digit:]]*"; then
+        elif [[ "$op" =~ ^[[:digit:]]+\-[[:digit:]]+$ ]]; then
              query="$query $op"
         elif  [ "$op" = "-t" -o "$op" = "--topic" ]; then
              is_topic_op=1
              query="$query $op"
+        elif [ "$op" = "-x" ]; then
+             extract_changeset=1
         elif  [ "$op" = "-Q" -o "$op" = "--query" ]; then
              is_query_op=1
              query="$query $op"
@@ -475,6 +478,9 @@ function kpick()
            vars="$vars $op"
         fi
     done
+    query=$(echo $query | sed -e "s/^ //g" -e "s/ $//g")
+    vars=$(echo $vars | sed -e "s/^ //g" -e "s/ $//g")
+
     if  [ "$changeNumber" != "" ]; then
          rm -f $logfile $errfile $change_number_list
          kpick_action $vars $changeNumber
@@ -496,7 +502,7 @@ function kpick()
     fi
 
     local mLine=0
-    if [ ! -z $target_script -a -f $target_script ]; then
+    if [ ! -z $target_script -a -f $target_script ] && [ $extract_changeset -eq 1 ]; then
         mLine=$(grep -n "^[[:space:]]*kpick $*" $target_script | cut -d: -f1 )
         sed -e "s/\([[:space:]]*kpick $*\)/#\1/" -i   $target_script
     fi
@@ -504,12 +510,11 @@ function kpick()
     [ -f $change_number_list ] || return 0
     while read line; do
         number=$(echo $line | sed -e "s/  / /g")
-        if [ ! -z $target_script -a -f $target_script ]; then
+        if [ ! -z $target_script -a -f $target_script ] && [ $extract_changeset -eq 1 ]; then
            sed "${mLine}akpick $number" -i  $target_script
            mLine=$(grep -n "^[[:space:]]*kpick $number" $target_script | cut -d: -f1 )
         fi
     done < $change_number_list
-
     while read line; do
         number=$(echo $line | cut -d" " -f 3)
         kpick_action $vars $number
@@ -954,7 +959,8 @@ kpick 227747 # lineage: Enable weather apps
 #kpick 227748 # lineage: Enable qcom thermal/vr HALs
 kpick 226755 # lineage: Enable cryptfs_hw
 kpick 231971 # manifest: sync gcc4.9 from aosp oreo
-kpick 232785 # lineage: Ship Snap and Trebuchet
+kpick 234529 # lineage: Ship Trebuchet
+kpick 232785 # lineage: Ship Snap
 
 android_head=$(cd android;git log -n 1 | sed -n 1p | cut -d' ' -f2;cd $topdir)
 
@@ -986,6 +992,7 @@ kpick 234490 # klte-common: restorecon I/O scheduler tunables before touching th
 # device/samsung/msm8974-common
 kpick 231350 # msm8974-common: Set TARGET_NEEDS_NETD_DIRECT_CONNECT_RULE to true
 kpick 234191 # msm8974-common: Disable netd active FTP helper
+kpick 234521-234527 -x
 
 # kernel/samsung/msm8974
 
@@ -1007,6 +1014,9 @@ kpick 231718 # recovery: Declare a soong namespace
 # build/make
 kpick 222742 # build: Use project pathmap for recovery
 kpick 222760 # Add LOCAL_AIDL_FLAGS
+#kpick 226919 # Depend on the ramdisk/root files for BOARD_BUILD_SYSTEM_ROOT_IMAGE
+#kpick 226920 # Support a first stage ramdisk via TARGET_RAMDISK_OUT
+#kpick 226939 # releasetools: Fix the path to the OTA keys in recovery image.
 kpick 227111 # releasetools: Store the build.prop file in the OTA zip
 kpick 233421 # pie-gsi tracking
 
@@ -1014,6 +1024,7 @@ kpick 233421 # pie-gsi tracking
 kpick 222648 # Allow providing flex and bison binaries
 kpick 224613 # soong: Add LOCAL_AIDL_FLAGS handling
 kpick 226443 # soong: Add additional_deps attribute for libraries and binaries
+#kpick 226918 # Add /ramdisk to installclean
 
 # dalvik
 kpick 225475 # dexdeps: Add option for --include-lineage-classes.
@@ -1024,6 +1035,7 @@ kpick 225476 # dexdeps: Ignore static initializers on analysis.
 kpick 229423 # selinux: add domain for snap
 kpick 229424 # selinux: add domain for Gallery
 kpick 232512 # sepolicy: Address lineage-iosched denials
+kpick 234487 # common: Label and allow init to write to I/O sched tuning nodes
 
 # device/qcom/sepolicy
 kpick 228566 # qcom: Label vendor files with (vendor|system/vendor) instead of vendor
@@ -1042,6 +1054,7 @@ kpick 228583 # sepolicy: allow vold to read persist dirs
 kpick 228584 # sepolicy: Fix video4linux "name" node labeling
 kpick 228585 # sepolicy: Allow mm-qcamerad to access v4L "name" node
 kpick 228586 # common: Fix labelling of lcd-backlight
+kpick 234530 # sepolicy: Remove rules for no longer supported platforms
 
 # device/qcom/sepolicy-legacy
 kpick 230828 # legacy: Label more power_supply sysfs
@@ -1061,6 +1074,7 @@ kpick 230236 # common: label /sys/devices/virtual/graphics as sysfs_graphics
 kpick 230238 # common: create proc_kernel_sched domain to restrict perf hal access
 kpick 230239 # common: allow uevent to control sysfs_mmc_host via vold
 kpick 234248 # sepolicy : set write permissions for sysfs_boot_adsp.
+kpick 234531 # sepolicy: Remove apq8098_latv and qsc605 platform rules
 
 # development
 kpick 232511 # make-key: Enforce PBEv1 password-protected signing keys
@@ -1425,207 +1439,7 @@ kpick 234021 # Settings: Add icons for development tools and bug report
 # packages/apps/SettingsIntelligence
 
 # packages/apps/Snap
-kpick 233131 # Revert "SnapdragonCamera: Forbid volume key can take picture"
-kpick 233132 # Revert "SnapdragonCamera: Reduce number of countdown timer option"
-kpick 233133 # Revert "SnapdragonCamera: Add missing permissions"
-kpick 233136 # Rename SnapdragonCamera to Snap
-kpick 233137 # tests: fix class name
-kpick 233138 # Snap: Fix jni compiler warnings
-kpick 233139 # snap: Fix module name conflict
-kpick 233140 # Snap: Use AOSP app label
-kpick 233141 # Snap: Remove old icons
-kpick 233142 # Snap: update icon
-kpick 233143 # SnapdragonCamera: Initialize overlay before control-by-intent
-kpick 233144 # SnapdragonCamera: Re-enable ZSL after exiting HDR mode
-kpick 233145 # SnapdragonCamera: Hide UI after error-checking video preferences
-kpick 233146 # camera: Add parameter debugging support
-kpick 233147 # camera: Cleanup and compatibility fixes
-kpick 233148 # camera: Remove the luma-adaptation seekbar
-kpick 233149 # camera: Add all focus modes, scene modes, and color effects.
-kpick 233150 # Camera: Add red-eye flash mode support
-kpick 233151 # camera: Check if video sizes are available
-kpick 233152 # camera: Proper fix for the missing video-sizes issue
-kpick 233153 # Camera2: enable antibanding by default
-kpick 233154 # camera: Remove ICS hack to stop preview after takePicture
-kpick 233155 # Camera2: Preview needs to be stopped when changing resolution
-kpick 233156 # Camera: fix preview for landscape devices
-kpick 233157 # Camera2: More thorough compatibility fixes
-kpick 233158 # Camera: Fix saturation, contrast, sharpness parameters
-kpick 233159 # camera: Make some parameter lookups safer
-kpick 233160 # Camera2: Don't report incorrect supported picture formats
-kpick 233161 # Camera2: some aapt warnings cleanup
-kpick 233162 # Camera2: Remove CAF video duration code
-kpick 233163 # Camera2: implement exposure compensation settings in video mode
-kpick 233164 # Camera: separate settings for color effects
-kpick 233165 # Camera: Change volume hard key button to zoom function
-kpick 233166 # Camera2: implement volume key zoom in video mode
-kpick 233167 # Camera: Powerkey shutter (2/2)
-kpick 233168 # Camera2: tweak volume key zoom and cleanup
-kpick 233169 # Camera: Cleanup hardware key handling
-kpick 233170 # Camera: Handle keys only while in app
-kpick 233171 # Camera2: Headset shutter mode
-kpick 233172 # Camera2: Add option to set max screen brightness
-kpick 233173 # SnapdragonCamera: Reset camera state after taking picture
-kpick 233174 # Snap: Fix filtering of unsupported camcorder color effects
-kpick 233175 # Snap: Add ISO values for sony devices
-kpick 233176 # add additional ISO values
-kpick 233177 # add support for non-standard iso keys and values
-kpick 233178 # add support for luminance-condition parameter
-kpick 233179 # option to set manufacturer specific parameters on startup
-kpick 233180 # add options to restart preview onPictureTaken
-kpick 233181 # Snap: make openLegacy an option
-kpick 233182 # Snap: Add touch-to-focus timeout duration settings
-kpick 233183 # Snap: add support for shutter speed
-kpick 233184 # Snap: add support for mw_continuous-picture focus mode
-kpick 233185 # Snap: add fallback for invalid video qualities
-kpick 233186 # SnapdragonCamera: Fix incorrect viewfinder ratio for 13.1MP shots
-kpick 233187 # Snap: restart preview when shutter-speed gets disabled
-kpick 233188 # CameraActivity: Handle NPE when film strip view is null
-kpick 233189 # Snap: Remove CAF Chinese translations
-kpick 233190 # Snap: Fix aapt warnings
-kpick 233191 # Snap: Fall back to default quality instead of 352x288
-kpick 233192 # Snap: Fix NPE when parameters.getSupportedVideoSizes() is null
-kpick 233193 # Move mApplicationContext to init()
-kpick 233194 # Snap: special handling of hdr-mode parameter for lge devices
-kpick 233195 # Snap: Support for HTC's HDR mode
-kpick 233196 # Snap: Remove touch AF/AEC option
-kpick 233197 # Snap: Actually select the highest quality video by default
-kpick 233198 # SnapdragonCamera: Add option to control antibanding in camcorder
-kpick 233199 # SnapdragonCamera: Fix overly-aggressive auto rotation
-kpick 233200 # SnapdragonCamera: Remove 'off' option for antibanding
-kpick 233201 # Snap: Don't enable ZSL when disabling HDR
-kpick 233202 # SnapdragonCamera: Fix UI alignment glitches when nav-bar is enabled
-kpick 233203 # Snap: do not restart preview during longshots
-kpick 233204 # Snap: Don't crash when hardcoded gallery intent fails
-kpick 233205 # SnapdragonCamera: Set camera parameters before restarting preview
-kpick 233206 # Fix crash if Exif-Tag buffer-length and component-count are both 0
-kpick 233207 # Snap: Cleanup flash icons
-kpick 233208 # Snap: Don't crash if user saved preference is not valid
-kpick 233209 # SnapdragonCamera: Scale up bitrate for HSR recordings
-kpick 233210 # Snap: Fix filtering of unsupported HFR/HSR modes
-kpick 233211 # Snap: Remove auto HDR option when not supported
-kpick 233212 # Snap: Remove video snapshot size when not supported
-kpick 233213 # Snap: Remove face detection option if not supported
-kpick 233214 # Snap: fix camera hang on LGE G4 when flash got used
-kpick 233215 # Snap: Fix incorrect preview layout surface size in landscape mode
-kpick 233216 # Snap: Do not crash when cur-focus-scale is null
-kpick 233217 # Snap: Fall back to REVIEW intent before VIEW intent
-kpick 233218 # Fix view index tracking.
-kpick 233219 # Snap: Support override maker and model exif tag
-kpick 233220 # Snap: force enable zsl for lge hdr
-kpick 233221 # Snap: Extend user menu, disable dev menu
-kpick 233222 # Snap: Make developer menu more accessible
-kpick 233224 # Snap: Unbreak auto-HDR
-kpick 233225 # snap: Always turn touch-af-aec on
-kpick 233226 # snap: Add constrained longshot mode
-kpick 233227 # Snap: Remove storage menu if no external storage available
-kpick 233228 # Snap: Fix possible NPE
-kpick 233229 # CameraNext: dynamically generate available photo resolutions
-kpick 233230 # Snap: add auto-hdr option to photo menu
-kpick 233231 # Allow to re-open Snap from recent menu
-kpick 233232 # Add orientation correction for landscape devices
-kpick 233233 # camera: Touch focus support for camcorder
-kpick 233234 # Camera2: Prevent autofocus when video snapshot is in progress
-kpick 233235 # Camera2: Prevent propogating CancelAutoFocus during Video Recording
-kpick 233236 # Snap: Set parameters before starting preview
-kpick 233237 # SnapdragonCamera: Add focus-mode option to camcorder
-kpick 233238 # SnapdragonCamera: Always lock AE and AWB when auto-focus is used
-kpick 233239 # SnapdragonCamera: Lock AE and AWB for tap-to-focus in camcorder
-kpick 233240 # SnapdragonCamera: Unlock AE/AWB after taking a photo with ZSL
-kpick 233241 # Snap: Expose video snapshot size setting
-kpick 233242 # Snap: Add focus time support in camcorder
-kpick 233243 # Snap: Add ability to set the tap-to-focus duration to 0 sec
-kpick 233244 # Snap: Cleanup focus time duration entries
-kpick 233245 # Snap: Separate default focus time between camera/video
-kpick 233246 # Snap: Fix crash when set infinite touch-focus duration
-kpick 233247 # Camera2: Only autofocus before a snap if we are actually in "auto" mode.
-kpick 233248 # camera: Keep touch focus intact during back-to-back ZSL shots
-kpick 233249 # snap: Fixes for advanced features and scene modes
-kpick 233250 # snap: Additional fixes for auto-HDR mode
-kpick 233251 # Snap: grant android.permission.RECEIVE_BOOT_COMPLETED permisions
-kpick 233252 # Snap: initial materialization
-kpick 233253 # Snap: Material toasts
-kpick 233254 # Snap: remove captureUI pngdrawables
-kpick 233255 # Remove unused menu indicators code.
-kpick 233256 # Snap: update shutter button style
-kpick 233257 # Snap: Add icons to all remaining preferences
-kpick 233258 # Snap: Add icons to all scene modes
-kpick 233259 # snap: Adjust top bar icon order
-kpick 233260 # De-uglify menu.
-kpick 233261 # Use material versions of share/delete/edit icons.
-kpick 233262 # Snap: update caf icons
-kpick 233263 # CameraNext: Fallback to do copy exif if exif not exist
-kpick 233264 # CameraNext: don't crash when pref is not boolean
-kpick 233265 # Show UI when pano stitch starts and remove cancel condition
-kpick 233266 # snap: Panorama fixes
-kpick 233267 # Fix broken filenames for cropped images
-kpick 233268 # CropActivity: notify MediaScanner on save complete
-kpick 233269 # CameraNext: stop updating the pano progress bar on pause
-kpick 233270 # Grant read URI permission for playback of video capture
-kpick 233271 # Make panorama able to go 270 degrees in landscape
-kpick 233272 # CameraNext: Update focus behavior for panoramas
-kpick 233273 # Stop data loader on activity destroy.
-kpick 233274 # Initialize focus manager in onResume().
-kpick 233275 # Snap: prevent NPE when checking if controls are visible
-kpick 233276 # Snap: detect and use Camera2 if available
-kpick 233277 # Snap: CaptureModule: check if ZSL is supported before using it
-kpick 233278 # Snap: Allow switching beyond just 2 cameras
-kpick 233279 # Always apply frame size reduction to panorama pictures
-kpick 233280 # Snap: Simulate back button press when menu back button is pressed
-kpick 233281 # Add overlay for restarting camera preview for additional cameras
-kpick 233283 # Never ignore finger swipes in gallery mode
-kpick 233284 # Initialize focus overlay manager if it is not initialized.
-kpick 233285 # Camera: Set preview fps after recording.
-kpick 233286 # Snapdragon Camera: Avoid possible race condition
-kpick 233287 # Snapdragon Camera: Use consistent API for preview fps reset
-kpick 233288 # SnapdragonCamera: Longshot with Burst Functionality.
-kpick 233289 # Protect against multiple shutter callbacks per frame in longshot mode.
-kpick 233290 # ListPreference: prevent ArrayIndexOutOfBoundsException
-kpick 233291 # VideoModule: don't set negative HFR value
-kpick 233292 # SnapdragonCamera: Fix shutter button clicks in rapid succession getting ignored
-kpick 233293 # SnapdragonCamera: Enforce 120ms delay in between shutter clicks
-kpick 233294 # Snap: Render zoom circle in the center of the camera preview
-kpick 233295 # Snap: Don't do touch-to-focus on top of UI elements
-kpick 233296 # SnapdragonCamera: Add missing toast on HSR/HFR override
-kpick 233297 # Snap: Show remaining photos on initial start
-kpick 233298 # Snap: Disable warped pano preview
-kpick 233299 # Snap: Increase default pano capture pixels to 1440x1000
-kpick 233300 # Snap: Adjust scene and filter mode layout dimensions
-kpick 233301 # Snap: Don't close slide out menu after selecting scene mode
-kpick 233302 # Snap: Fix swipe right to open menu
-kpick 233303 # Snap: Fix filter mode button after disabling HDR mode
-kpick 233304 # Snap: Remove "help screen on first start" feature
-kpick 233305 # Snap: Arrange video menu so it's similar to photo menu
-kpick 233306 # Snap: Fix panorama layout
-kpick 233307 # Snap: Update HDR icons
-kpick 233308 # Removed littlemock dependency and cleanup
-kpick 233309 # Snap: Rip out hdr-need-1x option
-kpick 233310 # Snap: check tags before using them
-kpick 233311 # QuickReader: initial commit
-kpick 233312 # Snap: add QReader to module switch
-kpick 233313 # QuickReader: Match switch icon size and fill color with other icons
-kpick 233314 # Snap: update shutter buttons on CaptureUI
-kpick 233315 # Snap: Add missing thumbnails for filter modes
-kpick 233316 # Snap: Update pano and video icons to be more like photo icons
-kpick 233317 # Snap: Port all string improvements from cm-14.1
-kpick 233319 # Snap: adaptive icon
-kpick 233320 # Snap: Convert "save best" dialog text to a quantity string
-kpick 233321 # Snap: Fix "Convert "save best" dialog text to a quantity string"
-kpick 233322 # Do not crash if we don't have support for RAW files
-kpick 233323 # Snap: don't try to set up cameras with ids greater than MAX_NUM_CAM
-kpick 233324 # Snap: add missing null check on isCamera2Supported
-kpick 233325 # Snap: fix copy and paste fail
-kpick 233326 # Drop new focus indicator into Camera2.
-kpick 233327 # Snap: Add support for focus distance
-kpick 233328 # Snap: Configure focus ring preview dimensions
-kpick 233329 # Snap: Check for ACCESS_FINE_LOCATION instead of ACCESS_COARSE_LOCATION
-kpick 233330 # Snap: remove unused shutter buttons
-kpick 233331 # SnapdragonCamera: Panorama, replace border drawable
-kpick 233332 # Snap: turn developer category title into a translatable string
-kpick 233333 # Snap: Allow quickreader to work with secure device
-kpick 233334 # CameraSettings: Do not crash if zoom ratios are not exposed
-kpick 233335 # Snap: use platform cert
-kpick 233336 # Import translations from 15.1
+kpick -t pie-snap
 
 # packages/apps/Stk
 
@@ -1673,7 +1487,7 @@ kpick -f 227110 # init: I hate safety net
 #kpick 226917 # Switch root to /system in first stage mount
 #kpick 226923 # init: First Stage Mount observe nofail mount flag
 #kpick 223085 # adbd: Disable "adb root" by system property (2/3)
-#kpick 223500 # Add back fuse support
+kpick 223500 # Add back fuse support
 kpick 224264 # debuggerd: Resolve tombstoned missing O_CREAT mode
 kpick 226120 # fs_mgr: Wrapped key support for FBE
 kpick 230755 # libsuspend: Bring back earlysuspend
@@ -1713,6 +1527,7 @@ kpick 232438 # su: Initialize windows size
 kpick 232427 # su: Update AppOps API calls
 
 # system/libvintf
+kpick 226922 # System always contains root dir.
 
 # system/netd
 kpick 232794 # NetD : Allow passing in interface names for vpn app restriction
@@ -1725,6 +1540,7 @@ kpick 234190 # netd: Allow devices to opt-out of the tethering active FTP helper
 # system/sepolicy
 kpick 230151 # Fix storaged access to /sys/block/mmcblk0/stat after c936223c
 kpick 230613 # Allow webview_zygote to read /dev/ion
+kpick 234510 # sepolicy: Grant mediaextractor access to files over all sdcard fs types
 
 # system/tool/aidl
 kpick 223133 # AIDL: Add option to generate No-Op methods
