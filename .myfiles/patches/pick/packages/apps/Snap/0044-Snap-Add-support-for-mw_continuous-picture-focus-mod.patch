@@ -1,0 +1,192 @@
+From a980aa26236f99d3d755b411d28f36dbb27213a4 Mon Sep 17 00:00:00 2001
+From: codeworkx <codeworkx@cyanogenmod.org>
+Date: Wed, 6 Jan 2016 12:25:10 +0100
+Subject: [PATCH 044/194] Snap: Add support for mw_continuous-picture focus
+ mode
+
+Author: codeworkx <codeworkx@cyanogenmod.org>
+Date:   Wed Jan 6 12:25:10 2016 +0100
+
+    Snap: Add support for mw_continuous-picture focus mode
+
+    Change-Id: If165370b52d7454c69e2cdeb9d837d049010b0e8
+
+Author: Michael W <baddaemon87@gmail.com>
+Date:   Sat Oct 22 14:47:09 2016 +0200
+
+    Snap: Fix possible NPE
+
+    Seems like getSupportedFocusModes() can return null.
+    Check for null before using it further
+
+    Change-Id: I46860f780b99970cbe9857c8ba73691d69321488
+    Reference: BugDumps 20161014-20 L#131
+
+Change-Id: I066a26043cc89b3037e457d8da340ed4b005ee1f
+---
+ res/values/arrays.xml                       |  3 ++
+ res/values/cm_strings.xml                   |  1 +
+ src/com/android/camera/PhotoModule.java     | 47 +++++++++++++++------
+ src/com/android/camera/util/CameraUtil.java |  1 +
+ 4 files changed, 40 insertions(+), 12 deletions(-)
+
+diff --git a/res/values/arrays.xml b/res/values/arrays.xml
+index b1d3b38fb..ec7130af6 100644
+--- a/res/values/arrays.xml
++++ b/res/values/arrays.xml
+@@ -311,6 +311,7 @@
+     <string-array name="pref_camera_focusmode_entries" translatable="false">
+         <item>@string/pref_camera_focusmode_entry_auto</item>
+         <item>@string/pref_camera_focusmode_entry_continuous</item>
++        <item>@string/pref_camera_focusmode_entry_mw_continuous</item>
+         <item>@string/pref_camera_focusmode_entry_extended</item>
+         <item>@string/pref_camera_focusmode_entry_facedetect</item>
+         <item>@string/pref_camera_focusmode_entry_facepriority</item>
+@@ -325,6 +326,7 @@
+     <string-array name="pref_camera_focusmode_entryvalues" translatable="false">
+         <item>auto</item>
+         <item>continuous-picture</item>
++        <item>mw_continuous-picture</item>
+         <item>extended</item>
+         <item>facedetect</item>
+         <item>face-priority</item>
+@@ -788,6 +790,7 @@
+ 
+     <!-- Default focus mode setting.-->
+     <string-array name="pref_camera_focusmode_default_array" translatable="false">
++        <item>mw_continuous-picture</item>
+         <item>continuous-picture</item>
+         <item>auto</item>
+     </string-array>
+diff --git a/res/values/cm_strings.xml b/res/values/cm_strings.xml
+index d2d19bef6..182922650 100644
+--- a/res/values/cm_strings.xml
++++ b/res/values/cm_strings.xml
+@@ -62,6 +62,7 @@
+ 
+     <!-- Settings screen, focus mode -->
+     <string name="pref_camera_focusmode_entry_continuous">Continuous</string>
++    <string name="pref_camera_focusmode_entry_mw_continuous">Continuous (MW)</string>
+     <string name="pref_camera_focusmode_entry_extended">Extended</string>
+     <string name="pref_camera_focusmode_entry_facedetect">Face detect</string>
+     <string name="pref_camera_focusmode_entry_facepriority">Face priority</string>
+diff --git a/src/com/android/camera/PhotoModule.java b/src/com/android/camera/PhotoModule.java
+index 2fa1dd162..f0873a9a5 100644
+--- a/src/com/android/camera/PhotoModule.java
++++ b/src/com/android/camera/PhotoModule.java
+@@ -1321,6 +1321,8 @@ public class PhotoModule
+ 
+         @Override
+         public void onPictureTaken(byte [] jpegData, CameraProxy camera) {
++            String focusMode;
++
+             mUI.stopSelfieFlash();
+             mUI.enableShutter(true);
+             if (mUI.isPreviewCoverVisible()) {
+@@ -1399,15 +1401,17 @@ public class PhotoModule
+ 
+             if (needRestartPreview) {
+                 setupPreview();
+-                if (CameraUtil.FOCUS_MODE_CONTINUOUS_PICTURE.equals(
+-                    mFocusManager.getFocusMode())) {
++                focusMode = mFocusManager.getFocusMode();
++                if (CameraUtil.FOCUS_MODE_CONTINUOUS_PICTURE.equals(focusMode) ||
++                        CameraUtil.FOCUS_MODE_MW_CONTINUOUS_PICTURE.equals(focusMode)) {
+                     mCameraDevice.cancelAutoFocus();
+                 }
+             } else if ((mReceivedSnapNum == mBurstSnapNum)
+                         && (mCameraState != LONGSHOT)){
+                 mFocusManager.resetTouchFocus();
+-                if (CameraUtil.FOCUS_MODE_CONTINUOUS_PICTURE.equals(
+-                        mFocusManager.getFocusMode())) {
++                focusMode = mFocusManager.getFocusMode();
++                if (CameraUtil.FOCUS_MODE_CONTINUOUS_PICTURE.equals(focusMode) ||
++                        CameraUtil.FOCUS_MODE_MW_CONTINUOUS_PICTURE.equals(focusMode)) {
+                     mCameraDevice.cancelAutoFocus();
+                 }
+                 mUI.resumeFaceDetection();
+@@ -2987,6 +2991,8 @@ public class PhotoModule
+             return;
+         }
+ 
++        String focusMode;
++
+         synchronized (mCameraDevice) {
+             SurfaceHolder sh = null;
+             Log.v(TAG, "startPreview: SurfaceHolder (MDP path)");
+@@ -3037,7 +3043,10 @@ public class PhotoModule
+         if (!mSnapshotOnIdle && !mInstantCaptureSnapShot) {
+             // If the focus mode is continuous autofocus, call cancelAutoFocus to
+             // resume it because it may have been paused by autoFocus call.
+-            if (CameraUtil.FOCUS_MODE_CONTINUOUS_PICTURE.equals(mFocusManager.getFocusMode()) && mCameraState !=INIT) {
++            focusMode = mFocusManager.getFocusMode();
++            if (CameraUtil.FOCUS_MODE_CONTINUOUS_PICTURE.equals(focusMode) &&
++                    mCameraState != INIT ||
++                    CameraUtil.FOCUS_MODE_MW_CONTINUOUS_PICTURE.equals(focusMode)) {
+                 mCameraDevice.cancelAutoFocus();
+             }
+         } else {
+@@ -3665,10 +3674,16 @@ public class PhotoModule
+             mParameters.set(KEY_PICTURE_FORMAT, PIXEL_FORMAT_JPEG);
+ 
+             //Try to set CAF for ZSL
+-            if(CameraUtil.isSupported(Parameters.FOCUS_MODE_CONTINUOUS_PICTURE,
+-                    mParameters.getSupportedFocusModes()) && !mFocusManager.isTouch()) {
+-                mFocusManager.overrideFocusMode(Parameters.FOCUS_MODE_CONTINUOUS_PICTURE);
+-                mParameters.setFocusMode(Parameters.FOCUS_MODE_CONTINUOUS_PICTURE);
++            if (!mFocusManager.isTouch()) {
++                if (CameraUtil.isSupported(CameraUtil.FOCUS_MODE_MW_CONTINUOUS_PICTURE,
++                        mParameters.getSupportedFocusModes())) {
++                    mFocusManager.overrideFocusMode(CameraUtil.FOCUS_MODE_MW_CONTINUOUS_PICTURE);
++                    mParameters.setFocusMode(CameraUtil.FOCUS_MODE_MW_CONTINUOUS_PICTURE);
++                } else if (CameraUtil.isSupported(Parameters.FOCUS_MODE_CONTINUOUS_PICTURE,
++                        mParameters.getSupportedFocusModes())) {
++                    mFocusManager.overrideFocusMode(Parameters.FOCUS_MODE_CONTINUOUS_PICTURE);
++                    mParameters.setFocusMode(Parameters.FOCUS_MODE_CONTINUOUS_PICTURE);
++                }
+             } else if (mFocusManager.isTouch()) {
+                 mFocusManager.overrideFocusMode(null);
+                 mParameters.setFocusMode(mFocusManager.getFocusMode());
+@@ -4278,7 +4293,8 @@ public class PhotoModule
+ 
+     @TargetApi(Build.VERSION_CODES.JELLY_BEAN)
+     private void updateAutoFocusMoveCallback() {
+-        if (mParameters.getFocusMode().equals(CameraUtil.FOCUS_MODE_CONTINUOUS_PICTURE)) {
++        if (mParameters.getFocusMode().equals(CameraUtil.FOCUS_MODE_CONTINUOUS_PICTURE) ||
++                mParameters.getFocusMode().equals(CameraUtil.FOCUS_MODE_MW_CONTINUOUS_PICTURE)) {
+             mCameraDevice.setAutoFocusMoveCallback(mHandler,
+                     (CameraAFMoveCallback) mAutoFocusMoveCallback);
+         } else {
+@@ -5018,8 +5034,15 @@ public class PhotoModule
+         mMeteringAreaSupported = CameraUtil.isMeteringAreaSupported(mInitialParams);
+         mAeLockSupported = CameraUtil.isAutoExposureLockSupported(mInitialParams);
+         mAwbLockSupported = CameraUtil.isAutoWhiteBalanceLockSupported(mInitialParams);
+-        mContinuousFocusSupported = mInitialParams.getSupportedFocusModes().contains(
+-                CameraUtil.FOCUS_MODE_CONTINUOUS_PICTURE);
++
++        List<String> supportedFocusModes = mInitialParams.getSupportedFocusModes();
++        if (supportedFocusModes != null &&
++                (supportedFocusModes.contains(CameraUtil.FOCUS_MODE_CONTINUOUS_PICTURE) ||
++                supportedFocusModes.contains(CameraUtil.FOCUS_MODE_MW_CONTINUOUS_PICTURE))) {
++            mContinuousFocusSupported = true;
++        } else {
++            mContinuousFocusSupported = false;
++        }
+     }
+ 
+     @Override
+diff --git a/src/com/android/camera/util/CameraUtil.java b/src/com/android/camera/util/CameraUtil.java
+index 2cf14dc34..78addeced 100755
+--- a/src/com/android/camera/util/CameraUtil.java
++++ b/src/com/android/camera/util/CameraUtil.java
+@@ -135,6 +135,7 @@ public class CameraUtil {
+     public static final String SECURE_CAMERA_EXTRA = "secure_camera";
+     // Fields from android.hardware.Camera.Parameters
+     public static final String FOCUS_MODE_CONTINUOUS_PICTURE = "continuous-picture";
++    public static final String FOCUS_MODE_MW_CONTINUOUS_PICTURE = "mw_continuous-picture";
+     public static final String RECORDING_HINT = "recording-hint";
+     private static final String AUTO_EXPOSURE_LOCK_SUPPORTED = "auto-exposure-lock-supported";
+     private static final String AUTO_WHITE_BALANCE_LOCK_SUPPORTED = "auto-whitebalance-lock-supported";
+-- 
+2.17.1
+

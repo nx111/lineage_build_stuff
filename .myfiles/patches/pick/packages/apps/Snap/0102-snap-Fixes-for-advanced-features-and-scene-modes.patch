@@ -1,0 +1,229 @@
+From cf4318e2f5c1980c5f76355c70864a36c072be93 Mon Sep 17 00:00:00 2001
+From: Steve Kondik <steve@cyngn.com>
+Date: Wed, 3 Aug 2016 15:40:15 -0700
+Subject: [PATCH 102/194] snap: Fixes for advanced features and scene modes
+
+ * Get rid of the annoying toast when longshot is disabled
+ * Add support for ChromaFlash as a scene mode
+ * Adjust overrides for various scene modes
+
+Change-Id: Ifda1990f4e9b3435655664f2a6c2b31fc3ae23fa
+---
+ src/com/android/camera/CameraSettings.java | 21 ++++++-
+ src/com/android/camera/PhotoMenu.java      |  7 +--
+ src/com/android/camera/PhotoModule.java    | 69 +++++++++++-----------
+ 3 files changed, 56 insertions(+), 41 deletions(-)
+
+diff --git a/src/com/android/camera/CameraSettings.java b/src/com/android/camera/CameraSettings.java
+index aa7dcf488..80dd75e49 100755
+--- a/src/com/android/camera/CameraSettings.java
++++ b/src/com/android/camera/CameraSettings.java
+@@ -1173,7 +1173,7 @@ public class CameraSettings {
+         if (chromaFlash != null) {
+             List<String> supportedAdvancedFeatures =
+                     getSupportedAdvancedFeatures(mParameters);
+-            if (!CameraUtil.isSupported(
++            if (hasChromaFlashScene(mContext) || !CameraUtil.isSupported(
+                         mContext.getString(R.string
+                             .pref_camera_advanced_feature_value_chromaflash_on),
+                         supportedAdvancedFeatures)) {
+@@ -1201,6 +1201,13 @@ public class CameraSettings {
+                 supportedSceneModes.add(mContext.getString(R.string
+                             .pref_camera_advanced_feature_value_optizoom_on));
+             }
++            if (hasChromaFlashScene(mContext) && CameraUtil.isSupported(
++                        mContext.getString(R.string
++                                .pref_camera_advanced_feature_value_chromaflash_on),
++                        supportedAdvancedFeatures)) {
++                supportedSceneModes.add(mContext.getString(R.string
++                            .pref_camera_advanced_feature_value_chromaflash_on));
++            }
+             filterUnsupportedOptions(group, sceneMode, supportedSceneModes);
+         }
+         if (flashMode != null) {
+@@ -1860,4 +1867,16 @@ public class CameraSettings {
+         pictureSize.setEntries(entries.toArray(new String[entries.size()]));
+         pictureSize.setEntryValues(entryValues.toArray(new String[entryValues.size()]));
+     }
++
++    public static boolean hasChromaFlashScene(Context context) {
++        String[] sceneModes = context.getResources().getStringArray(
++                R.array.pref_camera_scenemode_entryvalues);
++        for (String mode : sceneModes) {
++            if (mode.equals(context.getResources().getString(R.string
++                            .pref_camera_advanced_feature_value_chromaflash_on))) {
++                return true;
++            }
++        }
++        return false;
++    }
+ }
+diff --git a/src/com/android/camera/PhotoMenu.java b/src/com/android/camera/PhotoMenu.java
+index c63e77dab..4abab3a03 100644
+--- a/src/com/android/camera/PhotoMenu.java
++++ b/src/com/android/camera/PhotoMenu.java
+@@ -1488,13 +1488,12 @@ public class PhotoMenu extends MenuController
+             }
+         }
+ 
+-        String chromaFlashOn = mActivity.getString(R.string.
+-                pref_camera_advanced_feature_value_chromaflash_on);
+-        if (notSame(pref, CameraSettings.KEY_SCENE_MODE, Parameters.SCENE_MODE_AUTO)) {
++        String chromaFlashOn = mActivity.getString(R.string
++                .pref_camera_advanced_feature_value_chromaflash_on);
++        if (notSame(pref, CameraSettings.KEY_SCENE_MODE, chromaFlashOn)) {
+             ListPreference lp = mPreferenceGroup
+                     .findPreference(CameraSettings.KEY_ADVANCED_FEATURES);
+             if (lp != null && chromaFlashOn.equals(lp.getValue())) {
+-                setPreference(CameraSettings.KEY_QC_CHROMA_FLASH, mSettingOff);
+                 setPreference(CameraSettings.KEY_ADVANCED_FEATURES,
+                         mActivity.getString(R.string.pref_camera_advanced_feature_default));
+             }
+diff --git a/src/com/android/camera/PhotoModule.java b/src/com/android/camera/PhotoModule.java
+index 23016026f..740d27f96 100644
+--- a/src/com/android/camera/PhotoModule.java
++++ b/src/com/android/camera/PhotoModule.java
+@@ -2022,8 +2022,10 @@ public class PhotoModule
+                 (fssr != null && fssr.equals(fssrOn)) ||
+                 (truePortrait != null && truePortrait.equals(truPortraitOn)) ||
+                 (stillMore != null && stillMore.equals(stillMoreOn))) {
+-            if ( (optiZoom != null && optiZoom.equals(optiZoomOn)) ||
+-                 (reFocus != null && reFocus.equals(reFocusOn))       ) {
++            if ((optiZoom != null && optiZoom.equals(optiZoomOn)) ||
++                    (reFocus != null && reFocus.equals(reFocusOn)) ||
++                    (CameraSettings.hasChromaFlashScene(mActivity) &&
++                     chromaFlash != null && chromaFlash.equals(chromaFlashOn))) {
+                 sceneMode = null;
+             } else {
+                 mSceneMode = sceneMode = Parameters.SCENE_MODE_AUTO;
+@@ -2047,7 +2049,9 @@ public class PhotoModule
+ 
+         // If scene mode is set, for  white balance and focus mode
+         // read settings from preferences so we retain user preferences.
+-        if (!Parameters.SCENE_MODE_AUTO.equals(mSceneMode)) {
++        if (!Parameters.SCENE_MODE_AUTO.equals(mSceneMode) &&
++                !"asd".equals(mSceneMode) &&
++                !"sports".equals(mSceneMode)) {
+             flashMode = Parameters.FLASH_MODE_OFF;
+             String whiteBalance = Parameters.WHITE_BALANCE_AUTO;
+             focusMode = mFocusManager.getFocusMode(false);
+@@ -2099,6 +2103,12 @@ public class PhotoModule
+             flashMode = Parameters.FLASH_MODE_OFF;
+             mParameters.setFlashMode(flashMode);
+         }
++
++        if (chromaFlash != null && chromaFlash.equals(chromaFlashOn)) {
++            flashMode = Parameters.FLASH_MODE_ON;
++            mParameters.setFlashMode(flashMode);
++        }
++
+         if (disableLongShot) {
+             mUI.overrideSettings(CameraSettings.KEY_LONGSHOT,
+                     mActivity.getString(R.string.setting_off_value));
+@@ -3242,6 +3252,8 @@ public class PhotoModule
+         mParameters.set("long-shot", longshot_enable);
+         String optizoomOn = mActivity.getString(R.string
+                 .pref_camera_advanced_feature_value_optizoom_on);
++        String chromaFlashOn = mActivity.getString(R.string
++                .pref_camera_advanced_feature_value_chromaflash_on);
+ 
+         // Set Touch AF/AEC parameter.
+         if (CameraUtil.isSupported(mParameters.TOUCH_AF_AEC_ON,
+@@ -4160,7 +4172,10 @@ public class PhotoModule
+                 .pref_camera_advanced_feature_value_refocus_on);
+         String optizoomOn = mActivity.getString(R.string
+                 .pref_camera_advanced_feature_value_optizoom_on);
++        String chromaFlashOn = mActivity.getString(R.string
++                .pref_camera_advanced_feature_value_chromaflash_on);
+         String scenModeStr = mSceneMode;
++
+         if (refocusOn.equals(mSceneMode)) {
+             try {
+                 mSceneMode = Parameters.SCENE_MODE_AUTO;
+@@ -4178,6 +4193,12 @@ public class PhotoModule
+                 }
+             } catch (NullPointerException e) {
+             }
++		} else if (chromaFlashOn.equals(mSceneMode)) {
++			try {
++				mUI.setPreference(CameraSettings.KEY_ADVANCED_FEATURES, chromaFlashOn);
++				mParameters.setSceneMode(Parameters.SCENE_MODE_AUTO);
++			} catch (NullPointerException e) {
++			}
+         } else if (mSceneMode == null) {
+             mSceneMode = Parameters.SCENE_MODE_AUTO;
+         }
+@@ -4234,7 +4255,9 @@ public class PhotoModule
+             Log.w(TAG, "invalid exposure range: " + value);
+         }
+ 
+-        if (Parameters.SCENE_MODE_AUTO.equals(mSceneMode)) {
++        if (Parameters.SCENE_MODE_AUTO.equals(mSceneMode) ||
++                "asd".equals(mSceneMode) ||
++                "sports".equals(mSceneMode)) {
+             // Set flash mode.
+             String flashMode;
+             if (mSavedFlashMode == null) {
+@@ -4288,9 +4311,11 @@ public class PhotoModule
+                     mActivity.getString(R.string.pref_camera_focustime_default))));
+         } else {
+             mFocusManager.overrideFocusMode(mParameters.getFocusMode());
+-            if (CameraUtil.isSupported(Parameters.FLASH_MODE_OFF,
++            String flashMode = chromaFlashOn.equals(mSceneMode) ?
++                    Parameters.FLASH_MODE_ON : Parameters.FLASH_MODE_OFF;
++            if (CameraUtil.isSupported(flashMode,
+                     mParameters.getSupportedFlashModes())) {
+-                mParameters.setFlashMode(Parameters.FLASH_MODE_OFF);
++                mParameters.setFlashMode(flashMode);
+             }
+             if (CameraUtil.isSupported(Parameters.WHITE_BALANCE_AUTO,
+                     mParameters.getSupportedWhiteBalance())) {
+@@ -4936,7 +4961,8 @@ public class PhotoModule
+             updateRemainingPhotos();
+         }
+ 
+-        if (CameraSettings.KEY_QC_CHROMA_FLASH.equals(pref.getKey())) {
++        if (!CameraSettings.hasChromaFlashScene(mActivity) &&
++                CameraSettings.KEY_QC_CHROMA_FLASH.equals(pref.getKey())) {
+             mUI.setPreference(CameraSettings.KEY_ADVANCED_FEATURES, pref.getValue());
+         }
+ 
+@@ -4949,35 +4975,6 @@ public class PhotoModule
+             mUI.setPreference(CameraSettings.KEY_ADVANCED_FEATURES, pref.getValue());
+         }
+ 
+-        String ubiFocusOff = mActivity.getString(R.string.
+-                pref_camera_advanced_feature_value_ubifocus_off);
+-        String chromaFlashOff = mActivity.getString(R.string.
+-                pref_camera_advanced_feature_value_chromaflash_off);
+-        String optiZoomOff = mActivity.getString(R.string.
+-                pref_camera_advanced_feature_value_optizoom_off);
+-        String reFocusOff = mActivity.getString(R.string.
+-                pref_camera_advanced_feature_value_refocus_off);
+-        String fssrOff = mActivity.getString(R.string.
+-                pref_camera_advanced_feature_value_FSSR_off);
+-        String truePortraitOff = mActivity.getString(R.string.
+-                pref_camera_advanced_feature_value_trueportrait_off);
+-        String multiTouchFocusOff = mActivity.getString(R.string.
+-                pref_camera_advanced_feature_value_multi_touch_focus_off);
+-        String stillMoreOff = mActivity.getString(R.string.
+-                pref_camera_advanced_feature_value_stillmore_off);
+-        String advancedFeatureOff = mActivity.getString(R.string.
+-                pref_camera_advanced_feature_value_none);
+-        if (notSame(pref, CameraSettings.KEY_QC_OPTI_ZOOM, optiZoomOff) ||
+-                notSame(pref, CameraSettings.KEY_QC_AF_BRACKETING, ubiFocusOff) ||
+-                notSame(pref, CameraSettings.KEY_QC_FSSR, fssrOff) ||
+-                notSame(pref, CameraSettings.KEY_QC_TP, truePortraitOff) ||
+-                notSame(pref, CameraSettings.KEY_QC_MULTI_TOUCH_FOCUS, multiTouchFocusOff) ||
+-                notSame(pref, CameraSettings.KEY_QC_STILL_MORE, stillMoreOff) ||
+-                notSame(pref, CameraSettings.KEY_QC_RE_FOCUS, reFocusOff) ||
+-                notSame(pref, CameraSettings.KEY_ADVANCED_FEATURES, advancedFeatureOff)) {
+-            RotateTextToast.makeText(mActivity, R.string.advanced_capture_disable_continuous_shot,
+-                    Toast.LENGTH_LONG).show();
+-        }
+         //call generic onSharedPreferenceChanged
+         onSharedPreferenceChanged();
+     }
+-- 
+2.17.1
+

@@ -1,16 +1,16 @@
-From 5b6410df991590444723d12fd299293777b36724 Mon Sep 17 00:00:00 2001
+From d992b39b6f67958d27ec74acf1d11cf6aade0b25 Mon Sep 17 00:00:00 2001
 From: Uldiniad <olivercscott@gmail.com>
 Date: Wed, 31 Oct 2018 02:32:03 +0000
-Subject: [PATCH 35/45] NetworkManagement : Add ability to restrict app vpn
+Subject: [PATCH 35/46] NetworkManagement : Add ability to restrict app vpn
  usage
 
 Change-Id: Ia6bd0894f3298fe6fb5cca343cbfe025e3b88ee9
 ---
  .../android/net/NetworkPolicyManager.java     |  2 +
  .../android/os/INetworkManagementService.aidl |  1 +
- .../server/NetworkManagementService.java      | 77 +++++++++++++++++++
+ .../server/NetworkManagementService.java      | 85 +++++++++++++++++--
  .../net/NetworkPolicyManagerService.java      |  2 +
- 4 files changed, 82 insertions(+)
+ 4 files changed, 83 insertions(+), 7 deletions(-)
 
 diff --git a/core/java/android/net/NetworkPolicyManager.java b/core/java/android/net/NetworkPolicyManager.java
 index f291c6724ad..aa62da59f8b 100644
@@ -37,7 +37,7 @@ index 48515978323..31284666036 100644
      void restrictAppOnWlan(int uid, boolean restrict);
  }
 diff --git a/services/core/java/com/android/server/NetworkManagementService.java b/services/core/java/com/android/server/NetworkManagementService.java
-index 0383e0449c7..0d76da9d07d 100644
+index 0383e0449c7..1810d370584 100644
 --- a/services/core/java/com/android/server/NetworkManagementService.java
 +++ b/services/core/java/com/android/server/NetworkManagementService.java
 @@ -67,6 +67,7 @@ import android.net.IpPrefix;
@@ -97,10 +97,18 @@ index 0383e0449c7..0d76da9d07d 100644
      }
  
      private IBatteryStats getBatteryStats() {
-@@ -1846,6 +1863,37 @@ public class NetworkManagementService extends INetworkManagementService.Stub
-         }
-     }
+@@ -1839,8 +1856,37 @@ public class NetworkManagementService extends INetworkManagementService.Stub
  
+         try {
+             final String action = restrict ? "add" : "remove";
+-            mConnector.execute("bandwidth", action + "restrictappsondata",
+-                    mDataInterfaceName, uid);
++            mConnector.execute("bandwidth", action + "restrictappsondata", mDataInterfaceName, uid);
++        } catch (NativeDaemonConnectorException e) {
++            throw e.rethrowAsParcelableException();
++        }
++    }
++
 +    @Override
 +    public void restrictAppOnVpn(int uid, boolean restrict) {
 +        mContext.enforceCallingOrSelfPermission(CONNECTIVITY_INTERNAL, TAG);
@@ -125,17 +133,18 @@ index 0383e0449c7..0d76da9d07d 100644
 +
 +        try {
 +            final String action = restrict ? "add" : "remove";
-+            mConnector.execute("bandwidth", action + "restrictappsonvpn",
-+                    mVpnInterfaceName, uid);
-+        } catch (NativeDaemonConnectorException e) {
-+            throw e.rethrowAsParcelableException();
-+        }
-+    }
-+
-     @Override
-     public void restrictAppOnWlan(int uid, boolean restrict) {
-         mContext.enforceCallingOrSelfPermission(CONNECTIVITY_INTERNAL, TAG);
-@@ -1886,6 +1934,23 @@ public class NetworkManagementService extends INetworkManagementService.Stub
++            mConnector.execute("bandwidth", action + "restrictappsonvpn", mVpnInterfaceName, uid);
+         } catch (NativeDaemonConnectorException e) {
+             throw e.rethrowAsParcelableException();
+         }
+@@ -1880,12 +1926,27 @@ public class NetworkManagementService extends INetworkManagementService.Stub
+         }
+         int count = mPendingRestrictOnData.size();
+         for (int i = 0; i < count; i++) {
+-            restrictAppOnData(mPendingRestrictOnData.keyAt(i),
+-                    mPendingRestrictOnData.valueAt(i));
++            restrictAppOnData(mPendingRestrictOnData.keyAt(i), mPendingRestrictOnData.valueAt(i));
+         }
          mPendingRestrictOnData.clear();
      }
  
@@ -150,8 +159,7 @@ index 0383e0449c7..0d76da9d07d 100644
 +        }
 +        int count = mPendingRestrictOnVpn.size();
 +        for (int i = 0; i < count; i++) {
-+            restrictAppOnVpn(mPendingRestrictOnVpn.keyAt(i),
-+                    mPendingRestrictOnVpn.valueAt(i));
++            restrictAppOnVpn(mPendingRestrictOnVpn.keyAt(i), mPendingRestrictOnVpn.valueAt(i));
 +        }
 +        mPendingRestrictOnVpn.clear();
 +    }
@@ -159,7 +167,17 @@ index 0383e0449c7..0d76da9d07d 100644
      @Override
      public void setAllowOnlyVpnForUids(boolean add, UidRange[] uidRanges)
              throws ServiceSpecificException {
-@@ -2849,6 +2914,18 @@ public class NetworkManagementService extends INetworkManagementService.Stub
+@@ -2841,14 +2902,24 @@ public class NetworkManagementService extends INetworkManagementService.Stub
+         if (!TextUtils.isEmpty(mDataInterfaceName)) {
+             return;
+         }
+-        ConnectivityManager cm = (ConnectivityManager) mContext.getSystemService(
+-                Context.CONNECTIVITY_SERVICE);
+-        LinkProperties linkProperties = cm.getLinkProperties(ConnectivityManager.TYPE_MOBILE);
++        ConnectivityManager cm = mContext.getSystemService(ConnectivityManager.class);
++        LinkProperties linkProperties = cm.getLinkProperties(NetworkCapabilities.TRANSPORT_CELLULAR);
+         if (linkProperties != null) {
+             mDataInterfaceName = linkProperties.getInterfaceName();
          }
      }
  
@@ -167,8 +185,7 @@ index 0383e0449c7..0d76da9d07d 100644
 +        if (!TextUtils.isEmpty(mVpnInterfaceName)) {
 +            return;
 +        }
-+        ConnectivityManager cm = (ConnectivityManager) mContext.getSystemService(
-+                Context.CONNECTIVITY_SERVICE);
++        ConnectivityManager cm = mContext.getSystemService(ConnectivityManager.class);
 +        LinkProperties linkProperties = cm.getLinkProperties(NetworkCapabilities.TRANSPORT_VPN);
 +        if (linkProperties != null) {
 +            mVpnInterfaceName = linkProperties.getInterfaceName();

@@ -1,0 +1,201 @@
+From 55a7d911734acafb6d323d5e8055314f12b2b74e Mon Sep 17 00:00:00 2001
+From: Lars Greiss <kufikugel@googlemail.com>
+Date: Sun, 2 Feb 2014 03:09:22 +0100
+Subject: [PATCH 029/194] Camera2: tweak volume key zoom and cleanup
+
+- cleanup unused code
+- cleanup codestyle
+- add more zoom steps for smother zooming
+- show zoom circle indicator during zoom
+
+Change-Id: I5214fc2620a0c5167bfdc8e85f7115966c3b8bcf
+---
+ src/com/android/camera/PhotoUI.java         |  7 ----
+ src/com/android/camera/PreviewGestures.java |  7 ----
+ src/com/android/camera/VideoUI.java         |  7 ----
+ src/com/android/camera/ui/ZoomRenderer.java | 36 ++++++++++++++-------
+ 4 files changed, 24 insertions(+), 33 deletions(-)
+
+diff --git a/src/com/android/camera/PhotoUI.java b/src/com/android/camera/PhotoUI.java
+index 5e4dd2b6c..bd5efbf0e 100755
+--- a/src/com/android/camera/PhotoUI.java
++++ b/src/com/android/camera/PhotoUI.java
+@@ -56,7 +56,6 @@ import android.widget.LinearLayout;
+ import android.widget.ListView;
+ import android.widget.PopupWindow;
+ import android.widget.Toast;
+-import android.graphics.Canvas;
+ 
+ import com.android.camera.CameraPreference.OnPreferenceChangedListener;
+ import com.android.camera.FocusOverlayManager.FocusUI;
+@@ -1326,12 +1325,6 @@ public class PhotoUI implements PieListener,
+         return false;
+     }
+ 
+-    public void onScaleChangeDraw(Canvas canvas) {
+-        if (mGestures != null) {
+-            mGestures.onScaleChangeDraw(canvas);
+-        }
+-    }
+-
+     @Override
+     public void onDisplayChanged() {
+         Log.d(TAG, "Device flip detected.");
+diff --git a/src/com/android/camera/PreviewGestures.java b/src/com/android/camera/PreviewGestures.java
+index c8cc771cf..e699e56fd 100644
+--- a/src/com/android/camera/PreviewGestures.java
++++ b/src/com/android/camera/PreviewGestures.java
+@@ -20,7 +20,6 @@ import android.view.GestureDetector;
+ import android.view.MotionEvent;
+ import android.view.ScaleGestureDetector;
+ import android.view.View;
+-import android.graphics.Canvas;
+ 
+ import com.android.camera.ui.PieRenderer;
+ import com.android.camera.ui.RenderOverlay;
+@@ -317,11 +316,5 @@ public class PreviewGestures
+         }
+         return false;
+     }
+-
+-    public void onScaleChangeDraw(Canvas canvas) {
+-        if (mZoom != null) {
+-            mZoom.onScaleChangeDraw(canvas);
+-        }
+-    }
+ }
+ 
+diff --git a/src/com/android/camera/VideoUI.java b/src/com/android/camera/VideoUI.java
+index f7ce04ca0..80951496a 100755
+--- a/src/com/android/camera/VideoUI.java
++++ b/src/com/android/camera/VideoUI.java
+@@ -22,7 +22,6 @@ import org.codeaurora.snapcam.R;
+ 
+ import android.content.res.Configuration;
+ import android.graphics.Bitmap;
+-import android.graphics.Canvas;
+ import android.graphics.Color;
+ import android.graphics.Point;
+ import android.graphics.drawable.ColorDrawable;
+@@ -1111,12 +1110,6 @@ public class VideoUI implements PieRenderer.PieListener,
+         return false;
+     }
+ 
+-    public void onScaleChangeDraw(Canvas canvas) {
+-        if (mGestures != null) {
+-            mGestures.onScaleChangeDraw(canvas);
+-        }
+-    }
+-
+     @Override
+     public void onDisplayChanged() {
+         mCameraControls.checkLayoutFlip();
+diff --git a/src/com/android/camera/ui/ZoomRenderer.java b/src/com/android/camera/ui/ZoomRenderer.java
+index 4c051e152..edc9d97b2 100755
+--- a/src/com/android/camera/ui/ZoomRenderer.java
++++ b/src/com/android/camera/ui/ZoomRenderer.java
+@@ -22,6 +22,7 @@ import android.graphics.Canvas;
+ import android.graphics.Color;
+ import android.graphics.Paint;
+ import android.graphics.Rect;
++import android.os.Handler;
+ import android.view.ScaleGestureDetector;
+ 
+ import org.codeaurora.snapcam.R;
+@@ -35,6 +36,8 @@ public class ZoomRenderer extends OverlayRenderer
+     private int mMinZoom;
+     private OnZoomChangedListener mListener;
+ 
++    private final Handler mHandler = new Handler();
++
+     private ScaleGestureDetector mDetector;
+     private Paint mPaint;
+     private Paint mTextPaint;
+@@ -47,12 +50,12 @@ public class ZoomRenderer extends OverlayRenderer
+     private int mOuterStroke;
+     private int mZoomSig;
+     private int mZoomFraction;
++    private boolean mInZoom;
+     private Rect mTextBounds;
+     private int mOrientation;
+     private boolean mCamera2 = false;
+     private float mZoomMinValue;
+     private float mZoomMaxValue;
+-    private Canvas mCanvas;
+ 
+     public interface OnZoomChangedListener {
+         void onZoomStart();
+@@ -129,7 +132,6 @@ public class ZoomRenderer extends OverlayRenderer
+ 
+     @Override
+     public void onDraw(Canvas canvas) {
+-        mCanvas = canvas;
+         canvas.rotate(mOrientation, mCenterX, mCenterY);
+         mPaint.setStrokeWidth(mInnerStroke);
+         canvas.drawCircle(mCenterX, mCenterY, mMinCircle, mPaint);
+@@ -145,12 +147,6 @@ public class ZoomRenderer extends OverlayRenderer
+                 mTextPaint);
+     }
+ 
+-    public void onScaleChangeDraw(Canvas canvas) {
+-        if (mCanvas != null) {
+-            onDraw(mCanvas);
+-        }
+-    }
+-
+     @Override
+     public boolean onScale(ScaleGestureDetector detector) {
+         final float sf = detector.getScaleFactor();
+@@ -176,7 +172,7 @@ public class ZoomRenderer extends OverlayRenderer
+     public boolean onScaleStepResize(boolean direction) {
+         int zoom;
+         float circle;
+-        float circleStep = (mMaxCircle - mMinCircle) / 10;
++        float circleStep = (mMaxCircle - mMinCircle) / 18;
+         if (direction) {
+             circle = (int) (mCircleSize + circleStep);
+         } else {
+@@ -184,14 +180,20 @@ public class ZoomRenderer extends OverlayRenderer
+         }
+         circle = Math.max(mMinCircle, circle);
+         circle = Math.min(mMaxCircle, circle);
+-        if (mListener != null && (int) circle != mCircleSize && (mMaxCircle - mMinCircle) != 0) {
++        if (mListener != null && (int) circle != mCircleSize && (mMaxCircle - mMinCircle) > 0) {
+             mCircleSize = (int) circle;
+             zoom = mMinZoom + (int) ((mCircleSize - mMinCircle)
+                     * (mMaxZoom - mMinZoom) / (mMaxCircle - mMinCircle));
+             if (mListener != null) {
+-                mListener.onZoomStart();
++                mHandler.removeCallbacks(mOnZoomEnd);
++                if (!mInZoom) {
++                    mInZoom = true;
++                    setVisible(true);
++                    mListener.onZoomStart();
++                    update();
++                }
+                 mListener.onZoomValueChanged(zoom);
+-                mListener.onZoomEnd();
++                mHandler.postDelayed(mOnZoomEnd, 300);
+             }
+             return true;
+         } else {
+@@ -199,6 +201,16 @@ public class ZoomRenderer extends OverlayRenderer
+         }
+     }
+ 
++    Runnable mOnZoomEnd = new Runnable() {
++        public void run() {
++            mInZoom = false;
++            setVisible(false);
++            if (mListener != null) {
++                mListener.onZoomEnd();
++            }
++        }
++    };
++
+     @Override
+     public boolean onScaleBegin(ScaleGestureDetector detector) {
+         setVisible(true);
+-- 
+2.17.1
+

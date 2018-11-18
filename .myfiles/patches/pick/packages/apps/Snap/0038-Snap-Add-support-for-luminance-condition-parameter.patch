@@ -1,0 +1,105 @@
+From 8bcc846ab13d947043f96364f81dff94ed967bf0 Mon Sep 17 00:00:00 2001
+From: codeworkx <codeworkx@cyanogenmod.org>
+Date: Tue, 5 Jan 2016 23:54:52 +0100
+Subject: [PATCH 038/194] Snap: Add support for luminance-condition parameter
+
+Author: codeworkx <codeworkx@cyanogenmod.org>
+Date:   Tue Jan 5 23:54:52 2016 +0100
+
+    add support for luminance-condition parameter
+
+    Change-Id: Idf845a5f55abf9b72f61ac4bac59ee2258043482
+
+Author: codeworkx <codeworkx@cyanogenmod.org>
+Date:   Sun Feb 21 11:17:12 2016 +0100
+
+    Snap: fix camera hang on LGE G4 when flash got used
+
+    Change-Id: I23e53333a0bbe2a12e64e87ec8594aeaa503e9fc
+
+Change-Id: If1c2cd9dd253d6342de241b381152a759e8d3f05
+---
+ src/com/android/camera/CameraSettings.java  |  4 ++++
+ src/com/android/camera/PhotoModule.java     | 18 ++++++++++++++++++
+ src/com/android/camera/util/CameraUtil.java | 14 ++++++++++++++
+ 3 files changed, 36 insertions(+)
+
+diff --git a/src/com/android/camera/CameraSettings.java b/src/com/android/camera/CameraSettings.java
+index 3319481f9..caa885560 100755
+--- a/src/com/android/camera/CameraSettings.java
++++ b/src/com/android/camera/CameraSettings.java
+@@ -183,6 +183,10 @@ public class CameraSettings {
+     public static final String KEY_QC_INSTANT_CAPTURE = "instant-capture";
+     public static final String KEY_QC_INSTANT_CAPTURE_VALUES = "instant-capture-values";
+ 
++    public static final String KEY_LUMINANCE_CONDITION = "luminance-condition";
++    public static final String LUMINANCE_CONDITION_LOW = "low";
++    public static final String LUMINANCE_CONDITION_HIGH = "high";
++
+     public static final String KEY_INTERNAL_PREVIEW_RESTART = "internal-restart";
+     public static final String KEY_QC_ZSL_HDR_SUPPORTED = "zsl-hdr-supported";
+     public static final String KEY_QC_LONGSHOT_SUPPORTED = "longshot-supported";
+diff --git a/src/com/android/camera/PhotoModule.java b/src/com/android/camera/PhotoModule.java
+index 119129cd2..508ed88fa 100644
+--- a/src/com/android/camera/PhotoModule.java
++++ b/src/com/android/camera/PhotoModule.java
+@@ -1734,6 +1734,13 @@ public class PhotoModule
+             mParameters = mCameraDevice.getParameters();
+         }
+ 
++        // LGE G4: Disable HDR if luminance is low and flash gets used
++        if (CameraUtil.isLowLuminance(mParameters)) {
++            mParameters.set(CameraSettings.KEY_SNAPCAM_HDR_MODE, "0");
++            mCameraDevice.setParameters(mParameters);
++            mParameters = mCameraDevice.getParameters();
++        }
++
+         try {
+             mBurstSnapNum = mParameters.getInt("num-snaps-per-shutter");
+         }catch (NumberFormatException ex){
+@@ -1782,6 +1789,17 @@ public class PhotoModule
+                     mRawPictureCallback, mPostViewPictureCallback,
+                     new JpegPictureCallback(loc));
+             setCameraState(SNAPSHOT_IN_PROGRESS);
++
++            // LGE G4: Preview needs to be restarted when flash gets used
++            if (CameraUtil.isSupported(mParameters, CameraSettings.KEY_LUMINANCE_CONDITION)) {
++                String flashMode = mPreferences.getString(CameraSettings.KEY_FLASH_MODE,
++                        mActivity.getString(R.string.pref_camera_flashmode_default));
++                if (flashMode.equals(Parameters.FLASH_MODE_ON) ||
++                        (!flashMode.equals(Parameters.FLASH_MODE_OFF) &&
++                        CameraUtil.isLowLuminance(mParameters))) {
++                    setupPreview();
++                }
++            }
+         }
+ 
+         mNamedImages.nameNewImage(mCaptureStartTime, mRefocus);
+diff --git a/src/com/android/camera/util/CameraUtil.java b/src/com/android/camera/util/CameraUtil.java
+index c7f9da9fe..2cf14dc34 100755
+--- a/src/com/android/camera/util/CameraUtil.java
++++ b/src/com/android/camera/util/CameraUtil.java
+@@ -1097,6 +1097,20 @@ public class CameraUtil {
+             }
+         }
+     }
++
++    public static boolean isLowLuminance(Parameters parameters) {
++        String lC = parameters.get(CameraSettings.KEY_LUMINANCE_CONDITION);
++
++        if (lC != null) {
++            if (lC.equals(CameraSettings.LUMINANCE_CONDITION_LOW)) {
++                Log.d(TAG, "Parameter " + CameraSettings.KEY_LUMINANCE_CONDITION +
++                        "=" + CameraSettings.LUMINANCE_CONDITION_LOW);
++                return true;
++            }
++        }
++        return false;
++   }
++
+    public static String getFilpModeString(int value){
+         switch(value){
+             case 0:
+-- 
+2.17.1
+

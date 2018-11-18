@@ -1,0 +1,277 @@
+From 128f6d943a955afe5f88ffd1d1c848cd1c05e404 Mon Sep 17 00:00:00 2001
+From: Steve Kondik <shade@chemlab.org>
+Date: Sat, 7 Dec 2013 06:07:02 -0800
+Subject: [PATCH 013/194] Camera: Cleanup and compatibility fixes
+
+Author: Steve Kondik <shade@chemlab.org>
+Date:   Sat Dec 7 06:07:02 2013 -0800
+
+    Camera: Cleanup and compatibility fixes
+
+     * Don't crash for unavailable integer parameters
+     * Kill logspam
+
+    Change-Id: I6dbcf5560f96ce6173a847501721f589766889bc
+
+Author: Ryuinferno <ryuinferno.xda@gmail.com>
+Date:   Thu Dec 26 19:11:23 2013 +0100
+
+    Camera2: More thorough compatibility fixes
+
+    Certain chipsets (such as omap) have contrast, sharpness and saturation
+    set, but no max integer given for those
+
+    Change-Id: I58efaef4d0a511aefc803a440e0c3aa3dbdc9483
+
+Author: Ethan Chen <intervigil@gmail.com>
+Date:   Wed Feb 5 23:02:17 2014 -0800
+
+    Camera: Fix saturation, contrast, sharpness parameters
+
+    * Old-style QCOM HALs use <setting>-max, new style HALs use
+      max-<setting> for these parameters.
+
+    Change-Id: I3b0dbd04f072cb69d09c44b5b3af1097560205b3
+
+Author: Steve Kondik <shade@chemlab.org>
+Date:   Wed Feb 26 07:43:28 2014 +0100
+
+    camera: Make some parameter lookups safer
+
+     * Unsupported parameters that return int values will throw an exception
+       at the framework level if they aren't supported. Handle this
+       better and prevent crashes.
+
+    Change-Id: If5a3807dba33167ef95e4ec9e9cbeb15ed4ed591
+
+Change-Id: Id1a3e360474f0a8aebe150918d13b0a825715789
+---
+ src/com/android/camera/CameraSettings.java  |  15 +++
+ src/com/android/camera/PhotoModule.java     | 103 +++++++++++++-------
+ src/com/android/camera/VideoModule.java     |   4 +-
+ src/com/android/camera/util/CameraUtil.java |   8 ++
+ 4 files changed, 96 insertions(+), 34 deletions(-)
+
+diff --git a/src/com/android/camera/CameraSettings.java b/src/com/android/camera/CameraSettings.java
+index 9a0a8219b..7259212f1 100755
+--- a/src/com/android/camera/CameraSettings.java
++++ b/src/com/android/camera/CameraSettings.java
+@@ -847,6 +847,21 @@ public class CameraSettings {
+                     selectableZoneAf, ParametersWrapper.getSupportedSelectableZoneAf(mParameters));
+         }
+ 
++        if (saturation != null && !CameraUtil.isSupported(mParameters, "saturation") &&
++                !CameraUtil.isSupported(mParameters, "max-saturation")) {
++            removePreference(group, saturation.getKey());
++        }
++
++        if (contrast != null && !CameraUtil.isSupported(mParameters, "contrast") &&
++                !CameraUtil.isSupported(mParameters, "max-contrast")) {
++            removePreference(group, contrast.getKey());
++        }
++
++        if (sharpness != null && !CameraUtil.isSupported(mParameters, "sharpness") &&
++                !CameraUtil.isSupported(mParameters, "max-sharpness")) {
++            removePreference(group, sharpness.getKey());
++        }
++
+         if (mIso != null) {
+             filterUnsupportedOptions(group,
+                     mIso, ParametersWrapper.getSupportedIsoValues(mParameters));
+diff --git a/src/com/android/camera/PhotoModule.java b/src/com/android/camera/PhotoModule.java
+index 1e89f00c4..3662caacd 100644
+--- a/src/com/android/camera/PhotoModule.java
++++ b/src/com/android/camera/PhotoModule.java
+@@ -1337,7 +1337,11 @@ public class PhotoModule
+             if(mSnapshotMode == CameraInfoWrapper.CAMERA_SUPPORT_MODE_ZSL) {
+                 Log.v(TAG, "JpegPictureCallback : in zslmode");
+                 mParameters = mCameraDevice.getParameters();
+-                mBurstSnapNum = mParameters.getInt("num-snaps-per-shutter");
++                if (CameraUtil.isBurstSupported(mParameters)) {
++                    mBurstSnapNum = mParameters.getInt("num-snaps-per-shutter");
++                } else {
++                    mBurstSnapNum = 1;
++                }
+             }
+             Log.v(TAG, "JpegPictureCallback: Received = " + mReceivedSnapNum +
+                       "Burst count = " + mBurstSnapNum);
+@@ -1822,9 +1826,9 @@ public class PhotoModule
+             overrideCameraSettings(flashMode, null, null,
+                                    exposureCompensation, touchAfAec,
+                                    ParametersWrapper.getAutoExposure(mParameters),
+-                                   Integer.toString(ParametersWrapper.getSaturation(mParameters)),
+-                                   Integer.toString(ParametersWrapper.getContrast(mParameters)),
+-                                   Integer.toString(ParametersWrapper.getSharpness(mParameters)),
++                                   getSaturationSafe(),
++                                   getContrastSafe(),
++                                   getSharpnessSafe(),
+                                    colorEffect,
+                                    mSceneMode, redeyeReduction, aeBracketing);
+             mUI.overrideSettings(CameraSettings.KEY_LONGSHOT,
+@@ -1985,9 +1989,9 @@ public class PhotoModule
+             overrideCameraSettings(null, whiteBalance, focusMode,
+                     exposureCompensation, touchAfAec,
+                     ParametersWrapper.getAutoExposure(mParameters),
+-                    Integer.toString(ParametersWrapper.getSaturation(mParameters)),
+-                    Integer.toString(ParametersWrapper.getContrast(mParameters)),
+-                    Integer.toString(ParametersWrapper.getSharpness(mParameters)),
++                    getSaturationSafe(),
++                    getContrastSafe(),
++                    getSharpnessSafe(),
+                     colorEffect,
+                     sceneMode, redeyeReduction, aeBracketing);
+         } else if (mFocusManager.isZslEnabled()) {
+@@ -3062,6 +3066,39 @@ public class PhotoModule
+         }
+     }
+ 
++    private String getSaturationSafe() {
++        String ret = null;
++        if (CameraUtil.isSupported(mParameters, "saturation") &&
++                CameraUtil.isSupported(mParameters, "max-saturation")) {
++            ret = mPreferences.getString(
++                    CameraSettings.KEY_SATURATION,
++                    mActivity.getString(R.string.pref_camera_saturation_default));
++        }
++        return ret;
++    }
++
++    private String getContrastSafe() {
++        String ret = null;
++        if (CameraUtil.isSupported(mParameters, "contrast") &&
++                CameraUtil.isSupported(mParameters, "max-contrast")) {
++            ret = mPreferences.getString(
++                    CameraSettings.KEY_CONTRAST,
++                    mActivity.getString(R.string.pref_camera_contrast_default));
++        }
++        return ret;
++    }
++
++    private String getSharpnessSafe() {
++        String ret = null;
++        if (CameraUtil.isSupported(mParameters, "sharpness") &&
++                CameraUtil.isSupported(mParameters, "max-sharpness")) {
++            ret = mPreferences.getString(
++                    CameraSettings.KEY_SHARPNESS,
++                    mActivity.getString(R.string.pref_camera_sharpness_default));
++        }
++        return ret;
++    }
++
+     /** This can run on a background thread, so don't do UI updates here.*/
+     private void qcomUpdateCameraParametersPreference() {
+         //qcom Related Parameter update
+@@ -3186,32 +3223,35 @@ public class PhotoModule
+         }
+ 
+         //Set Saturation
+-        String saturationStr = mPreferences.getString(
+-                CameraSettings.KEY_SATURATION,
+-                mActivity.getString(R.string.pref_camera_saturation_default));
+-        int saturation = Integer.parseInt(saturationStr);
+-        Log.v(TAG, "Saturation value =" + saturation);
+-        if((0 <= saturation) && (saturation <= ParametersWrapper.getMaxSaturation(mParameters))){
+-            ParametersWrapper.setSaturation(mParameters, saturation);
++        String saturationStr = getSaturationSafe();
++        if (saturationStr != null) {
++            int saturation = Integer.parseInt(saturationStr);
++            Log.v(TAG, "Saturation value =" + saturation);
++            if ((0 <= saturation) &&
++                    (saturation <= ParametersWrapper.getMaxSaturation(mParameters))) {
++                ParametersWrapper.setSaturation(mParameters, saturation);
++            }
+         }
+         // Set contrast parameter.
+-        String contrastStr = mPreferences.getString(
+-                CameraSettings.KEY_CONTRAST,
+-                mActivity.getString(R.string.pref_camera_contrast_default));
+-        int contrast = Integer.parseInt(contrastStr);
+-        Log.v(TAG, "Contrast value =" +contrast);
+-        if((0 <= contrast) && (contrast <= ParametersWrapper.getMaxContrast(mParameters))){
+-            ParametersWrapper.setContrast(mParameters, contrast);
++        String contrastStr = getContrastSafe();
++        if (contrastStr != null) {
++            int contrast = Integer.parseInt(contrastStr);
++            Log.v(TAG, "Contrast value =" + contrast);
++            if ((0 <= contrast) &&
++                    (contrast <= ParametersWrapper.getMaxContrast(mParameters))) {
++                ParametersWrapper.setContrast(mParameters, contrast);
++            }
+         }
+         // Set sharpness parameter
+-        String sharpnessStr = mPreferences.getString(
+-                CameraSettings.KEY_SHARPNESS,
+-                mActivity.getString(R.string.pref_camera_sharpness_default));
+-        int sharpness = Integer.parseInt(sharpnessStr) *
+-                (ParametersWrapper.getMaxSharpness(mParameters)/MAX_SHARPNESS_LEVEL);
+-        Log.v(TAG, "Sharpness value =" + sharpness);
+-        if((0 <= sharpness) && (sharpness <= ParametersWrapper.getMaxSharpness(mParameters))){
+-            ParametersWrapper.setSharpness(mParameters, sharpness);
++        String sharpnessStr = getSharpnessSafe();
++        if (sharpnessStr != null) {
++            int sharpness = Integer.parseInt(sharpnessStr) *
++                    (ParametersWrapper.getMaxSharpness(mParameters)/MAX_SHARPNESS_LEVEL);
++            Log.v(TAG, "Sharpness value =" + sharpness);
++            if ((0 <= sharpness) &&
++                    (sharpness <= ParametersWrapper.getMaxSharpness(mParameters))) {
++                ParametersWrapper.setSharpness(mParameters, sharpness);
++            }
+         }
+         // Set Face Recognition
+         String faceRC = mPreferences.getString(
+@@ -5135,7 +5175,6 @@ class GraphView extends View {
+     private CameraManager.CameraProxy mGraphCameraDevice;
+     private float scaled;
+     private static final int STATS_SIZE = 256;
+-    private static final String TAG = "GraphView";
+ 
+ 
+     public GraphView(Context context, AttributeSet attrs) {
+@@ -5155,9 +5194,7 @@ class GraphView extends View {
+     }
+     @Override
+     protected void onDraw(Canvas canvas) {
+-        Log.v(TAG, "in Camera.java ondraw");
+-        if(mPhotoModule == null || !mPhotoModule.mHiston ) {
+-            Log.e(TAG, "returning as histogram is off ");
++        if (mPhotoModule == null || !mPhotoModule.mHiston) {
+             return;
+         }
+ 
+diff --git a/src/com/android/camera/VideoModule.java b/src/com/android/camera/VideoModule.java
+index db5949224..6ffb37b77 100644
+--- a/src/com/android/camera/VideoModule.java
++++ b/src/com/android/camera/VideoModule.java
+@@ -2722,7 +2722,9 @@ public class VideoModule implements CameraModule,
+         Log.i(TAG,"NOTE: SetCameraParameters " + videoWidth + " x " + videoHeight);
+         String recordSize = videoWidth + "x" + videoHeight;
+         Log.e(TAG,"Video dimension in App->"+recordSize);
+-        mParameters.set("video-size", recordSize);
++        if (CameraUtil.isSupported(mParameters, "video-size")) {
++            mParameters.set("video-size", recordSize);
++        }
+         // Set white balance parameter.
+         String whiteBalance = mPreferences.getString(
+                 CameraSettings.KEY_WHITE_BALANCE,
+diff --git a/src/com/android/camera/util/CameraUtil.java b/src/com/android/camera/util/CameraUtil.java
+index 8d59a2e1c..5b48548ab 100755
+--- a/src/com/android/camera/util/CameraUtil.java
++++ b/src/com/android/camera/util/CameraUtil.java
+@@ -201,6 +201,14 @@ public class CameraUtil {
+                         params.getSupportedFocusModes()));
+     }
+ 
++    public static boolean isSupported(Parameters params, String key) {
++        return (params.get(key) != null && !"null".equals(params.get(key)));
++    }
++
++    public static boolean isBurstSupported(Parameters params) {
++        return isSupported(params, "num-snaps-per-shutter");
++    }
++
+     // Private intent extras. Test only.
+     private static final String EXTRAS_CAMERA_FACING =
+             "android.intent.extras.CAMERA_FACING";
+-- 
+2.17.1
+
