@@ -385,6 +385,25 @@ function rrCache()
     fi
 }
 
+function reset_project_dir()
+{
+    [ $# -lt 1 -o ! -d "$topdir/$1" ] && return -1
+    cd $topdir/$1
+    git reset >/dev/null 2>/dev/null
+    git cherry-pick --abort>/dev/null 2>/dev/null
+    git am --abort>/dev/null 2>/dev/null
+    git rebase --abort>/dev/null 2>/dev/null
+    git merge --abort>/dev/null 2>/dev/null
+    git stash >/dev/null 2>/dev/null
+    if [ "$1" = ".repo/manifests" ]; then
+         git checkout default >/dev/null 2>/dev/null
+         git fetch --all >/dev/null 2>/dev/null
+         git reset --hard origin/default >/dev/null 2>/dev/null
+         #git pull origin default >/dev/null 2>/dev/null
+    fi
+    cd $topdir
+}
+
 ##################################
 function fix_repopick_output()
 {
@@ -486,7 +505,7 @@ function kpick()
          kpick_action $vars $changeNumber
          return 0
     fi
-    repopick --test > $logfile 2>$errfile
+    LANG=en_US repopick --test > $logfile 2>$errfile
     
     if [ -f $errfile ] && grep -q "error: unrecognized arguments: --test" $errfile; then
          echo "repopick not support --test options"
@@ -506,7 +525,7 @@ function kpick()
         mLine=$(grep -n "^[[:space:]]*kpick $*" $target_script | cut -d: -f1 )
         sed -e "s/\([[:space:]]*kpick $*\)/#\1/" -i   $target_script
     fi
-    repopick --test $query | grep "Testing change number" | cut -d" " -f 4 > $change_number_list || return -1
+    LANG=en_US repopick --test $query | grep "Testing change number" | cut -d" " -f 4 > $change_number_list || return -1
     [ -f $change_number_list ] || return 0
     while read line; do
         number=$(echo $line | sed -e "s/  / /g")
@@ -561,7 +580,7 @@ function kpick_action()
     fi
 
     # calculate check Count
-    repopick --test $changeNumber > $logfile 2>$errfile
+    LANG=en_US repopick --test $changeNumber > $logfile 2>$errfile
     if [ -f $errfile ] && ! grep -q "error: unrecognized arguments: --test" $errfile; then
           if grep -q "\--> Project path:" $logfile; then
               local project_dir=$(grep "\--> Project path:" $logfile | cut -d: -f2 | sed  "s/ //g")
@@ -839,11 +858,15 @@ function apply_force_changes(){
     [ -z $topdir ] && topdir=$(gettop)
     [ -d "$topdir/.myfiles/patches/local/vendor/lineage"  ] || return 0
     find $topdir/.myfiles/patches/local/vendor/lineage/ -type f -name "*-\[ALWAYS\]-*.patch" -o -name "*-\[ALWAYS\]-*.diff" \
-      | while read f; do
+      | sort | while read f; do
          cd $topdir/vendor/lineage;
          if ! git am -3 -q   --keep-cr --committer-date-is-author-date < $f; then
              if [ "$script_file" != "bash" ]; then
-                 int_handler
+                 echo  "  >> please resolv it, then press ENTER to continue, or press 's' skip it ..."
+                 ch=$(sed q </dev/tty)
+                 if [ "$ch" = "s" ]; then
+                     git am --skip
+                 fi
              else
                  return -1
              fi
@@ -942,7 +965,8 @@ fi
 trap 'int_handler' INT
 
 if [ $0 != "bash" -a ! -f $0.tmp -a $op_pick_continue -eq 0 ]; then    # continue pick or not
-rm -f $topdir/.repo/local_manifests/su.xml
+reset_project_dir .repo/manifests
+reset_project_dir vendor/lineage
 repo sync vendor/lineage >/dev/null
 apply_force_changes
 reset_overwrite_projects
@@ -950,15 +974,7 @@ reset_overwrite_projects
 # android
 
 repo sync android  >/dev/null
-cd .repo/manifests
-git reset >/dev/null
-git stash >/dev/null
-git rebase --abort >/dev/null 2>/dev/null
-git fetch --all >/dev/null
-
-default_branch=$(grep "^[[:space:]]*<default revision=" $topdir/.repo/manifests/default.xml | sed -e 's:[^"]*"\(.*\)":\1:' | sed -e "s:refs/heads/::g")
-git reset --hard $(git branch -a | grep "remotes/m/$default_branch" | cut -d'>' -f 2 | sed -e "s/ //g") >/dev/null
-cd $topdir
+reset_project_dir .repo/manifests
 
 kpick 223886 # manifest: Re-add hardware/qcom/data/ipacfg-mgr
 kpick 227747 # lineage: Enable weather apps
@@ -968,19 +984,13 @@ kpick 231971 # manifest: sync gcc4.9 from aosp oreo
 kpick 232785 # lineage: Ship Snap
 
 android_head=$(cd android;git log -n 1 | sed -n 1p | cut -d' ' -f2;cd $topdir)
-
-if [ -d $topdir/system/extras/su/.git ]; then
-    cd $topdir/system/extras/su
-    git stash >/dev/null
-    git reset >/dev/null
-    git clean -xdf >/dev/null
-    cd $topdir
-fi
-repo sync --force-sync  || exit $?
-
+repo sync --force-sync
+rc_sync=$?
 cd android;git reset --hard $android_head >/dev/null;cd $topdir
 
 apply_force_changes
+
+[ $rc_sync -ne 0 ] && exit -1
 
 fi       # continue pick or not
 
@@ -1149,6 +1159,7 @@ kpick 233717 # [DNM][HACK] Persist user brightness model
 kpick 234168 # Binder: Fix improper JNI call for dumpProxyDebugInfo
 kpick 234318 # Wifi: Check for WiFiService's existence before its access
 kpick 234325 # TunerServiceImpl: Blacklist Lineage settings from tuner reset
+kpick 234649 # keyguard: Check for a null errString
 
 # frameworks/native
 kpick 224443 # libbinder: Don't log call trace when waiting for vendor service on non-eng builds
