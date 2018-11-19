@@ -1,0 +1,277 @@
+From 2c48cf1bbbd35d723ab498a6f2a12ba84d343d0d Mon Sep 17 00:00:00 2001
+From: LuK1337 <priv.luk@gmail.com>
+Date: Sat, 17 Nov 2018 23:53:07 +0100
+Subject: [PATCH] Updater: Implement auto update check interval preference
+
+* This replaces auto update check switch with a dropdown with 4 options:
+  * Never
+  * Once a day
+  * Once a week (default)
+  * Once a month
+
+Change-Id: I4bcae4c013a5d44958f9c54d641e64aac3062a8b
+---
+ res/layout/preferences_dialog.xml             | 23 ++++++--
+ res/values/arrays.xml                         |  9 +++
+ res/values/strings.xml                        |  4 ++
+ .../lineageos/updater/UpdatesActivity.java    | 20 +++++--
+ .../updater/UpdatesCheckReceiver.java         | 59 +++++++++++++++----
+ src/org/lineageos/updater/misc/Constants.java |  7 ++-
+ 6 files changed, 98 insertions(+), 24 deletions(-)
+ create mode 100644 res/values/arrays.xml
+
+diff --git a/res/layout/preferences_dialog.xml b/res/layout/preferences_dialog.xml
+index 898f53e..3c1ae29 100644
+--- a/res/layout/preferences_dialog.xml
++++ b/res/layout/preferences_dialog.xml
+@@ -7,13 +7,26 @@
+     android:paddingStart="24dp"
+     android:paddingTop="16dp">
+ 
+-    <Switch
+-        android:id="@+id/preferences_auto_updates_check"
++    <LinearLayout
+         android:layout_width="match_parent"
+         android:layout_height="wrap_content"
+-        android:layout_marginBottom="16dp"
+-        android:text="@string/menu_auto_updates_check"
+-        android:textSize="16sp" />
++        android:layout_marginBottom="16dp">
++
++        <TextView
++            android:layout_width="fill_parent"
++            android:layout_height="wrap_content"
++            android:layout_weight="1"
++            android:text="@string/menu_auto_updates_check"
++            android:textColor="@color/inverted"
++            android:textSize="16sp" />
++
++        <Spinner
++            android:id="@+id/preferences_auto_updates_check_interval"
++            android:layout_width="wrap_content"
++            android:layout_height="wrap_content"
++            android:layout_weight="0"
++            android:entries="@array/menu_auto_updates_check_interval_entries" />
++    </LinearLayout>
+ 
+     <Switch
+         android:id="@+id/preferences_auto_delete_updates"
+diff --git a/res/values/arrays.xml b/res/values/arrays.xml
+new file mode 100644
+index 0000000..bd963d0
+--- /dev/null
++++ b/res/values/arrays.xml
+@@ -0,0 +1,9 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <string-array name="menu_auto_updates_check_interval_entries" translatable="false">
++        <item>@string/menu_auto_updates_check_interval_never</item>
++        <item>@string/menu_auto_updates_check_interval_daily</item>
++        <item>@string/menu_auto_updates_check_interval_weekly</item>
++        <item>@string/menu_auto_updates_check_interval_monthly</item>
++    </string-array>
++</resources>
+diff --git a/res/values/strings.xml b/res/values/strings.xml
+index aa84059..b3ce44e 100644
+--- a/res/values/strings.xml
++++ b/res/values/strings.xml
+@@ -64,6 +64,10 @@
+     <string name="menu_refresh">Refresh</string>
+     <string name="menu_preferences">Preferences</string>
+     <string name="menu_auto_updates_check">Auto updates check</string>
++    <string name="menu_auto_updates_check_interval_daily">Once a day</string>
++    <string name="menu_auto_updates_check_interval_weekly">Once a week</string>
++    <string name="menu_auto_updates_check_interval_monthly">Once a month</string>
++    <string name="menu_auto_updates_check_interval_never">Never</string>
+     <string name="menu_auto_delete_updates">Delete updates when installed</string>
+     <string name="menu_delete_update">Delete</string>
+     <string name="menu_copy_url">Copy URL</string>
+diff --git a/src/org/lineageos/updater/UpdatesActivity.java b/src/org/lineageos/updater/UpdatesActivity.java
+index 2d3fc57..5d3b71a 100644
+--- a/src/org/lineageos/updater/UpdatesActivity.java
++++ b/src/org/lineageos/updater/UpdatesActivity.java
+@@ -45,6 +45,7 @@ import android.view.View;
+ import android.view.animation.Animation;
+ import android.view.animation.LinearInterpolator;
+ import android.view.animation.RotateAnimation;
++import android.widget.Spinner;
+ import android.widget.Switch;
+ import android.widget.TextView;
+ 
+@@ -289,10 +290,13 @@ public class UpdatesActivity extends UpdatesListActivity {
+         try {
+             loadUpdatesList(jsonNew, manualRefresh);
+             SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
++            int autoCheckInterval = preferences.getInt(Constants.PREF_AUTO_UPDATES_CHECK_INTERVAL,
++                    Constants.AUTO_UPDATES_CHECK_INTERVAL_WEEKLY);
+             long millis = System.currentTimeMillis();
+             preferences.edit().putLong(Constants.PREF_LAST_UPDATE_CHECK, millis).apply();
+             updateLastCheckedString();
+-            if (json.exists() && preferences.getBoolean(Constants.PREF_AUTO_UPDATES_CHECK, true) &&
++            if (json.exists() &&
++                    autoCheckInterval != Constants.AUTO_UPDATES_CHECK_INTERVAL_NEVER &&
+                     Utils.checkForNewUpdates(json, jsonNew)) {
+                 UpdatesCheckReceiver.updateRepeatingUpdatesCheck(this);
+             }
+@@ -406,7 +410,8 @@ public class UpdatesActivity extends UpdatesListActivity {
+ 
+     private void showPreferencesDialog() {
+         View view = LayoutInflater.from(this).inflate(R.layout.preferences_dialog, null);
+-        Switch autoCheck = view.findViewById(R.id.preferences_auto_updates_check);
++        Spinner autoCheckInterval =
++                view.findViewById(R.id.preferences_auto_updates_check_interval);
+         Switch autoDelete = view.findViewById(R.id.preferences_auto_delete_updates);
+         Switch dataWarning = view.findViewById(R.id.preferences_mobile_data_warning);
+         Switch abPerfMode = view.findViewById(R.id.preferences_ab_perf_mode);
+@@ -416,7 +421,9 @@ public class UpdatesActivity extends UpdatesListActivity {
+         }
+ 
+         SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(this);
+-        autoCheck.setChecked(prefs.getBoolean(Constants.PREF_AUTO_UPDATES_CHECK, true));
++        autoCheckInterval.setSelection(prefs.getInt(
++                Constants.PREF_AUTO_UPDATES_CHECK_INTERVAL,
++                Constants.AUTO_UPDATES_CHECK_INTERVAL_WEEKLY));
+         autoDelete.setChecked(prefs.getBoolean(Constants.PREF_AUTO_DELETE_UPDATES, false));
+         dataWarning.setChecked(prefs.getBoolean(Constants.PREF_MOBILE_DATA_WARNING, true));
+         abPerfMode.setChecked(prefs.getBoolean(Constants.PREF_AB_PERF_MODE, false));
+@@ -426,8 +433,8 @@ public class UpdatesActivity extends UpdatesListActivity {
+                 .setView(view)
+                 .setOnDismissListener(dialogInterface -> {
+                     prefs.edit()
+-                            .putBoolean(Constants.PREF_AUTO_UPDATES_CHECK,
+-                                    autoCheck.isChecked())
++                            .putInt(Constants.PREF_AUTO_UPDATES_CHECK_INTERVAL,
++                                    autoCheckInterval.getSelectedItemPosition())
+                             .putBoolean(Constants.PREF_AUTO_DELETE_UPDATES,
+                                     autoDelete.isChecked())
+                             .putBoolean(Constants.PREF_MOBILE_DATA_WARNING,
+@@ -436,7 +443,8 @@ public class UpdatesActivity extends UpdatesListActivity {
+                                     abPerfMode.isChecked())
+                             .apply();
+ 
+-                    if (autoCheck.isChecked()) {
++                    if (autoCheckInterval.getSelectedItemPosition() !=
++                            Constants.AUTO_UPDATES_CHECK_INTERVAL_NEVER) {
+                         UpdatesCheckReceiver.scheduleRepeatingUpdatesCheck(this);
+                     } else {
+                         UpdatesCheckReceiver.cancelRepeatingUpdatesCheck(this);
+diff --git a/src/org/lineageos/updater/UpdatesCheckReceiver.java b/src/org/lineageos/updater/UpdatesCheckReceiver.java
+index c7f1b4e..dff18c5 100644
+--- a/src/org/lineageos/updater/UpdatesCheckReceiver.java
++++ b/src/org/lineageos/updater/UpdatesCheckReceiver.java
+@@ -59,7 +59,10 @@ public class UpdatesCheckReceiver extends BroadcastReceiver {
+ 
+         final SharedPreferences preferences =
+                 PreferenceManager.getDefaultSharedPreferences(context);
+-        if (!preferences.getBoolean(Constants.PREF_AUTO_UPDATES_CHECK, true)) {
++
++        int autoCheckInterval = preferences.getInt(Constants.PREF_AUTO_UPDATES_CHECK_INTERVAL,
++                Constants.AUTO_UPDATES_CHECK_INTERVAL_WEEKLY);
++        if (autoCheckInterval == Constants.AUTO_UPDATES_CHECK_INTERVAL_NEVER) {
+             return;
+         }
+ 
+@@ -155,15 +158,23 @@ public class UpdatesCheckReceiver extends BroadcastReceiver {
+     }
+ 
+     public static void scheduleRepeatingUpdatesCheck(Context context) {
+-        long millisToNextRelease = millisToNextRelease(context);
+-        PendingIntent updateCheckIntent = getRepeatingUpdatesCheckIntent(context);
+-        AlarmManager alarmMgr = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
+-        alarmMgr.setInexactRepeating(AlarmManager.ELAPSED_REALTIME,
+-                SystemClock.elapsedRealtime() + millisToNextRelease,
+-                AlarmManager.INTERVAL_DAY, updateCheckIntent);
+-
+-        Date nextCheckDate = new Date(System.currentTimeMillis() + millisToNextRelease);
+-        Log.d(TAG, "Setting daily updates check: " + nextCheckDate);
++        final SharedPreferences preferences =
++                PreferenceManager.getDefaultSharedPreferences(context);
++        int autoUpdatesCheckInterval = preferences.getInt(
++                Constants.PREF_AUTO_UPDATES_CHECK_INTERVAL,
++                Constants.AUTO_UPDATES_CHECK_INTERVAL_WEEKLY);
++
++        if (autoUpdatesCheckInterval != Constants.AUTO_UPDATES_CHECK_INTERVAL_NEVER) {
++            long millisToNextRelease = millisToNextRelease(context);
++            PendingIntent updateCheckIntent = getRepeatingUpdatesCheckIntent(context);
++            AlarmManager alarmMgr = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
++            alarmMgr.setInexactRepeating(AlarmManager.ELAPSED_REALTIME,
++                    SystemClock.elapsedRealtime() + millisToNextRelease,
++                    AlarmManager.INTERVAL_DAY, updateCheckIntent);
++
++            Date nextCheckDate = new Date(System.currentTimeMillis() + millisToNextRelease);
++            Log.d(TAG, "Setting automatic updates check: " + nextCheckDate);
++        }
+     }
+ 
+     public static void cancelRepeatingUpdatesCheck(Context context) {
+@@ -197,6 +208,30 @@ public class UpdatesCheckReceiver extends BroadcastReceiver {
+ 
+     private static long millisToNextRelease(Context context) {
+         final long extraMillis = 3 * AlarmManager.INTERVAL_HOUR;
++        final SharedPreferences preferences =
++                PreferenceManager.getDefaultSharedPreferences(context);
++        int autoUpdatesCheckInterval = preferences.getInt(
++                Constants.PREF_AUTO_UPDATES_CHECK_INTERVAL,
++                Constants.AUTO_UPDATES_CHECK_INTERVAL_WEEKLY);
++
++        long alarmInterval = 0;
++
++        switch (autoUpdatesCheckInterval) {
++            case Constants.AUTO_UPDATES_CHECK_INTERVAL_DAILY:
++                alarmInterval = AlarmManager.INTERVAL_DAY;
++                break;
++            case Constants.AUTO_UPDATES_CHECK_INTERVAL_WEEKLY:
++                alarmInterval = AlarmManager.INTERVAL_DAY * 7;
++                break;
++            case Constants.AUTO_UPDATES_CHECK_INTERVAL_MONTHLY:
++                alarmInterval = AlarmManager.INTERVAL_DAY * 30;
++                break;
++        }
++
++        if (alarmInterval == 0) {
++            Log.w(TAG, "millisToNextRelease: alarmInterval not set, default to a month!");
++            alarmInterval = AlarmManager.INTERVAL_DAY * 30;
++        }
+ 
+         List<UpdateInfo> updates = null;
+         try {
+@@ -205,7 +240,7 @@ public class UpdatesCheckReceiver extends BroadcastReceiver {
+         }
+ 
+         if (updates == null || updates.size() == 0) {
+-            return SystemClock.elapsedRealtime() + AlarmManager.INTERVAL_DAY;
++            return SystemClock.elapsedRealtime() + alarmInterval;
+         }
+ 
+         long buildTimestamp = 0;
+@@ -226,7 +261,7 @@ public class UpdatesCheckReceiver extends BroadcastReceiver {
+         long millisToNextRelease = (c.getTimeInMillis() - now);
+         millisToNextRelease += extraMillis;
+         if (c.getTimeInMillis() < now) {
+-            millisToNextRelease += AlarmManager.INTERVAL_DAY;
++            millisToNextRelease += alarmInterval;
+         }
+ 
+         return millisToNextRelease;
+diff --git a/src/org/lineageos/updater/misc/Constants.java b/src/org/lineageos/updater/misc/Constants.java
+index 5bc0e8b..81e7c1a 100644
+--- a/src/org/lineageos/updater/misc/Constants.java
++++ b/src/org/lineageos/updater/misc/Constants.java
+@@ -23,8 +23,13 @@ public final class Constants {
+     public static final String AB_PAYLOAD_BIN_PATH = "payload.bin";
+     public static final String AB_PAYLOAD_PROPERTIES_PATH = "payload_properties.txt";
+ 
++    public static final int AUTO_UPDATES_CHECK_INTERVAL_NEVER = 0;
++    public static final int AUTO_UPDATES_CHECK_INTERVAL_DAILY = 1;
++    public static final int AUTO_UPDATES_CHECK_INTERVAL_WEEKLY = 2;
++    public static final int AUTO_UPDATES_CHECK_INTERVAL_MONTHLY = 3;
++
+     public static final String PREF_LAST_UPDATE_CHECK = "last_update_check";
+-    public static final String PREF_AUTO_UPDATES_CHECK = "auto_updates_check";
++    public static final String PREF_AUTO_UPDATES_CHECK_INTERVAL = "auto_updates_check_interval";
+     public static final String PREF_AUTO_DELETE_UPDATES = "auto_delete_updates";
+     public static final String PREF_AB_PERF_MODE = "ab_perf_mode";
+     public static final String PREF_MOBILE_DATA_WARNING = "pref_mobile_data_warning";
+-- 
+2.17.1
+
