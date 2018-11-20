@@ -1297,11 +1297,9 @@ kpick 226638 # wcnss_qmi: Generate a fixed random mac address if the NV doesn't 
 kpick 226643 # wcnss_service: Read serial number from custom property
 
 # hardware/ril
-kpick 230736 # libril: Fix manual network selection with old modem
 
 # hardware/ril-caf
 kpick 227614 # Disable IOemHook implemenation in rild.
-kpick 230737 # libril: Fix manual network selection with old modem
 
 # hardware/samsung
 #kpick 228524 # power: Convert power HAL to native binderized HAL
@@ -1558,7 +1556,7 @@ kpick 233245 # Snap: Separate default focus time between camera/video
 kpick 233246 # Snap: Fix crash when set infinite touch-focus duration
 kpick 233247 # Camera2: Only autofocus before a snap if we are actually in "auto" mode.
 kpick 233248 # camera: Keep touch focus intact during back-to-back ZSL shots
-kpick 233249 # snap: Fixes for advanced features and scene modes
+kpick 233249 # Snap: Fixes for advanced features and scene modes
 kpick 233250 # snap: Additional fixes for auto-HDR mode
 kpick 233251 # Snap: grant android.permission.RECEIVE_BOOT_COMPLETED permisions
 kpick 233252 # Snap: initial materialization
@@ -1590,7 +1588,6 @@ kpick 233277 # Snap: CaptureModule: check if ZSL is supported before using it
 kpick 233278 # Snap: Allow switching beyond just 2 cameras
 kpick 233279 # Always apply frame size reduction to panorama pictures
 kpick 233280 # Snap: Simulate back button press when menu back button is pressed
-kpick 233281 # Snap: Add overlay for restarting camera preview for additional cameras
 kpick 233283 # Never ignore finger swipes in gallery mode
 kpick 233284 # Initialize focus overlay manager if it is not initialized.
 kpick 233285 # Camera: Set preview fps after recording.
@@ -1601,7 +1598,7 @@ kpick 233290 # ListPreference: prevent ArrayIndexOutOfBoundsException
 kpick 233291 # VideoModule: don't set negative HFR value
 kpick 233292 # SnapdragonCamera: Fix shutter button clicks in rapid succession getting ignored
 kpick 233293 # SnapdragonCamera: Enforce 120ms delay in between shutter clicks
-kpick 233294
+kpick 233294 # Snap: Render zoom circle in the center of the camera preview
 kpick 233295 # Snap: Don't do touch-to-focus on top of UI elements
 kpick 233296 # SnapdragonCamera: Add missing toast on HSR/HFR override
 kpick 233297 # Snap: Show remaining photos on initial start

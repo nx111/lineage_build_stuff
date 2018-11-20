@@ -1,0 +1,46 @@
+From e7c13719dc32d56356dcb2ac9c55135c30c67b24 Mon Sep 17 00:00:00 2001
+From: Danny Baumann <dannybaumann@web.de>
+Date: Fri, 25 Mar 2016 13:02:27 +0100
+Subject: [PATCH 138/192] Protect against multiple shutter callbacks per frame
+ in longshot mode.
+
+Some devices send multiple shutter callbacks for one captured frame in
+longshot mode. As this causes mismatch between the calculated number of
+captured frames and the calculated number of JPEGs received for those,
+which in turn leads to longshot mode never being ended properly,
+protect against that scenario by discarding all but the first callback.
+
+Change-Id: I0c3a270f664a0cd16354fb0a13c5941a52001650
+---
+ src/com/android/camera/PhotoModule.java | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+diff --git a/src/com/android/camera/PhotoModule.java b/src/com/android/camera/PhotoModule.java
+index 689802c44..87b7fcfee 100644
+--- a/src/com/android/camera/PhotoModule.java
++++ b/src/com/android/camera/PhotoModule.java
+@@ -1074,6 +1074,11 @@ public class PhotoModule
+ 
+     private final class LongshotShutterCallback
+             implements CameraShutterCallback {
++        private int mExpectedLongshotSnapNum;
++
++        public LongshotShutterCallback() {
++            mExpectedLongshotSnapNum = mLongshotSnapNum;
++        }
+ 
+         @Override
+         public void onShutter(CameraProxy camera) {
+@@ -1081,6 +1086,9 @@ public class PhotoModule
+             mShutterLag = mShutterCallbackTime - mCaptureStartTime;
+             Log.e(TAG, "[KPI Perf] PROFILE_SHUTTER_LAG mShutterLag = " + mShutterLag + "ms");
+             synchronized(mCameraDevice) {
++                if (mExpectedLongshotSnapNum != mLongshotSnapNum) {
++                    return;
++                }
+ 
+                 if (++mLongshotSnapNum >= mLongShotMaxSnap &&
+                     (mLongShotMaxSnap != -1)) {
+-- 
+2.17.1
+

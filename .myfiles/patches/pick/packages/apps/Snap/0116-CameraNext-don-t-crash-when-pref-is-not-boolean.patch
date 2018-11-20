@@ -1,0 +1,53 @@
+From 2d807fef2c4ca3e18a04a685b144900a1229ea7f Mon Sep 17 00:00:00 2001
+From: Keith Mok <kmok@cyngn.com>
+Date: Thu, 16 Jun 2016 09:42:06 -0700
+Subject: [PATCH 116/192] CameraNext: don't crash when pref is not boolean
+
+In some situation, a portion of pref (enableRecordingLocation) is
+created without first calling upgradeGlobalPreference first.
+Leaving the pref without the version field and makes the application
+thinks that the pref is in old version.
+
+When it tries to do an upgrade on the pref later, it tries to getBoolean
+for that location field, but that location field is already in string
+format, making getBoolean throws an exception.
+
+The best is to call upgradeGlobalPreference and upgradeLocalPreference
+when the application starts.
+
+However it should be no harm just add a simple guard in getBoolean
+to avoid that sitation.
+
+FEIJ-1258
+
+Change-Id: Ic73078556b1a198a58968806091f8b0afd1ad6cc
+---
+ src/com/android/camera/CameraSettings.java | 12 ++++++++----
+ 1 file changed, 8 insertions(+), 4 deletions(-)
+
+diff --git a/src/com/android/camera/CameraSettings.java b/src/com/android/camera/CameraSettings.java
+index 80dd75e49..f263d307e 100755
+--- a/src/com/android/camera/CameraSettings.java
++++ b/src/com/android/camera/CameraSettings.java
+@@ -1455,10 +1455,14 @@ public class CameraSettings {
+             version = 2;
+         }
+         if (version == 2) {
+-            editor.putString(KEY_RECORD_LOCATION,
+-                    pref.getBoolean(KEY_RECORD_LOCATION, false)
+-                    ? RecordLocationPreference.VALUE_ON
+-                    : RecordLocationPreference.VALUE_NONE);
++            try {
++                boolean value = pref.getBoolean(KEY_RECORD_LOCATION, false);
++                editor.putString(KEY_RECORD_LOCATION,
++                        value ? RecordLocationPreference.VALUE_ON
++                              : RecordLocationPreference.VALUE_NONE);
++            } catch (ClassCastException e) {
++                Log.e(TAG, "error convert record location", e);
++            }
+             version = 3;
+         }
+         if (version == 3) {
+-- 
+2.17.1
+
