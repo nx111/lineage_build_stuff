@@ -1,0 +1,87 @@
+From 9854fc8912c9e153be076d5589ac3a671ef8f030 Mon Sep 17 00:00:00 2001
+From: Martin Brabham <optedoblivion@cyngn.com>
+Date: Mon, 9 Nov 2015 15:11:54 -0800
+Subject: [PATCH 108/171] Make panorama able to go 270 degrees in landscape
+
+Change-Id: Icfab44c674bcc59c1d369af64985956ccaf63ccc
+issue-id: SAMBAR-869
+(cherry picked from commit e0ca697b97ef2d872f682d2b357d7233762cfafd)
+---
+ jni/feature_mos_jni.cpp                             |  2 +-
+ src/com/android/camera/MosaicFrameProcessor.java    |  2 +-
+ src/com/android/camera/WideAnglePanoramaModule.java | 12 ++++++++----
+ 3 files changed, 10 insertions(+), 6 deletions(-)
+
+diff --git a/jni/feature_mos_jni.cpp b/jni/feature_mos_jni.cpp
+index cfdcba441..e087ce5f8 100644
+--- a/jni/feature_mos_jni.cpp
++++ b/jni/feature_mos_jni.cpp
+@@ -38,7 +38,7 @@ extern "C" {
+ 
+ char buffer[1024];
+ 
+-const int MAX_FRAMES = 100;
++const int MAX_FRAMES = 200; // 100 per 180 degrees
+ 
+ int tWidth[NR];
+ int tHeight[NR];
+diff --git a/src/com/android/camera/MosaicFrameProcessor.java b/src/com/android/camera/MosaicFrameProcessor.java
+index cb305344d..2e027b3e3 100644
+--- a/src/com/android/camera/MosaicFrameProcessor.java
++++ b/src/com/android/camera/MosaicFrameProcessor.java
+@@ -24,7 +24,7 @@ import android.util.Log;
+ public class MosaicFrameProcessor {
+     private static final String TAG = "MosaicFrameProcessor";
+     private static final int NUM_FRAMES_IN_BUFFER = 2;
+-    private static final int MAX_NUMBER_OF_FRAMES = 100;
++    private static final int MAX_NUMBER_OF_FRAMES = 100 * 2; // We need 200 frames for 360 degrees
+     private static final int MOSAIC_RET_CODE_INDEX = 10;
+     private static final int FRAME_COUNT_INDEX = 9;
+     private static final int X_COORD_INDEX = 2;
+diff --git a/src/com/android/camera/WideAnglePanoramaModule.java b/src/com/android/camera/WideAnglePanoramaModule.java
+index 9386e9371..77f724606 100644
+--- a/src/com/android/camera/WideAnglePanoramaModule.java
++++ b/src/com/android/camera/WideAnglePanoramaModule.java
+@@ -68,7 +68,8 @@ public class WideAnglePanoramaModule
+         implements CameraModule, WideAnglePanoramaController,
+         SurfaceTexture.OnFrameAvailableListener {
+ 
+-    public static final int DEFAULT_SWEEP_ANGLE = 160;
++    public static final int DEFAULT_SWEEP_ANGLE_PORTRAIT = 160;
++    public static final int DEFAULT_SWEEP_ANGLE_LANDSCAPE = 270;
+     public static final int DEFAULT_BLEND_MODE = Mosaic.BLENDTYPE_HORIZONTAL;
+     public static final int DEFAULT_CAPTURE_PIXELS = 960 * 720;
+ 
+@@ -583,6 +584,9 @@ public class WideAnglePanoramaModule
+         parameters.setAutoWhiteBalanceLock(true);
+         configureCamera(parameters);
+ 
++        final int sweepAngle = (mDeviceOrientation == 90 || mDeviceOrientation == 270) ?
++                DEFAULT_SWEEP_ANGLE_LANDSCAPE : DEFAULT_SWEEP_ANGLE_PORTRAIT;
++
+         mMosaicFrameProcessor.setProgressListener(new MosaicFrameProcessor.ProgressListener() {
+             @Override
+             public void onProgress(boolean isFinished, float panningRateX, float panningRateY,
+@@ -591,8 +595,8 @@ public class WideAnglePanoramaModule
+                 float accumulatedVerticalAngle = progressY * mVerticalViewAngle;
+                 boolean isRotated = !(mDeviceOrientationAtCapture == mDeviceOrientation);
+                 if (isFinished
+-                        || (Math.abs(accumulatedHorizontalAngle) >= DEFAULT_SWEEP_ANGLE)
+-                        || (Math.abs(accumulatedVerticalAngle) >= DEFAULT_SWEEP_ANGLE)
++                        || (Math.abs(accumulatedHorizontalAngle) >= sweepAngle)
++                        || (Math.abs(accumulatedVerticalAngle) >= sweepAngle)
+                         || isRotated) {
+                     stopCapture(false);
+                 } else {
+@@ -612,7 +616,7 @@ public class WideAnglePanoramaModule
+         mUI.resetCaptureProgress();
+         // TODO: calculate the indicator width according to different devices to reflect the actual
+         // angle of view of the camera device.
+-        mUI.setMaxCaptureProgress(DEFAULT_SWEEP_ANGLE);
++        mUI.setMaxCaptureProgress(sweepAngle);
+         mUI.showCaptureProgress();
+         mDeviceOrientationAtCapture = mDeviceOrientation;
+         keepScreenOn();
+-- 
+2.17.1
+

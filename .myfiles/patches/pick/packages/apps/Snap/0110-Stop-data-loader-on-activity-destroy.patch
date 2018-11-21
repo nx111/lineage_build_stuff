@@ -1,0 +1,171 @@
+From 2963d4d1d3d52677571b77b92db0e2b9a897dd22 Mon Sep 17 00:00:00 2001
+From: Danny Baumann <dannybaumann@web.de>
+Date: Tue, 29 Nov 2016 14:04:31 +0100
+Subject: [PATCH 110/171] Stop data loader on activity destroy.
+
+Fixes this crash:
+
+11-29 13:02:30.837 18338 18338 E AndroidRuntime:
+java.lang.IllegalArgumentException: You cannot start a load for a
+destroyed activity
+11-29 13:02:30.837 18338 18338 E AndroidRuntime:        at
+com.bumptech.glide.manager.RequestManagerRetriever.assertNotDestroyed(RequestManagerRetriever.java:136)
+11-29 13:02:30.837 18338 18338 E AndroidRuntime:        at
+com.bumptech.glide.manager.RequestManagerRetriever.get(RequestManagerRetriever.java:127)
+11-29 13:02:30.837 18338 18338 E AndroidRuntime:        at
+com.bumptech.glide.manager.RequestManagerRetriever.get(RequestManagerRetriever.java:88)
+11-29 13:02:30.837 18338 18338 E AndroidRuntime:        at
+com.bumptech.glide.Glide.with(Glide.java:587)
+11-29 13:02:30.837 18338 18338 E AndroidRuntime:        at
+com.android.camera.data.LocalMediaData$PhotoData.loadUri(LocalMediaData.java:535)
+11-29 13:02:30.837 18338 18338 E AndroidRuntime:        at
+com.android.camera.data.LocalMediaData$PhotoData.loadImage(LocalMediaData.java:507)
+11-29 13:02:30.837 18338 18338 E AndroidRuntime:        at
+com.android.camera.data.LocalMediaData$PhotoData.fillImageView(LocalMediaData.java:485)
+11-29 13:02:30.837 18338 18338 E AndroidRuntime:        at
+com.android.camera.data.LocalMediaData.getView(LocalMediaData.java:232)
+11-29 13:02:30.837 18338 18338 E AndroidRuntime:        at
+com.android.camera.data.CameraDataAdapter.getView(CameraDataAdapter.java:101)
+11-29 13:02:30.837 18338 18338 E AndroidRuntime:        at
+com.android.camera.data.FixedFirstDataAdapter.getView(FixedFirstDataAdapter.java:117)
+11-29 13:02:30.837 18338 18338 E AndroidRuntime:        at
+com.android.camera.ui.FilmStripView.buildItemFromData(FilmStripView.java:928)
+11-29 13:02:30.837 18338 18338 E AndroidRuntime:        at
+com.android.camera.ui.FilmStripView.update(FilmStripView.java:2072)
+11-29 13:02:30.837 18338 18338 E AndroidRuntime:        at
+com.android.camera.ui.FilmStripView.-wrap12(FilmStripView.java)
+11-29 13:02:30.837 18338 18338 E AndroidRuntime:        at
+com.android.camera.ui.FilmStripView$4.onDataUpdated(FilmStripView.java:1803)
+11-29 13:02:30.837 18338 18338 E AndroidRuntime:        at
+com.android.camera.data.FixedFirstDataAdapter.onDataLoaded(FixedFirstDataAdapter.java:152)
+11-29 13:02:30.837 18338 18338 E AndroidRuntime:        at
+com.android.camera.data.CameraDataAdapter.replaceData(CameraDataAdapter.java:269)
+11-29 13:02:30.837 18338 18338 E AndroidRuntime:        at
+com.android.camera.data.CameraDataAdapter.-wrap1(CameraDataAdapter.java)
+11-29 13:02:30.837 18338 18338 E AndroidRuntime:        at
+com.android.camera.data.CameraDataAdapter$QueryTask.onPostExecute(CameraDataAdapter.java:359)
+11-29 13:02:30.837 18338 18338 E AndroidRuntime:        at
+com.android.camera.data.CameraDataAdapter$QueryTask.onPostExecute(CameraDataAdapter.java:358)
+11-29 13:02:30.837 18338 18338 E AndroidRuntime:        at
+android.os.AsyncTask.finish(AsyncTask.java:660)
+11-29 13:02:30.837 18338 18338 E AndroidRuntime:        at
+android.os.AsyncTask.-wrap1(AsyncTask.java)
+11-29 13:02:30.837 18338 18338 E AndroidRuntime:        at
+android.os.AsyncTask$InternalHandler.handleMessage(AsyncTask.java:677)
+11-29 13:02:30.837 18338 18338 E AndroidRuntime:        at
+android.os.Handler.dispatchMessage(Handler.java:102)
+11-29 13:02:30.837 18338 18338 E AndroidRuntime:        at
+android.os.Looper.loop(Looper.java:154)
+11-29 13:02:30.837 18338 18338 E AndroidRuntime:        at
+android.app.ActivityThread.main(ActivityThread.java:6095)
+11-29 13:02:30.837 18338 18338 E AndroidRuntime:        at
+java.lang.reflect.Method.invoke(Native Method)
+11-29 13:02:30.837 18338 18338 E AndroidRuntime:        at
+com.android.internal.os.ZygoteInit$MethodAndArgsCaller.run(ZygoteInit.java:886)
+11-29 13:02:30.837 18338 18338 E AndroidRuntime:        at
+com.android.internal.os.ZygoteInit.main(ZygoteInit.java:776)
+
+Change-Id: I43c6eb85651e5ee69647114a5ec819ed98c61720
+---
+ src/com/android/camera/CameraActivity.java    |  3 +++
+ .../data/AbstractLocalDataAdapterWrapper.java |  5 +++++
+ .../camera/data/CameraDataAdapter.java        | 21 +++++++++++++++----
+ .../android/camera/data/LocalDataAdapter.java |  3 +++
+ 4 files changed, 28 insertions(+), 4 deletions(-)
+
+diff --git a/src/com/android/camera/CameraActivity.java b/src/com/android/camera/CameraActivity.java
+index d4db9177f..6277a6e40 100755
+--- a/src/com/android/camera/CameraActivity.java
++++ b/src/com/android/camera/CameraActivity.java
+@@ -1931,6 +1931,9 @@ public class CameraActivity extends Activity
+             mCursor.close();
+             mCursor=null;
+         }
++        if (mDataAdapter != null) {
++            mDataAdapter.stopLoading();
++        }
+         if (mAutoTestEnabled) {
+             unregisterReceiver(mAutoTestReceiver);
+         }
+diff --git a/src/com/android/camera/data/AbstractLocalDataAdapterWrapper.java b/src/com/android/camera/data/AbstractLocalDataAdapterWrapper.java
+index ef1e4258c..bc239788b 100644
+--- a/src/com/android/camera/data/AbstractLocalDataAdapterWrapper.java
++++ b/src/com/android/camera/data/AbstractLocalDataAdapterWrapper.java
+@@ -98,4 +98,9 @@ public abstract class AbstractLocalDataAdapterWrapper implements LocalDataAdapte
+     public void refresh(ContentResolver resolver, Uri uri) {
+         mAdapter.refresh(resolver, uri);
+     }
++
++    @Override
++    public void stopLoading() {
++        mAdapter.stopLoading();
++    }
+ }
+diff --git a/src/com/android/camera/data/CameraDataAdapter.java b/src/com/android/camera/data/CameraDataAdapter.java
+index 4b810a0fa..95c1ea723 100755
+--- a/src/com/android/camera/data/CameraDataAdapter.java
++++ b/src/com/android/camera/data/CameraDataAdapter.java
+@@ -52,6 +52,7 @@ public class CameraDataAdapter implements LocalDataAdapter {
+     private int mSuggestedHeight = DEFAULT_DECODE_SIZE;
+ 
+     private LocalData mLocalDataToDelete;
++    private QueryTask mQueryTask;
+ 
+     public CameraDataAdapter(Drawable placeHolder) {
+         mImages = new LocalDataList();
+@@ -60,8 +61,15 @@ public class CameraDataAdapter implements LocalDataAdapter {
+ 
+     @Override
+     public void requestLoad(ContentResolver resolver) {
+-        QueryTask qtask = new QueryTask();
+-        qtask.execute(resolver);
++        mQueryTask = new QueryTask();
++        mQueryTask.execute(resolver);
++    }
++
++    @Override
++    public void stopLoading() {
++        if (mQueryTask != null) {
++            mQueryTask.cancel(true);
++        }
+     }
+ 
+     @Override
+@@ -329,7 +337,7 @@ public class CameraDataAdapter implements LocalDataAdapter {
+             if (c != null && c.moveToFirst()) {
+                 // build up the list.
+                 c.moveToFirst();
+-                while (true) {
++                while (!isCancelled()) {
+                     LocalData data = LocalMediaData.VideoData.buildFromCursor(c);
+                     if (data != null) {
+                         l.add(data);
+@@ -357,7 +365,12 @@ public class CameraDataAdapter implements LocalDataAdapter {
+ 
+         @Override
+         protected void onPostExecute(LocalDataList l) {
+-            replaceData(l);
++            if (!isCancelled()) {
++                replaceData(l);
++            }
++            if (mQueryTask == this) {
++                mQueryTask = null;
++            }
+         }
+     }
+ 
+diff --git a/src/com/android/camera/data/LocalDataAdapter.java b/src/com/android/camera/data/LocalDataAdapter.java
+index 0a5fde0b5..d8c5971ac 100644
+--- a/src/com/android/camera/data/LocalDataAdapter.java
++++ b/src/com/android/camera/data/LocalDataAdapter.java
+@@ -115,4 +115,7 @@ public interface LocalDataAdapter extends DataAdapter {
+ 
+     /** Insert a data. */
+     public void insertData(LocalData data);
++
++    /** Stop data loading */
++    public void stopLoading();
+ }
+-- 
+2.17.1
+

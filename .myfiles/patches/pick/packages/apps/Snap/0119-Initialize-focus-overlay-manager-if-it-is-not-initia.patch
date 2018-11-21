@@ -1,0 +1,51 @@
+From f41dd978291036f5eada8192b83321589e2a843b Mon Sep 17 00:00:00 2001
+From: Santhosh Kumar H E <skhara@codeaurora.org>
+Date: Wed, 3 Dec 2014 15:33:56 +0530
+Subject: [PATCH 119/171] Initialize focus overlay manager if it is not
+ initialized.
+
+Camera open thread initializes the focus overlay manager
+after opening camera. In a rare scenario above background
+thread had not initialized focus overlay manager by the
+time UI thread start acessesing it, so we see a crash.
+Initialize focus overlay manager from UI thread if it is
+not initialized already.
+
+Change-Id: I1635c8759d0e0647fe61fe975a0cc24df40df529
+---
+ src/com/android/camera/PhotoModule.java | 12 +++++++++---
+ 1 file changed, 9 insertions(+), 3 deletions(-)
+
+diff --git a/src/com/android/camera/PhotoModule.java b/src/com/android/camera/PhotoModule.java
+index 4bd0e2db8..cb5af750c 100644
+--- a/src/com/android/camera/PhotoModule.java
++++ b/src/com/android/camera/PhotoModule.java
+@@ -2784,9 +2784,13 @@ public class PhotoModule
+             mMirror = (info.facing == CameraInfo.CAMERA_FACING_FRONT);
+             String[] defaultFocusModes = mActivity.getResources().getStringArray(
+                     R.array.pref_camera_focusmode_default_array);
+-            mFocusManager = new FocusOverlayManager(mPreferences, defaultFocusModes,
+-                    mInitialParams, this, mMirror,
+-                    mActivity.getMainLooper(), mUI);
++            synchronized (this) {
++                if (mFocusManager == null) {
++                    mFocusManager = new FocusOverlayManager(mPreferences, defaultFocusModes,
++                            mInitialParams, this, mMirror,
++                            mActivity.getMainLooper(), mUI);
++                }
++            }
+         }
+     }
+ 
+@@ -3057,6 +3061,8 @@ public class PhotoModule
+             setCameraState(IDLE);
+         }
+ 
++        if (mFocusManager == null) initializeFocusManager();
++
+         if (!mSnapshotOnIdle) {
+             mFocusManager.setAeAwbLock(false); // Unlock AE and AWB.
+         }
+-- 
+2.17.1
+

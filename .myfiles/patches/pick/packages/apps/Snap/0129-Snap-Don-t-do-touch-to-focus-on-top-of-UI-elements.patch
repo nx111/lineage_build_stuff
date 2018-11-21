@@ -1,0 +1,114 @@
+From d1a58d6e7527a6fbd61f8b5979f2612e4971e49c Mon Sep 17 00:00:00 2001
+From: Sultanxda <sultanxda@gmail.com>
+Date: Sat, 26 Mar 2016 04:45:50 -0700
+Subject: [PATCH 129/171] Snap: Don't do touch-to-focus on top of UI elements
+
+Don't process touch-to-focus for taps that are located on either the top
+or bottom UI panes.
+
+Change-Id: Iac4ccda8625080ff0bd1133ac339e53c423b626d
+Signed-off-by: Sultanxda <sultanxda@gmail.com>
+---
+ .../android/camera/FocusOverlayManager.java   | 21 +++++++++++++++++--
+ src/com/android/camera/PhotoModule.java       |  2 +-
+ src/com/android/camera/VideoModule.java       |  2 +-
+ 3 files changed, 21 insertions(+), 4 deletions(-)
+
+diff --git a/src/com/android/camera/FocusOverlayManager.java b/src/com/android/camera/FocusOverlayManager.java
+index cac59582a..34a8521e2 100644
+--- a/src/com/android/camera/FocusOverlayManager.java
++++ b/src/com/android/camera/FocusOverlayManager.java
+@@ -17,7 +17,9 @@
+ package com.android.camera;
+ 
+ import android.annotation.TargetApi;
++import android.content.Context;
+ import android.graphics.Matrix;
++import android.graphics.Point;
+ import android.graphics.Rect;
+ import android.graphics.RectF;
+ import android.hardware.Camera.Area;
+@@ -27,7 +29,9 @@ import android.os.Handler;
+ import android.os.Looper;
+ import android.os.Message;
+ import android.util.Log;
++import org.codeaurora.snapcam.R;
+ 
++import com.android.camera.app.CameraApp;
+ import com.android.camera.util.CameraUtil;
+ import com.android.camera.util.UsageStatistics;
+ 
+@@ -107,6 +111,9 @@ public class FocusOverlayManager {
+     }
+ 
+     private int mFocusTime; // time after touch-to-focus
++    private Point mDispSize;
++    private int mBottomMargin;
++    private int mTopMargin;
+ 
+     public interface Listener {
+         public void autoFocus();
+@@ -136,7 +143,7 @@ public class FocusOverlayManager {
+ 
+     public FocusOverlayManager(ComboPreferences preferences, String[] defaultFocusModes,
+             Parameters parameters, Listener listener,
+-            boolean mirror, Looper looper, FocusUI ui) {
++            boolean mirror, Looper looper, FocusUI ui, CameraActivity activity) {
+         mHandler = new MainHandler(looper);
+         mMatrix = new Matrix();
+         mPreferences = preferences;
+@@ -145,6 +152,13 @@ public class FocusOverlayManager {
+         mListener = listener;
+         setMirror(mirror);
+         mUI = ui;
++        mDispSize = new Point();
++        activity.getWindowManager().getDefaultDisplay().getRealSize(mDispSize);
++        Context context = CameraApp.getContext();
++        mBottomMargin =
++            context.getResources().getDimensionPixelSize(R.dimen.preview_bottom_margin);
++        mTopMargin =
++            context.getResources().getDimensionPixelSize(R.dimen.preview_top_margin);
+     }
+ 
+     public void setPhotoUI(FocusUI ui) {
+@@ -393,7 +407,10 @@ public class FocusOverlayManager {
+                     mState == STATE_SUCCESS || mState == STATE_FAIL)) {
+             cancelAutoFocus();
+         }
+-        if (mPreviewRect.width() == 0 || mPreviewRect.height() == 0) return;
++        if (mPreviewRect.width() == 0 || mPreviewRect.height() == 0 ||
++            (y > (mDispSize.y - mBottomMargin) || y < mTopMargin)) {
++            return;
++        }
+         // Initialize variables.
+         // Initialize mFocusArea.
+         if (mFocusAreaSupported) {
+diff --git a/src/com/android/camera/PhotoModule.java b/src/com/android/camera/PhotoModule.java
+index 03e5cb5a7..f89b9e09e 100644
+--- a/src/com/android/camera/PhotoModule.java
++++ b/src/com/android/camera/PhotoModule.java
+@@ -2817,7 +2817,7 @@ public class PhotoModule
+                 if (mFocusManager == null) {
+                     mFocusManager = new FocusOverlayManager(mPreferences, defaultFocusModes,
+                             mInitialParams, this, mMirror,
+-                            mActivity.getMainLooper(), mUI);
++                            mActivity.getMainLooper(), mUI, mActivity);
+                 }
+             }
+         }
+diff --git a/src/com/android/camera/VideoModule.java b/src/com/android/camera/VideoModule.java
+index c49fa7c4d..12e045440 100644
+--- a/src/com/android/camera/VideoModule.java
++++ b/src/com/android/camera/VideoModule.java
+@@ -1481,7 +1481,7 @@ public class VideoModule implements CameraModule,
+                     R.array.pref_video_focusmode_default_array);
+             mFocusManager = new FocusOverlayManager(mPreferences, defaultFocusModes,
+                     mParameters, this, mirror,
+-                    mActivity.getMainLooper(), mUI);
++                    mActivity.getMainLooper(), mUI, mActivity);
+         }
+     }
+ 
+-- 
+2.17.1
+

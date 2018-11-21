@@ -1003,15 +1003,21 @@ kpick 224917 # DO NOT MERGE: klte-common: Requisite bring-up BS change
 kpick 234490 # klte-common: restorecon I/O scheduler tunables before touching them
 
 # device/samsung/msm8974-common
+kpick 234687 # msm8974-common: sepolicy: Drop our mediaextractor additions
 kpick 234591 # msm8974-common: sepolicy: Sort sysfs block of file_contexts sanely
 kpick 234520 # msm8974-common: sepolicy: Label sysfs_graphics nodes
 kpick 234521 # msm8974-common: sepolicy: Label sysfs_iio nodes
 kpick 234522 # msm8974-common: sepolicy: Label sysfs_input nodes
-#kpick 234523 # msm8974-common: sepolicy: Resolve hal_sensors_default denials
+kpick 234688 # msm8974-common: sepolicy: Label sysfs_batteryinfo nodes
+kpick 234689 # msm8974-common: sepolicy: Label sysfs_leds nodes
+kpick 234690 # msm8974-common: sepolicy: Create variety of sysfs_sec_* types
+kpick 234523 # msm8974-common: sepolicy: Resolve hal_sensors_default denials
 kpick 234527 # msm8974-common: sepolicy: Label our custom sensors service
 kpick 234524 # msm8974-common: sepolicy: Resolve rild denials
 kpick 234525 # msm8974-common: sepolicy: Resolve surfaceflinger denials
 kpick 234526 # msm8974-common: sepolicy: Resolve mediaserver denials
+kpick 234691 # msm8974-common: sepolicy: Resolve hal_wifi_hostapd_default denials
+kpick 234692 # msm8974-common: sepolicy: Resolve dnsmasq denials
 kpick 231350 # msm8974-common: Set TARGET_NEEDS_NETD_DIRECT_CONNECT_RULE to true
 kpick 234191 # msm8974-common: Disable netd active FTP helper
 
@@ -1342,72 +1348,6 @@ kpick 234353 # Release the wakelock before worker thread termination
 # packages/apps/Email
 
 # packages/apps/Gallery2
-kpick 233034 # Fix ProGuard error.
-kpick 233035 # Float.NaN != ... always evaluates to true, use Float.isNaN.
-kpick 233036 # Fix misc-macro-parentheses warnings in Gallery2.
-kpick 233037 # Add missing includes.
-kpick 233038 # Revert "Fix compiling errors in P"
-kpick 233039 # Stop using junit classes in production
-kpick 233040 # Gallery2: Fix NaN comparisons
-kpick 233041 # Gallery2: Fix CollectionIncompatibleType
-kpick 233042 # Rename android.utils.Pools to com.android.photos.util.Pools
-kpick 233043 # Fix build Gallery2
-kpick 233044 # Use explicit support library prebuilts
-kpick 233045 # Fix proguard failure when using javac
-kpick 233046 # Fix makefile include for support-v4
-kpick 233047 # Move <permission> tags to correct parent element
-kpick 233048 # Fix build with proguard
-kpick 233049 # Use -Werror in packages/apps/Gallery2
-kpick 233050 # Move Gallery2 over to AAPT2 and new v4 modules
-kpick 233051 # Gallery2: Remove slideshow option if there are only videos
-kpick 233052 # Gallery2: Support GIF animation
-kpick 233053 # SnapdragonGallery: Fix FC when init() before setContentView
-kpick 233055 # SnapdragonGallery: Fix dialog dismiss when home
-kpick 233056 # SnapdragonGallery: Fix crash show dialog when activity finished
-kpick 233057 # Don't show Camera Icon when no pictures found in Albums
-kpick 233058 # SDGallery:Fix monkey FC when url from pick activity is null
-kpick 233059 # Fix FC of parsing uri is null
-kpick 233060 # Fix the issue of view don't reload when onPause
-kpick 233061 # Add new rule about watermark
-kpick 233062 # Rename app back to Gallery
-kpick 233063 # FaceDetect: Catch linker errors during initialization
-kpick 233064 # FaceDetect: Catch more linker errors during initialization
-kpick 233065 # Gallery: TileImageView: fix NPE
-kpick 233066 # Gallery2: Bump minsdk and targetsdk version
-kpick 233067 # Gallery2: Try to open existing camera
-kpick 233068 # Gallery2: Fix crash of gallery on showing details
-kpick 233069 # Gallery2: Add record time to details view
-kpick 233070 # Gallery2: Remove CAF translations
-kpick 233071 # Gallery2: Modify AOSP EL translations
-kpick 233072 # Gallery2: Store DATE_TAKEN as milliseconds
-kpick 233073 # Gallery2: Reduce logspam in video player
-kpick 233074 # Gallery2: Remove invalid comment from manifest
-kpick 233075 # Gallery2: Make sure no NPE happens
-kpick 233076 # Gallery2: Move & improve CAF strings
-kpick 233077 # Gallery2: Update theme
-kpick 233078 # Gallery2: Update menu
-kpick 233079 # Gallery2: Change all share intents to chooser style
-kpick 233080 # Gallery2: Replace hamburger menu with bottom bar
-kpick 233081 # Gallery2: Disable dummy starting window
-kpick 233082 # Gallery2: Everyone or no one
-kpick 233083 # Gallery2: Fix up audio effects dialog
-kpick 233084 # Gallery2: Remove 3D overscroll effect
-kpick 233085 # Gallery2: Enable frames in the editor
-kpick 233086 # Gallery2: Remove more possible NPEs
-kpick 233087 # Gallery2: Properly declare the own permissions
-kpick 233088 # Gallery2: Support the newly added media file types in MTP mode
-kpick 233089 # Gallery2: Increase the size of the tiles when decoding images
-kpick 233090 # Gallery2: Fix views overlap
-kpick 233091 # Gallery2: Fix potential crash
-kpick 233092 # Gallery2: Fix various issues and glitches
-kpick 233093 # Gallery: Kill media effect dialog on movies
-kpick 233094 # Fix crash after deleting a video on Albums tab
-kpick 233095 # Gallery2: Get rid of packages monitor
-kpick 233096 # Gallery: define app category
-kpick 233097 # Gallery: adaptive-icon
-kpick 233098 # Fix can't enable speaker with bluetooth headset
-kpick 233099 # Gallery: use platform cert
-kpick 233100 # Move Gallery2 to androidx.
 
 # packages/apps/Jelly
 kpick 231418 # Automatic translation import
@@ -1473,23 +1413,19 @@ kpick 233150 # Camera: Add red-eye flash mode support
 kpick 233152 # camera: Check if video sizes are available
 kpick 233153 # Camera2: enable antibanding by default
 kpick 233154 # camera: Remove ICS hack to stop preview after takePicture
-kpick 233155 # Camera2: Preview needs to be stopped when changing resolution
 kpick 233156 # Camera: fix preview for landscape devices
 kpick 233160 # Camera2: Don't report incorrect supported picture formats
 kpick 233161 # Camera2: some aapt warnings cleanup
 kpick 233162 # Camera2: Remove CAF video duration code
 kpick 233163 # Camera2: implement exposure compensation settings in video mode
-kpick 233164 # Camera: separate settings for color effects
-kpick 233165 # Camera: Change volume hard key button to zoom function
-kpick 233166 # Camera2: implement volume key zoom in video mode
+kpick 234667 # Camera: separate settings for color effects
+kpick 234668 # Camera: Change volume hard key button to zoom function
 kpick 233167 # Camera: Powerkey shutter (2/2)
-kpick 233168 # Camera2: tweak volume key zoom and cleanup
 kpick 233169 # Camera: Cleanup hardware key handling
 kpick 233170 # Camera: Handle keys only while in app
 kpick 233171 # Camera2: Headset shutter mode
 kpick 233172 # Camera2: Add option to set max screen brightness
 kpick 233173 # SnapdragonCamera: Reset camera state after taking picture
-kpick 233174 # Snap: Fix filtering of unsupported camcorder color effects
 kpick 234536 # Snap: Add support for additional ISO values
 kpick 233177 # add support for non-standard iso keys and values
 kpick 234572 # Snap: Add support for luminance-condition parameter
@@ -1497,18 +1433,17 @@ kpick 233179 # option to set manufacturer specific parameters on startup
 kpick 234573 # Snap: Add options to restart preview onPictureTaken
 kpick 233181 # Snap: Make openLegacy an option
 kpick 233182 # Snap: Add touch-to-focus timeout duration settings
-kpick 233183 # Snap: add support for shutter speed
+kpick 234669 # Snap: Add support for shutter speed
 kpick 234575 # Snap: Add support for mw_continuous-picture focus mode
 kpick 233191 # Snap: Fall back to default quality for invalid video qualities
 kpick 233186 # SnapdragonCamera: Fix incorrect viewfinder ratio for 13.1MP shots
-kpick 233187 # Snap: Restart preview when shutter-speed gets disabled
 kpick 233188 # CameraActivity: Handle NPE when film strip view is null
 kpick 233189 # Snap: Remove CAF Chinese translations
 kpick 233190 # Snap: Fix aapt warnings
 kpick 233192 # Snap: Fix NPE when parameters.getSupportedVideoSizes() is null
 kpick 234574 # Snap: Add special handling of hdr-mode parameter for LGE devices
 kpick 233195 # Snap: Support for HTC's HDR mode
-kpick 233196 # Snap: Remove touch AF/AEC option
+kpick 234670 # Snap: Remove touch AF/AEC option
 kpick 233197 # Snap: Actually select the highest quality video by default
 kpick 233198 # SnapdragonCamera: Add option to control antibanding in camcorder
 kpick 233199 # SnapdragonCamera: Fix overly-aggressive auto rotation
@@ -1517,7 +1452,6 @@ kpick 233202 # SnapdragonCamera: Fix UI alignment glitches when nav-bar is enabl
 kpick 233204 # Snap: Don't crash when hardcoded gallery intent fails
 kpick 233205 # SnapdragonCamera: Set camera parameters before restarting preview
 kpick 233206 # Fix crash if Exif-Tag buffer-length and component-count are both 0
-kpick 233207 # Snap: Cleanup flash icons
 kpick 233208 # Snap: Don't crash if user saved preference is not valid
 kpick 233209 # SnapdragonCamera: Scale up bitrate for HSR recordings
 kpick 233210 # Snap: Fix filtering of unsupported HFR/HSR modes
@@ -1533,43 +1467,33 @@ kpick 233221 # Snap: Extend user menu, disable dev menu
 kpick 233222 # Snap: Make developer menu more accessible
 kpick 233223 # Snap: Always allow 100% JPEG quality to be set
 kpick 233224 # Snap: Unbreak auto-HDR
-kpick 233225 # snap: Always turn touch-af-aec on
 kpick 233226 # snap: Add constrained longshot mode
 kpick 233227 # Snap: Remove storage menu if no external storage available
 kpick 233229 # CameraNext: dynamically generate available photo resolutions
 kpick 233230 # Snap: add auto-hdr option to photo menu
 kpick 233231 # Allow to re-open Snap from recent menu
 kpick 233232 # Add orientation correction for landscape devices
-kpick 233233 # camera: Touch focus support for camcorder
-kpick 233234 # Camera2: Prevent autofocus when video snapshot is in progress
-kpick 233235 # Camera2: Prevent propogating CancelAutoFocus during Video Recording
-kpick 233236 # Snap: Set parameters before starting preview
+kpick 234671 # camera: Touch focus support for camcorder
 kpick 233237 # SnapdragonCamera: Add focus-mode option to camcorder
 kpick 233238 # SnapdragonCamera: Always lock AE and AWB when auto-focus is used
 kpick 233239 # SnapdragonCamera: Lock AE and AWB for tap-to-focus in camcorder
 kpick 233240 # SnapdragonCamera: Unlock AE/AWB after taking a photo with ZSL
 kpick 233241 # Snap: Expose video snapshot size setting
 kpick 233242 # Snap: Add focus time support in camcorder
-kpick 233243 # Snap: Add ability to set the tap-to-focus duration to 0 sec
-kpick 233244 # Snap: Cleanup focus time duration entries
+kpick 234672 # Snap: Add ability to set the tap-to-focus duration to 0 sec
 kpick 233245 # Snap: Separate default focus time between camera/video
-kpick 233246 # Snap: Fix crash when set infinite touch-focus duration
 kpick 233247 # Camera2: Only autofocus before a snap if we are actually in "auto" mode.
 kpick 233248 # camera: Keep touch focus intact during back-to-back ZSL shots
 kpick 233249 # Snap: Fixes for advanced features and scene modes
-kpick 233250 # snap: Additional fixes for auto-HDR mode
 kpick 233251 # Snap: grant android.permission.RECEIVE_BOOT_COMPLETED permisions
-kpick 233252 # Snap: initial materialization
+kpick 234673 # Snap: Materialize
 kpick 233253 # Snap: Material toasts
-kpick 233254 # Snap: remove captureUI pngdrawables
 kpick 233255 # Remove unused menu indicators code.
-kpick 233256 # Snap: update shutter button style
 kpick 233257 # Snap: Add icons to all remaining preferences
 kpick 233258 # Snap: Add icons to all scene modes
 kpick 233259 # snap: Adjust top bar icon order
 kpick 233260 # De-uglify menu.
 kpick 233261 # Use material versions of share/delete/edit icons.
-kpick 233262 # Snap: update caf icons
 kpick 233263 # CameraNext: Fallback to do copy exif if exif not exist
 kpick 233264 # CameraNext: don't crash when pref is not boolean
 kpick 233265 # Show UI when pano stitch starts and remove cancel condition
@@ -1583,7 +1507,7 @@ kpick 233272 # CameraNext: Update focus behavior for panoramas
 kpick 233273 # Stop data loader on activity destroy.
 kpick 233274 # Initialize focus manager in onResume().
 kpick 233275 # Snap: prevent NPE when checking if controls are visible
-kpick 233276 # Snap: detect and use Camera2 if available
+kpick 234674 # Snap: Detect and use Camera2 if available
 kpick 233277 # Snap: CaptureModule: check if ZSL is supported before using it
 kpick 233278 # Snap: Allow switching beyond just 2 cameras
 kpick 233279 # Always apply frame size reduction to panorama pictures
@@ -1611,27 +1535,21 @@ kpick 233303 # Snap: Fix filter mode button after disabling HDR mode
 kpick 233304 # Snap: Remove "help screen on first start" feature
 kpick 233305 # Snap: Arrange video menu so it's similar to photo menu
 kpick 233306 # Snap: Fix panorama layout
-kpick 233307 # Snap: Update HDR icons
 kpick 233308 # Removed littlemock dependency and cleanup
 kpick 233309 # Snap: Rip out hdr-need-1x option
 kpick 233310 # Snap: check tags before using them
 kpick 233311 # QuickReader: initial commit
-kpick 233312 # Snap: add QReader to module switch
-kpick 233313 # QuickReader: Match switch icon size and fill color with other icons
-kpick 233314 # Snap: update shutter buttons on CaptureUI
+kpick 234675 # Snap: add QReader to module switch
 kpick 233315 # Snap: Add missing thumbnails for filter modes
-kpick 233316 # Snap: Update pano and video icons to be more like photo icons
 kpick 233317 # Snap: Port all string improvements from cm-14.1
 kpick 233319 # Snap: adaptive icon
 kpick 233320 # Snap: Convert "save best" dialog text to a quantity string
 kpick 233322 # Do not crash if we don't have support for RAW files
 kpick 233323 # Snap: don't try to set up cameras with ids greater than MAX_NUM_CAM
-kpick 233324 # Snap: Add missing null check on isCamera2Supported
 kpick 233326 # Drop new focus indicator into Camera2.
 kpick 233327 # Snap: Add support for focus distance
 kpick 233328 # Snap: Configure focus ring preview dimensions
 kpick 233329 # Snap: Check for ACCESS_FINE_LOCATION instead of ACCESS_COARSE_LOCATION
-kpick 233330 # Snap: remove unused shutter buttons
 kpick 233331 # SnapdragonCamera: Panorama, replace border drawable
 kpick 233332 # Snap: turn developer category title into a translatable string
 kpick 233333 # Snap: Allow quickreader to work with secure device

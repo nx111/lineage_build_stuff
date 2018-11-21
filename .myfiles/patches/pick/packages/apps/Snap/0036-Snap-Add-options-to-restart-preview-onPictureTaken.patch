@@ -1,0 +1,136 @@
+From c307e6ed535053d5fe740823451eca9d0d59b3ef Mon Sep 17 00:00:00 2001
+From: codeworkx <codeworkx@cyanogenmod.org>
+Date: Mon, 16 Jan 2006 00:10:40 +0100
+Subject: [PATCH 036/171] Snap: Add options to restart preview onPictureTaken
+
+Author: codeworkx <codeworkx@cyanogenmod.org>
+Date:   Mon Jan 16 00:10:40 2006 +0100
+
+    Snap: Add options to restart preview onPictureTaken
+
+    Change-Id: I7ce9d6f2323e367743e6d4c9662b846d3052f2a4
+
+Author: LuK1337 <priv.luk@gmail.com>
+Date:   Mon Jan 11 17:40:58 2016 +0100
+
+    Move mApplicationContext to init()
+
+    Fixes following NPE:
+    01-11 17:36:42.607  4329  4391 E AndroidRuntime: FATAL EXCEPTION: Thread-235
+    01-11 17:36:42.607  4329  4391 E AndroidRuntime: Process: org.cyanogenmod.snap, PID: 4329
+    01-11 17:36:42.607  4329  4391 E AndroidRuntime: java.lang.NullPointerException: Attempt to invoke virtual method 'android.content.res.Resources android.content.Context.getResources()' on a null object reference
+    01-11 17:36:42.607  4329  4391 E AndroidRuntime:        at com.android.camera.PhotoModule.updateCameraParametersPreference(PhotoModule.java:3492)
+    01-11 17:36:42.607  4329  4391 E AndroidRuntime:        at com.android.camera.PhotoModule.setCameraParameters(PhotoModule.java:3714)
+    01-11 17:36:42.607  4329  4391 E AndroidRuntime:        at com.android.camera.PhotoModule.startPreview(PhotoModule.java:2715)
+    01-11 17:36:42.607  4329  4391 E AndroidRuntime:        at com.android.camera.PhotoModule.-wrap14(PhotoModule.java)
+    01-11 17:36:42.607  4329  4391 E AndroidRuntime:        at com.android.camera.PhotoModule$OpenCameraThread.run(PhotoModule.java:265)
+
+    Change-Id: I6ca0dfe402cab46dd7b6f102921062f3c7ec8d43
+
+Author: codeworkx <codeworkx@cyanogenmod.org>
+Date:   Fri Jan 22 17:17:53 2016 +0100
+
+    Snap: Do not restart preview during longshots
+
+    Change-Id: I6ad439dc0be7c6e0d13ac7c22aacdc0ad559d051
+
+Author: LuK1337 <priv.luk@gmail.com>
+Date:   Sun Mar 19 10:43:33 2017 +0100
+
+    Snap: Add overlay for restarting camera preview for additional cameras
+
+    Change-Id: I95eb7237b101b73d66fe231a11d0c8d5156bfe47
+
+Change-Id: I49312aef5331bf549e38a0534b95f76a0b8bb8da
+---
+ res/values/config.xml                   |  9 +++++++++
+ src/com/android/camera/PhotoModule.java | 25 ++++++++++++++++++++++++-
+ 2 files changed, 33 insertions(+), 1 deletion(-)
+
+diff --git a/res/values/config.xml b/res/values/config.xml
+index b6f39052a..6ac6ecea1 100644
+--- a/res/values/config.xml
++++ b/res/values/config.xml
+@@ -28,6 +28,15 @@
+          of the fullscreen pano preview. -->
+     <bool name="enable_warped_pano_preview">true</bool>
+ 
++    <!-- Restart preview for back camera onPictureTaken -->
++    <bool name="back_camera_restart_preview_onPictureTaken">false</bool>
++
++    <!-- Restart preview for front camera onPictureTaken -->
++    <bool name="front_camera_restart_preview_onPictureTaken">false</bool>
++
++    <!-- Restart preview for additional camera onPictureTaken -->
++    <bool name="additional_camera_restart_preview_onPictureTaken">false</bool>
++
+     <!-- Set's manufacturer specific parameters on startup.
+          Example: lge-camera=1;cam-mode=0 -->
+     <string name="manufacturer_key_values"></string>
+diff --git a/src/com/android/camera/PhotoModule.java b/src/com/android/camera/PhotoModule.java
+index 9ea3132e5..6e321251a 100644
+--- a/src/com/android/camera/PhotoModule.java
++++ b/src/com/android/camera/PhotoModule.java
+@@ -68,6 +68,7 @@ import android.widget.SeekBar.OnSeekBarChangeListener;
+ import android.widget.LinearLayout;
+ import android.widget.TextView;
+ 
++import com.android.camera.app.CameraApp;
+ import com.android.camera.CameraManager.CameraAFCallback;
+ import com.android.camera.CameraManager.CameraAFMoveCallback;
+ import com.android.camera.CameraManager.CameraPictureCallback;
+@@ -256,6 +257,8 @@ public class PhotoModule
+     private byte[] mLastJpegData;
+     private int mLastJpegOrientation = 0;
+ 
++    private static Context mApplicationContext;
++
+     private Runnable mDoSnapRunnable = new Runnable() {
+         @Override
+         public void run() {
+@@ -570,6 +573,7 @@ public class PhotoModule
+         mCameraId = getPreferredCameraId(mPreferences);
+ 
+         mContentResolver = mActivity.getContentResolver();
++        mApplicationContext = CameraApp.getContext();
+ 
+         // Surface texture is from camera screen nail and startPreview needs it.
+         // This must be done before startPreview.
+@@ -1377,6 +1381,26 @@ public class PhotoModule
+                     && (mCameraState != LONGSHOT)
+                     && (mSnapshotMode != CameraInfoWrapper.CAMERA_SUPPORT_MODE_ZSL)
+                     && (mReceivedSnapNum == mBurstSnapNum);
++
++            CameraInfo info = CameraHolder.instance().getCameraInfo()[mCameraId];
++
++            final boolean isAuxCamera = info.facing > CameraInfo.CAMERA_FACING_FRONT;
++            final boolean isBackCamera = info.facing == CameraInfo.CAMERA_FACING_BACK;
++            final boolean isFrontCamera = info.facing == CameraInfo.CAMERA_FACING_FRONT;
++            final boolean auxCameraRestartPreviewOnPictureTaken = mApplicationContext
++                    .getResources().getBoolean(R.bool.additional_camera_restart_preview_onPictureTaken);
++            final boolean backCameraRestartPreviewOnPictureTaken = mApplicationContext
++                    .getResources().getBoolean(R.bool.back_camera_restart_preview_onPictureTaken);
++            final boolean frontCameraRestartPreviewOnPictureTaken = mApplicationContext
++                    .getResources().getBoolean(R.bool.front_camera_restart_preview_onPictureTaken);
++
++            if ((isAuxCamera && auxCameraRestartPreviewOnPictureTaken ||
++                    isBackCamera && backCameraRestartPreviewOnPictureTaken ||
++                    isFrontCamera && frontCameraRestartPreviewOnPictureTaken) &&
++                    mCameraState != LONGSHOT) {
++                needRestartPreview = true;
++            }
++
+             if (needRestartPreview) {
+                 setupPreview();
+                 if (CameraUtil.FOCUS_MODE_CONTINUOUS_PICTURE.equals(
+@@ -1417,7 +1441,6 @@ public class PhotoModule
+                             .findPreference(CameraSettings.KEY_SELFIE_MIRROR);
+                     if (selfieMirrorPref != null && selfieMirrorPref.getValue() != null &&
+                             selfieMirrorPref.getValue().equalsIgnoreCase("enable")) {
+-                        CameraInfo info = CameraHolder.instance().getCameraInfo()[mCameraId];
+                         jpegData = flipJpeg(jpegData, info.orientation, orientation);
+                         jpegData = addExifTags(jpegData, orientation);
+                     }
+-- 
+2.17.1
+

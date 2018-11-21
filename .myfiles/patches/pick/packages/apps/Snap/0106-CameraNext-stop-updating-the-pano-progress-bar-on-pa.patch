@@ -1,0 +1,54 @@
+From 01e74df08f6aba950c9340dc2378526b0042226b Mon Sep 17 00:00:00 2001
+From: Scott Mertz <scott@cyngn.com>
+Date: Thu, 12 May 2016 16:52:42 -0700
+Subject: [PATCH 106/171] CameraNext: stop updating the pano progress bar on
+ pause
+
+Fixes a NPE if a panorama is rendering when the user pauses the activity,
+then launches the camera from the lockscreen and enters panorama mode.
+
+With this patch, the user is shown a message "previous panorama is
+rendering" instead of the progress bar.
+
+FEIJ-533
+Change-Id: I3247e4bd96aa3aa67e9b1ff75d747d8be0c3c633
+---
+ .../camera/WideAnglePanoramaModule.java       | 22 +++++++++++++------
+ 1 file changed, 15 insertions(+), 7 deletions(-)
+
+diff --git a/src/com/android/camera/WideAnglePanoramaModule.java b/src/com/android/camera/WideAnglePanoramaModule.java
+index 903469e10..9386e9371 100644
+--- a/src/com/android/camera/WideAnglePanoramaModule.java
++++ b/src/com/android/camera/WideAnglePanoramaModule.java
+@@ -707,13 +707,21 @@ public class WideAnglePanoramaModule
+                     } catch (InterruptedException e) {
+                         throw new RuntimeException("Panorama reportProgress failed", e);
+                     }
+-                    // Update the progress bar
+-                    mActivity.runOnUiThread(new Runnable() {
+-                        @Override
+-                        public void run() {
+-                            mUI.updateSavingProgress(progress);
+-                        }
+-                    });
++                    // Update the progress bar if we haven't paused.  In the case where
++                    // we pause the UI, then launch the camera from the lockscreen with
++                    // this thread still running, a new WideAnglePanoramaModule is
++                    // created, but this thread is left running to finish the task (and
++                    // mPaused continues to be true for that instance.
++                    if (!mPaused) {
++                        mActivity.runOnUiThread(new Runnable() {
++                            @Override
++                            public void run() {
++                                if (!mPaused) {
++                                    mUI.updateSavingProgress(progress);
++                                }
++                            }
++                        });
++                    }
+                 }
+             }
+         };
+-- 
+2.17.1
+

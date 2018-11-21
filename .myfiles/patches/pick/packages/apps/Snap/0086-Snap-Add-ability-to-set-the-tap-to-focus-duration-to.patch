@@ -1,0 +1,164 @@
+From f2db665bc3225712b795296ffa764707c89781fa Mon Sep 17 00:00:00 2001
+From: Sultanxda <sultanxda@gmail.com>
+Date: Sun, 6 Dec 2015 10:30:28 -0800
+Subject: [PATCH 086/171] Snap: Add ability to set the tap-to-focus duration to
+ 0 sec
+
+Author: Sultanxda <sultanxda@gmail.com>
+Date:   Sun Dec 6 10:30:28 2015 -0800
+
+    Snap: Add ability to set the tap-to-focus duration to 0 sec
+
+    Setting a tap-to-focus duration of 0 seconds allows for a quick, manual
+    refocus of the subject without interfering with the exposure. This is
+    particularly useful when recording videos.
+
+    Change-Id: Ie3d92e50f755c938e9725438ba5baad0d0985485
+    Signed-off-by: Sultanxda <sultanxda@gmail.com>
+
+Author: Michael Bestas <mikeioannina@cyanogenmod.org>
+Date:   Tue Feb 9 18:51:28 2016 +0200
+
+    Snap: Fix crash when set infinite touch-focus duration
+
+    * java.lang.Integer.valueOf(string) method can't parse
+      hexadecimal values
+
+    Change-Id: I42706db72fc9c1093a7aa16440af449f731e5176
+
+Change-Id: I9ae88f55a452a66af39906d46f1b899130199da2
+---
+ res/values/cm_arrays.xml                      |  4 +++-
+ res/values/cm_strings.xml                     |  1 +
+ .../android/camera/FocusOverlayManager.java   | 23 ++++++++++++-------
+ src/com/android/camera/PhotoModule.java       |  2 +-
+ src/com/android/camera/VideoModule.java       |  2 +-
+ 5 files changed, 21 insertions(+), 11 deletions(-)
+
+diff --git a/res/values/cm_arrays.xml b/res/values/cm_arrays.xml
+index a1fc1cfa0..126fa7b96 100644
+--- a/res/values/cm_arrays.xml
++++ b/res/values/cm_arrays.xml
+@@ -27,6 +27,7 @@
+ 
+     <!-- Touch focus duration -->
+     <string-array name="pref_camera_focustime_duration_entries" translatable="false">
++        <item>@string/pref_camera_focustime_entry_0</item>
+         <item>@string/pref_camera_focustime_entry_3</item>
+         <item>@string/pref_camera_focustime_entry_5</item>
+         <item>@string/pref_camera_focustime_entry_10</item>
+@@ -35,10 +36,11 @@
+ 
+     <!-- Stored in milliseconds -->
+     <string-array name="pref_camera_focustime_duration_values" translatable="false">
++        <item>200</item>
+         <item>3000</item>
+         <item>5000</item>
+         <item>10000</item>
+-        <item>0</item>
++        <item>0x7FFFFFFF</item>
+     </string-array>
+ 
+     <!-- Shutter speed -->
+diff --git a/res/values/cm_strings.xml b/res/values/cm_strings.xml
+index 8ce5ba208..5b8ddf306 100644
+--- a/res/values/cm_strings.xml
++++ b/res/values/cm_strings.xml
+@@ -112,6 +112,7 @@
+     <string name="pref_camera_focustime_title">Touch focus duration</string>
+     <string name="pref_camera_focustime_default" translatable="false">3000</string>
+ 
++    <string name="pref_camera_focustime_entry_0">0s</string>
+     <string name="pref_camera_focustime_entry_3">3s</string>
+     <string name="pref_camera_focustime_entry_5">5s</string>
+     <string name="pref_camera_focustime_entry_10">10s</string>
+diff --git a/src/com/android/camera/FocusOverlayManager.java b/src/com/android/camera/FocusOverlayManager.java
+index 00e7a535a..cdf84825f 100644
+--- a/src/com/android/camera/FocusOverlayManager.java
++++ b/src/com/android/camera/FocusOverlayManager.java
+@@ -286,8 +286,10 @@ public class FocusOverlayManager {
+             if (focused) {
+                 mState = STATE_SUCCESS;
+                 // Lock exposure and white balance
+-                setAeAwbLock(true);
+-                mListener.setFocusParameters();
++                if (mFocusTime != 200) {
++                    setAeAwbLock(true);
++                    mListener.setFocusParameters();
++                }
+             } else {
+                 mState = STATE_FAIL;
+             }
+@@ -300,15 +302,17 @@ public class FocusOverlayManager {
+             if (focused) {
+                 mState = STATE_SUCCESS;
+                 // Lock exposure and white balance
+-                setAeAwbLock(true);
+-                mListener.setFocusParameters();
++                if (mFocusTime != 200) {
++                    setAeAwbLock(true);
++                    mListener.setFocusParameters();
++                }
+             } else {
+                 mState = STATE_FAIL;
+             }
+             updateFocusUI();
+             // If this is triggered by touch focus, cancel focus after a
+             // while.
+-            if ((mFocusArea != null) && (mFocusTime != 0)) {
++            if (mFocusArea != null) {
+                 mHandler.sendEmptyMessageDelayed(RESET_TOUCH_FOCUS, mFocusTime);
+             }
+             if (shutterButtonPressed) {
+@@ -410,6 +414,11 @@ public class FocusOverlayManager {
+         // Stop face detection because we want to specify focus and metering area.
+         mListener.stopFaceDetection();
+ 
++        if (mFocusTime == 200) {
++            setAeAwbLock(true);
++            mListener.setFocusParameters();
++        }
++
+         // Set the focus area and metering area.
+         mListener.setFocusParameters();
+         if (mFocusAreaSupported) {
+@@ -417,9 +426,7 @@ public class FocusOverlayManager {
+         } else {  // Just show the indicator in all other cases.
+             updateFocusUI();
+             mHandler.removeMessages(RESET_TOUCH_FOCUS);
+-            if (mFocusTime != 0) {
+-                mHandler.sendEmptyMessageDelayed(RESET_TOUCH_FOCUS, mFocusTime);
+-            }
++            mHandler.sendEmptyMessageDelayed(RESET_TOUCH_FOCUS, mFocusTime);
+         }
+     }
+ 
+diff --git a/src/com/android/camera/PhotoModule.java b/src/com/android/camera/PhotoModule.java
+index ec1b6540e..619ae53f4 100644
+--- a/src/com/android/camera/PhotoModule.java
++++ b/src/com/android/camera/PhotoModule.java
+@@ -4297,7 +4297,7 @@ public class PhotoModule
+             }
+ 
+             // Set focus time.
+-            mFocusManager.setFocusTime(Integer.valueOf(
++            mFocusManager.setFocusTime(Integer.decode(
+                     mPreferences.getString(CameraSettings.KEY_FOCUS_TIME,
+                     mActivity.getString(R.string.pref_camera_focustime_default))));
+         } else {
+diff --git a/src/com/android/camera/VideoModule.java b/src/com/android/camera/VideoModule.java
+index 10492cc94..d91d361af 100644
+--- a/src/com/android/camera/VideoModule.java
++++ b/src/com/android/camera/VideoModule.java
+@@ -2839,7 +2839,7 @@ public class VideoModule implements CameraModule,
+         mParameters.setFocusMode(mFocusManager.getFocusMode(true));
+ 
+         // Set focus time.
+-        mFocusManager.setFocusTime(Integer.valueOf(
++        mFocusManager.setFocusTime(Integer.decode(
+                 mPreferences.getString(CameraSettings.KEY_VIDEOCAMERA_FOCUS_TIME,
+                 mActivity.getString(R.string.pref_camera_focustime_default))));
+ 
+-- 
+2.17.1
+

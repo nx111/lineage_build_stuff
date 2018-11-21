@@ -1,0 +1,43 @@
+From 060585397e6f3a8e2f53a032a311750545105be1 Mon Sep 17 00:00:00 2001
+From: Keith Mok <kmok@cyngn.com>
+Date: Fri, 17 Jun 2016 08:51:56 -0700
+Subject: [PATCH 100/171] CameraNext: Fallback to do copy exif if exif not
+ exist
+
+If exif in jpeg does not exist, rewriteExif will
+throw IOException instead of returning false.
+Let's catch it and fallback to the original logic
+to do a copy instead of in-place replacement.
+
+FEIJ-1245
+
+Change-Id: I61b8bd9b9b7c855bff1897c036d948fcd16bb30a
+---
+ src/com/android/camera/exif/ExifInterface.java | 11 ++++++++++-
+ 1 file changed, 10 insertions(+), 1 deletion(-)
+
+diff --git a/src/com/android/camera/exif/ExifInterface.java b/src/com/android/camera/exif/ExifInterface.java
+index 4ecdd7703..82dee3a19 100644
+--- a/src/com/android/camera/exif/ExifInterface.java
++++ b/src/com/android/camera/exif/ExifInterface.java
+@@ -1097,7 +1097,16 @@ public class ExifInterface {
+             throws FileNotFoundException,
+             IOException {
+         // Attempt in-place write
+-        if (!rewriteExif(filename, tags)) {
++        boolean rewriteOkay = false;
++        try {
++            rewriteOkay = rewriteExif(filename, tags);
++        } catch (IOException e) {
++            // If jpeg does not contains exif, rewriteExif
++            // will throw EOF IOException, let's catch
++            // it and fall back to do a copy instead
++            // of in-place replacement.
++        }
++        if (!rewriteOkay) {
+             // Fall back to doing a copy
+             ExifData tempData = mData;
+             mData = new ExifData(DEFAULT_BYTE_ORDER);
+-- 
+2.17.1
+

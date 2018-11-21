@@ -1,0 +1,215 @@
+From 49e34384987ad2b3536c15823225e5ad21fac7b1 Mon Sep 17 00:00:00 2001
+From: codeworkx <codeworkx@cyanogenmod.org>
+Date: Mon, 26 Dec 2016 20:47:16 +0100
+Subject: [PATCH 114/171] Snap: CaptureModule: check if ZSL is supported before
+ using it
+
+Change-Id: Ifde34ce367ceeb19ad71bcff0c4518d578bb52a5
+---
+ src/com/android/camera/CaptureModule.java     | 59 +++++++++----------
+ src/com/android/camera/SettingsManager.java   | 16 +++++
+ .../camera/imageprocessor/PostProcessor.java  | 39 ++++++++----
+ 3 files changed, 71 insertions(+), 43 deletions(-)
+
+diff --git a/src/com/android/camera/CaptureModule.java b/src/com/android/camera/CaptureModule.java
+index 5872a625f..183b66a53 100755
+--- a/src/com/android/camera/CaptureModule.java
++++ b/src/com/android/camera/CaptureModule.java
+@@ -412,7 +412,7 @@ public class CaptureModule implements CameraModule, PhotoController,
+     private float mZoomValue = 1f;
+     private FocusStateListener mFocusStateListener;
+     private LocationManager mLocationManager;
+-    private SettingsManager mSettingsManager;
++    public SettingsManager mSettingsManager;
+     private long SECONDARY_SERVER_MEM;
+     private boolean mLongshotActive = false;
+     private CameraCharacteristics mMainCameraCharacteristics;
+@@ -2324,7 +2324,9 @@ public class CaptureModule implements CameraModule, PhotoController,
+      * @param width  The width of available size for camera preview
+      * @param height The height of available size for camera preview
+      */
+-    private void setUpCameraOutputs(int imageFormat) {
++    private void setUpCameraOutputs(boolean isFilterOrZslEnabled) {
++        int imageFormat = ImageFormat.JPEG;
++
+         Log.d(TAG, "setUpCameraOutputs");
+         CameraManager manager = (CameraManager) mActivity.getSystemService(Context.CAMERA_SERVICE);
+         try {
+@@ -2361,6 +2363,23 @@ public class CaptureModule implements CameraModule, PhotoController,
+                 }
+                 mCameraId[i] = cameraId;
+ 
++                // Set ImageFormat for ZSL
++                if (isFilterOrZslEnabled) {
++                    for (int capability : capabilities) {
++                        // YUV has higher priority
++                        if (capability == CameraCharacteristics
++                                .REQUEST_AVAILABLE_CAPABILITIES_YUV_REPROCESSING) {
++                            Log.d(TAG, "ImageFormat: YUV_420_888");
++                            imageFormat = ImageFormat.YUV_420_888;
++                            break;
++                        } else if (capability == CameraCharacteristics
++                                .REQUEST_AVAILABLE_CAPABILITIES_PRIVATE_REPROCESSING) {
++                            Log.d(TAG, "ImageFormat: PRIVATE");
++                            imageFormat = ImageFormat.PRIVATE;
++                        }
++                    }
++                }
++
+                 if (isClearSightOn()) {
+                     if(i == getMainCameraId()) {
+ //                        ClearSightImageProcessor.getInstance().init(map, mPictureSize.getWidth(),
+@@ -3099,15 +3118,12 @@ public class CaptureModule implements CameraModule, PhotoController,
+             mFrameProcessor.onOpen(getFrameProcFilterId(), mPreviewSize);
+         }
+ 
+-        if(mPostProcessor.isZSLEnabled()) {
+-            mChosenImageFormat = ImageFormat.PRIVATE;
+-        } else if(mPostProcessor.isFilterOn() || getFrameFilters().size() != 0 || mPostProcessor.isSelfieMirrorOn()) {
+-            mChosenImageFormat = ImageFormat.YUV_420_888;
++        if (mPostProcessor.isFilterOn() || getFrameFilters().size() != 0 ||
++                mPostProcessor.isSelfieMirrorOn()) {
++            setUpCameraOutputs(true);
+         } else {
+-            mChosenImageFormat = ImageFormat.JPEG;
++            setUpCameraOutputs(false);
+         }
+-        setUpCameraOutputs(mChosenImageFormat);
+-
+     }
+ 
+     @Override
+@@ -3129,27 +3145,10 @@ public class CaptureModule implements CameraModule, PhotoController,
+         openProcessors();
+         Message msg = Message.obtain();
+         msg.what = OPEN_CAMERA;
+-        if (isBackCamera()) {
+-            switch (getCameraMode()) {
+-                case DUAL_MODE:
+-                case BAYER_MODE:
+-                    msg.arg1 = BAYER_ID;
+-                    mCameraHandler.sendMessage(msg);
+-                    break;
+-                case MONO_MODE:
+-                    msg.arg1 = MONO_ID;
+-                    mCameraHandler.sendMessage(msg);
+-                    break;
+-                case SWITCH_MODE:
+-                    msg.arg1 = SWITCH_ID;
+-                    mCameraHandler.sendMessage(msg);
+-                    break;
+-            }
+-        } else {
+-            int cameraId = SWITCH_ID == -1? FRONT_ID : SWITCH_ID;
+-            msg.arg1 = cameraId;
+-            mCameraHandler.sendMessage(msg);
+-        }
++        int cameraId = getMainCameraId();
++        msg.arg1 = cameraId;
++        mCameraHandler.sendMessage(msg);
++
+         if (mDeepPortraitMode) {
+             mUI.startDeepPortraitMode(mPreviewSize);
+             if (mUI.getGLCameraPreview() != null) {
+diff --git a/src/com/android/camera/SettingsManager.java b/src/com/android/camera/SettingsManager.java
+index 10bd9b8d6..7bf637dae 100755
+--- a/src/com/android/camera/SettingsManager.java
++++ b/src/com/android/camera/SettingsManager.java
+@@ -1299,6 +1299,22 @@ public class SettingsManager implements ListMenu.SettingsListener {
+                 mValuesMap.get(KEY_FLASH_MODE) != null;
+     }
+ 
++    public boolean isZslSupported(int id) {
++        boolean zslSupported = false;
++        int [] capabilities = mCharacteristics.get(id)
++                .get(CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES);
++        for (int capability : capabilities) {
++            if (capability == CameraCharacteristics
++                    .REQUEST_AVAILABLE_CAPABILITIES_YUV_REPROCESSING ||
++                    capability == CameraCharacteristics
++                    .REQUEST_AVAILABLE_CAPABILITIES_PRIVATE_REPROCESSING) {
++                zslSupported = true;
++            }
++        }
++        Log.d(TAG, "isZslSupported=" + zslSupported);
++        return zslSupported;
++    }
++
+     private List<Size> getSupportedPictureSizeList(int cameraId) {
+         StreamConfigurationMap map = mCharacteristics.get(cameraId).get(
+                 CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
+diff --git a/src/com/android/camera/imageprocessor/PostProcessor.java b/src/com/android/camera/imageprocessor/PostProcessor.java
+index 90d536b9e..77040aa09 100755
+--- a/src/com/android/camera/imageprocessor/PostProcessor.java
++++ b/src/com/android/camera/imageprocessor/PostProcessor.java
+@@ -139,7 +139,7 @@ public class PostProcessor{
+     private CameraCaptureSession mCaptureSession;
+     private ImageReader mImageReader;
+     private ImageReader mZSLReprocessImageReader;
+-    private boolean mUseZSL = true;
++    private boolean mUseZSL = false;
+     private boolean mSaveRaw = false;
+     private Handler mZSLHandler;
+     private HandlerThread mZSLHandlerThread;
+@@ -155,6 +155,14 @@ public class PostProcessor{
+     public int mMaxRequiredImageNum;
+     private boolean mIsDeepPortrait = false;
+ 
++    private void checkAndEnableZSL(int cameraId) {
++        if (mController.mSettingsManager.isZslSupported(cameraId)) {
++            mUseZSL = true;
++        } else {
++            mUseZSL = false;
++        }
++    }
++
+     public int getMaxRequiredImageNum() {
+         return mMaxRequiredImageNum;
+     }
+@@ -633,6 +641,7 @@ public class PostProcessor{
+     public PostProcessor(CameraActivity activity, CaptureModule module) {
+         mController = module;
+         mActivity = activity;
++        checkAndEnableZSL(mController.getMainCameraId());
+         mNamedImages = new PhotoModule.NamedImages();
+     }
+ 
+@@ -694,19 +703,23 @@ public class PostProcessor{
+         mImageHandlerTask = new ImageHandlerTask();
+         mSaveRaw = isSaveRaw;
+         mIsDeepPortrait = isDeepPortrait;
+-        if(setFilter(postFilterId) || isFlashModeOn || isTrackingFocusOn || isMakeupOn || isSelfieMirrorOn
+-                || PersistUtil.getCameraZSLDisabled()
+-                || !SettingsManager.getInstance().isZSLInAppEnabled()
+-                || "enable".equals(
+-                         SettingsManager.getInstance().getValue(SettingsManager.KEY_AUTO_HDR))
+-                || SettingsManager.getInstance().isCamera2HDRSupport()
+-                || "18".equals(SettingsManager.getInstance().getValue(
+-                                  SettingsManager.KEY_SCENE_MODE))
+-                || mController.getCameraMode() == CaptureModule.DUAL_MODE
+-                || isSupportedQcfa || isDeepPortrait) {
+-            mUseZSL = false;
++        if (mController.mSettingsManager.isZslSupported(mController.getMainCameraId())) {
++            if (setFilter(postFilterId) || isFlashModeOn || isTrackingFocusOn || isMakeupOn
++                    || isSelfieMirrorOn || PersistUtil.getCameraZSLDisabled()
++                    || !SettingsManager.getInstance().isZSLInAppEnabled()
++                    || "enable".equals(
++                            SettingsManager.getInstance().getValue(SettingsManager.KEY_AUTO_HDR))
++                    || SettingsManager.getInstance().isCamera2HDRSupport()
++                    || "18".equals(
++                            SettingsManager.getInstance().getValue(SettingsManager.KEY_SCENE_MODE))
++                    || mController.getCameraMode() == CaptureModule.DUAL_MODE
++                    || isSupportedQcfa || isDeepPortrait) {
++                mUseZSL = false;
++            } else {
++                mUseZSL = true;
++            }
+         } else {
+-            mUseZSL = true;
++            mUseZSL = false;
+         }
+         Log.d(TAG,"ZSL is "+mUseZSL);
+         startBackgroundThread();
+-- 
+2.17.1
+

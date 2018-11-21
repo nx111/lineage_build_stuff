@@ -1,0 +1,206 @@
+From cbd50788b4872bafa6a81514751b34b66069dafa Mon Sep 17 00:00:00 2001
+From: codeworkx <codeworkx@cyanogenmod.org>
+Date: Tue, 5 Jan 2016 21:39:36 +0100
+Subject: [PATCH 033/171] add support for non-standard iso keys and values
+
+Change-Id: I3a948495cdf84dae3c1734d50ff91b4a5d3d9fc0
+---
+ res/values/config.xml                      | 10 ++++
+ src/com/android/camera/CameraSettings.java | 66 +++++++++++++++++++++-
+ src/com/android/camera/PhotoModule.java    | 14 ++---
+ 3 files changed, 82 insertions(+), 8 deletions(-)
+
+diff --git a/res/values/config.xml b/res/values/config.xml
+index 7ada8d775..b9a6294d1 100644
+--- a/res/values/config.xml
++++ b/res/values/config.xml
+@@ -27,4 +27,14 @@
+     <!-- This value may be changed to true to enable the warped pano preview overlayed on top
+          of the fullscreen pano preview. -->
+     <bool name="enable_warped_pano_preview">true</bool>
++
++    <!-- Use following iso parameter.
++         Example: lg-iso
++                  lg-iso-values -->
++    <string name="key_iso">iso</string>
++    <string name="key_iso_values">iso-values</string>
++
++    <!-- ISO values use numbers.
++         Example: 50 instead of ISO50 -->
++    <bool name="iso_values_use_numbers">false</bool>
+ </resources>
+diff --git a/src/com/android/camera/CameraSettings.java b/src/com/android/camera/CameraSettings.java
+index 3f6289d96..3319481f9 100755
+--- a/src/com/android/camera/CameraSettings.java
++++ b/src/com/android/camera/CameraSettings.java
+@@ -286,6 +286,10 @@ public class CameraSettings {
+     private final Parameters mParameters;
+     private final CameraInfo[] mCameraInfo;
+     private final int mCameraId;
++
++    public static String mKeyIso = null;
++    public static String mKeyIsoValues = null;
++
+     private static final HashMap<Integer, String>
+             VIDEO_ENCODER_TABLE = new HashMap<Integer, String>();
+     public static final HashMap<String, Integer>
+@@ -439,6 +443,22 @@ public class CameraSettings {
+         mParameters = parameters;
+         mCameraId = cameraId;
+         mCameraInfo = cameraInfo;
++
++        // ISO
++        mKeyIso = mContext.getResources().getString(R.string.key_iso);
++        mKeyIsoValues = mContext.getResources().getString(R.string.key_iso_values);
++
++        if (mKeyIso == null || mKeyIso.isEmpty()) {
++            mKeyIso = "iso";
++        } else {
++            Log.d(TAG, "Using key for iso: " + mKeyIso);
++        }
++
++        if (mKeyIsoValues == null || mKeyIsoValues.isEmpty()) {
++            mKeyIsoValues = "iso-values";
++        } else {
++            Log.d(TAG, "Using key for iso-values: " + mKeyIsoValues);
++        }
+     }
+ 
+     public PreferenceGroup getPreferenceGroup(int preferenceRes) {
+@@ -449,6 +469,28 @@ public class CameraSettings {
+         return group;
+     }
+ 
++    public static List<String> getSupportedIsoValues(Parameters params) {
++        String isoValues = params.get(mKeyIsoValues);
++        if (isoValues == null) {
++            return null;
++        }
++        Log.d(TAG, "Supported iso values: " + isoValues);
++        return split(isoValues);
++    }
++
++    public static String getISOValue(Parameters params) {
++        String iso = params.get(mKeyIso);
++
++        if (iso == null) {
++            return null;
++        }
++        return iso;
++    }
++
++    public static void setISOValue(Parameters params, String iso) {
++        params.set(mKeyIso, iso);
++    }
++
+     public static String getSupportedHighestVideoQuality(
+             int cameraId, Parameters parameters) {
+         // When launching the camera app first time, we will set the video quality
+@@ -735,6 +777,22 @@ public class CameraSettings {
+         return supported;
+     }
+ 
++    private static ListPreference removeLeadingISO(ListPreference pref) {
++        CharSequence entryValues[] = pref.getEntryValues();
++        if (entryValues.length > 0) {
++            CharSequence modEntryValues[] = new CharSequence[entryValues.length];
++            for (int i = 0, len = entryValues.length; i < len; i++) {
++                String isoValue = entryValues[i].toString();
++                if (isoValue.startsWith("ISO") && !isoValue.startsWith("ISO_")) {
++                    isoValue = isoValue.replaceAll("ISO", "");
++                }
++                modEntryValues[i] = isoValue;
++            }
++            pref.setEntryValues(modEntryValues);
++        }
++        return pref;
++    }
++
+     private void qcomInitPreferences(PreferenceGroup group){
+         //Qcom Preference add here
+         ListPreference powerMode = group.findPreference(KEY_POWER_MODE);
+@@ -785,6 +843,12 @@ public class CameraSettings {
+             }
+         }
+ 
++        // Remove leading ISO from iso-values
++        boolean isoValuesUseNumbers = mContext.getResources().getBoolean(R.bool.iso_values_use_numbers);
++        if (isoValuesUseNumbers && mIso != null) {
++            mIso = removeLeadingISO(mIso);
++        }
++
+         if (bokehMode != null) {
+             if (!isBokehModeSupported(mParameters)) {
+                 removePreference(group, bokehMode.getKey());
+@@ -861,7 +925,7 @@ public class CameraSettings {
+ 
+         if (mIso != null) {
+             filterUnsupportedOptions(group,
+-                    mIso, ParametersWrapper.getSupportedIsoValues(mParameters));
++                    mIso, getSupportedIsoValues(mParameters));
+         }
+ 
+         if (redeyeReduction != null) {
+diff --git a/src/com/android/camera/PhotoModule.java b/src/com/android/camera/PhotoModule.java
+index 1678af223..b1f29170b 100644
+--- a/src/com/android/camera/PhotoModule.java
++++ b/src/com/android/camera/PhotoModule.java
+@@ -1852,7 +1852,7 @@ public class PhotoModule
+             mUI.overrideSettings(CameraSettings.KEY_LONGSHOT, null);
+         }
+ 
+-        String isoMode = ParametersWrapper.getISOValue(mParameters);
++        String isoMode = CameraSettings.getISOValue(mParameters);
+         final String isoManual = CameraSettings.KEY_MANUAL_ISO;
+         if (isoMode.equals(isoManual)) {
+             final String isoPref = mPreferences.getString(
+@@ -3260,8 +3260,8 @@ public class PhotoModule
+                     CameraSettings.KEY_ISO,
+                     mActivity.getString(R.string.pref_camera_iso_default));
+             if (CameraUtil.isSupported(iso,
+-                    ParametersWrapper.getSupportedIsoValues(mParameters))) {
+-                ParametersWrapper.setISOValue(mParameters, iso);
++                    CameraSettings.getSupportedIsoValues(mParameters))) {
++                CameraSettings.setISOValue(mParameters, iso);
+             }
+         }
+         // Set color effect parameter.
+@@ -4623,7 +4623,7 @@ public class PhotoModule
+         mParameters = mCameraDevice.getParameters();
+         final int minISO = mParameters.getInt(CameraSettings.KEY_MIN_ISO);
+         final int maxISO = mParameters.getInt(CameraSettings.KEY_MAX_ISO);
+-        String isoMode = ParametersWrapper.getISOValue(mParameters);
++        String isoMode = CameraSettings.getISOValue(mParameters);
+         final String isoManual = CameraSettings.KEY_MANUAL_ISO;
+         String currentISO = mParameters.get(CameraSettings.KEY_CURRENT_ISO);
+         if (currentISO != null) {
+@@ -4665,7 +4665,7 @@ public class PhotoModule
+                     if (newISO <= maxISO && newISO >= minISO) {
+                         Log.v(TAG, "Setting ISO : " + newISO);
+                         mManual3AEnabled |= MANUAL_EXPOSURE;
+-                        ParametersWrapper.setISOValue(mParameters, isoManual);
++                        CameraSettings.setISOValue(mParameters, isoManual);
+                         mParameters.set(CameraSettings.KEY_CONTINUOUS_ISO, newISO);
+                         mParameters.set(CameraSettings.KEY_EXPOSURE_TIME, "0");
+                         updateCommonManual3ASettings();
+@@ -4701,7 +4701,7 @@ public class PhotoModule
+                         Log.v(TAG, "Setting Exposure time : " + newExpTime);
+                         mManual3AEnabled |= MANUAL_EXPOSURE;
+                         mParameters.set(CameraSettings.KEY_EXPOSURE_TIME, expTime);
+-                        ParametersWrapper.setISOValue(mParameters, ParametersWrapper.ISO_AUTO);
++                        CameraSettings.setISOValue(mParameters, Parameters.ISO_AUTO);
+                         mUI.setPreference(CameraSettings.KEY_ISO, ParametersWrapper.ISO_AUTO);
+                         mUI.overrideSettings(CameraSettings.KEY_ISO, null);
+                         updateCommonManual3ASettings();
+@@ -4753,7 +4753,7 @@ public class PhotoModule
+                         newExpTime >= Double.parseDouble(minExpTime)) {
+                         mManual3AEnabled |= MANUAL_EXPOSURE;
+                         Log.v(TAG, "Setting ISO : " + newISO);
+-                        ParametersWrapper.setISOValue(mParameters, isoManual);
++                        CameraSettings.setISOValue(mParameters, isoManual);
+                         mParameters.set(CameraSettings.KEY_CONTINUOUS_ISO, newISO);
+                         Log.v(TAG, "Setting Exposure time : " + newExpTime);
+                         mParameters.set(CameraSettings.KEY_EXPOSURE_TIME, expTime);
+-- 
+2.17.1
+
