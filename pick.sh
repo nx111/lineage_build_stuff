@@ -1166,6 +1166,7 @@ kpick 234168 # Binder: Fix improper JNI call for dumpProxyDebugInfo
 kpick 234318 # Wifi: Check for WiFiService's existence before its access
 kpick 234325 # TunerServiceImpl: Blacklist Lineage settings from tuner reset
 kpick 234649 # keyguard: Check for a null errString
+kpick 234715 # Rotation related corrections
 
 # frameworks/native
 kpick 224443 # libbinder: Don't log call trace when waiting for vendor service on non-eng builds

@@ -45,11 +45,14 @@ export JACK_SERVER_VM_ARGUMENTS="-Dfile.encoding=UTF-8 -XX:+TieredCompilation -X
 
 #[ -x $workdir/repopick.sh ] && $workdir/
 
+
+local result=0
 if [ "$mode" = "addonsu" ]; then
 	breakfast $product
 	[ -f $workdir/.mypatches/superuser.rc -a ! -f $workdir/system/extras/su/superuser.rc ] \
 		&& cp $workdir/.mypatches/superuser.rc $workdir/system/extras/su/
 	make addonsu
+        result=$?
 else
 	if [ "$mode" != "boot" ]; then
 		rm -rf $workdir/out/target/product/$product/system
@@ -69,9 +72,11 @@ else
         elif [ $force -eq 1 ]; then
             LINEAGE_VERSION_APPEND_TIME_OF_DAY=true WITH_SU=true LC_ALL=C \
    	    cmka bacon
+            result=$?
         else
             LINEAGE_VERSION_APPEND_TIME_OF_DAY=true WITH_SU=true LC_ALL=C \
    	    mka bacon
+            result=$?
         fi
         [ -f $workdir/out/target/product/$product/boot.img ] && nbootime=$(stat -c %Y $workdir/out/target/product/$product/boot.img)
         if [ $obootime -lt $nbootime ]; then
@@ -85,3 +90,5 @@ if [ -x $workdir/out/host/linux-x86/bin/jack-admin ]; then
 fi
 
 [ "$curdir" != "$workdir" ] && cd $curdir
+
+exit $result
