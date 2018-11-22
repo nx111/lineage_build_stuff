@@ -1003,8 +1003,7 @@ kpick 224917 # DO NOT MERGE: klte-common: Requisite bring-up BS change
 kpick 234490 # klte-common: restorecon I/O scheduler tunables before touching them
 
 # device/samsung/msm8974-common
-kpick 234687 # msm8974-common: sepolicy: Drop our mediaextractor additions
-kpick 234591 # msm8974-common: sepolicy: Sort sysfs block of file_contexts sanely
+kpick 234739 # msm8974-common: sensors: Tune binder buffer for sensors HIDL
 kpick 234520 # msm8974-common: sepolicy: Label sysfs_graphics nodes
 kpick 234521 # msm8974-common: sepolicy: Label sysfs_iio nodes
 kpick 234522 # msm8974-common: sepolicy: Label sysfs_input nodes
@@ -1018,7 +1017,6 @@ kpick 234525 # msm8974-common: sepolicy: Resolve surfaceflinger denials
 kpick 234526 # msm8974-common: sepolicy: Resolve mediaserver denials
 kpick 234691 # msm8974-common: sepolicy: Resolve hal_wifi_hostapd_default denials
 kpick 234692 # msm8974-common: sepolicy: Resolve dnsmasq denials
-kpick 231350 # msm8974-common: Set TARGET_NEEDS_NETD_DIRECT_CONNECT_RULE to true
 kpick 234191 # msm8974-common: Disable netd active FTP helper
 
 # kernel/samsung/msm8974
@@ -1643,7 +1641,6 @@ kpick 232427 # su: Update AppOps API calls
 # system/netd
 kpick 232794 # NetD : Allow passing in interface names for vpn app restriction
 kpick 233423 # pie-gsi tracking
-kpick 231201 # netd: Allow devices to force-add directly-connected routes
 kpick 234190 # netd: Allow devices to opt-out of the tethering active FTP helper
 
 # system/security
