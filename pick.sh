@@ -11,12 +11,10 @@ op_snap_project=""
 op_patches_dir=""
 op_base_pick=0
 default_remote="github"
-script_file="$0"
+script_file="$(realpath ${BASH_SOURCE[0]})"
 conflict_resolved=0
 maxCount=500
 minCount=20
-
-[ "$0" != "bash" ] && script_file=$(realpath $0)
 
 int_handler()
 {
@@ -444,7 +442,7 @@ function get_active_rrcache()
             if [ "$key" = "$md5num" ]; then
                rrid=$(basename $(dirname $rrf))
                [ -d $topdir/.myfiles/patches/rr-cache ] || mkdir -p $topdir/.myfiles/patches/rr-cache
-               [ "$script_file" == "bash" -a ! -f $topdir/.myfiles/patches/rr-cache/rr_cache_list ] && rr_cache_list="rr-cache.list"
+               [ "${BASH_SOURCE[0]}" != "$0" -a ! -f $topdir/.myfiles/patches/rr-cache/rr_cache_list ] && rr_cache_list="rr-cache.list"
                 
                [ -f $topdir/.myfiles/patches/rr-cache/$rr_cache_list ] || touch $topdir/.myfiles/patches/rr-cache/$rr_cache_list
                if ! grep -q "$rrid $project" $topdir/.myfiles/patches/rr-cache/$rr_cache_list; then
@@ -513,7 +511,7 @@ function kpick()
          return -1
     fi
 
-    [ ! -f $script_file.tmp -a "$script_file" != "bash" ] && cp $script_file $script_file.tmp
+    [ ! -f $script_file.tmp -a "${BASH_SOURCE[0]}" != "$0" ] && cp $script_file $script_file.tmp
     if [ -f $script_file.tmp ]; then
          target_script=$script_file.tmp
     elif [ -f $script_file.new ]; then
@@ -798,7 +796,7 @@ function kpick_action()
  
         if [ ! -z $changeNumber ]; then
             if grep -q -E "Change status is MERGED.|nothing to commit|git command resulted with an empty commit" $logfile; then
-               [ ! -f $script_file.tmp -a "$script_file" != "bash" ] && cp $script_file $script_file.tmp
+               [ ! -f $script_file.tmp -a "${BASH_SOURCE[0]}" != "$0" ] && cp $script_file $script_file.tmp
                if [ -f $script_file.tmp ]; then
                     target_script=$script_file.tmp
                elif [ -f $script_file.new ]; then
@@ -807,7 +805,7 @@ function kpick_action()
                [ ! -z $target_script -a -f $target_script ] && \
                   eval  sed -E \"/[[:space:]]*kpick[[:space:]]\{1,\}$changeNumber[[:space:]]*.*/d\" -i $target_script
             elif grep -q -E "Change status is ABANDONED." $logfile; then
-               [ ! -f $script_file.tmp -a "$script_file" != "bash" ] && cp $script_file $script_file.tmp
+               [ ! -f $script_file.tmp -a "${BASH_SOURCE[0]}" != "$0" ] && cp $script_file $script_file.tmp
                if [ -f $script_file.tmp ]; then
                     target_script=$script_file.tmp
                elif [ -f $script_file.new ]; then
@@ -816,7 +814,7 @@ function kpick_action()
                [ ! -z $target_script -a -f $target_script ] && \
                eval  sed -E \"/[[:space:]]*kpick[[:space:]]\{1,\}$changeNumber[[:space:]]*.*/d\" -i $target_script
             elif grep -q -E "Change $changeNumber not found, skipping" $logfile; then
-               [ ! -f $script_file.tmp -a "$script_file" != "bash" ] && cp $script_file $script_file.tmp
+               [ ! -f $script_file.tmp -a "${BASH_SOURCE[0]}" != "$0" ] && cp $script_file $script_file.tmp
                if [ -f $script_file.tmp ]; then
                     target_script=$script_file.tmp
                elif [ -f $script_file.new ]; then
@@ -825,7 +823,7 @@ function kpick_action()
                [ ! -z $target_script -a -f $target_script ] && \
                eval  sed -E \"/[[:space:]]*kpick[[:space:]]\{1,\}$changeNumber[[:space:]]*.*/d\" -i $target_script
             elif [ -f $errfile ] && grep -q "could not determine the project path for" $errfile; then
-               [ ! -f $script_file.tmp -a "$script_file" != "bash" ] && cp $script_file $script_file.tmp
+               [ ! -f $script_file.tmp -a "${BASH_SOURCE[0]}" != "$0" ] && cp $script_file $script_file.tmp
                if [ -f $script_file.tmp ]; then
                     target_script=$script_file.tmp
                elif [ -f $script_file.new ]; then
@@ -837,7 +835,7 @@ function kpick_action()
          fi
     fi
     if [ "$changeNumber" != "" -a "$subject" != "" ]; then
-           [ ! -f $script_file.tmp -a "$script_file" != "bash" ] && cp $script_file $script_file.tmp
+           [ ! -f $script_file.tmp -a "${BASH_SOURCE[0]}" != "$0" ] && cp $script_file $script_file.tmp
            if [ -f $script_file.tmp ]; then
                 target_script=$script_file.tmp
            elif [ -f $script_file.new ]; then
@@ -861,7 +859,7 @@ function apply_force_changes(){
       | sort | while read f; do
          cd $topdir/vendor/lineage;
          if ! git am -3 -q   --keep-cr --committer-date-is-author-date < $f; then
-             if [ "$script_file" != "bash" ]; then
+             if [ "${BASH_SOURCE[0]}" != "$0" ]; then
                  echo  "  >> please resolv it, then press ENTER to continue, or press 's' skip it ..."
                  ch=$(sed q </dev/tty)
                  if [ "$ch" = "s" ]; then
@@ -1015,7 +1013,6 @@ kpick 234527 # msm8974-common: sepolicy: Label our custom sensors service
 kpick 234524 # msm8974-common: sepolicy: Resolve rild denials
 kpick 234525 # msm8974-common: sepolicy: Resolve surfaceflinger denials
 kpick 234526 # msm8974-common: sepolicy: Resolve mediaserver denials
-kpick 234691 # msm8974-common: sepolicy: Resolve hal_wifi_hostapd_default denials
 kpick 234692 # msm8974-common: sepolicy: Resolve dnsmasq denials
 kpick 234191 # msm8974-common: Disable netd active FTP helper
 
@@ -1062,6 +1059,7 @@ kpick 229424 # selinux: add domain for Gallery
 kpick 232512 # sepolicy: Address lineage-iosched denials
 kpick 234487 # common: Label and allow init to write to I/O sched tuning nodes
 kpick 234613 # common: Expand labeling of sysfs_vibrator nodes using regex
+kpick 234799 # Label lineage.service.adb.root as system prop
 
 # device/qcom/sepolicy
 kpick 228566 # qcom: Label vendor files with (vendor|system/vendor) instead of vendor
@@ -1096,6 +1094,12 @@ kpick 230236 # common: label /sys/devices/virtual/graphics as sysfs_graphics
 kpick 230238 # common: create proc_kernel_sched domain to restrict perf hal access
 kpick 230239 # common: allow uevent to control sysfs_mmc_host via vold
 kpick 234248 # sepolicy : set write permissions for sysfs_boot_adsp.
+kpick 234827 # wifi: Use wpa_data_file instead of wifi_vendor_data_file
+kpick 234828 # sepolicy: Allow hostapd to access/write /data/vendor/ partition
+kpick 234829 # Add create_dir_perms to data files for vendor_init
+kpick 234830 # Remove wifi_data_file from data_between_core_and_vendor_violators
+kpick 234831 # sepolicy: Fix SoftAP (hostapd)
+kpick 234832 # sepolicy: Add additional restricted permissions to vendor_init
 
 # development
 kpick 232511 # make-key: Enforce PBEv1 password-protected signing keys
@@ -1300,6 +1304,7 @@ kpick 231898 # Power: Naming convention change
 # hardware/qcom/wlan-caf
 kpick 226638 # wcnss_qmi: Generate a fixed random mac address if the NV doesn't provide one
 kpick 226643 # wcnss_service: Read serial number from custom property
+kpick 234861 # Reading the serialno property is forbidden
 
 # hardware/ril
 
@@ -1566,7 +1571,6 @@ kpick 234418 # Snap: Check various feature support before applying
 kpick 234419 # Snap: Add missing NULL check in updateQcfaPictureSize()
 kpick 234423 # Snap: Disable debugging of double open issue
 
-
 # packages/apps/Stk
 
 # packages/apps/StorageManager
@@ -1618,6 +1622,7 @@ kpick 224264 # debuggerd: Resolve tombstoned missing O_CREAT mode
 kpick 226120 # fs_mgr: Wrapped key support for FBE
 kpick 230755 # libsuspend: Bring back earlysuspend
 kpick 231716 # init: Always use libbootloader_message from bootable/recovery namespace
+kpick 234860 # init: add install_keyring for TWRP FBE decrypt
 
 # system/extras
 kpick 225426 # f2fs_utils: Add a static libf2fs_sparseblock for minvold
@@ -1642,6 +1647,11 @@ kpick 232427 # su: Update AppOps API calls
 kpick 232794 # NetD : Allow passing in interface names for vpn app restriction
 kpick 233423 # pie-gsi tracking
 kpick 234190 # netd: Allow devices to opt-out of the tethering active FTP helper
+
+# system/qcom
+kpick 234848 # qsap: Fix missing log symbols
+kpick 234849 # softap: sdk: Declare VNDK usage
+kpick 234850 # qsap: Suppress errors
 
 # system/security
 
