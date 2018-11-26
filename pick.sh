@@ -1001,8 +1001,7 @@ kpick 224917 # DO NOT MERGE: klte-common: Requisite bring-up BS change
 kpick 234490 # klte-common: restorecon I/O scheduler tunables before touching them
 
 # device/samsung/msm8974-common
-kpick 234739 # msm8974-common: sensors: Tune binder buffer for sensors HIDL
-kpick 234520 # msm8974-common: sepolicy: Label sysfs_graphics nodes
+kpick 234520 # msm8974-common: sepolicy: Label graphics sysfs nodes
 kpick 234521 # msm8974-common: sepolicy: Label sysfs_iio nodes
 kpick 234522 # msm8974-common: sepolicy: Label sysfs_input nodes
 kpick 234688 # msm8974-common: sepolicy: Label sysfs_batteryinfo nodes
