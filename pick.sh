@@ -10,8 +10,10 @@ op_pick_continue=0
 op_snap_project=""
 op_patches_dir=""
 op_base_pick=0
+op_keep_manifests=0
 default_remote="github"
 script_file="$(realpath ${BASH_SOURCE[0]})"
+runfrom=$0
 conflict_resolved=0
 maxCount=500
 minCount=20
@@ -67,7 +69,7 @@ function patch_local()
              if [ `pwd` != "$topdir/$project" ]; then
                   cd $topdir/$project
                   echo ""
-                  echo "==== try apply to $project: "
+                  echo ">>> Applying patches to $project: "
                   #rm -rf .git/rebase-apply
              fi
              if echo $f | grep -qE "\[WIP\]|\[SKIP\]"; then
@@ -96,6 +98,24 @@ function patch_local()
                                     break
                                   fi
                              done
+                       fi
+                       if [ "$project" = "android" ]; then
+                            git -C $topdir/.repo/manifests am -3 -q --keep-cr --committer-date-is-author-date < $topdir/.myfiles/patches/$f
+                            rc=$?
+                            if [ $rc -ne 0 ]; then
+                                 first=0
+                                 echo  "  >> git am conflict, please resolv it, then press ENTER to continue,or press 's' skip it ..."
+                                 while ! git -C $topdir/.repo/manifests log -100 | grep "Change-Id: $changeid" >/dev/null 2>/dev/null; do
+                                     [ $first -ne 0 ] && echo "conflicts not resolved,please fix it,then press ENTER to continue,or press 's' skip it ..."
+                                     first=1
+                                     ch=$(sed q </dev/tty)
+                                     if [ "$ch" = "s" ]; then
+                                        echo "skip it ..."
+                                        git -C $topdir/.repo/manifests am --skip
+                                        break
+                                      fi
+                                 done
+                           fi
                        fi
                   else
                        echo "    skipping: $f ...(applied always)"
@@ -394,10 +414,10 @@ function reset_project_dir()
     git merge --abort>/dev/null 2>/dev/null
     git stash >/dev/null 2>/dev/null
     if [ "$1" = ".repo/manifests" ]; then
+         default_branch=$(cat $topdir/.repo/manifest.xml | grep "default revision" | cut -d= -f2 | sed -e "s/\"//g" -e "s/refs\/heads\///")
          git checkout default >/dev/null 2>/dev/null
          git fetch --all >/dev/null 2>/dev/null
-         git reset --hard origin/default >/dev/null 2>/dev/null
-         #git pull origin default >/dev/null 2>/dev/null
+         git reset --hard origin/$default_branch >/dev/null 2>/dev/null
     fi
     cd $topdir
 }
@@ -442,7 +462,7 @@ function get_active_rrcache()
             if [ "$key" = "$md5num" ]; then
                rrid=$(basename $(dirname $rrf))
                [ -d $topdir/.myfiles/patches/rr-cache ] || mkdir -p $topdir/.myfiles/patches/rr-cache
-               [ "${BASH_SOURCE[0]}" != "$0" -a ! -f $topdir/.myfiles/patches/rr-cache/rr_cache_list ] && rr_cache_list="rr-cache.list"
+               [ "${BASH_SOURCE[0]}" = "$runfrom" -a ! -f $topdir/.myfiles/patches/rr-cache/rr_cache_list ] && rr_cache_list="rr-cache.list"
                 
                [ -f $topdir/.myfiles/patches/rr-cache/$rr_cache_list ] || touch $topdir/.myfiles/patches/rr-cache/$rr_cache_list
                if ! grep -q "$rrid $project" $topdir/.myfiles/patches/rr-cache/$rr_cache_list; then
@@ -511,7 +531,7 @@ function kpick()
          return -1
     fi
 
-    [ ! -f $script_file.tmp -a "${BASH_SOURCE[0]}" != "$0" ] && cp $script_file $script_file.tmp
+    [ ! -f $script_file.tmp -a "${BASH_SOURCE[0]}" = "$runfrom" ] && cp $script_file $script_file.tmp
     if [ -f $script_file.tmp ]; then
          target_script=$script_file.tmp
     elif [ -f $script_file.new ]; then
@@ -765,7 +785,7 @@ function kpick_action()
 
     if [ $breakout -lt 0 ]; then
         [ -f $errfile ] && cat $errfile
-        if [ $0 = "bash" ]; then
+        if [ "${BASH_SOURCE[0]}" != "$runfrom" ]; then
            return $breakout
         else
           [ -f $errfile ] && cat $errfile
@@ -778,7 +798,7 @@ function kpick_action()
     elif [ -f $logfile ]; then
         [ "$project" = "" ] && project=$(cat $logfile | grep "Project path" | cut -d: -f2 | sed "s/ //g")
         ref=$(grep "\['git fetch" $logfile | cut -d, -f2 | cut -d\' -f2)
-        if [ "$project" = "android" ]; then
+        if [ "$project" = "android" -a $op_keep_manifests -ne 1 ]; then
              cd $topdir/android
              git format-patch HEAD^ --stdout > /tmp/change_$changeNumber.patch
              local changeid=$(grep "Change-Id:" /tmp/change_$changeNumber.patch | cut -d' ' -f 2)
@@ -796,7 +816,7 @@ function kpick_action()
  
         if [ ! -z $changeNumber ]; then
             if grep -q -E "Change status is MERGED.|nothing to commit|git command resulted with an empty commit" $logfile; then
-               [ ! -f $script_file.tmp -a "${BASH_SOURCE[0]}" != "$0" ] && cp $script_file $script_file.tmp
+               [ ! -f $script_file.tmp -a "${BASH_SOURCE[0]}" = "$runfrom" ] && cp $script_file $script_file.tmp
                if [ -f $script_file.tmp ]; then
                     target_script=$script_file.tmp
                elif [ -f $script_file.new ]; then
@@ -805,7 +825,7 @@ function kpick_action()
                [ ! -z $target_script -a -f $target_script ] && \
                   eval  sed -E \"/[[:space:]]*kpick[[:space:]]\{1,\}$changeNumber[[:space:]]*.*/d\" -i $target_script
             elif grep -q -E "Change status is ABANDONED." $logfile; then
-               [ ! -f $script_file.tmp -a "${BASH_SOURCE[0]}" != "$0" ] && cp $script_file $script_file.tmp
+               [ ! -f $script_file.tmp -a "${BASH_SOURCE[0]}" = "$runfrom" ] && cp $script_file $script_file.tmp
                if [ -f $script_file.tmp ]; then
                     target_script=$script_file.tmp
                elif [ -f $script_file.new ]; then
@@ -814,7 +834,7 @@ function kpick_action()
                [ ! -z $target_script -a -f $target_script ] && \
                eval  sed -E \"/[[:space:]]*kpick[[:space:]]\{1,\}$changeNumber[[:space:]]*.*/d\" -i $target_script
             elif grep -q -E "Change $changeNumber not found, skipping" $logfile; then
-               [ ! -f $script_file.tmp -a "${BASH_SOURCE[0]}" != "$0" ] && cp $script_file $script_file.tmp
+               [ ! -f $script_file.tmp -a "${BASH_SOURCE[0]}" = "$runfrom" ] && cp $script_file $script_file.tmp
                if [ -f $script_file.tmp ]; then
                     target_script=$script_file.tmp
                elif [ -f $script_file.new ]; then
@@ -823,7 +843,7 @@ function kpick_action()
                [ ! -z $target_script -a -f $target_script ] && \
                eval  sed -E \"/[[:space:]]*kpick[[:space:]]\{1,\}$changeNumber[[:space:]]*.*/d\" -i $target_script
             elif [ -f $errfile ] && grep -q "could not determine the project path for" $errfile; then
-               [ ! -f $script_file.tmp -a "${BASH_SOURCE[0]}" != "$0" ] && cp $script_file $script_file.tmp
+               [ ! -f $script_file.tmp -a "${BASH_SOURCE[0]}" = "$runfrom" ] && cp $script_file $script_file.tmp
                if [ -f $script_file.tmp ]; then
                     target_script=$script_file.tmp
                elif [ -f $script_file.new ]; then
@@ -835,7 +855,7 @@ function kpick_action()
          fi
     fi
     if [ "$changeNumber" != "" -a "$subject" != "" ]; then
-           [ ! -f $script_file.tmp -a "${BASH_SOURCE[0]}" != "$0" ] && cp $script_file $script_file.tmp
+           [ ! -f $script_file.tmp -a "${BASH_SOURCE[0]}" = "$runfrom" ] && cp $script_file $script_file.tmp
            if [ -f $script_file.tmp ]; then
                 target_script=$script_file.tmp
            elif [ -f $script_file.new ]; then
@@ -848,8 +868,18 @@ function kpick_action()
 }
 
 function privpick() {
-  git -C $1 fetch github $2
-  git -C $1 cherry-pick FETCH_HEAD
+    [ $# -lt 2 ] && return 1
+    git -C $1 fetch github $2
+    git -C $1 cherry-pick FETCH_HEAD
+}
+
+# merge_from_aosp <path> <aosp_project> <tag or branch>
+function merge_from_aosp() {
+    [ $# -lt 3 ] && return 1
+    #git -C $topdir/$1 merge https://android.googlesource.com/$2 $3
+     git -C $topdir/$1 fetch https://android.googlesource.com/$2 $3:$3 && \
+     git -C $topdir/$1 merget $3
+     return $?
 }
 
 function apply_force_changes(){
@@ -859,7 +889,7 @@ function apply_force_changes(){
       | sort | while read f; do
          cd $topdir/vendor/lineage;
          if ! git am -3 -q   --keep-cr --committer-date-is-author-date < $f; then
-             if [ "${BASH_SOURCE[0]}" != "$0" ]; then
+             if [ "${BASH_SOURCE[0]}" = "$runfrom" ]; then
                  echo  "  >> please resolv it, then press ENTER to continue, or press 's' skip it ..."
                  ch=$(sed q </dev/tty)
                  if [ "$ch" = "s" ]; then
@@ -906,6 +936,8 @@ for op in $*; do
           return 0
     elif [ "$op" = "-base" ]; then
          op_base_pick=1
+    elif [ "$op" = "--keep-manifests" ]; then
+         op_keep_manifests=1
     else
          echo "kpick $op"
          kpick $op
@@ -963,7 +995,7 @@ fi
 trap 'int_handler' INT
 
 if [ $0 != "bash" -a ! -f $0.tmp -a $op_pick_continue -eq 0 ]; then    # continue pick or not
-reset_project_dir .repo/manifests
+[ $op_keep_manifests -ne 1 ] && reset_project_dir .repo/manifests
 reset_project_dir vendor/lineage
 repo sync vendor/lineage >/dev/null
 apply_force_changes
@@ -972,7 +1004,7 @@ reset_overwrite_projects
 # android
 
 repo sync android  >/dev/null
-reset_project_dir .repo/manifests
+[ $op_keep_manifests -ne 1 ] && reset_project_dir .repo/manifests
 
 kpick 223886 # manifest: Re-add hardware/qcom/data/ipacfg-mgr
 kpick 227747 # lineage: Enable weather apps
@@ -981,14 +1013,19 @@ kpick 226755 # lineage: Enable cryptfs_hw
 kpick 231971 # manifest: sync gcc4.9 from aosp oreo
 kpick 232785 # lineage: Ship Snap
 
+patch_local local/android
+echo
+
 android_head=$(cd android;git log -n 1 | sed -n 1p | cut -d' ' -f2;cd $topdir)
-repo sync --force-sync
-rc_sync=$?
+if [ $op_keep_manifests -ne 1 ]; then
+   repo sync --force-sync
+   rc_sync=$?
+fi
 cd android;git reset --hard $android_head >/dev/null;cd $topdir
 
 apply_force_changes
 
-[ $rc_sync -ne 0 ] && exit -1
+[ $op_keep_manifests -ne 1 -a $rc_sync -ne 0 ] && exit -1
 
 fi       # continue pick or not
 
@@ -1001,16 +1038,7 @@ kpick 224917 # DO NOT MERGE: klte-common: Requisite bring-up BS change
 kpick 234490 # klte-common: restorecon I/O scheduler tunables before touching them
 
 # device/samsung/msm8974-common
-kpick 234520 # msm8974-common: sepolicy: Label graphics sysfs nodes
-kpick 234521 # msm8974-common: sepolicy: Label sysfs_iio nodes
-kpick 234522 # msm8974-common: sepolicy: Label sysfs_input nodes
-kpick 234688 # msm8974-common: sepolicy: Label sysfs_batteryinfo nodes
-kpick 234689 # msm8974-common: sepolicy: Label sysfs_leds nodes
-kpick 234690 # msm8974-common: sepolicy: Create variety of sysfs_sec_* types
-kpick 234523 # msm8974-common: sepolicy: Resolve hal_sensors_default denials
-kpick 234527 # msm8974-common: sepolicy: Label our custom sensors service
 kpick 234524 # msm8974-common: sepolicy: Resolve rild denials
-kpick 234525 # msm8974-common: sepolicy: Resolve surfaceflinger denials
 kpick 234526 # msm8974-common: sepolicy: Resolve mediaserver denials
 kpick 234692 # msm8974-common: sepolicy: Resolve dnsmasq denials
 kpick 234191 # msm8974-common: Disable netd active FTP helper
@@ -1026,11 +1054,10 @@ kpick 234191 # msm8974-common: Disable netd active FTP helper
 kpick 223063 # Restore android_alarm.h kernel uapi header
 kpick 223067 # libc fortify: Ignore open() O_TMPFILE mode bits warning
 kpick 225463 # bionic: Let popen and system fall back to /sbin/sh
-kpick 230099 # Actually restore pre-P mutex behavior
 
 # boot/recovery
-kpick 230747 # update_verifier: skip verity to determine successful on lineage builds
 kpick 231718 # recovery: Declare a soong namespace
+kpick 234952 # uncrypt: write permission for f2fs_pin_file
 
 # build/make
 kpick 222742 # build: Use project pathmap for recovery
@@ -1055,10 +1082,8 @@ kpick 225476 # dexdeps: Ignore static initializers on analysis.
 #kpick 225945 # sepolicy: Update to match new qcom sepolicy
 kpick 229423 # selinux: add domain for snap
 kpick 229424 # selinux: add domain for Gallery
-kpick 232512 # sepolicy: Address lineage-iosched denials
 kpick 234487 # common: Label and allow init to write to I/O sched tuning nodes
-kpick 234613 # common: Expand labeling of sysfs_vibrator nodes using regex
-kpick 234799 # Label lineage.service.adb.root as system prop
+kpick 234613 # common: Expand labeling of sysfs_vibrator nodes using genfscon
 
 # device/qcom/sepolicy
 kpick 228566 # qcom: Label vendor files with (vendor|system/vendor) instead of vendor
@@ -1076,10 +1101,6 @@ kpick 228585 # sepolicy: Allow mm-qcamerad to access v4L "name" node
 kpick 228586 # common: Fix labelling of lcd-backlight
 
 # device/qcom/sepolicy-legacy
-kpick 230828 # legacy: Label more power_supply sysfs
-kpick 230829 # legacy: Resolve hal_gnss_default denial
-kpick 230830 # legacy: Resolve hal_bluetooth_default denial
-kpick 230834 # legacy: allow init to read /proc/device-tree
 kpick 231054 # NFC: Add nfc data file context and rename property
 kpick 230237 # common: allow vendor_init to create /data/dpm
 kpick 230229 # mm-qcamera-daemon: fix denial
@@ -1123,6 +1144,7 @@ kpick 230387 # CameraService: Support calling addStates in enumerateProviders
 kpick 230642 # CameraService: Initialize CameraParameters for the cameras and cache them onFirstRef
 kpick 231348 # camera: Allow to use boottime as timestamp reference
 kpick 234010 # libstagefright: omx: Add support for loading prebuilt ddp decoder lib
+kpick 234980 # libcameraservice: force poco specific cam id for google face unlock
 
 # frameworks/base
 kpick 224266 # SystemUI: Add Lineage statusbar item holder
@@ -1168,6 +1190,7 @@ kpick 234318 # Wifi: Check for WiFiService's existence before its access
 kpick 234325 # TunerServiceImpl: Blacklist Lineage settings from tuner reset
 kpick 234649 # keyguard: Check for a null errString
 kpick 234715 # Rotation related corrections
+#merge_from_aosp frameworks/base platform/frameworks/base android-9.0.0_r18
 
 # frameworks/native
 kpick 224443 # libbinder: Don't log call trace when waiting for vendor service on non-eng builds
@@ -1181,6 +1204,7 @@ kpick 229607 # HACK: SF: Force client composition for all layers
 kpick 230610 # APP may display abnormally in landscape LCM
 kpick 231828 # Translate pointer motion events for OneHandOperation Display Shrink
 kpick 231980 # HWComposer: HWC2: allow SkipValidate to be force disabled
+#merge_from_aosp frameworks/native platform/frameworks/native android-9.0.0_r18
 
 # frameworks/opt/net/wifi
 
@@ -1611,6 +1635,7 @@ kpick 229125 # Increase maximum Bluetooth SBC codec bitpool and bitrate values
 kpick 229313 # Explicit SBC Dual Channel (SBC HD) support
 kpick 229314 # Allow using alternative (higher) SBC HD bitrates with a property
 kpick 229401 # [DNM] Revert "Return early if vendor-specific command fails"
+#merge_from_aosp system/bt platform/system/bt android-9.0.0_r18
 
 # system/core
 kpick -f 227110 # init: I hate safety net
@@ -1622,6 +1647,7 @@ kpick 226120 # fs_mgr: Wrapped key support for FBE
 kpick 230755 # libsuspend: Bring back earlysuspend
 kpick 231716 # init: Always use libbootloader_message from bootable/recovery namespace
 kpick 234860 # init: add install_keyring for TWRP FBE decrypt
+#merge_from_aosp system/core platform/system/core android-9.0.0_r18
 
 # system/extras
 kpick 225426 # f2fs_utils: Add a static libf2fs_sparseblock for minvold
@@ -1709,10 +1735,14 @@ kpick 226403 # cryptfs_hw: Remove unused variable
 
 ##################################
 echo
-echo "---------------------------------------------------------------"
-[ "$op_auto" != "1" ] && read -n1 -r -p "  Picking remote changes finished, Press any key to continue..." key
+if [ ! -f $topdir/.pick_remote_only ]; then
+    echo "---------------------------------------------------------------"
+    [ "$op_auto" != "1" ] && read -n1 -r -p "  Picking remote changes finished, Press any key to continue..." key
 
-[ $op_pick_remote_only -eq 0 ] && patch_local local
+    [ $op_pick_remote_only -eq 0 ] && patch_local local
+else
+   rm -f $topdir/.pick_remote_only
+fi
 [ -f $script_file.tmp ] && mv $script_file.tmp $script_file.new
 [ -f $topdir/.myfiles/patches/rr-cache/rr-cache.tmp ] && \
    mv $topdir/.myfiles/patches/rr-cache/rr-cache.tmp $topdir/.myfiles/patches/rr-cache/rr-cache.list
