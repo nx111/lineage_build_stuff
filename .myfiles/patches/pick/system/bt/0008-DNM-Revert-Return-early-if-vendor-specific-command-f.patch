@@ -1,0 +1,89 @@
+From 1521b7b8e1fb7e5b3a8e4f75ac6ad6ad1273e479 Mon Sep 17 00:00:00 2001
+From: Michael Bestas <mkbestas@lineageos.org>
+Date: Wed, 5 Sep 2018 21:09:52 +0300
+Subject: [PATCH 8/8] [DNM] Revert "Return early if vendor-specific command
+ fails"
+
+This reverts commit c8d7ce390514442a09c831544879753e1b88228e.
+
+Change-Id: Ic2ec32ee5eb953c5feee61597a3fd6818d7ccbd1
+---
+ stack/btm/btm_ble_gap.cc | 54 ++++++++++++++++++++++------------------
+ 1 file changed, 30 insertions(+), 24 deletions(-)
+
+diff --git a/stack/btm/btm_ble_gap.cc b/stack/btm/btm_ble_gap.cc
+index 4e8471261..1f99c7822 100644
+--- a/stack/btm/btm_ble_gap.cc
++++ b/stack/btm/btm_ble_gap.cc
+@@ -485,29 +485,10 @@ static void btm_ble_vendor_capability_vsc_cmpl_cback(
+   BTM_TRACE_DEBUG("%s", __func__);
+ 
+   /* Check status of command complete event */
+-  CHECK(p_vcs_cplt_params->opcode == HCI_BLE_VENDOR_CAP_OCF);
+-  CHECK(p_vcs_cplt_params->param_len > 0);
+-
+-  p = p_vcs_cplt_params->p_param_buf;
+-  STREAM_TO_UINT8(status, p);
+-
+-  if (status != HCI_SUCCESS) {
+-    BTM_TRACE_DEBUG("%s: Status = 0x%02x (0 is success)", __func__, status);
+-    return;
+-  }
+-  STREAM_TO_UINT8(btm_cb.cmn_ble_vsc_cb.adv_inst_max, p);
+-  STREAM_TO_UINT8(btm_cb.cmn_ble_vsc_cb.rpa_offloading, p);
+-  STREAM_TO_UINT16(btm_cb.cmn_ble_vsc_cb.tot_scan_results_strg, p);
+-  STREAM_TO_UINT8(btm_cb.cmn_ble_vsc_cb.max_irk_list_sz, p);
+-  STREAM_TO_UINT8(btm_cb.cmn_ble_vsc_cb.filter_support, p);
+-  STREAM_TO_UINT8(btm_cb.cmn_ble_vsc_cb.max_filter, p);
+-  STREAM_TO_UINT8(btm_cb.cmn_ble_vsc_cb.energy_support, p);
+-
+-  if (p_vcs_cplt_params->param_len >
+-      BTM_VSC_CHIP_CAPABILITY_RSP_LEN_L_RELEASE) {
+-    STREAM_TO_UINT16(btm_cb.cmn_ble_vsc_cb.version_supported, p);
+-  } else {
+-    btm_cb.cmn_ble_vsc_cb.version_supported = BTM_VSC_CHIP_CAPABILITY_L_VERSION;
++  if ((p_vcs_cplt_params->opcode == HCI_BLE_VENDOR_CAP_OCF) &&
++      (p_vcs_cplt_params->param_len > 0)) {
++    p = p_vcs_cplt_params->p_param_buf;
++    STREAM_TO_UINT8(status, p);
+   }
+ 
+   if (btm_cb.cmn_ble_vsc_cb.version_supported >=
+@@ -515,8 +496,33 @@ static void btm_ble_vendor_capability_vsc_cmpl_cback(
+     STREAM_TO_UINT16(btm_cb.cmn_ble_vsc_cb.total_trackable_advertisers, p);
+     STREAM_TO_UINT8(btm_cb.cmn_ble_vsc_cb.extended_scan_support, p);
+     STREAM_TO_UINT8(btm_cb.cmn_ble_vsc_cb.debug_logging_supported, p);
++    }
++
++  if (status == HCI_SUCCESS) {
++    STREAM_TO_UINT8(btm_cb.cmn_ble_vsc_cb.adv_inst_max, p);
++    STREAM_TO_UINT8(btm_cb.cmn_ble_vsc_cb.rpa_offloading, p);
++    STREAM_TO_UINT16(btm_cb.cmn_ble_vsc_cb.tot_scan_results_strg, p);
++    STREAM_TO_UINT8(btm_cb.cmn_ble_vsc_cb.max_irk_list_sz, p);
++    STREAM_TO_UINT8(btm_cb.cmn_ble_vsc_cb.filter_support, p);
++    STREAM_TO_UINT8(btm_cb.cmn_ble_vsc_cb.max_filter, p);
++    STREAM_TO_UINT8(btm_cb.cmn_ble_vsc_cb.energy_support, p);
++
++    if (p_vcs_cplt_params->param_len >
++        BTM_VSC_CHIP_CAPABILITY_RSP_LEN_L_RELEASE) {
++      STREAM_TO_UINT16(btm_cb.cmn_ble_vsc_cb.version_supported, p);
++    } else {
++      btm_cb.cmn_ble_vsc_cb.version_supported =
++          BTM_VSC_CHIP_CAPABILITY_L_VERSION;
++    }
++
++    if (btm_cb.cmn_ble_vsc_cb.version_supported >=
++        BTM_VSC_CHIP_CAPABILITY_M_VERSION) {
++      STREAM_TO_UINT16(btm_cb.cmn_ble_vsc_cb.total_trackable_advertisers, p);
++      STREAM_TO_UINT16(btm_cb.cmn_ble_vsc_cb.extended_scan_support, p);
++      STREAM_TO_UINT16(btm_cb.cmn_ble_vsc_cb.debug_logging_supported, p);
++    }
++    btm_cb.cmn_ble_vsc_cb.values_read = true;
+   }
+-  btm_cb.cmn_ble_vsc_cb.values_read = true;
+ 
+   BTM_TRACE_DEBUG(
+       "%s: stat=%d, irk=%d, ADV ins:%d, rpa=%d, ener=%d, ext_scan=%d", __func__,
+-- 
+2.17.1
+

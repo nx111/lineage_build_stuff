@@ -1,0 +1,69 @@
+From 164817351a0ce781899b54f48861fd443b1b44f1 Mon Sep 17 00:00:00 2001
+From: dwchen <dwchen@google.com>
+Date: Mon, 20 Aug 2018 10:17:48 -0700
+Subject: [PATCH 01/50] Fixes possible issue with no-op creator.
+
+Leaving a no-op CREATOR can lead to issues. We throw a run-time
+exception to prevent anyone from using this. The StatsLogEventWrapper is
+meant to be write-only since it's only used to send data to statsd.
+
+Bug: 112550251
+Test: Tested with provided POC app by external researcher.
+Change-Id: I001d84e2a61a1cd8a4f59aa156ca52f73ad0f6e1
+(cherry picked from commit 78622d57ad102c054306b01321b6b2dbec3f9d1d)
+---
+ .../java/android/os/StatsLogEventWrapper.java | 21 +++++++------------
+ 1 file changed, 8 insertions(+), 13 deletions(-)
+
+diff --git a/core/java/android/os/StatsLogEventWrapper.java b/core/java/android/os/StatsLogEventWrapper.java
+index d4d3dc838d9..7b3ea57ba0e 100644
+--- a/core/java/android/os/StatsLogEventWrapper.java
++++ b/core/java/android/os/StatsLogEventWrapper.java
+@@ -65,11 +65,17 @@ public final class StatsLogEventWrapper implements Parcelable {
+     public static final Parcelable.Creator<StatsLogEventWrapper> CREATOR = new
+             Parcelable.Creator<StatsLogEventWrapper>() {
+                 public StatsLogEventWrapper createFromParcel(Parcel in) {
+-                    return new StatsLogEventWrapper(in);
++                    android.util.EventLog.writeEvent(0x534e4554, "112550251",
++                            android.os.Binder.getCallingUid(), "");
++                    // Purposefully leaving this method not implemented.
++                    throw new RuntimeException("Not implemented");
+                 }
+ 
+                 public StatsLogEventWrapper[] newArray(int size) {
+-                    return new StatsLogEventWrapper[size];
++                    android.util.EventLog.writeEvent(0x534e4554, "112550251",
++                            android.os.Binder.getCallingUid(), "");
++                    // Purposefully leaving this method not implemented.
++                    throw new RuntimeException("Not implemented");
+                 }
+             };
+ 
+@@ -120,10 +126,6 @@ public final class StatsLogEventWrapper implements Parcelable {
+         mStorage.write(bytes, 0, bytes.length);
+     }
+ 
+-    private StatsLogEventWrapper(Parcel in) {
+-        readFromParcel(in);
+-    }
+-
+     /**
+      * Writes the stored fields to a byte array. Will first write a new-line character to denote
+      * END_LIST before writing contents to byte array.
+@@ -133,13 +135,6 @@ public final class StatsLogEventWrapper implements Parcelable {
+         out.writeByteArray(mStorage.toByteArray());
+     }
+ 
+-    /**
+-     * Not implemented.
+-     */
+-    public void readFromParcel(Parcel in) {
+-        // Not needed since this java class is for sending to statsd only.
+-    }
+-
+     /**
+      * Boilerplate for Parcel.
+      */
+-- 
+2.17.1
+

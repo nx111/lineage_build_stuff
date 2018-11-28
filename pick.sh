@@ -50,8 +50,10 @@ function patch_local()
 
     if [ ! -z $va_patches_dir -a -d "$topdir/.myfiles/patches/$va_patches_dir" ]; then
         search_dir=".myfiles/patches/$va_patches_dir"
-    elif [ -d "$topdir/.myfiles/patches/pick/$va_patches_dir" -o -d "$topdir/.myfiles/patches/local/$va_patches_dir" ]; then
+    elif [ ! -z $va_patches_dir -a -d "$topdir/.myfiles/patches/pick/$va_patches_dir" -o -d "$topdir/.myfiles/patches/local/$va_patches_dir" ]; then
         search_dir=".myfiles/patches/local/$va_patches_dir .myfiles/patches/pick/$va_patches_dir"
+    elif  [ ! -z $va_patches_dir ]; then
+        return -1
     fi
 
     find $search_dir -type f -name "*.patch" -o -name "*.diff" | sed -e "s/\.myfiles\/\patches\///" -e "s/\//:/" |sort -t : -k 2 | while read line; do
@@ -702,6 +704,12 @@ function kpick_action()
               rm -rf $md5file
               if [ "$project" != "" -a -d $topdir/$project ]; then
                     touch $md5file
+                    if LANG=en_US git -C $topdir/$project status | grep -q "Untracked files:"; then
+                        git -C $topdir/$project clean -xdf
+                        if git -C $topdir/$project commit --no-edit; then
+                             breakout=0
+                        fi
+                    fi
                     if grep -q "using previous resolution" $errfile; then
                        echo "------------"
                        cd $topdir/$project
@@ -723,6 +731,9 @@ function kpick_action()
                        cd $topdir/$project
                        grep "Recorded preimage for" $errfile | cut -d\' -f2 | xargs md5sum | sed -e "s/\(.*\)/\1 preimage/" >>$md5file
                        cd $topdir
+                    fi
+                    if LANG=en_US git -C $topdir/$project status | grep -q "Untracked files:"; then
+                        git -C $topdir/$project clean -xdf
                     fi
               fi
               echo  "  >> pick changes conflict, please resolv it, then press ENTER to continue, or press 's' skip it ..."
@@ -877,8 +888,16 @@ function privpick() {
 function merge_from_aosp() {
     [ $# -lt 3 ] && return 1
     #git -C $topdir/$1 merge https://android.googlesource.com/$2 $3
-     git -C $topdir/$1 fetch https://android.googlesource.com/$2 $3:$3 && \
-     git -C $topdir/$1 merget $3
+     git -C $topdir/$1 fetch https://android.googlesource.com/$2 $3:$3
+     if git -C $topdir/$1 tag | grep -q $3 || git -C $topdir/$1 branch | grep -q $3; then
+         if ! git -C $topdir/$1 merge $3 --no-edit; then
+                 echo  "  >> please resolv it, then press ENTER to continue, or press 's' skip it ..."
+                 ch=$(sed q </dev/tty)
+                 if [ "$ch" = "s" ]; then
+                     git git -C $topdir/$1 merge --abort
+                 fi
+         fi
+     fi
      return $?
 }
 
@@ -1041,7 +1060,6 @@ kpick 234490 # klte-common: restorecon I/O scheduler tunables before touching th
 kpick 234524 # msm8974-common: sepolicy: Resolve rild denials
 kpick 234526 # msm8974-common: sepolicy: Resolve mediaserver denials
 kpick 234692 # msm8974-common: sepolicy: Resolve dnsmasq denials
-kpick 234191 # msm8974-common: Disable netd active FTP helper
 
 # kernel/samsung/msm8974
 
@@ -1113,13 +1131,8 @@ kpick 230235 # common: grant DRM HIDL HAL ownership access to /data/{misc,vendor
 kpick 230236 # common: label /sys/devices/virtual/graphics as sysfs_graphics
 kpick 230238 # common: create proc_kernel_sched domain to restrict perf hal access
 kpick 230239 # common: allow uevent to control sysfs_mmc_host via vold
-kpick 234248 # sepolicy : set write permissions for sysfs_boot_adsp.
-kpick 234827 # wifi: Use wpa_data_file instead of wifi_vendor_data_file
-kpick 234828 # sepolicy: Allow hostapd to access/write /data/vendor/ partition
-kpick 234829 # Add create_dir_perms to data files for vendor_init
-kpick 234830 # Remove wifi_data_file from data_between_core_and_vendor_violators
-kpick 234831 # sepolicy: Fix SoftAP (hostapd)
 kpick 234832 # sepolicy: Add additional restricted permissions to vendor_init
+kpick 234883 # sepolicy: Allow init to read boot_reason alarm file
 
 # development
 kpick 232511 # make-key: Enforce PBEv1 password-protected signing keys
@@ -1144,7 +1157,8 @@ kpick 230387 # CameraService: Support calling addStates in enumerateProviders
 kpick 230642 # CameraService: Initialize CameraParameters for the cameras and cache them onFirstRef
 kpick 231348 # camera: Allow to use boottime as timestamp reference
 kpick 234010 # libstagefright: omx: Add support for loading prebuilt ddp decoder lib
-kpick 234980 # libcameraservice: force poco specific cam id for google face unlock
+kpick 234980 # libcameraservice: force specific cam id for google face unlock
+merge_from_aosp frameworks/av platform/frameworks/av android-9.0.0_r18
 
 # frameworks/base
 kpick 224266 # SystemUI: Add Lineage statusbar item holder
@@ -1190,7 +1204,7 @@ kpick 234318 # Wifi: Check for WiFiService's existence before its access
 kpick 234325 # TunerServiceImpl: Blacklist Lineage settings from tuner reset
 kpick 234649 # keyguard: Check for a null errString
 kpick 234715 # Rotation related corrections
-#merge_from_aosp frameworks/base platform/frameworks/base android-9.0.0_r18
+merge_from_aosp frameworks/base platform/frameworks/base android-9.0.0_r18
 
 # frameworks/native
 kpick 224443 # libbinder: Don't log call trace when waiting for vendor service on non-eng builds
@@ -1635,7 +1649,7 @@ kpick 229125 # Increase maximum Bluetooth SBC codec bitpool and bitrate values
 kpick 229313 # Explicit SBC Dual Channel (SBC HD) support
 kpick 229314 # Allow using alternative (higher) SBC HD bitrates with a property
 kpick 229401 # [DNM] Revert "Return early if vendor-specific command fails"
-#merge_from_aosp system/bt platform/system/bt android-9.0.0_r18
+merge_from_aosp system/bt platform/system/bt android-9.0.0_r18
 
 # system/core
 kpick -f 227110 # init: I hate safety net
@@ -1674,14 +1688,11 @@ kpick 233423 # pie-gsi tracking
 kpick 234190 # netd: Allow devices to opt-out of the tethering active FTP helper
 
 # system/qcom
-kpick 234848 # qsap: Fix missing log symbols
-kpick 234849 # softap: sdk: Declare VNDK usage
-kpick 234850 # qsap: Suppress errors
 
 # system/security
 
 # system/sepolicy
-kpick 230151 # Fix storaged access to /sys/block/mmcblk0/stat after c936223c
+kpick 230151 # Fix storaged access to /sys/block/mmcblk0/stat after 48027a00
 kpick 230613 # Allow webview_zygote to read /dev/ion
 
 # system/tool/aidl
