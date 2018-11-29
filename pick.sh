@@ -1054,12 +1054,27 @@ fi       # continue pick or not
 kpick 231209 # klte-common: nfc: pn547: Use prebuilt NFC HAL from 15.1
 kpick 225192 # klte-common: Align ril.h to samsung_msm8974-common P libril changes
 kpick 224917 # DO NOT MERGE: klte-common: Requisite bring-up BS change
-kpick 234490 # klte-common: restorecon I/O scheduler tunables before touching them
+kpick 235144 # klte-common: sepolicy: Label sysfs_audio nodes
+kpick 235145 # klte-common: sepolicy: Label sysfs_fingerprint, resolve denials
+kpick 235146 # klte-common: rootdir: Stop diddling with /sys/power/cpufreq_*
 
 # device/samsung/msm8974-common
 kpick 234524 # msm8974-common: sepolicy: Resolve rild denials
 kpick 234526 # msm8974-common: sepolicy: Resolve mediaserver denials
 kpick 234692 # msm8974-common: sepolicy: Resolve dnsmasq denials
+kpick 235130 # msm8974-common: sepolicy: Label sysfs_net, resolve denials
+kpick 235131 # msm8974-common: sepolicy: Label sysfs_disk_stat nodes
+kpick 235132 # msm8974-common: sepolicy: Label sysfs_msm_perf, resolve denials
+kpick 235133 # msm8974-common: sepolicy: Label sysfs_sensors, resolve denials
+kpick 235134 # msm8974-common: sepolicy: Label additional sysfs_io_sched_tuneable node
+kpick 235135 # msm8974-common: sepolicy: Label sysfs_socinfo, resolve denials
+kpick 235136 # msm8974-common: sepolicy: Label sysfs_mmc_host, resolve denials
+kpick 235137 # msm8974-common: sepolicy: Label sysfs_msmuart_file, resolve denials
+kpick 235138 # msm8974-common: sepolicy: Broaden sysfs_bluetooth_writable, resolve denials
+kpick 235139 # msm8974-common: sepolicy: Resolve system_server denials
+kpick 235140 # msm8974-common: sepolicy: Clean up system_server.te
+kpick 235141 # msm8974-common: sepolicy: Resolve system_app denials
+kpick 235142 # msm8974-common: sepolicy: Resolve init denials
 
 # kernel/samsung/msm8974
 
@@ -1100,7 +1115,6 @@ kpick 225476 # dexdeps: Ignore static initializers on analysis.
 #kpick 225945 # sepolicy: Update to match new qcom sepolicy
 kpick 229423 # selinux: add domain for snap
 kpick 229424 # selinux: add domain for Gallery
-kpick 234487 # common: Label and allow init to write to I/O sched tuning nodes
 kpick 234613 # common: Expand labeling of sysfs_vibrator nodes using genfscon
 
 # device/qcom/sepolicy
@@ -1200,10 +1214,10 @@ kpick 233369 # Add auth framework for outgoing SMS messages.
 kpick 233633 # Phone ringtone setting for Multi SIM device
 kpick 233717 # [DNM][HACK] Persist user brightness model
 kpick 234168 # Binder: Fix improper JNI call for dumpProxyDebugInfo
-kpick 234318 # Wifi: Check for WiFiService's existence before its access
 kpick 234325 # TunerServiceImpl: Blacklist Lineage settings from tuner reset
 kpick 234649 # keyguard: Check for a null errString
 kpick 234715 # Rotation related corrections
+kpick 235147 # SystemUI: Name Cellular Tile based on carrier
 merge_from_aosp frameworks/base platform/frameworks/base android-9.0.0_r18
 
 # frameworks/native
@@ -1430,8 +1444,7 @@ kpick 231826 # Update the white list of Data saver
 kpick 232442 # Settings: Root appops access in developer settings
 kpick 232793 # Settings: per-app VPN data restriction
 kpick 233634 # Phone ringtone setting for Multi SIM device
-kpick 234020 # Settings: Launch the development tools
-kpick 234021 # Settings: Add icons for development tools and bug report
+kpick 235127 # Fix NPE when creates wifi tracker
 
 # packages/apps/SettingsIntelligence
 
@@ -1642,6 +1655,7 @@ kpick 233635 # Phone ringtone setting for Multi SIM device
 # packages/services/Telephony
 kpick 229610 # Telephony: Support muting by RIL command
 kpick 229611 # Telephony: Use a common prop for Huawei RIL hacks (2/2)
+kpick 234990 # Ims: Enable ImsSettings
 
 # system/bt
 kpick 224813 # bt: osi: undef PROPERTY_VALUE_MAX
@@ -1692,7 +1706,6 @@ kpick 234190 # netd: Allow devices to opt-out of the tethering active FTP helper
 # system/security
 
 # system/sepolicy
-kpick 230151 # Fix storaged access to /sys/block/mmcblk0/stat after 48027a00
 kpick 230613 # Allow webview_zygote to read /dev/ion
 
 # system/tool/aidl
@@ -1731,7 +1744,6 @@ kpick 231599 # privapp-permissions: Add new Gallery permissions
 kpick 231981 # HWComposer: HWC2: allow SkipValidate to be force disabled
 kpick 232663 # overlay: Hide the option to show battery percentage
 kpick 234011 # lineage: Add media_codecs_ddp for AC3 audio
-kpick 234352 # lineage-iosched: restorecon scheduler tuneables before touching them
 
 # vendor/qcom/opensource/cryptfs_hw
 kpick 226128 # cryptfs_hw: Add compatibility for pre-O hw crypto
