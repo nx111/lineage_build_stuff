@@ -46,7 +46,7 @@ export JACK_SERVER_VM_ARGUMENTS="-Dfile.encoding=UTF-8 -XX:+TieredCompilation -X
 #[ -x $workdir/repopick.sh ] && $workdir/
 
 
-local result=0
+result=0
 if [ "$mode" = "addonsu" ]; then
 	breakfast $product
 	[ -f $workdir/.mypatches/superuser.rc -a ! -f $workdir/system/extras/su/superuser.rc ] \

@@ -1054,23 +1054,12 @@ fi       # continue pick or not
 kpick 231209 # klte-common: nfc: pn547: Use prebuilt NFC HAL from 15.1
 kpick 225192 # klte-common: Align ril.h to samsung_msm8974-common P libril changes
 kpick 224917 # DO NOT MERGE: klte-common: Requisite bring-up BS change
-kpick 235144 # klte-common: sepolicy: Label sysfs_audio nodes
-kpick 235145 # klte-common: sepolicy: Label sysfs_fingerprint, resolve denials
-kpick 235146 # klte-common: rootdir: Stop diddling with /sys/power/cpufreq_*
+kpick 235175 # klte-common: Manually restorecon legacy telephony provider symlinks
 
 # device/samsung/msm8974-common
 kpick 234524 # msm8974-common: sepolicy: Resolve rild denials
 kpick 234526 # msm8974-common: sepolicy: Resolve mediaserver denials
 kpick 234692 # msm8974-common: sepolicy: Resolve dnsmasq denials
-kpick 235130 # msm8974-common: sepolicy: Label sysfs_net, resolve denials
-kpick 235131 # msm8974-common: sepolicy: Label sysfs_disk_stat nodes
-kpick 235132 # msm8974-common: sepolicy: Label sysfs_msm_perf, resolve denials
-kpick 235133 # msm8974-common: sepolicy: Label sysfs_sensors, resolve denials
-kpick 235134 # msm8974-common: sepolicy: Label additional sysfs_io_sched_tuneable node
-kpick 235135 # msm8974-common: sepolicy: Label sysfs_socinfo, resolve denials
-kpick 235136 # msm8974-common: sepolicy: Label sysfs_mmc_host, resolve denials
-kpick 235137 # msm8974-common: sepolicy: Label sysfs_msmuart_file, resolve denials
-kpick 235138 # msm8974-common: sepolicy: Broaden sysfs_bluetooth_writable, resolve denials
 kpick 235139 # msm8974-common: sepolicy: Resolve system_server denials
 kpick 235140 # msm8974-common: sepolicy: Clean up system_server.te
 kpick 235141 # msm8974-common: sepolicy: Resolve system_app denials
@@ -1217,6 +1206,8 @@ kpick 234168 # Binder: Fix improper JNI call for dumpProxyDebugInfo
 kpick 234325 # TunerServiceImpl: Blacklist Lineage settings from tuner reset
 kpick 234649 # keyguard: Check for a null errString
 kpick 234715 # Rotation related corrections
+kpick 235127 # Fix NPE when creates wifi tracker
+kpick 235128 # Crash app on foreground service notification error
 kpick 235147 # SystemUI: Name Cellular Tile based on carrier
 merge_from_aosp frameworks/base platform/frameworks/base android-9.0.0_r18
 
@@ -1232,7 +1223,7 @@ kpick 229607 # HACK: SF: Force client composition for all layers
 kpick 230610 # APP may display abnormally in landscape LCM
 kpick 231828 # Translate pointer motion events for OneHandOperation Display Shrink
 kpick 231980 # HWComposer: HWC2: allow SkipValidate to be force disabled
-#merge_from_aosp frameworks/native platform/frameworks/native android-9.0.0_r18
+merge_from_aosp frameworks/native platform/frameworks/native android-9.0.0_r18
 
 # frameworks/opt/net/wifi
 
@@ -1249,6 +1240,7 @@ kpick 231598 # Telephony: Send INITIAL_ATTACH only when it is applicable.
 kpick 232365 # SimPhoneBook: Add ANR/EMAIL support for USIM phonebook.
 kpick 232366 # MSIM: Fix to set Mcc & Mnc with correct subId
 kpick 234319 # LocaleTracker: Add null check before accessing WifiManager
+kpick 235195 # IMS: RTT feature changes
 
 # hardware/boardcom/libbt
 kpick 225155 # Broadcom BT: Add support fm/bt via v4l2.
@@ -1347,6 +1339,7 @@ kpick 231895 # VNDK: Added required libs
 kpick 231896 # power: Turn on/off display in SDM439
 kpick 231897 # power: qcom: powerHal for sdm439 and sdm429
 kpick 231898 # Power: Naming convention change
+kpick 235177 # power: Drop default POWER_HINT_INTERACTION routine
 
 # hardware/qcom/thermal
 
@@ -1444,7 +1437,6 @@ kpick 231826 # Update the white list of Data saver
 kpick 232442 # Settings: Root appops access in developer settings
 kpick 232793 # Settings: per-app VPN data restriction
 kpick 233634 # Phone ringtone setting for Multi SIM device
-kpick 235127 # Fix NPE when creates wifi tracker
 
 # packages/apps/SettingsIntelligence
 
@@ -1672,10 +1664,9 @@ kpick -f 227110 # init: I hate safety net
 #kpick 223085 # adbd: Disable "adb root" by system property (2/3)
 kpick 224264 # debuggerd: Resolve tombstoned missing O_CREAT mode
 kpick 226120 # fs_mgr: Wrapped key support for FBE
-kpick 230755 # libsuspend: Bring back earlysuspend
 kpick 231716 # init: Always use libbootloader_message from bootable/recovery namespace
 kpick 234860 # init: add install_keyring for TWRP FBE decrypt
-#merge_from_aosp system/core platform/system/core android-9.0.0_r18
+merge_from_aosp system/core platform/system/core android-9.0.0_r18
 
 # system/extras
 kpick 225426 # f2fs_utils: Add a static libf2fs_sparseblock for minvold
@@ -1707,6 +1698,9 @@ kpick 234190 # netd: Allow devices to opt-out of the tethering active FTP helper
 
 # system/sepolicy
 kpick 230613 # Allow webview_zygote to read /dev/ion
+kpick 234884 # Allow init to write to /proc/cpu/alignment
+kpick 234886 # Allow init to chmod/chown /proc/slabinfo
+kpick 235196 # Allow dnsmasq to getattr netd unix_stream_socket
 
 # system/tool/aidl
 kpick 223133 # AIDL: Add option to generate No-Op methods
@@ -1723,6 +1717,9 @@ kpick 229304 # vold: Add texfat and sdfat support
 kpick 229954 # Move kMajor* constants to a header file
 kpick 229955 # vold: ISO9660 and UDF support
 kpick 231717 # vold: Always use libbootloader_message from bootable/recovery namespace
+kpick 235198 # Revert "vold: Also wait for dm device when mounting private volume"
+kpick 235199 # Revert "vold: Make sure block device exists before formatting it"
+kpick 235200 # pie-gsi
 
 # vendor/lineage
 kpick 223773 # Add IPv6 for Oister and 3. The 3.dk and oister.dk carriers now support IPv6 with the APN ”data.tre.dk”.

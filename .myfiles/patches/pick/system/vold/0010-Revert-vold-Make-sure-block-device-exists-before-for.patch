@@ -1,0 +1,110 @@
+From f04ec28a34fd54e96dc661527b10e613bc97ea5b Mon Sep 17 00:00:00 2001
+From: Luca Stefani <luca.stefani.ge1@gmail.com>
+Date: Fri, 30 Nov 2018 21:44:33 +0100
+Subject: [PATCH 10/11] Revert "vold: Make sure block device exists before
+ formatting it"
+
+This reverts commit d78246de012a3b9edd54a916d27ce4b8fc45c53c.
+
+Change-Id: I05952362955b89f2f969dbd323023d42e94be949
+---
+ Utils.cpp               | 20 --------------------
+ Utils.h                 |  4 ----
+ model/PrivateVolume.cpp |  7 -------
+ 3 files changed, 31 deletions(-)
+
+diff --git a/Utils.cpp b/Utils.cpp
+index 4a14250..40cb7f0 100644
+--- a/Utils.cpp
++++ b/Utils.cpp
+@@ -39,7 +39,6 @@
+ #include <sys/sysmacros.h>
+ #include <sys/wait.h>
+ #include <sys/statvfs.h>
+-#include <thread>
+ 
+ #ifndef UMOUNT_NOFOLLOW
+ #define UMOUNT_NOFOLLOW    0x00000008  /* Don't follow symlink on umount */
+@@ -48,8 +47,6 @@
+ using android::base::ReadFileToString;
+ using android::base::StringPrintf;
+ 
+-using namespace std::chrono_literals;
+-
+ namespace android {
+ namespace vold {
+ 
+@@ -734,23 +731,6 @@ bool Readlinkat(int dirfd, const std::string& path, std::string* result) {
+     }
+ }
+ 
+-bool WaitForFile(const std::string& filename,
+-        const std::chrono::milliseconds relativeTimeout) {
+-    auto startTime = std::chrono::steady_clock::now();
+-
+-    while (true) {
+-        if (!access(filename.c_str(), F_OK) || errno != ENOENT) {
+-            return true;
+-        }
+-
+-        std::this_thread::sleep_for(50ms);
+-
+-        auto now = std::chrono::steady_clock::now();
+-        auto timeElapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - startTime);
+-        if (timeElapsed > relativeTimeout) return false;
+-    }
+-}
+-
+ bool IsRunningInEmulator() {
+     return android::base::GetBoolProperty("ro.kernel.qemu", false);
+ }
+diff --git a/Utils.h b/Utils.h
+index 949f05b..5caa4e9 100644
+--- a/Utils.h
++++ b/Utils.h
+@@ -24,7 +24,6 @@
+ #include <cutils/multiuser.h>
+ #include <selinux/selinux.h>
+ 
+-#include <chrono>
+ #include <vector>
+ #include <string>
+ 
+@@ -123,9 +122,6 @@ status_t RestoreconRecursive(const std::string& path);
+ // TODO: promote to android::base
+ bool Readlinkat(int dirfd, const std::string& path, std::string* result);
+ 
+-bool WaitForFile(const std::string& filename,
+-        const std::chrono::milliseconds relativeTimeout);
+-
+ /* Checks if Android is running in QEMU */
+ bool IsRunningInEmulator();
+ 
+diff --git a/model/PrivateVolume.cpp b/model/PrivateVolume.cpp
+index a898714..6439394 100644
+--- a/model/PrivateVolume.cpp
++++ b/model/PrivateVolume.cpp
+@@ -38,8 +38,6 @@
+ 
+ using android::base::StringPrintf;
+ 
+-using namespace std::chrono_literals;
+-
+ namespace android {
+ namespace vold {
+ 
+@@ -191,11 +189,6 @@ status_t PrivateVolume::doFormat(const std::string& fsType) {
+         LOG(DEBUG) << "Resolved auto to " << resolvedFsType;
+     }
+ 
+-    if (!WaitForFile(mDmDevPath, 15s)) {
+-        PLOG(ERROR) << "Timed out waiting for " << getId();
+-        return -EIO;
+-    }
+-
+     if (resolvedFsType == "ext4") {
+         // TODO: change reported mountpoint once we have better selinux support
+         if (ext4::Format(mDmDevPath, 0, "/data")) {
+-- 
+2.17.1
+
