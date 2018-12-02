@@ -1,0 +1,450 @@
+From 0be1fad1eb9ccaa356a3718d6fac4b26754d634c Mon Sep 17 00:00:00 2001
+From: Ashit Sood <sooda@codeaurora.org>
+Date: Sun, 12 Feb 2017 17:26:47 -0800
+Subject: [PATCH 13/15] IMS: RTT feature changes
+
+Implement RTT feature changes
+
+IMS: Allow sending RTT message in Upon Request mode
+Scenario -
+-Device is in Upon Request mode
+-Device receives RTT call and call is now active
+-User tries to send RTT message
+-Allow sending the message in this mode
+-Remove the full mode check
+
+IMS: Add null check for RttTextStream
+
+RttTextStream can be null if RTT operations are not
+performed from UI. So add a null check to prevent
+NPE when the operations are performed through adb
+commands.
+
+IMS: Answer the call as RTT only if call is offered as RTT
+
+Waiting call is answered as RTT call, even if the call is offered
+like a regular waiting call if RTT UI option is on.
+To fix this, check if the call profile is having RTT mode before
+answering it as RTT call.
+
+IMS: Handle RTT Downgrade request and response
+
+Handle RTT Downgrade request and response.
+
+Change-Id: Ied8086f04ec76ad2cd3712ff902a64d747deae1f
+CRs-Fixed: 2178403
+---
+ Android.mk                                    |   3 +-
+ .../internal/telephony/imsphone/ImsPhone.java | 207 ++++++++++++++++++
+ .../imsphone/ImsPhoneCallTracker.java         |  59 ++++-
+ .../telephony/imsphone/ImsRttTextHandler.java |   8 +
+ 4 files changed, 273 insertions(+), 4 deletions(-)
+
+diff --git a/Android.mk b/Android.mk
+index 561aed01a..054128188 100644
+--- a/Android.mk
++++ b/Android.mk
+@@ -32,7 +32,8 @@ LOCAL_STATIC_JAVA_LIBRARIES := \
+     android.hardware.radio-V1.2-java \
+     android.hardware.radio.config-V1.0-java \
+     android.hardware.radio.deprecated-V1.0-java \
+-    android.hidl.base-V1.0-java
++    android.hidl.base-V1.0-java \
++    ims-ext-common
+ 
+ LOCAL_MODULE_TAGS := optional
+ LOCAL_MODULE := telephony-common
+diff --git a/src/java/com/android/internal/telephony/imsphone/ImsPhone.java b/src/java/com/android/internal/telephony/imsphone/ImsPhone.java
+index 333369795..74290dde7 100644
+--- a/src/java/com/android/internal/telephony/imsphone/ImsPhone.java
++++ b/src/java/com/android/internal/telephony/imsphone/ImsPhone.java
+@@ -46,6 +46,7 @@ import android.content.BroadcastReceiver;
+ import android.content.Context;
+ import android.content.Intent;
+ import android.net.NetworkStats;
++import android.content.IntentFilter;
+ import android.net.Uri;
+ import android.os.AsyncResult;
+ import android.os.Bundle;
+@@ -69,9 +70,11 @@ import android.telephony.UssdResponse;
+ import android.telephony.ims.ImsCallForwardInfo;
+ import android.telephony.ims.ImsCallProfile;
+ import android.telephony.ims.ImsReasonInfo;
++import android.telephony.ims.ImsStreamMediaProfile;
+ import android.telephony.ims.ImsSsInfo;
+ import android.text.TextUtils;
+ 
++import com.android.ims.ImsCall;
+ import com.android.ims.ImsEcbm;
+ import com.android.ims.ImsEcbmStateListener;
+ import com.android.ims.ImsException;
+@@ -103,6 +106,9 @@ import java.io.PrintWriter;
+ import java.util.ArrayList;
+ import java.util.List;
+ 
++import org.codeaurora.ims.QtiCallConstants;
++import org.codeaurora.ims.utils.QtiImsExtUtils;
++
+ /**
+  * {@hide}
+  */
+@@ -282,6 +288,14 @@ public class ImsPhone extends ImsPhoneBase {
+         mDefaultPhone.registerForServiceStateChanged(this, EVENT_SERVICE_STATE_CHANGED, null);
+         // Force initial roaming state update later, on EVENT_CARRIER_CONFIG_CHANGED.
+         // Settings provider or CarrierConfig may not be loaded now.
++
++        // Register receiver for sending RTT text message and
++        // for receving RTT Operation
++        // .i.e.Upgrade Initiate, Upgrade accept, Upgrade reject
++        IntentFilter filter = new IntentFilter();
++        filter.addAction(QtiCallConstants.ACTION_SEND_RTT_TEXT);
++        filter.addAction(QtiCallConstants.ACTION_RTT_OPERATION);
++        mDefaultPhone.getContext().registerReceiver(mRttReceiver, filter);
+     }
+ 
+     //todo: get rid of this function. It is not needed since parentPhone obj never changes
+@@ -301,6 +315,7 @@ public class ImsPhone extends ImsPhoneBase {
+             mDefaultPhone.getServiceStateTracker().
+                     unregisterForDataRegStateOrRatChanged(this);
+             mDefaultPhone.unregisterForServiceStateChanged(this);
++            mDefaultPhone.getContext().unregisterReceiver(mRttReceiver);
+         }
+     }
+ 
+@@ -1829,6 +1844,198 @@ public class ImsPhone extends ImsPhoneBase {
+         return tm.isNetworkRoaming();
+     }
+ 
++    private BroadcastReceiver mRttReceiver = new BroadcastReceiver() {
++        @Override
++        public void onReceive(Context context, Intent intent) {
++            if (QtiCallConstants.ACTION_SEND_RTT_TEXT.equals(intent.getAction())) {
++                Rlog.d(LOG_TAG, "RTT: Received ACTION_SEND_RTT_TEXT");
++                String data = intent.getStringExtra(QtiCallConstants.RTT_TEXT_VALUE);
++                sendRttMessage(data);
++            } else if (QtiCallConstants.ACTION_RTT_OPERATION.equals(intent.getAction())) {
++                Rlog.d(LOG_TAG, "RTT: Received ACTION_RTT_OPERATION");
++                int data = intent.getIntExtra(QtiCallConstants.RTT_OPERATION_TYPE, 0);
++                checkIfModifyRequestOrResponse(data);
++            } else {
++                Rlog.d(LOG_TAG, "RTT: unknown intent");
++            }
++        }
++    };
++
++    /**
++     * Sends Rtt message
++     * Rtt Message can be sent only when -
++     * operating mode is RTT_FULL and for non-VT calls only based on config
++     *
++     * @param data The Rtt text to be sent
++     */
++    public void sendRttMessage(String data) {
++        if (!canProcessRttReqest() || !isFgCallActive()) {
++            return;
++        }
++
++        // Check for empty message
++        if (TextUtils.isEmpty(data)) {
++            Rlog.d(LOG_TAG, "RTT: Text null");
++            return;
++        }
++
++        ImsCall imsCall = getForegroundCall().getImsCall();
++        if (imsCall == null) {
++            Rlog.d(LOG_TAG, "RTT: imsCall null");
++            return;
++        }
++
++        if (!isRttVtCallAllowed(imsCall)) {
++            Rlog.d(LOG_TAG, "RTT: InCorrect mode");
++            return;
++        }
++
++        Rlog.d(LOG_TAG, "RTT: sendRttMessage");
++        imsCall.sendRttMessage(data);
++    }
++
++    /**
++     * Sends RTT Upgrade request
++     *
++     * @param to: expected profile
++     */
++    public void sendRttModifyRequest(ImsCallProfile to) {
++        Rlog.d(LOG_TAG, "RTT: sendRttModifyRequest");
++        ImsCall imsCall = getForegroundCall().getImsCall();
++        if (imsCall == null) {
++            Rlog.d(LOG_TAG, "RTT: imsCall null");
++            return;
++        }
++
++        imsCall.sendRttModifyRequest();
++    }
++
++    /**
++     * Sends RTT Upgrade response
++     *
++     * @param data : response for upgrade
++     */
++    public void sendRttModifyResponse(int response) {
++        ImsCall imsCall = getForegroundCall().getImsCall();
++        if (imsCall == null) {
++            Rlog.d(LOG_TAG, "RTT: imsCall null");
++            return;
++        }
++
++        if (!isRttVtCallAllowed(imsCall)) {
++            Rlog.d(LOG_TAG, "RTT: Not allowed for VT");
++            return;
++        }
++
++        Rlog.d(LOG_TAG, "RTT: sendRttModifyResponse");
++        imsCall.sendRttModifyResponse(mapRequestToResponse(response));
++    }
++
++    // Utility to check if the value coming in intent is for upgrade initiate or upgrade response
++    private void checkIfModifyRequestOrResponse(int data) {
++        if (!canProcessRttReqest() || !isFgCallActive()) {
++            return;
++        }
++
++        Rlog.d(LOG_TAG, "RTT: checkIfModifyRequestOrResponse data =  " + data);
++        switch (data) {
++            case QtiCallConstants.RTT_UPGRADE_INITIATE:
++                // Rtt Upgrade means enable Rtt
++                packRttModifyRequestToProfile(ImsStreamMediaProfile.RTT_MODE_FULL);
++                break;
++            case QtiCallConstants.RTT_DOWNGRADE_INITIATE:
++                // Rtt downrade means disable Rtt
++                packRttModifyRequestToProfile(ImsStreamMediaProfile.RTT_MODE_DISABLED);
++                break;
++            case QtiCallConstants.RTT_UPGRADE_CONFIRM:
++            case QtiCallConstants.RTT_UPGRADE_REJECT:
++                sendRttModifyResponse(data);
++                break;
++        }
++    }
++
++    private void packRttModifyRequestToProfile(int data) {
++        if (!canSendRttModifyRequest()) {
++            Rlog.d(LOG_TAG, "RTT: cannot send rtt modify request");
++            return;
++        }
++
++        ImsCallProfile fromProfile = getForegroundCall().getImsCall().getCallProfile();
++        ImsCallProfile toProfile = fromProfile;
++        toProfile.mMediaProfile = new ImsStreamMediaProfile(data);
++
++        Rlog.d(LOG_TAG, "RTT: packRttModifyRequestToProfile");
++        sendRttModifyRequest(toProfile);
++    }
++
++    private boolean canSendRttModifyRequest() {
++        ImsCall imsCall = getForegroundCall().getImsCall();
++        if (imsCall == null) {
++            Rlog.d(LOG_TAG, "RTT: imsCall null");
++            return false;
++        }
++
++        return true;
++    }
++
++    private boolean mapRequestToResponse(int response) {
++        switch (response) {
++            case QtiCallConstants.RTT_UPGRADE_CONFIRM:
++                return true;
++            case QtiCallConstants.RTT_UPGRADE_REJECT:
++                return false;
++            default:
++                return false;
++        }
++    }
++
++    /*
++     * Returns true if Mode is RTT_FULL, false otherwise
++     */
++    private boolean isInFullRttMode() {
++        int mode = QtiImsExtUtils.getRttOperatingMode(mContext);
++        Rlog.d(LOG_TAG, "RTT: isInFullRttMode mode = " + mode);
++        return (mode == QtiCallConstants.RTT_MODE_FULL);
++    }
++
++    /*
++     * Rtt for VT calls is not supported for certain operators
++     * Check the config and process the request
++     */
++    public boolean isRttVtCallAllowed(ImsCall call) {
++        int mode = QtiImsExtUtils.getRttOperatingMode(mContext);
++        Rlog.d(LOG_TAG, "RTT: isRttVtCallAllowed mode = " + mode);
++
++        if (call.getCallProfile().isVideoCall() &&
++                !QtiImsExtUtils.isRttSupportedOnVtCalls(mPhoneId, mContext)) {
++            return false;
++        }
++        return true;
++    }
++
++    public boolean canProcessRttReqest() {
++        // Process only if Carrier supports RTT and RTT is on
++        if (!(QtiImsExtUtils.isRttSupported(mPhoneId, mContext) &&
++                    QtiImsExtUtils.isRttOn(mContext))) {
++            Rlog.d(LOG_TAG, "RTT: canProcessRttReqest RTT is not supported/off");
++            return false;
++        }
++        Rlog.d(LOG_TAG, "RTT: canProcessRttReqest rtt supported = " +
++                QtiImsExtUtils.isRttSupported(mPhoneId, mContext) + ", is Rtt on = " +
++                QtiImsExtUtils.isRttOn(mContext) + ", Rtt mode = " +
++                QtiImsExtUtils.getRttOperatingMode(mContext));
++        return true;
++    }
++
++    public boolean isFgCallActive() {
++        // process the request only if foreground is active
++        if (ImsPhoneCall.State.ACTIVE != getForegroundCall().getState()) {
++            Rlog.d(LOG_TAG, "RTT: isFgCallActive fg call not active");
++            return false;
++        }
++        return true;
++    }
++
+     @Override
+     public void dump(FileDescriptor fd, PrintWriter pw, String[] args) {
+         pw.println("ImsPhone extends:");
+diff --git a/src/java/com/android/internal/telephony/imsphone/ImsPhoneCallTracker.java b/src/java/com/android/internal/telephony/imsphone/ImsPhoneCallTracker.java
+index 7a5275c26..2dffc09af 100644
+--- a/src/java/com/android/internal/telephony/imsphone/ImsPhoneCallTracker.java
++++ b/src/java/com/android/internal/telephony/imsphone/ImsPhoneCallTracker.java
+@@ -110,6 +110,9 @@ import java.util.Map;
+ import java.util.concurrent.atomic.AtomicInteger;
+ import java.util.regex.Pattern;
+ 
++import org.codeaurora.ims.QtiCallConstants;
++import org.codeaurora.ims.utils.QtiImsExtUtils;
++
+ /**
+  * {@hide}
+  */
+@@ -1213,6 +1216,7 @@ public class ImsPhoneCallTracker extends CallTracker implements ImsPullCall {
+                 // being sent to the lower layers/to the network.
+             }
+ 
++            profile = setRttModeBasedOnOperator(profile);
+             ImsCall imsCall = mImsManager.makeCall(profile, callees, mImsCallListener);
+             conn.setImsCall(imsCall);
+ 
+@@ -1245,6 +1249,7 @@ public class ImsPhoneCallTracker extends CallTracker implements ImsPullCall {
+             throw new CallStateException("cannot accept call");
+         }
+ 
++        ImsStreamMediaProfile mediaProfile = new ImsStreamMediaProfile();
+         if ((mRingingCall.getState() == ImsPhoneCall.State.WAITING)
+                 && mForegroundCall.getState().isAlive()) {
+             setMute(false);
+@@ -1264,7 +1269,9 @@ public class ImsPhoneCallTracker extends CallTracker implements ImsPullCall {
+                 // We need to disconnect the foreground call before answering the background call.
+                 mForegroundCall.hangup();
+                 try {
+-                    ringingCall.accept(ImsCallProfile.getCallTypeFromVideoState(videoState));
++                    mediaProfile = addRttAttributeIfRequired(ringingCall, mediaProfile);
++                    ringingCall.accept(ImsCallProfile.getCallTypeFromVideoState(videoState),
++                            mediaProfile);
+                 } catch (ImsException e) {
+                     throw new CallStateException("cannot accept call");
+                 }
+@@ -1278,7 +1285,9 @@ public class ImsPhoneCallTracker extends CallTracker implements ImsPullCall {
+             try {
+                 ImsCall imsCall = mRingingCall.getImsCall();
+                 if (imsCall != null) {
+-                    imsCall.accept(ImsCallProfile.getCallTypeFromVideoState(videoState));
++                    mediaProfile = addRttAttributeIfRequired(imsCall, mediaProfile);
++                    imsCall.accept(ImsCallProfile.getCallTypeFromVideoState(videoState),
++                            mediaProfile);
+                     mMetrics.writeOnImsCommand(mPhone.getPhoneId(), imsCall.getSession(),
+                             ImsCommand.IMS_CMD_ACCEPT);
+                 } else {
+@@ -1746,8 +1755,13 @@ public class ImsPhoneCallTracker extends CallTracker implements ImsPullCall {
+                 //accept waiting call after holding background call
+                 ImsCall imsCall = mRingingCall.getImsCall();
+                 if (imsCall != null) {
++                    ImsStreamMediaProfile mediaProfile = new ImsStreamMediaProfile();
++
++                    mediaProfile = addRttAttributeIfRequired(imsCall, mediaProfile);
++
+                     imsCall.accept(
+-                        ImsCallProfile.getCallTypeFromVideoState(mPendingCallVideoState));
++                            ImsCallProfile.getCallTypeFromVideoState(mPendingCallVideoState),
++                            mediaProfile);
+                     mMetrics.writeOnImsCommand(mPhone.getPhoneId(), imsCall.getSession(),
+                             ImsCommand.IMS_CMD_ACCEPT);
+                 }
+@@ -3930,4 +3944,43 @@ public class ImsPhoneCallTracker extends CallTracker implements ImsPullCall {
+     public void setAlwaysPlayRemoteHoldTone(boolean shouldPlayRemoteHoldTone) {
+         mAlwaysPlayRemoteHoldTone = shouldPlayRemoteHoldTone;
+     }
++
++    // Update the Rtt attribute
++    private ImsCallProfile setRttModeBasedOnOperator(ImsCallProfile profile) {
++        if (!mPhone.canProcessRttReqest()) {
++            return profile;
++        }
++
++        int mode = QtiImsExtUtils.getRttOperatingMode(mPhone.getContext());
++
++        if (DBG) log("RTT: setRttModeBasedOnOperator mode = " + mode);
++
++        if (!QtiImsExtUtils.isRttSupportedOnVtCalls(mPhone.getPhoneId(), mPhone.getContext())
++                && profile.isVideoCall()) {
++            return profile;
++        }
++
++        profile.mMediaProfile.setRttMode(mode);
++        return profile;
++    }
++
++    // Accept the call as RTT if incoming call as RTT attribute set
++    private ImsStreamMediaProfile addRttAttributeIfRequired(ImsCall call,
++            ImsStreamMediaProfile mediaProfile) {
++
++        if (!mPhone.canProcessRttReqest()) {
++            return mediaProfile;
++        }
++
++        ImsCallProfile profile = call.getCallProfile();
++        if (profile.mMediaProfile != null && profile.mMediaProfile.isRttCall() &&
++                (mPhone.isRttVtCallAllowed(call))) {
++            if (DBG) log("RTT: addRttAttributeIfRequired = " +
++                    profile.mMediaProfile.isRttCall());
++            // If RTT UI option is on, then incoming RTT call should always be accepted
++            // as RTT, irrespective of Modes
++            mediaProfile.setRttMode(ImsStreamMediaProfile.RTT_MODE_FULL);
++        }
++        return mediaProfile;
++    }
+ }
+diff --git a/src/java/com/android/internal/telephony/imsphone/ImsRttTextHandler.java b/src/java/com/android/internal/telephony/imsphone/ImsRttTextHandler.java
+index eff249979..b8dc76e00 100644
+--- a/src/java/com/android/internal/telephony/imsphone/ImsRttTextHandler.java
++++ b/src/java/com/android/internal/telephony/imsphone/ImsRttTextHandler.java
+@@ -124,11 +124,19 @@ public class ImsRttTextHandler extends Handler {
+                     return;
+                 }
+                 mRttTextStream = (Connection.RttTextStream) msg.obj;
++                if (mRttTextStream == null) {
++                    Rlog.e(LOG_TAG, "RTT text stream is null");
++                    return;
++                }
+                 mReaderThread = new InCallReaderThread(mRttTextStream);
+                 mReaderThread.start();
+                 break;
+             case SEND_TO_INCALL:
+                 String messageToIncall = (String) msg.obj;
++                if (mRttTextStream == null) {
++                    Rlog.e(LOG_TAG, "RTT text stream is null");
++                    return;
++                }
+                 try {
+                     mRttTextStream.write(messageToIncall);
+                 } catch (IOException e) {
+-- 
+2.17.1
+

@@ -1,4 +1,4 @@
-From 5513ef933e42c21351b6200a236e83f14da80835 Mon Sep 17 00:00:00 2001
+From a711bcd8e65d9281effdb10858a3fc8a0f09d231 Mon Sep 17 00:00:00 2001
 From: LuK1337 <priv.luk@gmail.com>
 Date: Sat, 17 Nov 2018 23:53:07 +0100
 Subject: [PATCH] Updater: Implement auto update check interval preference
@@ -11,14 +11,14 @@ Subject: [PATCH] Updater: Implement auto update check interval preference
 
 Change-Id: I4bcae4c013a5d44958f9c54d641e64aac3062a8b
 ---
- res/layout/preferences_dialog.xml             | 23 ++++--
+ res/layout/preferences_dialog.xml             | 23 +++++--
  res/values/arrays.xml                         |  9 +++
- res/values/strings.xml                        |  4 +
+ res/values/strings.xml                        |  4 ++
  .../lineageos/updater/UpdatesActivity.java    | 14 ++--
- .../updater/UpdatesCheckReceiver.java         | 77 +++++++------------
+ .../updater/UpdatesCheckReceiver.java         | 66 ++++---------------
  src/org/lineageos/updater/misc/Constants.java |  7 +-
- src/org/lineageos/updater/misc/Utils.java     | 10 +++
- 7 files changed, 84 insertions(+), 60 deletions(-)
+ src/org/lineageos/updater/misc/Utils.java     | 24 +++++++
+ 7 files changed, 81 insertions(+), 66 deletions(-)
  create mode 100644 res/values/arrays.xml
 
 diff --git a/res/layout/preferences_dialog.xml b/res/layout/preferences_dialog.xml
@@ -88,7 +88,7 @@ index aa84059..b3ce44e 100644
      <string name="menu_delete_update">Delete</string>
      <string name="menu_copy_url">Copy URL</string>
 diff --git a/src/org/lineageos/updater/UpdatesActivity.java b/src/org/lineageos/updater/UpdatesActivity.java
-index 2d3fc57..0a9e1b1 100644
+index 2d3fc57..efea969 100644
 --- a/src/org/lineageos/updater/UpdatesActivity.java
 +++ b/src/org/lineageos/updater/UpdatesActivity.java
 @@ -45,6 +45,7 @@ import android.view.View;
@@ -123,7 +123,7 @@ index 2d3fc57..0a9e1b1 100644
  
          SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(this);
 -        autoCheck.setChecked(prefs.getBoolean(Constants.PREF_AUTO_UPDATES_CHECK, true));
-+        autoCheckInterval.setSelection(Utils.getUpdateCheckInterval(this));
++        autoCheckInterval.setSelection(Utils.getUpdateCheckSetting(this));
          autoDelete.setChecked(prefs.getBoolean(Constants.PREF_AUTO_DELETE_UPDATES, false));
          dataWarning.setChecked(prefs.getBoolean(Constants.PREF_MOBILE_DATA_WARNING, true));
          abPerfMode.setChecked(prefs.getBoolean(Constants.PREF_AB_PERF_MODE, false));
@@ -148,7 +148,7 @@ index 2d3fc57..0a9e1b1 100644
                      } else {
                          UpdatesCheckReceiver.cancelRepeatingUpdatesCheck(this);
 diff --git a/src/org/lineageos/updater/UpdatesCheckReceiver.java b/src/org/lineageos/updater/UpdatesCheckReceiver.java
-index c7f1b4e..bf2d48f 100644
+index c7f1b4e..d0769cf 100644
 --- a/src/org/lineageos/updater/UpdatesCheckReceiver.java
 +++ b/src/org/lineageos/updater/UpdatesCheckReceiver.java
 @@ -59,7 +59,8 @@ public class UpdatesCheckReceiver extends BroadcastReceiver {
@@ -161,7 +161,7 @@ index c7f1b4e..bf2d48f 100644
              return;
          }
  
-@@ -155,15 +156,17 @@ public class UpdatesCheckReceiver extends BroadcastReceiver {
+@@ -155,15 +156,19 @@ public class UpdatesCheckReceiver extends BroadcastReceiver {
      }
  
      public static void scheduleRepeatingUpdatesCheck(Context context) {
@@ -170,25 +170,28 @@ index c7f1b4e..bf2d48f 100644
 +            return;
 +        }
 +
-+        long nextCheckMillis = millisForNextCheck(context);
          PendingIntent updateCheckIntent = getRepeatingUpdatesCheckIntent(context);
          AlarmManager alarmMgr = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
 -        alarmMgr.setInexactRepeating(AlarmManager.ELAPSED_REALTIME,
 -                SystemClock.elapsedRealtime() + millisToNextRelease,
 -                AlarmManager.INTERVAL_DAY, updateCheckIntent);
-+        alarmMgr.set(AlarmManager.RTC, nextCheckMillis, updateCheckIntent);
++        alarmMgr.setRepeating(AlarmManager.RTC, System.currentTimeMillis() +
++                Utils.getUpdateCheckInterval(context), Utils.getUpdateCheckInterval(context),
++                updateCheckIntent);
  
 -        Date nextCheckDate = new Date(System.currentTimeMillis() + millisToNextRelease);
 -        Log.d(TAG, "Setting daily updates check: " + nextCheckDate);
-+        Date nextCheckDate = new Date(nextCheckMillis);
++        Date nextCheckDate = new Date(System.currentTimeMillis() +
++                Utils.getUpdateCheckInterval(context));
 +        Log.d(TAG, "Setting automatic updates check: " + nextCheckDate);
      }
  
      public static void cancelRepeatingUpdatesCheck(Context context) {
-@@ -195,50 +198,28 @@ public class UpdatesCheckReceiver extends BroadcastReceiver {
+@@ -194,51 +199,4 @@ public class UpdatesCheckReceiver extends BroadcastReceiver {
+         alarmMgr.cancel(getUpdatesCheckIntent(context));
          Log.d(TAG, "Cancelling pending one-shot check");
      }
- 
+-
 -    private static long millisToNextRelease(Context context) {
 -        final long extraMillis = 3 * AlarmManager.INTERVAL_HOUR;
 -
@@ -200,32 +203,14 @@ index c7f1b4e..bf2d48f 100644
 -
 -        if (updates == null || updates.size() == 0) {
 -            return SystemClock.elapsedRealtime() + AlarmManager.INTERVAL_DAY;
-+    private static long millisForNextCheck(Context context) {
-+        int autoUpdatesCheckInterval = Utils.getUpdateCheckInterval(context);
-+
-+        long alarmInterval = 0;
-+
-+        switch (autoUpdatesCheckInterval) {
-+            case Constants.AUTO_UPDATES_CHECK_INTERVAL_DAILY:
-+                alarmInterval = AlarmManager.INTERVAL_DAY;
-+                break;
-+            case Constants.AUTO_UPDATES_CHECK_INTERVAL_WEEKLY:
-+                alarmInterval = AlarmManager.INTERVAL_DAY * 7;
-+                break;
-+            case Constants.AUTO_UPDATES_CHECK_INTERVAL_MONTHLY:
-+                alarmInterval = AlarmManager.INTERVAL_DAY * 30;
-+                break;
-         }
- 
+-        }
+-
 -        long buildTimestamp = 0;
 -        for (UpdateInfo update : updates) {
 -            if (update.getTimestamp() > buildTimestamp) {
 -                buildTimestamp = update.getTimestamp();
 -            }
-+        if (alarmInterval == 0) {
-+            Log.w(TAG, "millisToNextRelease: alarmInterval not set, default to a month!");
-+            alarmInterval = AlarmManager.INTERVAL_DAY * 30;
-         }
+-        }
 -        buildTimestamp *= 1000;
 -
 -        Calendar c = Calendar.getInstance();
@@ -243,7 +228,7 @@ index c7f1b4e..bf2d48f 100644
 -
 -        return millisToNextRelease;
 -    }
- 
+-
 -    private static long millisSinceMidnight(long millis) {
 -        Calendar c = Calendar.getInstance();
 -        c.setTimeInMillis(millis);
@@ -252,8 +237,7 @@ index c7f1b4e..bf2d48f 100644
 -        c.set(Calendar.SECOND, 0);
 -        c.set(Calendar.MILLISECOND, 0);
 -        return millis - c.getTimeInMillis();
-+        return System.currentTimeMillis() + alarmInterval;
-     }
+-    }
  }
 diff --git a/src/org/lineageos/updater/misc/Constants.java b/src/org/lineageos/updater/misc/Constants.java
 index 5bc0e8b..81e7c1a 100644
@@ -275,22 +259,43 @@ index 5bc0e8b..81e7c1a 100644
      public static final String PREF_AB_PERF_MODE = "ab_perf_mode";
      public static final String PREF_MOBILE_DATA_WARNING = "pref_mobile_data_warning";
 diff --git a/src/org/lineageos/updater/misc/Utils.java b/src/org/lineageos/updater/misc/Utils.java
-index 171c2cc..7bafb09 100644
+index 171c2cc..ceff37c 100644
 --- a/src/org/lineageos/updater/misc/Utils.java
 +++ b/src/org/lineageos/updater/misc/Utils.java
-@@ -368,4 +368,14 @@ public class Utils {
+@@ -15,6 +15,7 @@
+  */
+ package org.lineageos.updater.misc;
+ 
++import android.app.AlarmManager;
+ import android.content.ClipData;
+ import android.content.ClipboardManager;
+ import android.content.Context;
+@@ -368,4 +369,27 @@ public class Utils {
          StorageManager sm = (StorageManager) context.getSystemService(Context.STORAGE_SERVICE);
          return sm.isEncrypted(file);
      }
 +
-+    public static int getUpdateCheckInterval(Context context) {
++    public static int getUpdateCheckSetting(Context context) {
 +        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(context);
 +        return preferences.getInt(Constants.PREF_AUTO_UPDATES_CHECK_INTERVAL,
-+                                  Constants.AUTO_UPDATES_CHECK_INTERVAL_WEEKLY);
++                Constants.AUTO_UPDATES_CHECK_INTERVAL_WEEKLY);
 +    }
 +
 +    public static boolean isUpdateCheckEnabled(Context context) {
-+        return getUpdateCheckInterval(context) != Constants.AUTO_UPDATES_CHECK_INTERVAL_NEVER;
++        return getUpdateCheckSetting(context) != Constants.AUTO_UPDATES_CHECK_INTERVAL_NEVER;
++    }
++
++    public static long getUpdateCheckInterval(Context context) {
++        switch (Utils.getUpdateCheckSetting(context)) {
++            case Constants.AUTO_UPDATES_CHECK_INTERVAL_DAILY:
++                return AlarmManager.INTERVAL_DAY;
++            case Constants.AUTO_UPDATES_CHECK_INTERVAL_WEEKLY:
++                return AlarmManager.INTERVAL_DAY * 7;
++            case Constants.AUTO_UPDATES_CHECK_INTERVAL_MONTHLY:
++                return AlarmManager.INTERVAL_DAY * 30;
++            default:
++                return -1;
++        }
 +    }
  }
 -- 

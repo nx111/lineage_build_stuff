@@ -708,6 +708,7 @@ function kpick_action()
                         git -C $topdir/$project clean -xdf
                         if git -C $topdir/$project commit --no-edit; then
                              breakout=0
+                             break
                         fi
                     fi
                     if grep -q "using previous resolution" $errfile; then
@@ -1054,16 +1055,11 @@ fi       # continue pick or not
 kpick 231209 # klte-common: nfc: pn547: Use prebuilt NFC HAL from 15.1
 kpick 225192 # klte-common: Align ril.h to samsung_msm8974-common P libril changes
 kpick 224917 # DO NOT MERGE: klte-common: Requisite bring-up BS change
-kpick 235175 # klte-common: Manually restorecon legacy telephony provider symlinks
 
 # device/samsung/msm8974-common
 kpick 234524 # msm8974-common: sepolicy: Resolve rild denials
 kpick 234526 # msm8974-common: sepolicy: Resolve mediaserver denials
-kpick 234692 # msm8974-common: sepolicy: Resolve dnsmasq denials
-kpick 235139 # msm8974-common: sepolicy: Resolve system_server denials
-kpick 235140 # msm8974-common: sepolicy: Clean up system_server.te
-kpick 235141 # msm8974-common: sepolicy: Resolve system_app denials
-kpick 235142 # msm8974-common: sepolicy: Resolve init denials
+kpick 235140 # msm8974-common: sepolicy: Clean up
 
 # kernel/samsung/msm8974
 
@@ -1088,7 +1084,6 @@ kpick 222760 # Add LOCAL_AIDL_FLAGS
 #kpick 226920 # Support a first stage ramdisk via TARGET_RAMDISK_OUT
 #kpick 226939 # releasetools: Fix the path to the OTA keys in recovery image.
 kpick 227111 # releasetools: Store the build.prop file in the OTA zip
-kpick 233421 # pie-gsi tracking
 
 # build/soong
 kpick 222648 # Allow providing flex and bison binaries
@@ -1139,7 +1134,6 @@ kpick 234883 # sepolicy: Allow init to read boot_reason alarm file
 
 # development
 kpick 232511 # make-key: Enforce PBEv1 password-protected signing keys
-kpick 233422 # pie-gsi tracking
 
 # external/ant-wireless/ant_native
 kpick 227260 # Update bt vendor callbacks array in vfs code
@@ -1632,10 +1626,8 @@ kpick 234612 # Updater: Implement auto update check interval preference
 # packages/providers/ContactsProvider
 
 # packages/providers/DownloadProvider
-kpick 233424 # pie-gsi tracking
 
 # packages/providers/MediaProvider
-kpick 233425 # pie-gsi tracking
 
 # packages/providers/TelephonyProvider
 
@@ -1689,7 +1681,6 @@ kpick 232427 # su: Update AppOps API calls
 
 # system/netd
 kpick 232794 # NetD : Allow passing in interface names for vpn app restriction
-kpick 233423 # pie-gsi tracking
 kpick 234190 # netd: Allow devices to opt-out of the tethering active FTP helper
 
 # system/qcom
