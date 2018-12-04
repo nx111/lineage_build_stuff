@@ -887,7 +887,7 @@ function kpick_action()
                 target_script=$script_file.new
            fi
            [ ! -z $target_script -a -f $target_script ] && \
-           eval  "sed -e \"s|^[[:space:]]*kpick[[:space:]]\{1,\}\($changeNumber\)[[:space:]]*.*|kpick $nop \# $subject|g\" -i $target_script"
+           eval  "sed -e \"s|^[[:space:]]*kpick[[:space:]]\{1,\}\($changeNumber\)[[:space:]]*.*|kpick $nops \# $subject|g\" -i $target_script"
     fi
     rm -f $errfile $logfile
 }
@@ -1045,6 +1045,7 @@ kpick 227747 # lineage: Enable weather apps
 kpick 226755 # lineage: Enable cryptfs_hw
 kpick 231971 # manifest: sync gcc4.9 from aosp oreo
 kpick 232785 # lineage: Ship Snap
+kpick 235776
 
 patch_local local/android
 echo
@@ -1078,6 +1079,7 @@ kpick 235457 # msm8974-common: sepolicy: Limit execmod to specifically labeled f
 kpick 234526 # msm8974-common: sepolicy: Resolve mediaserver denials
 
 # kernel/samsung/msm8974
+#kpick -Q topic:msm8930_tmpfile+(status:open+OR+status:merged) -f -P kernel/samsung/msm8974/ -x
 
 # =============== END DEVICE STUFF ========================
 
@@ -1085,8 +1087,9 @@ kpick 234526 # msm8974-common: sepolicy: Resolve mediaserver denials
 #kpick 233821
 
 # bionic
-kpick 223067 -f # libc fortify: Ignore open() O_TMPFILE mode bits warning
+#kpick 223067 -f # libc fortify: Ignore open() O_TMPFILE mode bits warning
 kpick 225463 # bionic: Let popen and system fall back to /sbin/sh
+kpick 235726-235728 -x
 
 # boot/recovery
 kpick 231718 # recovery: Declare a soong namespace
@@ -1099,6 +1102,7 @@ kpick 222760 # Add LOCAL_AIDL_FLAGS
 #kpick 226920 # Support a first stage ramdisk via TARGET_RAMDISK_OUT
 #kpick 226939 # releasetools: Fix the path to the OTA keys in recovery image.
 kpick 227111 # releasetools: Store the build.prop file in the OTA zip
+kpick 235729-235738 -x
 
 # build/soong
 kpick 222648 # Allow providing flex and bison binaries
@@ -1155,7 +1159,7 @@ kpick 227260 # Update bt vendor callbacks array in vfs code
 kpick 227261 # Cast BT_VND_OP_ANT_USERIAL_{OPEN,CLOSE} to bt_vendor_opcode_t in vfs code
 
 # external/perfetto
-kpick 223413 -f # perfetto_cmd: Resolve missing O_CREAT mode
+#kpick 223413 -f # perfetto_cmd: Resolve missing O_CREAT mode
 
 # external/tinycompress
 
@@ -1170,7 +1174,7 @@ kpick 230642 # CameraService: Initialize CameraParameters for the cameras and ca
 kpick 231348 # camera: Allow to use boottime as timestamp reference
 kpick 234010 # libstagefright: omx: Add support for loading prebuilt ddp decoder lib
 kpick 234980 # libcameraservice: force specific cam id for google face unlock
-merge_from_aosp frameworks/av platform/frameworks/av android-9.0.0_r18
+merge_from_aosp frameworks/av platform/frameworks/av android-9.0.0_r21
 
 # frameworks/base
 kpick 224266 # SystemUI: Add Lineage statusbar item holder
@@ -1217,7 +1221,8 @@ kpick 234715 # Rotation related corrections
 kpick 235127 # Fix NPE when creates wifi tracker
 kpick 235128 # Crash app on foreground service notification error
 kpick 235147 # SystemUI: Name Cellular Tile based on carrier
-merge_from_aosp frameworks/base platform/frameworks/base android-9.0.0_r18
+#merge_from_aosp frameworks/base platform/frameworks/base android-9.0.0_r18
+kpick 235739-235752 -x
 
 # frameworks/native
 kpick 224443 # libbinder: Don't log call trace when waiting for vendor service on non-eng builds
@@ -1231,7 +1236,8 @@ kpick 229607 # HACK: SF: Force client composition for all layers
 kpick 230610 # APP may display abnormally in landscape LCM
 kpick 231828 # Translate pointer motion events for OneHandOperation Display Shrink
 kpick 231980 # HWComposer: HWC2: allow SkipValidate to be force disabled
-merge_from_aosp frameworks/native platform/frameworks/native android-9.0.0_r18
+#merge_from_aosp frameworks/native platform/frameworks/native android-9.0.0_r18
+kpick 235753-235755 -x
 
 # frameworks/opt/net/wifi
 
@@ -1246,7 +1252,7 @@ kpick 234319 # LocaleTracker: Add null check before accessing WifiManager
 
 # hardware/boardcom/libbt
 kpick 225155 # Broadcom BT: Add support fm/bt via v4l2.
-kpick 224264 -f # debuggerd: Resolve tombstoned missing O_CREAT mode
+#kpick 224264 -f # debuggerd: Resolve tombstoned missing O_CREAT mode
 
 # hardware/boardcom/nfc
 
@@ -1372,6 +1378,8 @@ kpick 234317 # ProfileManager: Don't start before decrypted
 # packages/apps/Bluetooth
 kpick 229310 # SBC Dual Channel (SBC HD Audio) support
 kpick 229311 # Assume optional codecs are supported if were supported previously
+kpick 235756
+kpick 235757
 
 # packages/apps/Calender
 
@@ -1639,6 +1647,7 @@ kpick 234612 # Updater: Implement auto update check interval preference
 # packages/providers/MediaProvider
 
 # packages/providers/TelephonyProvider
+kpick 235768-235764 -x
 
 # packages/services/BuiltinPrintService
 
@@ -1656,7 +1665,8 @@ kpick 229125 # Increase maximum Bluetooth SBC codec bitpool and bitrate values
 kpick 229313 # Explicit SBC Dual Channel (SBC HD) support
 kpick 229314 # Allow using alternative (higher) SBC HD bitrates with a property
 kpick 229401 # [DNM] Revert "Return early if vendor-specific command fails"
-merge_from_aosp system/bt platform/system/bt android-9.0.0_r18
+#merge_from_aosp system/bt platform/system/bt android-9.0.0_r18
+kpick 235775
 
 # system/core
 kpick -f 227110 # init: I hate safety net
@@ -1666,7 +1676,11 @@ kpick -f 227110 # init: I hate safety net
 kpick 226120 # fs_mgr: Wrapped key support for FBE
 kpick 231716 # init: Always use libbootloader_message from bootable/recovery namespace
 kpick 234860 # init: add install_keyring for TWRP FBE decrypt
-merge_from_aosp system/core platform/system/core android-9.0.0_r18
+#merge_from_aosp system/core platform/system/core android-9.0.0_r18
+kpick 235765
+kpick 235766
+kpick 236767
+kpick 235768
 
 # system/extras
 kpick 225426 # f2fs_utils: Add a static libf2fs_sparseblock for minvold
@@ -1706,6 +1720,9 @@ kpick 223133 # AIDL: Add option to generate No-Op methods
 
 # system/update/engine
 kpick 234581 # update_engine: Fallback to partition without suffix
+kpick 235769
+kpick 235770
+kpick 235771
 
 # system/vold
 kpick 226109 # vold: Add Hardware FDE feature
@@ -1719,6 +1736,9 @@ kpick 231717 # vold: Always use libbootloader_message from bootable/recovery nam
 kpick 235198 # Revert "vold: Also wait for dm device when mounting private volume"
 kpick 235199 # Revert "vold: Make sure block device exists before formatting it"
 kpick 235200 # pie-gsi
+kpick 235772
+kpick 235773
+kpick 235774
 
 # vendor/lineage
 kpick 223773 # Add IPv6 for Oister and 3. The 3.dk and oister.dk carriers now support IPv6 with the APN ”data.tre.dk”.
