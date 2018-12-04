@@ -1051,15 +1051,18 @@ fi       # continue pick or not
 
 # ================= DEVICE STUFF =========================
 
+# first pick for repopick
+kpick 234859 # repopick: cmp() is not available in Python 3, define it manually
+
 # device/samsung/klte-common
 kpick 231209 # klte-common: nfc: pn547: Use prebuilt NFC HAL from 15.1
 kpick 225192 # klte-common: Align ril.h to samsung_msm8974-common P libril changes
 kpick 224917 # DO NOT MERGE: klte-common: Requisite bring-up BS change
 
 # device/samsung/msm8974-common
-kpick 234524 # msm8974-common: sepolicy: Resolve rild denials
-kpick 234526 # msm8974-common: sepolicy: Resolve mediaserver denials
 kpick 235140 # msm8974-common: sepolicy: Clean up
+kpick 235457 # msm8974-common: sepolicy: Limit execmod to specifically labeled files
+kpick 234526 # msm8974-common: sepolicy: Resolve mediaserver denials
 
 # kernel/samsung/msm8974
 
@@ -1231,6 +1234,7 @@ kpick 229605 # Telephony: Don not call onUssdRelease for Huawei RIL
 kpick 231595 # Enable vendor Telephony plugin
 kpick 231596 # Enable vendor Telephony plugin: MSIM Changes
 kpick 231598 # Telephony: Send INITIAL_ATTACH only when it is applicable.
+kpick 235680 # Telephony: Enable data call on CSIM.
 kpick 232365 # SimPhoneBook: Add ANR/EMAIL support for USIM phonebook.
 kpick 232366 # MSIM: Fix to set Mcc & Mnc with correct subId
 kpick 234319 # LocaleTracker: Add null check before accessing WifiManager
@@ -1732,6 +1736,7 @@ kpick 231599 # privapp-permissions: Add new Gallery permissions
 kpick 231981 # HWComposer: HWC2: allow SkipValidate to be force disabled
 kpick 232663 # overlay: Hide the option to show battery percentage
 kpick 234011 # lineage: Add media_codecs_ddp for AC3 audio
+# kpick 234859 # repopick: cmp() is not available in Python 3, define it manually **((picked at first))**
 
 # vendor/qcom/opensource/cryptfs_hw
 kpick 226128 # cryptfs_hw: Add compatibility for pre-O hw crypto
