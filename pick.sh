@@ -484,6 +484,7 @@ function kpick()
     local query=""
     local is_topic_op=0
     local is_query_op=0
+    local is_path_op=0
     local extract_changeset=0
     local changeNumber
 
@@ -507,14 +508,25 @@ function kpick()
         elif  [ "$op" = "-Q" -o "$op" = "--query" ]; then
              is_query_op=1
              query="$query $op"
+        elif  [ "$op" = "-P" -o "$op" = "--path" ]; then
+             is_path_op=1
+             query="$query $op"
+             vars="$vars $op"
         elif [ $is_topic_op -eq 1 ]; then
              query="$query $op"
              is_topic_op=0
         elif [ $is_query_op -eq 1 ]; then
              query="$query $op"
              is_query_op=0
+        elif [ $is_path_op -eq 1 ]; then
+             query="$query $op"
+             vars="$vars $op"
+             is_path_op=0
+        elif [ "$op" = "-f" -o "$op" = "--force" ]; then
+             query="$query $op"
+             vars="$vars $op"
         else
-           vars="$vars $op"
+             vars="$vars $op"
         fi
     done
     query=$(echo $query | sed -e "s/^ //g" -e "s/ $//g")
@@ -545,6 +557,7 @@ function kpick()
         mLine=$(grep -n "^[[:space:]]*kpick $*" $target_script | cut -d: -f1 )
         sed -e "s/\([[:space:]]*kpick $*\)/#\1/" -i   $target_script
     fi
+
     LANG=en_US repopick --test $query | grep "Testing change number" | cut -d" " -f 4 > $change_number_list || return -1
     [ -f $change_number_list ] || return 0
     while read line; do
@@ -874,7 +887,7 @@ function kpick_action()
                 target_script=$script_file.new
            fi
            [ ! -z $target_script -a -f $target_script ] && \
-           eval  "sed -e \"s|^[[:space:]]*kpick[[:space:]]\{1,\}\($changeNumber\)[[:space:]]*.*|kpick \1 \# $subject|g\" -i $target_script"
+           eval  "sed -e \"s|^[[:space:]]*kpick[[:space:]]\{1,\}\($changeNumber\)[[:space:]]*.*|kpick $nop \# $subject|g\" -i $target_script"
     fi
     rm -f $errfile $logfile
 }
@@ -1072,8 +1085,7 @@ kpick 234526 # msm8974-common: sepolicy: Resolve mediaserver denials
 #kpick 233821
 
 # bionic
-kpick 223063 # Restore android_alarm.h kernel uapi header
-kpick 223067 # libc fortify: Ignore open() O_TMPFILE mode bits warning
+kpick 223067 -f # libc fortify: Ignore open() O_TMPFILE mode bits warning
 kpick 225463 # bionic: Let popen and system fall back to /sbin/sh
 
 # boot/recovery
@@ -1133,7 +1145,7 @@ kpick 230236 # common: label /sys/devices/virtual/graphics as sysfs_graphics
 kpick 230238 # common: create proc_kernel_sched domain to restrict perf hal access
 kpick 230239 # common: allow uevent to control sysfs_mmc_host via vold
 kpick 234832 # sepolicy: Add additional restricted permissions to vendor_init
-kpick 234883 # sepolicy: Allow init to read boot_reason alarm file
+kpick 235455 # legacy: Allow platform_app to read qemu_hw_mainkeys_prop
 
 # development
 kpick 232511 # make-key: Enforce PBEv1 password-protected signing keys
@@ -1143,7 +1155,7 @@ kpick 227260 # Update bt vendor callbacks array in vfs code
 kpick 227261 # Cast BT_VND_OP_ANT_USERIAL_{OPEN,CLOSE} to bt_vendor_opcode_t in vfs code
 
 # external/perfetto
-kpick 223413 # perfetto_cmd: Resolve missing O_CREAT mode
+kpick 223413 -f # perfetto_cmd: Resolve missing O_CREAT mode
 
 # external/tinycompress
 
@@ -1196,7 +1208,6 @@ kpick 231851 # onehand: Take into account cutouts
 kpick 231852 # onehand: Remove guide link
 kpick 232197 # appops: Privacy Guard for P (1/2)
 kpick 232796 # NetworkManagement : Add ability to restrict app vpn usage
-kpick 233369 # Add auth framework for outgoing SMS messages.
 kpick 233633 # Phone ringtone setting for Multi SIM device
 kpick 233717 # [DNM][HACK] Persist user brightness model
 kpick 234168 # Binder: Fix improper JNI call for dumpProxyDebugInfo
@@ -1231,17 +1242,11 @@ kpick 229602 # telephony: Squashed support of dynamic signal strength thresholds
 kpick 229603 # telephony: Query LTE thresholds from CarrierConfig
 kpick 229604 # Telephony: Use a common prop for Huawei RIL hacks (1/2)
 kpick 229605 # Telephony: Don not call onUssdRelease for Huawei RIL
-kpick 231595 # Enable vendor Telephony plugin
-kpick 231596 # Enable vendor Telephony plugin: MSIM Changes
-kpick 231598 # Telephony: Send INITIAL_ATTACH only when it is applicable.
-kpick 235680 # Telephony: Enable data call on CSIM.
-kpick 232365 # SimPhoneBook: Add ANR/EMAIL support for USIM phonebook.
-kpick 232366 # MSIM: Fix to set Mcc & Mnc with correct subId
 kpick 234319 # LocaleTracker: Add null check before accessing WifiManager
-kpick 235195 # IMS: RTT feature changes
 
 # hardware/boardcom/libbt
 kpick 225155 # Broadcom BT: Add support fm/bt via v4l2.
+kpick 224264 -f # debuggerd: Resolve tombstoned missing O_CREAT mode
 
 # hardware/boardcom/nfc
 
@@ -1658,7 +1663,6 @@ kpick -f 227110 # init: I hate safety net
 #kpick 226917 # Switch root to /system in first stage mount
 #kpick 226923 # init: First Stage Mount observe nofail mount flag
 #kpick 223085 # adbd: Disable "adb root" by system property (2/3)
-kpick 224264 # debuggerd: Resolve tombstoned missing O_CREAT mode
 kpick 226120 # fs_mgr: Wrapped key support for FBE
 kpick 231716 # init: Always use libbootloader_message from bootable/recovery namespace
 kpick 234860 # init: add install_keyring for TWRP FBE decrypt
