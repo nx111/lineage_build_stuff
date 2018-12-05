@@ -1,0 +1,353 @@
+From dc9d7fa0c18df83d1a063d75a944be966b82d794 Mon Sep 17 00:00:00 2001
+From: Al Viro <viro@zeniv.linux.org.uk>
+Date: Fri, 7 Jun 2013 01:20:27 -0400
+Subject: [PATCH 095/132] [O_TMPFILE] it's still short a few helpers, but
+ infrastructure should be OK now...
+
+Change-Id: I6d19ad586df0185978a651a2e4ff126800e34570
+Signed-off-by: Al Viro <viro@zeniv.linux.org.uk>
+---
+ arch/alpha/include/asm/fcntl.h  |  1 +
+ arch/parisc/include/asm/fcntl.h |  1 +
+ arch/sparc/include/asm/fcntl.h  |  1 +
+ fs/dcache.c                     | 16 +++++++++
+ fs/ext2/namei.c                 | 24 +++++++++++++
+ fs/minix/namei.c                | 13 +++++++
+ fs/namei.c                      | 60 +++++++++++++++++++++++++++++++++
+ fs/open.c                       | 14 +++++---
+ include/asm-generic/fcntl.h     |  4 +++
+ include/linux/dcache.h          |  2 ++
+ include/linux/fs.h              |  1 +
+ mm/shmem.c                      | 32 ++++++++++++++++++
+ 12 files changed, 164 insertions(+), 5 deletions(-)
+
+diff --git a/arch/alpha/include/asm/fcntl.h b/arch/alpha/include/asm/fcntl.h
+index 6d9e805f18a..dfdadb0b4be 100644
+--- a/arch/alpha/include/asm/fcntl.h
++++ b/arch/alpha/include/asm/fcntl.h
+@@ -32,6 +32,7 @@
+ #define O_SYNC		(__O_SYNC|O_DSYNC)
+ 
+ #define O_PATH		040000000
++#define O_TMPFILE	0100000000
+ 
+ #define F_GETLK		7
+ #define F_SETLK		8
+diff --git a/arch/parisc/include/asm/fcntl.h b/arch/parisc/include/asm/fcntl.h
+index 0304b92ccfe..cc61c475f27 100644
+--- a/arch/parisc/include/asm/fcntl.h
++++ b/arch/parisc/include/asm/fcntl.h
+@@ -20,6 +20,7 @@
+ #define O_INVISIBLE	004000000 /* invisible I/O, for DMAPI/XDSM */
+ 
+ #define O_PATH		020000000
++#define O_TMPFILE	040000000
+ 
+ #define F_GETLK64	8
+ #define F_SETLK64	9
+diff --git a/arch/sparc/include/asm/fcntl.h b/arch/sparc/include/asm/fcntl.h
+index d0b83f66f35..d73e5e008b0 100644
+--- a/arch/sparc/include/asm/fcntl.h
++++ b/arch/sparc/include/asm/fcntl.h
+@@ -35,6 +35,7 @@
+ #define O_SYNC		(__O_SYNC|O_DSYNC)
+ 
+ #define O_PATH		0x1000000
++#define O_TMPFILE	0x2000000
+ 
+ #define F_GETOWN	5	/*  for sockets. */
+ #define F_SETOWN	6	/*  for sockets. */
+diff --git a/fs/dcache.c b/fs/dcache.c
+index 2e1f07696dc..daf8637bc58 100644
+--- a/fs/dcache.c
++++ b/fs/dcache.c
+@@ -3122,6 +3122,22 @@ rename_retry:
+ 	goto again;
+ }
+ 
++void d_tmpfile(struct dentry *dentry, struct inode *inode)
++{
++	inode_dec_link_count(inode);
++	BUG_ON(dentry->d_name.name != dentry->d_iname ||
++		!list_empty(&dentry->d_u.d_alias) ||
++		!d_unlinked(dentry));
++	spin_lock(&dentry->d_parent->d_lock);
++	spin_lock_nested(&dentry->d_lock, DENTRY_D_LOCK_NESTED);
++	dentry->d_name.len = sprintf(dentry->d_iname, "#%llu",
++				(unsigned long long)inode->i_ino);
++	spin_unlock(&dentry->d_lock);
++	spin_unlock(&dentry->d_parent->d_lock);
++	d_instantiate(dentry, inode);
++}
++EXPORT_SYMBOL(d_tmpfile);
++
+ /**
+  * find_inode_number - check for dentry with name
+  * @dir: directory to check
+diff --git a/fs/ext2/namei.c b/fs/ext2/namei.c
+index 9ba7de0e590..e44d1397d15 100644
+--- a/fs/ext2/namei.c
++++ b/fs/ext2/namei.c
+@@ -119,6 +119,29 @@ static int ext2_create (struct inode * dir, struct dentry * dentry, umode_t mode
+ 	return ext2_add_nondir(dentry, inode);
+ }
+ 
++static int ext2_tmpfile(struct inode *dir, struct dentry *dentry, umode_t mode)
++{
++	struct inode *inode = ext2_new_inode(dir, mode, NULL);
++	if (IS_ERR(inode))
++		return PTR_ERR(inode);
++
++	inode->i_op = &ext2_file_inode_operations;
++	if (ext2_use_xip(inode->i_sb)) {
++		inode->i_mapping->a_ops = &ext2_aops_xip;
++		inode->i_fop = &ext2_xip_file_operations;
++	} else if (test_opt(inode->i_sb, NOBH)) {
++		inode->i_mapping->a_ops = &ext2_nobh_aops;
++		inode->i_fop = &ext2_file_operations;
++	} else {
++		inode->i_mapping->a_ops = &ext2_aops;
++		inode->i_fop = &ext2_file_operations;
++	}
++	mark_inode_dirty(inode);
++	d_tmpfile(dentry, inode);
++	unlock_new_inode(inode);
++	return 0;
++}
++
+ static int ext2_mknod (struct inode * dir, struct dentry *dentry, umode_t mode, dev_t rdev)
+ {
+ 	struct inode * inode;
+@@ -398,6 +421,7 @@ const struct inode_operations ext2_dir_inode_operations = {
+ #endif
+ 	.setattr	= ext2_setattr,
+ 	.get_acl	= ext2_get_acl,
++	.tmpfile	= ext2_tmpfile,
+ };
+ 
+ const struct inode_operations ext2_special_inode_operations = {
+diff --git a/fs/minix/namei.c b/fs/minix/namei.c
+index 0db73d9dd66..cd950e2331b 100644
+--- a/fs/minix/namei.c
++++ b/fs/minix/namei.c
+@@ -54,6 +54,18 @@ static int minix_mknod(struct inode * dir, struct dentry *dentry, umode_t mode,
+ 	return error;
+ }
+ 
++static int minix_tmpfile(struct inode *dir, struct dentry *dentry, umode_t mode)
++{
++	int error;
++	struct inode *inode = minix_new_inode(dir, mode, &error);
++	if (inode) {
++		minix_set_inode(inode, 0);
++		mark_inode_dirty(inode);
++		d_tmpfile(dentry, inode);
++	}
++	return error;
++}
++
+ static int minix_create(struct inode *dir, struct dentry *dentry, umode_t mode,
+ 		bool excl)
+ {
+@@ -254,4 +266,5 @@ const struct inode_operations minix_dir_inode_operations = {
+ 	.mknod		= minix_mknod,
+ 	.rename		= minix_rename,
+ 	.getattr	= minix_getattr,
++	.tmpfile	= minix_tmpfile,
+ };
+diff --git a/fs/namei.c b/fs/namei.c
+index 98d42a9a694..b50e563ea8c 100644
+--- a/fs/namei.c
++++ b/fs/namei.c
+@@ -2992,6 +2992,61 @@ stale_open:
+ 	goto retry_lookup;
+ }
+ 
++static int do_tmpfile(int dfd, struct filename *pathname,
++		struct nameidata *nd, int flags,
++		const struct open_flags *op,
++		struct file *file, int *opened)
++{
++	static const struct qstr name = QSTR_INIT("/", 1);
++	struct dentry *dentry, *child;
++	struct inode *dir;
++	int error = path_lookupat(dfd, pathname->name,
++				  flags | LOOKUP_DIRECTORY, nd);
++	if (unlikely(error))
++		return error;
++	error = mnt_want_write(nd->path.mnt);
++	if (unlikely(error))
++		goto out;
++	/* we want directory to be writable */
++	error = inode_permission(nd->inode, MAY_WRITE | MAY_EXEC);
++	if (error)
++		goto out2;
++	dentry = nd->path.dentry;
++	dir = dentry->d_inode;
++	if (!dir->i_op->tmpfile) {
++		error = -EOPNOTSUPP;
++		goto out2;
++	}
++	child = d_alloc(dentry, &name);
++	if (unlikely(!child)) {
++		error = -ENOMEM;
++		goto out2;
++	}
++	nd->flags &= ~LOOKUP_DIRECTORY;
++	nd->flags |= op->intent;
++	dput(nd->path.dentry);
++	nd->path.dentry = child;
++	error = dir->i_op->tmpfile(dir, nd->path.dentry, op->mode);
++	if (error)
++		goto out2;
++	audit_inode(pathname->name, nd->path.dentry);
++	error = may_open(&nd->path, op->acc_mode, op->open_flag);
++	if (error)
++		goto out2;
++	file->f_path.mnt = nd->path.mnt;
++	error = finish_open(file, nd->path.dentry, NULL, opened);
++	if (error)
++		goto out2;
++	error = open_check_o_direct(file);
++	if (error)
++		fput(file);
++out2:
++	mnt_drop_write(nd->path.mnt);
++out:
++	path_put(&nd->path);
++	return error;
++}
++
+ static struct file *path_openat(int dfd, struct filename *pathname,
+ 		struct nameidata *nd, const struct open_flags *op, int flags)
+ {
+@@ -3007,6 +3062,11 @@ static struct file *path_openat(int dfd, struct filename *pathname,
+ 
+ 	file->f_flags = op->open_flag;
+ 
++	if (unlikely(file->f_flags & O_TMPFILE)) {
++		error = do_tmpfile(dfd, pathname, nd, flags, op, file, &opened);
++		goto out;
++	}
++
+ 	error = path_init(dfd, pathname->name, flags | LOOKUP_PARENT, nd, &base);
+ 	if (unlikely(error))
+ 		goto out;
+diff --git a/fs/open.c b/fs/open.c
+index c3d89453d4d..c39d4e7fe6f 100644
+--- a/fs/open.c
++++ b/fs/open.c
+@@ -916,11 +916,15 @@ static inline int build_open_flags(int flags, umode_t mode, struct open_flags *o
+ 	if (flags & __O_SYNC)
+ 		flags |= O_DSYNC;
+ 
+-	/*
+-	 * If we have O_PATH in the open flag. Then we
+-	 * cannot have anything other than the below set of flags
+-	 */
+-	if (flags & O_PATH) {
++	if (flags & O_TMPFILE) {
++		if (!(flags & O_CREAT))
++			return -EINVAL;
++		acc_mode = MAY_OPEN | ACC_MODE(flags);
++	} else if (flags & O_PATH) {
++		/*
++		 * If we have O_PATH in the open flag. Then we
++		 * cannot have anything other than the below set of flags
++		 */
+ 		flags &= O_DIRECTORY | O_NOFOLLOW | O_PATH;
+ 		acc_mode = 0;
+ 	} else {
+diff --git a/include/asm-generic/fcntl.h b/include/asm-generic/fcntl.h
+index b0e7e947fb1..747c5e23d8a 100644
+--- a/include/asm-generic/fcntl.h
++++ b/include/asm-generic/fcntl.h
+@@ -84,6 +84,10 @@
+ #define O_PATH		010000000
+ #endif
+ 
++#ifndef O_TMPFILE
++#define O_TMPFILE	020000000
++#endif
++
+ #ifndef O_NDELAY
+ #define O_NDELAY	O_NONBLOCK
+ #endif
+diff --git a/include/linux/dcache.h b/include/linux/dcache.h
+index cd114081de6..a39ee4b940a 100644
+--- a/include/linux/dcache.h
++++ b/include/linux/dcache.h
+@@ -247,6 +247,8 @@ extern struct dentry * d_make_root(struct inode *);
+ /* <clickety>-<click> the ramfs-type tree */
+ extern void d_genocide(struct dentry *);
+ 
++extern void d_tmpfile(struct dentry *, struct inode *);
++
+ extern struct dentry *d_find_alias(struct inode *);
+ extern void d_prune_aliases(struct inode *);
+ 
+diff --git a/include/linux/fs.h b/include/linux/fs.h
+index fe4b3f940a3..35de13fc40d 100644
+--- a/include/linux/fs.h
++++ b/include/linux/fs.h
+@@ -1725,6 +1725,7 @@ struct inode_operations {
+ 	int (*atomic_open)(struct inode *, struct dentry *,
+ 			   struct file *, unsigned open_flag,
+ 			   umode_t create_mode, int *opened);
++	int (*tmpfile) (struct inode *, struct dentry *, umode_t);
+ } ____cacheline_aligned;
+ 
+ struct seq_file;
+diff --git a/mm/shmem.c b/mm/shmem.c
+index 77926336c3e..2e7765028c3 100644
+--- a/mm/shmem.c
++++ b/mm/shmem.c
+@@ -1663,6 +1663,37 @@ shmem_mknod(struct inode *dir, struct dentry *dentry, umode_t mode, dev_t dev)
+ 	return error;
+ }
+ 
++static int
++shmem_tmpfile(struct inode *dir, struct dentry *dentry, umode_t mode)
++{
++	struct inode *inode;
++	int error = -ENOSPC;
++
++	inode = shmem_get_inode(dir->i_sb, dir, mode, 0, VM_NORESERVE);
++	if (inode) {
++		error = security_inode_init_security(inode, dir,
++						     NULL,
++						     shmem_initxattrs, NULL);
++		if (error) {
++			if (error != -EOPNOTSUPP) {
++				iput(inode);
++				return error;
++			}
++		}
++#ifdef CONFIG_TMPFS_POSIX_ACL
++		error = generic_acl_init(inode, dir);
++		if (error) {
++			iput(inode);
++			return error;
++		}
++#else
++		error = 0;
++#endif
++		d_tmpfile(dentry, inode);
++	}
++	return error;
++}
++
+ static int shmem_mkdir(struct inode *dir, struct dentry *dentry, umode_t mode)
+ {
+ 	int error;
+@@ -2540,6 +2571,7 @@ static const struct inode_operations shmem_dir_inode_operations = {
+ 	.rmdir		= shmem_rmdir,
+ 	.mknod		= shmem_mknod,
+ 	.rename		= shmem_rename,
++	.tmpfile	= shmem_tmpfile,
+ #endif
+ #ifdef CONFIG_TMPFS_XATTR
+ 	.setxattr	= shmem_setxattr,
+-- 
+2.17.1
+

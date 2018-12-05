@@ -1,0 +1,1436 @@
+From 2da46d106be9ddf95c399e4919ab9da107aa13db Mon Sep 17 00:00:00 2001
+From: Jeff Layton <jlayton@redhat.com>
+Date: Wed, 10 Oct 2012 15:25:28 -0400
+Subject: [PATCH 087/132] vfs: define struct filename and have getname() return
+ it
+
+getname() is intended to copy pathname strings from userspace into a
+kernel buffer. The result is just a string in kernel space. It would
+however be quite helpful to be able to attach some ancillary info to
+the string.
+
+For instance, we could attach some audit-related info to reduce the
+amount of audit-related processing needed. When auditing is enabled,
+we could also call getname() on the string more than once and not
+need to recopy it from userspace.
+
+This patchset converts the getname()/putname() interfaces to return
+a struct instead of a string. For now, the struct just tracks the
+string in kernel space and the original userland pointer for it.
+
+Later, we'll add other information to the struct as it becomes
+convenient.
+
+Change-Id: Ib690c3dd4d56624f0ddb081e1c1d4f23c2dd0cd1
+Signed-off-by: Jeff Layton <jlayton@redhat.com>
+Signed-off-by: Al Viro <viro@zeniv.linux.org.uk>
+
+# Conflicts:
+#	arch/arm/kernel/sys_arm.c
+#	mm/swapfile.c
+---
+ arch/alpha/kernel/osf_sys.c             |  16 ++--
+ arch/arm/kernel/sys_arm.c               |   4 +-
+ arch/avr32/kernel/process.c             |   4 +-
+ arch/blackfin/kernel/process.c          |   4 +-
+ arch/cris/arch-v10/kernel/process.c     |   4 +-
+ arch/cris/arch-v32/kernel/process.c     |   4 +-
+ arch/h8300/kernel/process.c             |   4 +-
+ arch/hexagon/kernel/syscall.c           |   4 +-
+ arch/ia64/kernel/process.c              |   4 +-
+ arch/m32r/kernel/process.c              |   4 +-
+ arch/microblaze/kernel/sys_microblaze.c |   4 +-
+ arch/mips/kernel/linux32.c              |   4 +-
+ arch/mips/kernel/syscall.c              |   4 +-
+ arch/openrisc/kernel/process.c          |   4 +-
+ arch/parisc/hpux/fs.c                   |   4 +-
+ arch/parisc/kernel/process.c            |   4 +-
+ arch/parisc/kernel/sys_parisc32.c       |   4 +-
+ arch/score/kernel/sys_score.c           |   4 +-
+ arch/sh/kernel/process_32.c             |   4 +-
+ arch/sh/kernel/process_64.c             |   4 +-
+ arch/sparc/kernel/process_32.c          |   4 +-
+ arch/sparc/kernel/process_64.c          |   4 +-
+ arch/sparc/kernel/sys_sparc32.c         |   4 +-
+ arch/tile/kernel/process.c              |   8 +-
+ arch/unicore32/kernel/sys.c             |   4 +-
+ arch/xtensa/kernel/process.c            |   4 +-
+ fs/compat.c                             |  12 +--
+ fs/exec.c                               |   4 +-
+ fs/filesystems.c                        |   4 +-
+ fs/namei.c                              | 108 +++++++++++++++---------
+ fs/namespace.c                          |   4 +-
+ fs/open.c                               |   4 +-
+ fs/quota/quota.c                        |   4 +-
+ include/linux/audit.h                   |   9 +-
+ include/linux/fs.h                      |  14 ++-
+ ipc/mqueue.c                            |  12 +--
+ kernel/acct.c                           |   4 +-
+ kernel/auditsc.c                        |  67 ++++++++-------
+ mm/swapfile.c                           |  13 ++-
+ 39 files changed, 211 insertions(+), 168 deletions(-)
+
+diff --git a/arch/alpha/kernel/osf_sys.c b/arch/alpha/kernel/osf_sys.c
+index 49ee3193477..bb15f2bb8b1 100644
+--- a/arch/alpha/kernel/osf_sys.c
++++ b/arch/alpha/kernel/osf_sys.c
+@@ -289,7 +289,7 @@ osf_ufs_mount(char *dirname, struct ufs_args __user *args, int flags)
+ {
+ 	int retval;
+ 	struct cdfs_args tmp;
+-	char *devname;
++	struct filename *devname;
+ 
+ 	retval = -EFAULT;
+ 	if (copy_from_user(&tmp, args, sizeof(tmp)))
+@@ -298,7 +298,7 @@ osf_ufs_mount(char *dirname, struct ufs_args __user *args, int flags)
+ 	retval = PTR_ERR(devname);
+ 	if (IS_ERR(devname))
+ 		goto out;
+-	retval = do_mount(devname, dirname, "ext2", flags, NULL);
++	retval = do_mount(devname->name, dirname, "ext2", flags, NULL);
+ 	putname(devname);
+  out:
+ 	return retval;
+@@ -309,7 +309,7 @@ osf_cdfs_mount(char *dirname, struct cdfs_args __user *args, int flags)
+ {
+ 	int retval;
+ 	struct cdfs_args tmp;
+-	char *devname;
++	struct filename *devname;
+ 
+ 	retval = -EFAULT;
+ 	if (copy_from_user(&tmp, args, sizeof(tmp)))
+@@ -318,7 +318,7 @@ osf_cdfs_mount(char *dirname, struct cdfs_args __user *args, int flags)
+ 	retval = PTR_ERR(devname);
+ 	if (IS_ERR(devname))
+ 		goto out;
+-	retval = do_mount(devname, dirname, "iso9660", flags, NULL);
++	retval = do_mount(devname->name, dirname, "iso9660", flags, NULL);
+ 	putname(devname);
+  out:
+ 	return retval;
+@@ -339,7 +339,7 @@ SYSCALL_DEFINE4(osf_mount, unsigned long, typenr, const char __user *, path,
+ 		int, flag, void __user *, data)
+ {
+ 	int retval;
+-	char *name;
++	struct filename *name;
+ 
+ 	name = getname(path);
+ 	retval = PTR_ERR(name);
+@@ -347,13 +347,13 @@ SYSCALL_DEFINE4(osf_mount, unsigned long, typenr, const char __user *, path,
+ 		goto out;
+ 	switch (typenr) {
+ 	case 1:
+-		retval = osf_ufs_mount(name, data, flag);
++		retval = osf_ufs_mount(name->name, data, flag);
+ 		break;
+ 	case 6:
+-		retval = osf_cdfs_mount(name, data, flag);
++		retval = osf_cdfs_mount(name->name, data, flag);
+ 		break;
+ 	case 9:
+-		retval = osf_procfs_mount(name, data, flag);
++		retval = osf_procfs_mount(name->name, data, flag);
+ 		break;
+ 	default:
+ 		retval = -EINVAL;
+diff --git a/arch/arm/kernel/sys_arm.c b/arch/arm/kernel/sys_arm.c
+index 0d6277110e7..d1982f27da1 100644
+--- a/arch/arm/kernel/sys_arm.c
++++ b/arch/arm/kernel/sys_arm.c
+@@ -194,7 +194,7 @@ asmlinkage int sys_execve(const char __user *filenamei,
+ 			  const char __user *const __user *envp, struct pt_regs *regs)
+ {
+ 	int error;
+-	char * filename;
++	struct filename *filename;
+ 
+ 	filename = getname(filenamei);
+ 	error = PTR_ERR(filename);
+@@ -213,7 +213,7 @@ asmlinkage int sys_execve(const char __user *filenamei,
+ 		}
+ #endif	// End of CONFIG_SEC_RESTRICT_FORK
+ 
+-	error = do_execve(filename, argv, envp, regs);
++	error = do_execve(filename->name, argv, envp, regs);
+ 	putname(filename);
+ out:
+ 	return error;
+diff --git a/arch/avr32/kernel/process.c b/arch/avr32/kernel/process.c
+index 92c5af98a6f..1bb0a8abd79 100644
+--- a/arch/avr32/kernel/process.c
++++ b/arch/avr32/kernel/process.c
+@@ -388,14 +388,14 @@ asmlinkage int sys_execve(const char __user *ufilename,
+ 			  struct pt_regs *regs)
+ {
+ 	int error;
+-	char *filename;
++	struct filename *filename;
+ 
+ 	filename = getname(ufilename);
+ 	error = PTR_ERR(filename);
+ 	if (IS_ERR(filename))
+ 		goto out;
+ 
+-	error = do_execve(filename, uargv, uenvp, regs);
++	error = do_execve(filename->name, uargv, uenvp, regs);
+ 	putname(filename);
+ 
+ out:
+diff --git a/arch/blackfin/kernel/process.c b/arch/blackfin/kernel/process.c
+index c0f4fe287eb..0c412da6ca9 100644
+--- a/arch/blackfin/kernel/process.c
++++ b/arch/blackfin/kernel/process.c
+@@ -211,14 +211,14 @@ asmlinkage int sys_execve(const char __user *name,
+ 			  const char __user *const __user *envp)
+ {
+ 	int error;
+-	char *filename;
++	struct filename *filename;
+ 	struct pt_regs *regs = (struct pt_regs *)((&name) + 6);
+ 
+ 	filename = getname(name);
+ 	error = PTR_ERR(filename);
+ 	if (IS_ERR(filename))
+ 		return error;
+-	error = do_execve(filename, argv, envp, regs);
++	error = do_execve(filename->name, argv, envp, regs);
+ 	putname(filename);
+ 	return error;
+ }
+diff --git a/arch/cris/arch-v10/kernel/process.c b/arch/cris/arch-v10/kernel/process.c
+index bee8df43c20..15ac7150371 100644
+--- a/arch/cris/arch-v10/kernel/process.c
++++ b/arch/cris/arch-v10/kernel/process.c
+@@ -212,14 +212,14 @@ asmlinkage int sys_execve(const char *fname,
+ 			  struct pt_regs *regs)
+ {
+ 	int error;
+-	char *filename;
++	struct filename *filename;
+ 
+ 	filename = getname(fname);
+ 	error = PTR_ERR(filename);
+ 
+ 	if (IS_ERR(filename))
+ 	        goto out;
+-	error = do_execve(filename, argv, envp, regs);
++	error = do_execve(filename->name, argv, envp, regs);
+ 	putname(filename);
+  out:
+ 	return error;
+diff --git a/arch/cris/arch-v32/kernel/process.c b/arch/cris/arch-v32/kernel/process.c
+index 0570e8ce603..4e999224635 100644
+--- a/arch/cris/arch-v32/kernel/process.c
++++ b/arch/cris/arch-v32/kernel/process.c
+@@ -224,7 +224,7 @@ sys_execve(const char *fname,
+ 	   struct pt_regs *regs)
+ {
+ 	int error;
+-	char *filename;
++	struct filename *filename;
+ 
+ 	filename = getname(fname);
+ 	error = PTR_ERR(filename);
+@@ -232,7 +232,7 @@ sys_execve(const char *fname,
+ 	if (IS_ERR(filename))
+ 	        goto out;
+ 
+-	error = do_execve(filename, argv, envp, regs);
++	error = do_execve(filename->name, argv, envp, regs);
+ 	putname(filename);
+  out:
+ 	return error;
+diff --git a/arch/h8300/kernel/process.c b/arch/h8300/kernel/process.c
+index f153ed1a4c0..e8dc1393a13 100644
+--- a/arch/h8300/kernel/process.c
++++ b/arch/h8300/kernel/process.c
+@@ -217,14 +217,14 @@ asmlinkage int sys_execve(const char *name,
+ 			  int dummy, ...)
+ {
+ 	int error;
+-	char * filename;
++	struct filename *filename;
+ 	struct pt_regs *regs = (struct pt_regs *) ((unsigned char *)&dummy-4);
+ 
+ 	filename = getname(name);
+ 	error = PTR_ERR(filename);
+ 	if (IS_ERR(filename))
+ 		return error;
+-	error = do_execve(filename, argv, envp, regs);
++	error = do_execve(filename->name, argv, envp, regs);
+ 	putname(filename);
+ 	return error;
+ }
+diff --git a/arch/hexagon/kernel/syscall.c b/arch/hexagon/kernel/syscall.c
+index 2fd0764c182..ef3756a53ab 100644
+--- a/arch/hexagon/kernel/syscall.c
++++ b/arch/hexagon/kernel/syscall.c
+@@ -40,7 +40,7 @@ asmlinkage int sys_execve(char __user *ufilename,
+ 			  const char __user *const __user *envp)
+ {
+ 	struct pt_regs *pregs = current_thread_info()->regs;
+-	char *filename;
++	struct filename *filename;
+ 	int retval;
+ 
+ 	filename = getname(ufilename);
+@@ -48,7 +48,7 @@ asmlinkage int sys_execve(char __user *ufilename,
+ 	if (IS_ERR(filename))
+ 		return retval;
+ 
+-	retval = do_execve(filename, argv, envp, pregs);
++	retval = do_execve(filename->name, argv, envp, pregs);
+ 	putname(filename);
+ 
+ 	return retval;
+diff --git a/arch/ia64/kernel/process.c b/arch/ia64/kernel/process.c
+index 86d74ab9800..a518eb85ec3 100644
+--- a/arch/ia64/kernel/process.c
++++ b/arch/ia64/kernel/process.c
+@@ -636,14 +636,14 @@ sys_execve (const char __user *filename,
+ 	    const char __user *const __user *envp,
+ 	    struct pt_regs *regs)
+ {
+-	char *fname;
++	struct filename *fname;
+ 	int error;
+ 
+ 	fname = getname(filename);
+ 	error = PTR_ERR(fname);
+ 	if (IS_ERR(fname))
+ 		goto out;
+-	error = do_execve(fname, argv, envp, regs);
++	error = do_execve(fname->name, argv, envp, regs);
+ 	putname(fname);
+ out:
+ 	return error;
+diff --git a/arch/m32r/kernel/process.c b/arch/m32r/kernel/process.c
+index 384e63f3a4c..e7366276ef3 100644
+--- a/arch/m32r/kernel/process.c
++++ b/arch/m32r/kernel/process.c
+@@ -296,14 +296,14 @@ asmlinkage int sys_execve(const char __user *ufilename,
+ 			  unsigned long r6, struct pt_regs regs)
+ {
+ 	int error;
+-	char *filename;
++	struct filename *filename;
+ 
+ 	filename = getname(ufilename);
+ 	error = PTR_ERR(filename);
+ 	if (IS_ERR(filename))
+ 		goto out;
+ 
+-	error = do_execve(filename, uargv, uenvp, &regs);
++	error = do_execve(filename->name, uargv, uenvp, &regs);
+ 	putname(filename);
+ out:
+ 	return error;
+diff --git a/arch/microblaze/kernel/sys_microblaze.c b/arch/microblaze/kernel/sys_microblaze.c
+index e5b154f24f8..404c0f24bd4 100644
+--- a/arch/microblaze/kernel/sys_microblaze.c
++++ b/arch/microblaze/kernel/sys_microblaze.c
+@@ -54,13 +54,13 @@ asmlinkage long microblaze_execve(const char __user *filenamei,
+ 				  struct pt_regs *regs)
+ {
+ 	int error;
+-	char *filename;
++	struct filename *filename;
+ 
+ 	filename = getname(filenamei);
+ 	error = PTR_ERR(filename);
+ 	if (IS_ERR(filename))
+ 		goto out;
+-	error = do_execve(filename, argv, envp, regs);
++	error = do_execve(filename->name, argv, envp, regs);
+ 	putname(filename);
+ out:
+ 	return error;
+diff --git a/arch/mips/kernel/linux32.c b/arch/mips/kernel/linux32.c
+index 922a554cd10..3a21acedf88 100644
+--- a/arch/mips/kernel/linux32.c
++++ b/arch/mips/kernel/linux32.c
+@@ -83,13 +83,13 @@ out:
+ asmlinkage int sys32_execve(nabi_no_regargs struct pt_regs regs)
+ {
+ 	int error;
+-	char * filename;
++	struct filename *filename;
+ 
+ 	filename = getname(compat_ptr(regs.regs[4]));
+ 	error = PTR_ERR(filename);
+ 	if (IS_ERR(filename))
+ 		goto out;
+-	error = compat_do_execve(filename, compat_ptr(regs.regs[5]),
++	error = compat_do_execve(filename->name, compat_ptr(regs.regs[5]),
+ 				 compat_ptr(regs.regs[6]), &regs);
+ 	putname(filename);
+ 
+diff --git a/arch/mips/kernel/syscall.c b/arch/mips/kernel/syscall.c
+index b08220c8211..2bd561bc05a 100644
+--- a/arch/mips/kernel/syscall.c
++++ b/arch/mips/kernel/syscall.c
+@@ -133,13 +133,13 @@ _sys_clone(nabi_no_regargs struct pt_regs regs)
+ asmlinkage int sys_execve(nabi_no_regargs struct pt_regs regs)
+ {
+ 	int error;
+-	char * filename;
++	struct filename *filename;
+ 
+ 	filename = getname((const char __user *) (long)regs.regs[4]);
+ 	error = PTR_ERR(filename);
+ 	if (IS_ERR(filename))
+ 		goto out;
+-	error = do_execve(filename,
++	error = do_execve(filename->name,
+ 			  (const char __user *const __user *) (long)regs.regs[5],
+ 	                  (const char __user *const __user *) (long)regs.regs[6],
+ 			  &regs);
+diff --git a/arch/openrisc/kernel/process.c b/arch/openrisc/kernel/process.c
+index 55210f37d1a..c35f3ab1a8d 100644
+--- a/arch/openrisc/kernel/process.c
++++ b/arch/openrisc/kernel/process.c
+@@ -271,7 +271,7 @@ asmlinkage long _sys_execve(const char __user *name,
+ 			    struct pt_regs *regs)
+ {
+ 	int error;
+-	char *filename;
++	struct filename *filename;
+ 
+ 	filename = getname(name);
+ 	error = PTR_ERR(filename);
+@@ -279,7 +279,7 @@ asmlinkage long _sys_execve(const char __user *name,
+ 	if (IS_ERR(filename))
+ 		goto out;
+ 
+-	error = do_execve(filename, argv, envp, regs);
++	error = do_execve(filename->name, argv, envp, regs);
+ 	putname(filename);
+ 
+ out:
+diff --git a/arch/parisc/hpux/fs.c b/arch/parisc/hpux/fs.c
+index 0dc8543acb4..1573fc0f378 100644
+--- a/arch/parisc/hpux/fs.c
++++ b/arch/parisc/hpux/fs.c
+@@ -34,14 +34,14 @@
+ int hpux_execve(struct pt_regs *regs)
+ {
+ 	int error;
+-	char *filename;
++	struct filename *filename;
+ 
+ 	filename = getname((const char __user *) regs->gr[26]);
+ 	error = PTR_ERR(filename);
+ 	if (IS_ERR(filename))
+ 		goto out;
+ 
+-	error = do_execve(filename,
++	error = do_execve(filename->name,
+ 			  (const char __user *const __user *) regs->gr[25],
+ 			  (const char __user *const __user *) regs->gr[24],
+ 			  regs);
+diff --git a/arch/parisc/kernel/process.c b/arch/parisc/kernel/process.c
+index c54a4dbcb38..5165fdaadb4 100644
+--- a/arch/parisc/kernel/process.c
++++ b/arch/parisc/kernel/process.c
+@@ -342,13 +342,13 @@ unsigned long thread_saved_pc(struct task_struct *t)
+ asmlinkage int sys_execve(struct pt_regs *regs)
+ {
+ 	int error;
+-	char *filename;
++	struct filename *filename;
+ 
+ 	filename = getname((const char __user *) regs->gr[26]);
+ 	error = PTR_ERR(filename);
+ 	if (IS_ERR(filename))
+ 		goto out;
+-	error = do_execve(filename,
++	error = do_execve(filename->name,
+ 			  (const char __user *const __user *) regs->gr[25],
+ 			  (const char __user *const __user *) regs->gr[24],
+ 			  regs);
+diff --git a/arch/parisc/kernel/sys_parisc32.c b/arch/parisc/kernel/sys_parisc32.c
+index dc9a6246232..bf5b93a885d 100644
+--- a/arch/parisc/kernel/sys_parisc32.c
++++ b/arch/parisc/kernel/sys_parisc32.c
+@@ -60,14 +60,14 @@
+ asmlinkage int sys32_execve(struct pt_regs *regs)
+ {
+ 	int error;
+-	char *filename;
++	struct filename *filename;
+ 
+ 	DBG(("sys32_execve(%p) r26 = 0x%lx\n", regs, regs->gr[26]));
+ 	filename = getname((const char __user *) regs->gr[26]);
+ 	error = PTR_ERR(filename);
+ 	if (IS_ERR(filename))
+ 		goto out;
+-	error = compat_do_execve(filename, compat_ptr(regs->gr[25]),
++	error = compat_do_execve(filename->name, compat_ptr(regs->gr[25]),
+ 				 compat_ptr(regs->gr[24]), regs);
+ 	putname(filename);
+ out:
+diff --git a/arch/score/kernel/sys_score.c b/arch/score/kernel/sys_score.c
+index e478bf9a7e9..86e8d29bc3c 100644
+--- a/arch/score/kernel/sys_score.c
++++ b/arch/score/kernel/sys_score.c
+@@ -92,14 +92,14 @@ asmlinkage long
+ score_execve(struct pt_regs *regs)
+ {
+ 	int error;
+-	char *filename;
++	struct filename *filename;
+ 
+ 	filename = getname((char __user*)regs->regs[4]);
+ 	error = PTR_ERR(filename);
+ 	if (IS_ERR(filename))
+ 		return error;
+ 
+-	error = do_execve(filename,
++	error = do_execve(filename->name,
+ 			  (const char __user *const __user *)regs->regs[5],
+ 			  (const char __user *const __user *)regs->regs[6],
+ 			  regs);
+diff --git a/arch/sh/kernel/process_32.c b/arch/sh/kernel/process_32.c
+index 94273aaf78c..1b69859d7fd 100644
+--- a/arch/sh/kernel/process_32.c
++++ b/arch/sh/kernel/process_32.c
+@@ -302,14 +302,14 @@ asmlinkage int sys_execve(const char __user *ufilename,
+ {
+ 	struct pt_regs *regs = RELOC_HIDE(&__regs, 0);
+ 	int error;
+-	char *filename;
++	struct filename *filename;
+ 
+ 	filename = getname(ufilename);
+ 	error = PTR_ERR(filename);
+ 	if (IS_ERR(filename))
+ 		goto out;
+ 
+-	error = do_execve(filename, uargv, uenvp, regs);
++	error = do_execve(filename->name, uargv, uenvp, regs);
+ 	putname(filename);
+ out:
+ 	return error;
+diff --git a/arch/sh/kernel/process_64.c b/arch/sh/kernel/process_64.c
+index 4264583eaba..1d6886601a3 100644
+--- a/arch/sh/kernel/process_64.c
++++ b/arch/sh/kernel/process_64.c
+@@ -490,14 +490,14 @@ asmlinkage int sys_execve(const char *ufilename, char **uargv,
+ 			  struct pt_regs *pregs)
+ {
+ 	int error;
+-	char *filename;
++	struct filename *filename;
+ 
+ 	filename = getname((char __user *)ufilename);
+ 	error = PTR_ERR(filename);
+ 	if (IS_ERR(filename))
+ 		goto out;
+ 
+-	error = do_execve(filename,
++	error = do_execve(filename->name,
+ 			  (const char __user *const __user *)uargv,
+ 			  (const char __user *const __user *)uenvp,
+ 			  pregs);
+diff --git a/arch/sparc/kernel/process_32.c b/arch/sparc/kernel/process_32.c
+index efa07542e85..091b7a41ec7 100644
+--- a/arch/sparc/kernel/process_32.c
++++ b/arch/sparc/kernel/process_32.c
+@@ -625,7 +625,7 @@ int dump_fpu (struct pt_regs * regs, elf_fpregset_t * fpregs)
+ asmlinkage int sparc_execve(struct pt_regs *regs)
+ {
+ 	int error, base = 0;
+-	char *filename;
++	struct filename *filename;
+ 
+ 	/* Check for indirect call. */
+ 	if(regs->u_regs[UREG_G1] == 0)
+@@ -635,7 +635,7 @@ asmlinkage int sparc_execve(struct pt_regs *regs)
+ 	error = PTR_ERR(filename);
+ 	if(IS_ERR(filename))
+ 		goto out;
+-	error = do_execve(filename,
++	error = do_execve(filename->name,
+ 			  (const char __user *const  __user *)
+ 			  regs->u_regs[base + UREG_I1],
+ 			  (const char __user *const  __user *)
+diff --git a/arch/sparc/kernel/process_64.c b/arch/sparc/kernel/process_64.c
+index aff0c72fac0..fcaa5942112 100644
+--- a/arch/sparc/kernel/process_64.c
++++ b/arch/sparc/kernel/process_64.c
+@@ -722,7 +722,7 @@ EXPORT_SYMBOL(dump_fpu);
+ asmlinkage int sparc_execve(struct pt_regs *regs)
+ {
+ 	int error, base = 0;
+-	char *filename;
++	struct filename *filename;
+ 
+ 	/* User register window flush is done by entry.S */
+ 
+@@ -734,7 +734,7 @@ asmlinkage int sparc_execve(struct pt_regs *regs)
+ 	error = PTR_ERR(filename);
+ 	if (IS_ERR(filename))
+ 		goto out;
+-	error = do_execve(filename,
++	error = do_execve(filename->name,
+ 			  (const char __user *const __user *)
+ 			  regs->u_regs[base + UREG_I1],
+ 			  (const char __user *const __user *)
+diff --git a/arch/sparc/kernel/sys_sparc32.c b/arch/sparc/kernel/sys_sparc32.c
+index 29c478ffed9..3d2fc1930ab 100644
+--- a/arch/sparc/kernel/sys_sparc32.c
++++ b/arch/sparc/kernel/sys_sparc32.c
+@@ -403,7 +403,7 @@ asmlinkage long compat_sys_rt_sigaction(int sig,
+ asmlinkage long sparc32_execve(struct pt_regs *regs)
+ {
+ 	int error, base = 0;
+-	char *filename;
++	struct filename *filename;
+ 
+ 	/* User register window flush is done by entry.S */
+ 
+@@ -416,7 +416,7 @@ asmlinkage long sparc32_execve(struct pt_regs *regs)
+ 	if (IS_ERR(filename))
+ 		goto out;
+ 
+-	error = compat_do_execve(filename,
++	error = compat_do_execve(filename->name,
+ 				 compat_ptr(regs->u_regs[base + UREG_I1]),
+ 				 compat_ptr(regs->u_regs[base + UREG_I2]), regs);
+ 
+diff --git a/arch/tile/kernel/process.c b/arch/tile/kernel/process.c
+index 54e6c64b85c..026d975c131 100644
+--- a/arch/tile/kernel/process.c
++++ b/arch/tile/kernel/process.c
+@@ -619,13 +619,13 @@ SYSCALL_DEFINE4(execve, const char __user *, path,
+ 		struct pt_regs *, regs)
+ {
+ 	long error;
+-	char *filename;
++	struct filename *filename;
+ 
+ 	filename = getname(path);
+ 	error = PTR_ERR(filename);
+ 	if (IS_ERR(filename))
+ 		goto out;
+-	error = do_execve(filename, argv, envp, regs);
++	error = do_execve(filename->name, argv, envp, regs);
+ 	putname(filename);
+ 	if (error == 0)
+ 		single_step_execve();
+@@ -640,13 +640,13 @@ long compat_sys_execve(const char __user *path,
+ 		       struct pt_regs *regs)
+ {
+ 	long error;
+-	char *filename;
++	struct filename *filename;
+ 
+ 	filename = getname(path);
+ 	error = PTR_ERR(filename);
+ 	if (IS_ERR(filename))
+ 		goto out;
+-	error = compat_do_execve(filename, argv, envp, regs);
++	error = compat_do_execve(filename->name, argv, envp, regs);
+ 	putname(filename);
+ 	if (error == 0)
+ 		single_step_execve();
+diff --git a/arch/unicore32/kernel/sys.c b/arch/unicore32/kernel/sys.c
+index 3afe60a39ac..04d64644930 100644
+--- a/arch/unicore32/kernel/sys.c
++++ b/arch/unicore32/kernel/sys.c
+@@ -51,13 +51,13 @@ asmlinkage long __sys_execve(const char __user *filename,
+ 			  struct pt_regs *regs)
+ {
+ 	int error;
+-	char *fn;
++	struct filename *fn;
+ 
+ 	fn = getname(filename);
+ 	error = PTR_ERR(fn);
+ 	if (IS_ERR(fn))
+ 		goto out;
+-	error = do_execve(fn, argv, envp, regs);
++	error = do_execve(fn->name, argv, envp, regs);
+ 	putname(fn);
+ out:
+ 	return error;
+diff --git a/arch/xtensa/kernel/process.c b/arch/xtensa/kernel/process.c
+index 7a41d9ec8ac..1efd58feeed 100644
+--- a/arch/xtensa/kernel/process.c
++++ b/arch/xtensa/kernel/process.c
+@@ -325,13 +325,13 @@ long xtensa_execve(const char __user *name,
+                    struct pt_regs *regs)
+ {
+ 	long error;
+-	char * filename;
++	struct filename *filename;
+ 
+ 	filename = getname(name);
+ 	error = PTR_ERR(filename);
+ 	if (IS_ERR(filename))
+ 		goto out;
+-	error = do_execve(filename, argv, envp, regs);
++	error = do_execve(filename->name, argv, envp, regs);
+ 	putname(filename);
+ out:
+ 	return error;
+diff --git a/fs/compat.c b/fs/compat.c
+index 56acdcb84fb..2ae9b6da6a1 100644
+--- a/fs/compat.c
++++ b/fs/compat.c
+@@ -780,16 +780,16 @@ asmlinkage long compat_sys_mount(const char __user * dev_name,
+ 	char *kernel_type;
+ 	unsigned long data_page;
+ 	char *kernel_dev;
+-	char *dir_page;
++	struct filename *dir;
+ 	int retval;
+ 
+ 	retval = copy_mount_string(type, &kernel_type);
+ 	if (retval < 0)
+ 		goto out;
+ 
+-	dir_page = getname(dir_name);
+-	retval = PTR_ERR(dir_page);
+-	if (IS_ERR(dir_page))
++	dir = getname(dir_name);
++	retval = PTR_ERR(dir);
++	if (IS_ERR(dir))
+ 		goto out1;
+ 
+ 	retval = copy_mount_string(dev_name, &kernel_dev);
+@@ -811,7 +811,7 @@ asmlinkage long compat_sys_mount(const char __user * dev_name,
+ 		}
+ 	}
+ 
+-	retval = do_mount(kernel_dev, dir_page, kernel_type,
++	retval = do_mount(kernel_dev, dir->name, kernel_type,
+ 			flags, (void*)data_page);
+ 
+  out4:
+@@ -819,7 +819,7 @@ asmlinkage long compat_sys_mount(const char __user * dev_name,
+  out3:
+ 	kfree(kernel_dev);
+  out2:
+-	putname(dir_page);
++	putname(dir);
+  out1:
+ 	kfree(kernel_type);
+  out:
+diff --git a/fs/exec.c b/fs/exec.c
+index c607edcc97d..cbd25526e59 100644
+--- a/fs/exec.c
++++ b/fs/exec.c
+@@ -116,7 +116,7 @@ static inline void put_binfmt(struct linux_binfmt * fmt)
+ SYSCALL_DEFINE1(uselib, const char __user *, library)
+ {
+ 	struct file *file;
+-	char *tmp = getname(library);
++	struct filename *tmp = getname(library);
+ 	int error = PTR_ERR(tmp);
+ 	static const struct open_flags uselib_flags = {
+ 		.open_flag = O_LARGEFILE | O_RDONLY | __FMODE_EXEC,
+@@ -127,7 +127,7 @@ SYSCALL_DEFINE1(uselib, const char __user *, library)
+ 	if (IS_ERR(tmp))
+ 		goto out;
+ 
+-	file = do_filp_open(AT_FDCWD, tmp, &uselib_flags, LOOKUP_FOLLOW);
++	file = do_filp_open(AT_FDCWD, tmp->name, &uselib_flags, LOOKUP_FOLLOW);
+ 	putname(tmp);
+ 	error = PTR_ERR(file);
+ 	if (IS_ERR(file))
+diff --git a/fs/filesystems.c b/fs/filesystems.c
+index c4128578dda..92567d95ba6 100644
+--- a/fs/filesystems.c
++++ b/fs/filesystems.c
+@@ -124,7 +124,7 @@ EXPORT_SYMBOL(unregister_filesystem);
+ static int fs_index(const char __user * __name)
+ {
+ 	struct file_system_type * tmp;
+-	char * name;
++	struct filename *name;
+ 	int err, index;
+ 
+ 	name = getname(__name);
+@@ -135,7 +135,7 @@ static int fs_index(const char __user * __name)
+ 	err = -EINVAL;
+ 	read_lock(&file_systems_lock);
+ 	for (tmp=file_systems, index=0 ; tmp ; tmp=tmp->next, index++) {
+-		if (strcmp(tmp->name,name) == 0) {
++		if (strcmp(tmp->name, name->name) == 0) {
+ 			err = index;
+ 			break;
+ 		}
+diff --git a/fs/namei.c b/fs/namei.c
+index 8013b5b8e7b..3fcaa4529bc 100644
+--- a/fs/namei.c
++++ b/fs/namei.c
+@@ -116,18 +116,37 @@
+  * POSIX.1 2.4: an empty pathname is invalid (ENOENT).
+  * PATH_MAX includes the nul terminator --RR.
+  */
+-static char *getname_flags(const char __user *filename, int flags, int *empty)
++void final_putname(struct filename *name)
+ {
+-	char *result = __getname(), *err;
++	__putname(name->name);
++	kfree(name);
++}
++
++static struct filename *
++getname_flags(const char __user *filename, int flags, int *empty)
++{
++	struct filename *result, *err;
++	char *kname;
+ 	int len;
+ 
++	/* FIXME: create dedicated slabcache? */
++	result = kzalloc(sizeof(*result), GFP_KERNEL);
+ 	if (unlikely(!result))
+ 		return ERR_PTR(-ENOMEM);
+ 
+-	len = strncpy_from_user(result, filename, PATH_MAX);
+-	err = ERR_PTR(len);
+-	if (unlikely(len < 0))
++	kname = __getname();
++	if (unlikely(!kname)) {
++		err = ERR_PTR(-ENOMEM);
++		goto error_free_name;
++	}
++
++	result->name = kname;
++	result->uptr = filename;
++	len = strncpy_from_user(kname, filename, PATH_MAX);
++	if (unlikely(len < 0)) {
++		err = ERR_PTR(len);
+ 		goto error;
++	}
+ 
+ 	/* The empty path is special. */
+ 	if (unlikely(!len)) {
+@@ -145,22 +164,25 @@ static char *getname_flags(const char __user *filename, int flags, int *empty)
+ 	}
+ 
+ error:
+-	__putname(result);
++	__putname(kname);
++error_free_name:
++	kfree(result);
+ 	return err;
+ }
+ 
+-char *getname(const char __user * filename)
++struct filename *
++getname(const char __user * filename)
+ {
+ 	return getname_flags(filename, 0, NULL);
+ }
++EXPORT_SYMBOL(getname);
+ 
+ #ifdef CONFIG_AUDITSYSCALL
+-void putname(const char *name)
++void putname(struct filename *name)
+ {
+ 	if (unlikely(!audit_dummy_context()))
+-		audit_putname(name);
+-	else
+-		__putname(name);
++		return audit_putname(name);
++	final_putname(name);
+ }
+ #endif
+ 
+@@ -2126,13 +2148,13 @@ int user_path_at_empty(int dfd, const char __user *name, unsigned flags,
+ 		 struct path *path, int *empty)
+ {
+ 	struct nameidata nd;
+-	char *tmp = getname_flags(name, flags, empty);
++	struct filename *tmp = getname_flags(name, flags, empty);
+ 	int err = PTR_ERR(tmp);
+ 	if (!IS_ERR(tmp)) {
+ 
+ 		BUG_ON(flags & LOOKUP_PARENT);
+ 
+-		err = do_path_lookup(dfd, tmp, flags, &nd);
++		err = do_path_lookup(dfd, tmp->name, flags, &nd);
+ 		putname(tmp);
+ 		if (!err)
+ 			*path = nd.path;
+@@ -2146,22 +2168,22 @@ int user_path_at(int dfd, const char __user *name, unsigned flags,
+ 	return user_path_at_empty(dfd, name, flags, path, NULL);
+ }
+ 
+-static int user_path_parent(int dfd, const char __user *path,
+-			struct nameidata *nd, char **name)
++static struct filename *
++user_path_parent(int dfd, const char __user *path, struct nameidata *nd)
+ {
+-	char *s = getname(path);
++	struct filename *s = getname(path);
+ 	int error;
+ 
+ 	if (IS_ERR(s))
+-		return PTR_ERR(s);
++		return s;
+ 
+-	error = do_path_lookup(dfd, s, LOOKUP_PARENT, nd);
+-	if (error)
++	error = do_path_lookup(dfd, s->name, LOOKUP_PARENT, nd);
++	if (error) {
+ 		putname(s);
+-	else
+-		*name = s;
++		return ERR_PTR(error);
++	}
+ 
+-	return error;
++	return s;
+ }
+ 
+ /*
+@@ -3093,11 +3115,11 @@ EXPORT_SYMBOL(done_path_create);
+ 
+ struct dentry *user_path_create(int dfd, const char __user *pathname, struct path *path, int is_dir)
+ {
+-	char *tmp = getname(pathname);
++	struct filename *tmp = getname(pathname);
+ 	struct dentry *res;
+ 	if (IS_ERR(tmp))
+ 		return ERR_CAST(tmp);
+-	res = kern_path_create(dfd, tmp, path, is_dir);
++	res = kern_path_create(dfd, tmp->name, path, is_dir);
+ 	putname(tmp);
+ 	return res;
+ }
+@@ -3331,15 +3353,15 @@ EXPORT_SYMBOL(vfs_rmdir);
+ static long do_rmdir(int dfd, const char __user *pathname)
+ {
+ 	int error = 0;
+-	char * name;
++	struct filename *name;
+ 	struct dentry *dentry;
+ 	struct nameidata nd;
+ 	char *path_buf = NULL;
+ 	char *propagate_path = NULL;
+ 
+-	error = user_path_parent(dfd, pathname, &nd, &name);
+-	if (error)
+-		return error;
++	name = user_path_parent(dfd, pathname, &nd);
++	if (IS_ERR(name))
++		return PTR_ERR(name);
+ 
+ 	switch(nd.last_type) {
+ 	case LAST_DOTDOT:
+@@ -3435,14 +3457,14 @@ EXPORT_SYMBOL(vfs_unlink);
+ static long do_unlinkat(int dfd, const char __user *pathname)
+ {
+ 	int error;
+-	char *name;
++	struct filename *name;
+ 	struct dentry *dentry;
+ 	struct nameidata nd;
+ 	struct inode *inode = NULL;
+ 
+-	error = user_path_parent(dfd, pathname, &nd, &name);
+-	if (error)
+-		return error;
++	name = user_path_parent(dfd, pathname, &nd);
++	if (IS_ERR(name))
++		return PTR_ERR(name);
+ 
+ 	error = -EISDIR;
+ 	if (nd.last_type != LAST_NORM)
+@@ -3533,7 +3555,7 @@ SYSCALL_DEFINE3(symlinkat, const char __user *, oldname,
+ 		int, newdfd, const char __user *, newname)
+ {
+ 	int error;
+-	char *from;
++	struct filename *from;
+ 	struct dentry *dentry;
+ 	struct path path;
+ 
+@@ -3546,9 +3568,9 @@ SYSCALL_DEFINE3(symlinkat, const char __user *, oldname,
+ 	if (IS_ERR(dentry))
+ 		goto out_putname;
+ 
+-	error = security_path_symlink(&path, dentry, from);
++	error = security_path_symlink(&path, dentry, from->name);
+ 	if (!error)
+-		error = vfs_symlink2(path.mnt, path.dentry->d_inode, dentry, from);
++		error = vfs_symlink2(path.mnt, path.dentry->d_inode, dentry, from->name);
+ 	done_path_create(&path, dentry);
+ out_putname:
+ 	putname(from);
+@@ -3845,17 +3867,21 @@ SYSCALL_DEFINE4(renameat, int, olddfd, const char __user *, oldname,
+ 	struct dentry *old_dentry, *new_dentry;
+ 	struct dentry *trap;
+ 	struct nameidata oldnd, newnd;
+-	char *from;
+-	char *to;
++	struct filename *from;
++	struct filename *to;
+ 	int error;
+ 
+-	error = user_path_parent(olddfd, oldname, &oldnd, &from);
+-	if (error)
++	from = user_path_parent(olddfd, oldname, &oldnd);
++	if (IS_ERR(from)) {
++		error = PTR_ERR(from);
+ 		goto exit;
++	}
+ 
+-	error = user_path_parent(newdfd, newname, &newnd, &to);
+-	if (error)
++	to = user_path_parent(newdfd, newname, &newnd);
++	if (IS_ERR(to)) {
++		error = PTR_ERR(to);
+ 		goto exit1;
++	}
+ 
+ 	error = -EXDEV;
+ 	if (oldnd.path.mnt != newnd.path.mnt)
+diff --git a/fs/namespace.c b/fs/namespace.c
+index f56d7dee1f1..88fca9a61c4 100644
+--- a/fs/namespace.c
++++ b/fs/namespace.c
+@@ -2445,7 +2445,7 @@ SYSCALL_DEFINE5(mount, char __user *, dev_name, char __user *, dir_name,
+ {
+ 	int ret;
+ 	char *kernel_type;
+-	char *kernel_dir;
++	struct filename *kernel_dir;
+ 	char *kernel_dev;
+ 	unsigned long data_page;
+ 
+@@ -2467,7 +2467,7 @@ SYSCALL_DEFINE5(mount, char __user *, dev_name, char __user *, dir_name,
+ 	if (ret < 0)
+ 		goto out_data;
+ 
+-	ret = do_mount(kernel_dev, kernel_dir, kernel_type, flags,
++	ret = do_mount(kernel_dev, kernel_dir->name, kernel_type, flags,
+ 		(void *) data_page);
+ 
+ 	free_page(data_page);
+diff --git a/fs/open.c b/fs/open.c
+index cffe733fb19..ea07eaea904 100644
+--- a/fs/open.c
++++ b/fs/open.c
+@@ -992,13 +992,13 @@ long do_sys_open(int dfd, const char __user *filename, int flags, umode_t mode)
+ {
+ 	struct open_flags op;
+ 	int lookup = build_open_flags(flags, mode, &op);
+-	char *tmp = getname(filename);
++	struct filename *tmp = getname(filename);
+ 	int fd = PTR_ERR(tmp);
+ 
+ 	if (!IS_ERR(tmp)) {
+ 		fd = get_unused_fd_flags(flags);
+ 		if (fd >= 0) {
+-			struct file *f = do_filp_open(dfd, tmp, &op, lookup);
++			struct file *f = do_filp_open(dfd, tmp->name, &op, lookup);
+ 			if (IS_ERR(f)) {
+ 				put_unused_fd(fd);
+ 				fd = PTR_ERR(f);
+diff --git a/fs/quota/quota.c b/fs/quota/quota.c
+index 9a391204ca2..682b8201836 100644
+--- a/fs/quota/quota.c
++++ b/fs/quota/quota.c
+@@ -315,11 +315,11 @@ static struct super_block *quotactl_block(const char __user *special, int cmd)
+ #ifdef CONFIG_BLOCK
+ 	struct block_device *bdev;
+ 	struct super_block *sb;
+-	char *tmp = getname(special);
++	struct filename *tmp = getname(special);
+ 
+ 	if (IS_ERR(tmp))
+ 		return ERR_CAST(tmp);
+-	bdev = lookup_bdev(tmp);
++	bdev = lookup_bdev(tmp->name);
+ 	putname(tmp);
+ 	if (IS_ERR(bdev))
+ 		return ERR_CAST(bdev);
+diff --git a/include/linux/audit.h b/include/linux/audit.h
+index c592bb75ce5..a3089179a8f 100644
+--- a/include/linux/audit.h
++++ b/include/linux/audit.h
+@@ -452,6 +452,9 @@ struct audit_field {
+ extern int __init audit_register_class(int class, unsigned *list);
+ extern int audit_classify_syscall(int abi, unsigned syscall);
+ extern int audit_classify_arch(int arch);
++
++struct filename;
++
+ #ifdef CONFIG_AUDITSYSCALL
+ /* These are defined in auditsc.c */
+ 				/* Public API */
+@@ -461,8 +464,8 @@ extern void __audit_syscall_entry(int arch,
+ 				  int major, unsigned long a0, unsigned long a1,
+ 				  unsigned long a2, unsigned long a3);
+ extern void __audit_syscall_exit(int ret_success, long ret_value);
+-extern void __audit_getname(const char *name);
+-extern void audit_putname(const char *name);
++extern void __audit_getname(struct filename *name);
++extern void audit_putname(struct filename *name);
+ extern void __audit_inode(const char *name, const struct dentry *dentry);
+ extern void __audit_inode_child(const struct dentry *dentry,
+ 				const struct inode *parent);
+@@ -495,7 +498,7 @@ static inline void audit_syscall_exit(void *pt_regs)
+ 		__audit_syscall_exit(success, return_code);
+ 	}
+ }
+-static inline void audit_getname(const char *name)
++static inline void audit_getname(struct filename *name)
+ {
+ 	if (unlikely(!audit_dummy_context()))
+ 		__audit_getname(name);
+diff --git a/include/linux/fs.h b/include/linux/fs.h
+index 46ffdcd69ad..68ec8c84a2e 100644
+--- a/include/linux/fs.h
++++ b/include/linux/fs.h
+@@ -2096,6 +2096,10 @@ static inline int break_lease(struct inode *inode, unsigned int mode)
+ #endif /* CONFIG_FILE_LOCKING */
+ 
+ /* fs/open.c */
++struct filename {
++	const char *name;		/* pointer to actual string */
++	const __user char *uptr;	/* original userland pointer */
++};
+ 
+ extern int do_truncate(struct dentry *, loff_t start, unsigned int time_attrs,
+ 		       struct file *filp);
+@@ -2111,7 +2115,9 @@ extern struct file *file_open_root(struct dentry *, struct vfsmount *,
+ extern struct file * dentry_open(struct dentry *, struct vfsmount *, int,
+ 				 const struct cred *);
+ extern int filp_close(struct file *, fl_owner_t id);
+-extern char * getname(const char __user *);
++
++extern struct filename *getname(const char __user *);
++
+ enum {
+ 	FILE_CREATED = 1,
+ 	FILE_OPENED = 2
+@@ -2131,13 +2137,15 @@ extern void __init vfs_caches_init(unsigned long);
+ 
+ extern struct kmem_cache *names_cachep;
+ 
++extern void final_putname(struct filename *name);
++
+ #define __getname_gfp(gfp)	kmem_cache_alloc(names_cachep, (gfp))
+ #define __getname()		__getname_gfp(GFP_KERNEL)
+ #define __putname(name)		kmem_cache_free(names_cachep, (void *)(name))
+ #ifndef CONFIG_AUDITSYSCALL
+-#define putname(name)   __putname(name)
++#define putname(name)		final_putname(name)
+ #else
+-extern void putname(const char *name);
++extern void putname(struct filename *name);
+ #endif
+ 
+ #ifdef CONFIG_BLOCK
+diff --git a/ipc/mqueue.c b/ipc/mqueue.c
+index ccc708dc692..41eec1f4cc4 100644
+--- a/ipc/mqueue.c
++++ b/ipc/mqueue.c
+@@ -678,7 +678,7 @@ SYSCALL_DEFINE4(mq_open, const char __user *, u_name, int, oflag, umode_t, mode,
+ {
+ 	struct dentry *dentry;
+ 	struct file *filp;
+-	char *name;
++	struct filename *name;
+ 	struct mq_attr attr;
+ 	int fd, error;
+ 	struct ipc_namespace *ipc_ns = current->nsproxy->ipc_ns;
+@@ -696,7 +696,7 @@ SYSCALL_DEFINE4(mq_open, const char __user *, u_name, int, oflag, umode_t, mode,
+ 		goto out_putname;
+ 
+ 	mutex_lock(&ipc_ns->mq_mnt->mnt_root->d_inode->i_mutex);
+-	dentry = lookup_one_len2(name, ipc_ns->mq_mnt, ipc_ns->mq_mnt->mnt_root, strlen(name));
++	dentry = lookup_one_len2(name->name, ipc_ns->mq_mnt, ipc_ns->mq_mnt->mnt_root, strlen(name));
+ 	if (IS_ERR(dentry)) {
+ 		error = PTR_ERR(dentry);
+ 		goto out_putfd;
+@@ -705,7 +705,7 @@ SYSCALL_DEFINE4(mq_open, const char __user *, u_name, int, oflag, umode_t, mode,
+ 
+ 	if (oflag & O_CREAT) {
+ 		if (dentry->d_inode) {	/* entry already exists */
+-			audit_inode(name, dentry);
++			audit_inode(name->name, path.dentry);
+ 			if (oflag & O_EXCL) {
+ 				error = -EEXIST;
+ 				goto out;
+@@ -721,7 +721,7 @@ SYSCALL_DEFINE4(mq_open, const char __user *, u_name, int, oflag, umode_t, mode,
+ 			error = -ENOENT;
+ 			goto out;
+ 		}
+-		audit_inode(name, dentry);
++		audit_inode(name->name, path.dentry);
+ 		filp = do_open(ipc_ns, dentry, oflag);
+ 	}
+ 
+@@ -749,7 +749,7 @@ out_putname:
+ SYSCALL_DEFINE1(mq_unlink, const char __user *, u_name)
+ {
+ 	int err;
+-	char *name;
++	struct filename *name;
+ 	struct dentry *dentry;
+ 	struct inode *inode = NULL;
+ 	struct ipc_namespace *ipc_ns = current->nsproxy->ipc_ns;
+@@ -760,7 +760,7 @@ SYSCALL_DEFINE1(mq_unlink, const char __user *, u_name)
+ 
+ 	mutex_lock_nested(&ipc_ns->mq_mnt->mnt_root->d_inode->i_mutex,
+ 			I_MUTEX_PARENT);
+-	dentry = lookup_one_len2(name, ipc_ns->mq_mnt, ipc_ns->mq_mnt->mnt_root,
++	dentry = lookup_one_len2(name->name, ipc_ns->mq_mnt, ipc_ns->mq_mnt->mnt_root,
+ 			       strlen(name));
+ 	if (IS_ERR(dentry)) {
+ 		err = PTR_ERR(dentry);
+diff --git a/kernel/acct.c b/kernel/acct.c
+index 02e6167a53b..1f46dfb4dfc 100644
+--- a/kernel/acct.c
++++ b/kernel/acct.c
+@@ -260,10 +260,10 @@ SYSCALL_DEFINE1(acct, const char __user *, name)
+ 		return -EPERM;
+ 
+ 	if (name) {
+-		char *tmp = getname(name);
++		struct filename *tmp = getname(name);
+ 		if (IS_ERR(tmp))
+ 			return (PTR_ERR(tmp));
+-		error = acct_on(tmp);
++		error = acct_on(tmp->name);
+ 		putname(tmp);
+ 	} else {
+ 		struct bsd_acct_struct *acct;
+diff --git a/kernel/auditsc.c b/kernel/auditsc.c
+index 93c2b38ae4e..b22993bdfaf 100644
+--- a/kernel/auditsc.c
++++ b/kernel/auditsc.c
+@@ -113,27 +113,29 @@ struct audit_cap_data {
+  * we don't let putname() free it (instead we free all of the saved
+  * pointers at syscall exit time).
+  *
+- * Further, in fs/namei.c:path_lookup() we store the inode and device. */
++ * Further, in fs/namei.c:path_lookup() we store the inode and device.
++ */
+ struct audit_names {
+-	struct list_head list;		/* audit_context->names_list */
+-	const char	*name;
+-	unsigned long	ino;
+-	dev_t		dev;
+-	umode_t		mode;
+-	uid_t		uid;
+-	gid_t		gid;
+-	dev_t		rdev;
+-	u32		osid;
+-	struct audit_cap_data fcap;
+-	unsigned int	fcap_ver;
+-	int		name_len;	/* number of name's characters to log */
+-	bool		name_put;	/* call __putname() for this name */
++	struct list_head	list;		/* audit_context->names_list */
++	struct filename	*name;
++	unsigned long		ino;
++	dev_t			dev;
++	umode_t			mode;
++	uid_t			uid;
++	gid_t			gid;
++	dev_t			rdev;
++	u32			osid;
++	struct audit_cap_data	 fcap;
++	unsigned int		fcap_ver;
++	int			name_len;	/* number of name's characters to log */
++	unsigned char		type;		/* record type */
++	bool			name_put;	/* call __putname() for this name */
+ 	/*
+ 	 * This was an allocated audit_names and not from the array of
+ 	 * names allocated in the task audit context.  Thus this name
+ 	 * should be freed on syscall exit
+ 	 */
+-	bool		should_free;
++	bool			should_free;
+ };
+ 
+ struct audit_proctitle {
+@@ -1035,7 +1037,7 @@ static inline void audit_free_names(struct audit_context *context)
+ 		       context->ino_count);
+ 		list_for_each_entry(n, &context->names_list, list) {
+ 			printk(KERN_ERR "names[%d] = %p = %s\n", i,
+-			       n->name, n->name ?: "(null)");
++			       n->name, n->name->name ?: "(null)");
+ 		}
+ 		dump_stack();
+ 		return;
+@@ -1561,7 +1563,7 @@ static void audit_log_name(struct audit_context *context, struct audit_names *n,
+ 		case AUDIT_NAME_FULL:
+ 			/* log the full path */
+ 			audit_log_format(ab, " name=");
+-			audit_log_untrustedstring(ab, n->name);
++			audit_log_untrustedstring(ab, n->name->name);
+ 			break;
+ 		case 0:
+ 			/* name was specified as a relative path and the
+@@ -1571,7 +1573,7 @@ static void audit_log_name(struct audit_context *context, struct audit_names *n,
+ 		default:
+ 			/* log the name's directory component */
+ 			audit_log_format(ab, " name=");
+-			audit_log_n_untrustedstring(ab, n->name,
++			audit_log_n_untrustedstring(ab, n->name->name,
+ 						    n->name_len);
+ 		}
+ 	} else
+@@ -2124,7 +2126,7 @@ static struct audit_names *audit_alloc_name(struct audit_context *context)
+  * Add a name to the list of audit names for this context.
+  * Called from fs/namei.c:getname().
+  */
+-void __audit_getname(const char *name)
++void __audit_getname(struct filename *name)
+ {
+ 	struct audit_context *context = current->audit_context;
+ 	struct audit_names *n;
+@@ -2138,6 +2140,11 @@ void __audit_getname(const char *name)
+ 		return;
+ 	}
+ 
++#if AUDIT_DEBUG
++	/* The filename _must_ have a populated ->name */
++	BUG_ON(!name->name);
++#endif
++
+ 	n = audit_alloc_name(context);
+ 	if (!n)
+ 		return;
+@@ -2157,7 +2164,7 @@ void __audit_getname(const char *name)
+  * then we delay the putname until syscall exit.
+  * Called from include/linux/fs.h:putname().
+  */
+-void audit_putname(const char *name)
++void audit_putname(struct filename *name)
+ {
+ 	struct audit_context *context = current->audit_context;
+ 
+@@ -2172,7 +2179,7 @@ void audit_putname(const char *name)
+ 
+ 			list_for_each_entry(n, &context->names_list, list)
+ 				printk(KERN_ERR "name[%d] = %p = %s\n", i,
+-				       n->name, n->name ?: "(null)");
++				       n->name, n->name->name ?: "(null)");
+ 			}
+ #endif
+ 		__putname(name);
+@@ -2186,8 +2193,8 @@ void audit_putname(const char *name)
+ 			       " put_count=%d\n",
+ 			       __FILE__, __LINE__,
+ 			       context->serial, context->major,
+-			       context->in_syscall, name, context->name_count,
+-			       context->put_count);
++			       context->in_syscall, name->name,
++			       context->name_count, context->put_count);
+ 			dump_stack();
+ 		}
+ 	}
+@@ -2246,7 +2253,7 @@ void __audit_inode(const char *name, const struct dentry *dentry)
+ 		return;
+ 
+ 	list_for_each_entry_reverse(n, &context->names_list, list) {
+-		if (n->name && (n->name == name))
++		if (n->name && (n->name->name == name))
+ 			goto out;
+ 	}
+ 
+@@ -2294,9 +2301,9 @@ void __audit_inode_child(const struct dentry *dentry,
+ 			continue;
+ 
+ 		if (n->ino == parent->i_ino &&
+-		    !audit_compare_dname_path(dname, n->name, &dirlen)) {
++		    !audit_compare_dname_path(dname, n->name->name, &dirlen)) {
+ 			n->name_len = dirlen; /* update parent data in place */
+-			found_parent = n->name;
++			found_parent = n->name->name;
+ 			goto add_names;
+ 		}
+ 	}
+@@ -2307,13 +2314,13 @@ void __audit_inode_child(const struct dentry *dentry,
+ 			continue;
+ 
+ 		/* strcmp() is the more likely scenario */
+-		if (!strcmp(dname, n->name) ||
+-		     !audit_compare_dname_path(dname, n->name, &dirlen)) {
++		if (!strcmp(dname, n->name->name) ||
++		     !audit_compare_dname_path(dname, n->name->name, &dirlen)) {
+ 			if (inode)
+ 				audit_copy_inode(n, NULL, inode);
+ 			else
+ 				n->ino = (unsigned long)-1;
+-			found_child = n->name;
++			found_child = n->name->name;
+ 			goto add_names;
+ 		}
+ 	}
+@@ -2335,7 +2342,7 @@ add_names:
+ 		 * directory. All names for this context are relinquished in
+ 		 * audit_free_names() */
+ 		if (found_parent) {
+-			n->name = found_parent;
++			n->name->name = found_parent;
+ 			n->name_len = AUDIT_NAME_FULL;
+ 			/* don't call __putname() */
+ 			n->name_put = false;
+diff --git a/mm/swapfile.c b/mm/swapfile.c
+index a083bc0b285..7af77a24d29 100644
+--- a/mm/swapfile.c
++++ b/mm/swapfile.c
+@@ -1662,7 +1662,7 @@ SYSCALL_DEFINE1(swapoff, const char __user *, specialfile)
+ 	struct file *swap_file, *victim;
+ 	struct address_space *mapping;
+ 	struct inode *inode;
+-	char *pathname;
++	struct filename *pathname;
+ 	int oom_score_adj;
+ 	int i, type, prev;
+ 	int err;
+@@ -1677,8 +1677,7 @@ SYSCALL_DEFINE1(swapoff, const char __user *, specialfile)
+ 	if (IS_ERR(pathname))
+ 		goto out;
+ 
+-	victim = filp_open(pathname, O_RDWR|O_LARGEFILE, 0);
+-	putname(pathname);
++	victim = filp_open(pathname->name, O_RDWR|O_LARGEFILE, 0);
+ 	err = PTR_ERR(victim);
+ 	if (IS_ERR(victim))
+ 		goto out;
+@@ -2122,7 +2121,7 @@ static int setup_swap_map_and_extents(struct swap_info_struct *p,
+ SYSCALL_DEFINE2(swapon, const char __user *, specialfile, int, swap_flags)
+ {
+ 	struct swap_info_struct *p;
+-	char *name;
++	struct filename *name;
+ 	struct file *swap_file = NULL;
+ 	struct address_space *mapping;
+ 	int i;
+@@ -2153,7 +2152,7 @@ SYSCALL_DEFINE2(swapon, const char __user *, specialfile, int, swap_flags)
+ 		name = NULL;
+ 		goto bad_swap;
+ 	}
+-	swap_file = filp_open(name, O_RDWR|O_LARGEFILE, 0);
++	swap_file = filp_open(name->name, O_RDWR|O_LARGEFILE, 0);
+ 	if (IS_ERR(swap_file)) {
+ 		error = PTR_ERR(swap_file);
+ 		swap_file = NULL;
+@@ -2242,8 +2241,8 @@ SYSCALL_DEFINE2(swapon, const char __user *, specialfile, int, swap_flags)
+ 	enable_swap_info(p, prio, swap_map, frontswap_map);
+ 
+ 	printk(KERN_INFO "Adding %uk swap on %s.  "
+-			"Priority:%d extents:%d across:%lluk %s%s%s\n",
+-		p->pages<<(PAGE_SHIFT-10), name, p->prio,
++			"Priority:%d extents:%d across:%lluk %s%s\n",
++		p->pages<<(PAGE_SHIFT-10), name->name, p->prio,
+ 		nr_extents, (unsigned long long)span<<(PAGE_SHIFT-10),
+ 		(p->flags & SWP_SOLIDSTATE) ? "SS" : "",
+ 		(p->flags & SWP_DISCARDABLE) ? "D" : "",
+-- 
+2.17.1
+

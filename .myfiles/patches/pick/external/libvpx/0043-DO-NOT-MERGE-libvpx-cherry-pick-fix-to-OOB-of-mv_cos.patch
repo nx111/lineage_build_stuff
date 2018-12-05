@@ -1,0 +1,73 @@
+From c483b312a5e5a3842281228f500b3bbf78d19b25 Mon Sep 17 00:00:00 2001
+From: Jerome Jiang <jianj@google.com>
+Date: Tue, 27 Mar 2018 16:35:41 -0700
+Subject: [PATCH 43/47] DO NOT MERGE | libvpx: cherry pick fix to OOB of
+ mv_cost index.
+
+Bug: b/72510002
+Test: poc provided in the bug.
+Change-Id: Ie79105f64f56caebba647dba176fac565e5de5f4
+---
+ libvpx/vp8/encoder/mcomp.c | 44 ++++++++++++++++++++++----------------
+ 1 file changed, 26 insertions(+), 18 deletions(-)
+
+diff --git a/libvpx/vp8/encoder/mcomp.c b/libvpx/vp8/encoder/mcomp.c
+index 768c764..3d1b4df 100644
+--- a/libvpx/vp8/encoder/mcomp.c
++++ b/libvpx/vp8/encoder/mcomp.c
+@@ -27,26 +27,34 @@ static int mv_ref_ct [31] [4] [2];
+ static int mv_mode_cts [4] [2];
+ #endif
+ 
+-int vp8_mv_bit_cost(int_mv *mv, int_mv *ref, int *mvcost[2], int Weight)
+-{
+-    /* MV costing is based on the distribution of vectors in the previous
+-     * frame and as such will tend to over state the cost of vectors. In
+-     * addition coding a new vector can have a knock on effect on the cost
+-     * of subsequent vectors and the quality of prediction from NEAR and
+-     * NEAREST for subsequent blocks. The "Weight" parameter allows, to a
+-     * limited extent, for some account to be taken of these factors.
+-     */
+-    return ((mvcost[0][(mv->as_mv.row - ref->as_mv.row) >> 1] + mvcost[1][(mv->as_mv.col - ref->as_mv.col) >> 1]) * Weight) >> 7;
++int vp8_mv_bit_cost(int_mv *mv, int_mv *ref, int *mvcost[2], int Weight) {
++  /* MV costing is based on the distribution of vectors in the previous
++   * frame and as such will tend to over state the cost of vectors. In
++   * addition coding a new vector can have a knock on effect on the cost
++   * of subsequent vectors and the quality of prediction from NEAR and
++   * NEAREST for subsequent blocks. The "Weight" parameter allows, to a
++   * limited extent, for some account to be taken of these factors.
++   */
++  const int mv_idx_row =
++      clamp((mv->as_mv.row - ref->as_mv.row) >> 1, 0, MVvals);
++  const int mv_idx_col =
++      clamp((mv->as_mv.col - ref->as_mv.col) >> 1, 0, MVvals);
++  return ((mvcost[0][mv_idx_row] + mvcost[1][mv_idx_col]) * Weight) >> 7;
+ }
+ 
+-static int mv_err_cost(int_mv *mv, int_mv *ref, int *mvcost[2], int error_per_bit)
+-{
+-    /* Ignore mv costing if mvcost is NULL */
+-    if (mvcost)
+-        return ((mvcost[0][(mv->as_mv.row - ref->as_mv.row) >> 1] +
+-                 mvcost[1][(mv->as_mv.col - ref->as_mv.col) >> 1])
+-                 * error_per_bit + 128) >> 8;
+-    return 0;
++static int mv_err_cost(int_mv *mv, int_mv *ref, int *mvcost[2],
++                       int error_per_bit) {
++  /* Ignore mv costing if mvcost is NULL */
++  if (mvcost) {
++    const int mv_idx_row =
++        clamp((mv->as_mv.row - ref->as_mv.row) >> 1, 0, MVvals);
++    const int mv_idx_col =
++        clamp((mv->as_mv.col - ref->as_mv.col) >> 1, 0, MVvals);
++    return ((mvcost[0][mv_idx_row] + mvcost[1][mv_idx_col]) * error_per_bit +
++            128) >>
++           8;
++  }
++  return 0;
+ }
+ 
+ static int mvsad_err_cost(int_mv *mv, int_mv *ref, int *mvsadcost[2], int error_per_bit)
+-- 
+2.17.1
+

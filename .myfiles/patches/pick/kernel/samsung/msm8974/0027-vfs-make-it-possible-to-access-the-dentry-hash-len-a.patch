@@ -1,0 +1,424 @@
+From 1b7074e3015d6e50a660aafac3f42aa5550f2acf Mon Sep 17 00:00:00 2001
+From: Linus Torvalds <torvalds@linux-foundation.org>
+Date: Thu, 10 May 2012 13:14:12 -0700
+Subject: [PATCH 027/132] vfs: make it possible to access the dentry hash/len
+ as one 64-bit entry
+
+This allows comparing hash and len in one operation on 64-bit
+architectures.  Right now only __d_lookup_rcu() takes advantage of this,
+since that is the case we care most about.
+
+The use of anonymous struct/unions hides the alternate 64-bit approach
+from most users, the exception being a few cases where we initialize a
+'struct qstr' with a static initializer.  This makes the problematic
+cases use a new QSTR_INIT() helper function for that (but initializing
+just the name pointer with a "{ .name = xyzzy }" initializer remains
+valid, as does just copying another qstr structure).
+
+Signed-off-by: Linus Torvalds <torvalds@linux-foundation.org>
+Change-Id: I07515d2cc35c62760914be1f69c6d6e090362635
+---
+ fs/dcache.c              | 16 +++++++---------
+ fs/ext2/namei.c          |  2 +-
+ fs/ext4/namei.c          |  5 +----
+ fs/gfs2/dir.c            |  2 +-
+ fs/libfs.c               |  4 ++--
+ fs/nfs/dir.c             |  5 +----
+ fs/nfs/nfs3proc.c        |  3 +--
+ fs/nfs/nfs4proc.c        |  3 +--
+ fs/nfs/proc.c            |  3 +--
+ fs/nilfs2/namei.c        |  2 +-
+ fs/sdcardfs/main.c       |  5 +----
+ fs/sdcardfs/sdcardfs.h   |  1 -
+ fs/ubifs/tnc.c           |  2 +-
+ fs/ubifs/xattr.c         |  6 +++---
+ fs/udf/namei.c           |  2 +-
+ fs/ufs/super.c           |  5 +----
+ include/linux/dcache.h   | 19 +++++++++++++++++--
+ include/linux/fscrypto.h |  1 -
+ net/sunrpc/clnt.c        |  4 +---
+ net/sunrpc/rpc_pipe.c    |  7 ++-----
+ 20 files changed, 44 insertions(+), 53 deletions(-)
+
+diff --git a/fs/dcache.c b/fs/dcache.c
+index 99fe612f1de..773ebdde369 100644
+--- a/fs/dcache.c
++++ b/fs/dcache.c
+@@ -1553,7 +1553,7 @@ struct dentry *d_make_root(struct inode *root_inode)
+ 	struct dentry *res = NULL;
+ 
+ 	if (root_inode) {
+-		static const struct qstr name = { .name = "/", .len = 1 };
++		static const struct qstr name = QSTR_INIT("/", 1);
+ 
+ 		res = __d_alloc(root_inode->i_sb, &name);
+ 		if (res)
+@@ -1867,10 +1867,9 @@ struct dentry *__d_lookup_rcu(const struct dentry *parent,
+ 				const struct qstr *name,
+ 				unsigned *seqp, struct inode *inode)
+ {
+-	unsigned int len = name->len;
+-	unsigned int hash = name->hash;
++	u64 hashlen = name->hash_len;
+ 	const unsigned char *str = name->name;
+-	struct hlist_bl_head *b = d_hash(parent, hash);
++	struct hlist_bl_head *b = d_hash(parent, hashlen_hash(hashlen));
+ 	struct hlist_bl_node *node;
+ 	struct dentry *dentry;
+ 
+@@ -1897,9 +1896,6 @@ struct dentry *__d_lookup_rcu(const struct dentry *parent,
+ 	hlist_bl_for_each_entry_rcu(dentry, node, b, d_hash) {
+ 		unsigned seq;
+ 
+-		if (dentry->d_name.hash != hash)
+-			continue;
+-
+ seqretry:
+ 		/*
+ 		 * The dentry sequence count protects us from concurrent
+@@ -1924,6 +1920,8 @@ seqretry:
+ 		*seqp = seq;
+ 
+ 		if (unlikely(parent->d_flags & DCACHE_OP_COMPARE)) {
++			if (dentry->d_name.hash != hashlen_hash(hashlen))
++				continue;
+ 			switch (slow_dentry_cmp(parent, inode, dentry, seq, name)) {
+ 			case D_COMP_OK:
+ 				return dentry;
+@@ -1934,9 +1932,9 @@ seqretry:
+ 			}
+ 		}
+ 
+-		if (dentry->d_name.len != len)
++		if (dentry->d_name.hash_len != hashlen)
+ 			continue;
+-		if (!dentry_cmp(dentry, str, len))
++		if (!dentry_cmp(dentry, str, hashlen_len(hashlen)))
+ 			return dentry;
+ 	}
+ 	return NULL;
+diff --git a/fs/ext2/namei.c b/fs/ext2/namei.c
+index dffb8653628..f663a67d7bf 100644
+--- a/fs/ext2/namei.c
++++ b/fs/ext2/namei.c
+@@ -79,7 +79,7 @@ static struct dentry *ext2_lookup(struct inode * dir, struct dentry *dentry, str
+ 
+ struct dentry *ext2_get_parent(struct dentry *child)
+ {
+-	struct qstr dotdot = {.name = "..", .len = 2};
++	struct qstr dotdot = QSTR_INIT("..", 2);
+ 	unsigned long ino = ext2_inode_by_name(child->d_inode, &dotdot);
+ 	if (!ino)
+ 		return ERR_PTR(-ENOENT);
+diff --git a/fs/ext4/namei.c b/fs/ext4/namei.c
+index 40c85e01e52..960480d7465 100644
+--- a/fs/ext4/namei.c
++++ b/fs/ext4/namei.c
+@@ -1072,10 +1072,7 @@ static struct dentry *ext4_lookup(struct inode *dir, struct dentry *dentry, stru
+ struct dentry *ext4_get_parent(struct dentry *child)
+ {
+ 	__u32 ino;
+-	static const struct qstr dotdot = {
+-		.name = "..",
+-		.len = 2,
+-	};
++	static const struct qstr dotdot = QSTR_INIT("..", 2);
+ 	struct ext4_dir_entry_2 * de;
+ 	struct buffer_head *bh;
+ 
+diff --git a/fs/gfs2/dir.c b/fs/gfs2/dir.c
+index a836056343f..8aaeb07a07b 100644
+--- a/fs/gfs2/dir.c
++++ b/fs/gfs2/dir.c
+@@ -821,7 +821,7 @@ static struct gfs2_leaf *new_leaf(struct inode *inode, struct buffer_head **pbh,
+ 	struct buffer_head *bh;
+ 	struct gfs2_leaf *leaf;
+ 	struct gfs2_dirent *dent;
+-	struct qstr name = { .name = "", .len = 0, .hash = 0 };
++	struct qstr name = { .name = "" };
+ 
+ 	error = gfs2_alloc_blocks(ip, &bn, &n, 0, NULL);
+ 	if (error)
+diff --git a/fs/libfs.c b/fs/libfs.c
+index 65c126f0d5e..9f3c08c3ae2 100644
+--- a/fs/libfs.c
++++ b/fs/libfs.c
+@@ -68,7 +68,7 @@ struct dentry *simple_lookup(struct inode *dir, struct dentry *dentry, struct na
+ 
+ int dcache_dir_open(struct inode *inode, struct file *file)
+ {
+-	static struct qstr cursor_name = {.len = 1, .name = "."};
++	static struct qstr cursor_name = QSTR_INIT(".", 1);
+ 
+ 	file->private_data = d_alloc(file->f_path.dentry, &cursor_name);
+ 
+@@ -225,7 +225,7 @@ struct dentry *mount_pseudo(struct file_system_type *fs_type, char *name,
+ 	struct super_block *s = sget(fs_type, NULL, set_anon_super, NULL);
+ 	struct dentry *dentry;
+ 	struct inode *root;
+-	struct qstr d_name = {.name = name, .len = strlen(name)};
++	struct qstr d_name = QSTR_INIT(name, strlen(name));
+ 
+ 	if (IS_ERR(s))
+ 		return ERR_CAST(s);
+diff --git a/fs/nfs/dir.c b/fs/nfs/dir.c
+index a0daac7ad50..7bc78419b44 100644
+--- a/fs/nfs/dir.c
++++ b/fs/nfs/dir.c
+@@ -477,10 +477,7 @@ different:
+ static
+ void nfs_prime_dcache(struct dentry *parent, struct nfs_entry *entry)
+ {
+-	struct qstr filename = {
+-		.len = entry->len,
+-		.name = entry->name,
+-	};
++	struct qstr filename = QSTR_INIT(entry->name, entry->len);
+ 	struct dentry *dentry;
+ 	struct dentry *alias;
+ 	struct inode *dir = parent->d_inode;
+diff --git a/fs/nfs/nfs3proc.c b/fs/nfs/nfs3proc.c
+index 5e652f4143e..1e515cc40e5 100644
+--- a/fs/nfs/nfs3proc.c
++++ b/fs/nfs/nfs3proc.c
+@@ -398,8 +398,7 @@ nfs3_proc_remove(struct inode *dir, struct qstr *name)
+ {
+ 	struct nfs_removeargs arg = {
+ 		.fh = NFS_FH(dir),
+-		.name.len = name->len,
+-		.name.name = name->name,
++		.name = *name,
+ 	};
+ 	struct nfs_removeres res;
+ 	struct rpc_message msg = {
+diff --git a/fs/nfs/nfs4proc.c b/fs/nfs/nfs4proc.c
+index 119839f09df..d469d64cf5c 100644
+--- a/fs/nfs/nfs4proc.c
++++ b/fs/nfs/nfs4proc.c
+@@ -2814,8 +2814,7 @@ static int _nfs4_proc_remove(struct inode *dir, struct qstr *name)
+ 	struct nfs_server *server = NFS_SERVER(dir);
+ 	struct nfs_removeargs args = {
+ 		.fh = NFS_FH(dir),
+-		.name.len = name->len,
+-		.name.name = name->name,
++		.name = *name,
+ 		.bitmask = server->attr_bitmask,
+ 	};
+ 	struct nfs_removeres res = {
+diff --git a/fs/nfs/proc.c b/fs/nfs/proc.c
+index af9947e35fc..c610fc3d1fe 100644
+--- a/fs/nfs/proc.c
++++ b/fs/nfs/proc.c
+@@ -302,8 +302,7 @@ nfs_proc_remove(struct inode *dir, struct qstr *name)
+ {
+ 	struct nfs_removeargs arg = {
+ 		.fh = NFS_FH(dir),
+-		.name.len = name->len,
+-		.name.name = name->name,
++		.name = *name,
+ 	};
+ 	struct rpc_message msg = { 
+ 		.rpc_proc = &nfs_procedures[NFSPROC_REMOVE],
+diff --git a/fs/nilfs2/namei.c b/fs/nilfs2/namei.c
+index fce2bbee66d..0bb2c2010b9 100644
+--- a/fs/nilfs2/namei.c
++++ b/fs/nilfs2/namei.c
+@@ -441,7 +441,7 @@ static struct dentry *nilfs_get_parent(struct dentry *child)
+ {
+ 	unsigned long ino;
+ 	struct inode *inode;
+-	struct qstr dotdot = {.name = "..", .len = 2};
++	struct qstr dotdot = QSTR_INIT("..", 2);
+ 	struct nilfs_root *root;
+ 
+ 	ino = nilfs_inode_by_name(child->d_inode, &dotdot);
+diff --git a/fs/sdcardfs/main.c b/fs/sdcardfs/main.c
+index 86e04473086..9c147e6f7f8 100644
+--- a/fs/sdcardfs/main.c
++++ b/fs/sdcardfs/main.c
+@@ -218,10 +218,7 @@ static struct dentry *sdcardfs_d_alloc_root(struct super_block *sb)
+ 	struct dentry *ret = NULL;
+ 
+ 	if (sb) {
+-		static const struct qstr name = {
+-			.name = "/",
+-			.len = 1
+-		};
++		static const struct qstr name = QSTR_INIT("/", 1);
+ 
+ 		ret = d_alloc(NULL, &name);
+ 		if (ret) {
+diff --git a/fs/sdcardfs/sdcardfs.h b/fs/sdcardfs/sdcardfs.h
+index 8b5fc6dca53..5399f16f6fb 100644
+--- a/fs/sdcardfs/sdcardfs.h
++++ b/fs/sdcardfs/sdcardfs.h
+@@ -648,7 +648,6 @@ static inline bool qstr_case_eq(const struct qstr *q1, const struct qstr *q2)
+ 	return q1->len == q2->len && str_n_case_eq(q1->name, q2->name, q2->len);
+ }
+ 
+-#define QSTR_INIT(n, l)      { .name = n, .len = l }
+ #define QSTR_LITERAL(string) QSTR_INIT(string, sizeof(string)-1)
+ 
+ #endif	/* not _SDCARDFS_H_ */
+diff --git a/fs/ubifs/tnc.c b/fs/ubifs/tnc.c
+index 16ad84d8402..abd51331345 100644
+--- a/fs/ubifs/tnc.c
++++ b/fs/ubifs/tnc.c
+@@ -2361,7 +2361,7 @@ int ubifs_tnc_add_nm(struct ubifs_info *c, const union ubifs_key *key,
+ 			 * by passing 'ubifs_tnc_remove_nm()' the same key but
+ 			 * an unmatchable name.
+ 			 */
+-			struct qstr noname = { .len = 0, .name = "" };
++			struct qstr noname = { .name = "" };
+ 
+ 			err = dbg_check_tnc(c, 0);
+ 			mutex_unlock(&c->tnc_mutex);
+diff --git a/fs/ubifs/xattr.c b/fs/ubifs/xattr.c
+index 85b27226875..7a8bafa19c9 100644
+--- a/fs/ubifs/xattr.c
++++ b/fs/ubifs/xattr.c
+@@ -298,7 +298,7 @@ int ubifs_setxattr(struct dentry *dentry, const char *name,
+ {
+ 	struct inode *inode, *host = dentry->d_inode;
+ 	struct ubifs_info *c = host->i_sb->s_fs_info;
+-	struct qstr nm = { .name = name, .len = strlen(name) };
++	struct qstr nm = QSTR_INIT(name, strlen(name));
+ 	struct ubifs_dent_node *xent;
+ 	union ubifs_key key;
+ 	int err, type;
+@@ -361,7 +361,7 @@ ssize_t ubifs_getxattr(struct dentry *dentry, const char *name, void *buf,
+ {
+ 	struct inode *inode, *host = dentry->d_inode;
+ 	struct ubifs_info *c = host->i_sb->s_fs_info;
+-	struct qstr nm = { .name = name, .len = strlen(name) };
++	struct qstr nm = QSTR_INIT(name, strlen(name));
+ 	struct ubifs_inode *ui;
+ 	struct ubifs_dent_node *xent;
+ 	union ubifs_key key;
+@@ -524,7 +524,7 @@ int ubifs_removexattr(struct dentry *dentry, const char *name)
+ {
+ 	struct inode *inode, *host = dentry->d_inode;
+ 	struct ubifs_info *c = host->i_sb->s_fs_info;
+-	struct qstr nm = { .name = name, .len = strlen(name) };
++	struct qstr nm = QSTR_INIT(name, strlen(name));
+ 	struct ubifs_dent_node *xent;
+ 	union ubifs_key key;
+ 	int err;
+diff --git a/fs/udf/namei.c b/fs/udf/namei.c
+index 407c1296b7c..7bf47e87fae 100644
+--- a/fs/udf/namei.c
++++ b/fs/udf/namei.c
+@@ -1194,7 +1194,7 @@ static struct dentry *udf_get_parent(struct dentry *child)
+ {
+ 	struct kernel_lb_addr tloc;
+ 	struct inode *inode = NULL;
+-	struct qstr dotdot = {.name = "..", .len = 2};
++	struct qstr dotdot = QSTR_INIT("..", 2);
+ 	struct fileIdentDesc cfi;
+ 	struct udf_fileident_bh fibh;
+ 
+diff --git a/fs/ufs/super.c b/fs/ufs/super.c
+index 26f6cd6a29c..b87b69a2f19 100644
+--- a/fs/ufs/super.c
++++ b/fs/ufs/super.c
+@@ -146,10 +146,7 @@ static struct dentry *ufs_fh_to_parent(struct super_block *sb, struct fid *fid,
+ 
+ static struct dentry *ufs_get_parent(struct dentry *child)
+ {
+-	struct qstr dot_dot = {
+-		.name	= "..",
+-		.len	= 2,
+-	};
++	struct qstr dot_dot = QSTR_INIT("..", 2);
+ 	ino_t ino;
+ 
+ 	ino = ufs_inode_by_name(child->d_inode, &dot_dot);
+diff --git a/include/linux/dcache.h b/include/linux/dcache.h
+index b92010c336a..3e0119f3fae 100644
+--- a/include/linux/dcache.h
++++ b/include/linux/dcache.h
+@@ -25,6 +25,13 @@ struct vfsmount;
+ 
+ #define IS_ROOT(x) ((x) == (x)->d_parent)
+ 
++/* The hash is always the low bits of hash_len */
++#ifdef __LITTLE_ENDIAN
++ #define HASH_LEN_DECLARE u32 hash; u32 len;
++#else
++ #define HASH_LEN_DECLARE u32 len; u32 hash;
++#endif
++
+ /*
+  * "quick string" -- eases parameter passing, but more importantly
+  * saves "metadata" about the string (ie length and the hash).
+@@ -33,11 +40,19 @@ struct vfsmount;
+  * dentry.
+  */
+ struct qstr {
+-	unsigned int hash;
+-	unsigned int len;
++	union {
++		struct {
++			HASH_LEN_DECLARE;
++		};
++		u64 hash_len;
++	};
+ 	const unsigned char *name;
+ };
+ 
++#define QSTR_INIT(n,l) { { { .len = l } }, .name = n }
++#define hashlen_hash(hashlen) ((u32) (hashlen))
++#define hashlen_len(hashlen)  ((u32)((hashlen) >> 32))
++
+ struct dentry_stat_t {
+ 	int nr_dentry;
+ 	int nr_unused;
+diff --git a/include/linux/fscrypto.h b/include/linux/fscrypto.h
+index e4a74f26420..c539aa88789 100644
+--- a/include/linux/fscrypto.h
++++ b/include/linux/fscrypto.h
+@@ -162,7 +162,6 @@ struct fscrypt_name {
+ 	struct fscrypt_str crypto_buf;
+ };
+ 
+-#define QSTR_INIT(n, l)		{ .name = n, .len = l }
+ #define FSTR_INIT(n, l)		{ .name = n, .len = l }
+ #define FSTR_TO_QSTR(f)		QSTR_INIT((f)->name, (f)->len)
+ #define fname_name(p)		((p)->disk_name.name)
+diff --git a/net/sunrpc/clnt.c b/net/sunrpc/clnt.c
+index 0658fb92698..f4285b39280 100644
+--- a/net/sunrpc/clnt.c
++++ b/net/sunrpc/clnt.c
+@@ -127,9 +127,7 @@ static struct dentry *rpc_setup_pipedir_sb(struct super_block *sb,
+ {
+ 	static uint32_t clntid;
+ 	char name[15];
+-	struct qstr q = {
+-		.name = name,
+-	};
++	struct qstr q = { .name = name };
+ 	struct dentry *dir, *dentry;
+ 	int error;
+ 
+diff --git a/net/sunrpc/rpc_pipe.c b/net/sunrpc/rpc_pipe.c
+index a30e5755940..465c2bda621 100644
+--- a/net/sunrpc/rpc_pipe.c
++++ b/net/sunrpc/rpc_pipe.c
+@@ -1059,12 +1059,9 @@ static const struct rpc_filelist files[] = {
+ struct dentry *rpc_d_lookup_sb(const struct super_block *sb,
+ 			       const unsigned char *dir_name)
+ {
+-	struct qstr dir = {
+-		.name = dir_name,
+-		.len = strlen(dir_name),
+-		.hash = full_name_hash(dir_name, strlen(dir_name)),
+-	};
++	struct qstr dir = QSTR_INIT(dir_name, strlen(dir_name));
+ 
++	dir.hash = full_name_hash(dir.name, dir.len);
+ 	return d_lookup(sb->s_root, &dir);
+ }
+ EXPORT_SYMBOL_GPL(rpc_d_lookup_sb);
+-- 
+2.17.1
+

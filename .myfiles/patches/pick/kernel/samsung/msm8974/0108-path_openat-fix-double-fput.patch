@@ -1,0 +1,43 @@
+From b7f519491a7ecc7b80e0ef67395b8fbb091014fc Mon Sep 17 00:00:00 2001
+From: Al Viro <viro@zeniv.linux.org.uk>
+Date: Fri, 8 May 2015 22:53:15 -0400
+Subject: [PATCH 108/132] path_openat(): fix double fput()
+
+[ Upstream commit f15133df088ecadd141ea1907f2c96df67c729f0 ]
+
+path_openat() jumps to the wrong place after do_tmpfile() - it has
+already done path_cleanup() (as part of path_lookupat() called by
+do_tmpfile()), so doing that again can lead to double fput().
+
+Change-Id: I83bb7f0a15db8d2202a010b75ade98f80e7270f2
+Cc: stable@vger.kernel.org	# v3.11+
+Signed-off-by: Al Viro <viro@zeniv.linux.org.uk>
+Signed-off-by: Sasha Levin <sasha.levin@oracle.com>
+---
+ fs/namei.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/fs/namei.c b/fs/namei.c
+index b80d79bc83d..89873663deb 100644
+--- a/fs/namei.c
++++ b/fs/namei.c
+@@ -3071,7 +3071,7 @@ static struct file *path_openat(int dfd, struct filename *pathname,
+ 
+ 	if (unlikely(file->f_flags & __O_TMPFILE)) {
+ 		error = do_tmpfile(dfd, pathname, nd, flags, op, file, &opened);
+-		goto out;
++		goto out2;
+ 	}
+ 
+ 	error = path_init(dfd, pathname->name, flags | LOOKUP_PARENT, nd, &base);
+@@ -3109,6 +3109,7 @@ out:
+ 		path_put(&nd->root);
+ 	if (base)
+ 		fput(base);
++out2:
+ 	if (!(opened & FILE_OPENED)) {
+ 		BUG_ON(!error);
+ 		put_filp(file);
+-- 
+2.17.1
+

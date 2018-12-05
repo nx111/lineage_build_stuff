@@ -1,0 +1,102 @@
+From d3a92fdd0d15d6b035d5b90a9acf2e19132e0760 Mon Sep 17 00:00:00 2001
+From: Al Viro <viro@zeniv.linux.org.uk>
+Date: Sun, 10 Jun 2012 17:17:17 -0400
+Subject: [PATCH 062/132] fs/namei.c: don't pass nameidata to __lookup_hash()
+ and lookup_real()
+
+Signed-off-by: Al Viro <viro@zeniv.linux.org.uk>
+Change-Id: Ifbb478820eeebe7b1996d56b8e2eacb93591699b
+---
+ fs/namei.c | 20 ++++++++++----------
+ 1 file changed, 10 insertions(+), 10 deletions(-)
+
+diff --git a/fs/namei.c b/fs/namei.c
+index c19baf7e7f2..e0ef28ce492 100644
+--- a/fs/namei.c
++++ b/fs/namei.c
+@@ -1128,7 +1128,7 @@ static struct dentry *lookup_dcache(struct qstr *name, struct dentry *dir,
+  * dir->d_inode->i_mutex must be held
+  */
+ static struct dentry *lookup_real(struct inode *dir, struct dentry *dentry,
+-				  struct nameidata *nd)
++				  unsigned int flags)
+ {
+ 	struct dentry *old;
+ 
+@@ -1138,7 +1138,7 @@ static struct dentry *lookup_real(struct inode *dir, struct dentry *dentry,
+ 		return ERR_PTR(-ENOENT);
+ 	}
+ 
+-	old = dir->i_op->lookup(dir, dentry, nd ? nd->flags : 0);
++	old = dir->i_op->lookup(dir, dentry, flags);
+ 	if (unlikely(old)) {
+ 		dput(dentry);
+ 		dentry = old;
+@@ -1147,16 +1147,16 @@ static struct dentry *lookup_real(struct inode *dir, struct dentry *dentry,
+ }
+ 
+ static struct dentry *__lookup_hash(struct qstr *name,
+-		struct dentry *base, struct nameidata *nd)
++		struct dentry *base, unsigned int flags)
+ {
+ 	bool need_lookup;
+ 	struct dentry *dentry;
+ 
+-	dentry = lookup_dcache(name, base, nd ? nd->flags : 0, &need_lookup);
++	dentry = lookup_dcache(name, base, flags, &need_lookup);
+ 	if (!need_lookup)
+ 		return dentry;
+ 
+-	return lookup_real(base->d_inode, dentry, nd);
++	return lookup_real(base->d_inode, dentry, flags);
+ }
+ 
+ /*
+@@ -1275,7 +1275,7 @@ static int lookup_slow(struct nameidata *nd, struct qstr *name,
+ 	BUG_ON(nd->inode != parent->d_inode);
+ 
+ 	mutex_lock(&parent->d_inode->i_mutex);
+-	dentry = __lookup_hash(name, parent, nd);
++	dentry = __lookup_hash(name, parent, nd->flags);
+ 	mutex_unlock(&parent->d_inode->i_mutex);
+ 	if (IS_ERR(dentry))
+ 		return PTR_ERR(dentry);
+@@ -1937,7 +1937,7 @@ int vfs_path_lookup(struct dentry *dentry, struct vfsmount *mnt,
+  */
+ static struct dentry *lookup_hash(struct nameidata *nd)
+ {
+-	return __lookup_hash(&nd->last, nd->path.dentry, nd);
++	return __lookup_hash(&nd->last, nd->path.dentry, nd->flags);
+ }
+ 
+ /**
+@@ -1985,7 +1985,7 @@ struct dentry *lookup_one_len2(const char *name, struct vfsmount *mnt, struct de
+ 	if (err)
+ 		return ERR_PTR(err);
+ 
+-	return __lookup_hash(&this, base, NULL);
++	return __lookup_hash(&this, base, 0);
+ }
+ EXPORT_SYMBOL(lookup_one_len2);
+ 
+@@ -2416,7 +2416,7 @@ out:
+ 
+ no_open:
+ 	if (need_lookup) {
+-		dentry = lookup_real(dir, dentry, nd);
++		dentry = lookup_real(dir, dentry, nd->flags);
+ 		if (IS_ERR(dentry))
+ 			return PTR_ERR(dentry);
+ 
+@@ -2479,7 +2479,7 @@ static int lookup_open(struct nameidata *nd, struct path *path,
+ 	if (need_lookup) {
+ 		BUG_ON(dentry->d_inode);
+ 
+-		dentry = lookup_real(dir_inode, dentry, nd);
++		dentry = lookup_real(dir_inode, dentry, nd->flags);
+ 		if (IS_ERR(dentry))
+ 			return PTR_ERR(dentry);
+ 	}
+-- 
+2.17.1
+

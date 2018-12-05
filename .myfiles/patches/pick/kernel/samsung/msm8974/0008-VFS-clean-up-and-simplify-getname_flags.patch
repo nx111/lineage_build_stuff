@@ -1,0 +1,110 @@
+From 5c1efe2774a6b93c3efd80e816fc62edad67c1f7 Mon Sep 17 00:00:00 2001
+From: Linus Torvalds <torvalds@linux-foundation.org>
+Date: Sat, 28 Apr 2012 14:38:32 -0700
+Subject: [PATCH 008/132] VFS: clean up and simplify getname_flags()
+
+This removes a number of silly games around strncpy_from_user() in
+do_getname(), and removes that helper function entirely.  We instead
+make getname_flags() just use strncpy_from_user() properly directly.
+
+Removing the wrapper function simplifies things noticeably, mostly
+because we no longer play the unnecessary games with segments (x86
+strncpy_from_user() no longer needs the hack), but also because the
+empty path handling is just much more obvious.  The return value of
+"strncpy_to_user()" is much more obvious than checking an odd error
+return case from do_getname().
+
+[ non-x86 architectures were notified of this change several weeks ago,
+  since it is possible that they have copied the old broken x86
+  strncpy_from_user. But nobody reacted, so .. See
+
+    http://www.spinics.net/lists/linux-arch/msg17313.html
+
+  for details ]
+
+Cc: linux-arch@vger.kernel.org
+Signed-off-by: Linus Torvalds <torvalds@linux-foundation.org>
+Change-Id: Idbf67aaa3e9004fbee782a9b52fe0df63797c362
+---
+ fs/namei.c | 58 ++++++++++++++++++++++--------------------------------
+ 1 file changed, 24 insertions(+), 34 deletions(-)
+
+diff --git a/fs/namei.c b/fs/namei.c
+index ea199d95955..ee2e6902d37 100644
+--- a/fs/namei.c
++++ b/fs/namei.c
+@@ -116,47 +116,37 @@
+  * POSIX.1 2.4: an empty pathname is invalid (ENOENT).
+  * PATH_MAX includes the nul terminator --RR.
+  */
+-static int do_getname(const char __user *filename, char *page)
+-{
+-	int retval;
+-	unsigned long len = PATH_MAX;
+-
+-	if (!segment_eq(get_fs(), KERNEL_DS)) {
+-		if ((unsigned long) filename >= TASK_SIZE)
+-			return -EFAULT;
+-		if (TASK_SIZE - (unsigned long) filename < PATH_MAX)
+-			len = TASK_SIZE - (unsigned long) filename;
+-	}
+-
+-	retval = strncpy_from_user(page, filename, len);
+-	if (retval > 0) {
+-		if (retval < len)
+-			return 0;
+-		return -ENAMETOOLONG;
+-	} else if (!retval)
+-		retval = -ENOENT;
+-	return retval;
+-}
+-
+ static char *getname_flags(const char __user *filename, int flags, int *empty)
+ {
+-	char *result = __getname();
+-	int retval;
++	char *result = __getname(), *err;
++	int len;
+ 
+-	if (!result)
++	if (unlikely(!result))
+ 		return ERR_PTR(-ENOMEM);
+ 
+-	retval = do_getname(filename, result);
+-	if (retval < 0) {
+-		if (retval == -ENOENT && empty)
++	len = strncpy_from_user(result, filename, PATH_MAX);
++	err = ERR_PTR(len);
++	if (unlikely(len < 0))
++		goto error;
++
++	/* The empty path is special. */
++	if (unlikely(!len)) {
++		if (empty)
+ 			*empty = 1;
+-		if (retval != -ENOENT || !(flags & LOOKUP_EMPTY)) {
+-			__putname(result);
+-			return ERR_PTR(retval);
+-		}
++		err = ERR_PTR(-ENOENT);
++		if (!(flags & LOOKUP_EMPTY))
++			goto error;
+ 	}
+-	audit_getname(result);
+-	return result;
++
++	err = ERR_PTR(-ENAMETOOLONG);
++	if (likely(len < PATH_MAX)) {
++		audit_getname(result);
++		return result;
++	}
++
++error:
++	__putname(result);
++	return err;
+ }
+ 
+ char *getname(const char __user * filename)
+-- 
+2.17.1
+

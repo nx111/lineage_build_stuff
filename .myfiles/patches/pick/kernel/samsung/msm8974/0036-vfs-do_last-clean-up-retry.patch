@@ -1,0 +1,74 @@
+From 55fe71cabf3510a225595afba4288ea66dec0905 Mon Sep 17 00:00:00 2001
+From: Miklos Szeredi <mszeredi@suse.cz>
+Date: Tue, 5 Jun 2012 15:10:31 +0200
+Subject: [PATCH 036/132] vfs: do_last(): clean up retry
+
+Move the lookup retry logic to the bottom of the function to make the normal
+case simpler to read.
+
+Reported-by: David Howells <dhowells@redhat.com>
+Signed-off-by: Miklos Szeredi <mszeredi@suse.cz>
+Signed-off-by: Al Viro <viro@zeniv.linux.org.uk>
+Change-Id: Ic55e752482d79fbbe47fd0715338f296bd145824
+---
+ fs/namei.c | 36 +++++++++++++++++++++---------------
+ 1 file changed, 21 insertions(+), 15 deletions(-)
+
+diff --git a/fs/namei.c b/fs/namei.c
+index cd98b56982b..edf7b41478f 100644
+--- a/fs/namei.c
++++ b/fs/namei.c
+@@ -2721,22 +2721,11 @@ finish_open_created:
+ 		goto exit;
+ 	od->mnt = nd->path.mnt;
+ 	filp = finish_open(od, nd->path.dentry, NULL);
+-	if (filp == ERR_PTR(-EOPENSTALE) && save_parent.dentry && !retried) {
+-		BUG_ON(save_parent.dentry != dir);
+-		path_put(&nd->path);
+-		nd->path = save_parent;
+-		nd->inode = dir->d_inode;
+-		save_parent.mnt = NULL;
+-		save_parent.dentry = NULL;
+-		if (want_write) {
+-			mnt_drop_write(nd->path.mnt);
+-			want_write = false;
+-		}
+-		retried = true;
+-		goto retry_lookup;
+-	}
+-	if (IS_ERR(filp))
++	if (IS_ERR(filp)) {
++		if (filp == ERR_PTR(-EOPENSTALE))
++			goto stale_open;
+ 		goto out;
++	}
+ 	error = open_check_o_direct(filp);
+ 	if (error)
+ 		goto exit_fput;
+@@ -2766,6 +2755,23 @@ exit_fput:
+ 	fput(filp);
+ 	goto exit;
+ 
++stale_open:
++	/* If no saved parent or already retried then can't retry */
++	if (!save_parent.dentry || retried)
++		goto out;
++
++	BUG_ON(save_parent.dentry != dir);
++	path_put(&nd->path);
++	nd->path = save_parent;
++	nd->inode = dir->d_inode;
++	save_parent.mnt = NULL;
++	save_parent.dentry = NULL;
++	if (want_write) {
++		mnt_drop_write(nd->path.mnt);
++		want_write = false;
++	}
++	retried = true;
++	goto retry_lookup;
+ }
+ 
+ static struct file *path_openat(int dfd, const char *pathname,
+-- 
+2.17.1
+

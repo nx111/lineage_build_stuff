@@ -1,0 +1,59 @@
+From 7e93c307a19bf09a8104e5320c336d736ac10e10 Mon Sep 17 00:00:00 2001
+From: Miklos Szeredi <mszeredi@suse.cz>
+Date: Tue, 5 Jun 2012 15:10:14 +0200
+Subject: [PATCH 024/132] vfs: do_last(): common slow lookup
+
+Make the slow lookup part of O_CREAT and non-O_CREAT opens common.
+
+This allows atomic_open to be hooked into the slow lookup part.
+
+Signed-off-by: Miklos Szeredi <mszeredi@suse.cz>
+Signed-off-by: Al Viro <viro@zeniv.linux.org.uk>
+Change-Id: I28ed6bea60ccd5ca386c537d73edc62a2a9becb8
+---
+ fs/namei.c | 27 +++++----------------------
+ 1 file changed, 5 insertions(+), 22 deletions(-)
+
+diff --git a/fs/namei.c b/fs/namei.c
+index 1aaea62da9a..daf087b133f 100644
+--- a/fs/namei.c
++++ b/fs/namei.c
+@@ -2356,30 +2356,13 @@ static struct file *do_last(struct nameidata *nd, struct path *path,
+ 			symlink_ok = 1;
+ 		/* we _can_ be in RCU mode here */
+ 		error = lookup_fast(nd, &nd->last, path, &inode);
+-		if (unlikely(error)) {
+-			if (error < 0)
+-				goto exit;
+-
+-			BUG_ON(nd->inode != dir->d_inode);
+-
+-			mutex_lock(&dir->d_inode->i_mutex);
+-			dentry = __lookup_hash(&nd->last, dir, nd);
+-			mutex_unlock(&dir->d_inode->i_mutex);
+-			error = PTR_ERR(dentry);
+-			if (IS_ERR(dentry))
+-				goto exit;
+-			path->mnt = nd->path.mnt;
+-			path->dentry = dentry;
+-			error = follow_managed(path, nd->flags);
+-			if (unlikely(error < 0))
+-				goto exit_dput;
++		if (likely(!error))
++			goto finish_lookup;
+ 
+-			if (error)
+-				nd->flags |= LOOKUP_JUMPED;
++		if (error < 0)
++			goto exit;
+ 
+-			inode = path->dentry->d_inode;
+-		}
+-		goto finish_lookup;
++		BUG_ON(nd->inode != dir->d_inode);
+ 	} else {
+ 		/* create side of things */
+ 		/*
+-- 
+2.17.1
+

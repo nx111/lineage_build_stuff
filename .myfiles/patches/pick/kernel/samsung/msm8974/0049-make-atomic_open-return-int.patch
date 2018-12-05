@@ -1,0 +1,683 @@
+From f8c0c59c8402883c999617a8e889433fc7af0c93 Mon Sep 17 00:00:00 2001
+From: Al Viro <viro@zeniv.linux.org.uk>
+Date: Fri, 22 Jun 2012 12:39:14 +0400
+Subject: [PATCH 049/132] make ->atomic_open() return int
+
+Change of calling conventions:
+old		new
+NULL		1
+file		0
+ERR_PTR(-ve)	-ve
+
+Caller *knows* that struct file *; no need to return it.
+
+Signed-off-by: Al Viro <viro@zeniv.linux.org.uk>
+Change-Id: I60182ec407dcd495dd5f8e05bab4cddf42da9b1b
+---
+ Documentation/filesystems/Locking |  2 +-
+ Documentation/filesystems/vfs.txt |  6 ++--
+ fs/9p/vfs_inode.c                 | 10 +++---
+ fs/9p/vfs_inode_dotl.c            | 14 ++++----
+ fs/ceph/dir.c                     | 19 +++++------
+ fs/ceph/file.c                    | 12 +++----
+ fs/ceph/super.h                   |  6 ++--
+ fs/cifs/cifsfs.h                  |  6 ++--
+ fs/cifs/dir.c                     | 17 +++++----
+ fs/fuse/dir.c                     | 33 +++++++++---------
+ fs/namei.c                        | 14 ++++----
+ fs/nfs/dir.c                      | 57 +++++++++++++++----------------
+ include/linux/fs.h                |  6 ++--
+ 13 files changed, 97 insertions(+), 105 deletions(-)
+
+diff --git a/Documentation/filesystems/Locking b/Documentation/filesystems/Locking
+index 25ee0690585..7de529a9b88 100644
+--- a/Documentation/filesystems/Locking
++++ b/Documentation/filesystems/Locking
+@@ -63,7 +63,7 @@ ata *);
+ 	void (*truncate_range)(struct inode *, loff_t, loff_t);
+ 	int (*fiemap)(struct inode *, struct fiemap_extent_info *, u64 start, u64 len);
+ 	void (*update_time)(struct inode *, struct timespec *, int);
+-	struct file * (*atomic_open)(struct inode *, struct dentry *,
++	int (*atomic_open)(struct inode *, struct dentry *,
+ 				struct opendata *, unsigned open_flag,
+ 				umode_t create_mode, int *opened);
+ 
+diff --git a/Documentation/filesystems/vfs.txt b/Documentation/filesystems/vfs.txt
+index 6ddf9afead2..6c055a3e573 100644
+--- a/Documentation/filesystems/vfs.txt
++++ b/Documentation/filesystems/vfs.txt
+@@ -365,7 +365,7 @@ struct inode_operations {
+ 	int (*removexattr) (struct dentry *, const char *);
+ 	void (*truncate_range)(struct inode *, loff_t, loff_t);
+ 	void (*update_time)(struct inode *, struct timespec *, int);
+-	struct file * (*atomic_open)(struct inode *, struct dentry *,
++	int (*atomic_open)(struct inode *, struct dentry *,
+ 				struct opendata *, unsigned open_flag,
+ 				umode_t create_mode, int *opened);
+ };
+@@ -486,8 +486,8 @@ otherwise noted.
+   atomic_open: called on the last component of an open.  Using this optional
+   	method the filesystem can look up, possibly create and open the file in
+   	one atomic operation.  If it cannot perform this (e.g. the file type
+-  	turned out to be wrong) it may signal this by returning NULL instead of
+-  	an open struct file pointer.  This method is only called if the last
++  	turned out to be wrong) it may signal this by returning 1 instead of
++  	usual 0 or -ve .  This method is only called if the last
+   	component is negative or needs lookup.  Cached positive dentries are
+   	still handled by f_op->open().
+ 
+diff --git a/fs/9p/vfs_inode.c b/fs/9p/vfs_inode.c
+index 2a7a9c6ad84..a8d263776f5 100644
+--- a/fs/9p/vfs_inode.c
++++ b/fs/9p/vfs_inode.c
+@@ -855,7 +855,7 @@ error:
+ 	return ERR_PTR(result);
+ }
+ 
+-static struct file *
++static int
+ v9fs_vfs_atomic_open(struct inode *dir, struct dentry *dentry,
+ 		     struct opendata *od, unsigned flags, umode_t mode,
+ 		     int *opened)
+@@ -871,7 +871,7 @@ v9fs_vfs_atomic_open(struct inode *dir, struct dentry *dentry,
+ 	if (d_unhashed(dentry)) {
+ 		res = v9fs_vfs_lookup(dir, dentry, NULL);
+ 		if (IS_ERR(res))
+-			return ERR_CAST(res);
++			return PTR_ERR(res);
+ 
+ 		if (res)
+ 			dentry = res;
+@@ -880,7 +880,7 @@ v9fs_vfs_atomic_open(struct inode *dir, struct dentry *dentry,
+ 	/* Only creates */
+ 	if (!(flags & O_CREAT) || dentry->d_inode) {
+ 		finish_no_open(od, res);
+-		return NULL;
++		return 1;
+ 	}
+ 
+ 	err = 0;
+@@ -932,13 +932,11 @@ v9fs_vfs_atomic_open(struct inode *dir, struct dentry *dentry,
+ 	*opened |= FILE_CREATED;
+ out:
+ 	dput(res);
+-	return filp;
++	return err;
+ 
+ error:
+ 	if (fid)
+ 		p9_client_clunk(fid);
+-
+-	filp = ERR_PTR(err);
+ 	goto out;
+ }
+ 
+diff --git a/fs/9p/vfs_inode_dotl.c b/fs/9p/vfs_inode_dotl.c
+index 581cd6810f5..f811716ed1e 100644
+--- a/fs/9p/vfs_inode_dotl.c
++++ b/fs/9p/vfs_inode_dotl.c
+@@ -257,7 +257,7 @@ v9fs_vfs_create_dotl(struct inode *dir, struct dentry *dentry, umode_t omode,
+ 	return v9fs_vfs_mknod_dotl(dir, dentry, omode, 0);
+ }
+ 
+-static struct file *
++static int
+ v9fs_vfs_atomic_open_dotl(struct inode *dir, struct dentry *dentry,
+ 			  struct opendata *od, unsigned flags, umode_t omode,
+ 			  int *opened)
+@@ -279,7 +279,7 @@ v9fs_vfs_atomic_open_dotl(struct inode *dir, struct dentry *dentry,
+ 	if (d_unhashed(dentry)) {
+ 		res = v9fs_vfs_lookup(dir, dentry, NULL);
+ 		if (IS_ERR(res))
+-			return ERR_CAST(res);
++			return PTR_ERR(res);
+ 
+ 		if (res)
+ 			dentry = res;
+@@ -288,7 +288,7 @@ v9fs_vfs_atomic_open_dotl(struct inode *dir, struct dentry *dentry,
+ 	/* Only creates */
+ 	if (!(flags & O_CREAT) || dentry->d_inode) {
+ 		finish_no_open(od, res);
+-		return NULL;
++		return 1;
+ 	}
+ 
+ 	v9ses = v9fs_inode2v9ses(dir);
+@@ -301,7 +301,7 @@ v9fs_vfs_atomic_open_dotl(struct inode *dir, struct dentry *dentry,
+ 	if (IS_ERR(dfid)) {
+ 		err = PTR_ERR(dfid);
+ 		p9_debug(P9_DEBUG_VFS, "fid lookup failed %d\n", err);
+-		goto err_return;
++		goto out;
+ 	}
+ 
+ 	/* clone a fid to use for creation */
+@@ -309,7 +309,7 @@ v9fs_vfs_atomic_open_dotl(struct inode *dir, struct dentry *dentry,
+ 	if (IS_ERR(ofid)) {
+ 		err = PTR_ERR(ofid);
+ 		p9_debug(P9_DEBUG_VFS, "p9_client_walk failed %d\n", err);
+-		goto err_return;
++		goto out;
+ 	}
+ 
+ 	gid = v9fs_get_fsgid_for_create(dir);
+@@ -387,7 +387,7 @@ v9fs_vfs_atomic_open_dotl(struct inode *dir, struct dentry *dentry,
+ 	*opened |= FILE_CREATED;
+ out:
+ 	dput(res);
+-	return filp;
++	return err;
+ 
+ error:
+ 	if (fid)
+@@ -396,8 +396,6 @@ err_clunk_old_fid:
+ 	if (ofid)
+ 		p9_client_clunk(ofid);
+ 	v9fs_set_create_acl(NULL, &dacl, &pacl);
+-err_return:
+-	filp = ERR_PTR(err);
+ 	goto out;
+ }
+ 
+diff --git a/fs/ceph/dir.c b/fs/ceph/dir.c
+index 0599f04ecc4..07bd5553fa4 100644
+--- a/fs/ceph/dir.c
++++ b/fs/ceph/dir.c
+@@ -634,21 +634,20 @@ static struct dentry *ceph_lookup(struct inode *dir, struct dentry *dentry,
+ 	return dentry;
+ }
+ 
+-struct file *ceph_atomic_open(struct inode *dir, struct dentry *dentry,
+-			      struct opendata *od, unsigned flags, umode_t mode,
+-			      int *opened)
++int ceph_atomic_open(struct inode *dir, struct dentry *dentry,
++		     struct opendata *od, unsigned flags, umode_t mode,
++		     int *opened)
+ {
+ 	int err;
+ 	struct dentry *res = NULL;
+-	struct file *filp;
+ 
+ 	if (!(flags & O_CREAT)) {
+ 		if (dentry->d_name.len > NAME_MAX)
+-			return ERR_PTR(-ENAMETOOLONG);
++			return -ENAMETOOLONG;
+ 
+ 		err = ceph_init_dentry(dentry);
+ 		if (err < 0)
+-			return ERR_PTR(err);
++			return err;
+ 
+ 		return ceph_lookup_open(dir, dentry, od, flags, mode, opened);
+ 	}
+@@ -656,7 +655,7 @@ struct file *ceph_atomic_open(struct inode *dir, struct dentry *dentry,
+ 	if (d_unhashed(dentry)) {
+ 		res = ceph_lookup(dir, dentry, NULL);
+ 		if (IS_ERR(res))
+-			return ERR_CAST(res);
++			return PTR_ERR(res);
+ 
+ 		if (res)
+ 			dentry = res;
+@@ -665,14 +664,14 @@ struct file *ceph_atomic_open(struct inode *dir, struct dentry *dentry,
+ 	/* We don't deal with positive dentries here */
+ 	if (dentry->d_inode) {
+ 		finish_no_open(od, res);
+-		return NULL;
++		return 1;
+ 	}
+ 
+ 	*opened |= FILE_CREATED;
+-	filp = ceph_lookup_open(dir, dentry, od, flags, mode, opened);
++	err = ceph_lookup_open(dir, dentry, od, flags, mode, opened);
+ 	dput(res);
+ 
+-	return filp;
++	return err;
+ }
+ 
+ /*
+diff --git a/fs/ceph/file.c b/fs/ceph/file.c
+index febe3d06eac..8fb8bd2152e 100644
+--- a/fs/ceph/file.c
++++ b/fs/ceph/file.c
+@@ -214,9 +214,9 @@ out:
+  * may_open() fails, the struct *file gets cleaned up (i.e.
+  * ceph_release gets called).  So fear not!
+  */
+-struct file *ceph_lookup_open(struct inode *dir, struct dentry *dentry,
+-			      struct opendata *od, unsigned flags, umode_t mode,
+-			      int *opened)
++int ceph_lookup_open(struct inode *dir, struct dentry *dentry,
++		     struct opendata *od, unsigned flags, umode_t mode,
++		     int *opened)
+ {
+ 	struct ceph_fs_client *fsc = ceph_sb_to_client(dir->i_sb);
+ 	struct ceph_mds_client *mdsc = fsc->mdsc;
+@@ -231,7 +231,7 @@ struct file *ceph_lookup_open(struct inode *dir, struct dentry *dentry,
+ 	/* do the open */
+ 	req = prepare_open_request(dir->i_sb, flags, mode);
+ 	if (IS_ERR(req))
+-		return ERR_CAST(req);
++		return PTR_ERR(req);
+ 	req->r_dentry = dget(dentry);
+ 	req->r_num_caps = 2;
+ 	if (flags & O_CREAT) {
+@@ -258,10 +258,10 @@ out:
+ 	dout("ceph_lookup_open result=%p\n", ret);
+ 
+ 	if (IS_ERR(ret))
+-		return ERR_CAST(ret);
++		return PTR_ERR(ret);
+ 
+ 	dput(ret);
+-	return err ? ERR_PTR(err) : file;
++	return err;
+ }
+ 
+ int ceph_release(struct inode *inode, struct file *file)
+diff --git a/fs/ceph/super.h b/fs/ceph/super.h
+index 0a8a059e598..5cea8f8ece4 100644
+--- a/fs/ceph/super.h
++++ b/fs/ceph/super.h
+@@ -806,9 +806,9 @@ extern int ceph_copy_from_page_vector(struct page **pages,
+ 				    loff_t off, size_t len);
+ extern struct page **ceph_alloc_page_vector(int num_pages, gfp_t flags);
+ extern int ceph_open(struct inode *inode, struct file *file);
+-extern struct file *ceph_lookup_open(struct inode *dir, struct dentry *dentry,
+-				     struct opendata *od, unsigned flags,
+-				     umode_t mode, int *opened);
++extern int ceph_lookup_open(struct inode *dir, struct dentry *dentry,
++			     struct opendata *od, unsigned flags,
++			     umode_t mode, int *opened);
+ extern int ceph_release(struct inode *inode, struct file *filp);
+ 
+ /* dir.c */
+diff --git a/fs/cifs/cifsfs.h b/fs/cifs/cifsfs.h
+index 329fc9f4af0..7317975b780 100644
+--- a/fs/cifs/cifsfs.h
++++ b/fs/cifs/cifsfs.h
+@@ -50,9 +50,9 @@ extern const struct inode_operations cifs_dir_inode_ops;
+ extern struct inode *cifs_root_iget(struct super_block *);
+ extern int cifs_create(struct inode *, struct dentry *, umode_t,
+ 		       struct nameidata *);
+-extern struct file *cifs_atomic_open(struct inode *, struct dentry *,
+-				     struct opendata *, unsigned, umode_t,
+-				     int *);
++extern int cifs_atomic_open(struct inode *, struct dentry *,
++			    struct opendata *, unsigned, umode_t,
++			    int *);
+ extern struct dentry *cifs_lookup(struct inode *, struct dentry *,
+ 				  struct nameidata *);
+ extern int cifs_unlink(struct inode *dir, struct dentry *dentry);
+diff --git a/fs/cifs/dir.c b/fs/cifs/dir.c
+index 6cdf23fd70e..8ca70b102b9 100644
+--- a/fs/cifs/dir.c
++++ b/fs/cifs/dir.c
+@@ -376,7 +376,7 @@ out:
+ 	return rc;
+ }
+ 
+-struct file *
++int
+ cifs_atomic_open(struct inode *inode, struct dentry *direntry,
+ 		 struct opendata *od, unsigned oflags, umode_t mode,
+ 		 int *opened)
+@@ -403,15 +403,15 @@ cifs_atomic_open(struct inode *inode, struct dentry *direntry,
+ 	if (!(oflags & O_CREAT)) {
+ 		struct dentry *res = cifs_lookup(inode, direntry, NULL);
+ 		if (IS_ERR(res))
+-			return ERR_CAST(res);
++			return PTR_ERR(res);
+ 
+ 		finish_no_open(od, res);
+-		return NULL;
++		return 1;
+ 	}
+ 
+ 	rc = check_name(direntry);
+ 	if (rc)
+-		return ERR_PTR(rc);
++		return rc;
+ 
+ 	xid = GetXid();
+ 
+@@ -428,13 +428,12 @@ cifs_atomic_open(struct inode *inode, struct dentry *direntry,
+ 	rc = cifs_do_create(inode, direntry, xid, tlink, oflags, mode,
+ 			    &oplock, &fileHandle, opened);
+ 
+-	if (rc) {
+-		filp = ERR_PTR(rc);
++	if (rc)
+ 		goto out;
+-	}
+ 
+ 	filp = finish_open(od, direntry, generic_file_open, opened);
+ 	if (IS_ERR(filp)) {
++		rc = PTR_ERR(filp);
+ 		CIFSSMBClose(xid, tcon, fileHandle);
+ 		goto out;
+ 	}
+@@ -443,14 +442,14 @@ cifs_atomic_open(struct inode *inode, struct dentry *direntry,
+ 	if (pfile_info == NULL) {
+ 		CIFSSMBClose(xid, tcon, fileHandle);
+ 		fput(filp);
+-		filp = ERR_PTR(-ENOMEM);
++		rc = -ENOMEM;
+ 	}
+ 
+ out:
+ 	cifs_put_tlink(tlink);
+ free_xid:
+ 	FreeXid(xid);
+-	return filp;
++	return rc;
+ }
+ 
+ int cifs_create(struct inode *inode, struct dentry *direntry, umode_t mode,
+diff --git a/fs/fuse/dir.c b/fs/fuse/dir.c
+index 4d1ef7d707e..17d384f9f79 100644
+--- a/fs/fuse/dir.c
++++ b/fs/fuse/dir.c
+@@ -414,9 +414,9 @@ static struct dentry *fuse_lookup(struct inode *dir, struct dentry *entry,
+  * If the filesystem doesn't support this, then fall back to separate
+  * 'mknod' + 'open' requests.
+  */
+-static struct file *fuse_create_open(struct inode *dir, struct dentry *entry,
+-				     struct opendata *od, unsigned flags,
+-				     umode_t mode, int *opened)
++static int fuse_create_open(struct inode *dir, struct dentry *entry,
++			    struct opendata *od, unsigned flags,
++			    umode_t mode, int *opened)
+ {
+ 	int err;
+ 	struct inode *inode;
+@@ -497,12 +497,14 @@ static struct file *fuse_create_open(struct inode *dir, struct dentry *entry,
+ 	fuse_invalidate_attr(dir);
+ 	file = finish_open(od, entry, generic_file_open, opened);
+ 	if (IS_ERR(file)) {
++		err = PTR_ERR(file);
+ 		fuse_sync_release(ff, flags);
+ 	} else {
+ 		file->private_data = fuse_file_get(ff);
+ 		fuse_finish_open(inode, file);
++		err = 0;
+ 	}
+-	return file;
++	return err;
+ 
+ out_free_ff:
+ 	fuse_file_free(ff);
+@@ -511,23 +513,22 @@ out_put_request:
+ out_put_forget_req:
+ 	kfree(forget);
+ out_err:
+-	return ERR_PTR(err);
++	return err;
+ }
+ 
+ static int fuse_mknod(struct inode *, struct dentry *, umode_t, dev_t);
+-static struct file *fuse_atomic_open(struct inode *dir, struct dentry *entry,
+-				     struct opendata *od, unsigned flags,
+-				     umode_t mode, int *opened)
++static int fuse_atomic_open(struct inode *dir, struct dentry *entry,
++			    struct opendata *od, unsigned flags,
++			    umode_t mode, int *opened)
+ {
+ 	int err;
+ 	struct fuse_conn *fc = get_fuse_conn(dir);
+-	struct file *file;
+ 	struct dentry *res = NULL;
+ 
+ 	if (d_unhashed(entry)) {
+ 		res = fuse_lookup(dir, entry, NULL);
+ 		if (IS_ERR(res))
+-			return ERR_CAST(res);
++			return PTR_ERR(res);
+ 
+ 		if (res)
+ 			entry = res;
+@@ -542,24 +543,22 @@ static struct file *fuse_atomic_open(struct inode *dir, struct dentry *entry,
+ 	if (fc->no_create)
+ 		goto mknod;
+ 
+-	file = fuse_create_open(dir, entry, od, flags, mode, opened);
+-	if (PTR_ERR(file) == -ENOSYS) {
++	err = fuse_create_open(dir, entry, od, flags, mode, opened);
++	if (err == -ENOSYS) {
+ 		fc->no_create = 1;
+ 		goto mknod;
+ 	}
+ out_dput:
+ 	dput(res);
+-	return file;
++	return err;
+ 
+ mknod:
+ 	err = fuse_mknod(dir, entry, mode, 0);
+-	if (err) {
+-		file = ERR_PTR(err);
++	if (err)
+ 		goto out_dput;
+-	}
+ no_open:
+ 	finish_no_open(od, res);
+-	return NULL;
++	return 1;
+ }
+ 
+ /*
+diff --git a/fs/namei.c b/fs/namei.c
+index cdd17ce9ea9..2419569f039 100644
+--- a/fs/namei.c
++++ b/fs/namei.c
+@@ -2310,7 +2310,7 @@ static struct file *atomic_open(struct nameidata *nd, struct dentry *dentry,
+ 	umode_t mode;
+ 	int error;
+ 	int acc_mode;
+-	struct file *filp;
++	struct file *filp = NULL;
+ 	int create_error = 0;
+ 	struct dentry *const DENTRY_NOT_SET = (void *) -1UL;
+ 
+@@ -2377,14 +2377,15 @@ static struct file *atomic_open(struct nameidata *nd, struct dentry *dentry,
+ 
+ 	od->dentry = DENTRY_NOT_SET;
+ 	od->mnt = nd->path.mnt;
+-	filp = dir->i_op->atomic_open(dir, dentry, od, open_flag, mode,
++	error = dir->i_op->atomic_open(dir, dentry, od, open_flag, mode,
+ 				      opened);
+-	if (IS_ERR(filp)) {
++	if (error < 0) {
+ 		if (WARN_ON(od->dentry != DENTRY_NOT_SET))
+ 			dput(od->dentry);
+ 
+-		if (create_error && PTR_ERR(filp) == -ENOENT)
+-			filp = ERR_PTR(create_error);
++		if (create_error && error == -ENOENT)
++			error = create_error;
++		filp = ERR_PTR(error);
+ 		goto out;
+ 	}
+ 
+@@ -2394,7 +2395,7 @@ static struct file *atomic_open(struct nameidata *nd, struct dentry *dentry,
+ 		acc_mode = MAY_OPEN;
+ 	}
+ 
+-	if (!filp) {
++	if (error) {	/* returned 1, that is */
+ 		if (WARN_ON(od->dentry == DENTRY_NOT_SET)) {
+ 			filp = ERR_PTR(-EIO);
+ 			goto out;
+@@ -2410,6 +2411,7 @@ static struct file *atomic_open(struct nameidata *nd, struct dentry *dentry,
+ 	 * We didn't have the inode before the open, so check open permission
+ 	 * here.
+ 	 */
++	filp = od->filp;
+ 	error = may_open(&filp->f_path, acc_mode, open_flag);
+ 	if (error) {
+ 		fput(filp);
+diff --git a/fs/nfs/dir.c b/fs/nfs/dir.c
+index 64cfeda45a5..ee339746231 100644
+--- a/fs/nfs/dir.c
++++ b/fs/nfs/dir.c
+@@ -111,9 +111,9 @@ const struct inode_operations nfs3_dir_inode_operations = {
+ 
+ #ifdef CONFIG_NFS_V4
+ 
+-static struct file *nfs_atomic_open(struct inode *, struct dentry *,
+-				    struct opendata *, unsigned, umode_t,
+-				    int *);
++static int nfs_atomic_open(struct inode *, struct dentry *,
++			   struct opendata *, unsigned, umode_t,
++			   int *);
+ const struct inode_operations nfs4_dir_inode_operations = {
+ 	.create		= nfs_create,
+ 	.lookup		= nfs_lookup,
+@@ -1361,10 +1361,10 @@ static int do_open(struct inode *inode, struct file *filp)
+ 	return 0;
+ }
+ 
+-static struct file *nfs_finish_open(struct nfs_open_context *ctx,
+-				    struct dentry *dentry,
+-				    struct opendata *od, unsigned open_flags,
+-				    int *opened)
++static int nfs_finish_open(struct nfs_open_context *ctx,
++			   struct dentry *dentry,
++			   struct opendata *od, unsigned open_flags,
++			   int *opened)
+ {
+ 	struct file *filp;
+ 	int err;
+@@ -1377,30 +1377,31 @@ static struct file *nfs_finish_open(struct nfs_open_context *ctx,
+ 	/* If the open_intent is for execute, we have an extra check to make */
+ 	if (ctx->mode & FMODE_EXEC) {
+ 		err = nfs_may_open(dentry->d_inode, ctx->cred, open_flags);
+-		if (err < 0) {
+-			filp = ERR_PTR(err);
++		if (err < 0)
+ 			goto out;
+-		}
+ 	}
+ 
+ 	filp = finish_open(od, dentry, do_open, opened);
+-	if (!IS_ERR(filp))
+-		nfs_file_set_open_context(filp, ctx);
++	if (IS_ERR(filp)) {
++		err = PTR_ERR(filp);
++		goto out;
++	}
++	nfs_file_set_open_context(filp, ctx);
++	err = 0;
+ 
+ out:
+ 	put_nfs_open_context(ctx);
+-	return filp;
++	return err;
+ }
+ 
+-static struct file *nfs_atomic_open(struct inode *dir, struct dentry *dentry,
+-				    struct opendata *od, unsigned open_flags,
+-				    umode_t mode, int *opened)
++static int nfs_atomic_open(struct inode *dir, struct dentry *dentry,
++			    struct opendata *od, unsigned open_flags,
++			    umode_t mode, int *opened)
+ {
+ 	struct nfs_open_context *ctx;
+ 	struct dentry *res;
+ 	struct iattr attr = { .ia_valid = ATTR_OPEN };
+ 	struct inode *inode;
+-	struct file *filp;
+ 	int err;
+ 
+ 	/* Expect a negative dentry */
+@@ -1411,21 +1412,19 @@ static struct file *nfs_atomic_open(struct inode *dir, struct dentry *dentry,
+ 
+ 	/* NFS only supports OPEN on regular files */
+ 	if ((open_flags & O_DIRECTORY)) {
+-		err = -ENOENT;
+ 		if (!d_unhashed(dentry)) {
+ 			/*
+ 			 * Hashed negative dentry with O_DIRECTORY: dentry was
+ 			 * revalidated and is fine, no need to perform lookup
+ 			 * again
+ 			 */
+-			goto out_err;
++			return -ENOENT;
+ 		}
+ 		goto no_open;
+ 	}
+ 
+-	err = -ENAMETOOLONG;
+ 	if (dentry->d_name.len > NFS_SERVER(dir)->namelen)
+-		goto out_err;
++		return -ENAMETOOLONG;
+ 
+ 	if (open_flags & O_CREAT) {
+ 		attr.ia_valid |= ATTR_MODE;
+@@ -1439,7 +1438,7 @@ static struct file *nfs_atomic_open(struct inode *dir, struct dentry *dentry,
+ 	ctx = create_nfs_open_context(dentry, open_flags);
+ 	err = PTR_ERR(ctx);
+ 	if (IS_ERR(ctx))
+-		goto out_err;
++		goto out;
+ 
+ 	nfs_block_sillyrename(dentry->d_parent);
+ 	inode = NFS_PROTO(dir)->open_context(dir, ctx, open_flags, &attr);
+@@ -1463,7 +1462,7 @@ static struct file *nfs_atomic_open(struct inode *dir, struct dentry *dentry,
+ 		default:
+ 			break;
+ 		}
+-		goto out_err;
++		goto out;
+ 	}
+ 	res = d_add_unique(dentry, inode);
+ 	if (res != NULL)
+@@ -1472,22 +1471,20 @@ static struct file *nfs_atomic_open(struct inode *dir, struct dentry *dentry,
+ 	nfs_unblock_sillyrename(dentry->d_parent);
+ 	nfs_set_verifier(dentry, nfs_save_change_attribute(dir));
+ 
+-	filp = nfs_finish_open(ctx, dentry, od, open_flags, opened);
++	err = nfs_finish_open(ctx, dentry, od, open_flags, opened);
+ 
+ 	dput(res);
+-	return filp;
+-
+-out_err:
+-	return ERR_PTR(err);
++out:
++	return err;
+ 
+ no_open:
+ 	res = nfs_lookup(dir, dentry, NULL);
+ 	err = PTR_ERR(res);
+ 	if (IS_ERR(res))
+-		goto out_err;
++		goto out;
+ 
+ 	finish_no_open(od, res);
+-	return NULL;
++	return 1;
+ }
+ 
+ static int nfs4_lookup_revalidate(struct dentry *dentry, struct nameidata *nd)
+diff --git a/include/linux/fs.h b/include/linux/fs.h
+index 403bf7fd906..5390fba334b 100644
+--- a/include/linux/fs.h
++++ b/include/linux/fs.h
+@@ -1721,9 +1721,9 @@ struct inode_operations {
+ 	int (*fiemap)(struct inode *, struct fiemap_extent_info *, u64 start,
+ 		      u64 len);
+ 	int (*update_time)(struct inode *, struct timespec *, int);
+-	struct file * (*atomic_open)(struct inode *, struct dentry *,
+-				     struct opendata *, unsigned open_flag,
+-				     umode_t create_mode, int *opened);
++	int (*atomic_open)(struct inode *, struct dentry *,
++			   struct opendata *, unsigned open_flag,
++			   umode_t create_mode, int *opened);
+ } ____cacheline_aligned;
+ 
+ struct seq_file;
+-- 
+2.17.1
+

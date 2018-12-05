@@ -1,0 +1,361 @@
+From d641d092803ae6c62d2b4e484f12e93353a1a1f7 Mon Sep 17 00:00:00 2001
+From: Linus Torvalds <torvalds@linux-foundation.org>
+Date: Fri, 4 May 2012 14:59:14 -0700
+Subject: [PATCH 009/132] vfs: clean up __d_lookup_rcu() and dentry_cmp()
+ interfaces
+
+The calling conventions for __d_lookup_rcu() and dentry_cmp() are
+annoying in different ways, and there is actually one single underlying
+reason for both of the annoyances.
+
+The fundamental reason is that we do the returned dentry sequence number
+check inside __d_lookup_rcu() instead of doing it in the caller.  This
+results in two annoyances:
+
+ - __d_lookup_rcu() now not only needs to return the dentry and the
+   sequence number that goes along with the lookup, it also needs to
+   return the inode pointer that was validated by that sequence number
+   check.
+
+ - and because we did the sequence number check early (to validate the
+   name pointer and length) we also couldn't just pass the dentry itself
+   to dentry_cmp(), we had to pass the counted string that contained the
+   name.
+
+So that sequence number decision caused two separate ugly calling
+conventions.
+
+Both of these problems would be solved if we just did the sequence
+number check in the caller instead.  There's only one caller, and that
+caller already has to do the sequence number check for the parent
+anyway, so just do that.
+
+That allows us to stop returning the dentry->d_inode in that in-out
+argument (pointer-to-pointer-to-inode), so we can make the inode
+argument just a regular input inode pointer.  The caller can just load
+the inode from dentry->d_inode, and then do the sequence number check
+after that to make sure that it's synchronized with the name we looked
+up.
+
+And it allows us to just pass in the dentry to dentry_cmp(), which is
+what all the callers really wanted.  Sure, dentry_cmp() has to be a bit
+careful about the dentry (which is not stable during RCU lookup), but
+that's actually very simple.
+
+And now that dentry_cmp() can clearly see that the first string argument
+is a dentry, we can use the direct word access for that, instead of the
+careful unaligned zero-padding.  The dentry name is always properly
+aligned, since it is a single path component that is either embedded
+into the dentry itself, or was allocated with kmalloc() (see __d_alloc).
+
+Finally, this also uninlines the nasty slow-case for dentry comparisons:
+that one *does* need to do a sequence number check, since it will call
+in to the low-level filesystems, and we want to give those a stable
+inode pointer and path component length/start arguments.  Doing an extra
+sequence check for that slow case is not a problem, though.
+
+Change-Id: If75355452c45e51c72838fa50e914df017b42531
+Signed-off-by: Linus Torvalds <torvalds@linux-foundation.org>
+---
+ fs/dcache.c            | 152 ++++++++++++++++++++++++++++-------------
+ fs/namei.c             |  19 +++++-
+ include/linux/dcache.h |   2 +-
+ 3 files changed, 121 insertions(+), 52 deletions(-)
+
+diff --git a/fs/dcache.c b/fs/dcache.c
+index 788f06b1c24..184776bfbf9 100644
+--- a/fs/dcache.c
++++ b/fs/dcache.c
+@@ -153,16 +153,33 @@ int proc_nr_dentry(ctl_table *table, int write, void __user *buffer,
+  * In contrast, 'ct' and 'tcount' can be from a pathname, and do
+  * need the careful unaligned handling.
+  */
+-static inline int dentry_cmp(const unsigned char *cs, size_t scount,
+-				const unsigned char *ct, size_t tcount)
++static inline int dentry_cmp(const struct dentry *dentry, const unsigned char *ct, unsigned tcount)
+ {
+ 	unsigned long a,b,mask;
++	const unsigned char *cs;
+ 
+-	if (unlikely(scount != tcount))
++	if (unlikely(dentry->d_name.len != tcount))
+ 		return 1;
++	/*
++	 * Be careful about RCU walk racing with rename:
++	 * use ACCESS_ONCE to fetch the name pointer.
++	 *
++	 * NOTE! Even if a rename will mean that the length
++	 * was not loaded atomically, we don't care. The
++	 * RCU walk will check the sequence count eventually,
++	 * and catch it. And we won't overrun the buffer,
++	 * because we're reading the name pointer atomically,
++	 * and a dentry name is guaranteed to be properly
++	 * terminated with a NUL byte.
++	 *
++	 * End result: even if 'len' is wrong, we'll exit
++	 * early because the data cannot match (there can
++	 * be no NUL in the ct/tcount data)
++	 */
++	cs = ACCESS_ONCE(dentry->d_name.name);
+ 
+ 	for (;;) {
+-		a = load_unaligned_zeropad(cs);
++		a = *(unsigned long *)cs;
+ 		b = load_unaligned_zeropad(ct);
+ 		if (tcount < sizeof(unsigned long))
+ 			break;
+@@ -180,10 +197,11 @@ static inline int dentry_cmp(const unsigned char *cs, size_t scount,
+ 
+ #else
+ 
+-static inline int dentry_cmp(const unsigned char *cs, size_t scount,
+-				const unsigned char *ct, size_t tcount)
++static inline int dentry_cmp(const struct dentry *dentry, const unsigned char *ct, unsigned tcount)
+ {
+-	if (scount != tcount)
++	const unsigned char *cs = dentry->d_name.name;
++
++	if (dentry->d_name.len != tcount)
+ 		return 1;
+ 
+ 	do {
+@@ -1490,18 +1508,16 @@ static struct dentry *__d_instantiate_unique(struct dentry *entry,
+ 	}
+ 
+ 	list_for_each_entry(alias, &inode->i_dentry, d_u.d_alias) {
+-		struct qstr *qstr = &alias->d_name;
+-
+ 		/*
+ 		 * Don't need alias->d_lock here, because aliases with
+ 		 * d_parent == entry->d_parent are not subject to name or
+ 		 * parent changes, because the parent inode i_mutex is held.
+ 		 */
+-		if (qstr->hash != hash)
++		if (alias->d_name.hash != hash)
+ 			continue;
+ 		if (alias->d_parent != entry->d_parent)
+ 			continue;
+-		if (dentry_cmp(qstr->name, qstr->len, name, len))
++		if (dentry_cmp(alias, name, len))
+ 			continue;
+ 		__dget(alias);
+ 		return alias;
+@@ -1778,6 +1794,48 @@ err_out:
+ }
+ EXPORT_SYMBOL(d_add_ci);
+ 
++/*
++ * Do the slow-case of the dentry name compare.
++ *
++ * Unlike the dentry_cmp() function, we need to atomically
++ * load the name, length and inode information, so that the
++ * filesystem can rely on them, and can use the 'name' and
++ * 'len' information without worrying about walking off the
++ * end of memory etc.
++ *
++ * Thus the read_seqcount_retry() and the "duplicate" info
++ * in arguments (the low-level filesystem should not look
++ * at the dentry inode or name contents directly, since
++ * rename can change them while we're in RCU mode).
++ */
++enum slow_d_compare {
++	D_COMP_OK,
++	D_COMP_NOMATCH,
++	D_COMP_SEQRETRY,
++};
++
++static noinline enum slow_d_compare slow_dentry_cmp(
++		const struct dentry *parent,
++		struct inode *inode,
++		struct dentry *dentry,
++		unsigned int seq,
++		const struct qstr *name)
++{
++	int tlen = dentry->d_name.len;
++	const char *tname = dentry->d_name.name;
++	struct inode *i = dentry->d_inode;
++
++	if (read_seqcount_retry(&dentry->d_seq, seq)) {
++		cpu_relax();
++		return D_COMP_SEQRETRY;
++	}
++	if (parent->d_op->d_compare(parent, inode,
++				dentry, i,
++				tlen, tname, name))
++		return D_COMP_NOMATCH;
++	return D_COMP_OK;
++}
++
+ /**
+  * __d_lookup_rcu - search for a dentry (racy, store-free)
+  * @parent: parent dentry
+@@ -1804,10 +1862,13 @@ EXPORT_SYMBOL(d_add_ci);
+  * the returned dentry, so long as its parent's seqlock is checked after the
+  * child is looked up. Thus, an interlocking stepping of sequence lock checks
+  * is formed, giving integrity down the path walk.
++ *
++ * NOTE! The caller *has* to check the resulting dentry against the sequence
++ * number we've returned before using any of the resulting dentry state!
+  */
+ struct dentry *__d_lookup_rcu(const struct dentry *parent,
+ 				const struct qstr *name,
+-				unsigned *seqp, struct inode **inode)
++				unsigned *seqp, struct inode *inode)
+ {
+ 	unsigned int len = name->len;
+ 	unsigned int hash = name->hash;
+@@ -1838,49 +1899,46 @@ struct dentry *__d_lookup_rcu(const struct dentry *parent,
+ 	 */
+ 	hlist_bl_for_each_entry_rcu(dentry, node, b, d_hash) {
+ 		unsigned seq;
+-		struct inode *i;
+-		const char *tname;
+-		int tlen;
+ 
+ 		if (dentry->d_name.hash != hash)
+ 			continue;
+ 
+ seqretry:
+-		seq = read_seqcount_begin(&dentry->d_seq);
++		/*
++		 * The dentry sequence count protects us from concurrent
++		 * renames, and thus protects inode, parent and name fields.
++		 *
++		 * The caller must perform a seqcount check in order
++		 * to do anything useful with the returned dentry,
++		 * including using the 'd_inode' pointer.
++		 *
++		 * NOTE! We do a "raw" seqcount_begin here. That means that
++		 * we don't wait for the sequence count to stabilize if it
++		 * is in the middle of a sequence change. If we do the slow
++		 * dentry compare, we will do seqretries until it is stable,
++		 * and if we end up with a successful lookup, we actually
++		 * want to exit RCU lookup anyway.
++		 */
++		seq = raw_seqcount_begin(&dentry->d_seq);
+ 		if (dentry->d_parent != parent)
+ 			continue;
+ 		if (d_unhashed(dentry))
+ 			continue;
+-		tlen = dentry->d_name.len;
+-		tname = dentry->d_name.name;
+-		i = dentry->d_inode;
+-		prefetch(tname);
+-		/*
+-		 * This seqcount check is required to ensure name and
+-		 * len are loaded atomically, so as not to walk off the
+-		 * edge of memory when walking. If we could load this
+-		 * atomically some other way, we could drop this check.
+-		 */
+-		if (read_seqcount_retry(&dentry->d_seq, seq))
+-			goto seqretry;
++		*seqp = seq;
++
+ 		if (unlikely(parent->d_flags & DCACHE_OP_COMPARE)) {
+-			if (parent->d_op->d_compare(parent, *inode,
+-						dentry, i,
+-						tlen, tname, name))
+-				continue;
+-		} else {
+-			if (dentry_cmp(tname, tlen, str, len))
++			switch (slow_dentry_cmp(parent, inode, dentry, seq, name)) {
++			case D_COMP_OK:
++				return dentry;
++			case D_COMP_NOMATCH:
+ 				continue;
++			default:
++				goto seqretry;
++			}
+ 		}
+-		/*
+-		 * No extra seqcount check is required after the name
+-		 * compare. The caller must perform a seqcount check in
+-		 * order to do anything useful with the returned dentry
+-		 * anyway.
+-		 */
+-		*seqp = seq;
+-		*inode = i;
+-		return dentry;
++
++		if (!dentry_cmp(dentry, str, len))
++			return dentry;
+ 	}
+ 	return NULL;
+ }
+@@ -1959,8 +2017,6 @@ struct dentry *__d_lookup(const struct dentry *parent, const struct qstr *name)
+ 	rcu_read_lock();
+ 	
+ 	hlist_bl_for_each_entry_rcu(dentry, node, b, d_hash) {
+-		const char *tname;
+-		int tlen;
+ 
+ 		if (dentry->d_name.hash != hash)
+ 			continue;
+@@ -1975,15 +2031,15 @@ struct dentry *__d_lookup(const struct dentry *parent, const struct qstr *name)
+ 		 * It is safe to compare names since d_move() cannot
+ 		 * change the qstr (protected by d_lock).
+ 		 */
+-		tlen = dentry->d_name.len;
+-		tname = dentry->d_name.name;
+ 		if (parent->d_flags & DCACHE_OP_COMPARE) {
++			int tlen = dentry->d_name.len;
++			const char *tname = dentry->d_name.name;
+ 			if (parent->d_op->d_compare(parent, parent->d_inode,
+ 						dentry, dentry->d_inode,
+ 						tlen, tname, name))
+ 				goto next;
+ 		} else {
+-			if (dentry_cmp(tname, tlen, str, len))
++			if (dentry_cmp(dentry, str, len))
+ 				goto next;
+ 		}
+ 
+diff --git a/fs/namei.c b/fs/namei.c
+index ee2e6902d37..0a3879094d5 100644
+--- a/fs/namei.c
++++ b/fs/namei.c
+@@ -1189,12 +1189,25 @@ static int do_lookup(struct nameidata *nd, struct qstr *name,
+ 	 */
+ 	if (nd->flags & LOOKUP_RCU) {
+ 		unsigned seq;
+-		*inode = nd->inode;
+-		dentry = __d_lookup_rcu(parent, name, &seq, inode);
++		dentry = __d_lookup_rcu(parent, name, &seq, nd->inode);
+ 		if (!dentry)
+ 			goto unlazy;
+ 
+-		/* Memory barrier in read_seqcount_begin of child is enough */
++		/*
++		 * This sequence count validates that the inode matches
++		 * the dentry name information from lookup.
++		 */
++		*inode = dentry->d_inode;
++		if (read_seqcount_retry(&dentry->d_seq, seq))
++			return -ECHILD;
++
++		/*
++		 * This sequence count validates that the parent had no
++		 * changes while we did the lookup of the dentry above.
++		 *
++		 * The memory barrier in read_seqcount_begin of child is
++		 *  enough, we can use __read_seqcount_retry here.
++		 */
+ 		if (__read_seqcount_retry(&parent->d_seq, nd->seq))
+ 			return -ECHILD;
+ 		nd->seq = seq;
+diff --git a/include/linux/dcache.h b/include/linux/dcache.h
+index 23301a0fabd..b92010c336a 100644
+--- a/include/linux/dcache.h
++++ b/include/linux/dcache.h
+@@ -287,7 +287,7 @@ extern struct dentry *d_hash_and_lookup(struct dentry *, struct qstr *);
+ extern struct dentry *__d_lookup(const struct dentry *, const struct qstr *);
+ extern struct dentry *__d_lookup_rcu(const struct dentry *parent,
+ 				const struct qstr *name,
+-				unsigned *seq, struct inode **inode);
++				unsigned *seq, struct inode *inode);
+ 
+ /**
+  * __d_rcu_to_refcount - take a refcount on dentry if sequence check is ok
+-- 
+2.17.1
+

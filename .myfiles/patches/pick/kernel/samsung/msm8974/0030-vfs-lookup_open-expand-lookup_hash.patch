@@ -1,0 +1,49 @@
+From 98debc4221f6e2f12bd666de0c8c682795632bf4 Mon Sep 17 00:00:00 2001
+From: Miklos Szeredi <mszeredi@suse.cz>
+Date: Tue, 5 Jun 2012 15:10:16 +0200
+Subject: [PATCH 030/132] vfs: lookup_open(): expand lookup_hash()
+
+Copy __lookup_hash() into lookup_open().  The next patch will insert the atomic
+open call just before the real lookup.
+
+Change-Id: I0764bfb794f152e95f3592a3c8171f3935ab7101
+Signed-off-by: Miklos Szeredi <mszeredi@suse.cz>
+Signed-off-by: Al Viro <viro@zeniv.linux.org.uk>
+---
+ fs/namei.c | 12 +++++++++++-
+ 1 file changed, 11 insertions(+), 1 deletion(-)
+
+diff --git a/fs/namei.c b/fs/namei.c
+index fefa1c5dce3..7d31b05728b 100644
+--- a/fs/namei.c
++++ b/fs/namei.c
+@@ -2315,15 +2315,25 @@ static struct file *lookup_open(struct nameidata *nd, struct path *path,
+ 				int *want_write, bool *created)
+ {
+ 	struct dentry *dir = nd->path.dentry;
++	struct inode *dir_inode = dir->d_inode;
+ 	struct vfsmount *mnt = nd->path.mnt;
+ 	struct dentry *dentry;
+ 	int error;
++	bool need_lookup;
+ 
+ 	*created = false;
+-	dentry = lookup_hash(nd);
++	dentry = lookup_dcache(&nd->last, dir, nd, &need_lookup);
+ 	if (IS_ERR(dentry))
+ 		return ERR_CAST(dentry);
+ 
++	if (need_lookup) {
++		BUG_ON(dentry->d_inode);
++
++		dentry = lookup_real(dir_inode, dentry, nd);
++		if (IS_ERR(dentry))
++			return ERR_CAST(dentry);
++	}
++
+ 	/* Negative dentry, just create the file */
+ 	if (!dentry->d_inode && (op->open_flag & O_CREAT)) {
+ 		umode_t mode = op->mode;
+-- 
+2.17.1
+

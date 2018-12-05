@@ -1,0 +1,55 @@
+From 5c14059295b8a33538b67d41cf9f085fd57f403f Mon Sep 17 00:00:00 2001
+From: Al Viro <viro@zeniv.linux.org.uk>
+Date: Sun, 10 Jun 2012 05:04:43 -0400
+Subject: [PATCH 050/132] don't modify od->filp at all
+
+make put_filp() conditional on flag set by finish_open()
+
+Signed-off-by: Al Viro <viro@zeniv.linux.org.uk>
+Change-Id: I0b8c7c4bf552e633e3834775d5450cdd4916a530
+---
+ fs/namei.c | 4 +---
+ fs/open.c  | 5 ++---
+ 2 files changed, 3 insertions(+), 6 deletions(-)
+
+diff --git a/fs/namei.c b/fs/namei.c
+index 2419569f039..d3dad297a1d 100644
+--- a/fs/namei.c
++++ b/fs/namei.c
+@@ -2817,10 +2817,8 @@ out:
+ 		path_put(&nd->root);
+ 	if (base)
+ 		fput(base);
+-	if (od.filp) {
+-		BUG_ON(od.filp->f_path.dentry);
++	if (!(opened & FILE_OPENED))
+ 		put_filp(od.filp);
+-	}
+ 	if (res == ERR_PTR(-EOPENSTALE)) {
+ 		if (flags & LOOKUP_RCU)
+ 			res = ERR_PTR(-ECHILD);
+diff --git a/fs/open.c b/fs/open.c
+index fc5c839c3cd..6bf95752018 100644
+--- a/fs/open.c
++++ b/fs/open.c
+@@ -791,15 +791,14 @@ struct file *finish_open(struct opendata *od, struct dentry *dentry,
+ 			 int *opened)
+ {
+ 	struct file *res;
++	BUG_ON(*opened & FILE_OPENED); /* once it's opened, it's opened */
+ 
+ 	mntget(od->mnt);
+ 	dget(dentry);
+ 
+ 	res = do_dentry_open(dentry, od->mnt, od->filp, open, current_cred());
+-	if (!IS_ERR(res)) {
++	if (!IS_ERR(res))
+ 		*opened |= FILE_OPENED;
+-		od->filp = NULL;
+-	}
+ 
+ 	return res;
+ }
+-- 
+2.17.1
+

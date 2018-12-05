@@ -1,0 +1,70 @@
+From cada814b646feafc255f2c7110b0d5ea35ea72a9 Mon Sep 17 00:00:00 2001
+From: Miklos Szeredi <mszeredi@suse.cz>
+Date: Mon, 21 May 2012 17:30:14 +0200
+Subject: [PATCH 019/132] vfs: do_last() common post lookup
+
+Now the post lookup code can be shared between O_CREAT and plain opens since
+they are essentially the same.
+
+Signed-off-by: Miklos Szeredi <mszeredi@suse.cz>
+Signed-off-by: Al Viro <viro@zeniv.linux.org.uk>
+Change-Id: Ifb9b15be9fd8b8fd3c8df2f8491344fb6917c848
+---
+ fs/namei.c | 34 +++-------------------------------
+ 1 file changed, 3 insertions(+), 31 deletions(-)
+
+diff --git a/fs/namei.c b/fs/namei.c
+index 44b7ce06719..d42e93c2f1e 100644
+--- a/fs/namei.c
++++ b/fs/namei.c
+@@ -2355,37 +2355,7 @@ static struct file *do_last(struct nameidata *nd, struct path *path,
+ 
+ 			inode = path->dentry->d_inode;
+ 		}
+-		error = -ENOENT;
+-		if (!inode) {
+-			path_to_nameidata(path, nd);
+-			goto exit;
+-		}
+-
+-		if (should_follow_link(inode, !symlink_ok)) {
+-			if (nd->flags & LOOKUP_RCU) {
+-				if (unlikely(unlazy_walk(nd, path->dentry))) {
+-					error = -ECHILD;
+-					goto exit;
+-				}
+-			}
+-			BUG_ON(inode != path->dentry->d_inode);
+-			return NULL;
+-		}
+-		path_to_nameidata(path, nd);
+-		nd->inode = inode;
+-
+-		/* sayonara */
+-		error = complete_walk(nd);
+-		if (error)
+-			return ERR_PTR(error);
+-
+-		error = -ENOTDIR;
+-		if (nd->flags & LOOKUP_DIRECTORY) {
+-			if (!nd->inode->i_op->lookup)
+-				goto exit;
+-		}
+-		audit_inode(pathname, nd->path.dentry);
+-		goto ok;
++		goto finish_lookup;
+ 	}
+ 
+ 	/* create side of things */
+@@ -2466,6 +2436,8 @@ static struct file *do_last(struct nameidata *nd, struct path *path,
+ 
+ 	BUG_ON(nd->flags & LOOKUP_RCU);
+ 	inode = path->dentry->d_inode;
++finish_lookup:
++	/* we _can_ be in RCU mode here */
+ 	error = -ENOENT;
+ 	if (!inode) {
+ 		path_to_nameidata(path, nd);
+-- 
+2.17.1
+

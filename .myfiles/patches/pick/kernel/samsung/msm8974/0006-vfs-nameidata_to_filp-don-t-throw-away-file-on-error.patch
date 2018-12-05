@@ -1,0 +1,54 @@
+From b0692371b95d18eee66e4fb1e9403b47f146655c Mon Sep 17 00:00:00 2001
+From: Miklos Szeredi <mszeredi@suse.cz>
+Date: Mon, 21 May 2012 17:30:18 +0200
+Subject: [PATCH 006/132] vfs: nameidata_to_filp(): don't throw away file on
+ error
+
+If open fails, don't put the file.  This allows it to be reused if open needs to
+be retried.
+
+Signed-off-by: Miklos Szeredi <mszeredi@suse.cz>
+Signed-off-by: Al Viro <viro@zeniv.linux.org.uk>
+Change-Id: I2bff8d4bad049d1d85389553a7cab5bb66eeae9d
+---
+ fs/open.c | 8 +++++---
+ 1 file changed, 5 insertions(+), 3 deletions(-)
+
+diff --git a/fs/open.c b/fs/open.c
+index 12bfb454e06..9e25f472380 100644
+--- a/fs/open.c
++++ b/fs/open.c
+@@ -829,10 +829,11 @@ struct file *nameidata_to_filp(struct nameidata *nd)
+ 
+ 	/* Pick up the filp from the open intent */
+ 	filp = nd->intent.open.file;
+-	nd->intent.open.file = NULL;
+ 
+ 	/* Has the filesystem initialised the file for us? */
+-	if (filp->f_path.dentry == NULL) {
++	if (filp->f_path.dentry != NULL) {
++		nd->intent.open.file = NULL;
++	} else {
+ 		struct file *res;
+ 
+ 		path_get(&nd->path);
+@@ -841,6 +842,7 @@ struct file *nameidata_to_filp(struct nameidata *nd)
+ 		if (!IS_ERR(res)) {
+ 			int error;
+ 
++			nd->intent.open.file = NULL;
+ 			BUG_ON(res != filp);
+ 
+ 			error = open_check_o_direct(filp);
+@@ -849,7 +851,7 @@ struct file *nameidata_to_filp(struct nameidata *nd)
+ 				filp = ERR_PTR(error);
+ 			}
+ 		} else {
+-			put_filp(filp);
++			/* Allow nd->intent.open.file to be recycled */
+ 			filp = res;
+ 		}
+ 	}
+-- 
+2.17.1
+

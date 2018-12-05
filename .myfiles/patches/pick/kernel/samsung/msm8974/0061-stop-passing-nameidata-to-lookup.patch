@@ -1,0 +1,1454 @@
+From 33fd246715630f751aee98b7899bd07db38c24c4 Mon Sep 17 00:00:00 2001
+From: Al Viro <viro@zeniv.linux.org.uk>
+Date: Sun, 10 Jun 2012 17:13:09 -0400
+Subject: [PATCH 061/132] stop passing nameidata to ->lookup()
+
+Just the flags; only NFS cares even about that, but there are
+legitimate uses for such argument.  And getting rid of that
+completely would require splitting ->lookup() into a couple
+of methods (at least), so let's leave that alone for now...
+
+Change-Id: If526a467d69e931ce130bedf2d69794170a4395e
+Signed-off-by: Al Viro <viro@zeniv.linux.org.uk>
+---
+ Documentation/filesystems/Locking |  3 +--
+ Documentation/filesystems/porting |  4 ++--
+ Documentation/filesystems/vfs.txt |  2 +-
+ fs/9p/v9fs.h                      |  2 +-
+ fs/9p/vfs_inode.c                 |  8 ++++----
+ fs/9p/vfs_inode_dotl.c            |  2 +-
+ fs/adfs/dir.c                     |  2 +-
+ fs/affs/affs.h                    |  2 +-
+ fs/affs/namei.c                   |  2 +-
+ fs/afs/dir.c                      |  4 ++--
+ fs/afs/mntpt.c                    |  4 ++--
+ fs/autofs4/root.c                 |  4 ++--
+ fs/bad_inode.c                    |  2 +-
+ fs/befs/linuxvfs.c                |  4 ++--
+ fs/bfs/dir.c                      |  2 +-
+ fs/btrfs/inode.c                  |  2 +-
+ fs/ceph/dir.c                     |  6 +++---
+ fs/cifs/cifsfs.h                  |  2 +-
+ fs/cifs/dir.c                     |  4 ++--
+ fs/coda/dir.c                     |  4 ++--
+ fs/configfs/dir.c                 |  2 +-
+ fs/cramfs/inode.c                 |  2 +-
+ fs/ecryptfs/inode.c               |  2 +-
+ fs/efs/efs.h                      |  2 +-
+ fs/efs/namei.c                    |  3 ++-
+ fs/exofs/namei.c                  |  2 +-
+ fs/ext2/namei.c                   |  2 +-
+ fs/ext4/namei.c                   |  2 +-
+ fs/f2fs/namei.c                   |  2 +-
+ fs/fat/namei_msdos.c              |  2 +-
+ fs/fat/namei_vfat.c               |  2 +-
+ fs/freevxfs/vxfs_lookup.c         |  4 ++--
+ fs/fuse/dir.c                     |  4 ++--
+ fs/gfs2/inode.c                   |  2 +-
+ fs/hfs/dir.c                      |  2 +-
+ fs/hfs/inode.c                    |  2 +-
+ fs/hfsplus/dir.c                  |  2 +-
+ fs/hfsplus/inode.c                |  2 +-
+ fs/hostfs/hostfs_kern.c           |  2 +-
+ fs/hpfs/dir.c                     |  2 +-
+ fs/hpfs/hpfs_fn.h                 |  2 +-
+ fs/hppfs/hppfs.c                  |  2 +-
+ fs/isofs/isofs.h                  |  2 +-
+ fs/isofs/namei.c                  |  2 +-
+ fs/jffs2/dir.c                    |  4 ++--
+ fs/jfs/namei.c                    |  2 +-
+ fs/libfs.c                        |  2 +-
+ fs/logfs/dir.c                    |  2 +-
+ fs/minix/namei.c                  |  2 +-
+ fs/namei.c                        |  2 +-
+ fs/ncpfs/dir.c                    |  4 ++--
+ fs/nfs/dir.c                      |  8 ++++----
+ fs/nilfs2/namei.c                 |  2 +-
+ fs/ntfs/namei.c                   |  2 +-
+ fs/ocfs2/namei.c                  |  2 +-
+ fs/omfs/dir.c                     |  2 +-
+ fs/openpromfs/inode.c             |  4 ++--
+ fs/proc/base.c                    | 18 ++++++++++--------
+ fs/proc/generic.c                 |  2 +-
+ fs/proc/internal.h                |  4 ++--
+ fs/proc/namespaces.c              |  2 +-
+ fs/proc/proc_net.c                |  2 +-
+ fs/proc/proc_sysctl.c             |  2 +-
+ fs/proc/root.c                    |  7 +++----
+ fs/qnx4/namei.c                   |  2 +-
+ fs/qnx4/qnx4.h                    |  2 +-
+ fs/qnx6/namei.c                   |  2 +-
+ fs/qnx6/qnx6.h                    |  2 +-
+ fs/reiserfs/namei.c               |  2 +-
+ fs/romfs/super.c                  |  2 +-
+ fs/sdcardfs/lookup.c              | 11 ++++-------
+ fs/sdcardfs/sdcardfs.h            |  2 +-
+ fs/squashfs/namei.c               |  2 +-
+ fs/sysfs/dir.c                    |  2 +-
+ fs/sysv/namei.c                   |  2 +-
+ fs/ubifs/dir.c                    |  2 +-
+ fs/udf/namei.c                    |  2 +-
+ fs/ufs/namei.c                    |  2 +-
+ fs/xfs/xfs_iops.c                 |  4 ++--
+ include/linux/fs.h                |  4 ++--
+ kernel/cgroup.c                   |  4 ++--
+ 81 files changed, 120 insertions(+), 122 deletions(-)
+
+diff --git a/Documentation/filesystems/Locking b/Documentation/filesystems/Locking
+index 9a9bb78d865..cf8420d0fa5 100644
+--- a/Documentation/filesystems/Locking
++++ b/Documentation/filesystems/Locking
+@@ -38,8 +38,7 @@ d_manage:	no		no		yes (ref-walk)	maybe
+ --------------------------- inode_operations --------------------------- 
+ prototypes:
+ 	int (*create) (struct inode *,struct dentry *,umode_t, struct nameidata *);
+-	struct dentry * (*lookup) (struct inode *,struct dentry *, struct nameid
+-ata *);
++	struct dentry * (*lookup) (struct inode *,struct dentry *, unsigned int);
+ 	int (*link) (struct dentry *,struct inode *,struct dentry *);
+ 	int (*unlink) (struct inode *,struct dentry *);
+ 	int (*symlink) (struct inode *,struct dentry *,const char *);
+diff --git a/Documentation/filesystems/porting b/Documentation/filesystems/porting
+index 5d1bf58036f..0f422cc52c3 100644
+--- a/Documentation/filesystems/porting
++++ b/Documentation/filesystems/porting
+@@ -438,5 +438,5 @@ d_make_root() drops the reference to inode if dentry allocation fails.
+ 
+ --
+ [mandatory]
+-	The witch is dead!  Well, 1/3 of it, anyway.  ->d_revalidate() does *not*
+-take struct nameidata anymore; just the flags.
++	The witch is dead!  Well, 2/3 of it, anyway.  ->d_revalidate() and
++->lookup() do *not* take struct nameidata anymore; just the flags.
+diff --git a/Documentation/filesystems/vfs.txt b/Documentation/filesystems/vfs.txt
+index 2050ff0fd3a..05cb9e3ee6a 100644
+--- a/Documentation/filesystems/vfs.txt
++++ b/Documentation/filesystems/vfs.txt
+@@ -342,7 +342,7 @@ filesystem. As of kernel 2.6.22, the following members are defined:
+ 
+ struct inode_operations {
+ 	int (*create) (struct inode *,struct dentry *, umode_t, struct nameidata *);
+-	struct dentry * (*lookup) (struct inode *,struct dentry *, struct nameidata *);
++	struct dentry * (*lookup) (struct inode *,struct dentry *, unsigned int);
+ 	int (*link) (struct dentry *,struct inode *,struct dentry *);
+ 	int (*unlink) (struct inode *,struct dentry *);
+ 	int (*symlink) (struct inode *,struct dentry *,const char *);
+diff --git a/fs/9p/v9fs.h b/fs/9p/v9fs.h
+index e78956cbd70..34c59f14a1c 100644
+--- a/fs/9p/v9fs.h
++++ b/fs/9p/v9fs.h
+@@ -144,7 +144,7 @@ extern void v9fs_session_close(struct v9fs_session_info *v9ses);
+ extern void v9fs_session_cancel(struct v9fs_session_info *v9ses);
+ extern void v9fs_session_begin_cancel(struct v9fs_session_info *v9ses);
+ extern struct dentry *v9fs_vfs_lookup(struct inode *dir, struct dentry *dentry,
+-			struct nameidata *nameidata);
++			unsigned int flags);
+ extern int v9fs_vfs_unlink(struct inode *i, struct dentry *d);
+ extern int v9fs_vfs_rmdir(struct inode *i, struct dentry *d);
+ extern int v9fs_vfs_rename(struct inode *old_dir, struct dentry *old_dentry,
+diff --git a/fs/9p/vfs_inode.c b/fs/9p/vfs_inode.c
+index 7410fff4e2a..e2ae57e1378 100644
+--- a/fs/9p/vfs_inode.c
++++ b/fs/9p/vfs_inode.c
+@@ -784,7 +784,7 @@ static int v9fs_vfs_mkdir(struct inode *dir, struct dentry *dentry, umode_t mode
+  */
+ 
+ struct dentry *v9fs_vfs_lookup(struct inode *dir, struct dentry *dentry,
+-				      struct nameidata *nameidata)
++				      unsigned int flags)
+ {
+ 	struct dentry *res;
+ 	struct super_block *sb;
+@@ -794,8 +794,8 @@ struct dentry *v9fs_vfs_lookup(struct inode *dir, struct dentry *dentry,
+ 	char *name;
+ 	int result = 0;
+ 
+-	p9_debug(P9_DEBUG_VFS, "dir: %p dentry: (%s) %p nameidata: %p\n",
+-		 dir, dentry->d_name.name, dentry, nameidata);
++	p9_debug(P9_DEBUG_VFS, "dir: %p dentry: (%s) %p flags: %x\n",
++		 dir, dentry->d_name.name, dentry, flags);
+ 
+ 	if (dentry->d_name.len > NAME_MAX)
+ 		return ERR_PTR(-ENAMETOOLONG);
+@@ -868,7 +868,7 @@ v9fs_vfs_atomic_open(struct inode *dir, struct dentry *dentry,
+ 	struct dentry *res = NULL;
+ 
+ 	if (d_unhashed(dentry)) {
+-		res = v9fs_vfs_lookup(dir, dentry, NULL);
++		res = v9fs_vfs_lookup(dir, dentry, 0);
+ 		if (IS_ERR(res))
+ 			return PTR_ERR(res);
+ 
+diff --git a/fs/9p/vfs_inode_dotl.c b/fs/9p/vfs_inode_dotl.c
+index 52b2e200b1d..8b4c9b1d47d 100644
+--- a/fs/9p/vfs_inode_dotl.c
++++ b/fs/9p/vfs_inode_dotl.c
+@@ -276,7 +276,7 @@ v9fs_vfs_atomic_open_dotl(struct inode *dir, struct dentry *dentry,
+ 	struct dentry *res = NULL;
+ 
+ 	if (d_unhashed(dentry)) {
+-		res = v9fs_vfs_lookup(dir, dentry, NULL);
++		res = v9fs_vfs_lookup(dir, dentry, 0);
+ 		if (IS_ERR(res))
+ 			return PTR_ERR(res);
+ 
+diff --git a/fs/adfs/dir.c b/fs/adfs/dir.c
+index 3d83075aaa2..b3be2e7c564 100644
+--- a/fs/adfs/dir.c
++++ b/fs/adfs/dir.c
+@@ -266,7 +266,7 @@ const struct dentry_operations adfs_dentry_operations = {
+ };
+ 
+ static struct dentry *
+-adfs_lookup(struct inode *dir, struct dentry *dentry, struct nameidata *nd)
++adfs_lookup(struct inode *dir, struct dentry *dentry, unsigned int flags)
+ {
+ 	struct inode *inode = NULL;
+ 	struct object_info obj;
+diff --git a/fs/affs/affs.h b/fs/affs/affs.h
+index 45a0ce45d7b..1241525776a 100644
+--- a/fs/affs/affs.h
++++ b/fs/affs/affs.h
+@@ -154,7 +154,7 @@ extern void	affs_free_bitmap(struct super_block *sb);
+ /* namei.c */
+ 
+ extern int	affs_hash_name(struct super_block *sb, const u8 *name, unsigned int len);
+-extern struct dentry *affs_lookup(struct inode *dir, struct dentry *dentry, struct nameidata *);
++extern struct dentry *affs_lookup(struct inode *dir, struct dentry *dentry, unsigned int);
+ extern int	affs_unlink(struct inode *dir, struct dentry *dentry);
+ extern int	affs_create(struct inode *dir, struct dentry *dentry, umode_t mode, struct nameidata *);
+ extern int	affs_mkdir(struct inode *dir, struct dentry *dentry, umode_t mode);
+diff --git a/fs/affs/namei.c b/fs/affs/namei.c
+index 47806940aac..7f9721be709 100644
+--- a/fs/affs/namei.c
++++ b/fs/affs/namei.c
+@@ -211,7 +211,7 @@ affs_find_entry(struct inode *dir, struct dentry *dentry)
+ }
+ 
+ struct dentry *
+-affs_lookup(struct inode *dir, struct dentry *dentry, struct nameidata *nd)
++affs_lookup(struct inode *dir, struct dentry *dentry, unsigned int flags)
+ {
+ 	struct super_block *sb = dir->i_sb;
+ 	struct buffer_head *bh;
+diff --git a/fs/afs/dir.c b/fs/afs/dir.c
+index 65c54ab0473..ffb33e36ea7 100644
+--- a/fs/afs/dir.c
++++ b/fs/afs/dir.c
+@@ -20,7 +20,7 @@
+ #include "internal.h"
+ 
+ static struct dentry *afs_lookup(struct inode *dir, struct dentry *dentry,
+-				 struct nameidata *nd);
++				 unsigned int flags);
+ static int afs_dir_open(struct inode *inode, struct file *file);
+ static int afs_readdir(struct file *file, void *dirent, filldir_t filldir);
+ static int afs_d_revalidate(struct dentry *dentry, unsigned int flags);
+@@ -516,7 +516,7 @@ out:
+  * look up an entry in a directory
+  */
+ static struct dentry *afs_lookup(struct inode *dir, struct dentry *dentry,
+-				 struct nameidata *nd)
++				 unsigned int flags)
+ {
+ 	struct afs_vnode *vnode;
+ 	struct afs_fid fid;
+diff --git a/fs/afs/mntpt.c b/fs/afs/mntpt.c
+index 298cf8919ec..9682c33d5da 100644
+--- a/fs/afs/mntpt.c
++++ b/fs/afs/mntpt.c
+@@ -22,7 +22,7 @@
+ 
+ static struct dentry *afs_mntpt_lookup(struct inode *dir,
+ 				       struct dentry *dentry,
+-				       struct nameidata *nd);
++				       unsigned int flags);
+ static int afs_mntpt_open(struct inode *inode, struct file *file);
+ static void afs_mntpt_expiry_timed_out(struct work_struct *work);
+ 
+@@ -104,7 +104,7 @@ out:
+  */
+ static struct dentry *afs_mntpt_lookup(struct inode *dir,
+ 				       struct dentry *dentry,
+-				       struct nameidata *nd)
++				       unsigned int flags)
+ {
+ 	_enter("%p,%p{%p{%s},%s}",
+ 	       dir,
+diff --git a/fs/autofs4/root.c b/fs/autofs4/root.c
+index 411760477c4..d203f7e5861 100644
+--- a/fs/autofs4/root.c
++++ b/fs/autofs4/root.c
+@@ -32,7 +32,7 @@ static long autofs4_root_ioctl(struct file *,unsigned int,unsigned long);
+ static long autofs4_root_compat_ioctl(struct file *,unsigned int,unsigned long);
+ #endif
+ static int autofs4_dir_open(struct inode *inode, struct file *file);
+-static struct dentry *autofs4_lookup(struct inode *,struct dentry *, struct nameidata *);
++static struct dentry *autofs4_lookup(struct inode *,struct dentry *, unsigned int);
+ static struct vfsmount *autofs4_d_automount(struct path *);
+ static int autofs4_d_manage(struct dentry *, bool);
+ static void autofs4_dentry_release(struct dentry *);
+@@ -460,7 +460,7 @@ int autofs4_d_manage(struct dentry *dentry, bool rcu_walk)
+ }
+ 
+ /* Lookups in the root directory */
+-static struct dentry *autofs4_lookup(struct inode *dir, struct dentry *dentry, struct nameidata *nd)
++static struct dentry *autofs4_lookup(struct inode *dir, struct dentry *dentry, unsigned int flags)
+ {
+ 	struct autofs_sb_info *sbi;
+ 	struct autofs_info *ino;
+diff --git a/fs/bad_inode.c b/fs/bad_inode.c
+index 37268c5bb98..5d1bdcb7dae 100644
+--- a/fs/bad_inode.c
++++ b/fs/bad_inode.c
+@@ -179,7 +179,7 @@ static int bad_inode_create (struct inode *dir, struct dentry *dentry,
+ }
+ 
+ static struct dentry *bad_inode_lookup(struct inode *dir,
+-			struct dentry *dentry, struct nameidata *nd)
++			struct dentry *dentry, unsigned int flags)
+ {
+ 	return ERR_PTR(-EIO);
+ }
+diff --git a/fs/befs/linuxvfs.c b/fs/befs/linuxvfs.c
+index 805a16bc26b..c6681476807 100644
+--- a/fs/befs/linuxvfs.c
++++ b/fs/befs/linuxvfs.c
+@@ -34,7 +34,7 @@ static int befs_readdir(struct file *, void *, filldir_t);
+ static int befs_get_block(struct inode *, sector_t, struct buffer_head *, int);
+ static int befs_readpage(struct file *file, struct page *page);
+ static sector_t befs_bmap(struct address_space *mapping, sector_t block);
+-static struct dentry *befs_lookup(struct inode *, struct dentry *, struct nameidata *);
++static struct dentry *befs_lookup(struct inode *, struct dentry *, unsigned int);
+ static struct inode *befs_iget(struct super_block *, unsigned long);
+ static struct inode *befs_alloc_inode(struct super_block *sb);
+ static void befs_destroy_inode(struct inode *inode);
+@@ -159,7 +159,7 @@ befs_get_block(struct inode *inode, sector_t block,
+ }
+ 
+ static struct dentry *
+-befs_lookup(struct inode *dir, struct dentry *dentry, struct nameidata *nd)
++befs_lookup(struct inode *dir, struct dentry *dentry, unsigned int flags)
+ {
+ 	struct inode *inode = NULL;
+ 	struct super_block *sb = dir->i_sb;
+diff --git a/fs/bfs/dir.c b/fs/bfs/dir.c
+index d12c7966db2..3f1cd3b7168 100644
+--- a/fs/bfs/dir.c
++++ b/fs/bfs/dir.c
+@@ -133,7 +133,7 @@ static int bfs_create(struct inode *dir, struct dentry *dentry, umode_t mode,
+ }
+ 
+ static struct dentry *bfs_lookup(struct inode *dir, struct dentry *dentry,
+-						struct nameidata *nd)
++						unsigned int flags)
+ {
+ 	struct inode *inode = NULL;
+ 	struct buffer_head *bh;
+diff --git a/fs/btrfs/inode.c b/fs/btrfs/inode.c
+index d460390484a..a89f0dadddd 100644
+--- a/fs/btrfs/inode.c
++++ b/fs/btrfs/inode.c
+@@ -4187,7 +4187,7 @@ static void btrfs_dentry_release(struct dentry *dentry)
+ }
+ 
+ static struct dentry *btrfs_lookup(struct inode *dir, struct dentry *dentry,
+-				   struct nameidata *nd)
++				   unsigned int flags)
+ {
+ 	struct dentry *ret;
+ 
+diff --git a/fs/ceph/dir.c b/fs/ceph/dir.c
+index 1b42851c6f1..54832507bbd 100644
+--- a/fs/ceph/dir.c
++++ b/fs/ceph/dir.c
+@@ -576,7 +576,7 @@ static int is_root_ceph_dentry(struct inode *inode, struct dentry *dentry)
+  * the MDS so that it gets our 'caps wanted' value in a single op.
+  */
+ static struct dentry *ceph_lookup(struct inode *dir, struct dentry *dentry,
+-				  struct nameidata *nd)
++				  unsigned int flags)
+ {
+ 	struct ceph_fs_client *fsc = ceph_sb_to_client(dir->i_sb);
+ 	struct ceph_mds_client *mdsc = fsc->mdsc;
+@@ -653,7 +653,7 @@ int ceph_atomic_open(struct inode *dir, struct dentry *dentry,
+ 	}
+ 
+ 	if (d_unhashed(dentry)) {
+-		res = ceph_lookup(dir, dentry, NULL);
++		res = ceph_lookup(dir, dentry, 0);
+ 		if (IS_ERR(res))
+ 			return PTR_ERR(res);
+ 
+@@ -678,7 +678,7 @@ int ceph_atomic_open(struct inode *dir, struct dentry *dentry,
+  */
+ int ceph_handle_notrace_create(struct inode *dir, struct dentry *dentry)
+ {
+-	struct dentry *result = ceph_lookup(dir, dentry, NULL);
++	struct dentry *result = ceph_lookup(dir, dentry, 0);
+ 
+ 	if (result && !IS_ERR(result)) {
+ 		/*
+diff --git a/fs/cifs/cifsfs.h b/fs/cifs/cifsfs.h
+index 426c9a6a43d..cf0ca8e3b11 100644
+--- a/fs/cifs/cifsfs.h
++++ b/fs/cifs/cifsfs.h
+@@ -54,7 +54,7 @@ extern int cifs_atomic_open(struct inode *, struct dentry *,
+ 			    struct file *, unsigned, umode_t,
+ 			    int *);
+ extern struct dentry *cifs_lookup(struct inode *, struct dentry *,
+-				  struct nameidata *);
++				  unsigned int);
+ extern int cifs_unlink(struct inode *dir, struct dentry *dentry);
+ extern int cifs_hardlink(struct dentry *, struct inode *, struct dentry *);
+ extern int cifs_mknod(struct inode *, struct dentry *, umode_t, dev_t);
+diff --git a/fs/cifs/dir.c b/fs/cifs/dir.c
+index b97ff48b7df..2d732b9276e 100644
+--- a/fs/cifs/dir.c
++++ b/fs/cifs/dir.c
+@@ -401,7 +401,7 @@ cifs_atomic_open(struct inode *inode, struct dentry *direntry,
+ 	 * in network traffic in the other paths.
+ 	 */
+ 	if (!(oflags & O_CREAT)) {
+-		struct dentry *res = cifs_lookup(inode, direntry, NULL);
++		struct dentry *res = cifs_lookup(inode, direntry, 0);
+ 		if (IS_ERR(res))
+ 			return PTR_ERR(res);
+ 
+@@ -621,7 +621,7 @@ mknod_out:
+ 
+ struct dentry *
+ cifs_lookup(struct inode *parent_dir_inode, struct dentry *direntry,
+-	    struct nameidata *nd)
++	    unsigned int flags)
+ {
+ 	int xid;
+ 	int rc = 0; /* to get around spurious gcc warning, set to zero here */
+diff --git a/fs/coda/dir.c b/fs/coda/dir.c
+index 7f8f1a7c6d8..da35e965861 100644
+--- a/fs/coda/dir.c
++++ b/fs/coda/dir.c
+@@ -31,7 +31,7 @@
+ 
+ /* dir inode-ops */
+ static int coda_create(struct inode *dir, struct dentry *new, umode_t mode, struct nameidata *nd);
+-static struct dentry *coda_lookup(struct inode *dir, struct dentry *target, struct nameidata *nd);
++static struct dentry *coda_lookup(struct inode *dir, struct dentry *target, unsigned int flags);
+ static int coda_link(struct dentry *old_dentry, struct inode *dir_inode, 
+ 		     struct dentry *entry);
+ static int coda_unlink(struct inode *dir_inode, struct dentry *entry);
+@@ -94,7 +94,7 @@ const struct file_operations coda_dir_operations = {
+ 
+ /* inode operations for directories */
+ /* access routines: lookup, readlink, permission */
+-static struct dentry *coda_lookup(struct inode *dir, struct dentry *entry, struct nameidata *nd)
++static struct dentry *coda_lookup(struct inode *dir, struct dentry *entry, unsigned int flags)
+ {
+ 	struct super_block *sb = dir->i_sb;
+ 	const char *name = entry->d_name.name;
+diff --git a/fs/configfs/dir.c b/fs/configfs/dir.c
+index c91f6d1bf64..d3bf9281ce7 100644
+--- a/fs/configfs/dir.c
++++ b/fs/configfs/dir.c
+@@ -454,7 +454,7 @@ static int configfs_attach_attr(struct configfs_dirent * sd, struct dentry * den
+ 
+ static struct dentry * configfs_lookup(struct inode *dir,
+ 				       struct dentry *dentry,
+-				       struct nameidata *nd)
++				       unsigned int flags)
+ {
+ 	struct configfs_dirent * parent_sd = dentry->d_parent->d_fsdata;
+ 	struct configfs_dirent * sd;
+diff --git a/fs/cramfs/inode.c b/fs/cramfs/inode.c
+index 5c8fb68ec43..c57ad8457b5 100644
+--- a/fs/cramfs/inode.c
++++ b/fs/cramfs/inode.c
+@@ -417,7 +417,7 @@ static int cramfs_readdir(struct file *filp, void *dirent, filldir_t filldir)
+ /*
+  * Lookup and fill in the inode data..
+  */
+-static struct dentry * cramfs_lookup(struct inode *dir, struct dentry *dentry, struct nameidata *nd)
++static struct dentry * cramfs_lookup(struct inode *dir, struct dentry *dentry, unsigned int flags)
+ {
+ 	unsigned int offset = 0;
+ 	struct inode *inode = NULL;
+diff --git a/fs/ecryptfs/inode.c b/fs/ecryptfs/inode.c
+index 735e2b33f4b..0a84044826e 100644
+--- a/fs/ecryptfs/inode.c
++++ b/fs/ecryptfs/inode.c
+@@ -559,7 +559,7 @@ static int ecryptfs_lookup_interpose(struct dentry *dentry,
+  */
+ static struct dentry *ecryptfs_lookup(struct inode *ecryptfs_dir_inode,
+ 				      struct dentry *ecryptfs_dentry,
+-				      struct nameidata *ecryptfs_nd)
++				      unsigned int flags)
+ {
+ 	char *encrypted_and_encoded_name = NULL;
+ 	size_t encrypted_and_encoded_name_size;
+diff --git a/fs/efs/efs.h b/fs/efs/efs.h
+index d8305b582ab..5528926ac7f 100644
+--- a/fs/efs/efs.h
++++ b/fs/efs/efs.h
+@@ -129,7 +129,7 @@ extern struct inode *efs_iget(struct super_block *, unsigned long);
+ extern efs_block_t efs_map_block(struct inode *, efs_block_t);
+ extern int efs_get_block(struct inode *, sector_t, struct buffer_head *, int);
+ 
+-extern struct dentry *efs_lookup(struct inode *, struct dentry *, struct nameidata *);
++extern struct dentry *efs_lookup(struct inode *, struct dentry *, unsigned int);
+ extern struct dentry *efs_fh_to_dentry(struct super_block *sb, struct fid *fid,
+ 		int fh_len, int fh_type);
+ extern struct dentry *efs_fh_to_parent(struct super_block *sb, struct fid *fid,
+diff --git a/fs/efs/namei.c b/fs/efs/namei.c
+index 832b10ded82..96f66d213a1 100644
+--- a/fs/efs/namei.c
++++ b/fs/efs/namei.c
+@@ -58,7 +58,8 @@ static efs_ino_t efs_find_entry(struct inode *inode, const char *name, int len)
+ 	return(0);
+ }
+ 
+-struct dentry *efs_lookup(struct inode *dir, struct dentry *dentry, struct nameidata *nd) {
++struct dentry *efs_lookup(struct inode *dir, struct dentry *dentry, unsigned int flags)
++{
+ 	efs_ino_t inodenum;
+ 	struct inode *inode = NULL;
+ 
+diff --git a/fs/exofs/namei.c b/fs/exofs/namei.c
+index fc7161d6bf6..909ed6ea4cf 100644
+--- a/fs/exofs/namei.c
++++ b/fs/exofs/namei.c
+@@ -46,7 +46,7 @@ static inline int exofs_add_nondir(struct dentry *dentry, struct inode *inode)
+ }
+ 
+ static struct dentry *exofs_lookup(struct inode *dir, struct dentry *dentry,
+-				   struct nameidata *nd)
++				   unsigned int flags)
+ {
+ 	struct inode *inode;
+ 	ino_t ino;
+diff --git a/fs/ext2/namei.c b/fs/ext2/namei.c
+index f663a67d7bf..b3e6778cd1e 100644
+--- a/fs/ext2/namei.c
++++ b/fs/ext2/namei.c
+@@ -55,7 +55,7 @@ static inline int ext2_add_nondir(struct dentry *dentry, struct inode *inode)
+  * Methods themselves.
+  */
+ 
+-static struct dentry *ext2_lookup(struct inode * dir, struct dentry *dentry, struct nameidata *nd)
++static struct dentry *ext2_lookup(struct inode * dir, struct dentry *dentry, unsigned int flags)
+ {
+ 	struct inode * inode;
+ 	ino_t ino;
+diff --git a/fs/ext4/namei.c b/fs/ext4/namei.c
+index 960480d7465..a84e298733e 100644
+--- a/fs/ext4/namei.c
++++ b/fs/ext4/namei.c
+@@ -1025,7 +1025,7 @@ errout:
+ 	return NULL;
+ }
+ 
+-static struct dentry *ext4_lookup(struct inode *dir, struct dentry *dentry, struct nameidata *nd)
++static struct dentry *ext4_lookup(struct inode *dir, struct dentry *dentry, unsigned int flags)
+ {
+ 	struct inode *inode;
+ 	struct ext4_dir_entry_2 *de;
+diff --git a/fs/f2fs/namei.c b/fs/f2fs/namei.c
+index b8c97346efa..5f00c4737b2 100644
+--- a/fs/f2fs/namei.c
++++ b/fs/f2fs/namei.c
+@@ -263,7 +263,7 @@ out:
+ }
+ 
+ static struct dentry *f2fs_lookup(struct inode *dir, struct dentry *dentry,
+-					struct nameidata *nd)
++					unsigned int flags)
+ {
+ 	struct inode *inode = NULL;
+ 	struct f2fs_dir_entry *de;
+diff --git a/fs/fat/namei_msdos.c b/fs/fat/namei_msdos.c
+index 6637a9c706e..c35cc81a017 100644
+--- a/fs/fat/namei_msdos.c
++++ b/fs/fat/namei_msdos.c
+@@ -201,7 +201,7 @@ static const struct dentry_operations msdos_dentry_operations = {
+ 
+ /***** Get inode using directory and name */
+ static struct dentry *msdos_lookup(struct inode *dir, struct dentry *dentry,
+-				   struct nameidata *nd)
++				   unsigned int flags)
+ {
+ 	struct super_block *sb = dir->i_sb;
+ 	struct fat_slot_info sinfo;
+diff --git a/fs/fat/namei_vfat.c b/fs/fat/namei_vfat.c
+index aadb3762bea..3b37816c591 100644
+--- a/fs/fat/namei_vfat.c
++++ b/fs/fat/namei_vfat.c
+@@ -714,7 +714,7 @@ static int vfat_d_anon_disconn(struct dentry *dentry)
+ }
+ 
+ static struct dentry *vfat_lookup(struct inode *dir, struct dentry *dentry,
+-				  struct nameidata *nd)
++				  unsigned int flags)
+ {
+ 	struct super_block *sb = dir->i_sb;
+ 	struct fat_slot_info sinfo;
+diff --git a/fs/freevxfs/vxfs_lookup.c b/fs/freevxfs/vxfs_lookup.c
+index 3360f1e678a..bd447e88f20 100644
+--- a/fs/freevxfs/vxfs_lookup.c
++++ b/fs/freevxfs/vxfs_lookup.c
+@@ -48,7 +48,7 @@
+ #define VXFS_BLOCK_PER_PAGE(sbp)  ((PAGE_CACHE_SIZE / (sbp)->s_blocksize))
+ 
+ 
+-static struct dentry *	vxfs_lookup(struct inode *, struct dentry *, struct nameidata *);
++static struct dentry *	vxfs_lookup(struct inode *, struct dentry *, unsigned int);
+ static int		vxfs_readdir(struct file *, void *, filldir_t);
+ 
+ const struct inode_operations vxfs_dir_inode_ops = {
+@@ -203,7 +203,7 @@ vxfs_inode_by_name(struct inode *dip, struct dentry *dp)
+  *   in the return pointer.
+  */
+ static struct dentry *
+-vxfs_lookup(struct inode *dip, struct dentry *dp, struct nameidata *nd)
++vxfs_lookup(struct inode *dip, struct dentry *dp, unsigned int flags)
+ {
+ 	struct inode		*ip = NULL;
+ 	ino_t			ino;
+diff --git a/fs/fuse/dir.c b/fs/fuse/dir.c
+index 8b1f23525ff..a2beed54eb3 100644
+--- a/fs/fuse/dir.c
++++ b/fs/fuse/dir.c
+@@ -361,7 +361,7 @@ int fuse_lookup_name(struct super_block *sb, u64 nodeid, struct qstr *name,
+ }
+ 
+ static struct dentry *fuse_lookup(struct inode *dir, struct dentry *entry,
+-				  struct nameidata *nd)
++				  unsigned int flags)
+ {
+ 	int err;
+ 	struct fuse_entry_out outarg;
+@@ -523,7 +523,7 @@ static int fuse_atomic_open(struct inode *dir, struct dentry *entry,
+ 	struct dentry *res = NULL;
+ 
+ 	if (d_unhashed(entry)) {
+-		res = fuse_lookup(dir, entry, NULL);
++		res = fuse_lookup(dir, entry, 0);
+ 		if (IS_ERR(res))
+ 			return PTR_ERR(res);
+ 
+diff --git a/fs/gfs2/inode.c b/fs/gfs2/inode.c
+index a9ba2444e07..19e443b7335 100644
+--- a/fs/gfs2/inode.c
++++ b/fs/gfs2/inode.c
+@@ -775,7 +775,7 @@ static int gfs2_create(struct inode *dir, struct dentry *dentry,
+  */
+ 
+ static struct dentry *gfs2_lookup(struct inode *dir, struct dentry *dentry,
+-				  struct nameidata *nd)
++				  unsigned int flags)
+ {
+ 	struct inode *inode = gfs2_lookupi(dir, &dentry->d_name, 0);
+ 	if (inode && !IS_ERR(inode)) {
+diff --git a/fs/hfs/dir.c b/fs/hfs/dir.c
+index 62fc14ea4b7..617b1ed71f5 100644
+--- a/fs/hfs/dir.c
++++ b/fs/hfs/dir.c
+@@ -18,7 +18,7 @@
+  * hfs_lookup()
+  */
+ static struct dentry *hfs_lookup(struct inode *dir, struct dentry *dentry,
+-				 struct nameidata *nd)
++				 unsigned int flags)
+ {
+ 	hfs_cat_rec rec;
+ 	struct hfs_find_data fd;
+diff --git a/fs/hfs/inode.c b/fs/hfs/inode.c
+index 737dbeb6432..525fcfef310 100644
+--- a/fs/hfs/inode.c
++++ b/fs/hfs/inode.c
+@@ -489,7 +489,7 @@ out:
+ }
+ 
+ static struct dentry *hfs_file_lookup(struct inode *dir, struct dentry *dentry,
+-				      struct nameidata *nd)
++				      unsigned int flags)
+ {
+ 	struct inode *inode = NULL;
+ 	hfs_cat_rec rec;
+diff --git a/fs/hfsplus/dir.c b/fs/hfsplus/dir.c
+index 26b53fb09f6..90c2f78b2c7 100644
+--- a/fs/hfsplus/dir.c
++++ b/fs/hfsplus/dir.c
+@@ -25,7 +25,7 @@ static inline void hfsplus_instantiate(struct dentry *dentry,
+ 
+ /* Find the entry inside dir named dentry->d_name */
+ static struct dentry *hfsplus_lookup(struct inode *dir, struct dentry *dentry,
+-				     struct nameidata *nd)
++				     unsigned int flags)
+ {
+ 	struct inode *inode = NULL;
+ 	struct hfs_find_data fd;
+diff --git a/fs/hfsplus/inode.c b/fs/hfsplus/inode.c
+index 82b69ee4dac..7009265b746 100644
+--- a/fs/hfsplus/inode.c
++++ b/fs/hfsplus/inode.c
+@@ -168,7 +168,7 @@ const struct dentry_operations hfsplus_dentry_operations = {
+ };
+ 
+ static struct dentry *hfsplus_file_lookup(struct inode *dir,
+-		struct dentry *dentry, struct nameidata *nd)
++		struct dentry *dentry, unsigned int flags)
+ {
+ 	struct hfs_find_data fd;
+ 	struct super_block *sb = dir->i_sb;
+diff --git a/fs/hostfs/hostfs_kern.c b/fs/hostfs/hostfs_kern.c
+index fe63b15f54d..127e08f3094 100644
+--- a/fs/hostfs/hostfs_kern.c
++++ b/fs/hostfs/hostfs_kern.c
+@@ -595,7 +595,7 @@ int hostfs_create(struct inode *dir, struct dentry *dentry, umode_t mode,
+ }
+ 
+ struct dentry *hostfs_lookup(struct inode *ino, struct dentry *dentry,
+-			     struct nameidata *nd)
++			     unsigned int flags)
+ {
+ 	struct inode *inode;
+ 	char *name;
+diff --git a/fs/hpfs/dir.c b/fs/hpfs/dir.c
+index 46549c77800..63b450a656b 100644
+--- a/fs/hpfs/dir.c
++++ b/fs/hpfs/dir.c
+@@ -191,7 +191,7 @@ out:
+  *	      to tell read_inode to read fnode or not.
+  */
+ 
+-struct dentry *hpfs_lookup(struct inode *dir, struct dentry *dentry, struct nameidata *nd)
++struct dentry *hpfs_lookup(struct inode *dir, struct dentry *dentry, unsigned int flags)
+ {
+ 	const unsigned char *name = dentry->d_name.name;
+ 	unsigned len = dentry->d_name.len;
+diff --git a/fs/hpfs/hpfs_fn.h b/fs/hpfs/hpfs_fn.h
+index de946170ebb..942cd08f8fd 100644
+--- a/fs/hpfs/hpfs_fn.h
++++ b/fs/hpfs/hpfs_fn.h
+@@ -227,7 +227,7 @@ extern const struct dentry_operations hpfs_dentry_operations;
+ 
+ /* dir.c */
+ 
+-struct dentry *hpfs_lookup(struct inode *, struct dentry *, struct nameidata *);
++struct dentry *hpfs_lookup(struct inode *, struct dentry *, unsigned int);
+ extern const struct file_operations hpfs_dir_ops;
+ 
+ /* dnode.c */
+diff --git a/fs/hppfs/hppfs.c b/fs/hppfs/hppfs.c
+index b73705fb2e4..7071a9d31f4 100644
+--- a/fs/hppfs/hppfs.c
++++ b/fs/hppfs/hppfs.c
+@@ -138,7 +138,7 @@ static int file_removed(struct dentry *dentry, const char *file)
+ }
+ 
+ static struct dentry *hppfs_lookup(struct inode *ino, struct dentry *dentry,
+-				   struct nameidata *nd)
++				   unsigned int flags)
+ {
+ 	struct dentry *proc_dentry, *parent;
+ 	struct qstr *name = &dentry->d_name;
+diff --git a/fs/isofs/isofs.h b/fs/isofs/isofs.h
+index 50cd5839844..1c7814faaee 100644
+--- a/fs/isofs/isofs.h
++++ b/fs/isofs/isofs.h
+@@ -114,7 +114,7 @@ extern int isofs_name_translate(struct iso_directory_record *, char *, struct in
+ int get_joliet_filename(struct iso_directory_record *, unsigned char *, struct inode *);
+ int get_acorn_filename(struct iso_directory_record *, char *, struct inode *);
+ 
+-extern struct dentry *isofs_lookup(struct inode *, struct dentry *, struct nameidata *);
++extern struct dentry *isofs_lookup(struct inode *, struct dentry *, unsigned int flags);
+ extern struct buffer_head *isofs_bread(struct inode *, sector_t);
+ extern int isofs_get_blocks(struct inode *, sector_t, struct buffer_head **, unsigned long);
+ 
+diff --git a/fs/isofs/namei.c b/fs/isofs/namei.c
+index 1e2946f2a69..c167028844e 100644
+--- a/fs/isofs/namei.c
++++ b/fs/isofs/namei.c
+@@ -163,7 +163,7 @@ isofs_find_entry(struct inode *dir, struct dentry *dentry,
+ 	return 0;
+ }
+ 
+-struct dentry *isofs_lookup(struct inode *dir, struct dentry *dentry, struct nameidata *nd)
++struct dentry *isofs_lookup(struct inode *dir, struct dentry *dentry, unsigned int flags)
+ {
+ 	int found;
+ 	unsigned long uninitialized_var(block);
+diff --git a/fs/jffs2/dir.c b/fs/jffs2/dir.c
+index b56018896d5..6a601673f89 100644
+--- a/fs/jffs2/dir.c
++++ b/fs/jffs2/dir.c
+@@ -27,7 +27,7 @@ static int jffs2_readdir (struct file *, void *, filldir_t);
+ static int jffs2_create (struct inode *,struct dentry *,umode_t,
+ 			 struct nameidata *);
+ static struct dentry *jffs2_lookup (struct inode *,struct dentry *,
+-				    struct nameidata *);
++				    unsigned int);
+ static int jffs2_link (struct dentry *,struct inode *,struct dentry *);
+ static int jffs2_unlink (struct inode *,struct dentry *);
+ static int jffs2_symlink (struct inode *,struct dentry *,const char *);
+@@ -74,7 +74,7 @@ const struct inode_operations jffs2_dir_inode_operations =
+    nice and simple
+ */
+ static struct dentry *jffs2_lookup(struct inode *dir_i, struct dentry *target,
+-				   struct nameidata *nd)
++				   unsigned int flags)
+ {
+ 	struct jffs2_inode_info *dir_f;
+ 	struct jffs2_full_dirent *fd = NULL, *fd_list;
+diff --git a/fs/jfs/namei.c b/fs/jfs/namei.c
+index f37977fb087..34fe85555ca 100644
+--- a/fs/jfs/namei.c
++++ b/fs/jfs/namei.c
+@@ -1436,7 +1436,7 @@ static int jfs_mknod(struct inode *dir, struct dentry *dentry,
+ 	return rc;
+ }
+ 
+-static struct dentry *jfs_lookup(struct inode *dip, struct dentry *dentry, struct nameidata *nd)
++static struct dentry *jfs_lookup(struct inode *dip, struct dentry *dentry, unsigned int flags)
+ {
+ 	struct btstack btstack;
+ 	ino_t inum;
+diff --git a/fs/libfs.c b/fs/libfs.c
+index 9f3c08c3ae2..7231d37570a 100644
+--- a/fs/libfs.c
++++ b/fs/libfs.c
+@@ -53,7 +53,7 @@ static int simple_delete_dentry(const struct dentry *dentry)
+  * Lookup the data. This is trivial - if the dentry didn't already
+  * exist, we know it is negative.  Set d_op to delete negative dentries.
+  */
+-struct dentry *simple_lookup(struct inode *dir, struct dentry *dentry, struct nameidata *nd)
++struct dentry *simple_lookup(struct inode *dir, struct dentry *dentry, unsigned int flags)
+ {
+ 	static const struct dentry_operations simple_dentry_operations = {
+ 		.d_delete = simple_delete_dentry,
+diff --git a/fs/logfs/dir.c b/fs/logfs/dir.c
+index bea5d1b9954..8a3dcc615b3 100644
+--- a/fs/logfs/dir.c
++++ b/fs/logfs/dir.c
+@@ -349,7 +349,7 @@ static void logfs_set_name(struct logfs_disk_dentry *dd, struct qstr *name)
+ }
+ 
+ static struct dentry *logfs_lookup(struct inode *dir, struct dentry *dentry,
+-		struct nameidata *nd)
++		unsigned int flags)
+ {
+ 	struct page *page;
+ 	struct logfs_disk_dentry *dd;
+diff --git a/fs/minix/namei.c b/fs/minix/namei.c
+index 2d0ee178630..1f245240ea0 100644
+--- a/fs/minix/namei.c
++++ b/fs/minix/namei.c
+@@ -18,7 +18,7 @@ static int add_nondir(struct dentry *dentry, struct inode *inode)
+ 	return err;
+ }
+ 
+-static struct dentry *minix_lookup(struct inode * dir, struct dentry *dentry, struct nameidata *nd)
++static struct dentry *minix_lookup(struct inode * dir, struct dentry *dentry, unsigned int flags)
+ {
+ 	struct inode * inode = NULL;
+ 	ino_t ino;
+diff --git a/fs/namei.c b/fs/namei.c
+index 598aec7f95e..c19baf7e7f2 100644
+--- a/fs/namei.c
++++ b/fs/namei.c
+@@ -1138,7 +1138,7 @@ static struct dentry *lookup_real(struct inode *dir, struct dentry *dentry,
+ 		return ERR_PTR(-ENOENT);
+ 	}
+ 
+-	old = dir->i_op->lookup(dir, dentry, nd);
++	old = dir->i_op->lookup(dir, dentry, nd ? nd->flags : 0);
+ 	if (unlikely(old)) {
+ 		dput(dentry);
+ 		dentry = old;
+diff --git a/fs/ncpfs/dir.c b/fs/ncpfs/dir.c
+index d14488f57ba..2ce3104308b 100644
+--- a/fs/ncpfs/dir.c
++++ b/fs/ncpfs/dir.c
+@@ -31,7 +31,7 @@ static void ncp_do_readdir(struct file *, void *, filldir_t,
+ static int ncp_readdir(struct file *, void *, filldir_t);
+ 
+ static int ncp_create(struct inode *, struct dentry *, umode_t, struct nameidata *);
+-static struct dentry *ncp_lookup(struct inode *, struct dentry *, struct nameidata *);
++static struct dentry *ncp_lookup(struct inode *, struct dentry *, unsigned int);
+ static int ncp_unlink(struct inode *, struct dentry *);
+ static int ncp_mkdir(struct inode *, struct dentry *, umode_t);
+ static int ncp_rmdir(struct inode *, struct dentry *);
+@@ -836,7 +836,7 @@ out:
+ 	return result;
+ }
+ 
+-static struct dentry *ncp_lookup(struct inode *dir, struct dentry *dentry, struct nameidata *nd)
++static struct dentry *ncp_lookup(struct inode *dir, struct dentry *dentry, unsigned int flags)
+ {
+ 	struct ncp_server *server = NCP_SERVER(dir);
+ 	struct inode *inode = NULL;
+diff --git a/fs/nfs/dir.c b/fs/nfs/dir.c
+index 64965f0effd..2e874f5aa4e 100644
+--- a/fs/nfs/dir.c
++++ b/fs/nfs/dir.c
+@@ -46,7 +46,7 @@
+ static int nfs_opendir(struct inode *, struct file *);
+ static int nfs_closedir(struct inode *, struct file *);
+ static int nfs_readdir(struct file *, void *, filldir_t);
+-static struct dentry *nfs_lookup(struct inode *, struct dentry *, struct nameidata *);
++static struct dentry *nfs_lookup(struct inode *, struct dentry *, unsigned int);
+ static int nfs_create(struct inode *, struct dentry *, umode_t, struct nameidata *);
+ static int nfs_mkdir(struct inode *, struct dentry *, umode_t);
+ static int nfs_rmdir(struct inode *, struct dentry *);
+@@ -1247,7 +1247,7 @@ const struct dentry_operations nfs_dentry_operations = {
+ 	.d_release	= nfs_d_release,
+ };
+ 
+-static struct dentry *nfs_lookup(struct inode *dir, struct dentry * dentry, struct nameidata *nd)
++static struct dentry *nfs_lookup(struct inode *dir, struct dentry * dentry, unsigned int flags)
+ {
+ 	struct dentry *res;
+ 	struct dentry *parent;
+@@ -1268,7 +1268,7 @@ static struct dentry *nfs_lookup(struct inode *dir, struct dentry * dentry, stru
+ 	 * If we're doing an exclusive create, optimize away the lookup
+ 	 * but don't hash the dentry.
+ 	 */
+-	if (nd && nfs_is_exclusive_create(dir, nd->flags)) {
++	if (nfs_is_exclusive_create(dir, flags)) {
+ 		d_instantiate(dentry, NULL);
+ 		res = NULL;
+ 		goto out;
+@@ -1456,7 +1456,7 @@ out:
+ 	return err;
+ 
+ no_open:
+-	res = nfs_lookup(dir, dentry, NULL);
++	res = nfs_lookup(dir, dentry, 0);
+ 	err = PTR_ERR(res);
+ 	if (IS_ERR(res))
+ 		goto out;
+diff --git a/fs/nilfs2/namei.c b/fs/nilfs2/namei.c
+index 0bb2c2010b9..843bd31013c 100644
+--- a/fs/nilfs2/namei.c
++++ b/fs/nilfs2/namei.c
+@@ -63,7 +63,7 @@ static inline int nilfs_add_nondir(struct dentry *dentry, struct inode *inode)
+  */
+ 
+ static struct dentry *
+-nilfs_lookup(struct inode *dir, struct dentry *dentry, struct nameidata *nd)
++nilfs_lookup(struct inode *dir, struct dentry *dentry, unsigned int flags)
+ {
+ 	struct inode *inode;
+ 	ino_t ino;
+diff --git a/fs/ntfs/namei.c b/fs/ntfs/namei.c
+index 358273e59ad..436f36037e0 100644
+--- a/fs/ntfs/namei.c
++++ b/fs/ntfs/namei.c
+@@ -101,7 +101,7 @@
+  * Locking: Caller must hold i_mutex on the directory.
+  */
+ static struct dentry *ntfs_lookup(struct inode *dir_ino, struct dentry *dent,
+-		struct nameidata *nd)
++		unsigned int flags)
+ {
+ 	ntfs_volume *vol = NTFS_SB(dir_ino->i_sb);
+ 	struct inode *dent_inode;
+diff --git a/fs/ocfs2/namei.c b/fs/ocfs2/namei.c
+index a9856e3eaaf..c9879bb5e2d 100644
+--- a/fs/ocfs2/namei.c
++++ b/fs/ocfs2/namei.c
+@@ -98,7 +98,7 @@ static int ocfs2_create_symlink_data(struct ocfs2_super *osb,
+ #define OCFS2_ORPHAN_NAMELEN ((int)(2 * sizeof(u64)))
+ 
+ static struct dentry *ocfs2_lookup(struct inode *dir, struct dentry *dentry,
+-				   struct nameidata *nd)
++				   unsigned int flags)
+ {
+ 	int status;
+ 	u64 blkno;
+diff --git a/fs/omfs/dir.c b/fs/omfs/dir.c
+index f00576ec320..3d254872e64 100644
+--- a/fs/omfs/dir.c
++++ b/fs/omfs/dir.c
+@@ -291,7 +291,7 @@ static int omfs_create(struct inode *dir, struct dentry *dentry, umode_t mode,
+ }
+ 
+ static struct dentry *omfs_lookup(struct inode *dir, struct dentry *dentry,
+-				  struct nameidata *nd)
++				  unsigned int flags)
+ {
+ 	struct buffer_head *bh;
+ 	struct inode *inode = NULL;
+diff --git a/fs/openpromfs/inode.c b/fs/openpromfs/inode.c
+index 7e107f59d7d..bce77df10ff 100644
+--- a/fs/openpromfs/inode.c
++++ b/fs/openpromfs/inode.c
+@@ -170,13 +170,13 @@ static const struct file_operations openprom_operations = {
+ 	.llseek		= generic_file_llseek,
+ };
+ 
+-static struct dentry *openpromfs_lookup(struct inode *, struct dentry *, struct nameidata *);
++static struct dentry *openpromfs_lookup(struct inode *, struct dentry *, unsigned int);
+ 
+ static const struct inode_operations openprom_inode_operations = {
+ 	.lookup		= openpromfs_lookup,
+ };
+ 
+-static struct dentry *openpromfs_lookup(struct inode *dir, struct dentry *dentry, struct nameidata *nd)
++static struct dentry *openpromfs_lookup(struct inode *dir, struct dentry *dentry, unsigned int flags)
+ {
+ 	struct op_inode_info *ent_oi, *oi = OP_I(dir);
+ 	struct device_node *dp, *child;
+diff --git a/fs/proc/base.c b/fs/proc/base.c
+index 806d21bae25..f6c990d3bb9 100644
+--- a/fs/proc/base.c
++++ b/fs/proc/base.c
+@@ -2021,7 +2021,7 @@ out_no_task:
+ }
+ 
+ static struct dentry *proc_lookupfd(struct inode *dir, struct dentry *dentry,
+-				    struct nameidata *nd)
++				    unsigned int flags)
+ {
+ 	return proc_lookupfd_common(dir, dentry, proc_fd_instantiate);
+ }
+@@ -2214,7 +2214,7 @@ proc_map_files_instantiate(struct inode *dir, struct dentry *dentry,
+ }
+ 
+ static struct dentry *proc_map_files_lookup(struct inode *dir,
+-		struct dentry *dentry, struct nameidata *nd)
++		struct dentry *dentry, unsigned int flags)
+ {
+ 	unsigned long vm_start, vm_end;
+ 	struct vm_area_struct *vma;
+@@ -2457,7 +2457,7 @@ static struct dentry *proc_fdinfo_instantiate(struct inode *dir,
+ 
+ static struct dentry *proc_lookupfdinfo(struct inode *dir,
+ 					struct dentry *dentry,
+-					struct nameidata *nd)
++					unsigned int flags)
+ {
+ 	return proc_lookupfd_common(dir, dentry, proc_fdinfo_instantiate);
+ }
+@@ -2707,7 +2707,7 @@ static const struct file_operations proc_attr_dir_operations = {
+ };
+ 
+ static struct dentry *proc_attr_dir_lookup(struct inode *dir,
+-				struct dentry *dentry, struct nameidata *nd)
++				struct dentry *dentry, unsigned int flags)
+ {
+ 	return proc_pident_lookup(dir, dentry,
+ 				  attr_dir_stuff, ARRAY_SIZE(attr_dir_stuff));
+@@ -3123,7 +3123,8 @@ static const struct file_operations proc_tgid_base_operations = {
+ 	.llseek		= default_llseek,
+ };
+ 
+-static struct dentry *proc_tgid_base_lookup(struct inode *dir, struct dentry *dentry, struct nameidata *nd){
++static struct dentry *proc_tgid_base_lookup(struct inode *dir, struct dentry *dentry, unsigned int flags)
++{
+ 	return proc_pident_lookup(dir, dentry,
+ 				  tgid_base_stuff, ARRAY_SIZE(tgid_base_stuff));
+ }
+@@ -3252,7 +3253,7 @@ out:
+ 	return error;
+ }
+ 
+-struct dentry *proc_pid_lookup(struct inode *dir, struct dentry * dentry, struct nameidata *nd)
++struct dentry *proc_pid_lookup(struct inode *dir, struct dentry * dentry, unsigned int flags)
+ {
+ 	struct dentry *result;
+ 	struct task_struct *task;
+@@ -3472,7 +3473,8 @@ static int proc_tid_base_readdir(struct file * filp,
+ 				   tid_base_stuff,ARRAY_SIZE(tid_base_stuff));
+ }
+ 
+-static struct dentry *proc_tid_base_lookup(struct inode *dir, struct dentry *dentry, struct nameidata *nd){
++static struct dentry *proc_tid_base_lookup(struct inode *dir, struct dentry *dentry, unsigned int flags)
++{
+ 	return proc_pident_lookup(dir, dentry,
+ 				  tid_base_stuff, ARRAY_SIZE(tid_base_stuff));
+ }
+@@ -3516,7 +3518,7 @@ out:
+ 	return error;
+ }
+ 
+-static struct dentry *proc_task_lookup(struct inode *dir, struct dentry * dentry, struct nameidata *nd)
++static struct dentry *proc_task_lookup(struct inode *dir, struct dentry * dentry, unsigned int flags)
+ {
+ 	struct dentry *result = ERR_PTR(-ENOENT);
+ 	struct task_struct *task;
+diff --git a/fs/proc/generic.c b/fs/proc/generic.c
+index a1487e5ab08..af8ac87dfc3 100644
+--- a/fs/proc/generic.c
++++ b/fs/proc/generic.c
+@@ -448,7 +448,7 @@ out_unlock:
+ }
+ 
+ struct dentry *proc_lookup(struct inode *dir, struct dentry *dentry,
+-		struct nameidata *nd)
++		unsigned int flags)
+ {
+ 	return proc_lookup_de(PDE(dir), dir, dentry);
+ }
+diff --git a/fs/proc/internal.h b/fs/proc/internal.h
+index 787035e8e52..ad07d6e38e6 100644
+--- a/fs/proc/internal.h
++++ b/fs/proc/internal.h
+@@ -108,7 +108,7 @@ void pde_users_dec(struct proc_dir_entry *pde);
+ 
+ extern spinlock_t proc_subdir_lock;
+ 
+-struct dentry *proc_pid_lookup(struct inode *dir, struct dentry * dentry, struct nameidata *);
++struct dentry *proc_pid_lookup(struct inode *dir, struct dentry * dentry, unsigned int);
+ int proc_pid_readdir(struct file * filp, void * dirent, filldir_t filldir);
+ unsigned long task_vsize(struct mm_struct *);
+ unsigned long task_statm(struct mm_struct *,
+@@ -134,7 +134,7 @@ int proc_remount(struct super_block *sb, int *flags, char *data);
+  * of the /proc/<pid> subdirectories.
+  */
+ int proc_readdir(struct file *, void *, filldir_t);
+-struct dentry *proc_lookup(struct inode *, struct dentry *, struct nameidata *);
++struct dentry *proc_lookup(struct inode *, struct dentry *, unsigned int);
+ 
+ 
+ 
+diff --git a/fs/proc/namespaces.c b/fs/proc/namespaces.c
+index 75dc504caeb..1ccd776c4de 100644
+--- a/fs/proc/namespaces.c
++++ b/fs/proc/namespaces.c
+@@ -277,7 +277,7 @@ const struct file_operations proc_ns_dir_operations = {
+ };
+ 
+ static struct dentry *proc_ns_dir_lookup(struct inode *dir,
+-				struct dentry *dentry, struct nameidata *nd)
++				struct dentry *dentry, unsigned int flags)
+ {
+ 	struct dentry *error;
+ 	struct task_struct *task = get_proc_task(dir);
+diff --git a/fs/proc/proc_net.c b/fs/proc/proc_net.c
+index 06e1cc17caf..fe72cd073de 100644
+--- a/fs/proc/proc_net.c
++++ b/fs/proc/proc_net.c
+@@ -119,7 +119,7 @@ static struct net *get_proc_task_net(struct inode *dir)
+ }
+ 
+ static struct dentry *proc_tgid_net_lookup(struct inode *dir,
+-		struct dentry *dentry, struct nameidata *nd)
++		struct dentry *dentry, unsigned int flags)
+ {
+ 	struct dentry *de;
+ 	struct net *net;
+diff --git a/fs/proc/proc_sysctl.c b/fs/proc/proc_sysctl.c
+index 4e7bc37759f..880b075e5d7 100644
+--- a/fs/proc/proc_sysctl.c
++++ b/fs/proc/proc_sysctl.c
+@@ -434,7 +434,7 @@ static struct ctl_table_header *grab_header(struct inode *inode)
+ }
+ 
+ static struct dentry *proc_sys_lookup(struct inode *dir, struct dentry *dentry,
+-					struct nameidata *nd)
++					unsigned int flags)
+ {
+ 	struct ctl_table_header *head = grab_header(dir);
+ 	struct ctl_table_header *h = NULL;
+diff --git a/fs/proc/root.c b/fs/proc/root.c
+index f6b21149bf2..69f38027caa 100644
+--- a/fs/proc/root.c
++++ b/fs/proc/root.c
+@@ -235,13 +235,12 @@ static int proc_root_getattr(struct vfsmount *mnt, struct dentry *dentry, struct
+ 	return 0;
+ }
+ 
+-static struct dentry *proc_root_lookup(struct inode * dir, struct dentry * dentry, struct nameidata *nd)
++static struct dentry *proc_root_lookup(struct inode * dir, struct dentry * dentry, unsigned int flags)
+ {
+-	if (!proc_lookup(dir, dentry, nd)) {
++	if (!proc_lookup(dir, dentry, flags))
+ 		return NULL;
+-	}
+ 	
+-	return proc_pid_lookup(dir, dentry, nd);
++	return proc_pid_lookup(dir, dentry, flags);
+ }
+ 
+ static int proc_root_readdir(struct file * filp,
+diff --git a/fs/qnx4/namei.c b/fs/qnx4/namei.c
+index a512c0b30e8..d024505ba00 100644
+--- a/fs/qnx4/namei.c
++++ b/fs/qnx4/namei.c
+@@ -95,7 +95,7 @@ static struct buffer_head *qnx4_find_entry(int len, struct inode *dir,
+ 	return NULL;
+ }
+ 
+-struct dentry * qnx4_lookup(struct inode *dir, struct dentry *dentry, struct nameidata *nd)
++struct dentry * qnx4_lookup(struct inode *dir, struct dentry *dentry, unsigned int flags)
+ {
+ 	int ino;
+ 	struct qnx4_inode_entry *de;
+diff --git a/fs/qnx4/qnx4.h b/fs/qnx4/qnx4.h
+index 244d4620189..34e2d329c97 100644
+--- a/fs/qnx4/qnx4.h
++++ b/fs/qnx4/qnx4.h
+@@ -23,7 +23,7 @@ struct qnx4_inode_info {
+ };
+ 
+ extern struct inode *qnx4_iget(struct super_block *, unsigned long);
+-extern struct dentry *qnx4_lookup(struct inode *dir, struct dentry *dentry, struct nameidata *nd);
++extern struct dentry *qnx4_lookup(struct inode *dir, struct dentry *dentry, unsigned int flags);
+ extern unsigned long qnx4_count_free_blocks(struct super_block *sb);
+ extern unsigned long qnx4_block_map(struct inode *inode, long iblock);
+ 
+diff --git a/fs/qnx6/namei.c b/fs/qnx6/namei.c
+index 8a97289e04a..0561326a94f 100644
+--- a/fs/qnx6/namei.c
++++ b/fs/qnx6/namei.c
+@@ -13,7 +13,7 @@
+ #include "qnx6.h"
+ 
+ struct dentry *qnx6_lookup(struct inode *dir, struct dentry *dentry,
+-				struct nameidata *nd)
++				unsigned int flags)
+ {
+ 	unsigned ino;
+ 	struct page *page;
+diff --git a/fs/qnx6/qnx6.h b/fs/qnx6/qnx6.h
+index 6c5e02a0b6a..b00fcc960d3 100644
+--- a/fs/qnx6/qnx6.h
++++ b/fs/qnx6/qnx6.h
+@@ -45,7 +45,7 @@ struct qnx6_inode_info {
+ 
+ extern struct inode *qnx6_iget(struct super_block *sb, unsigned ino);
+ extern struct dentry *qnx6_lookup(struct inode *dir, struct dentry *dentry,
+-					struct nameidata *nd);
++					unsigned int flags);
+ 
+ #ifdef CONFIG_QNX6FS_DEBUG
+ extern void qnx6_superblock_debug(struct qnx6_super_block *,
+diff --git a/fs/reiserfs/namei.c b/fs/reiserfs/namei.c
+index 84e8a69cee9..1d9cf248c47 100644
+--- a/fs/reiserfs/namei.c
++++ b/fs/reiserfs/namei.c
+@@ -322,7 +322,7 @@ static int reiserfs_find_entry(struct inode *dir, const char *name, int namelen,
+ }
+ 
+ static struct dentry *reiserfs_lookup(struct inode *dir, struct dentry *dentry,
+-				      struct nameidata *nd)
++				      unsigned int flags)
+ {
+ 	int retval;
+ 	int lock_depth;
+diff --git a/fs/romfs/super.c b/fs/romfs/super.c
+index 590c3908b5a..0ecd71ce412 100644
+--- a/fs/romfs/super.c
++++ b/fs/romfs/super.c
+@@ -210,7 +210,7 @@ out:
+  * look up an entry in a directory
+  */
+ static struct dentry *romfs_lookup(struct inode *dir, struct dentry *dentry,
+-				   struct nameidata *nd)
++				   unsigned int flags)
+ {
+ 	unsigned long offset, maxoff;
+ 	struct inode *inode;
+diff --git a/fs/sdcardfs/lookup.c b/fs/sdcardfs/lookup.c
+index 236fe23bbe4..9d9965afce0 100644
+--- a/fs/sdcardfs/lookup.c
++++ b/fs/sdcardfs/lookup.c
+@@ -227,7 +227,7 @@ int sdcardfs_interpose(struct dentry *dentry, struct super_block *sb,
+  * Fills in lower_parent_path with <dentry,mnt> on success.
+  */
+ static struct dentry *__sdcardfs_lookup(struct dentry *dentry,
+-		struct nameidata *nd, struct path *lower_parent_path, userid_t id)
++		unsigned int flags, struct path *lower_parent_path, userid_t id)
+ {
+ 	int err = 0;
+ 	struct vfsmount *lower_dir_mnt;
+@@ -356,10 +356,7 @@ static struct dentry *__sdcardfs_lookup(struct dentry *dentry,
+ 	 * the VFS will continue the process of making this negative dentry
+ 	 * into a positive one.
+ 	 */
+-	if (nd) {
+-		if (nd->flags & (LOOKUP_CREATE|LOOKUP_RENAME_TARGET))
+-			err = 0;
+-	} else
++	if (flags & (LOOKUP_CREATE|LOOKUP_RENAME_TARGET))
+ 		err = 0;
+ 
+ out:
+@@ -380,7 +377,7 @@ out:
+  * @nd : nameidata of parent inode
+  */
+ struct dentry *sdcardfs_lookup(struct inode *dir, struct dentry *dentry,
+-			     struct nameidata *nd)
++			     unsigned int flags)
+ {
+ 	struct dentry *ret = NULL, *parent;
+ 	struct path lower_parent_path;
+@@ -411,7 +408,7 @@ struct dentry *sdcardfs_lookup(struct inode *dir, struct dentry *dentry,
+ 		goto out;
+ 	}
+ 
+-	ret = __sdcardfs_lookup(dentry, nd, &lower_parent_path,
++	ret = __sdcardfs_lookup(dentry, flags, &lower_parent_path,
+ 				SDCARDFS_I(dir)->data->userid);
+ 	if (IS_ERR(ret))
+ 		goto out;
+diff --git a/fs/sdcardfs/sdcardfs.h b/fs/sdcardfs/sdcardfs.h
+index 5399f16f6fb..feb44efd620 100644
+--- a/fs/sdcardfs/sdcardfs.h
++++ b/fs/sdcardfs/sdcardfs.h
+@@ -144,7 +144,7 @@ extern void sdcardfs_destroy_dentry_cache(void);
+ extern int new_dentry_private_data(struct dentry *dentry);
+ extern void free_dentry_private_data(struct dentry *dentry);
+ extern struct dentry *sdcardfs_lookup(struct inode *dir, struct dentry *dentry,
+-				    struct nameidata *nd);
++				    unsigned int flags);
+ extern struct inode *sdcardfs_iget(struct super_block *sb,
+ 				 struct inode *lower_inode, userid_t id);
+ extern int sdcardfs_interpose(struct dentry *dentry, struct super_block *sb,
+diff --git a/fs/squashfs/namei.c b/fs/squashfs/namei.c
+index abcc58f3c15..7834a517f7f 100644
+--- a/fs/squashfs/namei.c
++++ b/fs/squashfs/namei.c
+@@ -134,7 +134,7 @@ out:
+ 
+ 
+ static struct dentry *squashfs_lookup(struct inode *dir, struct dentry *dentry,
+-				 struct nameidata *nd)
++				 unsigned int flags)
+ {
+ 	const unsigned char *name = dentry->d_name.name;
+ 	int len = dentry->d_name.len;
+diff --git a/fs/sysfs/dir.c b/fs/sysfs/dir.c
+index cc08fe6c807..9332d7087e1 100644
+--- a/fs/sysfs/dir.c
++++ b/fs/sysfs/dir.c
+@@ -743,7 +743,7 @@ int sysfs_create_dir(struct kobject * kobj)
+ }
+ 
+ static struct dentry * sysfs_lookup(struct inode *dir, struct dentry *dentry,
+-				struct nameidata *nd)
++				unsigned int flags)
+ {
+ 	struct dentry *ret = NULL;
+ 	struct dentry *parent = dentry->d_parent;
+diff --git a/fs/sysv/namei.c b/fs/sysv/namei.c
+index d7466e29361..a8c4359cd0e 100644
+--- a/fs/sysv/namei.c
++++ b/fs/sysv/namei.c
+@@ -43,7 +43,7 @@ const struct dentry_operations sysv_dentry_operations = {
+ 	.d_hash		= sysv_hash,
+ };
+ 
+-static struct dentry *sysv_lookup(struct inode * dir, struct dentry * dentry, struct nameidata *nd)
++static struct dentry *sysv_lookup(struct inode * dir, struct dentry * dentry, unsigned int flags)
+ {
+ 	struct inode * inode = NULL;
+ 	ino_t ino;
+diff --git a/fs/ubifs/dir.c b/fs/ubifs/dir.c
+index 25c472bb8ab..c26bb514c9c 100644
+--- a/fs/ubifs/dir.c
++++ b/fs/ubifs/dir.c
+@@ -192,7 +192,7 @@ static int dbg_check_name(const struct ubifs_info *c,
+ #endif
+ 
+ static struct dentry *ubifs_lookup(struct inode *dir, struct dentry *dentry,
+-				   struct nameidata *nd)
++				   unsigned int flags)
+ {
+ 	int err;
+ 	union ubifs_key key;
+diff --git a/fs/udf/namei.c b/fs/udf/namei.c
+index 7bf47e87fae..d6deeb6fe09 100644
+--- a/fs/udf/namei.c
++++ b/fs/udf/namei.c
+@@ -252,7 +252,7 @@ out_ok:
+ }
+ 
+ static struct dentry *udf_lookup(struct inode *dir, struct dentry *dentry,
+-				 struct nameidata *nd)
++				 unsigned int flags)
+ {
+ 	struct inode *inode = NULL;
+ 	struct fileIdentDesc cfi;
+diff --git a/fs/ufs/namei.c b/fs/ufs/namei.c
+index a2281cadefa..bc77fa170b9 100644
+--- a/fs/ufs/namei.c
++++ b/fs/ufs/namei.c
+@@ -46,7 +46,7 @@ static inline int ufs_add_nondir(struct dentry *dentry, struct inode *inode)
+ 	return err;
+ }
+ 
+-static struct dentry *ufs_lookup(struct inode * dir, struct dentry *dentry, struct nameidata *nd)
++static struct dentry *ufs_lookup(struct inode * dir, struct dentry *dentry, unsigned int flags)
+ {
+ 	struct inode * inode = NULL;
+ 	ino_t ino;
+diff --git a/fs/xfs/xfs_iops.c b/fs/xfs/xfs_iops.c
+index 23c79cab08d..e9cc01b3a98 100644
+--- a/fs/xfs/xfs_iops.c
++++ b/fs/xfs/xfs_iops.c
+@@ -200,7 +200,7 @@ STATIC struct dentry *
+ xfs_vn_lookup(
+ 	struct inode	*dir,
+ 	struct dentry	*dentry,
+-	struct nameidata *nd)
++	unsigned int flags)
+ {
+ 	struct xfs_inode *cip;
+ 	struct xfs_name	name;
+@@ -225,7 +225,7 @@ STATIC struct dentry *
+ xfs_vn_ci_lookup(
+ 	struct inode	*dir,
+ 	struct dentry	*dentry,
+-	struct nameidata *nd)
++	unsigned int flags)
+ {
+ 	struct xfs_inode *ip;
+ 	struct xfs_name	xname;
+diff --git a/include/linux/fs.h b/include/linux/fs.h
+index f799744042e..532b02ac876 100644
+--- a/include/linux/fs.h
++++ b/include/linux/fs.h
+@@ -1690,7 +1690,7 @@ struct file_operations {
+ };
+ 
+ struct inode_operations {
+-	struct dentry * (*lookup) (struct inode *,struct dentry *, struct nameidata *);
++	struct dentry * (*lookup) (struct inode *,struct dentry *, unsigned int);
+ 	void * (*follow_link) (struct dentry *, struct nameidata *);
+ 	int (*permission) (struct inode *, int);
+ 	int (*permission2) (struct vfsmount *, struct inode *, int);
+@@ -2623,7 +2623,7 @@ extern int simple_write_end(struct file *file, struct address_space *mapping,
+ 			loff_t pos, unsigned len, unsigned copied,
+ 			struct page *page, void *fsdata);
+ 
+-extern struct dentry *simple_lookup(struct inode *, struct dentry *, struct nameidata *);
++extern struct dentry *simple_lookup(struct inode *, struct dentry *, unsigned int flags);
+ extern ssize_t generic_read_dir(struct file *, char __user *, size_t, loff_t *);
+ extern const struct file_operations simple_dir_operations;
+ extern const struct inode_operations simple_dir_inode_operations;
+diff --git a/kernel/cgroup.c b/kernel/cgroup.c
+index e7320ebddcc..07496537add 100644
+--- a/kernel/cgroup.c
++++ b/kernel/cgroup.c
+@@ -800,7 +800,7 @@ EXPORT_SYMBOL_GPL(cgroup_unlock);
+  */
+ 
+ static int cgroup_mkdir(struct inode *dir, struct dentry *dentry, umode_t mode);
+-static struct dentry *cgroup_lookup(struct inode *, struct dentry *, struct nameidata *);
++static struct dentry *cgroup_lookup(struct inode *, struct dentry *, unsigned int);
+ static int cgroup_rmdir(struct inode *unused_dir, struct dentry *dentry);
+ static int cgroup_populate_dir(struct cgroup *cgrp);
+ static const struct inode_operations cgroup_dir_inode_operations;
+@@ -2527,7 +2527,7 @@ static const struct inode_operations cgroup_dir_inode_operations = {
+ 	.rename = cgroup_rename,
+ };
+ 
+-static struct dentry *cgroup_lookup(struct inode *dir, struct dentry *dentry, struct nameidata *nd)
++static struct dentry *cgroup_lookup(struct inode *dir, struct dentry *dentry, unsigned int flags)
+ {
+ 	if (dentry->d_name.len > NAME_MAX)
+ 		return ERR_PTR(-ENAMETOOLONG);
+-- 
+2.17.1
+

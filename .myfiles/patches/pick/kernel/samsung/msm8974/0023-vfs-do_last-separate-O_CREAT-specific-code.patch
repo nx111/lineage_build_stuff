@@ -1,0 +1,70 @@
+From 5bdd426f6a0c877702b9009b4d8270eef059716c Mon Sep 17 00:00:00 2001
+From: Miklos Szeredi <mszeredi@suse.cz>
+Date: Tue, 5 Jun 2012 15:10:13 +0200
+Subject: [PATCH 023/132] vfs: do_last(): separate O_CREAT specific code
+
+Check O_CREAT on the slow lookup paths where necessary.  This allows the rest to
+be shared with plain open.
+
+Signed-off-by: Miklos Szeredi <mszeredi@suse.cz>
+Signed-off-by: Al Viro <viro@zeniv.linux.org.uk>
+Change-Id: I25175e080194709420085aade0bb5d564ac77cbf
+---
+ fs/namei.c | 33 +++++++++++++++++----------------
+ 1 file changed, 17 insertions(+), 16 deletions(-)
+
+diff --git a/fs/namei.c b/fs/namei.c
+index 510fd6ad19b..1aaea62da9a 100644
+--- a/fs/namei.c
++++ b/fs/namei.c
+@@ -2380,22 +2380,23 @@ static struct file *do_last(struct nameidata *nd, struct path *path,
+ 			inode = path->dentry->d_inode;
+ 		}
+ 		goto finish_lookup;
+-	}
+-
+-	/* create side of things */
+-	/*
+-	 * This will *only* deal with leaving RCU mode - LOOKUP_JUMPED has been
+-	 * cleared when we got to the last component we are about to look up
+-	 */
+-	error = complete_walk(nd);
+-	if (error)
+-		return ERR_PTR(error);
++	} else {
++		/* create side of things */
++		/*
++		 * This will *only* deal with leaving RCU mode - LOOKUP_JUMPED
++		 * has been cleared when we got to the last component we are
++		 * about to look up
++		 */
++		error = complete_walk(nd);
++		if (error)
++			return ERR_PTR(error);
+ 
+-	audit_inode(pathname, dir);
+-	error = -EISDIR;
+-	/* trailing slashes? */
+-	if (nd->last.name[nd->last.len])
+-		goto exit;
++		audit_inode(pathname, dir);
++		error = -EISDIR;
++		/* trailing slashes? */
++		if (nd->last.name[nd->last.len])
++			goto exit;
++	}
+ 
+ retry_lookup:
+ 	mutex_lock(&dir->d_inode->i_mutex);
+@@ -2411,7 +2412,7 @@ retry_lookup:
+ 	path->mnt = nd->path.mnt;
+ 
+ 	/* Negative dentry, just create the file */
+-	if (!dentry->d_inode) {
++	if (!dentry->d_inode && (open_flag & O_CREAT)) {
+ 		umode_t mode = op->mode;
+ 		if (!IS_POSIXACL(dir->d_inode))
+ 			mode &= ~current_umask();
+-- 
+2.17.1
+

@@ -1,0 +1,50 @@
+From e422c7c49c2ddf3eabbd940038c1b41828de6bff Mon Sep 17 00:00:00 2001
+From: Arnd Bergmann <arnd@arndb.de>
+Date: Thu, 11 Oct 2012 13:20:00 +0000
+Subject: [PATCH 085/132] vfs: bogus warnings in fs/namei.c
+
+The follow_link() function always initializes its *p argument,
+or returns an error, but when building with 'gcc -s', the compiler
+gets confused by the __always_inline attribute to the function
+and can no longer detect where the cookie was initialized.
+
+The solution is to always initialize the pointer from follow_link,
+even in the error path. When building with -O2, this has zero impact
+on generated code and adds a single instruction in the error path
+for a -Os build on ARM.
+
+Without this patch, building with gcc-4.6 through gcc-4.8 and
+CONFIG_CC_OPTIMIZE_FOR_SIZE results in:
+
+fs/namei.c: In function 'link_path_walk':
+fs/namei.c:649:24: warning: 'cookie' may be used uninitialized in this function [-Wuninitialized]
+fs/namei.c:1544:9: note: 'cookie' was declared here
+fs/namei.c: In function 'path_lookupat':
+fs/namei.c:649:24: warning: 'cookie' may be used uninitialized in this function [-Wuninitialized]
+fs/namei.c:1934:10: note: 'cookie' was declared here
+fs/namei.c: In function 'path_openat':
+fs/namei.c:649:24: warning: 'cookie' may be used uninitialized in this function [-Wuninitialized]
+fs/namei.c:2899:9: note: 'cookie' was declared here
+
+Signed-off-by: Arnd Bergmann <arnd@arndb.de>
+Signed-off-by: Al Viro <viro@zeniv.linux.org.uk>
+Change-Id: I45ffbf02a947ddbd3f424336572fc8830aa2311b
+---
+ fs/namei.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/fs/namei.c b/fs/namei.c
+index 621cca11b55..595aab73b1b 100644
+--- a/fs/namei.c
++++ b/fs/namei.c
+@@ -805,6 +805,7 @@ follow_link(struct path *link, struct nameidata *nd, void **p)
+ 	return error;
+ 
+ out_put_nd_path:
++	*p = NULL;
+ 	path_put(&nd->path);
+ 	path_put(link);
+ 	return error;
+-- 
+2.17.1
+

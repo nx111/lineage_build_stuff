@@ -1,0 +1,73 @@
+From 48768065c45a444fb1c0652ceb97c35f8aabe9a2 Mon Sep 17 00:00:00 2001
+From: Jeff Layton <jlayton@redhat.com>
+Date: Wed, 10 Oct 2012 15:25:26 -0400
+Subject: [PATCH 088/132] vfs: allocate page instead of names_cache buffer in
+ mount_block_root
+
+First, it's incorrect to call putname() after __getname_gfp() since the
+bare __getname_gfp() call skips the auditing code, while putname()
+doesn't.
+
+mount_block_root allocates a PATH_MAX buffer via __getname_gfp, and then
+calls get_fs_names to fill the buffer. That function can call
+get_filesystem_list which assumes that that buffer is a full page in
+size. On arches where PAGE_SIZE != 4k, then this could potentially
+overrun.
+
+In practice, it's hard to imagine the list of filesystem names even
+approaching 4k, but it's best to be safe. Just allocate a page for this
+purpose instead.
+
+With this, we can also remove the __getname_gfp() definition since there
+are no more callers.
+
+Change-Id: Ic4539226aa0562b82513be29ddcaee1ef88584f2
+Signed-off-by: Jeff Layton <jlayton@redhat.com>
+Signed-off-by: Al Viro <viro@zeniv.linux.org.uk>
+---
+ include/linux/fs.h | 3 +--
+ init/do_mounts.c   | 7 ++++---
+ 2 files changed, 5 insertions(+), 5 deletions(-)
+
+diff --git a/include/linux/fs.h b/include/linux/fs.h
+index 68ec8c84a2e..d1042f7bbdf 100644
+--- a/include/linux/fs.h
++++ b/include/linux/fs.h
+@@ -2139,8 +2139,7 @@ extern struct kmem_cache *names_cachep;
+ 
+ extern void final_putname(struct filename *name);
+ 
+-#define __getname_gfp(gfp)	kmem_cache_alloc(names_cachep, (gfp))
+-#define __getname()		__getname_gfp(GFP_KERNEL)
++#define __getname()		kmem_cache_alloc(names_cachep, GFP_KERNEL)
+ #define __putname(name)		kmem_cache_free(names_cachep, (void *)(name))
+ #ifndef CONFIG_AUDITSYSCALL
+ #define putname(name)		final_putname(name)
+diff --git a/init/do_mounts.c b/init/do_mounts.c
+index 42b0707c348..7442d6d2d5f 100644
+--- a/init/do_mounts.c
++++ b/init/do_mounts.c
+@@ -343,8 +343,9 @@ static int __init do_mount_root(char *name, char *fs, int flags, void *data)
+ 
+ void __init mount_block_root(char *name, int flags)
+ {
+-	char *fs_names = __getname_gfp(GFP_KERNEL
+-		| __GFP_NOTRACK_FALSE_POSITIVE);
++	struct page *page = alloc_page(GFP_KERNEL |
++					__GFP_NOTRACK_FALSE_POSITIVE);
++	char *fs_names = page_address(page);
+ 	char *p;
+ #ifdef CONFIG_BLOCK
+ 	char b[BDEVNAME_SIZE];
+@@ -396,7 +397,7 @@ retry:
+ #endif
+ 	panic("VFS: Unable to mount root fs on %s", b);
+ out:
+-	putname(fs_names);
++	put_page(page);
+ }
+  
+ #ifdef CONFIG_ROOT_NFS
+-- 
+2.17.1
+

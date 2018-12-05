@@ -1,0 +1,801 @@
+From 99d7b412189cdfac0a01d1892e7ba629fc005afb Mon Sep 17 00:00:00 2001
+From: Al Viro <viro@zeniv.linux.org.uk>
+Date: Sun, 10 Jun 2012 16:03:43 -0400
+Subject: [PATCH 058/132] stop passing nameidata * to ->d_revalidate()
+
+Just the lookup flags.  Die, bastard, die...
+
+Change-Id: Ie1e6aa84316f14bd9f0a2d297bd5eb32c92c84fd
+Signed-off-by: Al Viro <viro@zeniv.linux.org.uk>
+---
+ Documentation/filesystems/Locking |  2 +-
+ Documentation/filesystems/porting |  5 +++++
+ Documentation/filesystems/vfs.txt |  8 ++++----
+ fs/9p/vfs_dentry.c                |  4 ++--
+ fs/afs/dir.c                      |  6 +++---
+ fs/ceph/dir.c                     |  6 +++---
+ fs/cifs/dir.c                     |  8 ++++----
+ fs/coda/dir.c                     |  6 +++---
+ fs/ecryptfs/dentry.c              | 20 ++++----------------
+ fs/fat/namei_vfat.c               | 12 ++++++------
+ fs/fuse/dir.c                     |  4 ++--
+ fs/gfs2/dentry.c                  |  6 +++---
+ fs/hfs/sysdep.c                   |  4 ++--
+ fs/jfs/namei.c                    |  6 +++---
+ fs/namei.c                        |  2 +-
+ fs/ncpfs/dir.c                    |  6 +++---
+ fs/nfs/dir.c                      | 10 ++++------
+ fs/ocfs2/dcache.c                 |  5 ++---
+ fs/proc/base.c                    | 22 +++++++++++-----------
+ fs/proc/internal.h                |  2 +-
+ fs/proc/namespaces.c              |  2 +-
+ fs/proc/proc_sysctl.c             |  4 ++--
+ fs/reiserfs/xattr.c               |  2 +-
+ fs/sdcardfs/dentry.c              | 18 ++++++++----------
+ fs/sysfs/dir.c                    |  4 ++--
+ include/linux/dcache.h            |  2 +-
+ 26 files changed, 82 insertions(+), 94 deletions(-)
+
+diff --git a/Documentation/filesystems/Locking b/Documentation/filesystems/Locking
+index 4af1fb14fde..9a9bb78d865 100644
+--- a/Documentation/filesystems/Locking
++++ b/Documentation/filesystems/Locking
+@@ -9,7 +9,7 @@ be able to use diff(1).
+ 
+ --------------------------- dentry_operations --------------------------
+ prototypes:
+-	int (*d_revalidate)(struct dentry *, struct nameidata *);
++	int (*d_revalidate)(struct dentry *, unsigned int);
+ 	int (*d_hash)(const struct dentry *, const struct inode *,
+ 			struct qstr *);
+ 	int (*d_compare)(const struct dentry *, const struct inode *,
+diff --git a/Documentation/filesystems/porting b/Documentation/filesystems/porting
+index 74acd961881..5d1bf58036f 100644
+--- a/Documentation/filesystems/porting
++++ b/Documentation/filesystems/porting
+@@ -435,3 +435,8 @@ release it yourself.
+ 	d_alloc_root() is gone, along with a lot of bugs caused by code
+ misusing it.  Replacement: d_make_root(inode).  The difference is,
+ d_make_root() drops the reference to inode if dentry allocation fails.  
++
++--
++[mandatory]
++	The witch is dead!  Well, 1/3 of it, anyway.  ->d_revalidate() does *not*
++take struct nameidata anymore; just the flags.
+diff --git a/Documentation/filesystems/vfs.txt b/Documentation/filesystems/vfs.txt
+index bc0ba61c200..2050ff0fd3a 100644
+--- a/Documentation/filesystems/vfs.txt
++++ b/Documentation/filesystems/vfs.txt
+@@ -899,7 +899,7 @@ the VFS uses a default. As of kernel 2.6.22, the following members are
+ defined:
+ 
+ struct dentry_operations {
+-	int (*d_revalidate)(struct dentry *, struct nameidata *);
++	int (*d_revalidate)(struct dentry *, unsigned int);
+ 	int (*d_hash)(const struct dentry *, const struct inode *,
+ 			struct qstr *);
+ 	int (*d_compare)(const struct dentry *, const struct inode *,
+@@ -918,11 +918,11 @@ struct dentry_operations {
+ 	dcache. Most filesystems leave this as NULL, because all their
+ 	dentries in the dcache are valid
+ 
+-	d_revalidate may be called in rcu-walk mode (nd->flags & LOOKUP_RCU).
++	d_revalidate may be called in rcu-walk mode (flags & LOOKUP_RCU).
+ 	If in rcu-walk mode, the filesystem must revalidate the dentry without
+ 	blocking or storing to the dentry, d_parent and d_inode should not be
+-	used without care (because they can go NULL), instead nd->inode should
+-	be used.
++	used without care (because they can change and, in d_inode case, even
++	become NULL under us).
+ 
+ 	If a situation is encountered that rcu-walk cannot handle, return
+ 	-ECHILD and it will be called again in ref-walk mode.
+diff --git a/fs/9p/vfs_dentry.c b/fs/9p/vfs_dentry.c
+index d529437ff44..64600b5d052 100644
+--- a/fs/9p/vfs_dentry.c
++++ b/fs/9p/vfs_dentry.c
+@@ -100,13 +100,13 @@ static void v9fs_dentry_release(struct dentry *dentry)
+ 	}
+ }
+ 
+-static int v9fs_lookup_revalidate(struct dentry *dentry, struct nameidata *nd)
++static int v9fs_lookup_revalidate(struct dentry *dentry, unsigned int flags)
+ {
+ 	struct p9_fid *fid;
+ 	struct inode *inode;
+ 	struct v9fs_inode *v9inode;
+ 
+-	if (nd->flags & LOOKUP_RCU)
++	if (flags & LOOKUP_RCU)
+ 		return -ECHILD;
+ 
+ 	inode = dentry->d_inode;
+diff --git a/fs/afs/dir.c b/fs/afs/dir.c
+index e22dc4b4a50..65c54ab0473 100644
+--- a/fs/afs/dir.c
++++ b/fs/afs/dir.c
+@@ -23,7 +23,7 @@ static struct dentry *afs_lookup(struct inode *dir, struct dentry *dentry,
+ 				 struct nameidata *nd);
+ static int afs_dir_open(struct inode *inode, struct file *file);
+ static int afs_readdir(struct file *file, void *dirent, filldir_t filldir);
+-static int afs_d_revalidate(struct dentry *dentry, struct nameidata *nd);
++static int afs_d_revalidate(struct dentry *dentry, unsigned int flags);
+ static int afs_d_delete(const struct dentry *dentry);
+ static void afs_d_release(struct dentry *dentry);
+ static int afs_lookup_filldir(void *_cookie, const char *name, int nlen,
+@@ -598,7 +598,7 @@ success:
+  * - NOTE! the hit can be a negative hit too, so we can't assume we have an
+  *   inode
+  */
+-static int afs_d_revalidate(struct dentry *dentry, struct nameidata *nd)
++static int afs_d_revalidate(struct dentry *dentry, unsigned int flags)
+ {
+ 	struct afs_vnode *vnode, *dir;
+ 	struct afs_fid uninitialized_var(fid);
+@@ -607,7 +607,7 @@ static int afs_d_revalidate(struct dentry *dentry, struct nameidata *nd)
+ 	void *dir_version;
+ 	int ret;
+ 
+-	if (nd->flags & LOOKUP_RCU)
++	if (flags & LOOKUP_RCU)
+ 		return -ECHILD;
+ 
+ 	vnode = AFS_FS_I(dentry->d_inode);
+diff --git a/fs/ceph/dir.c b/fs/ceph/dir.c
+index 523f081607d..1b42851c6f1 100644
+--- a/fs/ceph/dir.c
++++ b/fs/ceph/dir.c
+@@ -1042,12 +1042,12 @@ static int dir_lease_is_valid(struct inode *dir, struct dentry *dentry)
+ /*
+  * Check if cached dentry can be trusted.
+  */
+-static int ceph_d_revalidate(struct dentry *dentry, struct nameidata *nd)
++static int ceph_d_revalidate(struct dentry *dentry, unsigned int flags)
+ {
+ 	int valid = 0;
+ 	struct inode *dir;
+ 
+-	if (nd && nd->flags & LOOKUP_RCU)
++	if (flags & LOOKUP_RCU)
+ 		return -ECHILD;
+ 
+ 	dout("d_revalidate %p '%.*s' inode %p offset %lld\n", dentry,
+@@ -1094,7 +1094,7 @@ static void ceph_d_release(struct dentry *dentry)
+ }
+ 
+ static int ceph_snapdir_d_revalidate(struct dentry *dentry,
+-					  struct nameidata *nd)
++					  unsigned int flags)
+ {
+ 	/*
+ 	 * Eventually, we'll want to revalidate snapped metadata
+diff --git a/fs/cifs/dir.c b/fs/cifs/dir.c
+index e8c53c80dbd..b97ff48b7df 100644
+--- a/fs/cifs/dir.c
++++ b/fs/cifs/dir.c
+@@ -700,9 +700,9 @@ lookup_out:
+ }
+ 
+ static int
+-cifs_d_revalidate(struct dentry *direntry, struct nameidata *nd)
++cifs_d_revalidate(struct dentry *direntry, unsigned int flags)
+ {
+-	if (nd && (nd->flags & LOOKUP_RCU))
++	if (flags & LOOKUP_RCU)
+ 		return -ECHILD;
+ 
+ 	if (direntry->d_inode) {
+@@ -731,7 +731,7 @@ cifs_d_revalidate(struct dentry *direntry, struct nameidata *nd)
+ 	 * This may be nfsd (or something), anyway, we can't see the
+ 	 * intent of this. So, since this can be for creation, drop it.
+ 	 */
+-	if (!nd)
++	if (!flags)
+ 		return 0;
+ 
+ 	/*
+@@ -739,7 +739,7 @@ cifs_d_revalidate(struct dentry *direntry, struct nameidata *nd)
+ 	 * case sensitive name which is specified by user if this is
+ 	 * for creation.
+ 	 */
+-	if (nd->flags & (LOOKUP_CREATE | LOOKUP_RENAME_TARGET))
++	if (flags & (LOOKUP_CREATE | LOOKUP_RENAME_TARGET))
+ 		return 0;
+ 
+ 	if (time_after(jiffies, direntry->d_time + HZ) || !lookupCacheEnabled)
+diff --git a/fs/coda/dir.c b/fs/coda/dir.c
+index 17751582906..7f8f1a7c6d8 100644
+--- a/fs/coda/dir.c
++++ b/fs/coda/dir.c
+@@ -46,7 +46,7 @@ static int coda_rename(struct inode *old_inode, struct dentry *old_dentry,
+ static int coda_readdir(struct file *file, void *buf, filldir_t filldir);
+ 
+ /* dentry ops */
+-static int coda_dentry_revalidate(struct dentry *de, struct nameidata *nd);
++static int coda_dentry_revalidate(struct dentry *de, unsigned int flags);
+ static int coda_dentry_delete(const struct dentry *);
+ 
+ /* support routines */
+@@ -536,12 +536,12 @@ out:
+ }
+ 
+ /* called when a cache lookup succeeds */
+-static int coda_dentry_revalidate(struct dentry *de, struct nameidata *nd)
++static int coda_dentry_revalidate(struct dentry *de, unsigned int flags)
+ {
+ 	struct inode *inode;
+ 	struct coda_inode_info *cii;
+ 
+-	if (nd->flags & LOOKUP_RCU)
++	if (flags & LOOKUP_RCU)
+ 		return -ECHILD;
+ 
+ 	inode = de->d_inode;
+diff --git a/fs/ecryptfs/dentry.c b/fs/ecryptfs/dentry.c
+index eba8f1d4ad3..8c5df47e938 100644
+--- a/fs/ecryptfs/dentry.c
++++ b/fs/ecryptfs/dentry.c
+@@ -32,7 +32,7 @@
+ /**
+  * ecryptfs_d_revalidate - revalidate an ecryptfs dentry
+  * @dentry: The ecryptfs dentry
+- * @nd: The associated nameidata
++ * @flags: lookup flags
+  *
+  * Called when the VFS needs to revalidate a dentry. This
+  * is called whenever a name lookup finds a dentry in the
+@@ -42,31 +42,19 @@
+  * Returns 1 if valid, 0 otherwise.
+  *
+  */
+-static int ecryptfs_d_revalidate(struct dentry *dentry, struct nameidata *nd)
++static int ecryptfs_d_revalidate(struct dentry *dentry, unsigned int flags)
+ {
+ 	struct dentry *lower_dentry;
+ 	struct vfsmount *lower_mnt;
+-	struct dentry *dentry_save = NULL;
+-	struct vfsmount *vfsmount_save = NULL;
+ 	int rc = 1;
+ 
+-	if (nd && nd->flags & LOOKUP_RCU)
++	if (flags & LOOKUP_RCU)
+ 		return -ECHILD;
+ 
+ 	lower_dentry = ecryptfs_dentry_to_lower(dentry);
+ 	lower_mnt = ecryptfs_dentry_to_lower_mnt(dentry);
+ 	if (lower_dentry->d_op && lower_dentry->d_op->d_revalidate) {
+-		if (nd) {
+-			dentry_save = nd->path.dentry;
+-			vfsmount_save = nd->path.mnt;
+-			nd->path.dentry = lower_dentry;
+-			nd->path.mnt = lower_mnt;
+-		}
+-		rc = lower_dentry->d_op->d_revalidate(lower_dentry, nd);
+-		if (nd) {
+-			nd->path.dentry = dentry_save;
+-			nd->path.mnt = vfsmount_save;
+-		}
++		rc = lower_dentry->d_op->d_revalidate(lower_dentry, flags);
+ 	}
+ 	if (dentry->d_inode) {
+ 		struct inode *inode = dentry->d_inode;
+diff --git a/fs/fat/namei_vfat.c b/fs/fat/namei_vfat.c
+index 55274018316..aadb3762bea 100644
+--- a/fs/fat/namei_vfat.c
++++ b/fs/fat/namei_vfat.c
+@@ -41,9 +41,9 @@ static int vfat_revalidate_shortname(struct dentry *dentry)
+ 	return ret;
+ }
+ 
+-static int vfat_revalidate(struct dentry *dentry, struct nameidata *nd)
++static int vfat_revalidate(struct dentry *dentry, unsigned int flags)
+ {
+-	if (nd && nd->flags & LOOKUP_RCU)
++	if (flags & LOOKUP_RCU)
+ 		return -ECHILD;
+ 
+ 	/* This is not negative dentry. Always valid. */
+@@ -52,9 +52,9 @@ static int vfat_revalidate(struct dentry *dentry, struct nameidata *nd)
+ 	return vfat_revalidate_shortname(dentry);
+ }
+ 
+-static int vfat_revalidate_ci(struct dentry *dentry, struct nameidata *nd)
++static int vfat_revalidate_ci(struct dentry *dentry, unsigned int flags)
+ {
+-	if (nd && nd->flags & LOOKUP_RCU)
++	if (flags & LOOKUP_RCU)
+ 		return -ECHILD;
+ 
+ 	/*
+@@ -74,7 +74,7 @@ static int vfat_revalidate_ci(struct dentry *dentry, struct nameidata *nd)
+ 	 * This may be nfsd (or something), anyway, we can't see the
+ 	 * intent of this. So, since this can be for creation, drop it.
+ 	 */
+-	if (!nd)
++	if (!flags)
+ 		return 0;
+ 
+ 	/*
+@@ -82,7 +82,7 @@ static int vfat_revalidate_ci(struct dentry *dentry, struct nameidata *nd)
+ 	 * case sensitive name which is specified by user if this is
+ 	 * for creation.
+ 	 */
+-	if (nd->flags & (LOOKUP_CREATE | LOOKUP_RENAME_TARGET))
++	if (flags & (LOOKUP_CREATE | LOOKUP_RENAME_TARGET))
+ 		return 0;
+ 
+ 	return vfat_revalidate_shortname(dentry);
+diff --git a/fs/fuse/dir.c b/fs/fuse/dir.c
+index 71cfb456555..8b1f23525ff 100644
+--- a/fs/fuse/dir.c
++++ b/fs/fuse/dir.c
+@@ -154,7 +154,7 @@ u64 fuse_get_attr_version(struct fuse_conn *fc)
+  * the lookup once more.  If the lookup results in the same inode,
+  * then refresh the attributes, timeouts and mark the dentry valid.
+  */
+-static int fuse_dentry_revalidate(struct dentry *entry, struct nameidata *nd)
++static int fuse_dentry_revalidate(struct dentry *entry, unsigned int flags)
+ {
+ 	struct inode *inode;
+ 
+@@ -174,7 +174,7 @@ static int fuse_dentry_revalidate(struct dentry *entry, struct nameidata *nd)
+ 		if (!inode)
+ 			return 0;
+ 
+-		if (nd && (nd->flags & LOOKUP_RCU))
++		if (flags & LOOKUP_RCU)
+ 			return -ECHILD;
+ 
+ 		fc = get_fuse_conn(inode);
+diff --git a/fs/gfs2/dentry.c b/fs/gfs2/dentry.c
+index 0da8da2c991..4fddb3c22d2 100644
+--- a/fs/gfs2/dentry.c
++++ b/fs/gfs2/dentry.c
+@@ -25,7 +25,7 @@
+ /**
+  * gfs2_drevalidate - Check directory lookup consistency
+  * @dentry: the mapping to check
+- * @nd:
++ * @flags: lookup flags
+  *
+  * Check to make sure the lookup necessary to arrive at this inode from its
+  * parent is still good.
+@@ -33,7 +33,7 @@
+  * Returns: 1 if the dentry is ok, 0 if it isn't
+  */
+ 
+-static int gfs2_drevalidate(struct dentry *dentry, struct nameidata *nd)
++static int gfs2_drevalidate(struct dentry *dentry, unsigned int flags)
+ {
+ 	struct dentry *parent;
+ 	struct gfs2_sbd *sdp;
+@@ -44,7 +44,7 @@ static int gfs2_drevalidate(struct dentry *dentry, struct nameidata *nd)
+ 	int error;
+ 	int had_lock = 0;
+ 
+-	if (nd && nd->flags & LOOKUP_RCU)
++	if (flags & LOOKUP_RCU)
+ 		return -ECHILD;
+ 
+ 	parent = dget_parent(dentry);
+diff --git a/fs/hfs/sysdep.c b/fs/hfs/sysdep.c
+index 19cf291eb91..91b91fd3a90 100644
+--- a/fs/hfs/sysdep.c
++++ b/fs/hfs/sysdep.c
+@@ -13,12 +13,12 @@
+ 
+ /* dentry case-handling: just lowercase everything */
+ 
+-static int hfs_revalidate_dentry(struct dentry *dentry, struct nameidata *nd)
++static int hfs_revalidate_dentry(struct dentry *dentry, unsigned int flags)
+ {
+ 	struct inode *inode;
+ 	int diff;
+ 
+-	if (nd->flags & LOOKUP_RCU)
++	if (flags & LOOKUP_RCU)
+ 		return -ECHILD;
+ 
+ 	inode = dentry->d_inode;
+diff --git a/fs/jfs/namei.c b/fs/jfs/namei.c
+index 07c91ca6017..f37977fb087 100644
+--- a/fs/jfs/namei.c
++++ b/fs/jfs/namei.c
+@@ -1570,7 +1570,7 @@ out:
+ 	return result;
+ }
+ 
+-static int jfs_ci_revalidate(struct dentry *dentry, struct nameidata *nd)
++static int jfs_ci_revalidate(struct dentry *dentry, unsigned int flags)
+ {
+ 	/*
+ 	 * This is not negative dentry. Always valid.
+@@ -1589,7 +1589,7 @@ static int jfs_ci_revalidate(struct dentry *dentry, struct nameidata *nd)
+ 	 * This may be nfsd (or something), anyway, we can't see the
+ 	 * intent of this. So, since this can be for creation, drop it.
+ 	 */
+-	if (!nd)
++	if (!flags)
+ 		return 0;
+ 
+ 	/*
+@@ -1597,7 +1597,7 @@ static int jfs_ci_revalidate(struct dentry *dentry, struct nameidata *nd)
+ 	 * case sensitive name which is specified by user if this is
+ 	 * for creation.
+ 	 */
+-	if (nd->flags & (LOOKUP_CREATE | LOOKUP_RENAME_TARGET))
++	if (flags & (LOOKUP_CREATE | LOOKUP_RENAME_TARGET))
+ 		return 0;
+ 	return 1;
+ }
+diff --git a/fs/namei.c b/fs/namei.c
+index 87daac7bdf6..d3aed8b3241 100644
+--- a/fs/namei.c
++++ b/fs/namei.c
+@@ -495,7 +495,7 @@ err_root:
+ 
+ static inline int d_revalidate(struct dentry *dentry, struct nameidata *nd)
+ {
+-	return dentry->d_op->d_revalidate(dentry, nd);
++	return dentry->d_op->d_revalidate(dentry, nd ? nd->flags : 0);
+ }
+ 
+ /**
+diff --git a/fs/ncpfs/dir.c b/fs/ncpfs/dir.c
+index ba792a0ab9f..d14488f57ba 100644
+--- a/fs/ncpfs/dir.c
++++ b/fs/ncpfs/dir.c
+@@ -72,7 +72,7 @@ const struct inode_operations ncp_dir_inode_operations =
+ /*
+  * Dentry operations routines
+  */
+-static int ncp_lookup_validate(struct dentry *, struct nameidata *);
++static int ncp_lookup_validate(struct dentry *, unsigned int);
+ static int ncp_hash_dentry(const struct dentry *, const struct inode *,
+ 		struct qstr *);
+ static int ncp_compare_dentry(const struct dentry *, const struct inode *,
+@@ -290,7 +290,7 @@ leave_me:;
+ 
+ 
+ static int
+-ncp_lookup_validate(struct dentry *dentry, struct nameidata *nd)
++ncp_lookup_validate(struct dentry *dentry, unsigned int flags)
+ {
+ 	struct ncp_server *server;
+ 	struct dentry *parent;
+@@ -302,7 +302,7 @@ ncp_lookup_validate(struct dentry *dentry, struct nameidata *nd)
+ 	if (dentry == dentry->d_sb->s_root)
+ 		return 1;
+ 
+-	if (nd->flags & LOOKUP_RCU)
++	if (flags & LOOKUP_RCU)
+ 		return -ECHILD;
+ 
+ 	parent = dget_parent(dentry);
+diff --git a/fs/nfs/dir.c b/fs/nfs/dir.c
+index 089833b5cfe..64965f0effd 100644
+--- a/fs/nfs/dir.c
++++ b/fs/nfs/dir.c
+@@ -1075,9 +1075,8 @@ int nfs_neg_need_reval(struct inode *dir, struct dentry *dentry,
+  * If the parent directory is seen to have changed, we throw out the
+  * cached dentry and do a new lookup.
+  */
+-static int nfs_lookup_revalidate(struct dentry *dentry, struct nameidata *nd)
++static int nfs_lookup_revalidate(struct dentry *dentry, unsigned int flags)
+ {
+-	unsigned int flags = nd->flags;
+ 	struct inode *dir;
+ 	struct inode *inode;
+ 	struct dentry *parent;
+@@ -1313,7 +1312,7 @@ out:
+ }
+ 
+ #ifdef CONFIG_NFS_V4
+-static int nfs4_lookup_revalidate(struct dentry *, struct nameidata *);
++static int nfs4_lookup_revalidate(struct dentry *, unsigned int);
+ 
+ const struct dentry_operations nfs4_dentry_operations = {
+ 	.d_revalidate	= nfs4_lookup_revalidate,
+@@ -1465,9 +1464,8 @@ no_open:
+ 	return finish_no_open(file, res);
+ }
+ 
+-static int nfs4_lookup_revalidate(struct dentry *dentry, struct nameidata *nd)
++static int nfs4_lookup_revalidate(struct dentry *dentry, unsigned int flags)
+ {
+-	unsigned int flags = nd->flags;
+ 	struct dentry *parent = NULL;
+ 	struct inode *inode;
+ 	struct inode *dir;
+@@ -1511,7 +1509,7 @@ out:
+ no_open_dput:
+ 	dput(parent);
+ no_open:
+-	return nfs_lookup_revalidate(dentry, nd);
++	return nfs_lookup_revalidate(dentry, flags);
+ }
+ 
+ #endif /* CONFIG_NFSV4 */
+diff --git a/fs/ocfs2/dcache.c b/fs/ocfs2/dcache.c
+index 26977cc14ae..ab17f2215af 100644
+--- a/fs/ocfs2/dcache.c
++++ b/fs/ocfs2/dcache.c
+@@ -49,14 +49,13 @@ void ocfs2_dentry_attach_gen(struct dentry *dentry)
+ }
+ 
+ 
+-static int ocfs2_dentry_revalidate(struct dentry *dentry,
+-				   struct nameidata *nd)
++static int ocfs2_dentry_revalidate(struct dentry *dentry, unsigned int flags)
+ {
+ 	struct inode *inode;
+ 	int ret = 0;    /* if all else fails, just return false */
+ 	struct ocfs2_super *osb;
+ 
+-	if (nd && nd->flags & LOOKUP_RCU)
++	if (flags & LOOKUP_RCU)
+ 		return -ECHILD;
+ 
+ 	inode = dentry->d_inode;
+diff --git a/fs/proc/base.c b/fs/proc/base.c
+index 3a7fb4944bb..806d21bae25 100644
+--- a/fs/proc/base.c
++++ b/fs/proc/base.c
+@@ -1667,13 +1667,13 @@ int pid_getattr(struct vfsmount *mnt, struct dentry *dentry, struct kstat *stat)
+  * made this apply to all per process world readable and executable
+  * directories.
+  */
+-int pid_revalidate(struct dentry *dentry, struct nameidata *nd)
++int pid_revalidate(struct dentry *dentry, unsigned int flags)
+ {
+ 	struct inode *inode;
+ 	struct task_struct *task;
+ 	const struct cred *cred;
+ 
+-	if (nd && nd->flags & LOOKUP_RCU)
++	if (flags & LOOKUP_RCU)
+ 		return -ECHILD;
+ 
+ 	inode = dentry->d_inode;
+@@ -1847,7 +1847,7 @@ static int proc_fd_link(struct dentry *dentry, struct path *path)
+ 	return proc_fd_info(dentry->d_inode, path, NULL);
+ }
+ 
+-static int tid_fd_revalidate(struct dentry *dentry, struct nameidata *nd)
++static int tid_fd_revalidate(struct dentry *dentry, unsigned int flags)
+ {
+ 	struct inode *inode;
+ 	struct task_struct *task;
+@@ -1855,7 +1855,7 @@ static int tid_fd_revalidate(struct dentry *dentry, struct nameidata *nd)
+ 	struct files_struct *files;
+ 	const struct cred *cred;
+ 
+-	if (nd && nd->flags & LOOKUP_RCU)
++	if (flags & LOOKUP_RCU)
+ 		return -ECHILD;
+ 
+ 	inode = dentry->d_inode;
+@@ -1934,7 +1934,7 @@ static struct dentry *proc_fd_instantiate(struct inode *dir,
+ 	d_set_d_op(dentry, &tid_fd_dentry_operations);
+ 	d_add(dentry, inode);
+ 	/* Close the race of the process dying before we return the dentry */
+-	if (tid_fd_revalidate(dentry, NULL))
++	if (tid_fd_revalidate(dentry, 0))
+ 		error = NULL;
+ 
+  out:
+@@ -2068,7 +2068,7 @@ static int dname_to_vma_addr(struct dentry *dentry,
+ 	return 0;
+ }
+ 
+-static int map_files_d_revalidate(struct dentry *dentry, struct nameidata *nd)
++static int map_files_d_revalidate(struct dentry *dentry, unsigned int flags)
+ {
+ 	unsigned long vm_start, vm_end;
+ 	bool exact_vma_exists = false;
+@@ -2078,7 +2078,7 @@ static int map_files_d_revalidate(struct dentry *dentry, struct nameidata *nd)
+ 	struct inode *inode;
+ 	int status = 0;
+ 
+-	if (nd && nd->flags & LOOKUP_RCU)
++	if (flags & LOOKUP_RCU)
+ 		return -ECHILD;
+ 
+ 	if (!capable(CAP_SYS_ADMIN)) {
+@@ -2448,7 +2448,7 @@ static struct dentry *proc_fdinfo_instantiate(struct inode *dir,
+ 	d_set_d_op(dentry, &tid_fd_dentry_operations);
+ 	d_add(dentry, inode);
+ 	/* Close the race of the process dying before we return the dentry */
+-	if (tid_fd_revalidate(dentry, NULL))
++	if (tid_fd_revalidate(dentry, 0))
+ 		error = NULL;
+ 
+  out:
+@@ -2507,7 +2507,7 @@ static struct dentry *proc_pident_instantiate(struct inode *dir,
+ 	d_set_d_op(dentry, &pid_dentry_operations);
+ 	d_add(dentry, inode);
+ 	/* Close the race of the process dying before we return the dentry */
+-	if (pid_revalidate(dentry, NULL))
++	if (pid_revalidate(dentry, 0))
+ 		error = NULL;
+ out:
+ 	return error;
+@@ -3246,7 +3246,7 @@ static struct dentry *proc_pid_instantiate(struct inode *dir,
+ 
+ 	d_add(dentry, inode);
+ 	/* Close the race of the process dying before we return the dentry */
+-	if (pid_revalidate(dentry, NULL))
++	if (pid_revalidate(dentry, 0))
+ 		error = NULL;
+ out:
+ 	return error;
+@@ -3510,7 +3510,7 @@ static struct dentry *proc_task_instantiate(struct inode *dir,
+ 
+ 	d_add(dentry, inode);
+ 	/* Close the race of the process dying before we return the dentry */
+-	if (pid_revalidate(dentry, NULL))
++	if (pid_revalidate(dentry, 0))
+ 		error = NULL;
+ out:
+ 	return error;
+diff --git a/fs/proc/internal.h b/fs/proc/internal.h
+index 29ecdb1bba2..787035e8e52 100644
+--- a/fs/proc/internal.h
++++ b/fs/proc/internal.h
+@@ -144,7 +144,7 @@ typedef struct dentry *instantiate_t(struct inode *, struct dentry *,
+ int proc_fill_cache(struct file *filp, void *dirent, filldir_t filldir,
+ 	const char *name, int len,
+ 	instantiate_t instantiate, struct task_struct *task, const void *ptr);
+-int pid_revalidate(struct dentry *dentry, struct nameidata *nd);
++int pid_revalidate(struct dentry *dentry, unsigned int flags);
+ struct inode *proc_pid_make_inode(struct super_block * sb, struct task_struct *task);
+ extern const struct dentry_operations pid_dentry_operations;
+ int pid_getattr(struct vfsmount *mnt, struct dentry *dentry, struct kstat *stat);
+diff --git a/fs/proc/namespaces.c b/fs/proc/namespaces.c
+index 155bdf703bc..75dc504caeb 100644
+--- a/fs/proc/namespaces.c
++++ b/fs/proc/namespaces.c
+@@ -200,7 +200,7 @@ static struct dentry *proc_ns_instantiate(struct inode *dir,
+ 	d_set_d_op(dentry, &pid_dentry_operations);
+ 	d_add(dentry, inode);
+ 	/* Close the race of the process dying before we return the dentry */
+-	if (pid_revalidate(dentry, NULL))
++	if (pid_revalidate(dentry, 0))
+ 		error = NULL;
+ out:
+ 	return error;
+diff --git a/fs/proc/proc_sysctl.c b/fs/proc/proc_sysctl.c
+index 85a854e38d1..4e7bc37759f 100644
+--- a/fs/proc/proc_sysctl.c
++++ b/fs/proc/proc_sysctl.c
+@@ -794,9 +794,9 @@ static const struct inode_operations proc_sys_dir_operations = {
+ 	.getattr	= proc_sys_getattr,
+ };
+ 
+-static int proc_sys_revalidate(struct dentry *dentry, struct nameidata *nd)
++static int proc_sys_revalidate(struct dentry *dentry, unsigned int flags)
+ {
+-	if (nd->flags & LOOKUP_RCU)
++	if (flags & LOOKUP_RCU)
+ 		return -ECHILD;
+ 	return !PROC_I(dentry->d_inode)->sysctl->unregistering;
+ }
+diff --git a/fs/reiserfs/xattr.c b/fs/reiserfs/xattr.c
+index 048d9900910..4a644142591 100644
+--- a/fs/reiserfs/xattr.c
++++ b/fs/reiserfs/xattr.c
+@@ -942,7 +942,7 @@ int reiserfs_permission(struct inode *inode, int mask)
+ 	return generic_permission(inode, mask);
+ }
+ 
+-static int xattr_hide_revalidate(struct dentry *dentry, struct nameidata *nd)
++static int xattr_hide_revalidate(struct dentry *dentry, unsigned int flags)
+ {
+ 	return -EPERM;
+ }
+diff --git a/fs/sdcardfs/dentry.c b/fs/sdcardfs/dentry.c
+index bfb9ec1d195..b1fa0b879a8 100644
+--- a/fs/sdcardfs/dentry.c
++++ b/fs/sdcardfs/dentry.c
+@@ -26,7 +26,7 @@
+  *          0: tell VFS to invalidate dentry
+  *          1: dentry is valid
+  */
+-static int sdcardfs_d_revalidate(struct dentry *dentry, struct nameidata *nd)
++static int sdcardfs_d_revalidate(struct dentry *dentry, unsigned int flags)
+ {
+ 	int err = 1;
+ 	struct path parent_lower_path, lower_path;
+@@ -37,7 +37,7 @@ static int sdcardfs_d_revalidate(struct dentry *dentry, struct nameidata *nd)
+ 	struct inode *inode;
+ 	struct sdcardfs_inode_data *data;
+ 
+-	if (nd && nd->flags & LOOKUP_RCU)
++	if (flags & LOOKUP_RCU)
+ 		return -ECHILD;
+ 
+ 	spin_lock(&dentry->d_lock);
+@@ -62,15 +62,9 @@ static int sdcardfs_d_revalidate(struct dentry *dentry, struct nameidata *nd)
+ 	lower_cur_parent_dentry = dget_parent(lower_dentry);
+ 
+ 	if ((lower_dentry->d_flags & DCACHE_OP_REVALIDATE)) {
+-		struct path ptmp;
+-		if (nd) {
+-			pathcpy(&ptmp, &nd->path);
+-			pathcpy(&nd->path, &lower_path);
+-		}
+-		err = lower_dentry->d_op->d_revalidate(lower_dentry, nd);
+-		if (nd)
+-			pathcpy(&nd->path, &ptmp);
++		err = lower_dentry->d_op->d_revalidate(lower_dentry, flags);
+ 		if (err == 0) {
++			d_drop(dentry);
+ 			goto out;
+ 		}
+ 	}
+@@ -78,12 +72,14 @@ static int sdcardfs_d_revalidate(struct dentry *dentry, struct nameidata *nd)
+ 	spin_lock(&lower_dentry->d_lock);
+ 	if (d_unhashed(lower_dentry)) {
+ 		spin_unlock(&lower_dentry->d_lock);
++		d_drop(dentry);
+ 		err = 0;
+ 		goto out;
+ 	}
+ 	spin_unlock(&lower_dentry->d_lock);
+ 
+ 	if (parent_lower_dentry != lower_cur_parent_dentry) {
++		d_drop(dentry);
+ 		err = 0;
+ 		goto out;
+ 	}
+@@ -97,6 +93,7 @@ static int sdcardfs_d_revalidate(struct dentry *dentry, struct nameidata *nd)
+ 	}
+ 
+ 	if (!qstr_case_eq(&dentry->d_name, &lower_dentry->d_name)) {
++		__d_drop(dentry);
+ 		err = 0;
+ 	}
+ 
+@@ -115,6 +112,7 @@ static int sdcardfs_d_revalidate(struct dentry *dentry, struct nameidata *nd)
+ 	if (inode) {
+ 		data = top_data_get(SDCARDFS_I(inode));
+ 		if (!data || data->abandoned) {
++			d_drop(dentry);
+ 			err = 0;
+ 		}
+ 		if (data)
+diff --git a/fs/sysfs/dir.c b/fs/sysfs/dir.c
+index 9a5f07d962a..cc08fe6c807 100644
+--- a/fs/sysfs/dir.c
++++ b/fs/sysfs/dir.c
+@@ -282,12 +282,12 @@ static int sysfs_dentry_delete(const struct dentry *dentry)
+ 	return !!(sd->s_flags & SYSFS_FLAG_REMOVED);
+ }
+ 
+-static int sysfs_dentry_revalidate(struct dentry *dentry, struct nameidata *nd)
++static int sysfs_dentry_revalidate(struct dentry *dentry, unsigned int flags)
+ {
+ 	struct sysfs_dirent *sd;
+ 	int is_dir;
+ 
+-	if (nd->flags & LOOKUP_RCU)
++	if (flags & LOOKUP_RCU)
+ 		return -ECHILD;
+ 
+ 	sd = dentry->d_fsdata;
+diff --git a/include/linux/dcache.h b/include/linux/dcache.h
+index 3e0119f3fae..cd114081de6 100644
+--- a/include/linux/dcache.h
++++ b/include/linux/dcache.h
+@@ -144,7 +144,7 @@ enum dentry_d_lock_class
+ };
+ 
+ struct dentry_operations {
+-	int (*d_revalidate)(struct dentry *, struct nameidata *);
++	int (*d_revalidate)(struct dentry *, unsigned int);
+ 	int (*d_hash)(const struct dentry *, const struct inode *,
+ 			struct qstr *);
+ 	int (*d_compare)(const struct dentry *, const struct inode *,
+-- 
+2.17.1
+

@@ -1,0 +1,43 @@
+From fd9f8b2e62c7be59e25e2467c60c1f20861b9875 Mon Sep 17 00:00:00 2001
+From: Miklos Szeredi <mszeredi@suse.cz>
+Date: Mon, 21 May 2012 17:30:08 +0200
+Subject: [PATCH 013/132] vfs: do_last(): use inode variable
+
+Use helper variable instead of path->dentry->d_inode before complete_walk().
+This will allow this code to be used in RCU mode.
+
+Signed-off-by: Miklos Szeredi <mszeredi@suse.cz>
+Signed-off-by: Al Viro <viro@zeniv.linux.org.uk>
+Change-Id: I4a8ca99570b39638696859dfe7450d52079ddeb2
+---
+ fs/namei.c | 8 +++++---
+ 1 file changed, 5 insertions(+), 3 deletions(-)
+
+diff --git a/fs/namei.c b/fs/namei.c
+index c6c433fb20d..585e79741a6 100644
+--- a/fs/namei.c
++++ b/fs/namei.c
+@@ -2464,15 +2464,17 @@ static struct file *do_last(struct nameidata *nd, struct path *path,
+ 	if (error)
+ 		nd->flags |= LOOKUP_JUMPED;
+ 
++	BUG_ON(nd->flags & LOOKUP_RCU);
++	inode = path->dentry->d_inode;
+ 	error = -ENOENT;
+-	if (!path->dentry->d_inode)
++	if (!inode)
+ 		goto exit_dput;
+ 
+-	if (path->dentry->d_inode->i_op->follow_link)
++	if (inode->i_op->follow_link)
+ 		return NULL;
+ 
+ 	path_to_nameidata(path, nd);
+-	nd->inode = path->dentry->d_inode;
++	nd->inode = inode;
+ 	/* Why this, you ask?  _Now_ we might have grown LOOKUP_JUMPED... */
+ 	error = complete_walk(nd);
+ 	if (error)
+-- 
+2.17.1
+

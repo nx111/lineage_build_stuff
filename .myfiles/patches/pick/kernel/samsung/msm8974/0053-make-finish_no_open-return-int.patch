@@ -1,0 +1,146 @@
+From f799f014e288e31ba348c9eb6777975e2fe09b81 Mon Sep 17 00:00:00 2001
+From: Al Viro <viro@zeniv.linux.org.uk>
+Date: Sun, 10 Jun 2012 06:48:09 -0400
+Subject: [PATCH 053/132] make finish_no_open() return int
+
+namely, 1 ;-)  That's what we want to return from ->atomic_open()
+instances after finish_no_open().
+
+Signed-off-by: Al Viro <viro@zeniv.linux.org.uk>
+Change-Id: I859da79c93178c1589a305388ee30364f1e0ff4e
+---
+ fs/9p/vfs_inode.c      | 6 ++----
+ fs/9p/vfs_inode_dotl.c | 6 ++----
+ fs/ceph/dir.c          | 6 ++----
+ fs/cifs/dir.c          | 3 +--
+ fs/fuse/dir.c          | 3 +--
+ fs/nfs/dir.c           | 3 +--
+ fs/open.c              | 3 ++-
+ include/linux/fs.h     | 2 +-
+ 8 files changed, 12 insertions(+), 20 deletions(-)
+
+diff --git a/fs/9p/vfs_inode.c b/fs/9p/vfs_inode.c
+index e4608bd285d..7410fff4e2a 100644
+--- a/fs/9p/vfs_inode.c
++++ b/fs/9p/vfs_inode.c
+@@ -877,10 +877,8 @@ v9fs_vfs_atomic_open(struct inode *dir, struct dentry *dentry,
+ 	}
+ 
+ 	/* Only creates */
+-	if (!(flags & O_CREAT) || dentry->d_inode) {
+-		finish_no_open(file, res);
+-		return 1;
+-	}
++	if (!(flags & O_CREAT) || dentry->d_inode)
++		return finish_no_open(file, res);
+ 
+ 	err = 0;
+ 	fid = NULL;
+diff --git a/fs/9p/vfs_inode_dotl.c b/fs/9p/vfs_inode_dotl.c
+index e5b07fc1c21..52b2e200b1d 100644
+--- a/fs/9p/vfs_inode_dotl.c
++++ b/fs/9p/vfs_inode_dotl.c
+@@ -285,10 +285,8 @@ v9fs_vfs_atomic_open_dotl(struct inode *dir, struct dentry *dentry,
+ 	}
+ 
+ 	/* Only creates */
+-	if (!(flags & O_CREAT) || dentry->d_inode) {
+-		finish_no_open(file, res);
+-		return 1;
+-	}
++	if (!(flags & O_CREAT) || dentry->d_inode)
++		return finish_no_open(file, res);
+ 
+ 	v9ses = v9fs_inode2v9ses(dir);
+ 
+diff --git a/fs/ceph/dir.c b/fs/ceph/dir.c
+index 5f9cc5940c6..523f081607d 100644
+--- a/fs/ceph/dir.c
++++ b/fs/ceph/dir.c
+@@ -662,10 +662,8 @@ int ceph_atomic_open(struct inode *dir, struct dentry *dentry,
+ 	}
+ 
+ 	/* We don't deal with positive dentries here */
+-	if (dentry->d_inode) {
+-		finish_no_open(file, res);
+-		return 1;
+-	}
++	if (dentry->d_inode)
++		return finish_no_open(file, res);
+ 
+ 	*opened |= FILE_CREATED;
+ 	err = ceph_lookup_open(dir, dentry, file, flags, mode, opened);
+diff --git a/fs/cifs/dir.c b/fs/cifs/dir.c
+index c00c192f17e..e8c53c80dbd 100644
+--- a/fs/cifs/dir.c
++++ b/fs/cifs/dir.c
+@@ -405,8 +405,7 @@ cifs_atomic_open(struct inode *inode, struct dentry *direntry,
+ 		if (IS_ERR(res))
+ 			return PTR_ERR(res);
+ 
+-		finish_no_open(file, res);
+-		return 1;
++		return finish_no_open(file, res);
+ 	}
+ 
+ 	rc = check_name(direntry);
+diff --git a/fs/fuse/dir.c b/fs/fuse/dir.c
+index d4a58546f3c..71cfb456555 100644
+--- a/fs/fuse/dir.c
++++ b/fs/fuse/dir.c
+@@ -554,8 +554,7 @@ mknod:
+ 	if (err)
+ 		goto out_dput;
+ no_open:
+-	finish_no_open(file, res);
+-	return 1;
++	return finish_no_open(file, res);
+ }
+ 
+ /*
+diff --git a/fs/nfs/dir.c b/fs/nfs/dir.c
+index 772583d8330..283d09b71e2 100644
+--- a/fs/nfs/dir.c
++++ b/fs/nfs/dir.c
+@@ -1479,8 +1479,7 @@ no_open:
+ 	if (IS_ERR(res))
+ 		goto out;
+ 
+-	finish_no_open(file, res);
+-	return 1;
++	return finish_no_open(file, res);
+ }
+ 
+ static int nfs4_lookup_revalidate(struct dentry *dentry, struct nameidata *nd)
+diff --git a/fs/open.c b/fs/open.c
+index 8aff034930f..cffe733fb19 100644
+--- a/fs/open.c
++++ b/fs/open.c
+@@ -815,9 +815,10 @@ EXPORT_SYMBOL(finish_open);
+  * This can be used to set the result of a successful lookup in ->atomic_open().
+  * The filesystem's atomic_open() method shall return NULL after calling this.
+  */
+-void finish_no_open(struct file *file, struct dentry *dentry)
++int finish_no_open(struct file *file, struct dentry *dentry)
+ {
+ 	file->f_path.dentry = dentry;
++	return 1;
+ }
+ EXPORT_SYMBOL(finish_no_open);
+ 
+diff --git a/include/linux/fs.h b/include/linux/fs.h
+index b29011064c2..f799744042e 100644
+--- a/include/linux/fs.h
++++ b/include/linux/fs.h
+@@ -2117,7 +2117,7 @@ enum {
+ extern int finish_open(struct file *file, struct dentry *dentry,
+ 			int (*open)(struct inode *, struct file *),
+ 			int *opened);
+-extern void finish_no_open(struct file *file, struct dentry *dentry);
++extern int finish_no_open(struct file *file, struct dentry *dentry);
+ 
+ /* fs/ioctl.c */
+ 
+-- 
+2.17.1
+

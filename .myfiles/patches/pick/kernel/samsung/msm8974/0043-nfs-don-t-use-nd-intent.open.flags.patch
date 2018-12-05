@@ -1,0 +1,54 @@
+From c55ab7b119d89a1a4252f619d53a9e2ba11bed23 Mon Sep 17 00:00:00 2001
+From: Miklos Szeredi <mszeredi@suse.cz>
+Date: Tue, 5 Jun 2012 15:10:20 +0200
+Subject: [PATCH 043/132] nfs: don't use nd->intent.open.flags
+
+Instead check LOOKUP_EXCL in nd->flags, which is basically what the open intent
+flags were used for.
+
+Signed-off-by: Miklos Szeredi <mszeredi@suse.cz>
+CC: Trond Myklebust <Trond.Myklebust@netapp.com>
+Signed-off-by: Al Viro <viro@zeniv.linux.org.uk>
+Change-Id: I8cd4fe55b968c0b422c6787e3f80faa1e3b18d6a
+---
+ fs/nfs/dir.c | 9 ++++-----
+ 1 file changed, 4 insertions(+), 5 deletions(-)
+
+diff --git a/fs/nfs/dir.c b/fs/nfs/dir.c
+index aa27750fccc..bbe9bf0a055 100644
+--- a/fs/nfs/dir.c
++++ b/fs/nfs/dir.c
+@@ -1512,7 +1512,7 @@ static int nfs4_lookup_revalidate(struct dentry *dentry, struct nameidata *nd)
+ 	struct dentry *parent = NULL;
+ 	struct inode *inode;
+ 	struct inode *dir;
+-	int openflags, ret = 0;
++	int ret = 0;
+ 
+ 	if (nd && (nd->flags & LOOKUP_RCU))
+ 		return -ECHILD;
+@@ -1536,9 +1536,8 @@ static int nfs4_lookup_revalidate(struct dentry *dentry, struct nameidata *nd)
+ 	/* NFS only supports OPEN on regular files */
+ 	if (!S_ISREG(inode->i_mode))
+ 		goto no_open_dput;
+-	openflags = nd->intent.open.flags;
+ 	/* We cannot do exclusive creation on a positive dentry */
+-	if ((openflags & (O_CREAT|O_EXCL)) == (O_CREAT|O_EXCL))
++	if (nd && nd->flags & LOOKUP_EXCL)
+ 		goto no_open_dput;
+ 
+ 	/* Let f_op->open() actually open (and revalidate) the file */
+@@ -1617,8 +1616,8 @@ static int nfs_create(struct inode *dir, struct dentry *dentry,
+ 	attr.ia_mode = mode;
+ 	attr.ia_valid = ATTR_MODE;
+ 
+-	if (nd)
+-		open_flags = nd->intent.open.flags;
++	if (nd && !(nd->flags & LOOKUP_EXCL))
++		open_flags = O_CREAT;
+ 
+ 	error = NFS_PROTO(dir)->create(dir, dentry, &attr, open_flags);
+ 	if (error != 0)
+-- 
+2.17.1
+

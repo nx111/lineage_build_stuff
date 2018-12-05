@@ -1,0 +1,39 @@
+From d13fcdeb470ad01dc65eceb32bf17810a80f7ccd Mon Sep 17 00:00:00 2001
+From: Al Viro <viro@zeniv.linux.org.uk>
+Date: Mon, 30 Jul 2012 11:50:30 +0400
+Subject: [PATCH 077/132] fix O_EXCL handling for devices
+
+O_EXCL without O_CREAT has different semantics; it's "fail if already opened",
+not "fail if already exists".  commit 71574865 broke that...
+
+Signed-off-by: Al Viro <viro@zeniv.linux.org.uk>
+Change-Id: I10b5e93b7cf3e7b1640137f0035c580f28f1da6a
+---
+ fs/namei.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/fs/namei.c b/fs/namei.c
+index 44fa82b208a..6ec8205135e 100644
+--- a/fs/namei.c
++++ b/fs/namei.c
+@@ -2464,7 +2464,7 @@ static int atomic_open(struct nameidata *nd, struct dentry *dentry,
+ 	if ((open_flag & O_CREAT) && !IS_POSIXACL(dir))
+ 		mode &= ~current_umask();
+ 
+-	if (open_flag & O_EXCL) {
++	if ((open_flag & (O_EXCL | O_CREAT)) == (O_EXCL | O_CREAT)) {
+ 		open_flag &= ~O_TRUNC;
+ 		*opened |= FILE_CREATED;
+ 	}
+@@ -2789,7 +2789,7 @@ retry_lookup:
+ 	}
+ 
+ 	error = -EEXIST;
+-	if (open_flag & O_EXCL)
++	if ((open_flag & (O_EXCL | O_CREAT)) == (O_EXCL | O_CREAT))
+ 		goto exit_dput;
+ 
+ 	error = follow_managed(path, nd->flags);
+-- 
+2.17.1
+

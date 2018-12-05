@@ -1,0 +1,178 @@
+From b020f0ca2513d21208d79ef730f6fa07cd79ab88 Mon Sep 17 00:00:00 2001
+From: Al Viro <viro@zeniv.linux.org.uk>
+Date: Fri, 20 Jul 2012 01:15:31 +0400
+Subject: [PATCH 071/132] new helper: done_path_create()
+
+releases what needs to be released after {kern,user}_path_create()
+
+Change-Id: If7fa7455e2ba8a6f4f4c4d2db502a38b4a60d7c7
+Signed-off-by: Al Viro <viro@zeniv.linux.org.uk>
+---
+ arch/powerpc/platforms/cell/spufs/syscalls.c |  2 +-
+ drivers/base/devtmpfs.c                      |  9 ++------
+ fs/namei.c                                   | 24 ++++++++++----------
+ fs/ocfs2/refcounttree.c                      |  4 +---
+ include/linux/namei.h                        |  1 +
+ net/unix/af_unix.c                           |  9 ++++----
+ 6 files changed, 21 insertions(+), 28 deletions(-)
+
+diff --git a/arch/powerpc/platforms/cell/spufs/syscalls.c b/arch/powerpc/platforms/cell/spufs/syscalls.c
+index 5665dcc382c..5b7d8ffbf89 100644
+--- a/arch/powerpc/platforms/cell/spufs/syscalls.c
++++ b/arch/powerpc/platforms/cell/spufs/syscalls.c
+@@ -70,7 +70,7 @@ static long do_spu_create(const char __user *pathname, unsigned int flags,
+ 	ret = PTR_ERR(dentry);
+ 	if (!IS_ERR(dentry)) {
+ 		ret = spufs_create(&path, dentry, flags, mode, neighbor);
+-		path_put(&path);
++		done_path_create(&path, dentry);
+ 	}
+ 
+ 	return ret;
+diff --git a/drivers/base/devtmpfs.c b/drivers/base/devtmpfs.c
+index 25af06d5afb..0ea96b0b696 100644
+--- a/drivers/base/devtmpfs.c
++++ b/drivers/base/devtmpfs.c
+@@ -156,9 +156,7 @@ static int dev_mkdir(const char *name, umode_t mode)
+ 	if (!err)
+ 		/* mark as kernel-created inode */
+ 		dentry->d_inode->i_private = &thread;
+-	dput(dentry);
+-	mutex_unlock(&path.dentry->d_inode->i_mutex);
+-	path_put(&path);
++	done_path_create(&path, dentry);
+ 	return err;
+ }
+ 
+@@ -218,10 +216,7 @@ static int handle_create(const char *nodename, umode_t mode, struct device *dev)
+ 		/* mark as kernel-created inode */
+ 		dentry->d_inode->i_private = &thread;
+ 	}
+-	dput(dentry);
+-
+-	mutex_unlock(&path.dentry->d_inode->i_mutex);
+-	path_put(&path);
++	done_path_create(&path, dentry);
+ 	return err;
+ }
+ 
+diff --git a/fs/namei.c b/fs/namei.c
+index 2df7856629b..3fac76b3dc4 100644
+--- a/fs/namei.c
++++ b/fs/namei.c
+@@ -2940,6 +2940,14 @@ out:
+ }
+ EXPORT_SYMBOL(kern_path_create);
+ 
++void done_path_create(struct path *path, struct dentry *dentry)
++{
++	dput(dentry);
++	mutex_unlock(&path->dentry->d_inode->i_mutex);
++	path_put(path);
++}
++EXPORT_SYMBOL(done_path_create);
++
+ struct dentry *user_path_create(int dfd, const char __user *pathname, struct path *path, int is_dir)
+ {
+ 	char *tmp = getname(pathname);
+@@ -3050,9 +3058,7 @@ SYSCALL_DEFINE4(mknodat, int, dfd, const char __user *, filename, umode_t, mode,
+ out_drop_write:
+ 	mnt_drop_write(path.mnt);
+ out_dput:
+-	dput(dentry);
+-	mutex_unlock(&path.dentry->d_inode->i_mutex);
+-	path_put(&path);
++	done_path_create(&path, dentry);
+ 
+ 	return error;
+ }
+@@ -3116,9 +3122,7 @@ SYSCALL_DEFINE3(mkdirat, int, dfd, const char __user *, pathname, umode_t, mode)
+ out_drop_write:
+ 	mnt_drop_write(path.mnt);
+ out_dput:
+-	dput(dentry);
+-	mutex_unlock(&path.dentry->d_inode->i_mutex);
+-	path_put(&path);
++	done_path_create(&path, dentry);
+ 	return error;
+ }
+ 
+@@ -3437,9 +3441,7 @@ SYSCALL_DEFINE3(symlinkat, const char __user *, oldname,
+ out_drop_write:
+ 	mnt_drop_write(path.mnt);
+ out_dput:
+-	dput(dentry);
+-	mutex_unlock(&path.dentry->d_inode->i_mutex);
+-	path_put(&path);
++	done_path_create(&path, dentry);
+ out_putname:
+ 	putname(from);
+ 	return error;
+@@ -3556,9 +3558,7 @@ SYSCALL_DEFINE5(linkat, int, olddfd, const char __user *, oldname,
+ out_drop_write:
+ 	mnt_drop_write(new_path.mnt);
+ out_dput:
+-	dput(new_dentry);
+-	mutex_unlock(&new_path.dentry->d_inode->i_mutex);
+-	path_put(&new_path);
++	done_path_create(&new_path, new_dentry);
+ out:
+ 	path_put(&old_path);
+ 
+diff --git a/fs/ocfs2/refcounttree.c b/fs/ocfs2/refcounttree.c
+index 9f32d7cbb7a..23cf78f6850 100644
+--- a/fs/ocfs2/refcounttree.c
++++ b/fs/ocfs2/refcounttree.c
+@@ -4477,9 +4477,7 @@ int ocfs2_reflink_ioctl(struct inode *inode,
+ 				  new_dentry, preserve);
+ 	mnt_drop_write(new_path.mnt);
+ out_dput:
+-	dput(new_dentry);
+-	mutex_unlock(&new_path.dentry->d_inode->i_mutex);
+-	path_put(&new_path);
++	done_path_create(&new_path, new_dentry);
+ out:
+ 	path_put(&old_path);
+ 
+diff --git a/include/linux/namei.h b/include/linux/namei.h
+index c0706798eae..d486e619dd2 100644
+--- a/include/linux/namei.h
++++ b/include/linux/namei.h
+@@ -67,6 +67,7 @@ extern int kern_path(const char *, unsigned, struct path *);
+ 
+ extern struct dentry *kern_path_create(int, const char *, struct path *, int);
+ extern struct dentry *user_path_create(int, const char __user *, struct path *, int);
++extern void done_path_create(struct path *, struct dentry *);
+ extern struct dentry *kern_path_locked(const char *, struct path *);
+ extern int vfs_path_lookup(struct dentry *, struct vfsmount *,
+ 			   const char *, unsigned int, struct path *);
+diff --git a/net/unix/af_unix.c b/net/unix/af_unix.c
+index 2705e129902..33c5f8a17cd 100644
+--- a/net/unix/af_unix.c
++++ b/net/unix/af_unix.c
+@@ -1010,8 +1010,9 @@ out_mknod_drop_write:
+ 		mnt_drop_write(path.mnt);
+ 		if (err)
+ 			goto out_mknod_dput;
+-		mutex_unlock(&path.dentry->d_inode->i_mutex);
+-		dput(path.dentry);
++		mntget(path.mnt);
++		dget(dentry);
++		done_path_create(&path, dentry);
+ 		path.dentry = dentry;
+ 
+ 		addr->hash = UNIX_HASH_SIZE;
+@@ -1046,9 +1047,7 @@ out:
+ 	return err;
+ 
+ out_mknod_dput:
+-	dput(dentry);
+-	mutex_unlock(&path.dentry->d_inode->i_mutex);
+-	path_put(&path);
++	done_path_create(&path, dentry);
+ out_mknod_parent:
+ 	if (err == -EEXIST)
+ 		err = -EADDRINUSE;
+-- 
+2.17.1
+

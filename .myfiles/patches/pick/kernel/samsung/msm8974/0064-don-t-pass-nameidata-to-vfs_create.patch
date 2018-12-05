@@ -1,0 +1,150 @@
+From 5e04cc1845f75c0565b4a33dd5409420d2ecf788 Mon Sep 17 00:00:00 2001
+From: Al Viro <viro@zeniv.linux.org.uk>
+Date: Sun, 10 Jun 2012 18:09:36 -0400
+Subject: [PATCH 064/132] don't pass nameidata * to vfs_create()
+
+all we want is a boolean flag, same as the method gets now
+
+Change-Id: I0cbe220b96bbbec6d50228cac774a0439f6a29f2
+Signed-off-by: Al Viro <viro@zeniv.linux.org.uk>
+---
+ fs/cachefiles/namei.c |  2 +-
+ fs/ecryptfs/inode.c   |  2 +-
+ fs/namei.c            | 13 +++++++------
+ fs/nfsd/vfs.c         |  4 ++--
+ include/linux/fs.h    |  4 ++--
+ ipc/mqueue.c          |  2 +-
+ 6 files changed, 14 insertions(+), 13 deletions(-)
+
+diff --git a/fs/cachefiles/namei.c b/fs/cachefiles/namei.c
+index 7f0771d3894..b0b5f7cdfff 100644
+--- a/fs/cachefiles/namei.c
++++ b/fs/cachefiles/namei.c
+@@ -567,7 +567,7 @@ lookup_again:
+ 			if (ret < 0)
+ 				goto create_error;
+ 			start = jiffies;
+-			ret = vfs_create(dir->d_inode, next, S_IFREG, NULL);
++			ret = vfs_create(dir->d_inode, next, S_IFREG, true);
+ 			cachefiles_hist(cachefiles_create_histogram, start);
+ 			if (ret < 0)
+ 				goto create_error;
+diff --git a/fs/ecryptfs/inode.c b/fs/ecryptfs/inode.c
+index 52810d3d1ef..a82b8d2b5b6 100644
+--- a/fs/ecryptfs/inode.c
++++ b/fs/ecryptfs/inode.c
+@@ -229,7 +229,7 @@ ecryptfs_do_create(struct inode *directory_inode,
+ 		inode = ERR_CAST(lower_dir_dentry);
+ 		goto out;
+ 	}
+-	rc = vfs_create(lower_dir_dentry->d_inode, lower_dentry, mode, NULL);
++	rc = vfs_create(lower_dir_dentry->d_inode, lower_dentry, mode, true);
+ 	if (rc) {
+ 		printk(KERN_ERR "%s: Failure to create dentry in lower fs; "
+ 				"rc = [%d]\n", __func__, rc);
+diff --git a/fs/namei.c b/fs/namei.c
+index 57fead2b564..23b0f066a23 100644
+--- a/fs/namei.c
++++ b/fs/namei.c
+@@ -2169,7 +2169,7 @@ void unlock_rename(struct dentry *p1, struct dentry *p2)
+ }
+ 
+ int vfs_create2(struct vfsmount *mnt, struct inode *dir, struct dentry *dentry,
+-		umode_t mode, struct nameidata *nd)
++		umode_t mode, bool want_excl)
+ {
+ 	int error = may_create(mnt, dir, dentry);
+ 	if (error)
+@@ -2182,7 +2182,7 @@ int vfs_create2(struct vfsmount *mnt, struct inode *dir, struct dentry *dentry,
+ 	error = security_inode_create(dir, dentry, mode);
+ 	if (error)
+ 		return error;
+-	error = dir->i_op->create(dir, dentry, mode, !nd || (nd->flags & LOOKUP_EXCL));
++	error = dir->i_op->create(dir, dentry, mode, want_excl);
+ 	if (error)
+ 		return error;
+ 
+@@ -2197,9 +2197,9 @@ int vfs_create2(struct vfsmount *mnt, struct inode *dir, struct dentry *dentry,
+ EXPORT_SYMBOL(vfs_create2);
+ 
+ int vfs_create(struct inode *dir, struct dentry *dentry, umode_t mode,
+-		struct nameidata *nd)
++		bool want_excl)
+ {
+-	return vfs_create2(NULL, dir, dentry, mode, nd);
++	return vfs_create2(NULL, dir, dentry, mode, want_excl);
+ }
+ EXPORT_SYMBOL(vfs_create);
+ 
+@@ -2503,7 +2503,8 @@ static int lookup_open(struct nameidata *nd, struct path *path,
+ 		error = security_path_mknod(&nd->path, dentry, mode, 0);
+ 		if (error)
+ 			goto out_dput;
+-		error = vfs_create2(mnt, dir->d_inode, dentry, mode, nd);
++		error = vfs_create2(mnt, dir->d_inode, dentry, mode,
++				   nd->flags & LOOKUP_EXCL);
+ 		if (error)
+ 			goto out_dput;
+ 	}
+@@ -3004,7 +3005,7 @@ SYSCALL_DEFINE4(mknodat, int, dfd, const char __user *, filename, umode_t, mode,
+ 		goto out_drop_write;
+ 	switch (mode & S_IFMT) {
+ 		case 0: case S_IFREG:
+-			error = vfs_create2(path.mnt, path.dentry->d_inode,dentry,mode,NULL);
++			error = vfs_create2(path.mnt, path.dentry->d_inode,dentry,mode,true);
+ 			break;
+ 		case S_IFCHR: case S_IFBLK:
+ 			error = vfs_mknod2(path.mnt, path.dentry->d_inode,dentry,mode,
+diff --git a/fs/nfsd/vfs.c b/fs/nfsd/vfs.c
+index 36620e65158..8ace1bf90a9 100644
+--- a/fs/nfsd/vfs.c
++++ b/fs/nfsd/vfs.c
+@@ -1367,7 +1367,7 @@ nfsd_create(struct svc_rqst *rqstp, struct svc_fh *fhp,
+ 	err = 0;
+ 	switch (type) {
+ 	case S_IFREG:
+-		host_err = vfs_create(dirp, dchild, iap->ia_mode, NULL);
++		host_err = vfs_create(dirp, dchild, iap->ia_mode, true);
+ 		if (!host_err)
+ 			nfsd_check_ignore_resizing(iap);
+ 		break;
+@@ -1536,7 +1536,7 @@ do_nfsd_create(struct svc_rqst *rqstp, struct svc_fh *fhp,
+ 		goto out;
+ 	}
+ 
+-	host_err = vfs_create(dirp, dchild, iap->ia_mode, NULL);
++	host_err = vfs_create(dirp, dchild, iap->ia_mode, true);
+ 	if (host_err < 0) {
+ 		fh_drop_write(fhp);
+ 		goto out_nfserr;
+diff --git a/include/linux/fs.h b/include/linux/fs.h
+index d88b0ebb2d4..6883b832988 100644
+--- a/include/linux/fs.h
++++ b/include/linux/fs.h
+@@ -1586,8 +1586,8 @@ extern void unlock_super(struct super_block *);
+ /*
+  * VFS helper functions..
+  */
+-extern int vfs_create(struct inode *, struct dentry *, umode_t, struct nameidata *);
+-extern int vfs_create2(struct vfsmount *, struct inode *, struct dentry *, umode_t, struct nameidata *);
++extern int vfs_create(struct inode *, struct dentry *, umode_t, bool);
++extern int vfs_create2(struct vfsmount *, struct inode *, struct dentry *, umode_t, bool);
+ extern int vfs_mkdir(struct inode *, struct dentry *, umode_t);
+ extern int vfs_mkdir2(struct vfsmount *, struct inode *, struct dentry *, umode_t);
+ extern int vfs_mknod(struct inode *, struct dentry *, umode_t, dev_t);
+diff --git a/ipc/mqueue.c b/ipc/mqueue.c
+index 4bd0cd13931..ccc708dc692 100644
+--- a/ipc/mqueue.c
++++ b/ipc/mqueue.c
+@@ -624,7 +624,7 @@ static struct file *do_create(struct ipc_namespace *ipc_ns, struct dentry *dir,
+ 	ret = mnt_want_write(ipc_ns->mq_mnt);
+ 	if (ret)
+ 		goto out;
+-	ret = vfs_create2(ipc_ns->mq_mnt, dir->d_inode, dentry, mode, NULL);
++	ret = vfs_create2(ipc_ns->mq_mnt, dir->d_inode, dentry, mode, true);
+ 	dentry->d_fsdata = NULL;
+ 	if (ret)
+ 		goto out_drop_write;
+-- 
+2.17.1
+

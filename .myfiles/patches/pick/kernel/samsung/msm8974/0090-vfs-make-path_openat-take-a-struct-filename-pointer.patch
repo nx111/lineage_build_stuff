@@ -1,0 +1,265 @@
+From d039c4c9dd3464ff1ff021a25f77fb64609a238a Mon Sep 17 00:00:00 2001
+From: Jeff Layton <jlayton@redhat.com>
+Date: Wed, 10 Oct 2012 16:43:10 -0400
+Subject: [PATCH 090/132] vfs: make path_openat take a struct filename pointer
+
+...and fix up the callers. For do_file_open_root, just declare a
+struct filename on the stack and fill out the .name field. For
+do_filp_open, make it also take a struct filename pointer, and fix up its
+callers to call it appropriately.
+
+For filp_open, add a variant that takes a struct filename pointer and turn
+filp_open into a wrapper around it.
+
+Change-Id: Ibeb0479a22019e78b22990406d54c4ebed76a567
+Signed-off-by: Jeff Layton <jlayton@redhat.com>
+Signed-off-by: Al Viro <viro@zeniv.linux.org.uk>
+---
+ fs/exec.c          |  5 +++--
+ fs/internal.h      |  4 ++--
+ fs/namei.c         | 18 ++++++++++--------
+ fs/open.c          | 25 +++++++++++++++++++++----
+ include/linux/fs.h |  1 +
+ kernel/acct.c      |  6 +++---
+ mm/swapfile.c      |  4 ++--
+ 7 files changed, 42 insertions(+), 21 deletions(-)
+
+diff --git a/fs/exec.c b/fs/exec.c
+index cbd25526e59..a3dd6110650 100644
+--- a/fs/exec.c
++++ b/fs/exec.c
+@@ -127,7 +127,7 @@ SYSCALL_DEFINE1(uselib, const char __user *, library)
+ 	if (IS_ERR(tmp))
+ 		goto out;
+ 
+-	file = do_filp_open(AT_FDCWD, tmp->name, &uselib_flags, LOOKUP_FOLLOW);
++	file = do_filp_open(AT_FDCWD, tmp, &uselib_flags, LOOKUP_FOLLOW);
+ 	putname(tmp);
+ 	error = PTR_ERR(file);
+ 	if (IS_ERR(file))
+@@ -789,13 +789,14 @@ struct file *open_exec(const char *name)
+ {
+ 	struct file *file;
+ 	int err;
++	struct filename tmp = { .name = name };
+ 	static const struct open_flags open_exec_flags = {
+ 		.open_flag = O_LARGEFILE | O_RDONLY | __FMODE_EXEC,
+ 		.acc_mode = MAY_EXEC | MAY_OPEN,
+ 		.intent = LOOKUP_OPEN
+ 	};
+ 
+-	file = do_filp_open(AT_FDCWD, name, &open_exec_flags, LOOKUP_FOLLOW);
++	file = do_filp_open(AT_FDCWD, &tmp, &open_exec_flags, LOOKUP_FOLLOW);
+ 	if (IS_ERR(file))
+ 		goto out;
+ 
+diff --git a/fs/internal.h b/fs/internal.h
+index ee0691ed332..ed69dfc4fa7 100644
+--- a/fs/internal.h
++++ b/fs/internal.h
+@@ -87,8 +87,8 @@ struct open_flags {
+ 	int acc_mode;
+ 	int intent;
+ };
+-extern struct file *do_filp_open(int dfd, const char *pathname,
+-		const struct open_flags *op, int lookup_flags);
++extern struct file *do_filp_open(int dfd, struct filename *pathname,
++		const struct open_flags *op, int flags);
+ extern struct file *do_file_open_root(struct dentry *, struct vfsmount *,
+ 		const char *, const struct open_flags *, int lookup_flags);
+ 
+diff --git a/fs/namei.c b/fs/namei.c
+index 2528c6d1fcf..bad19b6dff6 100644
+--- a/fs/namei.c
++++ b/fs/namei.c
+@@ -2711,7 +2711,7 @@ out_dput:
+  */
+ static int do_last(struct nameidata *nd, struct path *path,
+ 		   struct file *file, const struct open_flags *op,
+-		   int *opened, const char *pathname)
++		   int *opened, struct filename *name)
+ {
+ 	struct dentry *dir = nd->path.dentry;
+ 	int open_flag = op->open_flag;
+@@ -2723,6 +2723,7 @@ static int do_last(struct nameidata *nd, struct path *path,
+ 	struct path save_parent = { .dentry = NULL, .mnt = NULL };
+ 	bool retried = false;
+ 	int error;
++	const char *pathname = name->name;
+ 
+ 	nd->flags &= ~LOOKUP_PARENT;
+ 	nd->flags |= op->intent;
+@@ -2957,7 +2958,7 @@ stale_open:
+ 	goto retry_lookup;
+ }
+ 
+-static struct file *path_openat(int dfd, const char *pathname,
++static struct file *path_openat(int dfd, struct filename *pathname,
+ 		struct nameidata *nd, const struct open_flags *op, int flags)
+ {
+ 	struct file *base = NULL;
+@@ -2972,12 +2973,12 @@ static struct file *path_openat(int dfd, const char *pathname,
+ 
+ 	file->f_flags = op->open_flag;
+ 
+-	error = path_init(dfd, pathname, flags | LOOKUP_PARENT, nd, &base);
++	error = path_init(dfd, pathname->name, flags | LOOKUP_PARENT, nd, &base);
+ 	if (unlikely(error))
+ 		goto out;
+ 
+ 	current->total_link_count = 0;
+-	error = link_path_walk(pathname, nd);
++	error = link_path_walk(pathname->name, nd);
+ 	if (unlikely(error))
+ 		goto out;
+ 
+@@ -3023,7 +3024,7 @@ out:
+ 	return file;
+ }
+ 
+-struct file *do_filp_open(int dfd, const char *pathname,
++struct file *do_filp_open(int dfd, struct filename *pathname,
+ 		const struct open_flags *op, int flags)
+ {
+ 	struct nameidata nd;
+@@ -3042,6 +3043,7 @@ struct file *do_file_open_root(struct dentry *dentry, struct vfsmount *mnt,
+ {
+ 	struct nameidata nd;
+ 	struct file *file;
++	struct filename filename = { .name = name };
+ 
+ 	nd.root.mnt = mnt;
+ 	nd.root.dentry = dentry;
+@@ -3051,11 +3053,11 @@ struct file *do_file_open_root(struct dentry *dentry, struct vfsmount *mnt,
+ 	if (dentry->d_inode->i_op->follow_link && op->intent & LOOKUP_OPEN)
+ 		return ERR_PTR(-ELOOP);
+ 
+-	file = path_openat(-1, name, &nd, op, flags | LOOKUP_RCU);
++	file = path_openat(-1, &filename, &nd, op, flags | LOOKUP_RCU);
+ 	if (unlikely(file == ERR_PTR(-ECHILD)))
+-		file = path_openat(-1, name, &nd, op, flags);
++		file = path_openat(-1, &filename, &nd, op, flags);
+ 	if (unlikely(file == ERR_PTR(-ESTALE)))
+-		file = path_openat(-1, name, &nd, op, flags | LOOKUP_REVAL);
++		file = path_openat(-1, &filename, &nd, op, flags | LOOKUP_REVAL);
+ 	return file;
+ }
+ 
+diff --git a/fs/open.c b/fs/open.c
+index ea07eaea904..c3d89453d4d 100644
+--- a/fs/open.c
++++ b/fs/open.c
+@@ -955,6 +955,24 @@ static inline int build_open_flags(int flags, umode_t mode, struct open_flags *o
+ 	return lookup_flags;
+ }
+ 
++/**
++ * file_open_name - open file and return file pointer
++ *
++ * @name:	struct filename containing path to open
++ * @flags:	open flags as per the open(2) second argument
++ * @mode:	mode for the new file if O_CREAT is set, else ignored
++ *
++ * This is the helper to open a file from kernelspace if you really
++ * have to.  But in generally you should not do this, so please move
++ * along, nothing to see here..
++ */
++struct file *file_open_name(struct filename *name, int flags, umode_t mode)
++{
++	struct open_flags op;
++	int lookup = build_open_flags(flags, mode, &op);
++	return do_filp_open(AT_FDCWD, name, &op, lookup);
++}
++
+ /**
+  * filp_open - open file and return file pointer
+  *
+@@ -968,9 +986,8 @@ static inline int build_open_flags(int flags, umode_t mode, struct open_flags *o
+  */
+ struct file *filp_open(const char *filename, int flags, umode_t mode)
+ {
+-	struct open_flags op;
+-	int lookup = build_open_flags(flags, mode, &op);
+-	return do_filp_open(AT_FDCWD, filename, &op, lookup);
++	struct filename name = {.name = filename};
++	return file_open_name(&name, flags, mode);
+ }
+ EXPORT_SYMBOL(filp_open);
+ 
+@@ -998,7 +1015,7 @@ long do_sys_open(int dfd, const char __user *filename, int flags, umode_t mode)
+ 	if (!IS_ERR(tmp)) {
+ 		fd = get_unused_fd_flags(flags);
+ 		if (fd >= 0) {
+-			struct file *f = do_filp_open(dfd, tmp->name, &op, lookup);
++			struct file *f = do_filp_open(dfd, tmp, &op, lookup);
+ 			if (IS_ERR(f)) {
+ 				put_unused_fd(fd);
+ 				fd = PTR_ERR(f);
+diff --git a/include/linux/fs.h b/include/linux/fs.h
+index d1042f7bbdf..b1de6a15e58 100644
+--- a/include/linux/fs.h
++++ b/include/linux/fs.h
+@@ -2109,6 +2109,7 @@ extern int do_fallocate(struct file *file, int mode, loff_t offset,
+ 			loff_t len);
+ extern long do_sys_open(int dfd, const char __user *filename, int flags,
+ 			umode_t mode);
++extern struct file *file_open_name(struct filename *, int, umode_t);
+ extern struct file *filp_open(const char *, int, umode_t);
+ extern struct file *file_open_root(struct dentry *, struct vfsmount *,
+ 				   const char *, int);
+diff --git a/kernel/acct.c b/kernel/acct.c
+index 1f46dfb4dfc..3e2aab73b59 100644
+--- a/kernel/acct.c
++++ b/kernel/acct.c
+@@ -193,7 +193,7 @@ static void acct_file_reopen(struct bsd_acct_struct *acct, struct file *file,
+ 	}
+ }
+ 
+-static int acct_on(char *name)
++static int acct_on(struct filename *pathname)
+ {
+ 	struct file *file;
+ 	struct vfsmount *mnt;
+@@ -201,7 +201,7 @@ static int acct_on(char *name)
+ 	struct bsd_acct_struct *acct = NULL;
+ 
+ 	/* Difference from BSD - they don't do O_APPEND */
+-	file = filp_open(name, O_WRONLY|O_APPEND|O_LARGEFILE, 0);
++	file = file_open_name(pathname, O_WRONLY|O_APPEND|O_LARGEFILE, 0);
+ 	if (IS_ERR(file))
+ 		return PTR_ERR(file);
+ 
+@@ -263,7 +263,7 @@ SYSCALL_DEFINE1(acct, const char __user *, name)
+ 		struct filename *tmp = getname(name);
+ 		if (IS_ERR(tmp))
+ 			return (PTR_ERR(tmp));
+-		error = acct_on(tmp->name);
++		error = acct_on(tmp);
+ 		putname(tmp);
+ 	} else {
+ 		struct bsd_acct_struct *acct;
+diff --git a/mm/swapfile.c b/mm/swapfile.c
+index 7af77a24d29..ad49d7e596f 100644
+--- a/mm/swapfile.c
++++ b/mm/swapfile.c
+@@ -1677,7 +1677,7 @@ SYSCALL_DEFINE1(swapoff, const char __user *, specialfile)
+ 	if (IS_ERR(pathname))
+ 		goto out;
+ 
+-	victim = filp_open(pathname->name, O_RDWR|O_LARGEFILE, 0);
++	victim = file_open_name(pathname, O_RDWR|O_LARGEFILE, 0);
+ 	err = PTR_ERR(victim);
+ 	if (IS_ERR(victim))
+ 		goto out;
+@@ -2152,7 +2152,7 @@ SYSCALL_DEFINE2(swapon, const char __user *, specialfile, int, swap_flags)
+ 		name = NULL;
+ 		goto bad_swap;
+ 	}
+-	swap_file = filp_open(name->name, O_RDWR|O_LARGEFILE, 0);
++	swap_file = file_open_name(name, O_RDWR|O_LARGEFILE, 0);
+ 	if (IS_ERR(swap_file)) {
+ 		error = PTR_ERR(swap_file);
+ 		swap_file = NULL;
+-- 
+2.17.1
+

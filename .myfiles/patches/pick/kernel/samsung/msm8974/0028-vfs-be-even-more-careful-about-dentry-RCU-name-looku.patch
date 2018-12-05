@@ -1,0 +1,98 @@
+From 4e448d65c5d34e2b0801ff24f04fe8b50335bc6d Mon Sep 17 00:00:00 2001
+From: Linus Torvalds <torvalds@linux-foundation.org>
+Date: Mon, 21 May 2012 16:14:04 -0700
+Subject: [PATCH 028/132] vfs: be even more careful about dentry RCU name
+ lookups
+
+Miklos Szeredi points out that we need to also worry about memory
+odering when doing the dentry name comparison asynchronously with RCU.
+
+In particular, doing a rename can do a memcpy() of one dentry name over
+another, and we want to make sure that any unlocked reader will always
+see the proper terminating NUL character, so that it won't ever run off
+the allocation.
+
+Rather than having to be extra careful with the name copy or at lookup
+time for each character, this resolves the issue by making sure that all
+names that are inlined in the dentry always have a NUL character at the
+end of the name allocation.  If we do that at dentry allocation time, we
+know that no future name copy will ever change that final NUL to
+anything else, so there are no memory ordering issues.
+
+So even if a concurrent rename ends up overwriting the NUL character
+that terminates the original name, we always know that there is one
+final NUL at the end, and there is no worry about the lockless RCU
+lookup traversing the name too far.
+
+The out-of-line allocations are never copied over, so we can just make
+sure that we write the name (with terminating NULL) and do a write
+barrier before we expose the name to anything else by setting it in the
+dentry.
+
+Reported-by: Miklos Szeredi <mszeredi@suse.cz>
+Cc: Al Viro <viro@zeniv.linux.org.uk>
+Cc: Nick Piggin <npiggin@gmail.com>
+Signed-off-by: Linus Torvalds <torvalds@linux-foundation.org>
+Change-Id: Ia695a0f6310e7fb3ae0f1ae8bc6bedbfb1055ed3
+---
+ fs/dcache.c | 17 +++++++++++++++--
+ 1 file changed, 15 insertions(+), 2 deletions(-)
+
+diff --git a/fs/dcache.c b/fs/dcache.c
+index 773ebdde369..2e1f07696dc 100644
+--- a/fs/dcache.c
++++ b/fs/dcache.c
+@@ -192,6 +192,7 @@ static inline int dentry_string_cmp(const unsigned char *cs, const unsigned char
+ 
+ static inline int dentry_cmp(const struct dentry *dentry, const unsigned char *ct, unsigned tcount)
+ {
++	const unsigned char *cs;
+ 	/*
+ 	 * Be careful about RCU walk racing with rename:
+ 	 * use ACCESS_ONCE to fetch the name pointer.
+@@ -208,7 +209,9 @@ static inline int dentry_cmp(const struct dentry *dentry, const unsigned char *c
+ 	 * early because the data cannot match (there can
+ 	 * be no NUL in the ct/tcount data)
+ 	 */
+-	return dentry_string_cmp(ACCESS_ONCE(dentry->d_name.name), ct, tcount);
++	cs = ACCESS_ONCE(dentry->d_name.name);
++	smp_read_barrier_depends();
++	return dentry_string_cmp(cs, ct, tcount);
+ }
+ 
+ static void __d_free(struct rcu_head *head)
+@@ -1322,6 +1325,13 @@ struct dentry *__d_alloc(struct super_block *sb, const struct qstr *name)
+ 	if (!dentry)
+ 		return NULL;
+ 
++	/*
++	 * We guarantee that the inline name is always NUL-terminated.
++	 * This way the memcpy() done by the name switching in rename
++	 * will still always have a NUL at the end, even if we might
++	 * be overwriting an internal NUL character
++	 */
++	dentry->d_iname[DNAME_INLINE_LEN-1] = 0;
+ 	if (name->len > DNAME_INLINE_LEN-1) {
+ 		dname = kmalloc(name->len + 1, GFP_KERNEL);
+ 		if (!dname) {
+@@ -1331,13 +1341,16 @@ struct dentry *__d_alloc(struct super_block *sb, const struct qstr *name)
+ 	} else  {
+ 		dname = dentry->d_iname;
+ 	}	
+-	dentry->d_name.name = dname;
+ 
+ 	dentry->d_name.len = name->len;
+ 	dentry->d_name.hash = name->hash;
+ 	memcpy(dname, name->name, name->len);
+ 	dname[name->len] = 0;
+ 
++	/* Make sure we always see the terminating NUL character */
++	smp_wmb();
++	dentry->d_name.name = dname;
++
+ 	dentry->d_count = 1;
+ 	dentry->d_flags = 0;
+ 	spin_lock_init(&dentry->d_lock);
+-- 
+2.17.1
+
