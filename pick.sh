@@ -485,6 +485,9 @@ function kpick()
     local is_topic_op=0
     local is_query_op=0
     local is_path_op=0
+    local iTopic=""
+    local iQuery=""
+    local iRange=""
     local extract_changeset=0
     local changeNumber
 
@@ -500,6 +503,7 @@ function kpick()
              changeNumber=$op
         elif [[ "$op" =~ ^[[:digit:]]+\-[[:digit:]]+$ ]]; then
              query="$query $op"
+             iRange=$op
         elif  [ "$op" = "-t" -o "$op" = "--topic" ]; then
              is_topic_op=1
              query="$query $op"
@@ -514,9 +518,11 @@ function kpick()
              vars="$vars $op"
         elif [ $is_topic_op -eq 1 ]; then
              query="$query $op"
+             iTopic=$op
              is_topic_op=0
         elif [ $is_query_op -eq 1 ]; then
              query="$query $op"
+             iQuery=$op
              is_query_op=0
         elif [ $is_path_op -eq 1 ]; then
              query="$query $op"
@@ -554,8 +560,23 @@ function kpick()
 
     local mLine=0
     if [ ! -z $target_script -a -f $target_script ] && [ $extract_changeset -eq 1 ]; then
-        mLine=$(grep -n "^[[:space:]]*kpick $*" $target_script | cut -d: -f1 )
-        sed -e "s/\([[:space:]]*kpick $*\)/#\1/" -i   $target_script
+        if [ "$iQuery" != "" ]; then
+             mLine=$(grep -n "^[[:space:]]*kpick.*$iQuery" $target_script | cut -d: -f1 )
+             eval sed -e \"s/\\\([[:space:]]*kpick.*$iQuery\\\)/#\\1/\" -i $target_script
+        elif [ "$iTopic" != "" ]; then
+             mLine=$(grep -n "^[[:space:]]*kpick.*$iTopic" $target_script | cut -d: -f1 )
+             eval sed -e \"s/\\\([[:space:]]*kpick.*$iTopic\\\)/#\\1/\" -i $target_script
+        elif [ "$iRange" != "" ]; then
+             mLine=$(grep -n "^[[:space:]]*kpick.*$iRange" $target_script | cut -d: -f1 )
+             eval sed -e \"s/\\\([[:space:]]*kpick.*$iRange\\\)/#\\1/\" -i $target_script
+        fi
+        if [ $? -ne 0 ]; then
+            if [ "${BASH_SOURCE[0]}" = "$runfrom" ]; then
+                 exit -1
+            else
+                 return -1
+            fi
+        fi
     fi
 
     LANG=en_US repopick --test $query | grep "Testing change number" | cut -d" " -f 4 > $change_number_list || return -1
@@ -563,13 +584,14 @@ function kpick()
     while read line; do
         number=$(echo $line | sed -e "s/  / /g")
         if [ ! -z $target_script -a -f $target_script ] && [ $extract_changeset -eq 1 ]; then
-           sed "${mLine}akpick $number" -i  $target_script
+           sed "${mLine}akpick $number" -i  $target_script || exit -1
            mLine=$(grep -n "^[[:space:]]*kpick $number" $target_script | cut -d: -f1 )
         fi
     done < $change_number_list
+
     while read line; do
         number=$(echo $line | cut -d" " -f 3)
-        kpick_action $vars $number
+        kpick_action $number $vars
     done < $change_number_list
     rm -f $logfile $errfile $change_number_list
 }
@@ -606,7 +628,11 @@ function kpick_action()
         [ -z "$changeNumber" ] &&  [[ $op =~ ^[0-9]+$ || $op =~ ^[0-9]+\/[0-9]+$ ]] && [ $(echo $op | cut -d/ -f1) -gt 1000 ] && changeNumber=$op
         [ "$op" = "-f" ] && op_force_pick=1
         [ "$op" = "-t" ] && op_is_topic=1
-        nops="$nops $op"
+        if [ "$nop" = "" ]; then
+             nops=$op
+        else
+             nops="$nops $op"
+        fi
     done
     if  [ "$changeNumber" = "" ]; then
          return -1
@@ -887,7 +913,7 @@ function kpick_action()
                 target_script=$script_file.new
            fi
            [ ! -z $target_script -a -f $target_script ] && \
-           eval  "sed -e \"s|^[[:space:]]*kpick[[:space:]]\{1,\}\($changeNumber\)[[:space:]]*.*|kpick $nop \# $subject|g\" -i $target_script"
+           eval  "sed -e \"s|^[[:space:]]*kpick[[:space:]]\{1,\}$changeNumber[[:space:]]*.*|kpick $nops \# $subject|g\" -i $target_script"
     fi
     rm -f $errfile $logfile
 }
@@ -1039,12 +1065,12 @@ reset_overwrite_projects
 repo sync android  >/dev/null
 [ $op_keep_manifests -ne 1 ] && reset_project_dir .repo/manifests
 
-kpick 223886 # manifest: Re-add hardware/qcom/data/ipacfg-mgr
-kpick 227747 # lineage: Enable weather apps
+kpick  223886 # manifest: Re-add hardware/qcom/data/ipacfg-mgr
+kpick  227747 # lineage: Enable weather apps
 #kpick 227748 # lineage: Enable qcom thermal/vr HALs
-kpick 226755 # lineage: Enable cryptfs_hw
-kpick 231971 # manifest: sync gcc4.9 from aosp oreo
-kpick 232785 # lineage: Ship Snap
+kpick  226755 # lineage: Enable cryptfs_hw
+kpick  231971 # manifest: sync gcc4.9 from aosp oreo
+kpick  232785 # lineage: Ship Snap
 
 patch_local local/android
 echo
@@ -1065,19 +1091,130 @@ fi       # continue pick or not
 # ================= DEVICE STUFF =========================
 
 # first pick for repopick
-kpick 234859 # repopick: cmp() is not available in Python 3, define it manually
+kpick  234859 # repopick: cmp() is not available in Python 3, define it manually
 
 # device/samsung/klte-common
-kpick 231209 # klte-common: nfc: pn547: Use prebuilt NFC HAL from 15.1
-kpick 225192 # klte-common: Align ril.h to samsung_msm8974-common P libril changes
-kpick 224917 # DO NOT MERGE: klte-common: Requisite bring-up BS change
+kpick  231209 # klte-common: nfc: pn547: Use prebuilt NFC HAL from 15.1
+kpick  225192 # klte-common: Align ril.h to samsung_msm8974-common P libril changes
+kpick  224917 # DO NOT MERGE: klte-common: Requisite bring-up BS change
 
 # device/samsung/msm8974-common
-kpick 235140 # msm8974-common: sepolicy: Clean up
-kpick 235457 # msm8974-common: sepolicy: Limit execmod to specifically labeled files
-kpick 234526 # msm8974-common: sepolicy: Resolve mediaserver denials
+kpick  235140 # msm8974-common: sepolicy: Clean up
+kpick  235457 # msm8974-common: sepolicy: Limit execmod to specifically labeled files
+kpick  234526 # msm8974-common: sepolicy: Resolve mediaserver denials
+kpick  235776 # manifest: android-9.0.0_r16 -> android-9.0.0_r21
 
 # kernel/samsung/msm8974
+kpick  233841 -f -P kernel/samsung/msm8974 # ext3: fix a BUG when opening a file with O_TMPFILE flag
+kpick  233843 -f -P kernel/samsung/msm8974 # fanotify: check file flags passed in fanotify_init
+kpick  235822 -f -P kernel/samsung/msm8974 # vfs: split __dentry_open()
+kpick  235823 -f -P kernel/samsung/msm8974 # vfs: do_dentry_open(): don't put filp
+kpick  235824 -f -P kernel/samsung/msm8974 # vfs: nameidata_to_filp(): inline __dentry_open()
+kpick  235825 -f -P kernel/samsung/msm8974 # vfs: nameidata_to_filp(): don't throw away file on error
+kpick  235826 -f -P kernel/samsung/msm8974 # vfs: Don't allow a user namespace root to make device nodes
+kpick  235827 -f -P kernel/samsung/msm8974 # VFS: clean up and simplify getname_flags()
+kpick  235828 -f -P kernel/samsung/msm8974 # vfs: clean up __d_lookup_rcu() and dentry_cmp() interfaces
+kpick  235829 -f -P kernel/samsung/msm8974 # vfs: split do_lookup()
+kpick  235830 -f -P kernel/samsung/msm8974 # vfs: do_last(): make exit RCU safe
+kpick  235831 -f -P kernel/samsung/msm8974 # vfs: do_last(): inline walk_component()
+kpick  235832 -f -P kernel/samsung/msm8974 # vfs: do_last(): use inode variable
+kpick  235833 -f -P kernel/samsung/msm8974 # vfs: make follow_link check RCU safe
+kpick  235834 -f -P kernel/samsung/msm8974 # vfs: do_last(): make ENOENT exit RCU safe
+kpick  235835 -f -P kernel/samsung/msm8974 # vfs: do_last(): check LOOKUP_DIRECTORY
+kpick  235836 -f -P kernel/samsung/msm8974 # vfs: do_last(): only return EISDIR for O_CREAT
+kpick  235837 -f -P kernel/samsung/msm8974 # vfs: do_last(): add audit_inode before open
+kpick  235838 -f -P kernel/samsung/msm8974 # vfs: do_last() common post lookup
+kpick  235839 -f -P kernel/samsung/msm8974 # vfs: retry last component if opening stale dentry
+kpick  235840 -f -P kernel/samsung/msm8974 # namei.c: let follow_link() do put_link() on failure
+kpick  235841 -f -P kernel/samsung/msm8974 # vfs: do_last(): inline lookup_slow()
+kpick  235842 -f -P kernel/samsung/msm8974 # vfs: do_last(): separate O_CREAT specific code
+kpick  235843 -f -P kernel/samsung/msm8974 # vfs: do_last(): common slow lookup
+kpick  235844 -f -P kernel/samsung/msm8974 # vfs: do the careful dentry name access for all dentry_cmp cases
+kpick  235845 -f -P kernel/samsung/msm8974 # vfs: move dentry name length comparison from dentry_cmp() into callers
+kpick  235846 -f -P kernel/samsung/msm8974 # vfs: make it possible to access the dentry hash/len as one 64-bit entry
+kpick  235847 -f -P kernel/samsung/msm8974 # vfs: be even more careful about dentry RCU name lookups
+kpick  235848 -f -P kernel/samsung/msm8974 # vfs: add lookup_open()
+kpick  235849 -f -P kernel/samsung/msm8974 # vfs: lookup_open(): expand lookup_hash()
+kpick  235850 -f -P kernel/samsung/msm8974 # vfs: add i_op->atomic_open()
+kpick  235851 -f -P kernel/samsung/msm8974 # vfs: remove open intents from nameidata
+kpick  235852 -f -P kernel/samsung/msm8974 # vfs: do_last(): clean up error handling
+kpick  235853 -f -P kernel/samsung/msm8974 # vfs: do_last(): clean up labels
+kpick  235854 -f -P kernel/samsung/msm8974 # vfs: do_last(): clean up bool
+kpick  235855 -f -P kernel/samsung/msm8974 # vfs: do_last(): clean up retry
+kpick  235856 -f -P kernel/samsung/msm8974 # vfs: move O_DIRECT check to common code
+kpick  235857 -f -P kernel/samsung/msm8974 # cifs: implement i_op->atomic_open()
+kpick  235858 -f -P kernel/samsung/msm8974 # fuse: implement i_op->atomic_open()
+kpick  235859 -f -P kernel/samsung/msm8974 # nfs: don't open in ->d_revalidate
+kpick  235860 -f -P kernel/samsung/msm8974 # nfs: implement i_op->atomic_open()
+kpick  235861 -f -P kernel/samsung/msm8974 # nfs: clean up ->create in nfs_rpc_ops
+kpick  235862 -f -P kernel/samsung/msm8974 # nfs: don't use nd->intent.open.flags
+kpick  235863 -f -P kernel/samsung/msm8974 # nfs: don't use intents for checking atomic open
+kpick  235864 -f -P kernel/samsung/msm8974 # 9p: implement i_op->atomic_open()
+kpick  235865 -f -P kernel/samsung/msm8974 # ceph: remove unused arg from ceph_lookup_open()
+kpick  235866 -f -P kernel/samsung/msm8974 # ceph: implement i_op->atomic_open()
+kpick  235867 -f -P kernel/samsung/msm8974 # ->atomic_open() prototype change - pass int android Android.bp art authorize_adb.sh autoload bionic bootable bootstrap.bash bug-20181115.log build build.sh colors compatibility cts dalvik developers development device doc external frameworks hardware kernel libcore libnativehelper lineage lineage-sdk Makefile out packages pdk pick.sh pick.sh.tmp platform_testing plugin prebuilts sdk sed6aZAAS sed9PufXw sedCDOznF seddkD67w sedea3r51 sedmOu8C8 sedOZjQOZ syntax system test toolchain tools vendor instead of bool android Android.bp art authorize_adb.sh autoload bionic bootable bootstrap.bash bug-20181115.log build build.sh colors compatibility cts dalvik developers development device doc external frameworks hardware kernel libcore libnativehelper lineage lineage-sdk Makefile out packages pdk pick.sh pick.sh.tmp platform_testing plugin prebuilts sdk sed6aZAAS sed9PufXw sedCDOznF seddkD67w sedea3r51 sedmOu8C8 sedOZjQOZ syntax system test toolchain tools vendor ...
+kpick  235868 -f -P kernel/samsung/msm8974 # make ->atomic_open() return int
+kpick  235869 -f -P kernel/samsung/msm8974 # don't modify od->filp at all
+kpick  235870 -f -P kernel/samsung/msm8974 # kill opendata->{mnt,dentry}
+kpick  235871 -f -P kernel/samsung/msm8974 # kill struct opendata
+kpick  235872 -f -P kernel/samsung/msm8974 # make finish_no_open() return int
+kpick  235873 -f -P kernel/samsung/msm8974 # switch nfs_lookup_check_intent() away from nameidata
+kpick  235874 -f -P kernel/samsung/msm8974 # nfs_lookup_verify_inode() - nd is *always* non-NULL here
+kpick  235875 -f -P kernel/samsung/msm8974 # fs/nfs/dir.c: switch to passing nd->flags instead of nd wherever possible
+kpick  235876 -f -P kernel/samsung/msm8974 # fs/namei.c: get do_last() and friends return int
+kpick  235877 -f -P kernel/samsung/msm8974 # stop passing nameidata android Android.bp art authorize_adb.sh autoload bionic bootable bootstrap.bash bug-20181115.log build build.sh colors compatibility cts dalvik developers development device doc external frameworks hardware kernel libcore libnativehelper lineage lineage-sdk Makefile out packages pdk pick.sh pick.sh.tmp platform_testing plugin prebuilts sdk sed6aZAAS sed9PufXw sedCDOznF seddkD67w sedea3r51 sedmOu8C8 sedOZjQOZ syntax system test toolchain tools vendor to ->d_revalidate() ...
+kpick  235878 -f -P kernel/samsung/msm8974 # fs/namei.c: don't pass nameidata to d_revalidate()
+kpick  235879 -f -P kernel/samsung/msm8974 # fs/namei.c: don't pass namedata to lookup_dcache()
+kpick  235880 -f -P kernel/samsung/msm8974 # stop passing nameidata to ->lookup()
+kpick  235881 -f -P kernel/samsung/msm8974 # fs/namei.c: don't pass nameidata to __lookup_hash() and lookup_real()
+kpick  235882 -f -P kernel/samsung/msm8974 # don't pass nameidata to ->create()
+kpick  235883 -f -P kernel/samsung/msm8974 # don't pass nameidata android Android.bp art authorize_adb.sh autoload bionic bootable bootstrap.bash bug-20181115.log build build.sh colors compatibility cts dalvik developers development device doc external frameworks hardware kernel libcore libnativehelper lineage lineage-sdk Makefile out packages pdk pick.sh pick.sh.tmp platform_testing plugin prebuilts sdk sed6aZAAS sed9PufXw sedCDOznF seddkD67w sedea3r51 sedmOu8C8 sedOZjQOZ syntax system test toolchain tools vendor to vfs_create() ...
+kpick  235884 -f -P kernel/samsung/msm8974 # VFS: Fix the banner comment on lookup_open()
+kpick  235885 -f -P kernel/samsung/msm8974 # fs: move path_put on failure out of ->follow_link
+kpick  235886 -f -P kernel/samsung/msm8974 # fs: add nd_jump_link
+kpick  235887 -f -P kernel/samsung/msm8974 # use __lookup_hash() in kern_path_parent()
+kpick  235888 -f -P kernel/samsung/msm8974 # unobfuscate follow_up() a bit
+kpick  235889 -f -P kernel/samsung/msm8974 # tidy up namei.c a bit
+kpick  235890 -f -P kernel/samsung/msm8974 # new helper: done_path_create()
+kpick  235891 -f -P kernel/samsung/msm8974 # mknod: take sanity checks on mode into the very beginning
+kpick  235892 -f -P kernel/samsung/msm8974 # pull mnt_want_write()/mnt_drop_write() into kern_path_create()/done_path_create() resp.
+kpick  235893 -f -P kernel/samsung/msm8974 # vfs: don't let do_last pass negative dentry to audit_inode
+kpick  235894 -f -P kernel/samsung/msm8974 # fs: add link restrictions
+kpick  235895 -f -P kernel/samsung/msm8974 # fs: add link restriction audit reporting
+kpick  235896 -f -P kernel/samsung/msm8974 # fix O_EXCL handling for devices
+kpick  235897 -f -P kernel/samsung/msm8974 # simplify lookup_open()/atomic_open() - do the temporary mnt_want_write() early
+kpick  235898 -f -P kernel/samsung/msm8974 # fs: Push mnt_want_write() outside of i_mutex
+kpick  235899 -f -P kernel/samsung/msm8974 # vfs: atomic_open(): fix create mode usage
+kpick  235900 -f -P kernel/samsung/msm8974 # vfs: pass right create mode to may_o_create()
+kpick  235901 -f -P kernel/samsung/msm8974 # vfs: fix propagation of atomic_open create error on negative dentry
+kpick  235902 -f -P kernel/samsung/msm8974 # namei.c: fix BS comment
+kpick  235903 -f -P kernel/samsung/msm8974 # fs: prevent use after free in auditing when symlink following was denied
+kpick  235904 -f -P kernel/samsung/msm8974 # vfs: bogus warnings in fs/namei.c
+kpick  235905 -f -P kernel/samsung/msm8974 # vfs: unexport getname and putname symbols
+kpick  235906 -f -P kernel/samsung/msm8974 # vfs: define struct filename and have getname() return it
+kpick  235907 -f -P kernel/samsung/msm8974 # vfs: allocate page instead of names_cache buffer in mount_block_root
+kpick  235908 -f -P kernel/samsung/msm8974 # vfs: turn do_path_lookup into wrapper around struct filename variant
+kpick  235909 -f -P kernel/samsung/msm8974 # vfs: make path_openat take a struct filename pointer
+kpick  235910 -f -P kernel/samsung/msm8974 # use can_lookup() instead of direct checks of ->i_op->lookup
+kpick  235911 -f -P kernel/samsung/msm8974 # vfs: embed struct filename inside of names_cache allocation if possible
+kpick  235912 -f -P kernel/samsung/msm8974 # VFS: don't do protected {sym,hard}links by default
+kpick  235913 -f -P kernel/samsung/msm8974 # lookup_one_len: don't accept . and ..
+kpick  235914 -f -P kernel/samsung/msm8974 # [O_TMPFILE] it's still short a few helpers, but infrastructure should be OK now...
+kpick  235915 -f -P kernel/samsung/msm8974 # allow the temp files created by open() to be linked to
+kpick  235916 -f -P kernel/samsung/msm8974 # ext3 ->tmpfile() support
+kpick  235917 -f -P kernel/samsung/msm8974 # ext4: ->tmpfile() support
+kpick  235918 -f -P kernel/samsung/msm8974 # Document ->tmpfile()
+kpick  235919 -f -P kernel/samsung/msm8974 # vfs: improve i_op->atomic_open() documentation
+kpick  235920 -f -P kernel/samsung/msm8974 # Safer ABI for O_TMPFILE
+kpick  235921 -f -P kernel/samsung/msm8974 # allow O_TMPFILE to work with O_WRONLY
+kpick  235922 -f -P kernel/samsung/msm8974 # ext4: fix a BUG when opening a file with O_TMPFILE flag
+kpick  235923 -f -P kernel/samsung/msm8974 # fs: Fix file mode for O_TMPFILE
+kpick  235924 -f -P kernel/samsung/msm8974 # vfs: add missing check for __O_TMPFILE in fcntl_init()
+kpick  235925 -f -P kernel/samsung/msm8974 # ext[34]: fix double put in tmpfile
+kpick  235926 -f -P kernel/samsung/msm8974 # fs: allow open(dir, O_TMPFILE|..., 0) with mode 0
+kpick  235927 -f -P kernel/samsung/msm8974 # path_openat(): fix double fput()
+kpick  235928 -f -P kernel/samsung/msm8974 # vfs: don't BUG_ON() if following a /proc fd pseudo-symlink results in a symlink
+kpick  235929 -f -P kernel/samsung/msm8974 # proc: Use nd_jump_link in proc_ns_follow_link
 
 # =============== END DEVICE STUFF ========================
 
@@ -1085,185 +1222,193 @@ kpick 234526 # msm8974-common: sepolicy: Resolve mediaserver denials
 #kpick 233821
 
 # bionic
-kpick 223067 -f # libc fortify: Ignore open() O_TMPFILE mode bits warning
-kpick 225463 # bionic: Let popen and system fall back to /sbin/sh
+#kpick 223067 -f # libc fortify: Ignore open() O_TMPFILE mode bits warning
+kpick  225463 # bionic: Let popen and system fall back to /sbin/sh
+kpick  235726 # malloc: add M_PURGE mallopt flag
 
 # boot/recovery
-kpick 231718 # recovery: Declare a soong namespace
-kpick 234952 # uncrypt: write permission for f2fs_pin_file
+kpick  231718 # recovery: Declare a soong namespace
+kpick  234952 # uncrypt: write permission for f2fs_pin_file
 
 # build/make
-kpick 222742 # build: Use project pathmap for recovery
-kpick 222760 # Add LOCAL_AIDL_FLAGS
+kpick  222742 # build: Use project pathmap for recovery
+kpick  222760 # Add LOCAL_AIDL_FLAGS
 #kpick 226919 # Depend on the ramdisk/root files for BOARD_BUILD_SYSTEM_ROOT_IMAGE
 #kpick 226920 # Support a first stage ramdisk via TARGET_RAMDISK_OUT
 #kpick 226939 # releasetools: Fix the path to the OTA keys in recovery image.
-kpick 227111 # releasetools: Store the build.prop file in the OTA zip
+kpick  227111 # releasetools: Store the build.prop file in the OTA zip
+kpick  235729 # [DO NOT MERGE] Update Security String to 2018-12-01 for December Release bug:117667960 (cherry picked from commit d ...
 
 # build/soong
-kpick 222648 # Allow providing flex and bison binaries
-kpick 224613 # soong: Add LOCAL_AIDL_FLAGS handling
-kpick 226443 # soong: Add additional_deps attribute for libraries and binaries
+kpick  222648 # Allow providing flex and bison binaries
+kpick  224613 # soong: Add LOCAL_AIDL_FLAGS handling
+kpick  226443 # soong: Add additional_deps attribute for libraries and binaries
 #kpick 226918 # Add /ramdisk to installclean
 
 # dalvik
-kpick 225475 # dexdeps: Add option for --include-lineage-classes.
-kpick 225476 # dexdeps: Ignore static initializers on analysis.
+kpick  225475 # dexdeps: Add option for --include-lineage-classes.
+kpick  225476 # dexdeps: Ignore static initializers on analysis.
 
 # device/lineage/sepolicy
 #kpick 225945 # sepolicy: Update to match new qcom sepolicy
-kpick 229423 # selinux: add domain for snap
-kpick 229424 # selinux: add domain for Gallery
-kpick 234613 # common: Expand labeling of sysfs_vibrator nodes using genfscon
+kpick  229423 # selinux: add domain for snap
+kpick  229424 # selinux: add domain for Gallery
+kpick  234613 # common: Expand labeling of sysfs_vibrator nodes using genfscon
 
 # device/qcom/sepolicy
-kpick 228566 # qcom: Label vendor files with (vendor|system/vendor) instead of vendor
-kpick 228569 # Use set_prop() macro for property sets
-kpick 228570 # sepolicy: Allow wcnss_service to set wlan.driver properties
-kpick 228572 # sepolicy: Allow system_server to 'read' qti_debugfs
-kpick 228573 # sepolicy: Add libsdm-disp-vndapis and libsdmutils to SP-HALs
-kpick 228576 # sepolicy: Label mpctl_socket as data_file_type
-kpick 228578 # sepolicy: rules to allow camera daemon access to app buffer
-kpick 228580 # hal_gnss_default: Do not log udp socket failures
-kpick 228582 # sepolicy: qti_init_shell needs to read dir too
-kpick 228583 # sepolicy: allow vold to read persist dirs
-kpick 228584 # sepolicy: Fix video4linux "name" node labeling
-kpick 228585 # sepolicy: Allow mm-qcamerad to access v4L "name" node
-kpick 228586 # common: Fix labelling of lcd-backlight
+kpick  228566 # qcom: Label vendor files with (vendor|system/vendor) instead of vendor
+kpick  228569 # Use set_prop() macro for property sets
+kpick  228570 # sepolicy: Allow wcnss_service to set wlan.driver properties
+kpick  228572 # sepolicy: Allow system_server to 'read' qti_debugfs
+kpick  228573 # sepolicy: Add libsdm-disp-vndapis and libsdmutils to SP-HALs
+kpick  228576 # sepolicy: Label mpctl_socket as data_file_type
+kpick  228578 # sepolicy: rules to allow camera daemon access to app buffer
+kpick  228580 # hal_gnss_default: Do not log udp socket failures
+kpick  228582 # sepolicy: qti_init_shell needs to read dir too
+kpick  228583 # sepolicy: allow vold to read persist dirs
+kpick  228584 # sepolicy: Fix video4linux "name" node labeling
+kpick  228585 # sepolicy: Allow mm-qcamerad to access v4L "name" node
+kpick  228586 # common: Fix labelling of lcd-backlight
 
 # device/qcom/sepolicy-legacy
-kpick 231054 # NFC: Add nfc data file context and rename property
-kpick 230237 # common: allow vendor_init to create /data/dpm
-kpick 230229 # mm-qcamera-daemon: fix denial
-kpick 230230 # common: fix sensors denial
-kpick 230231 # common: grant cnss-daemon access to sysfs_net
-kpick 230232 # common: grant netmgrd access to sysfs_net nodes
-kpick 230233 # common: allow sensors HIDL HAL to access /dev/sensors
-kpick 230234 # common: allow wifi HIDL HAL to read tombstones
-kpick 230235 # common: grant DRM HIDL HAL ownership access to /data/{misc,vendor}/media/
-kpick 230236 # common: label /sys/devices/virtual/graphics as sysfs_graphics
-kpick 230238 # common: create proc_kernel_sched domain to restrict perf hal access
-kpick 230239 # common: allow uevent to control sysfs_mmc_host via vold
-kpick 234832 # sepolicy: Add additional restricted permissions to vendor_init
-kpick 235455 # legacy: Allow platform_app to read qemu_hw_mainkeys_prop
+kpick  231054 # NFC: Add nfc data file context and rename property
+kpick  230237 # common: allow vendor_init to create /data/dpm
+kpick  230229 # mm-qcamera-daemon: fix denial
+kpick  230230 # common: fix sensors denial
+kpick  230231 # common: grant cnss-daemon access to sysfs_net
+kpick  230232 # common: grant netmgrd access to sysfs_net nodes
+kpick  230233 # common: allow sensors HIDL HAL to access /dev/sensors
+kpick  230234 # common: allow wifi HIDL HAL to read tombstones
+kpick  230235 # common: grant DRM HIDL HAL ownership access to /data/{misc,vendor}/media/
+kpick  230236 # common: label /sys/devices/virtual/graphics as sysfs_graphics
+kpick  230238 # common: create proc_kernel_sched domain to restrict perf hal access
+kpick  230239 # common: allow uevent to control sysfs_mmc_host via vold
+kpick  234832 # sepolicy: Add additional restricted permissions to vendor_init
+kpick  235455 # legacy: Allow platform_app to read qemu_hw_mainkeys_prop
 
 # development
-kpick 232511 # make-key: Enforce PBEv1 password-protected signing keys
+kpick  232511 # make-key: Enforce PBEv1 password-protected signing keys
 
 # external/ant-wireless/ant_native
-kpick 227260 # Update bt vendor callbacks array in vfs code
-kpick 227261 # Cast BT_VND_OP_ANT_USERIAL_{OPEN,CLOSE} to bt_vendor_opcode_t in vfs code
+kpick  227260 # Update bt vendor callbacks array in vfs code
+kpick  227261 # Cast BT_VND_OP_ANT_USERIAL_{OPEN,CLOSE} to bt_vendor_opcode_t in vfs code
 
 # external/perfetto
-kpick 223413 -f # perfetto_cmd: Resolve missing O_CREAT mode
+kpick  -f 223413 # perfetto_cmd: Resolve missing O_CREAT mode
 
 # external/tinycompress
 
 # external/zlib
-kpick 225237 # zlib: Fix build under Android 6.0 and higher
-kpick 225238 # minizip: Clean up the code
-kpick 225239 # zlib: crc optimization for arm64
+kpick  225237 # zlib: Fix build under Android 6.0 and higher
+kpick  225238 # minizip: Clean up the code
+kpick  225239 # zlib: crc optimization for arm64
 
 # frameworks/av
-kpick 230387 # CameraService: Support calling addStates in enumerateProviders
-kpick 230642 # CameraService: Initialize CameraParameters for the cameras and cache them onFirstRef
-kpick 231348 # camera: Allow to use boottime as timestamp reference
-kpick 234010 # libstagefright: omx: Add support for loading prebuilt ddp decoder lib
-kpick 234980 # libcameraservice: force specific cam id for google face unlock
-merge_from_aosp frameworks/av platform/frameworks/av android-9.0.0_r18
+kpick  230387 # CameraService: Support calling addStates in enumerateProviders
+kpick  230642 # CameraService: Initialize CameraParameters for the cameras and cache them onFirstRef
+kpick  231348 # camera: Allow to use boottime as timestamp reference
+kpick  234010 # libstagefright: omx: Add support for loading prebuilt ddp decoder lib
+kpick  234980 # libcameraservice: force specific cam id for google face unlock
 
 # frameworks/base
-kpick 224266 # SystemUI: Add Lineage statusbar item holder
-kpick 224267 # SystemUI: Network Traffic [1/3]
-kpick 224513 # SystemUI: Disable config_keyguardUserSwitcher on sw600dp
-kpick 226236 # SystemUI: add navbar layout inversion tuning
-kpick 226343 # CameraServiceProxy: Loosen UID check
-kpick 226358 # settings: Allow accessing LineageSettings via settings command
-kpick 226398 # frameworks: base: Port password retention feature
-kpick 226399 # Use fdeCheckPassword error code to indicate pw failure
-kpick 226400 # LockSettingsService: Support for separate clear key api
-kpick 226600 # PhoneWindowManager: Check if proposed rotation is in range
-kpick 227108 # SystemUI: Fix several issues in the ADB over Network tile
-kpick 227290 # PowerProfile: allow overriding default power profile
-kpick 227291 # [DNM] Revert "Handle public volumes and otherwise invalid UUIDs."
-kpick 227821 # GlobalScreenshot: Fix screenshot not saved with some languages
-kpick 227896 # SystemUI: Add Profiles tile
-kpick 221716 # Where's my circle battery, dude?
-kpick 229166 # NightDisplayController: report unavailable if livedisplay feature is present
-kpick 229230 # SystemUI: allow the power menu to be relocated
-kpick 229307 # Add CHANNEL_MODE_DUAL_CHANNEL constant
-kpick 229308 # Add Dual Channel into Bluetooth Audio Channel Mode developer options menu
-kpick 229309 # Allow SBC as HD audio codec in Bluetooth device configuration
-kpick 229606 # ConsumerIR: Support Huawei's DSP chip implementation
-kpick 229612 # Performance: Memory Optimizations.
-kpick 230016 # Implement expanded desktop feature
-kpick 231796 # SignalClusterView: Hide signal icons for disabled SIMs
-kpick 231797 # Keyguard: Remove carrier text for disabled SIMs
-kpick 231823 # Do not move the multi-window divider when showing IME
-kpick 231824 # Fix StatusBar icons tinting when in split screen
-kpick 231827 # Add display shrink mode
-kpick 231847 # onehand: Enable debug only on eng builds
-kpick 231848 # SystemUI: Add one hand mode triggers
-kpick 231851 # onehand: Take into account cutouts
-kpick 231852 # onehand: Remove guide link
-kpick 232197 # appops: Privacy Guard for P (1/2)
-kpick 232796 # NetworkManagement : Add ability to restrict app vpn usage
-kpick 233633 # Phone ringtone setting for Multi SIM device
-kpick 233717 # [DNM][HACK] Persist user brightness model
-kpick 234168 # Binder: Fix improper JNI call for dumpProxyDebugInfo
-kpick 234325 # TunerServiceImpl: Blacklist Lineage settings from tuner reset
-kpick 234649 # keyguard: Check for a null errString
-kpick 234715 # Rotation related corrections
-kpick 235127 # Fix NPE when creates wifi tracker
-kpick 235128 # Crash app on foreground service notification error
-kpick 235147 # SystemUI: Name Cellular Tile based on carrier
-merge_from_aosp frameworks/base platform/frameworks/base android-9.0.0_r18
+kpick  224266 # SystemUI: Add Lineage statusbar item holder
+kpick  224267 # SystemUI: Network Traffic [1/3]
+kpick  224513 # SystemUI: Disable config_keyguardUserSwitcher on sw600dp
+kpick  226236 # SystemUI: add navbar layout inversion tuning
+kpick  226343 # CameraServiceProxy: Loosen UID check
+kpick  226358 # settings: Allow accessing LineageSettings via settings command
+kpick  226398 # frameworks: base: Port password retention feature
+kpick  226399 # Use fdeCheckPassword error code to indicate pw failure
+kpick  226400 # LockSettingsService: Support for separate clear key api
+kpick  226600 # PhoneWindowManager: Check if proposed rotation is in range
+kpick  227108 # SystemUI: Fix several issues in the ADB over Network tile
+kpick  227290 # PowerProfile: allow overriding default power profile
+kpick  227291 # [DNM] Revert "Handle public volumes and otherwise invalid UUIDs."
+kpick  227821 # GlobalScreenshot: Fix screenshot not saved with some languages
+kpick  227896 # SystemUI: Add Profiles tile
+kpick  221716 # Where's my circle battery, dude?
+kpick  229166 # NightDisplayController: report unavailable if livedisplay feature is present
+kpick  229230 # SystemUI: allow the power menu to be relocated
+kpick  229307 # Add CHANNEL_MODE_DUAL_CHANNEL constant
+kpick  229308 # Add Dual Channel into Bluetooth Audio Channel Mode developer options menu
+kpick  229309 # Allow SBC as HD audio codec in Bluetooth device configuration
+kpick  229606 # ConsumerIR: Support Huawei's DSP chip implementation
+kpick  229612 # Performance: Memory Optimizations.
+kpick  230016 # Implement expanded desktop feature
+kpick  231796 # SignalClusterView: Hide signal icons for disabled SIMs
+kpick  231797 # Keyguard: Remove carrier text for disabled SIMs
+kpick  231823 # Do not move the multi-window divider when showing IME
+kpick  231824 # Fix StatusBar icons tinting when in split screen
+kpick  231827 # Add display shrink mode
+kpick  231847 # onehand: Enable debug only on eng builds
+kpick  231848 # SystemUI: Add one hand mode triggers
+kpick  231851 # onehand: Take into account cutouts
+kpick  231852 # onehand: Remove guide link
+kpick  232197 # appops: Privacy Guard for P (1/2)
+kpick  232796 # NetworkManagement : Add ability to restrict app vpn usage
+kpick  233633 # Phone ringtone setting for Multi SIM device
+kpick  233717 # [DNM][HACK] Persist user brightness model
+kpick  234168 # Binder: Fix improper JNI call for dumpProxyDebugInfo
+kpick  234325 # TunerServiceImpl: Blacklist Lineage settings from tuner reset
+kpick  234649 # keyguard: Check for a null errString
+kpick  234715 # Rotation related corrections
+kpick  235127 # Fix NPE when creates wifi tracker
+kpick  235128 # Crash app on foreground service notification error
+kpick  235147 # SystemUI: Name Cellular Tile based on carrier
+kpick  235739 # DO NOT MERGE: Reset launch start times when removing a process
+kpick  235741 # Recover shady content:// paths.
+kpick  235742 # hwui: purge malloc pages on bitmap destruction
+kpick  235743 # wm: recycle bitmaps immediately in TaskSnapshotPersister
+kpick  235744 # Add configurable default setting for assistant componentname
+kpick  235746 # Add Missing XML files from 5282778 to fix build Bug:111603898 (cherry picked from commit 974a86e201e2fa17bad58d1fb2 ...
+kpick  235748 # ActivityThread: purge jemalloc at appropriate times
+kpick  235750 # Adding new intent ACTION_SMS_MMS_DB_CREATED.
 
 # frameworks/native
-kpick 224443 # libbinder: Don't log call trace when waiting for vendor service on non-eng builds
-kpick 224530 # Triple the available egl function pointers available to a process for certain Nvidia devices.
-kpick 225542 # sensorservice: Register orientation sensor if HAL doesn't provide it
-kpick 225543 # sensorservice: customize sensor fusion mag filter via prop
-kpick 225544 # input: Adjust priority
-kpick 225546 # AppOpsManager: Update with the new ops
-kpick 229400 # HAXX to allow too large dimensions
-kpick 229607 # HACK: SF: Force client composition for all layers
-kpick 230610 # APP may display abnormally in landscape LCM
-kpick 231828 # Translate pointer motion events for OneHandOperation Display Shrink
-kpick 231980 # HWComposer: HWC2: allow SkipValidate to be force disabled
-merge_from_aosp frameworks/native platform/frameworks/native android-9.0.0_r18
+kpick  224443 # libbinder: Don't log call trace when waiting for vendor service on non-eng builds
+kpick  224530 # Triple the available egl function pointers available to a process for certain Nvidia devices.
+kpick  225542 # sensorservice: Register orientation sensor if HAL doesn't provide it
+kpick  225543 # sensorservice: customize sensor fusion mag filter via prop
+kpick  225544 # input: Adjust priority
+kpick  225546 # AppOpsManager: Update with the new ops
+kpick  229400 # HAXX to allow too large dimensions
+kpick  229607 # HACK: SF: Force client composition for all layers
+kpick  230610 # APP may display abnormally in landscape LCM
+kpick  231828 # Translate pointer motion events for OneHandOperation Display Shrink
+kpick  231980 # HWComposer: HWC2: allow SkipValidate to be force disabled
+kpick  235753 # libui: add boundary check to GraphicBuffer::unflatten
 
 # frameworks/opt/net/wifi
 
 # frameworks/opt/telephony
-kpick 227125 # RIL: Allow overriding RadioResponse and RadioIndication
-kpick 229601 # Implement signal strength hacks used on Huawei devices
-kpick 229602 # telephony: Squashed support of dynamic signal strength thresholds
-kpick 229603 # telephony: Query LTE thresholds from CarrierConfig
-kpick 229604 # Telephony: Use a common prop for Huawei RIL hacks (1/2)
-kpick 229605 # Telephony: Don not call onUssdRelease for Huawei RIL
-kpick 234319 # LocaleTracker: Add null check before accessing WifiManager
+kpick  227125 # RIL: Allow overriding RadioResponse and RadioIndication
+kpick  229601 # Implement signal strength hacks used on Huawei devices
+kpick  229602 # telephony: Squashed support of dynamic signal strength thresholds
+kpick  229603 # telephony: Query LTE thresholds from CarrierConfig
+kpick  229604 # Telephony: Use a common prop for Huawei RIL hacks (1/2)
+kpick  229605 # Telephony: Don't call onUssdRelease for Huawei RIL
+kpick  234319 # LocaleTracker: Add null check before accessing WifiManager
 
 # hardware/boardcom/libbt
-kpick 225155 # Broadcom BT: Add support fm/bt via v4l2.
-kpick 224264 -f # debuggerd: Resolve tombstoned missing O_CREAT mode
+kpick  225155 # Broadcom BT: Add support fm/bt via v4l2.
+#kpick  -f 224264 # debuggerd: Resolve tombstoned missing O_CREAT mode
 
 # hardware/boardcom/nfc
 
 # hardware/boardcom/wlan
 
 # hardware/interfaces
-kpick 225506 # Camed HAL extension: Added support in HIDL for Extended FD.
-kpick 225507 # camera: Only link and use vendor.qti.hardware.camera.device if specified
-kpick 226402 # keymasterV4_0: Tags support for FBE wrapped key.
-kpick 233911 # Tuning of binder buffer for ARM devices
-kpick 233865 # wifi: Fetch softap interface name for creating ap_iface operations.
-kpick 233866 # wifi: Add provision to create/remove dynamic interface(s).
-kpick 233867 # wifi: Add logic to create secondary interface for STA mode too.
+kpick  225506 # Camed HAL extension: Added support in HIDL for Extended FD.
+kpick  225507 # camera: Only link and use vendor.qti.hardware.camera.device if specified
+kpick  226402 # keymasterV4_0: Tags support for FBE wrapped key.
+kpick  233911 # Tuning of binder buffer for ARM devices
+kpick  233865 # wifi: Fetch softap interface name for creating ap_iface operations.
+kpick  233866 # wifi: Add provision to create/remove dynamic interface(s).
+kpick  233867 # wifi: Add logic to create secondary interface for STA mode too.
 
 # hardware/lineage/interfaces
-kpick 223374 # interfaces: Add 2.0 livedisplay interfaces
-kpick 223410 # interfaces: Add touch HIDL interface definitions
+kpick  223374 # interfaces: Add 2.0 livedisplay interfaces
+kpick  223410 # interfaces: Add touch HIDL interface definitions
 
 # hardware/lineage/lineagehw
 
@@ -1272,7 +1417,7 @@ kpick 223410 # interfaces: Add touch HIDL interface definitions
 #kpick 223194 # nxp: Begin restoring pn547
 
 # hardware/qcom/audio
-kpick 223338 # Revert "msm8x74: remove from top level makefile"
+kpick  223338 # Revert "msm8x74: remove from top level makefile"
 
 # hardware/qcom/audio-caf/msm8974
 
@@ -1281,114 +1426,114 @@ kpick 223338 # Revert "msm8x74: remove from top level makefile"
 # hardware/qcom/bt-caf
 
 # hardware/qcom/display
-kpick 223340 # Revert "msm8974: deprecate msm8974"
-kpick 223341 # display: Always assume kernel source is present
-kpick 223342 # display: add TARGET_PROVIDES_LIBLIGHT
-kpick 223343 # msm8974: Move QCOM HALs to vendor partition
-kpick 223344 # msm8974: hwcomposer: Fix regression in hwc_sync
-kpick 223345 # msm8974: libgralloc: Fix adding offset to the mapped base address
-kpick 223346 # msm8974: libexternal should depend on libmedia
-kpick 224958 # msm8960/8974/8084: Include string.h where it is necessary
+kpick  223340 # Revert "msm8974: deprecate msm8974"
+kpick  223341 # display: Always assume kernel source is present
+kpick  223342 # display: add TARGET_PROVIDES_LIBLIGHT
+kpick  223343 # msm8974: Move QCOM HALs to vendor partition
+kpick  223344 # msm8974: hwcomposer: Fix regression in hwc_sync
+kpick  223345 # msm8974: libgralloc: Fix adding offset to the mapped base address
+kpick  223346 # msm8974: libexternal should depend on libmedia
+kpick  224958 # msm8960/8974/8084: Include string.h where it is necessary
 
 # hardware/qcom/display-caf/msm8974
 
 # hardware/qcom/fm
 
 # hardware/qcom/gps
-kpick 223351 # Revert "msm8974: deprecate msm8974"
-kpick 223352 # Revert "msm8974: remove from top level makefile"
-kpick 223353 # msm8974: Add missing liblog dependency
-kpick 223354 # msm8974: Default apn ip type to ipv4
-kpick 223355 # msm8974: Cleanup obsolete LOCAL_PRELINK_MODULE
-kpick 223356 # msm8974: Move device dependent modules to /vendor
-kpick 223357 # msm8974: Fix duplicate gps.conf for hammerhead
-kpick 223358 # msm8974: Fix logging level and remove nmea log
-kpick 223359 # msm8974: Don't rely on transitively included headers
-kpick 223360 # msm8974: Return the correct length of nmea sentence
-kpick 225034 # msm8974: Add -Wno-error to compile with global -Werror.
+kpick  223351 # Revert "msm8974: deprecate msm8974"
+kpick  223352 # Revert "msm8974: remove from top level makefile"
+kpick  223353 # msm8974: Add missing liblog dependency
+kpick  223354 # msm8974: Default apn ip type to ipv4
+kpick  223355 # msm8974: Cleanup obsolete LOCAL_PRELINK_MODULE
+kpick  223356 # msm8974: Move device dependent modules to /vendor
+kpick  223357 # msm8974: Fix duplicate gps.conf for hammerhead
+kpick  223358 # msm8974: Fix logging level and remove nmea log
+kpick  223359 # msm8974: Don't rely on transitively included headers
+kpick  223360 # msm8974: Return the correct length of nmea sentence
+kpick  225034 # msm8974: Add -Wno-error to compile with global -Werror.
 
 # hardware/qcom/keymaster
-#kpick 224948-224954
-kpick 224948 # Keymaster: Support for 64bit userspace and 32bit TZ
-kpick 224949 # keymaster: Set HEAP_MASK_COMPATIBILITY by platform for QCOM_HARDWARE
-kpick 224950 # Keymaster: Check if keymaster TZ app is loaded
-kpick 224951 # keymaster: Featureize support for waiting on QSEE to start
-kpick 224952 # keymaster: add TARGET_PROVIDES_KEYMASTER
-kpick 224953 # keymaster: Fix compiler warnings
-kpick 224954 # keymaster: move to /vendor
-kpick 233465 # keymaster: Use generated kernel headers
+kpick  224948 # Keymaster: Support for 64bit userspace and 32bit TZ
+kpick  224949 # keymaster: Set HEAP_MASK_COMPATIBILITY by platform for QCOM_HARDWARE
+kpick  224950 # Keymaster: Check if keymaster TZ app is loaded
+kpick  224951 # keymaster: Featureize support for waiting on QSEE to start
+kpick  224952 # keymaster: add TARGET_PROVIDES_KEYMASTER
+kpick  224953 # keymaster: Fix compiler warnings
+kpick  224954 # keymaster: move to /vendor
+kpick  233465 # keymaster: Use generated kernel headers
 
 # hardware/qcom/media
-kpick 224955 # Revert "msm8974: remove from top level makefile"
-kpick 224956 # mm-video: venc: Correct a typo in variable name
-kpick 224957 # media: vdec: Include nativebase headers
+kpick  224955 # Revert "msm8974: remove from top level makefile"
+kpick  224956 # mm-video: venc: Correct a typo in variable name
+kpick  224957 # media: vdec: Include nativebase headers
 
 # hardware/qcom/media-caf/msm8974
 
 # hardware/qcom/power
-kpick 230513 # power: msm8960: Implement performance profiles
-kpick 231884 # sdm670:power: Turn on/off display
-kpick 231885 # Rename sdm670 to sdm710
-kpick 231886 # power: Notify touch of display status
-kpick 231887 # power: Fix VNDK Compilation Errors
-kpick 231888 # power: Fix for VNDK compliance issue
-kpick 231889 # Add touch boost override
-kpick 231890 # power: Turn on/off display
-kpick 231891 # sdm710 : fixed VNDK compilation for warlock
-kpick 231892 # VNDK: Added required libs
-kpick 231893 # Power: Fixing the header inclusion for VNDK.
-kpick 231894 # VNDK: Added required headers for 8998 target
-kpick 231895 # VNDK: Added required libs
-kpick 231896 # power: Turn on/off display in SDM439
-kpick 231897 # power: qcom: powerHal for sdm439 and sdm429
-kpick 231898 # Power: Naming convention change
-kpick 235177 # power: Drop default POWER_HINT_INTERACTION routine
+kpick  230513 # power: msm8960: Implement performance profiles
+kpick  231884 # sdm670:power: Turn on/off display
+kpick  231885 # Rename sdm670 to sdm710
+kpick  231886 # power: Notify touch of display status
+kpick  231887 # power: Fix VNDK Compilation Errors
+kpick  231888 # power: Fix for VNDK compliance issue
+kpick  231889 # Add touch boost override
+kpick  231890 # power: Turn on/off display
+kpick  231891 # sdm710 : fixed VNDK compilation for warlock
+kpick  231892 # VNDK: Added required libs
+kpick  231893 # Power: Fixing the header inclusion for VNDK.
+kpick  231894 # VNDK: Added required headers for 8998 target
+kpick  231895 # VNDK: Added required libs
+kpick  231896 # power: Turn on/off display in SDM439
+kpick  231897 # power: qcom: powerHal for sdm439 and sdm429
+kpick  231898 # Power: Naming convention change
+kpick  235177 # power: Drop default POWER_HINT_INTERACTION routine
 
 # hardware/qcom/thermal
 
 # hardware/qcom/vr
 
 # hardware/qcom/wlan-caf
-kpick 226638 # wcnss_qmi: Generate a fixed random mac address if the NV doesn't provide one
-kpick 226643 # wcnss_service: Read serial number from custom property
-kpick 234861 # Reading the serialno property is forbidden
+kpick  226638 # wcnss_qmi: Generate a fixed random mac address if the NV doesn't provide one
+kpick  226643 # wcnss_service: Read serial number from custom property
+kpick  234861 # Reading the serialno property is forbidden
 
 # hardware/ril
 
 # hardware/ril-caf
-kpick 227614 # Disable IOemHook implemenation in rild.
+kpick  227614 # Disable IOemHook implemenation in rild.
 
 # hardware/samsung
 #kpick 228524 # power: Convert power HAL to native binderized HAL
-kpick 231194 # power: properly initialize cluster states
-kpick 231960 # bauth: Add enumerate function
+kpick  231194 # power: properly initialize cluster states
+kpick  231960 # bauth: Add enumerate function
 
 # lineage-sdk
-kpick 227931 # lineagesdk: Refactor battery icon options
-kpick 230272 # sdk: Remove VOLUME_KEYS_CONTROL_RING_STREAM
-kpick 230284 # Revert "[3/3] cmsdk: add burnIn protection setting"
-kpick 234317 # ProfileManager: Don't start before decrypted
+kpick  227931 # lineagesdk: Refactor battery icon options
+kpick  230272 # sdk: Remove VOLUME_KEYS_CONTROL_RING_STREAM
+kpick  230284 # Revert "[3/3] cmsdk: add burnIn protection setting"
+kpick  234317 # ProfileManager: Don't start before decrypted
 
 # packages/apps/Bluetooth
-kpick 229310 # SBC Dual Channel (SBC HD Audio) support
-kpick 229311 # Assume optional codecs are supported if were supported previously
+kpick  229310 # SBC Dual Channel (SBC HD Audio) support
+kpick  229311 # Assume optional codecs are supported if were supported previously
+kpick  235756 # Clean up variables when closing BT
 
 # packages/apps/Calender
 
 # packages/apps/Camera2
-kpick 224752 # Use mCameraAgentNg for getting camera info when available
-kpick 225265 # Add Storage preference (1/2)
-kpick 227123 # Camera2: Fix photo snap delay on front cam.
+kpick  224752 # Use mCameraAgentNg for getting camera info when available
+kpick  225265 # Add Storage preference (1/2)
+kpick  227123 # Camera2: Fix photo snap delay on front cam.
 
 # packages/apps/Carrierconfig
 
 # packages/apps/CellBroadcastReciver
-kpick 229303 # Only enable presidential CMAS alerts if user is a monkey
+kpick  229303 # Only enable presidential CMAS alerts if user is a monkey
 
 # packages/apps/Contacts
 
 # packages/apps/DeskClock
-kpick 234353 # Release the wakelock before worker thread termination
+kpick  234353 # Release the wakelock before worker thread termination
 
 # packages/apps/Dialer
 
@@ -1401,22 +1546,22 @@ kpick 234353 # Release the wakelock before worker thread termination
 # packages/apps/Gallery2
 
 # packages/apps/Jelly
-kpick 231418 # Automatic translation import
+kpick  231418 # Automatic translation import
 
 # packages/apps/KeyChain
 
 # packages/apps/LineageParts
-kpick 227930 # LineageParts: Bring back and refactor battery icon options
-kpick 221756 # StatusBarSettings: Hide battery preference category based on icon visibility
-kpick 229389 # Trust: enforce vendor security patch level check
-kpick 230017 # LineageParts: Re-enable expanded desktop.
-kpick 231163 # LineageParts: Add some missing psychedelics
-kpick 232146 # LineageParts: Reenable Privacy Guard
+kpick  227930 # LineageParts: Bring back and refactor battery icon options
+kpick  221756 # StatusBarSettings: Hide battery preference category based on icon visibility
+kpick  229389 # Trust: enforce vendor security patch level check
+kpick  230017 # LineageParts: Re-enable expanded desktop.
+kpick  231163 # LineageParts: Add some missing psychedelics
+kpick  232146 # LineageParts: Reenable Privacy Guard
 
 # packages/apps/ManagedProvisoning
 
 # packages/apps/Message
-kpick 234351 # Allow intent shared subject or title to be mms subject
+kpick  234351 # Allow intent shared subject or title to be mms subject
 
 # packages/apps/Nfc
 
@@ -1425,196 +1570,196 @@ kpick 234351 # Allow intent shared subject or title to be mms subject
 # packages/apps/PhoneCommon
 
 # packages/apps/Settings
-kpick 226151 # Settings: show Trust brading in confirm_lock_password UI
-kpick 226148 # Settings: "Security & location" -> "Security & privacy"
-kpick 226154 # fingerprint: Allow devices to configure sensor location
-kpick 227120 # Settings: Check interfaces before enabling ADB over network
-kpick 226142 # Settings: Add developer setting for root access
-kpick 232198 # Settings: appops: Privacy Guard for P (2/2)
-kpick 231590 # SimSettings: Add manual SIM provisioning support
-kpick 229167 # Settings: Hide Night Mode suggestion if LiveDisplay feature is present
-kpick 229312 # Add Dual Channel into Bluetooth Audio Channel Mode developer options menu
-kpick 229453 # Settings: use LineageHW serial number
-kpick 231518 # Settings: Check if we have any color modes declared in overlay
-kpick 231826 # Update the white list of Data saver
-kpick 232442 # Settings: Root appops access in developer settings
-kpick 232793 # Settings: per-app VPN data restriction
-kpick 233634 # Phone ringtone setting for Multi SIM device
+kpick  226151 # Settings: show Trust brading in confirm_lock_password UI
+kpick  226148 # Settings: "Security & location" -> "Security & privacy"
+kpick  226154 # fingerprint: Allow devices to configure sensor location
+kpick  227120 # Settings: Check interfaces before enabling ADB over network
+kpick  226142 # Settings: Add developer setting for root access
+kpick  232198 # Settings: appops: Privacy Guard for P (2/2)
+kpick  231590 # SimSettings: Add manual SIM provisioning support
+kpick  229167 # Settings: Hide Night Mode suggestion if LiveDisplay feature is present
+kpick  229312 # Add Dual Channel into Bluetooth Audio Channel Mode developer options menu
+kpick  229453 # Settings: use LineageHW serial number
+kpick  231518 # Settings: Check if we have any color modes declared in overlay
+kpick  231826 # Update the white list of Data saver
+kpick  232442 # Settings: Root appops access in developer settings
+kpick  232793 # Settings: per-app VPN data restriction
+kpick  233634 # Phone ringtone setting for Multi SIM device
 
 # packages/apps/SettingsIntelligence
 
 # packages/apps/Snap
-kpick 233131 # Revert "SnapdragonCamera: Forbid volume key can take picture"
-kpick 233132 # Revert "SnapdragonCamera: Reduce number of countdown timer option"
-kpick 233133 # Revert "SnapdragonCamera: Add missing permissions"
-kpick 233136 # Rename SnapdragonCamera to Snap
-kpick 233137 # tests: fix class name
-kpick 233140 # Snap: Use AOSP app label
-kpick 233141 # Snap: Remove old icons
-kpick 233143 # SnapdragonCamera: Initialize overlay before control-by-intent
-kpick 234570 # Snap: Re-enable ZSL after exiting HDR mode
-kpick 233145 # SnapdragonCamera: Hide UI after error-checking video preferences
-kpick 233146 # camera: Add parameter debugging support
-kpick 233148 # camera: Remove the luma-adaptation seekbar
-kpick 234571 # Camera: Cleanup and compatibility fixes
-kpick 233149 # camera: Add all focus modes, scene modes, and color effects.
-kpick 233150 # Camera: Add red-eye flash mode support
-kpick 233152 # camera: Check if video sizes are available
-kpick 233153 # Camera2: enable antibanding by default
-kpick 233154 # camera: Remove ICS hack to stop preview after takePicture
-kpick 233156 # Camera: fix preview for landscape devices
-kpick 233160 # Camera2: Don't report incorrect supported picture formats
-kpick 233161 # Camera2: some aapt warnings cleanup
-kpick 233162 # Camera2: Remove CAF video duration code
-kpick 233163 # Camera2: implement exposure compensation settings in video mode
-kpick 234667 # Camera: separate settings for color effects
-kpick 234668 # Camera: Change volume hard key button to zoom function
-kpick 233167 # Camera: Powerkey shutter (2/2)
-kpick 233169 # Camera: Cleanup hardware key handling
-kpick 233170 # Camera: Handle keys only while in app
-kpick 233171 # Camera2: Headset shutter mode
-kpick 233172 # Camera2: Add option to set max screen brightness
-kpick 233173 # SnapdragonCamera: Reset camera state after taking picture
-kpick 234536 # Snap: Add support for additional ISO values
-kpick 233177 # add support for non-standard iso keys and values
-kpick 234572 # Snap: Add support for luminance-condition parameter
-kpick 233179 # option to set manufacturer specific parameters on startup
-kpick 234573 # Snap: Add options to restart preview onPictureTaken
-kpick 233181 # Snap: Make openLegacy an option
-kpick 233182 # Snap: Add touch-to-focus timeout duration settings
-kpick 234669 # Snap: Add support for shutter speed
-kpick 234575 # Snap: Add support for mw_continuous-picture focus mode
-kpick 233191 # Snap: Fall back to default quality for invalid video qualities
-kpick 233186 # SnapdragonCamera: Fix incorrect viewfinder ratio for 13.1MP shots
-kpick 233188 # CameraActivity: Handle NPE when film strip view is null
-kpick 233189 # Snap: Remove CAF Chinese translations
-kpick 233190 # Snap: Fix aapt warnings
-kpick 233192 # Snap: Fix NPE when parameters.getSupportedVideoSizes() is null
-kpick 234574 # Snap: Add special handling of hdr-mode parameter for LGE devices
-kpick 233195 # Snap: Support for HTC's HDR mode
-kpick 234670 # Snap: Remove touch AF/AEC option
-kpick 233197 # Snap: Actually select the highest quality video by default
-kpick 233198 # SnapdragonCamera: Add option to control antibanding in camcorder
-kpick 233199 # SnapdragonCamera: Fix overly-aggressive auto rotation
-kpick 233200 # SnapdragonCamera: Remove 'off' option for antibanding
-kpick 233202 # SnapdragonCamera: Fix UI alignment glitches when nav-bar is enabled
-kpick 233204 # Snap: Don't crash when hardcoded gallery intent fails
-kpick 233205 # SnapdragonCamera: Set camera parameters before restarting preview
-kpick 233206 # Fix crash if Exif-Tag buffer-length and component-count are both 0
-kpick 233208 # Snap: Don't crash if user saved preference is not valid
-kpick 233209 # SnapdragonCamera: Scale up bitrate for HSR recordings
-kpick 233210 # Snap: Fix filtering of unsupported HFR/HSR modes
-kpick 233211 # Snap: Remove auto HDR option when not supported
-kpick 233212 # Snap: Remove video snapshot size when not supported
-kpick 233213 # Snap: Remove face detection option if not supported
-kpick 233215 # Snap: Fix incorrect preview layout surface size in landscape mode
-kpick 233216 # Snap: Do not crash when cur-focus-scale is null
-kpick 233217 # Snap: Fall back to REVIEW intent before VIEW intent
-kpick 233218 # Fix view index tracking.
-kpick 233219 # Snap: Support override maker and model exif tag
-kpick 233221 # Snap: Extend user menu, disable dev menu
-kpick 233222 # Snap: Make developer menu more accessible
-kpick 233223 # Snap: Always allow 100% JPEG quality to be set
-kpick 233224 # Snap: Unbreak auto-HDR
-kpick 233226 # snap: Add constrained longshot mode
-kpick 233227 # Snap: Remove storage menu if no external storage available
-kpick 233229 # CameraNext: dynamically generate available photo resolutions
-kpick 233230 # Snap: add auto-hdr option to photo menu
-kpick 233231 # Allow to re-open Snap from recent menu
-kpick 233232 # Add orientation correction for landscape devices
-kpick 234671 # camera: Touch focus support for camcorder
-kpick 233237 # SnapdragonCamera: Add focus-mode option to camcorder
-kpick 233238 # SnapdragonCamera: Always lock AE and AWB when auto-focus is used
-kpick 233239 # SnapdragonCamera: Lock AE and AWB for tap-to-focus in camcorder
-kpick 233240 # SnapdragonCamera: Unlock AE/AWB after taking a photo with ZSL
-kpick 233241 # Snap: Expose video snapshot size setting
-kpick 233242 # Snap: Add focus time support in camcorder
-kpick 234672 # Snap: Add ability to set the tap-to-focus duration to 0 sec
-kpick 233245 # Snap: Separate default focus time between camera/video
-kpick 233247 # Camera2: Only autofocus before a snap if we are actually in "auto" mode.
-kpick 233248 # camera: Keep touch focus intact during back-to-back ZSL shots
-kpick 233249 # Snap: Fixes for advanced features and scene modes
-kpick 233251 # Snap: grant android.permission.RECEIVE_BOOT_COMPLETED permisions
-kpick 234673 # Snap: Materialize
-kpick 233253 # Snap: Material toasts
-kpick 233255 # Remove unused menu indicators code.
-kpick 233257 # Snap: Add icons to all remaining preferences
-kpick 233258 # Snap: Add icons to all scene modes
-kpick 233259 # snap: Adjust top bar icon order
-kpick 233260 # De-uglify menu.
-kpick 233261 # Use material versions of share/delete/edit icons.
-kpick 233263 # CameraNext: Fallback to do copy exif if exif not exist
-kpick 233264 # CameraNext: don't crash when pref is not boolean
-kpick 233265 # Show UI when pano stitch starts and remove cancel condition
-kpick 233266 # snap: Panorama fixes
-kpick 233267 # Fix broken filenames for cropped images
-kpick 233268 # CropActivity: notify MediaScanner on save complete
-kpick 233269 # CameraNext: stop updating the pano progress bar on pause
-kpick 233270 # Grant read URI permission for playback of video capture
-kpick 233271 # Make panorama able to go 270 degrees in landscape
-kpick 233272 # CameraNext: Update focus behavior for panoramas
-kpick 233273 # Stop data loader on activity destroy.
-kpick 233274 # Initialize focus manager in onResume().
-kpick 233275 # Snap: prevent NPE when checking if controls are visible
-kpick 234674 # Snap: Detect and use Camera2 if available
-kpick 233277 # Snap: CaptureModule: check if ZSL is supported before using it
-kpick 233278 # Snap: Allow switching beyond just 2 cameras
-kpick 233279 # Always apply frame size reduction to panorama pictures
-kpick 233280 # Snap: Simulate back button press when menu back button is pressed
-kpick 233283 # Never ignore finger swipes in gallery mode
-kpick 233284 # Initialize focus overlay manager if it is not initialized.
-kpick 233285 # Camera: Set preview fps after recording.
-kpick 233287 # Snapdragon Camera: Use consistent API for preview fps reset
-kpick 233288 # SnapdragonCamera: Longshot with Burst Functionality.
-kpick 233289 # Protect against multiple shutter callbacks per frame in longshot mode.
-kpick 233290 # ListPreference: prevent ArrayIndexOutOfBoundsException
-kpick 233291 # VideoModule: don't set negative HFR value
-kpick 233292 # SnapdragonCamera: Fix shutter button clicks in rapid succession getting ignored
-kpick 233293 # SnapdragonCamera: Enforce 120ms delay in between shutter clicks
-kpick 233294 # Snap: Render zoom circle in the center of the camera preview
-kpick 233295 # Snap: Don't do touch-to-focus on top of UI elements
-kpick 233296 # SnapdragonCamera: Add missing toast on HSR/HFR override
-kpick 233297 # Snap: Show remaining photos on initial start
-kpick 233298 # Snap: Disable warped pano preview
-kpick 233299 # Snap: Increase default pano capture pixels to 1440x1000
-kpick 233300 # Snap: Adjust scene and filter mode layout dimensions
-kpick 233301 # Snap: Don't close slide out menu after selecting scene mode
-kpick 233302 # Snap: Fix swipe right to open menu
-kpick 233303 # Snap: Fix filter mode button after disabling HDR mode
-kpick 233304 # Snap: Remove "help screen on first start" feature
-kpick 233305 # Snap: Arrange video menu so it's similar to photo menu
-kpick 233306 # Snap: Fix panorama layout
-kpick 233308 # Removed littlemock dependency and cleanup
-kpick 233309 # Snap: Rip out hdr-need-1x option
-kpick 233310 # Snap: check tags before using them
-kpick 233311 # QuickReader: initial commit
-kpick 234675 # Snap: add QReader to module switch
-kpick 233315 # Snap: Add missing thumbnails for filter modes
-kpick 233317 # Snap: Port all string improvements from cm-14.1
-kpick 233319 # Snap: adaptive icon
-kpick 233320 # Snap: Convert "save best" dialog text to a quantity string
-kpick 233322 # Do not crash if we don't have support for RAW files
-kpick 233323 # Snap: don't try to set up cameras with ids greater than MAX_NUM_CAM
-kpick 233326 # Drop new focus indicator into Camera2.
-kpick 233327 # Snap: Add support for focus distance
-kpick 233328 # Snap: Configure focus ring preview dimensions
-kpick 233329 # Snap: Check for ACCESS_FINE_LOCATION instead of ACCESS_COARSE_LOCATION
-kpick 233331 # SnapdragonCamera: Panorama, replace border drawable
-kpick 233332 # Snap: turn developer category title into a translatable string
-kpick 233333 # Snap: Allow quickreader to work with secure device
-kpick 233334 # CameraSettings: Do not crash if zoom ratios are not exposed
-kpick 233335 # Snap: use platform cert
-kpick 234175 # Fix force close when launch camera on P
-kpick 234236 # SnapdragonCamera: SetParameters use the mParameters Object
-kpick 234237 # SnapdragonCamera: Fix parameters NullPointerException
-kpick 234238 # Fix to change default mode to Camera1 HAL1
-kpick 234239 # Fix get aePref is null in PhotoMenu
-kpick 234415 # Snap: Avoid crash with empty RAW output size
-kpick 234416 # Snap: Create correct redeye reduction config icon
-kpick 234417 # Snap: Fix layout of zoom option
-kpick 234418 # Snap: Check various feature support before applying
-kpick 234419 # Snap: Add missing NULL check in updateQcfaPictureSize()
-kpick 234423 # Snap: Disable debugging of double open issue
+kpick  233131 # Revert "SnapdragonCamera: Forbid volume key can take picture"
+kpick  233132 # Revert "SnapdragonCamera: Reduce number of countdown timer option"
+kpick  233133 # Revert "SnapdragonCamera: Add missing permissions"
+kpick  233136 # Rename SnapdragonCamera to Snap
+kpick  233137 # tests: fix class name
+kpick  233140 # Snap: Use AOSP app label
+kpick  233141 # Snap: Remove old icons
+kpick  233143 # SnapdragonCamera: Initialize overlay before control-by-intent
+kpick  234570 # Snap: Re-enable ZSL after exiting HDR mode
+kpick  233145 # SnapdragonCamera: Hide UI after error-checking video preferences
+kpick  233146 # camera: Add parameter debugging support
+kpick  233148 # camera: Remove the luma-adaptation seekbar
+kpick  234571 # Camera: Cleanup and compatibility fixes
+kpick  233149 # camera: Add all focus modes, scene modes, and color effects.
+kpick  233150 # Camera: Add red-eye flash mode support
+kpick  233152 # camera: Check if video sizes are available
+kpick  233153 # Camera2: enable antibanding by default
+kpick  233154 # camera: Remove ICS hack to stop preview after takePicture
+kpick  233156 # Camera: fix preview for landscape devices
+kpick  233160 # Camera2: Don't report incorrect supported picture formats
+kpick  233161 # Camera2: some aapt warnings cleanup
+kpick  233162 # Camera2: Remove CAF video duration code
+kpick  233163 # Camera2: implement exposure compensation settings in video mode
+kpick  234667 # Camera: separate settings for color effects
+kpick  234668 # Camera: Change volume hard key button to zoom function
+kpick  233167 # Camera: Powerkey shutter (2/2)
+kpick  233169 # Camera: Cleanup hardware key handling
+kpick  233170 # Camera: Handle keys only while in app
+kpick  233171 # Camera2: Headset shutter mode
+kpick  233172 # Camera2: Add option to set max screen brightness
+kpick  233173 # SnapdragonCamera: Reset camera state after taking picture
+kpick  234536 # Snap: Add support for additional ISO values
+kpick  233177 # add support for non-standard iso keys and values
+kpick  234572 # Snap: Add support for luminance-condition parameter
+kpick  233179 # option to set manufacturer specific parameters on startup
+kpick  234573 # Snap: Add options to restart preview onPictureTaken
+kpick  233181 # Snap: Make openLegacy an option
+kpick  233182 # Snap: Add touch-to-focus timeout duration settings
+kpick  234669 # Snap: Add support for shutter speed
+kpick  234575 # Snap: Add support for mw_continuous-picture focus mode
+kpick  233191 # Snap: Fall back to default quality for invalid video qualities
+kpick  233186 # SnapdragonCamera: Fix incorrect viewfinder ratio for 13.1MP shots
+kpick  233188 # CameraActivity: Handle NPE when film strip view is null
+kpick  233189 # Snap: Remove CAF Chinese translations
+kpick  233190 # Snap: Fix aapt warnings
+kpick  233192 # Snap: Fix NPE when parameters.getSupportedVideoSizes() is null
+kpick  234574 # Snap: Add special handling of hdr-mode parameter for LGE devices
+kpick  233195 # Snap: Support for HTC's HDR mode
+kpick  234670 # Snap: Remove touch AF/AEC option
+kpick  233197 # Snap: Actually select the highest quality video by default
+kpick  233198 # SnapdragonCamera: Add option to control antibanding in camcorder
+kpick  233199 # SnapdragonCamera: Fix overly-aggressive auto rotation
+kpick  233200 # SnapdragonCamera: Remove 'off' option for antibanding
+kpick  233202 # SnapdragonCamera: Fix UI alignment glitches when nav-bar is enabled
+kpick  233204 # Snap: Don't crash when hardcoded gallery intent fails
+kpick  233205 # SnapdragonCamera: Set camera parameters before restarting preview
+kpick  233206 # Fix crash if Exif-Tag buffer-length and component-count are both 0
+kpick  233208 # Snap: Don't crash if user saved preference is not valid
+kpick  233209 # SnapdragonCamera: Scale up bitrate for HSR recordings
+kpick  233210 # Snap: Fix filtering of unsupported HFR/HSR modes
+kpick  233211 # Snap: Remove auto HDR option when not supported
+kpick  233212 # Snap: Remove video snapshot size when not supported
+kpick  233213 # Snap: Remove face detection option if not supported
+kpick  233215 # Snap: Fix incorrect preview layout surface size in landscape mode
+kpick  233216 # Snap: Do not crash when cur-focus-scale is null
+kpick  233217 # Snap: Fall back to REVIEW intent before VIEW intent
+kpick  233218 # Fix view index tracking.
+kpick  233219 # Snap: Support override maker and model exif tag
+kpick  233221 # Snap: Extend user menu, disable dev menu
+kpick  233222 # Snap: Make developer menu more accessible
+kpick  233223 # Snap: Always allow 100% JPEG quality to be set
+kpick  233224 # Snap: Unbreak auto-HDR
+kpick  233226 # snap: Add constrained longshot mode
+kpick  233227 # Snap: Remove storage menu if no external storage available
+kpick  233229 # CameraNext: dynamically generate available photo resolutions
+kpick  233230 # Snap: add auto-hdr option to photo menu
+kpick  233231 # Allow to re-open Snap from recent menu
+kpick  233232 # Add orientation correction for landscape devices
+kpick  234671 # camera: Touch focus support for camcorder
+kpick  233237 # SnapdragonCamera: Add focus-mode option to camcorder
+kpick  233238 # SnapdragonCamera: Always lock AE and AWB when auto-focus is used
+kpick  233239 # SnapdragonCamera: Lock AE and AWB for tap-to-focus in camcorder
+kpick  233240 # SnapdragonCamera: Unlock AE/AWB after taking a photo with ZSL
+kpick  233241 # Snap: Expose video snapshot size setting
+kpick  233242 # Snap: Add focus time support in camcorder
+kpick  234672 # Snap: Add ability to set the tap-to-focus duration to 0 sec
+kpick  233245 # Snap: Separate default focus time between camera/video
+kpick  233247 # Camera2: Only autofocus before a snap if we are actually in "auto" mode.
+kpick  233248 # camera: Keep touch focus intact during back-to-back ZSL shots
+kpick  233249 # Snap: Fixes for advanced features and scene modes
+kpick  233251 # Snap: grant android.permission.RECEIVE_BOOT_COMPLETED permisions
+kpick  234673 # Snap: Materialize
+kpick  233253 # Snap: Material toasts
+kpick  233255 # Remove unused menu indicators code.
+kpick  233257 # Snap: Add icons to all remaining preferences
+kpick  233258 # Snap: Add icons to all scene modes
+kpick  233259 # snap: Adjust top bar icon order
+kpick  233260 # De-uglify menu.
+kpick  233261 # Use material versions of share/delete/edit icons.
+kpick  233263 # CameraNext: Fallback to do copy exif if exif not exist
+kpick  233264 # CameraNext: don't crash when pref is not boolean
+kpick  233265 # Show UI when pano stitch starts and remove cancel condition
+kpick  233266 # snap: Panorama fixes
+kpick  233267 # Fix broken filenames for cropped images
+kpick  233268 # CropActivity: notify MediaScanner on save complete
+kpick  233269 # CameraNext: stop updating the pano progress bar on pause
+kpick  233270 # Grant read URI permission for playback of video capture
+kpick  233271 # Make panorama able to go 270 degrees in landscape
+kpick  233272 # CameraNext: Update focus behavior for panoramas
+kpick  233273 # Stop data loader on activity destroy.
+kpick  233274 # Initialize focus manager in onResume().
+kpick  233275 # Snap: prevent NPE when checking if controls are visible
+kpick  234674 # Snap: Detect and use Camera2 if available
+kpick  233277 # Snap: CaptureModule: check if ZSL is supported before using it
+kpick  233278 # Snap: Allow switching beyond just 2 cameras
+kpick  233279 # Always apply frame size reduction to panorama pictures
+kpick  233280 # Snap: Simulate back button press when menu back button is pressed
+kpick  233283 # Never ignore finger swipes in gallery mode
+kpick  233284 # Initialize focus overlay manager if it is not initialized.
+kpick  233285 # Camera: Set preview fps after recording.
+kpick  233287 # Snapdragon Camera: Use consistent API for preview fps reset
+kpick  233288 # SnapdragonCamera: Longshot with Burst Functionality.
+kpick  233289 # Protect against multiple shutter callbacks per frame in longshot mode.
+kpick  233290 # ListPreference: prevent ArrayIndexOutOfBoundsException
+kpick  233291 # VideoModule: don't set negative HFR value
+kpick  233292 # SnapdragonCamera: Fix shutter button clicks in rapid succession getting ignored
+kpick  233293 # SnapdragonCamera: Enforce 120ms delay in between shutter clicks
+kpick  233294 # Snap: Render zoom circle in the center of the camera preview
+kpick  233295 # Snap: Don't do touch-to-focus on top of UI elements
+kpick  233296 # SnapdragonCamera: Add missing toast on HSR/HFR override
+kpick  233297 # Snap: Show remaining photos on initial start
+kpick  233298 # Snap: Disable warped pano preview
+kpick  233299 # Snap: Increase default pano capture pixels to 1440x1000
+kpick  233300 # Snap: Adjust scene and filter mode layout dimensions
+kpick  233301 # Snap: Don't close slide out menu after selecting scene mode
+kpick  233302 # Snap: Fix swipe right to open menu
+kpick  233303 # Snap: Fix filter mode button after disabling HDR mode
+kpick  233304 # Snap: Remove "help screen on first start" feature
+kpick  233305 # Snap: Arrange video menu so it's similar to photo menu
+kpick  233306 # Snap: Fix panorama layout
+kpick  233308 # Removed littlemock dependency and cleanup
+kpick  233309 # Snap: Rip out hdr-need-1x option
+kpick  233310 # Snap: check tags before using them
+kpick  233311 # QuickReader: initial commit
+kpick  234675 # Snap: add QReader to module switch
+kpick  233315 # Snap: Add missing thumbnails for filter modes
+kpick  233317 # Snap: Port all string improvements from cm-14.1
+kpick  233319 # Snap: adaptive icon
+kpick  233320 # Snap: Convert "save best" dialog text to a quantity string
+kpick  233322 # Do not crash if we don't have support for RAW files
+kpick  233323 # Snap: don't try to set up cameras with ids greater than MAX_NUM_CAM
+kpick  233326 # Drop new focus indicator into Camera2.
+kpick  233327 # Snap: Add support for focus distance
+kpick  233328 # Snap: Configure focus ring preview dimensions
+kpick  233329 # Snap: Check for ACCESS_FINE_LOCATION instead of ACCESS_COARSE_LOCATION
+kpick  233331 # SnapdragonCamera: Panorama, replace border drawable
+kpick  233332 # Snap: turn developer category title into a translatable string
+kpick  233333 # Snap: Allow quickreader to work with secure device
+kpick  233334 # CameraSettings: Do not crash if zoom ratios are not exposed
+kpick  233335 # Snap: use platform cert
+kpick  234175 # Fix force close when launch camera on P
+kpick  234236 # SnapdragonCamera: SetParameters use the mParameters Object
+kpick  234237 # SnapdragonCamera: Fix parameters NullPointerException
+kpick  234238 # Fix to change default mode to Camera1 HAL1
+kpick  234239 # Fix get aePref is null in PhotoMenu
+kpick  234415 # Snap: Avoid crash with empty RAW output size
+kpick  234416 # Snap: Create correct redeye reduction config icon
+kpick  234417 # Snap: Fix layout of zoom option
+kpick  234418 # Snap: Check various feature support before applying
+kpick  234419 # Snap: Add missing NULL check in updateQcfaPictureSize()
+kpick  234423 # Snap: Disable debugging of double open issue
 
 # packages/apps/Stk
 
@@ -1623,12 +1768,12 @@ kpick 234423 # Snap: Disable debugging of double open issue
 # packages/apps/Traceur
 
 # packages/apps/Trebuchet
-kpick 234611 # Trebuchet expand statusbar on swipe down
+kpick  234611 # Trebuchet expand statusbar on swipe down
 
 # packages/apps/TvSettings
 
 # packages/apps/Updater
-kpick 234612 # Updater: Implement auto update check interval preference
+kpick  234612 # Updater: Implement auto update check interval preference
 
 # packages/inputmethods/LatinIME
 
@@ -1639,114 +1784,119 @@ kpick 234612 # Updater: Implement auto update check interval preference
 # packages/providers/MediaProvider
 
 # packages/providers/TelephonyProvider
+kpick  235758 # Don't use WAL in TelephonyProvider to work around b/113352727
+kpick  235760 # Broadcast ACTION_SMS_MMS_DB_CREATED when mmssms.db is created.
+kpick  235762 # Manual revert for ag/5373283 (cherry picked from commit 8bda570a74d943fb03606f00afb6d735aaec0841)
 
 # packages/services/BuiltinPrintService
 
 # packages/services/Telecomm
-kpick 233635 # Phone ringtone setting for Multi SIM device
+kpick  233635 # Phone ringtone setting for Multi SIM device
 
 # packages/services/Telephony
-kpick 229610 # Telephony: Support muting by RIL command
-kpick 229611 # Telephony: Use a common prop for Huawei RIL hacks (2/2)
-kpick 234990 # Ims: Enable ImsSettings
+kpick  229610 # Telephony: Support muting by RIL command on Huawei RIL
+kpick  234990 # Ims: Enable ImsSettings
 
 # system/bt
-kpick 224813 # bt: osi: undef PROPERTY_VALUE_MAX
-kpick 229125 # Increase maximum Bluetooth SBC codec bitpool and bitrate values
-kpick 229313 # Explicit SBC Dual Channel (SBC HD) support
-kpick 229314 # Allow using alternative (higher) SBC HD bitrates with a property
-kpick 229401 # [DNM] Revert "Return early if vendor-specific command fails"
-merge_from_aosp system/bt platform/system/bt android-9.0.0_r18
+kpick  224813 # bt: osi: undef PROPERTY_VALUE_MAX
+kpick  229125 # Increase maximum Bluetooth SBC codec bitpool and bitrate values
+kpick  229313 # Explicit SBC Dual Channel (SBC HD) support
+kpick  229314 # Allow using alternative (higher) SBC HD bitrates with a property
+kpick  229401 # [DNM] Revert "Return early if vendor-specific command fails"
+kpick  235775 # [SQUASH] Merge tag 'android-9.0.0_r21' into lineage-16.0-android-9.0.0_r21
 
 # system/core
 kpick -f 227110 # init: I hate safety net
 #kpick 226917 # Switch root to /system in first stage mount
 #kpick 226923 # init: First Stage Mount observe nofail mount flag
 #kpick 223085 # adbd: Disable "adb root" by system property (2/3)
-kpick 226120 # fs_mgr: Wrapped key support for FBE
-kpick 231716 # init: Always use libbootloader_message from bootable/recovery namespace
-kpick 234860 # init: add install_keyring for TWRP FBE decrypt
-merge_from_aosp system/core platform/system/core android-9.0.0_r18
+kpick  226120 # fs_mgr: Wrapped key support for FBE
+kpick  231716 # init: Always use libbootloader_message from bootable/recovery namespace
+kpick  234860 # init: add install_keyring for TWRP FBE decrypt
+kpick  235765 # lmkd: rate-limit and cleanup failed kill reports
+kpick  235766 # DO NOT MERGE: lmkd: retune rate at which processes are killed
 
 # system/extras
-kpick 225426 # f2fs_utils: Add a static libf2fs_sparseblock for minvold
-kpick 225427 # ext4_utils: Fix FS creation for filesystems with exactly 32768 blocks.
+kpick  225426 # f2fs_utils: Add a static libf2fs_sparseblock for minvold
+kpick  225427 # ext4_utils: Fix FS creation for filesystems with exactly 32768 blocks.
 
 # system/extras/su
-kpick 232428 # su: strlcpy is always a friend
-kpick 232429 # su: Run clang format
-kpick 232430 # su: Move to cutils/properties.h
-kpick 232431 # su: Enable Clang Tidy
-kpick 232432 # su: Remove Sammy hacks
-kpick 232433 # su: Fix a clang tidy warning
-kpick 232434 # su: Cleanup includes
-kpick 232435 # su: Use shared libraries
-kpick 232437 # su: Remove mount of emulated storage
-kpick 232438 # su: Initialize windows size
-kpick 232427 # su: Update AppOps API calls
+kpick  232428 # su: strlcpy is always a friend
+kpick  232429 # su: Run clang format
+kpick  232430 # su: Move to cutils/properties.h
+kpick  232431 # su: Enable Clang Tidy
+kpick  232432 # su: Remove Sammy hacks
+kpick  232433 # su: Fix a clang tidy warning
+kpick  232434 # su: Cleanup includes
+kpick  232435 # su: Use shared libraries
+kpick  232437 # su: Remove mount of emulated storage
+kpick  232438 # su: Initialize windows size
+kpick  232427 # su: Update AppOps API calls
 
 # system/libvintf
 
 # system/netd
-kpick 232794 # NetD : Allow passing in interface names for vpn app restriction
-kpick 234190 # netd: Allow devices to opt-out of the tethering active FTP helper
+kpick  232794 # NetD : Allow passing in interface names for vpn app restriction
+kpick  234190 # netd: Allow devices to opt-out of the tethering active FTP helper
 
 # system/qcom
 
 # system/security
 
 # system/sepolicy
-kpick 230613 # Allow webview_zygote to read /dev/ion
-kpick 234884 # Allow init to write to /proc/cpu/alignment
-kpick 234886 # Allow init to chmod/chown /proc/slabinfo
-kpick 235196 # Allow dnsmasq to getattr netd unix_stream_socket
+kpick  230613 # Allow webview_zygote to read /dev/ion
+kpick  234884 # Allow init to write to /proc/cpu/alignment
+kpick  234886 # Allow init to chmod/chown /proc/slabinfo
+kpick  235196 # Allow dnsmasq to getattr netd unix_stream_socket
 
 # system/tool/aidl
-kpick 223133 # AIDL: Add option to generate No-Op methods
+kpick  223133 # AIDL: Add option to generate No-Op methods
 
 # system/update/engine
-kpick 234581 # update_engine: Fallback to partition without suffix
+kpick  234581 # update_engine: Fallback to partition without suffix
+kpick  235769 # Check metadata size in payload.
 
 # system/vold
-kpick 226109 # vold: Add Hardware FDE feature
-kpick 226110 # system: vold: Remove crypto block device creation
-kpick 226127 # vold: Move QCOM HW FDE inclusion under lineage namespace
-kpick 226111 # vold: Wrapped key support for FBE
-kpick 229304 # vold: Add texfat and sdfat support
-kpick 229954 # Move kMajor* constants to a header file
-kpick 229955 # vold: ISO9660 and UDF support
-kpick 231717 # vold: Always use libbootloader_message from bootable/recovery namespace
-kpick 235198 # Revert "vold: Also wait for dm device when mounting private volume"
-kpick 235199 # Revert "vold: Make sure block device exists before formatting it"
-kpick 235200 # pie-gsi
+kpick  226109 # vold: Add Hardware FDE feature
+kpick  226110 # system: vold: Remove crypto block device creation
+kpick  226127 # vold: Move QCOM HW FDE inclusion under lineage namespace
+kpick  226111 # vold: Wrapped key support for FBE
+kpick  229304 # vold: Add texfat and sdfat support
+kpick  229954 # Move kMajor* constants to a header file
+kpick  229955 # vold: ISO9660 and UDF support
+kpick  231717 # vold: Always use libbootloader_message from bootable/recovery namespace
+kpick  235198 # Revert "vold: Also wait for dm device when mounting private volume"
+kpick  235199 # Revert "vold: Make sure block device exists before formatting it"
+kpick  235200 # pie-gsi
+kpick  235772 # [DO NOT MERGE] Fix signedness mismatch and integer underflow
 
 # vendor/lineage
-kpick 223773 # Add IPv6 for Oister and 3. The 3.dk and oister.dk carriers now support IPv6 with the APN ”data.tre.dk”.
-kpick 225921 # overlay: Update list of GSF/GMS activities
-kpick 225938 # roomservice.py: document the hell out of the current behavior of the script
-kpick 225939 # roomservice.py: non-depsonly: bootstrap first device repo from Hudson
-kpick 225981 # roomservice.py: depsonly: do not look up device repo by name in the manifest
-kpick 225982 # roomservice.py: Strip cm.{mk,dependencies} support
-kpick 231249 # roomservice.py: adapt to lineage-16.0
-kpick 226123 # soong_config: Add new flags for HW FDE
-kpick 226125 # soong_config: Add flag for legacy HW FDE
-kpick 226126 # soong_config: Add flag for crypto waiting on QSEE to start
-kpick 227392 # lineage: Dynamically add custom APNs
-kpick 229589 # lineage: Automatically set soong namespace when setting project pathmap
-kpick 229590 # lineage: Move qcom pathmap setting into "BoardConfig"
-kpick 229620 # backuptool: Support non-A/B system-as-root
-kpick 231291 # repopick: add hashtag support
-kpick 231599 # privapp-permissions: Add new Gallery permissions
-kpick 231981 # HWComposer: HWC2: allow SkipValidate to be force disabled
-kpick 232663 # overlay: Hide the option to show battery percentage
-kpick 234011 # lineage: Add media_codecs_ddp for AC3 audio
+kpick  223773 # Add IPv6 for Oister and 3. The 3.dk and oister.dk carriers now support IPv6 with the APN ”data.tre.dk”.
+kpick  225921 # overlay: Update list of GSF/GMS activities
+kpick  225938 # roomservice.py: document the hell out of the current behavior of the script
+kpick  225939 # roomservice.py: non-depsonly: bootstrap first device repo from Hudson
+kpick  225981 # roomservice.py: depsonly: do not look up device repo by name in the manifest
+kpick  225982 # roomservice.py: Strip cm.{mk,dependencies} support
+kpick  231249 # roomservice.py: adapt to lineage-16.0
+kpick  226123 # soong_config: Add new flags for HW FDE
+kpick  226125 # soong_config: Add flag for legacy HW FDE
+kpick  226126 # soong_config: Add flag for crypto waiting on QSEE to start
+kpick  227392 # lineage: Dynamically add custom APNs
+kpick  229589 # lineage: Automatically set soong namespace when setting project pathmap
+kpick  229590 # lineage: Move qcom pathmap setting into "BoardConfig"
+kpick  229620 # backuptool: Support non-A/B system-as-root
+kpick  231291 # repopick: add hashtag support
+kpick  231599 # privapp-permissions: Add new Gallery permissions
+kpick  231981 # HWComposer: HWC2: allow SkipValidate to be force disabled
+kpick  232663 # overlay: Hide the option to show battery percentage
+kpick  234011 # lineage: Add media_codecs_ddp for AC3 audio
 # kpick 234859 # repopick: cmp() is not available in Python 3, define it manually **((picked at first))**
 
 # vendor/qcom/opensource/cryptfs_hw
-kpick 226128 # cryptfs_hw: Add compatibility for pre-O hw crypto
-kpick 226129 # cryptfs_hw: Featureize support for waiting on QSEE to start
-kpick 226130 # cryptfs_hw: add missing logging tag
-kpick 226403 # cryptfs_hw: Remove unused variable
+kpick  226128 # cryptfs_hw: Add compatibility for pre-O hw crypto
+kpick  226129 # cryptfs_hw: Featureize support for waiting on QSEE to start
+kpick  226130 # cryptfs_hw: add missing logging tag
+kpick  226403 # cryptfs_hw: Remove unused variable
 
 # vendor/qcom/opensource/thermal-engine
 
