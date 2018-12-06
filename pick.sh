@@ -1215,6 +1215,7 @@ kpick 226399 # Use fdeCheckPassword error code to indicate pw failure
 kpick 226400 # LockSettingsService: Support for separate clear key api
 kpick 226600 # PhoneWindowManager: Check if proposed rotation is in range
 kpick 227108 # SystemUI: Fix several issues in the ADB over Network tile
+kpick 227124 # BatteryService: Add support for oem fast charger detection
 kpick 227290 # PowerProfile: allow overriding default power profile
 kpick 227291 # [DNM] Revert "Handle public volumes and otherwise invalid UUIDs."
 kpick 227821 # GlobalScreenshot: Fix screenshot not saved with some languages
@@ -1256,6 +1257,7 @@ kpick 235744 # Add configurable default setting for assistant componentname
 kpick 235746 # Add Missing XML files from 5282778 to fix build Bug:111603898 (cherry picked from commit 974a86e201e2fa17bad58d1fb2 ...
 kpick 235748 # ActivityThread: purge jemalloc at appropriate times
 kpick 235750 # Adding new intent ACTION_SMS_MMS_DB_CREATED.
+#kpick 235986 # frameworks: Add unlinked ringtone and notification volumes
 
 # frameworks/native
 kpick 224443 # libbinder: Don't log call trace when waiting for vendor service on non-eng builds
@@ -1478,6 +1480,7 @@ kpick 231826 # Update the white list of Data saver
 kpick 232442 # Settings: Root appops access in developer settings
 kpick 232793 # Settings: per-app VPN data restriction
 kpick 233634 # Phone ringtone setting for Multi SIM device
+#kpick 235978 # Settings: Add switch for linked ring and media notification volumes
 
 # packages/apps/SettingsIntelligence
 

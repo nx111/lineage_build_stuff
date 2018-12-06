@@ -1,0 +1,161 @@
+From c347e5d167c9b4cb01fccc1deaf5ffae3a7b370d Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?eray=20or=C3=A7unus?= <erayorcunus@gmail.com>
+Date: Mon, 22 Jun 2015 22:47:40 +0300
+Subject: [PATCH 42/58] Rotation related corrections
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+- There are some conditions deleted while placing rotation angles code, I added them.
+
+- Rotation lock was screwed up since CM 12. Fixed it by fetching allowed rotations from CM's
+allowed rotations setting.
+
+- Also, a CAF commit had killed rotation lock ability.
+
+[port to 15.1]:
+ - ACCELEROMETER_ROTATION_ANGLES moved to LineageSDK
+ - Slight change of the WindowManager API
+
+[port to 16.0]:
+ - adjust context
+
+Change-Id: I8f1b468249c68e7b6514d1a96bdb3fc638af84fd
+Signed-off-by: eray orçunus <erayorcunus@gmail.com>
+(cherry picked from commit a62720d51e9d8f3a3c9992ea0bdb707b64e865b5)
+---
+ .../android/internal/view/RotationPolicy.java | 45 ++++++++++++++++---
+ .../server/policy/PhoneWindowManager.java     | 25 +++--------
+ 2 files changed, 45 insertions(+), 25 deletions(-)
+
+diff --git a/core/java/com/android/internal/view/RotationPolicy.java b/core/java/com/android/internal/view/RotationPolicy.java
+index e9472fa0f46..a4eeba01418 100644
+--- a/core/java/com/android/internal/view/RotationPolicy.java
++++ b/core/java/com/android/internal/view/RotationPolicy.java
+@@ -25,6 +25,7 @@ import android.net.Uri;
+ import android.os.AsyncTask;
+ import android.os.Handler;
+ import android.os.RemoteException;
++import android.os.SystemProperties;
+ import android.os.UserHandle;
+ import android.provider.Settings;
+ import android.util.Log;
+@@ -42,7 +43,8 @@ public final class RotationPolicy {
+     private static final String TAG = "RotationPolicy";
+     private static final int CURRENT_ROTATION = -1;
+ 
+-    public static final int NATURAL_ROTATION = Surface.ROTATION_0;
++    public static final int NATURAL_ROTATION =
++            SystemProperties.getInt("ro.sf.hwrotation", Surface.ROTATION_0) / 90;
+ 
+     private RotationPolicy() {
+     }
+@@ -73,7 +75,7 @@ public final class RotationPolicy {
+      * otherwise Configuration.ORIENTATION_UNDEFINED if any orientation is lockable.
+      */
+     public static int getRotationLockOrientation(Context context) {
+-        if (!areAllRotationsAllowed(context)) {
++        if (!isCurrentRotationAllowed(context)) {
+             final Point size = new Point();
+             final IWindowManager wm = WindowManagerGlobal.getWindowManagerService();
+             try {
+@@ -109,7 +111,8 @@ public final class RotationPolicy {
+      * Enables or disables rotation lock from the system UI toggle.
+      */
+     public static void setRotationLock(Context context, final boolean enabled) {
+-        final int rotation = areAllRotationsAllowed(context) ? CURRENT_ROTATION : NATURAL_ROTATION;
++        final int rotation = isCurrentRotationAllowed(context)
++                ? CURRENT_ROTATION : NATURAL_ROTATION;
+         setRotationLockAtAngle(context, enabled, rotation);
+     }
+ 
+@@ -138,8 +141,40 @@ public final class RotationPolicy {
+         setRotationLock(enabled, NATURAL_ROTATION);
+     }
+ 
+-    private static boolean areAllRotationsAllowed(Context context) {
+-        return context.getResources().getBoolean(R.bool.config_allowAllRotations);
++    public static boolean isRotationAllowed(int rotation,
++            int userRotationAngles, boolean allowAllRotations) {
++        if (userRotationAngles < 0) {
++            // Not set by user so use these defaults
++            userRotationAngles = allowAllRotations ?
++                    (1 | 2 | 4 | 8) : // All angles
++                    (1 | 2 | 8); // All except 180
++        }
++        switch (rotation) {
++            case Surface.ROTATION_0:
++                return (userRotationAngles & 1) != 0;
++            case Surface.ROTATION_90:
++                return (userRotationAngles & 2) != 0;
++            case Surface.ROTATION_180:
++                return (userRotationAngles & 4) != 0;
++            case Surface.ROTATION_270:
++                return (userRotationAngles & 8) != 0;
++        }
++        return false;
++    }
++
++    private static boolean isCurrentRotationAllowed(Context context) {
++        int userRotationAngles = Settings.System.getInt(context.getContentResolver(),
++                "accelerometer_rotation_angles", -1);
++        boolean allowAllRotations = context.getResources().getBoolean(
++                com.android.internal.R.bool.config_allowAllRotations);
++        final IWindowManager wm = WindowManagerGlobal.getWindowManagerService();
++        try {
++            return isRotationAllowed(wm.getDefaultDisplayRotation(), userRotationAngles,
++                    allowAllRotations);
++        } catch (RemoteException exc) {
++            Log.w(TAG, "Unable to getWindowManagerService.getDefaultDisplayRotation()");
++        }
++        return false;
+     }
+ 
+     private static void setRotationLock(final boolean enabled, final int rotation) {
+diff --git a/services/core/java/com/android/server/policy/PhoneWindowManager.java b/services/core/java/com/android/server/policy/PhoneWindowManager.java
+index 8925016d5ee..71d49a903fa 100644
+--- a/services/core/java/com/android/server/policy/PhoneWindowManager.java
++++ b/services/core/java/com/android/server/policy/PhoneWindowManager.java
+@@ -290,6 +290,7 @@ import com.android.internal.statusbar.IStatusBarService;
+ import com.android.internal.util.ArrayUtils;
+ import com.android.internal.util.ScreenshotHelper;
+ import com.android.internal.util.ScreenShapeHelper;
++import com.android.internal.view.RotationPolicy;
+ import com.android.internal.widget.PointerLocationView;
+ import com.android.server.GestureLauncherService;
+ import com.android.server.LocalServices;
+@@ -8077,27 +8078,11 @@ public class PhoneWindowManager implements WindowManagerPolicy {
+                     mAllowAllRotations = mContext.getResources().getBoolean(
+                             com.android.internal.R.bool.config_allowAllRotations) ? 1 : 0;
+                 }
+-                // Rotation setting bitmask (1=0; 2=90; 4=180; 8=270)
+                 boolean allowed = true;
+-                if (mUserRotationAngles < 0) {
+-                    // Not set by user so use these defaults
+-                    mUserRotationAngles = mAllowAllRotations == 1 ?
+-                            (1 | 2 | 4 | 8) : // All angles
+-                                (1 | 2 | 8); // All except 180
+-                }
+-                switch (sensorRotation) {
+-                    case Surface.ROTATION_0:
+-                        allowed = (mUserRotationAngles & 1) != 0;
+-                        break;
+-                    case Surface.ROTATION_90:
+-                        allowed = (mUserRotationAngles & 2) != 0;
+-                        break;
+-                    case Surface.ROTATION_180:
+-                        allowed = (mUserRotationAngles & 4) != 0;
+-                        break;
+-                    case Surface.ROTATION_270:
+-                        allowed = (mUserRotationAngles & 8) != 0;
+-                        break;
++                if (orientation != ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR
++                        && orientation != ActivityInfo.SCREEN_ORIENTATION_FULL_USER) {
++                    allowed = RotationPolicy.isRotationAllowed(sensorRotation,
++                            mUserRotationAngles, mAllowAllRotations != 0);
+                 }
+                 if (allowed) {
+                     preferredRotation = sensorRotation;
+-- 
+2.17.1
+

@@ -1,0 +1,101 @@
+From c46dcc3e377e194a230a82a85c518b0287d402ff Mon Sep 17 00:00:00 2001
+From: mandy <mandy.wang@mediatek.com>
+Date: Mon, 29 Oct 2018 11:14:12 +0800
+Subject: [PATCH 43/58] Fix NPE when creates wifi tracker
+
+When sets pin lock and reboot phone, SystemUI could not
+get WifiManager when creates WifiTracker, then NullPointerException
+will happen.So add null pointer checking and avoid
+creating WifiTracker for encrypted device to fix this exception.
+
+Bug: 109588864
+Test: manual,set pin lock and reboot phone,systemUI can restart normally.
+Change-Id: I9bf5d52fa0b1efd99d1f32686f12b5c99765b0c2
+---
+ .../com/android/settingslib/wifi/WifiStatusTracker.java   | 3 +++
+ .../src/com/android/settingslib/wifi/WifiTracker.java     | 6 +++---
+ .../systemui/statusbar/policy/HotspotControllerImpl.java  | 3 +++
+ .../systemui/statusbar/policy/WifiSignalController.java   | 8 +++++---
+ 4 files changed, 14 insertions(+), 6 deletions(-)
+
+diff --git a/packages/SettingsLib/src/com/android/settingslib/wifi/WifiStatusTracker.java b/packages/SettingsLib/src/com/android/settingslib/wifi/WifiStatusTracker.java
+index fe0b35b4191..313a4c83486 100644
+--- a/packages/SettingsLib/src/com/android/settingslib/wifi/WifiStatusTracker.java
++++ b/packages/SettingsLib/src/com/android/settingslib/wifi/WifiStatusTracker.java
+@@ -101,6 +101,9 @@ public class WifiStatusTracker extends ConnectivityManager.NetworkCallback {
+     }
+ 
+     public void handleBroadcast(Intent intent) {
++        if (mWifiManager == null) {
++            return;
++        }
+         String action = intent.getAction();
+         if (action.equals(WifiManager.WIFI_STATE_CHANGED_ACTION)) {
+             updateWifiState();
+diff --git a/packages/SettingsLib/src/com/android/settingslib/wifi/WifiTracker.java b/packages/SettingsLib/src/com/android/settingslib/wifi/WifiTracker.java
+index d8f0886730d..5447922c286 100644
+--- a/packages/SettingsLib/src/com/android/settingslib/wifi/WifiTracker.java
++++ b/packages/SettingsLib/src/com/android/settingslib/wifi/WifiTracker.java
+@@ -207,7 +207,7 @@ public class WifiTracker implements LifecycleObserver, OnStart, OnStop, OnDestro
+         mConnectivityManager = connectivityManager;
+ 
+         // check if verbose logging developer option has been turned on or off
+-        sVerboseLogging = (mWifiManager.getVerboseLoggingLevel() > 0);
++        sVerboseLogging = mWifiManager != null && mWifiManager.getVerboseLoggingLevel() > 0;
+ 
+         mFilter = filter;
+ 
+@@ -278,7 +278,7 @@ public class WifiTracker implements LifecycleObserver, OnStart, OnStop, OnDestro
+             mScanner = new Scanner();
+         }
+ 
+-        if (mWifiManager.isWifiEnabled()) {
++        if (isWifiEnabled()) {
+             mScanner.resume();
+         }
+     }
+@@ -407,7 +407,7 @@ public class WifiTracker implements LifecycleObserver, OnStart, OnStop, OnDestro
+     }
+ 
+     public boolean isWifiEnabled() {
+-        return mWifiManager.isWifiEnabled();
++        return mWifiManager != null && mWifiManager.isWifiEnabled();
+     }
+ 
+     /**
+diff --git a/packages/SystemUI/src/com/android/systemui/statusbar/policy/HotspotControllerImpl.java b/packages/SystemUI/src/com/android/systemui/statusbar/policy/HotspotControllerImpl.java
+index 3c16329e6f1..294d646a690 100644
+--- a/packages/SystemUI/src/com/android/systemui/statusbar/policy/HotspotControllerImpl.java
++++ b/packages/SystemUI/src/com/android/systemui/statusbar/policy/HotspotControllerImpl.java
+@@ -112,6 +112,9 @@ public class HotspotControllerImpl implements HotspotController, WifiManager.Sof
+      * @param shouldListen whether we should start listening to various wifi statuses
+      */
+     private void updateWifiStateListeners(boolean shouldListen) {
++        if (mWifiManager == null) {
++            return;
++        }
+         mWifiStateReceiver.setListening(shouldListen);
+         if (shouldListen) {
+             mWifiManager.registerSoftApCallback(
+diff --git a/packages/SystemUI/src/com/android/systemui/statusbar/policy/WifiSignalController.java b/packages/SystemUI/src/com/android/systemui/statusbar/policy/WifiSignalController.java
+index e5e576d6b80..b83c6b88f8d 100644
+--- a/packages/SystemUI/src/com/android/systemui/statusbar/policy/WifiSignalController.java
++++ b/packages/SystemUI/src/com/android/systemui/statusbar/policy/WifiSignalController.java
+@@ -59,9 +59,11 @@ public class WifiSignalController extends
+         mHasMobileData = hasMobileData;
+         Handler handler = new WifiHandler(Looper.getMainLooper());
+         mWifiChannel = new AsyncChannel();
+-        Messenger wifiMessenger = wifiManager.getWifiServiceMessenger();
+-        if (wifiMessenger != null) {
+-            mWifiChannel.connect(context, handler, wifiMessenger);
++        if (wifiManager != null) {
++            Messenger wifiMessenger = wifiManager.getWifiServiceMessenger();
++            if (wifiMessenger != null) {
++                mWifiChannel.connect(context, handler, wifiMessenger);
++            }
+         }
+         // WiFi only has one state.
+         mCurrentState.iconGroup = mLastState.iconGroup = new IconGroup(
+-- 
+2.17.1
+

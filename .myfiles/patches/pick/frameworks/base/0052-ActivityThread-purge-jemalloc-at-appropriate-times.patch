@@ -1,0 +1,254 @@
+From 613be4b54fa5cc9ff26683a72956e6cb4b8b2be8 Mon Sep 17 00:00:00 2001
+From: Tim Murray <timmurray@google.com>
+Date: Mon, 22 Oct 2018 15:26:08 -0700
+Subject: [PATCH 52/58] ActivityThread: purge jemalloc at appropriate times
+
+Don't let jemalloc sit around with unused pages.
+
+Test: boots, works
+bug 117795621
+
+Change-Id: I1fc3fcf5aa2798c67ea8cada6eeec852b2bebee7
+(cherry picked from commit 7745ba061a0ef3e20470ed98267e2062b407ba79)
+---
+ core/java/android/app/ActivityThread.java   | 40 ++++++++++++++-
+ core/jni/Android.bp                         |  1 +
+ core/jni/android_app_ActivityThread.cpp     | 55 +++++++++++++++++++++
+ core/jni/android_view_DisplayListCanvas.cpp | 22 ---------
+ 4 files changed, 95 insertions(+), 23 deletions(-)
+ create mode 100644 core/jni/android_app_ActivityThread.cpp
+
+diff --git a/core/java/android/app/ActivityThread.java b/core/java/android/app/ActivityThread.java
+index ab0b88c22d2..14a622a68fa 100644
+--- a/core/java/android/app/ActivityThread.java
++++ b/core/java/android/app/ActivityThread.java
+@@ -359,6 +359,9 @@ public final class ActivityThread extends ClientTransactionHandler {
+         = new ArrayMap<Activity, ArrayList<OnActivityPausedListener>>();
+ 
+     final GcIdler mGcIdler = new GcIdler();
++    final PurgeIdler mPurgeIdler = new PurgeIdler();
++
++    boolean mPurgeIdlerScheduled = false;
+     boolean mGcIdlerScheduled = false;
+ 
+     static volatile Handler sMainThreadHandler;  // set once in main()
+@@ -1595,6 +1598,7 @@ public final class ActivityThread extends ClientTransactionHandler {
+         public static final int RUN_ISOLATED_ENTRY_POINT = 158;
+         public static final int EXECUTE_TRANSACTION = 159;
+         public static final int RELAUNCH_ACTIVITY = 160;
++        public static final int PURGE_RESOURCES = 161;
+ 
+         String codeToString(int code) {
+             if (DEBUG_MESSAGES) {
+@@ -1638,6 +1642,7 @@ public final class ActivityThread extends ClientTransactionHandler {
+                     case RUN_ISOLATED_ENTRY_POINT: return "RUN_ISOLATED_ENTRY_POINT";
+                     case EXECUTE_TRANSACTION: return "EXECUTE_TRANSACTION";
+                     case RELAUNCH_ACTIVITY: return "RELAUNCH_ACTIVITY";
++                    case PURGE_RESOURCES: return "PURGE_RESOURCES";
+                 }
+             }
+             return Integer.toString(code);
+@@ -1675,6 +1680,7 @@ public final class ActivityThread extends ClientTransactionHandler {
+                 case UNBIND_SERVICE:
+                     Trace.traceBegin(Trace.TRACE_TAG_ACTIVITY_MANAGER, "serviceUnbind");
+                     handleUnbindService((BindServiceData)msg.obj);
++                    schedulePurgeIdler();
+                     Trace.traceEnd(Trace.TRACE_TAG_ACTIVITY_MANAGER);
+                     break;
+                 case SERVICE_ARGS:
+@@ -1685,6 +1691,7 @@ public final class ActivityThread extends ClientTransactionHandler {
+                 case STOP_SERVICE:
+                     Trace.traceBegin(Trace.TRACE_TAG_ACTIVITY_MANAGER, "serviceStop");
+                     handleStopService((IBinder)msg.obj);
++                    schedulePurgeIdler();
+                     Trace.traceEnd(Trace.TRACE_TAG_ACTIVITY_MANAGER);
+                     break;
+                 case CONFIGURATION_CHANGED:
+@@ -1818,6 +1825,9 @@ public final class ActivityThread extends ClientTransactionHandler {
+                 case RELAUNCH_ACTIVITY:
+                     handleRelaunchActivityLocally((IBinder) msg.obj);
+                     break;
++                case PURGE_RESOURCES:
++                    schedulePurgeIdler();
++                    break;
+             }
+             Object obj = msg.obj;
+             if (obj instanceof SomeArgs) {
+@@ -1870,6 +1880,17 @@ public final class ActivityThread extends ClientTransactionHandler {
+         @Override
+         public final boolean queueIdle() {
+             doGcIfNeeded();
++            nPurgePendingResources();
++            return false;
++        }
++    }
++
++    final class PurgeIdler implements MessageQueue.IdleHandler {
++        @Override
++        public boolean queueIdle() {
++            Trace.traceBegin(Trace.TRACE_TAG_ACTIVITY_MANAGER, "purgePendingResources");
++            nPurgePendingResources();
++            Trace.traceEnd(Trace.TRACE_TAG_ACTIVITY_MANAGER);
+             return false;
+         }
+     }
+@@ -2181,6 +2202,22 @@ public final class ActivityThread extends ClientTransactionHandler {
+         mH.removeMessages(H.GC_WHEN_IDLE);
+     }
+ 
++    void schedulePurgeIdler() {
++        if (!mPurgeIdlerScheduled) {
++            mPurgeIdlerScheduled = true;
++            Looper.myQueue().addIdleHandler(mPurgeIdler);
++        }
++        mH.removeMessages(H.PURGE_RESOURCES);
++    }
++
++    void unschedulePurgeIdler() {
++        if (mPurgeIdlerScheduled) {
++            mPurgeIdlerScheduled = false;
++            Looper.myQueue().removeIdleHandler(mPurgeIdler);
++        }
++        mH.removeMessages(H.PURGE_RESOURCES);
++    }
++
+     void doGcIfNeeded() {
+         mGcIdlerScheduled = false;
+         final long now = SystemClock.uptimeMillis();
+@@ -4461,6 +4498,7 @@ public final class ActivityThread extends ClientTransactionHandler {
+             }
+             r.setState(ON_DESTROY);
+         }
++        schedulePurgeIdler();
+         mActivities.remove(token);
+         StrictMode.decrementExpectedActivityCount(activityClass);
+         return r;
+@@ -6683,6 +6721,6 @@ public final class ActivityThread extends ClientTransactionHandler {
+     }
+ 
+     // ------------------ Regular JNI ------------------------
+-
++    private native void nPurgePendingResources();
+     private native void nDumpGraphicsInfo(FileDescriptor fd);
+ }
+diff --git a/core/jni/Android.bp b/core/jni/Android.bp
+index 302189fbb70..13bd523e0d9 100644
+--- a/core/jni/Android.bp
++++ b/core/jni/Android.bp
+@@ -42,6 +42,7 @@ cc_library_shared {
+         "com_google_android_gles_jni_EGLImpl.cpp",
+         "com_google_android_gles_jni_GLImpl.cpp", // TODO: .arm
+         "android_app_Activity.cpp",
++	"android_app_ActivityThread.cpp",
+         "android_app_NativeActivity.cpp",
+         "android_app_admin_SecurityLog.cpp",
+         "android_opengl_EGL14.cpp",
+diff --git a/core/jni/android_app_ActivityThread.cpp b/core/jni/android_app_ActivityThread.cpp
+new file mode 100644
+index 00000000000..d56e4c51124
+--- /dev/null
++++ b/core/jni/android_app_ActivityThread.cpp
+@@ -0,0 +1,55 @@
++/*
++ * Copyright (C) 2018 The Android Open Source Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#include "jni.h"
++#include "GraphicsJNI.h"
++#include <nativehelper/JNIHelp.h>
++
++#include <minikin/Layout.h>
++#include <renderthread/RenderProxy.h>
++
++#include "core_jni_helpers.h"
++#include <unistd.h>
++
++namespace android {
++
++static void android_app_ActivityThread_purgePendingResources(JNIEnv* env, jobject clazz) {
++    // Don't care about return values.
++    mallopt(M_PURGE, 0);
++}
++
++static void
++android_app_ActivityThread_dumpGraphics(JNIEnv* env, jobject clazz, jobject javaFileDescriptor) {
++    int fd = jniGetFDFromFileDescriptor(env, javaFileDescriptor);
++    android::uirenderer::renderthread::RenderProxy::dumpGraphicsMemory(fd);
++    minikin::Layout::dumpMinikinStats(fd);
++}
++
++
++static JNINativeMethod gActivityThreadMethods[] = {
++    // ------------ Regular JNI ------------------
++    { "nPurgePendingResources",        "()V",
++      (void*) android_app_ActivityThread_purgePendingResources },
++    { "nDumpGraphicsInfo",        "(Ljava/io/FileDescriptor;)V",
++      (void*) android_app_ActivityThread_dumpGraphics }
++};
++
++int register_android_app_ActivityThread(JNIEnv* env) {
++    return RegisterMethodsOrDie(env, "android/app/ActivityThread",
++            gActivityThreadMethods, NELEM(gActivityThreadMethods));
++}
++
++};
+diff --git a/core/jni/android_view_DisplayListCanvas.cpp b/core/jni/android_view_DisplayListCanvas.cpp
+index 7956bf4ee22..5197e7d481e 100644
+--- a/core/jni/android_view_DisplayListCanvas.cpp
++++ b/core/jni/android_view_DisplayListCanvas.cpp
+@@ -88,17 +88,6 @@ private:
+     sp<InvokeRunnableMessage> mMessage;
+ };
+ 
+-
+-// ---------------- Regular JNI -----------------------------
+-
+-static void
+-android_app_ActivityThread_dumpGraphics(JNIEnv* env, jobject clazz, jobject javaFileDescriptor) {
+-    int fd = jniGetFDFromFileDescriptor(env, javaFileDescriptor);
+-    android::uirenderer::renderthread::RenderProxy::dumpGraphicsMemory(fd);
+-    minikin::Layout::dumpMinikinStats(fd);
+-}
+-
+-
+ // ---------------- @FastNative -----------------------------
+ 
+ static void android_view_DisplayListCanvas_callDrawGLFunction(JNIEnv* env, jobject clazz,
+@@ -215,12 +204,6 @@ static JNINativeMethod gMethods[] = {
+     { "nDrawRoundRect",           "(JJJJJJJJ)V",(void*) android_view_DisplayListCanvas_drawRoundRectProps },
+ };
+ 
+-static JNINativeMethod gActivityThreadMethods[] = {
+-        // ------------ Regular JNI ------------------
+-    { "nDumpGraphicsInfo",        "(Ljava/io/FileDescriptor;)V",
+-                                               (void*) android_app_ActivityThread_dumpGraphics }
+-};
+-
+ int register_android_view_DisplayListCanvas(JNIEnv* env) {
+     jclass runnableClass = FindClassOrDie(env, "java/lang/Runnable");
+     gRunnableMethodId = GetMethodIDOrDie(env, runnableClass, "run", "()V");
+@@ -228,9 +211,4 @@ int register_android_view_DisplayListCanvas(JNIEnv* env) {
+     return RegisterMethodsOrDie(env, kClassPathName, gMethods, NELEM(gMethods));
+ }
+ 
+-int register_android_app_ActivityThread(JNIEnv* env) {
+-    return RegisterMethodsOrDie(env, "android/app/ActivityThread",
+-            gActivityThreadMethods, NELEM(gActivityThreadMethods));
+-}
+-
+ };
+-- 
+2.17.1
+
