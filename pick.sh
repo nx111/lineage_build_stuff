@@ -1073,7 +1073,6 @@ kpick 227747 # lineage: Enable weather apps
 kpick 226755 # lineage: Enable cryptfs_hw
 kpick 231971 # manifest: sync gcc4.9 from aosp oreo
 kpick 232785 # lineage: Ship Snap
-kpick 235776 # manifest: android-9.0.0_r16 -> android-9.0.0_r21
 
 patch_local local/android
 echo
@@ -1117,7 +1116,6 @@ kpick 234754 # Add define for O_TMPFILE
 # bionic
 #kpick 223067 -f # libc fortify: Ignore open() O_TMPFILE mode bits warning
 kpick 225463 # bionic: Let popen and system fall back to /sbin/sh
-kpick 235726 # malloc: add M_PURGE mallopt flag
 
 # boot/recovery
 kpick 231718 # recovery: Declare a soong namespace
@@ -1130,7 +1128,6 @@ kpick 222760 # Add LOCAL_AIDL_FLAGS
 #kpick 226920 # Support a first stage ramdisk via TARGET_RAMDISK_OUT
 #kpick 226939 # releasetools: Fix the path to the OTA keys in recovery image.
 kpick 227111 # releasetools: Store the build.prop file in the OTA zip
-kpick 235729 # [DO NOT MERGE] Update Security String to 2018-12-01 for December Release bug:117667960 (cherry picked from commit d ...
 
 # build/soong
 kpick 222648 # Allow providing flex and bison binaries
@@ -1149,8 +1146,6 @@ kpick 229424 # selinux: add domain for Gallery
 kpick 234613 # common: Expand labeling of sysfs_vibrator nodes using genfscon
 
 # device/qcom/sepolicy
-kpick 228566 # qcom: Label vendor files with (vendor|system/vendor) instead of vendor
-kpick 228569 # Use set_prop() macro for property sets
 kpick 228570 # sepolicy: Allow wcnss_service to set wlan.driver properties
 kpick 228572 # sepolicy: Allow system_server to 'read' qti_debugfs
 kpick 228573 # sepolicy: Add libsdm-disp-vndapis and libsdmutils to SP-HALs
@@ -1207,18 +1202,14 @@ kpick 234980 # libcameraservice: force specific cam id for google face unlock
 kpick 224266 # SystemUI: Add Lineage statusbar item holder
 kpick 224267 # SystemUI: Network Traffic [1/3]
 kpick 224513 # SystemUI: Disable config_keyguardUserSwitcher on sw600dp
-kpick 226236 # SystemUI: add navbar layout inversion tuning
 kpick 226343 # CameraServiceProxy: Loosen UID check
 kpick 226358 # settings: Allow accessing LineageSettings via settings command
 kpick 226398 # frameworks: base: Port password retention feature
 kpick 226399 # Use fdeCheckPassword error code to indicate pw failure
 kpick 226400 # LockSettingsService: Support for separate clear key api
-kpick 226600 # PhoneWindowManager: Check if proposed rotation is in range
-kpick 227108 # SystemUI: Fix several issues in the ADB over Network tile
 kpick 227124 # BatteryService: Add support for oem fast charger detection
 kpick 227290 # PowerProfile: allow overriding default power profile
 kpick 227291 # [DNM] Revert "Handle public volumes and otherwise invalid UUIDs."
-kpick 227821 # GlobalScreenshot: Fix screenshot not saved with some languages
 kpick 227896 # SystemUI: Add Profiles tile
 kpick 221716 # Where's my circle battery, dude?
 kpick 229166 # NightDisplayController: report unavailable if livedisplay feature is present
@@ -1228,9 +1219,6 @@ kpick 229308 # Add Dual Channel into Bluetooth Audio Channel Mode developer opti
 kpick 229309 # Allow SBC as HD audio codec in Bluetooth device configuration
 kpick 229606 # ConsumerIR: Support Huawei's DSP chip implementation
 kpick 229612 # Performance: Memory Optimizations.
-kpick 230016 # Implement expanded desktop feature
-kpick 231796 # SignalClusterView: Hide signal icons for disabled SIMs
-kpick 231797 # Keyguard: Remove carrier text for disabled SIMs
 kpick 231823 # Do not move the multi-window divider when showing IME
 kpick 231824 # Fix StatusBar icons tinting when in split screen
 kpick 231827 # Add display shrink mode
@@ -1239,6 +1227,7 @@ kpick 231848 # SystemUI: Add one hand mode triggers
 kpick 231851 # onehand: Take into account cutouts
 kpick 231852 # onehand: Remove guide link
 kpick 232197 # appops: Privacy Guard for P (1/2)
+kpick 236210 # ClipboardService: Restore different method calls to AppOps to fix PG
 kpick 232796 # NetworkManagement : Add ability to restrict app vpn usage
 kpick 233633 # Phone ringtone setting for Multi SIM device
 kpick 233717 # [DNM][HACK] Persist user brightness model
@@ -1249,15 +1238,8 @@ kpick 234715 # Rotation related corrections
 kpick 235127 # Fix NPE when creates wifi tracker
 kpick 235128 # Crash app on foreground service notification error
 kpick 235147 # SystemUI: Name Cellular Tile based on carrier
-kpick 235739 # DO NOT MERGE: Reset launch start times when removing a process
-kpick 235741 # Recover shady content:// paths.
-kpick 235742 # hwui: purge malloc pages on bitmap destruction
-kpick 235743 # wm: recycle bitmaps immediately in TaskSnapshotPersister
-kpick 235744 # Add configurable default setting for assistant componentname
-kpick 235746 # Add Missing XML files from 5282778 to fix build Bug:111603898 (cherry picked from commit 974a86e201e2fa17bad58d1fb2 ...
-kpick 235748 # ActivityThread: purge jemalloc at appropriate times
-kpick 235750 # Adding new intent ACTION_SMS_MMS_DB_CREATED.
-#kpick 235986 # frameworks: Add unlinked ringtone and notification volumes
+kpick 235986 # frameworks: Add unlinked ringtone and notification volumes
+kpick 236156 # CaffeineTile: Mimic old custom tile behavior
 
 # frameworks/native
 kpick 224443 # libbinder: Don't log call trace when waiting for vendor service on non-eng builds
@@ -1271,7 +1253,6 @@ kpick 229607 # HACK: SF: Force client composition for all layers
 kpick 230610 # APP may display abnormally in landscape LCM
 kpick 231828 # Translate pointer motion events for OneHandOperation Display Shrink
 kpick 231980 # HWComposer: HWC2: allow SkipValidate to be force disabled
-kpick 235753 # libui: add boundary check to GraphicBuffer::unflatten
 
 # frameworks/opt/net/wifi
 
@@ -1335,17 +1316,6 @@ kpick 224958 # msm8960/8974/8084: Include string.h where it is necessary
 # hardware/qcom/fm
 
 # hardware/qcom/gps
-kpick 223351 # Revert "msm8974: deprecate msm8974"
-kpick 223352 # Revert "msm8974: remove from top level makefile"
-kpick 223353 # msm8974: Add missing liblog dependency
-kpick 223354 # msm8974: Default apn ip type to ipv4
-kpick 223355 # msm8974: Cleanup obsolete LOCAL_PRELINK_MODULE
-kpick 223356 # msm8974: Move device dependent modules to /vendor
-kpick 223357 # msm8974: Fix duplicate gps.conf for hammerhead
-kpick 223358 # msm8974: Fix logging level and remove nmea log
-kpick 223359 # msm8974: Don't rely on transitively included headers
-kpick 223360 # msm8974: Return the correct length of nmea sentence
-kpick 225034 # msm8974: Add -Wno-error to compile with global -Werror.
 
 # hardware/qcom/keymaster
 kpick 224948 # Keymaster: Support for 64bit userspace and 32bit TZ
@@ -1381,7 +1351,6 @@ kpick 231895 # VNDK: Added required libs
 kpick 231896 # power: Turn on/off display in SDM439
 kpick 231897 # power: qcom: powerHal for sdm439 and sdm429
 kpick 231898 # Power: Naming convention change
-kpick 235177 # power: Drop default POWER_HINT_INTERACTION routine
 
 # hardware/qcom/thermal
 
@@ -1406,12 +1375,10 @@ kpick 231960 # bauth: Add enumerate function
 kpick 227931 # lineagesdk: Refactor battery icon options
 kpick 230272 # sdk: Remove VOLUME_KEYS_CONTROL_RING_STREAM
 kpick 230284 # Revert "[3/3] cmsdk: add burnIn protection setting"
-kpick 234317 # ProfileManager: Don't start before decrypted
 
 # packages/apps/Bluetooth
 kpick 229310 # SBC Dual Channel (SBC HD Audio) support
 kpick 229311 # Assume optional codecs are supported if were supported previously
-kpick 235756 # Clean up variables when closing BT
 
 # packages/apps/Calender
 
@@ -1480,7 +1447,8 @@ kpick 231826 # Update the white list of Data saver
 kpick 232442 # Settings: Root appops access in developer settings
 kpick 232793 # Settings: per-app VPN data restriction
 kpick 233634 # Phone ringtone setting for Multi SIM device
-#kpick 235978 # Settings: Add switch for linked ring and media notification volumes
+kpick 235978 # Settings: Add switch for linked ring and media notification volumes
+kpick 236184 # Settings: Use correct icon for ring volume
 
 # packages/apps/SettingsIntelligence
 
@@ -1680,9 +1648,6 @@ kpick 234612 # Updater: Implement auto update check interval preference
 # packages/providers/MediaProvider
 
 # packages/providers/TelephonyProvider
-kpick 235758 # Don't use WAL in TelephonyProvider to work around b/113352727
-kpick 235760 # Broadcast ACTION_SMS_MMS_DB_CREATED when mmssms.db is created.
-kpick 235762 # Manual revert for ag/5373283 (cherry picked from commit 8bda570a74d943fb03606f00afb6d735aaec0841)
 
 # packages/services/BuiltinPrintService
 
@@ -1690,8 +1655,7 @@ kpick 235762 # Manual revert for ag/5373283 (cherry picked from commit 8bda570a7
 kpick 233635 # Phone ringtone setting for Multi SIM device
 
 # packages/services/Telephony
-kpick 229610 # Telephony: Support muting by RIL command on Huawei RIL
-kpick 234990 # Ims: Enable ImsSettings
+kpick 229610 # Telephony: Support muting by RIL command
 
 # system/bt
 kpick 224813 # bt: osi: undef PROPERTY_VALUE_MAX
@@ -1699,7 +1663,6 @@ kpick 229125 # Increase maximum Bluetooth SBC codec bitpool and bitrate values
 kpick 229313 # Explicit SBC Dual Channel (SBC HD) support
 kpick 229314 # Allow using alternative (higher) SBC HD bitrates with a property
 kpick 229401 # [DNM] Revert "Return early if vendor-specific command fails"
-kpick 235775 # [SQUASH] Merge tag 'android-9.0.0_r21' into lineage-16.0-android-9.0.0_r21
 
 # system/core
 kpick -f 227110 # init: I hate safety net
@@ -1709,8 +1672,6 @@ kpick -f 227110 # init: I hate safety net
 kpick 226120 # fs_mgr: Wrapped key support for FBE
 kpick 231716 # init: Always use libbootloader_message from bootable/recovery namespace
 kpick 234860 # init: add install_keyring for TWRP FBE decrypt
-kpick 235765 # lmkd: rate-limit and cleanup failed kill reports
-kpick 235766 # DO NOT MERGE: lmkd: retune rate at which processes are killed
 
 # system/extras
 kpick 225426 # f2fs_utils: Add a static libf2fs_sparseblock for minvold
@@ -1750,7 +1711,6 @@ kpick 223133 # AIDL: Add option to generate No-Op methods
 
 # system/update/engine
 kpick 234581 # update_engine: Fallback to partition without suffix
-kpick 235769 # Check metadata size in payload.
 
 # system/vold
 kpick 226109 # vold: Add Hardware FDE feature
@@ -1764,7 +1724,6 @@ kpick 231717 # vold: Always use libbootloader_message from bootable/recovery nam
 kpick 235198 # Revert "vold: Also wait for dm device when mounting private volume"
 kpick 235199 # Revert "vold: Make sure block device exists before formatting it"
 kpick 235200 # pie-gsi
-kpick 235772 # [DO NOT MERGE] Fix signedness mismatch and integer underflow
 
 # vendor/lineage
 kpick 223773 # Add IPv6 for Oister and 3. The 3.dk and oister.dk carriers now support IPv6 with the APN ”data.tre.dk”.
@@ -1780,7 +1739,6 @@ kpick 226126 # soong_config: Add flag for crypto waiting on QSEE to start
 kpick 227392 # lineage: Dynamically add custom APNs
 kpick 229589 # lineage: Automatically set soong namespace when setting project pathmap
 kpick 229590 # lineage: Move qcom pathmap setting into "BoardConfig"
-kpick 229620 # backuptool: Support non-A/B system-as-root
 kpick 231291 # repopick: add hashtag support
 kpick 231599 # privapp-permissions: Add new Gallery permissions
 kpick 231981 # HWComposer: HWC2: allow SkipValidate to be force disabled

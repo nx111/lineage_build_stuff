@@ -1,0 +1,108 @@
+From 352eed26e67cbf255d15a6d444cac77768edb5ad Mon Sep 17 00:00:00 2001
+From: nx111 <NX111.AimH@gmail.com>
+Date: Sun, 9 Dec 2018 19:21:08 +0800
+Subject: [PATCH] mms: change to mms apn.
+
+Change-Id: I18cea0ce5396c1af845dc4295425ef422fd2935b
+---
+ src/com/android/mms/service/ApnSettings.java | 46 ++++++++++++++++++++
+ src/com/android/mms/service/MmsRequest.java  |  5 +++
+ 2 files changed, 51 insertions(+)
+
+diff --git a/src/com/android/mms/service/ApnSettings.java b/src/com/android/mms/service/ApnSettings.java
+index 48383c1..523fc52 100644
+--- a/src/com/android/mms/service/ApnSettings.java
++++ b/src/com/android/mms/service/ApnSettings.java
+@@ -17,6 +17,8 @@
+ package com.android.mms.service;
+ 
+ import android.content.Context;
++import android.content.ContentValues;
++import android.content.ContentResolver;
+ import android.database.Cursor;
+ import android.database.sqlite.SqliteWrapper;
+ import android.net.NetworkUtils;
+@@ -80,6 +82,7 @@ public class ApnSettings {
+     private static final int COLUMN_USER         = 15;
+     private static final int COLUMN_PASSWORD     = 16;
+ 
++    private static Uri PREFERAPN_URI = Uri.parse("content://telephony/carriers/preferapn");
+ 
+     /**
+      * Load APN settings from system
+@@ -218,4 +221,47 @@ public class ApnSettings {
+     public String toString() {
+         return mDebugText;
+     }
++
++    public static int getApnId(Context context, String name) {
++        Cursor cursor = context.getContentResolver().query(
++            Telephony.Carriers.CONTENT_URI,
++            new String[] { "_id", "name" }, null, null, null);
++        int id = -1;
++        if (cursor != null) {
++            try {
++                if (cursor.moveToFirst())
++                    id = cursor.getInt(cursor.getColumnIndex("_id"));
++            } catch (Exception e) {
++            }
++            cursor.close();
++        }
++        return id;
++    }
++
++    public static int getPreferApn(Context context) {
++        Cursor cursor = context.getContentResolver().query(PREFERAPN_URI,
++            new String[] { "_id", "name" }, null, null, null);
++        int id = -1;
++        if (cursor != null) {
++            try {
++                if (cursor.moveToFirst())
++                    id = cursor.getInt(cursor.getColumnIndex("_id"));
++            } catch (Exception e) {
++            }
++            cursor.close();
++        }
++        return id;
++    }
++
++    public static int setPreferApn(Context context, int id) {
++       if (id < 0) return -1;
++       ContentValues values = new ContentValues();
++       values.put("apn_id", id);
++       int result = context.getContentResolver().update(
++                    PREFERAPN_URI,
++                    values,
++                    null,
++                    null);
++       return result;
++    }
+ }
+diff --git a/src/com/android/mms/service/MmsRequest.java b/src/com/android/mms/service/MmsRequest.java
+index ec8b334..9a4de53 100644
+--- a/src/com/android/mms/service/MmsRequest.java
++++ b/src/com/android/mms/service/MmsRequest.java
+@@ -153,6 +153,7 @@ public abstract class MmsRequest {
+                     networkManager.acquireNetwork(requestId);
+                     final String apnName = networkManager.getApnName();
+                     LogUtil.d(requestId, "APN name is " + apnName);
++                    int prefer_apn_id = ApnSettings.getPreferApn(context);
+                     try {
+                         ApnSettings apn = null;
+                         try {
+@@ -167,8 +168,12 @@ public abstract class MmsRequest {
+                                     + apnName + ", try with no name");
+                             apn = ApnSettings.load(context, null, mSubId, requestId);
+                         }
++                        int mms_apn_id = ApnSettings.getApnId(context, apnName);
++                        if (mms_apn_id != prefer_apn_id)
++                            ApnSettings.setPreferApn(context, mms_apn_id);
+                         LogUtil.i(requestId, "Using " + apn.toString());
+                         response = doHttp(context, networkManager, apn);
++                        ApnSettings.setPreferApn(context, prefer_apn_id);
+                         result = Activity.RESULT_OK;
+                         // Success
+                         break;
+-- 
+2.17.1
+

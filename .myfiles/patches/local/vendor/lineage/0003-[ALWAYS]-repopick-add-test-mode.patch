@@ -1,15 +1,15 @@
-From 37620d0bbf0d56f392679e14c89482234740eb3d Mon Sep 17 00:00:00 2001
+From 3bbf84b3ca0cb608bb2d87148624bd261da4ffea Mon Sep 17 00:00:00 2001
 From: nx111 <NX111.AimH@gmail.com>
 Date: Fri, 2 Nov 2018 19:16:04 +0800
 Subject: [PATCH 03/24] repopick: add test mode.
 
 Change-Id: I4d793d7853e571a40a2627cdef00d53e656f23cc
 ---
- build/tools/repopick.py | 18 ++++++++++++++----
- 1 file changed, 14 insertions(+), 4 deletions(-)
+ build/tools/repopick.py | 48 ++++++++++++++++++++++++-----------------
+ 1 file changed, 28 insertions(+), 20 deletions(-)
 
 diff --git a/build/tools/repopick.py b/build/tools/repopick.py
-index fa8a9f4e..43be1504 100755
+index fa8a9f4e..1e731e39 100755
 --- a/build/tools/repopick.py
 +++ b/build/tools/repopick.py
 @@ -177,6 +177,7 @@ if __name__ == '__main__':
@@ -20,11 +20,12 @@ index fa8a9f4e..43be1504 100755
      parser.add_argument('-Q', '--query', help='pick all commits using the specified query')
      parser.add_argument('-g', '--gerrit', default=default_gerrit, help='Gerrit Instance to use. Form proto://[user@]host[:port]')
      parser.add_argument('-e', '--exclude', nargs=1, help='exclude a list of commit numbers separated by a ,')
-@@ -343,7 +344,10 @@ if __name__ == '__main__':
+@@ -343,30 +344,51 @@ if __name__ == '__main__':
                  args.quiet or print('ERROR: The patch set {0}/{1} could not be found, using CURRENT_REVISION instead.'.format(change, patchset))
  
      for item in mergables:
 -        args.quiet or print('Applying change number {0}...'.format(item['id']))
++        skipit = False
 +        if args.test:
 +            print('Testing change number {0} ...'.format(item['id']))
 +        else:
@@ -32,7 +33,13 @@ index fa8a9f4e..43be1504 100755
          # Check if change is open and exit if it's not, unless -f is specified
          if (item['status'] != 'OPEN' and item['status'] != 'NEW' and item['status'] != 'DRAFT') and not args.query:
              if args.force:
-@@ -356,10 +360,10 @@ if __name__ == '__main__':
+                 print('!! Force-picking a closed change !!\n')
+             else:
+                 print('Change status is ' + item['status'] + '. Skipping the cherry pick.\nUse -f to force this pick.')
+-                continue
++                skipit = True
+ 
+         # Convert the project name to a project path
          #   - check that the project path exists
          project_path = None
  
@@ -45,20 +52,53 @@ index fa8a9f4e..43be1504 100755
 +            project_path = project_name_to_data[item['project']][item['branch']]
          elif args.ignore_missing:
              print('WARNING: Skipping {0} since there is no project directory for: {1}\n'.format(item['id'], item['project']))
-             continue
-@@ -367,6 +371,12 @@ if __name__ == '__main__':
+-            continue
++            skipit = True
+         else:
              sys.stderr.write('ERROR: For {0}, could not determine the project path for project {1}\n'.format(item['id'], item['project']))
              sys.exit(1)
  
-+        if args.test:
++        # Print out some useful info
++        if not args.quiet:
 +            print('--> Subject:       {0}'.format(item['subject'].encode('utf-8')))
 +            print('--> Project path:  {0}'.format(project_path))
 +            print('--> Change number: {0} (Patch Set {1})'.format(item['id'], item['patchset']))
++
++        if 'anonymous http' in item['fetch']:
++            method = 'anonymous http'
++        else:
++            method = 'ssh'
++
++        if not args.quiet:
++            print('--> Url:           {0}'.format(item['fetch'][method]['url']))
++
++        if skipit == True or args.test:
 +            continue
 +
          # If --start-branch is given, create the branch (more than once per path is okay; repo ignores gracefully)
          if args.start_branch:
              subprocess.check_output(['repo', 'start', args.start_branch[0], project_path])
+@@ -396,20 +418,6 @@ if __name__ == '__main__':
+         if found_change:
+             continue
+ 
+-        # Print out some useful info
+-        if not args.quiet:
+-            print('--> Subject:       {0}'.format(item['subject'].encode('utf-8')))
+-            print('--> Project path:  {0}'.format(project_path))
+-            print('--> Change number: {0} (Patch Set {1})'.format(item['id'], item['patchset']))
+-
+-        if 'anonymous http' in item['fetch']:
+-            method = 'anonymous http'
+-        else:
+-            method = 'ssh'
+-
+-        if not args.quiet:
+-            print('--> Url:           {0}'.format(item['fetch'][method]['url']))
+-
+         # Try fetching from GitHub first if using default gerrit
+         if args.gerrit == default_gerrit:
+             if args.verbose:
 -- 
 2.17.1
 

@@ -1,0 +1,608 @@
+From 761c2127da32ec37143a4979f110e04d09e9ed3e Mon Sep 17 00:00:00 2001
+From: Adnan Begovic <adnan@cyngn.com>
+Date: Mon, 4 Nov 2013 00:58:57 +0000
+Subject: [PATCH 52/53] frameworks: Add unlinked ringtone and notification
+ volumes
+
+Port over linked volumes from 12.1
+
+Implement linked volumes and add upgrade path.
+
+Change-Id: Ibbeff656fcaaa4a2ff79de530b48b216df271b21
+
+frameworks: read VOLUME_LINK_NOTIFICATION from proper table
+
+Change-Id: I15e9caa18f307a51a732c7a59013bbbb234a7477
+Signed-off-by: Roman Birg <roman@cyngn.com>
+(cherry picked from commit 1b7cfa1716017e0d03c9693428c21d8e11c5dc0a)
+
+fix Notification volume slider linking
+
+Change-Id: I0f74485f5c8c2aa7698cf9ba1c60c2c8c967798d
+Signed-off-by: Roman Birg <roman@cyngn.com>
+
+Improve SeekBarVolumizer behavior with unlinked streams
+
+- Fix notification stream enabling at 0 volume
+- Fix the notification slider being set when moving ringer stream
+
+Change-Id: If3705cc833c07f726f8ad7b1ec79a42e86e8ff22
+Signed-off-by: Roman Birg <roman@cyngn.com>
+
+base: Fix notification sounds for wifi only devices
+
+The linking of voice & notification doesn't take into account the
+fact that a device may not actually have voice capabilities.  Whenever
+checking whether or not to link notification and ring volumes, also
+verify that the device really is voice capable.
+
+Change-Id: Iae49302d3b5934d36b182e289e4975f5dd85b834
+
+frameworks: fix setting up linked notification stream on boot
+
+updateStreamVolumeAlias() was previously responsible for checking the
+linked notification variable and mapping the notification stream, but
+the setting to read whether the notifications were linked was read in
+after that method had run which was responsible for linking them.
+Extract the logic and re-run it again after reading the persisted
+settings.
+
+Change-Id: Ia62bf3ca072def54ec6ebf4f9e865d9c913e3bc4
+Signed-off-by: Roman Birg <roman@cyngn.com>
+
+fixup volume stream linking
+
+- Make the SeekBarVolumizer move notification and ringer streams when
+ linked and moving ringer.
+
+- Fix initial state causing volume stream seek bar to be set to 0
+  initially
+
+- Clean up AudioService initialization code
+
+Change-Id: Ia11a7a392e5eb3ef862147843e365d5f20eaf90a
+Signed-off-by: Roman Birg <roman@cyngn.com>
+
+SystemUI: Fix volume panel inconsistencies
+
+* Use xml drawables everywhere
+* Add muted notification icon
+* Use AOSP naming scheme for drawables
+
+Change-Id: I14a3af9a7aecf4828f81a8e39855608e452848d6
+
+Misc fixes
+
+Change-Id: Ia94b0a6655e52f5949f031360f525c871cd8df14
+Signed-off-by: Meninblack007 <sanyam.53jain@gmail.com>
+
+Use STREAM_RING on non-voice capable devices
+
+* That's what Google does.
+
+Change-Id: Iac88d161eb1dccbbb5c538d5e04d8d1fc43edef2
+(cherry picked from commit 981e89eb6b99c058a9b3bf533e6494ab44a4b241)
+
+VolumeDialog: Fix mismerge
+
+Fixes not disappearing cast pickers
+
+* Commit 568585b introduced a new LinearLayout for the volume rows
+* Remove unused booleans
+
+Change-Id: I0660d10872cc1098fdd67b618a20ea0f8e926e68
+
+Change-Id: Ia11a7a392e5eb3ef862147843e365d5f20eaf90a
+---
+ .../android/preference/SeekBarVolumizer.java  | 19 ++++++++-
+ core/java/android/provider/Settings.java      | 12 ++++++
+ .../plugins/VolumeDialogController.java       |  3 ++
+ .../res/drawable/ic_volume_notification.xml   | 30 ++++++++++++++
+ .../drawable/ic_volume_notification_mute.xml  | 33 +++++++++++++++
+ .../res/drawable/ic_volume_ringer.xml         |  8 ++--
+ .../res/drawable/ic_volume_ringer_mute.xml    |  9 ++---
+ .../volume/VolumeDialogControllerImpl.java    | 17 ++++++++
+ .../systemui/volume/VolumeDialogImpl.java     | 40 ++++++++++++++++---
+ .../android/server/audio/AudioService.java    | 31 ++++++++++++++
+ 10 files changed, 184 insertions(+), 18 deletions(-)
+ create mode 100644 packages/SystemUI/res/drawable/ic_volume_notification.xml
+ create mode 100644 packages/SystemUI/res/drawable/ic_volume_notification_mute.xml
+
+diff --git a/core/java/android/preference/SeekBarVolumizer.java b/core/java/android/preference/SeekBarVolumizer.java
+index 0ed25266753..295c4023fe4 100644
+--- a/core/java/android/preference/SeekBarVolumizer.java
++++ b/core/java/android/preference/SeekBarVolumizer.java
+@@ -62,6 +62,7 @@ public class SeekBarVolumizer implements OnSeekBarChangeListener, Handler.Callba
+     private final NotificationManager mNotificationManager;
+     private final int mStreamType;
+     private final int mMaxStreamVolume;
++    private final boolean mVoiceCapable;
+     private boolean mAffectedByRingerMode;
+     private boolean mNotificationOrRing;
+     private final Receiver mReceiver = new Receiver();
+@@ -129,6 +130,8 @@ public class SeekBarVolumizer implements OnSeekBarChangeListener, Handler.Callba
+             }
+         }
+         mDefaultUri = defaultUri;
++        mVoiceCapable = context.getResources().getBoolean(
++                com.android.internal.R.bool.config_voice_capable);
+     }
+ 
+     private static boolean isNotificationOrRing(int stream) {
+@@ -143,6 +146,11 @@ public class SeekBarVolumizer implements OnSeekBarChangeListener, Handler.Callba
+         return stream == AudioManager.STREAM_MUSIC;
+     }
+ 
++    private boolean isNotificationStreamLinked() {
++        return mVoiceCapable && Settings.Secure.getInt(mContext.getContentResolver(),
++                Settings.Secure.VOLUME_LINK_NOTIFICATION, 1) == 1;
++    }
++
+     public void setSeekBar(SeekBar seekBar) {
+         if (mSeekBar != null) {
+             mSeekBar.setOnSeekBarChangeListener(null);
+@@ -170,13 +178,19 @@ public class SeekBarVolumizer implements OnSeekBarChangeListener, Handler.Callba
+             mSeekBar.setProgress(mLastAudibleStreamVolume, true);
+         } else if (mNotificationOrRing && mRingerMode == AudioManager.RINGER_MODE_VIBRATE) {
+             mSeekBar.setProgress(0, true);
++            mSeekBar.setEnabled(isSeekBarEnabled());
+         } else if (mMuted) {
+             mSeekBar.setProgress(0, true);
+         } else {
++            mSeekBar.setEnabled(isSeekBarEnabled());
+             mSeekBar.setProgress(mLastProgress > -1 ? mLastProgress : mOriginalStreamVolume, true);
+         }
+     }
+ 
++    private boolean isSeekBarEnabled() {
++        return !(mStreamType == AudioManager.STREAM_NOTIFICATION && isNotificationStreamLinked());
++    }
++
+     @Override
+     public boolean handleMessage(Message msg) {
+         switch (msg.what) {
+@@ -287,7 +301,7 @@ public class SeekBarVolumizer implements OnSeekBarChangeListener, Handler.Callba
+     }
+ 
+     public void onProgressChanged(SeekBar seekBar, int progress, boolean fromTouch) {
+-        if (fromTouch) {
++        if (fromTouch && isSeekBarEnabled()) {
+             postSetVolume(progress);
+         }
+         if (mCallback != null) {
+@@ -463,7 +477,8 @@ public class SeekBarVolumizer implements OnSeekBarChangeListener, Handler.Callba
+         }
+ 
+         private void updateVolumeSlider(int streamType, int streamValue) {
+-            final boolean streamMatch = mNotificationOrRing ? isNotificationOrRing(streamType)
++            final boolean streamMatch = mNotificationOrRing && isNotificationStreamLinked()
++                    ? isNotificationOrRing(streamType)
+                     : (streamType == mStreamType);
+             if (mSeekBar != null && streamMatch && streamValue != -1) {
+                 final boolean muted = mAudioManager.isStreamMute(mStreamType)
+diff --git a/core/java/android/provider/Settings.java b/core/java/android/provider/Settings.java
+index 754886f293f..161cf77ac60 100644
+--- a/core/java/android/provider/Settings.java
++++ b/core/java/android/provider/Settings.java
+@@ -2300,6 +2300,8 @@ public final class Settings {
+ 
+             // At one time in System, then Global, but now back in Secure
+             MOVED_TO_SECURE.add(Secure.INSTALL_NON_MARKET_APPS);
++
++            MOVED_TO_SECURE.add(Secure.VOLUME_LINK_NOTIFICATION);
+         }
+ 
+         private static final HashSet<String> MOVED_TO_GLOBAL;
+@@ -7994,6 +7996,14 @@ public final class Settings {
+         public static final String PACKAGES_TO_CLEAR_DATA_BEFORE_FULL_RESTORE =
+                 "packages_to_clear_data_before_full_restore";
+ 
++        /**
++         * Boolean value whether to link ringtone and notification volume
++         * @hide
++         */
++        public static final String VOLUME_LINK_NOTIFICATION = "volume_link_notification";
++
++        private static final Validator VOLUME_LINK_NOTIFICATION_VALIDATOR = BOOLEAN_VALIDATOR;
++
+         /**
+          * This are the settings to be backed up.
+          *
+@@ -8095,6 +8105,7 @@ public final class Settings {
+             VOLUME_HUSH_GESTURE,
+             MANUAL_RINGER_TOGGLE_COUNT,
+             HUSH_GESTURE_USED,
++            VOLUME_LINK_NOTIFICATION,
+         };
+ 
+         /**
+@@ -8241,6 +8252,7 @@ public final class Settings {
+                     ENABLED_NOTIFICATION_POLICY_ACCESS_PACKAGES_VALIDATOR); //legacy restore setting
+             VALIDATORS.put(HUSH_GESTURE_USED, HUSH_GESTURE_USED_VALIDATOR);
+             VALIDATORS.put(MANUAL_RINGER_TOGGLE_COUNT, MANUAL_RINGER_TOGGLE_COUNT_VALIDATOR);
++            VALIDATORS.put(VOLUME_LINK_NOTIFICATION, VOLUME_LINK_NOTIFICATION_VALIDATOR);
+         }
+ 
+         /**
+diff --git a/packages/SystemUI/plugin/src/com/android/systemui/plugins/VolumeDialogController.java b/packages/SystemUI/plugin/src/com/android/systemui/plugins/VolumeDialogController.java
+index 5f4cf033a45..9998af9edf0 100644
+--- a/packages/SystemUI/plugin/src/com/android/systemui/plugins/VolumeDialogController.java
++++ b/packages/SystemUI/plugin/src/com/android/systemui/plugins/VolumeDialogController.java
+@@ -101,6 +101,7 @@ public interface VolumeDialogController {
+         public ComponentName effectsSuppressor;
+         public String effectsSuppressorName;
+         public int activeStream = NO_ACTIVE_STREAM;
++        public boolean linkedNotification;
+         public boolean disallowAlarms;
+         public boolean disallowMedia;
+         public boolean disallowSystem;
+@@ -119,6 +120,7 @@ public interface VolumeDialogController {
+             }
+             rt.effectsSuppressorName = effectsSuppressorName;
+             rt.activeStream = activeStream;
++            rt.linkedNotification = linkedNotification;
+             rt.disallowAlarms = disallowAlarms;
+             rt.disallowMedia = disallowMedia;
+             rt.disallowSystem = disallowSystem;
+@@ -152,6 +154,7 @@ public interface VolumeDialogController {
+             sep(sb, indent); sb.append("effectsSuppressor:").append(effectsSuppressor);
+             sep(sb, indent); sb.append("effectsSuppressorName:").append(effectsSuppressorName);
+             sep(sb, indent); sb.append("activeStream:").append(activeStream);
++            sep(sb, indent); sb.append("linkedNotification:").append(linkedNotification);
+             sep(sb, indent); sb.append("disallowAlarms:").append(disallowAlarms);
+             sep(sb, indent); sb.append("disallowMedia:").append(disallowMedia);
+             sep(sb, indent); sb.append("disallowSystem:").append(disallowSystem);
+diff --git a/packages/SystemUI/res/drawable/ic_volume_notification.xml b/packages/SystemUI/res/drawable/ic_volume_notification.xml
+new file mode 100644
+index 00000000000..42eb7b7f3f8
+--- /dev/null
++++ b/packages/SystemUI/res/drawable/ic_volume_notification.xml
+@@ -0,0 +1,30 @@
++<!--
++     Copyright (C) 2017 The Android Open Source Project
++
++     Licensed under the Apache License, Version 2.0 (the "License");
++     you may not use this file except in compliance with the License.
++     You may obtain a copy of the License at
++
++          http://www.apache.org/licenses/LICENSE-2.0
++
++     Unless required by applicable law or agreed to in writing, software
++     distributed under the License is distributed on an "AS IS" BASIS,
++     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++     See the License for the specific language governing permissions and
++     limitations under the License.
++-->
++<vector xmlns:android="http://schemas.android.com/apk/res/android"
++    android:height="24dp"
++    android:width="24dp"
++    android:viewportHeight="24"
++    android:viewportWidth="24"
++    android:tint="?android:attr/colorControlNormal" >
++
++    <path
++        android:fillColor="#FFFFFFFF"
++        android:pathData="M18,17v-6c0,-3.07 -1.63,-5.64 -4.5,-6.32V4c0,-0.83 -0.67,-1.5 -1.5,-1.5S10.5,3.17 10.5,4v0.68C7.64,5.36 6,7.92 6,11v6H4v2h10h0.38H20v-2H18zM16,17H8v-6c0,-2.48 1.51,-4.5 4,-4.5s4,2.02 4,4.5V17z"/>
++    <path
++        android:fillColor="#FFFFFFFF"
++        android:pathData="M12,22c1.1,0 2,-0.9 2,-2h-4C10,21.1 10.9,22 12,22z"/>
++
++</vector>
+diff --git a/packages/SystemUI/res/drawable/ic_volume_notification_mute.xml b/packages/SystemUI/res/drawable/ic_volume_notification_mute.xml
+new file mode 100644
+index 00000000000..9cb7ca3679b
+--- /dev/null
++++ b/packages/SystemUI/res/drawable/ic_volume_notification_mute.xml
+@@ -0,0 +1,33 @@
++<!--
++     Copyright (C) 2017 The Android Open Source Project
++
++     Licensed under the Apache License, Version 2.0 (the "License");
++     you may not use this file except in compliance with the License.
++     You may obtain a copy of the License at
++
++          http://www.apache.org/licenses/LICENSE-2.0
++
++     Unless required by applicable law or agreed to in writing, software
++     distributed under the License is distributed on an "AS IS" BASIS,
++     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++     See the License for the specific language governing permissions and
++     limitations under the License.
++-->
++<vector xmlns:android="http://schemas.android.com/apk/res/android"
++    android:height="24dp"
++    android:viewportHeight="24"
++    android:viewportWidth="24"
++    android:width="24dp"
++    android:tint="?android:attr/colorControlNormal" >
++
++    <path
++        android:fillColor="#FFFFFFFF"
++        android:pathData="M12,22c1.1,0 2,-0.9 2,-2h-4C10,21.1 10.9,22 12,22z"/>
++    <path
++        android:fillColor="#FFFFFFFF"
++        android:pathData="M16,16L2.81,2.81L1.39,4.22l4.85,4.85C6.09,9.68 6,10.33 6,11v6H4v2h12.17l3.61,3.61l1.41,-1.41L16,16zM8,17c0,0 0.01,-6.11 0.01,-6.16L14.17,17H8z"/>
++    <path
++        android:fillColor="#FFFFFFFF"
++        android:pathData="M12,6.5c2.49,0 4,2.02 4,4.5v2.17l2,2V11c0,-3.07 -1.63,-5.64 -4.5,-6.32V4c0,-0.83 -0.67,-1.5 -1.5,-1.5S10.5,3.17 10.5,4v0.68C9.72,4.86 9.05,5.2 8.46,5.63L9.93,7.1C10.51,6.73 11.2,6.5 12,6.5z"/>
++
++</vector>
+diff --git a/packages/SystemUI/res/drawable/ic_volume_ringer.xml b/packages/SystemUI/res/drawable/ic_volume_ringer.xml
+index 42eb7b7f3f8..a98e4368e80 100644
+--- a/packages/SystemUI/res/drawable/ic_volume_ringer.xml
++++ b/packages/SystemUI/res/drawable/ic_volume_ringer.xml
+@@ -1,5 +1,6 @@
+ <!--
+      Copyright (C) 2017 The Android Open Source Project
++     Copyright (C) 2018 The LineageOS Project
+ 
+      Licensed under the Apache License, Version 2.0 (the "License");
+      you may not use this file except in compliance with the License.
+@@ -21,10 +22,7 @@
+     android:tint="?android:attr/colorControlNormal" >
+ 
+     <path
+-        android:fillColor="#FFFFFFFF"
+-        android:pathData="M18,17v-6c0,-3.07 -1.63,-5.64 -4.5,-6.32V4c0,-0.83 -0.67,-1.5 -1.5,-1.5S10.5,3.17 10.5,4v0.68C7.64,5.36 6,7.92 6,11v6H4v2h10h0.38H20v-2H18zM16,17H8v-6c0,-2.48 1.51,-4.5 4,-4.5s4,2.02 4,4.5V17z"/>
+-    <path
+-        android:fillColor="#FFFFFFFF"
+-        android:pathData="M12,22c1.1,0 2,-0.9 2,-2h-4C10,21.1 10.9,22 12,22z"/>
++        android:fillColor="#FFFFFF"
++        android:pathData="M10,21H14A2,2 0 0,1 12,23A2,2 0 0,1 10,21M21,19V20H3V19L5,17V11C5,7.9 7.03,5.17 10,4.29C10,4.19 10,4.1 10,4A2,2 0 0,1 12,2A2,2 0 0,1 14,4C14,4.1 14,4.19 14,4.29C16.97,5.17 19,7.9 19,11V17L21,19M17,11A5,5 0 0,0 12,6A5,5 0 0,0 7,11V18H17V11M19.75,3.19L18.33,4.61C20.04,6.3 21,8.6 21,11H23C23,8.07 21.84,5.25 19.75,3.19M1,11H3C3,8.6 3.96,6.3 5.67,4.61L4.25,3.19C2.16,5.25 1,8.07 1,11Z" />
+ 
+ </vector>
+diff --git a/packages/SystemUI/res/drawable/ic_volume_ringer_mute.xml b/packages/SystemUI/res/drawable/ic_volume_ringer_mute.xml
+index 9cb7ca3679b..268b73b2c98 100644
+--- a/packages/SystemUI/res/drawable/ic_volume_ringer_mute.xml
++++ b/packages/SystemUI/res/drawable/ic_volume_ringer_mute.xml
+@@ -1,5 +1,6 @@
+ <!--
+      Copyright (C) 2017 The Android Open Source Project
++     Copyright (C) 2018 The LineageOS Project
+ 
+      Licensed under the Apache License, Version 2.0 (the "License");
+      you may not use this file except in compliance with the License.
+@@ -22,12 +23,10 @@
+ 
+     <path
+         android:fillColor="#FFFFFFFF"
+-        android:pathData="M12,22c1.1,0 2,-0.9 2,-2h-4C10,21.1 10.9,22 12,22z"/>
+-    <path
+-        android:fillColor="#FFFFFFFF"
+-        android:pathData="M16,16L2.81,2.81L1.39,4.22l4.85,4.85C6.09,9.68 6,10.33 6,11v6H4v2h12.17l3.61,3.61l1.41,-1.41L16,16zM8,17c0,0 0.01,-6.11 0.01,-6.16L14.17,17H8z"/>
++        android:pathData="M 12 2 A 2 2 0 0 0 10 4 L 10 4.2890625 C 9.1859479 4.5302631 8.4511514 4.921464 7.8007812 5.4101562 L 9.3359375 6.7753906 A 5 5 0 0 1 12 6 A 5 5 0 0 1 17 11 L 17 13.607422 L 19 15.390625 L 19 11 C 19 7.9 16.97 5.1690625 14 4.2890625 L 14 4 A 2 2 0 0 0 12 2 z M 19.75 3.1894531 L 18.330078 4.609375 C 20.040078 6.299375 21 8.6 21 11 L 23 11 C 23 8.07 21.84 5.2494531 19.75 3.1894531 z M 3.3886719 4.1582031 C 1.847828 6.0925266 1 8.5044933 1 11 L 3 11 C 3 8.9954364 3.6774678 7.0659232 4.8945312 5.4980469 L 3.3886719 4.1582031 z M 6.3808594 6.8222656 C 5.5062882 8.0006482 5 9.4539991 5 11 L 5 17 L 3 19 L 3 20 L 21 20 L 21 19.853516 L 17 16.289062 L 17 18 L 7 18 L 7 11 A 5 5 0 0 1 7.8867188 8.1660156 L 6.3808594 6.8222656 z M 10 21 A 2 2 0 0 0 12 23 A 2 2 0 0 0 14 21 L 10 21 z" />
++
+     <path
+         android:fillColor="#FFFFFFFF"
+-        android:pathData="M12,6.5c2.49,0 4,2.02 4,4.5v2.17l2,2V11c0,-3.07 -1.63,-5.64 -4.5,-6.32V4c0,-0.83 -0.67,-1.5 -1.5,-1.5S10.5,3.17 10.5,4v0.68C9.72,4.86 9.05,5.2 8.46,5.63L9.93,7.1C10.51,6.73 11.2,6.5 12,6.5z"/>
++        android:pathData="M 2.3183594,3.0820312 0.98828125,4.5761719 20.835938,22.265625 22.166016,20.773438 Z" />
+ 
+ </vector>
+diff --git a/packages/SystemUI/src/com/android/systemui/volume/VolumeDialogControllerImpl.java b/packages/SystemUI/src/com/android/systemui/volume/VolumeDialogControllerImpl.java
+index a97effd3a02..fbf1abd65ed 100644
+--- a/packages/SystemUI/src/com/android/systemui/volume/VolumeDialogControllerImpl.java
++++ b/packages/SystemUI/src/com/android/systemui/volume/VolumeDialogControllerImpl.java
+@@ -512,6 +512,16 @@ public class VolumeDialogControllerImpl implements VolumeDialogController, Dumpa
+         return stream == AudioManager.STREAM_RING || stream == AudioManager.STREAM_NOTIFICATION;
+     }
+ 
++    private boolean updateLinkNotificationConfigW() {
++        boolean linkNotificationWithVolume = Settings.Secure.getInt(mContext.getContentResolver(),
++                Settings.Secure.VOLUME_LINK_NOTIFICATION, 1) == 1;
++        if (mState.linkedNotification == linkNotificationWithVolume) {
++            return false;
++        }
++        mState.linkedNotification = linkNotificationWithVolume;
++        return true;
++    }
++
+     private boolean updateEffectsSuppressorW(ComponentName effectsSuppressor) {
+         if (Objects.equals(mState.effectsSuppressor, effectsSuppressor)) return false;
+         mState.effectsSuppressor = effectsSuppressor;
+@@ -882,6 +892,8 @@ public class VolumeDialogControllerImpl implements VolumeDialogController, Dumpa
+                 Settings.Global.getUriFor(Settings.Global.ZEN_MODE);
+         private final Uri ZEN_MODE_CONFIG_URI =
+                 Settings.Global.getUriFor(Settings.Global.ZEN_MODE_CONFIG_ETAG);
++        private final Uri VOLUME_LINK_NOTIFICATION_URI =
++                Settings.Secure.getUriFor(Settings.Secure.VOLUME_LINK_NOTIFICATION);
+ 
+         public SettingObserver(Handler handler) {
+             super(handler);
+@@ -890,6 +902,8 @@ public class VolumeDialogControllerImpl implements VolumeDialogController, Dumpa
+         public void init() {
+             mContext.getContentResolver().registerContentObserver(ZEN_MODE_URI, false, this);
+             mContext.getContentResolver().registerContentObserver(ZEN_MODE_CONFIG_URI, false, this);
++            mContext.getContentResolver().registerContentObserver(VOLUME_LINK_NOTIFICATION_URI,
++                    false, this);
+         }
+ 
+         public void destroy() {
+@@ -905,6 +919,9 @@ public class VolumeDialogControllerImpl implements VolumeDialogController, Dumpa
+             if (ZEN_MODE_CONFIG_URI.equals(uri)) {
+                 changed |= updateZenConfig();
+             }
++            if (VOLUME_LINK_NOTIFICATION_URI.equals(uri)) {
++                changed = updateLinkNotificationConfigW();
++            }
+ 
+             if (changed) {
+                 mCallbacks.onStateChanged(mState);
+diff --git a/packages/SystemUI/src/com/android/systemui/volume/VolumeDialogImpl.java b/packages/SystemUI/src/com/android/systemui/volume/VolumeDialogImpl.java
+index ed243ef6a41..599321c1db1 100644
+--- a/packages/SystemUI/src/com/android/systemui/volume/VolumeDialogImpl.java
++++ b/packages/SystemUI/src/com/android/systemui/volume/VolumeDialogImpl.java
+@@ -248,6 +248,13 @@ public class VolumeDialogImpl implements VolumeDialog {
+             addRow(AudioManager.STREAM_MUSIC,
+                     R.drawable.ic_volume_media, R.drawable.ic_volume_media_mute, true, true);
+             if (!AudioSystem.isSingleVolume(mContext)) {
++                if (Util.isVoiceCapable(mContext)) {
++                    addRow(AudioManager.STREAM_RING, R.drawable.ic_volume_ringer,
++                            R.drawable.ic_volume_ringer_mute, true, false);
++                } else {
++                    addRow(AudioManager.STREAM_RING, R.drawable.ic_volume_notification,
++                            R.drawable.ic_volume_notification_mute, true, false);
++                }
+                 addRow(AudioManager.STREAM_RING,
+                         R.drawable.ic_volume_ringer, R.drawable.ic_volume_ringer_mute, true, false);
+                 addRow(STREAM_ALARM,
+@@ -732,12 +739,16 @@ public class VolumeDialogImpl implements VolumeDialog {
+             final VolumeRow row = mRows.get(i);
+             if (row.ss == null || !row.ss.dynamic) continue;
+             if (!mDynamic.get(row.stream)) {
+-                mRows.remove(i);
+-                mDialogRowsView.removeView(row.view);
++                removeRow(row);
+             }
+         }
+     }
+ 
++    private void removeRow(VolumeRow volumeRow) {
++        mRows.remove(volumeRow);
++        mDialogRowsView.removeView(volumeRow.view);
++    }
++
+     protected void onStateChangedH(State state) {
+         if (mState != null && state != null
+                 && mState.ringerModeInternal != state.ringerModeInternal
+@@ -759,6 +770,10 @@ public class VolumeDialogImpl implements VolumeDialog {
+             }
+         }
+ 
++        if (Util.isVoiceCapable(mContext)) {
++            updateNotificationRowH();
++        }
++
+         if (mActiveStream != state.activeStream) {
+             mPrevActiveStream = mActiveStream;
+             mActiveStream = state.activeStream;
+@@ -777,6 +792,16 @@ public class VolumeDialogImpl implements VolumeDialog {
+         return mContext.getString(R.string.volume_dialog_title, getStreamLabelH(getActiveRow().ss));
+     }
+ 
++    private void updateNotificationRowH() {
++        VolumeRow notificationRow = findRow(AudioManager.STREAM_NOTIFICATION);
++        if (notificationRow != null && mState.linkedNotification) {
++            removeRow(notificationRow);
++        } else if (notificationRow == null && !mState.linkedNotification) {
++            addRow(AudioManager.STREAM_NOTIFICATION, R.drawable.ic_volume_notification,
++                    R.drawable.ic_volume_notification_mute, true, false);
++        }
++    }
++
+     private void updateVolumeRowH(VolumeRow row) {
+         if (D.BUG) Log.d(TAG, "updateVolumeRowH s=" + row.stream);
+         if (mState == null) return;
+@@ -794,19 +819,22 @@ public class VolumeDialogImpl implements VolumeDialog {
+         final boolean isSystemStream = row.stream == AudioManager.STREAM_SYSTEM;
+         final boolean isAlarmStream = row.stream == STREAM_ALARM;
+         final boolean isMusicStream = row.stream == AudioManager.STREAM_MUSIC;
+-        final boolean isRingVibrate = isRingStream
+-                && mState.ringerModeInternal == AudioManager.RINGER_MODE_VIBRATE;
++        final boolean isNotificationStream = row.stream == AudioManager.STREAM_NOTIFICATION;
++        final boolean isVibrate = mState.ringerModeInternal == AudioManager.RINGER_MODE_VIBRATE;
++        final boolean isRingVibrate = isRingStream && isVibrate;
+         final boolean isRingSilent = isRingStream
+                 && mState.ringerModeInternal == AudioManager.RINGER_MODE_SILENT;
+         final boolean isZenPriorityOnly = mState.zenMode == Global.ZEN_MODE_IMPORTANT_INTERRUPTIONS;
+         final boolean isZenAlarms = mState.zenMode == Global.ZEN_MODE_ALARMS;
+         final boolean isZenNone = mState.zenMode == Global.ZEN_MODE_NO_INTERRUPTIONS;
+-        final boolean zenMuted = isZenAlarms ? (isRingStream || isSystemStream)
+-                : isZenNone ? (isRingStream || isSystemStream || isAlarmStream || isMusicStream)
++        final boolean zenMuted =
++                isZenAlarms ? (isRingStream || isSystemStream || isNotificationStream)
++                : isZenNone ? (isRingStream || isSystemStream || isAlarmStream || isMusicStream || isNotificationStream)
+                 : isZenPriorityOnly ? ((isAlarmStream && mState.disallowAlarms) ||
+                         (isMusicStream && mState.disallowMedia) ||
+                         (isRingStream && mState.disallowRinger) ||
+                         (isSystemStream && mState.disallowSystem))
++                : isVibrate ? isNotificationStream
+                 : false;
+ 
+         // update slider max
+diff --git a/services/core/java/com/android/server/audio/AudioService.java b/services/core/java/com/android/server/audio/AudioService.java
+index b16fc5473ff..83b271c921a 100644
+--- a/services/core/java/com/android/server/audio/AudioService.java
++++ b/services/core/java/com/android/server/audio/AudioService.java
+@@ -627,6 +627,8 @@ public class AudioService extends IAudioService.Stub
+     // If absolute volume is supported in AVRCP device
+     private boolean mAvrcpAbsVolSupported = false;
+ 
++    private boolean mLinkNotificationWithVolume;
++    private final boolean mVoiceCapable;
+     private static Long mLastDeviceConnectMsgTime = new Long(0);
+ 
+     private NotificationManager mNm;
+@@ -788,6 +790,9 @@ public class AudioService extends IAudioService.Stub
+ 
+         mForcedUseForComm = AudioSystem.FORCE_NONE;
+ 
++        mVoiceCapable = context.getResources().getBoolean(
++                com.android.internal.R.bool.config_voice_capable);
++
+         createAudioSystemThread();
+ 
+         AudioSystem.setErrorCallback(mAudioSystemCallback);
+@@ -811,6 +816,10 @@ public class AudioService extends IAudioService.Stub
+         mSafeMediaVolumeIndex = mContext.getResources().getInteger(
+                 com.android.internal.R.integer.config_safe_media_volume_index) * 10;
+ 
++        // read this in before readPersistedSettings() because updateStreamVolumeAlias needs it
++        mLinkNotificationWithVolume = Settings.Secure.getInt(mContext.getContentResolver(),
++                Settings.Secure.VOLUME_LINK_NOTIFICATION, 1) == 1;
++
+         mUseFixedVolume = mContext.getResources().getBoolean(
+                 com.android.internal.R.bool.config_useFixedVolume);
+ 
+@@ -1213,6 +1222,15 @@ public class AudioService extends IAudioService.Stub
+         mStreamVolumeAlias[AudioSystem.STREAM_DTMF] = dtmfStreamAlias;
+         mStreamVolumeAlias[AudioSystem.STREAM_ACCESSIBILITY] = a11yStreamAlias;
+ 
++        if (mVoiceCapable) {
++            if (mLinkNotificationWithVolume) {
++                mStreamVolumeAlias[AudioSystem.STREAM_NOTIFICATION] = AudioSystem.STREAM_RING;
++            } else {
++                mStreamVolumeAlias[AudioSystem.STREAM_NOTIFICATION] =
++                        AudioSystem.STREAM_NOTIFICATION;
++            }
++        }
++
+         if (updateVolumes && mStreamStates != null) {
+             updateDefaultVolumes();
+ 
+@@ -1417,6 +1435,9 @@ public class AudioService extends IAudioService.Stub
+             sendEnabledSurroundFormats(cr, true);
+         }
+ 
++        mLinkNotificationWithVolume = Settings.Secure.getInt(cr,
++                Settings.Secure.VOLUME_LINK_NOTIFICATION, 1) == 1;
++
+         mMuteAffectedStreams = System.getIntForUser(cr,
+                 System.MUTE_STREAMS_AFFECTED, AudioSystem.DEFAULT_MUTE_STREAMS_AFFECTED,
+                 UserHandle.USER_CURRENT);
+@@ -5756,6 +5777,8 @@ public class AudioService extends IAudioService.Stub
+                 Settings.Global.DOCK_AUDIO_MEDIA_ENABLED), false, this);
+             mContentResolver.registerContentObserver(Settings.System.getUriFor(
+                     Settings.System.MASTER_MONO), false, this);
++            mContentResolver.registerContentObserver(Settings.Secure.getUriFor(
++                    Settings.Secure.VOLUME_LINK_NOTIFICATION), false, this);
+ 
+             mEncodedSurroundMode = Settings.Global.getInt(
+                     mContentResolver, Settings.Global.ENCODED_SURROUND_OUTPUT,
+@@ -5788,6 +5811,14 @@ public class AudioService extends IAudioService.Stub
+                 updateMasterMono(mContentResolver);
+                 updateEncodedSurroundOutput();
+                 sendEnabledSurroundFormats(mContentResolver, mSurroundModeChanged);
++
++                boolean linkNotificationWithVolume = Settings.Secure.getInt(mContentResolver,
++                        Settings.Secure.VOLUME_LINK_NOTIFICATION, 1) == 1;
++                if (linkNotificationWithVolume != mLinkNotificationWithVolume) {
++                    mLinkNotificationWithVolume = linkNotificationWithVolume;
++                    createStreamStates();
++                    updateStreamVolumeAlias(true, TAG);
++                }
+             }
+         }
+ 
+-- 
+2.17.1
+
