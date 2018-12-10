@@ -1124,23 +1124,18 @@ kpick 234952 # uncrypt: write permission for f2fs_pin_file
 # build/make
 kpick 222742 # build: Use project pathmap for recovery
 kpick 222760 # Add LOCAL_AIDL_FLAGS
-#kpick 226919 # Depend on the ramdisk/root files for BOARD_BUILD_SYSTEM_ROOT_IMAGE
-#kpick 226920 # Support a first stage ramdisk via TARGET_RAMDISK_OUT
-#kpick 226939 # releasetools: Fix the path to the OTA keys in recovery image.
 kpick 227111 # releasetools: Store the build.prop file in the OTA zip
 
 # build/soong
 kpick 222648 # Allow providing flex and bison binaries
 kpick 224613 # soong: Add LOCAL_AIDL_FLAGS handling
 kpick 226443 # soong: Add additional_deps attribute for libraries and binaries
-#kpick 226918 # Add /ramdisk to installclean
 
 # dalvik
 kpick 225475 # dexdeps: Add option for --include-lineage-classes.
 kpick 225476 # dexdeps: Ignore static initializers on analysis.
 
 # device/lineage/sepolicy
-#kpick 225945 # sepolicy: Update to match new qcom sepolicy
 kpick 229423 # selinux: add domain for snap
 kpick 229424 # selinux: add domain for Gallery
 kpick 234613 # common: Expand labeling of sysfs_vibrator nodes using genfscon
@@ -1154,9 +1149,7 @@ kpick 228578 # sepolicy: rules to allow camera daemon access to app buffer
 kpick 228580 # hal_gnss_default: Do not log udp socket failures
 kpick 228582 # sepolicy: qti_init_shell needs to read dir too
 kpick 228583 # sepolicy: allow vold to read persist dirs
-kpick 228584 # sepolicy: Fix video4linux "name" node labeling
-kpick 228585 # sepolicy: Allow mm-qcamerad to access v4L "name" node
-kpick 228586 # common: Fix labelling of lcd-backlight
+kpick 234544 # sepol: Allow Settings to read ro.vendor.build.security_patch
 
 # device/qcom/sepolicy-legacy
 kpick 231054 # NFC: Add nfc data file context and rename property
@@ -1227,7 +1220,6 @@ kpick 231848 # SystemUI: Add one hand mode triggers
 kpick 231851 # onehand: Take into account cutouts
 kpick 231852 # onehand: Remove guide link
 kpick 232197 # appops: Privacy Guard for P (1/2)
-kpick 236210 # ClipboardService: Restore different method calls to AppOps to fix PG
 kpick 232796 # NetworkManagement : Add ability to restrict app vpn usage
 kpick 233633 # Phone ringtone setting for Multi SIM device
 kpick 233717 # [DNM][HACK] Persist user brightness model
@@ -1240,6 +1232,10 @@ kpick 235128 # Crash app on foreground service notification error
 kpick 235147 # SystemUI: Name Cellular Tile based on carrier
 kpick 235986 # frameworks: Add unlinked ringtone and notification volumes
 kpick 236156 # CaffeineTile: Mimic old custom tile behavior
+kpick 236213 # Revert "SystemUI: Fix several issues in the ADB over Network tile"
+kpick 236214 # Revert "PhoneWindowManager: Check if proposed rotation is in range"
+kpick 236215 # Revert "SystemUI: add navbar layout inversion tuning"
+kpick 236216 # StatusBarSignalPolicy: Hide signal icons for disabled SIMs
 
 # frameworks/native
 kpick 224443 # libbinder: Don't log call trace when waiting for vendor service on non-eng builds
@@ -1416,7 +1412,6 @@ kpick 231418 # Automatic translation import
 kpick 227930 # LineageParts: Bring back and refactor battery icon options
 kpick 221756 # StatusBarSettings: Hide battery preference category based on icon visibility
 kpick 229389 # Trust: enforce vendor security patch level check
-kpick 230017 # LineageParts: Re-enable expanded desktop.
 kpick 231163 # LineageParts: Add some missing psychedelics
 kpick 232146 # LineageParts: Reenable Privacy Guard
 
@@ -1704,7 +1699,9 @@ kpick 234190 # netd: Allow devices to opt-out of the tethering active FTP helper
 kpick 230613 # Allow webview_zygote to read /dev/ion
 kpick 234884 # Allow init to write to /proc/cpu/alignment
 kpick 234886 # Allow init to chmod/chown /proc/slabinfo
+kpick 234987 # Use LOCAL_ADDITIONAL_M4DEFS for file_contexts
 kpick 235196 # Allow dnsmasq to getattr netd unix_stream_socket
+kpick 235258 # Allow fsck_untrusted to getattr block_device
 
 # system/tool/aidl
 kpick 223133 # AIDL: Add option to generate No-Op methods
