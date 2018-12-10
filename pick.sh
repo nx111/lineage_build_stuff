@@ -1235,7 +1235,7 @@ kpick 236156 # CaffeineTile: Mimic old custom tile behavior
 kpick 236213 # Revert "SystemUI: Fix several issues in the ADB over Network tile"
 kpick 236214 # Revert "PhoneWindowManager: Check if proposed rotation is in range"
 kpick 236215 # Revert "SystemUI: add navbar layout inversion tuning"
-kpick 236216 # StatusBarSignalPolicy: Hide signal icons for disabled SIMs
+#kpick 236216 # StatusBarSignalPolicy: Hide signal icons for disabled SIMs
 
 # frameworks/native
 kpick 224443 # libbinder: Don't log call trace when waiting for vendor service on non-eng builds
@@ -1414,6 +1414,7 @@ kpick 221756 # StatusBarSettings: Hide battery preference category based on icon
 kpick 229389 # Trust: enforce vendor security patch level check
 kpick 231163 # LineageParts: Add some missing psychedelics
 kpick 232146 # LineageParts: Reenable Privacy Guard
+kpick 236291 # LineageParts: Correctly initialize trust warning prefs
 
 # packages/apps/ManagedProvisoning
 
