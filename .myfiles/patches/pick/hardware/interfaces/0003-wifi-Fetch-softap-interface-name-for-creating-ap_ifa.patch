@@ -1,0 +1,52 @@
+From 7b21a374fd6dc097763b3c9c77e3f20d2d8ed315 Mon Sep 17 00:00:00 2001
+From: Purushottam Kushwaha <pkushwah@codeaurora.org>
+Date: Fri, 4 May 2018 14:31:15 +0530
+Subject: [PATCH 3/5] wifi: Fetch softap interface name for creating ap_iface
+ operations.
+
+softap interface name could varry from platform to platform and
+may need for addiitional features. This commit gets softap interface
+name by property_get on "persist.vendor.wifi.softap.interface".
+If not set, it will fall back to use either of available interface
+in "wifi.interface" or "wifi.concurrent.interface".
+
+This property can either be set via .rc files or at runtime by any
+module.
+
+CRs-Fixed: 2243203
+Change-Id: Iec1684f6cdf8963e71bc0c40ca296ac6a79472ee
+---
+ wifi/1.2/default/wifi_chip.cpp | 10 +++++++++-
+ 1 file changed, 9 insertions(+), 1 deletion(-)
+
+diff --git a/wifi/1.2/default/wifi_chip.cpp b/wifi/1.2/default/wifi_chip.cpp
+index 3bd05570..aa447a03 100644
+--- a/wifi/1.2/default/wifi_chip.cpp
++++ b/wifi/1.2/default/wifi_chip.cpp
+@@ -105,6 +105,12 @@ std::string getP2pIfaceName() {
+     return buffer.data();
+ }
+ 
++std::string getApIfaceName() {
++    std::array<char, PROPERTY_VALUE_MAX> buffer;
++    property_get("persist.vendor.wifi.softap.interface", buffer.data(), "");
++    return buffer.data();
++}
++
+ // delete files that meet either conditions:
+ // 1. older than a predefined time in the wifi tombstone dir.
+ // 2. Files in excess to a predefined amount, starting from the oldest ones
+@@ -744,7 +750,9 @@ std::pair<WifiStatus, sp<IWifiApIface>> WifiChip::createApIfaceInternal() {
+     if (!canCurrentModeSupportIfaceOfType(IfaceType::AP)) {
+         return {createWifiStatus(WifiStatusCode::ERROR_NOT_AVAILABLE), {}};
+     }
+-    std::string ifname = allocateApOrStaIfaceName();
++    std::string ifname = getApIfaceName();
++    if (ifname.empty())
++        ifname = allocateApOrStaIfaceName();
+     sp<WifiApIface> iface = new WifiApIface(ifname, legacy_hal_);
+     ap_ifaces_.push_back(iface);
+     for (const auto& callback : event_cb_handler_.getCallbacks()) {
+-- 
+2.17.1
+

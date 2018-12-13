@@ -1115,7 +1115,6 @@ kpick 234754 # Add define for O_TMPFILE
 
 # bionic
 #kpick 223067 -f # libc fortify: Ignore open() O_TMPFILE mode bits warning
-kpick 225463 # bionic: Let popen and system fall back to /sbin/sh
 
 # boot/recovery
 kpick 231718 # recovery: Declare a soong namespace
@@ -1132,8 +1131,6 @@ kpick 224613 # soong: Add LOCAL_AIDL_FLAGS handling
 kpick 226443 # soong: Add additional_deps attribute for libraries and binaries
 
 # dalvik
-kpick 225475 # dexdeps: Add option for --include-lineage-classes.
-kpick 225476 # dexdeps: Ignore static initializers on analysis.
 
 # device/lineage/sepolicy
 kpick 229423 # selinux: add domain for snap
@@ -1152,7 +1149,6 @@ kpick 228583 # sepolicy: allow vold to read persist dirs
 kpick 234544 # sepol: Allow Settings to read ro.vendor.build.security_patch
 
 # device/qcom/sepolicy-legacy
-kpick 231054 # NFC: Add nfc data file context and rename property
 kpick 230237 # common: allow vendor_init to create /data/dpm
 kpick 230229 # mm-qcamera-daemon: fix denial
 kpick 230230 # common: fix sensors denial
@@ -1180,9 +1176,6 @@ kpick  -f 223413 # perfetto_cmd: Resolve missing O_CREAT mode
 # external/tinycompress
 
 # external/zlib
-kpick 225237 # zlib: Fix build under Android 6.0 and higher
-kpick 225238 # minizip: Clean up the code
-kpick 225239 # zlib: crc optimization for arm64
 
 # frameworks/av
 kpick 230387 # CameraService: Support calling addStates in enumerateProviders
@@ -1199,7 +1192,6 @@ kpick 226343 # CameraServiceProxy: Loosen UID check
 kpick 226358 # settings: Allow accessing LineageSettings via settings command
 kpick 226398 # frameworks: base: Port password retention feature
 kpick 226399 # Use fdeCheckPassword error code to indicate pw failure
-kpick 226400 # LockSettingsService: Support for separate clear key api
 kpick 227124 # BatteryService: Add support for oem fast charger detection
 kpick 227290 # PowerProfile: allow overriding default power profile
 kpick 227291 # [DNM] Revert "Handle public volumes and otherwise invalid UUIDs."
@@ -1270,8 +1262,6 @@ kpick 225155 # Broadcom BT: Add support fm/bt via v4l2.
 # hardware/interfaces
 kpick 225506 # Camed HAL extension: Added support in HIDL for Extended FD.
 kpick 225507 # camera: Only link and use vendor.qti.hardware.camera.device if specified
-kpick 226402 # keymasterV4_0: Tags support for FBE wrapped key.
-kpick 233911 # Tuning of binder buffer for ARM devices
 kpick 233865 # wifi: Fetch softap interface name for creating ap_iface operations.
 kpick 233866 # wifi: Add provision to create/remove dynamic interface(s).
 kpick 233867 # wifi: Add logic to create secondary interface for STA mode too.
@@ -1329,7 +1319,6 @@ kpick 224957 # media: vdec: Include nativebase headers
 # hardware/qcom/media-caf/msm8974
 
 # hardware/qcom/power
-kpick 230513 # power: msm8960: Implement performance profiles
 kpick 231884 # sdm670:power: Turn on/off display
 kpick 231885 # Rename sdm670 to sdm710
 kpick 231886 # power: Notify touch of display status
@@ -1351,8 +1340,6 @@ kpick 231898 # Power: Naming convention change
 # hardware/qcom/vr
 
 # hardware/qcom/wlan-caf
-kpick 226638 # wcnss_qmi: Generate a fixed random mac address if the NV doesn't provide one
-kpick 226643 # wcnss_service: Read serial number from custom property
 kpick 234861 # Reading the serialno property is forbidden
 
 # hardware/ril
@@ -1389,7 +1376,6 @@ kpick 229303 # Only enable presidential CMAS alerts if user is a monkey
 # packages/apps/Contacts
 
 # packages/apps/DeskClock
-kpick 234353 # Release the wakelock before worker thread termination
 
 # packages/apps/Dialer
 
@@ -1417,7 +1403,6 @@ kpick 236291 # LineageParts: Correctly initialize trust warning prefs.
 # packages/apps/ManagedProvisoning
 
 # packages/apps/Message
-kpick 234351 # Allow intent shared subject or title to be mms subject
 
 # packages/apps/Nfc
 
@@ -1663,13 +1648,10 @@ kpick -f 227110 # init: I hate safety net
 #kpick 226917 # Switch root to /system in first stage mount
 #kpick 226923 # init: First Stage Mount observe nofail mount flag
 #kpick 223085 # adbd: Disable "adb root" by system property (2/3)
-kpick 226120 # fs_mgr: Wrapped key support for FBE
 kpick 231716 # init: Always use libbootloader_message from bootable/recovery namespace
 kpick 234860 # init: add install_keyring for TWRP FBE decrypt
 
 # system/extras
-kpick 225426 # f2fs_utils: Add a static libf2fs_sparseblock for minvold
-kpick 225427 # ext4_utils: Fix FS creation for filesystems with exactly 32768 blocks.
 
 # system/extras/su
 kpick 232428 # su: strlcpy is always a friend
@@ -1712,10 +1694,7 @@ kpick 234581 # update_engine: Fallback to partition without suffix
 kpick 226109 # vold: Add Hardware FDE feature
 kpick 226110 # system: vold: Remove crypto block device creation
 kpick 226127 # vold: Move QCOM HW FDE inclusion under lineage namespace
-kpick 226111 # vold: Wrapped key support for FBE
 kpick 229304 # vold: Add texfat and sdfat support
-kpick 229954 # Move kMajor* constants to a header file
-kpick 229955 # vold: ISO9660 and UDF support
 kpick 231717 # vold: Always use libbootloader_message from bootable/recovery namespace
 kpick 235198 # Revert "vold: Also wait for dm device when mounting private volume"
 kpick 235199 # Revert "vold: Make sure block device exists before formatting it"
