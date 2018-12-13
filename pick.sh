@@ -1277,7 +1277,6 @@ kpick 223410 # interfaces: Add touch HIDL interface definitions
 #kpick 223194 # nxp: Begin restoring pn547
 
 # hardware/qcom/audio
-kpick 223338 # Revert "msm8x74: remove from top level makefile"
 
 # hardware/qcom/audio-caf/msm8974
 
@@ -1286,14 +1285,7 @@ kpick 223338 # Revert "msm8x74: remove from top level makefile"
 # hardware/qcom/bt-caf
 
 # hardware/qcom/display
-kpick 223340 # Revert "msm8974: deprecate msm8974"
 kpick 223341 # display: Always assume kernel source is present
-kpick 223342 # display: add TARGET_PROVIDES_LIBLIGHT
-kpick 223343 # msm8974: Move QCOM HALs to vendor partition
-kpick 223344 # msm8974: hwcomposer: Fix regression in hwc_sync
-kpick 223345 # msm8974: libgralloc: Fix adding offset to the mapped base address
-kpick 223346 # msm8974: libexternal should depend on libmedia
-kpick 224958 # msm8960/8974/8084: Include string.h where it is necessary
 
 # hardware/qcom/display-caf/msm8974
 
@@ -1312,9 +1304,6 @@ kpick 224954 # keymaster: move to /vendor
 kpick 233465 # keymaster: Use generated kernel headers
 
 # hardware/qcom/media
-kpick 224955 # Revert "msm8974: remove from top level makefile"
-kpick 224956 # mm-video: venc: Correct a typo in variable name
-kpick 224957 # media: vdec: Include nativebase headers
 
 # hardware/qcom/media-caf/msm8974
 
@@ -1611,7 +1600,7 @@ kpick 234423 # Snap: Disable debugging of double open issue
 # packages/apps/Traceur
 
 # packages/apps/Trebuchet
-kpick 234611 # Trebuchet expand statusbar on swipe down
+kpick 234611 # Trebuchet: expand statusbar on swipe down
 
 # packages/apps/TvSettings
 
@@ -1637,7 +1626,6 @@ kpick 233635 # Phone ringtone setting for Multi SIM device
 kpick 229610 # Telephony: Support muting by RIL command
 
 # system/bt
-kpick 224813 # bt: osi: undef PROPERTY_VALUE_MAX
 kpick 229125 # Increase maximum Bluetooth SBC codec bitpool and bitrate values
 kpick 229313 # Explicit SBC Dual Channel (SBC HD) support
 kpick 229314 # Allow using alternative (higher) SBC HD bitrates with a property
@@ -1711,16 +1699,13 @@ kpick 231249 # roomservice.py: adapt to lineage-16.0
 kpick 226123 # soong_config: Add new flags for HW FDE
 kpick 226125 # soong_config: Add flag for legacy HW FDE
 kpick 226126 # soong_config: Add flag for crypto waiting on QSEE to start
-kpick 227392 # lineage: Dynamically add custom APNs
 kpick 229589 # lineage: Automatically set soong namespace when setting project pathmap
 kpick 229590 # lineage: Move qcom pathmap setting into "BoardConfig"
 kpick 231291 # repopick: add hashtag support
-kpick 231599 # privapp-permissions: Add new Gallery permissions
 kpick 231981 # HWComposer: HWC2: allow SkipValidate to be force disabled
 kpick 232663 # overlay: Hide the option to show battery percentage
 kpick 234011 # lineage: Add media_codecs_ddp for AC3 audio
 # kpick 234859 # repopick: cmp() is not available in Python 3, define it manually **((picked at first))**
-kpick 236374 # lineage: qcom: Set data-ipa-cfg-mgr pathmap
 
 # vendor/qcom/opensource/cryptfs_hw
 kpick 226128 # cryptfs_hw: Add compatibility for pre-O hw crypto
