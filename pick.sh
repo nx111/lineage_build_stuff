@@ -1206,7 +1206,6 @@ kpick 227291 # [DNM] Revert "Handle public volumes and otherwise invalid UUIDs."
 kpick 227896 # SystemUI: Add Profiles tile
 kpick 221716 # Where's my circle battery, dude?
 kpick 229166 # NightDisplayController: report unavailable if livedisplay feature is present
-kpick 229230 # SystemUI: allow the power menu to be relocated
 kpick 229307 # Add CHANNEL_MODE_DUAL_CHANNEL constant
 kpick 229308 # Add Dual Channel into Bluetooth Audio Channel Mode developer options menu
 kpick 229309 # Allow SBC as HD audio codec in Bluetooth device configuration
@@ -1233,7 +1232,6 @@ kpick 235147 # SystemUI: Name Cellular Tile based on carrier
 kpick 235986 # frameworks: Add unlinked ringtone and notification volumes
 kpick 236156 # CaffeineTile: Mimic old custom tile behavior
 kpick 236213 # Revert "SystemUI: Fix several issues in the ADB over Network tile"
-kpick 236214 # Revert "PhoneWindowManager: Check if proposed rotation is in range"
 kpick 236215 # Revert "SystemUI: add navbar layout inversion tuning"
 #kpick 236216 # StatusBarSignalPolicy: Hide signal icons for disabled SIMs
 
@@ -1414,7 +1412,7 @@ kpick 221756 # StatusBarSettings: Hide battery preference category based on icon
 kpick 229389 # Trust: enforce vendor security patch level check
 kpick 231163 # LineageParts: Add some missing psychedelics
 kpick 232146 # LineageParts: Reenable Privacy Guard
-kpick 236291 # LineageParts: Correctly initialize trust warning prefs
+kpick 236291 # LineageParts: Correctly initialize trust warning prefs.
 
 # packages/apps/ManagedProvisoning
 
@@ -1743,6 +1741,7 @@ kpick 231981 # HWComposer: HWC2: allow SkipValidate to be force disabled
 kpick 232663 # overlay: Hide the option to show battery percentage
 kpick 234011 # lineage: Add media_codecs_ddp for AC3 audio
 # kpick 234859 # repopick: cmp() is not available in Python 3, define it manually **((picked at first))**
+kpick 236374 # lineage: qcom: Set data-ipa-cfg-mgr pathmap
 
 # vendor/qcom/opensource/cryptfs_hw
 kpick 226128 # cryptfs_hw: Add compatibility for pre-O hw crypto
