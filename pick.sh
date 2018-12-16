@@ -1147,6 +1147,7 @@ kpick 228580 # hal_gnss_default: Do not log udp socket failures
 kpick 228582 # sepolicy: qti_init_shell needs to read dir too
 kpick 228583 # sepolicy: allow vold to read persist dirs
 kpick 234544 # sepol: Allow Settings to read ro.vendor.build.security_patch
+kpick 236446 # common: Improve label of I/O sched tuning nodes
 
 # device/qcom/sepolicy-legacy
 kpick 230237 # common: allow vendor_init to create /data/dpm
@@ -1214,11 +1215,9 @@ kpick 232197 # appops: Privacy Guard for P (1/2)
 kpick 232796 # NetworkManagement : Add ability to restrict app vpn usage
 kpick 233633 # Phone ringtone setting for Multi SIM device
 kpick 233717 # [DNM][HACK] Persist user brightness model
-kpick 234168 # Binder: Fix improper JNI call for dumpProxyDebugInfo
 kpick 234325 # TunerServiceImpl: Blacklist Lineage settings from tuner reset
 kpick 234649 # keyguard: Check for a null errString
 kpick 234715 # Rotation related corrections
-kpick 235127 # Fix NPE when creates wifi tracker
 kpick 235128 # Crash app on foreground service notification error
 kpick 235147 # SystemUI: Name Cellular Tile based on carrier
 kpick 235986 # frameworks: Add unlinked ringtone and notification volumes
@@ -1226,6 +1225,7 @@ kpick 236156 # CaffeineTile: Mimic old custom tile behavior
 kpick 236213 # Revert "SystemUI: Fix several issues in the ADB over Network tile"
 kpick 236215 # Revert "SystemUI: add navbar layout inversion tuning"
 #kpick 236216 # StatusBarSignalPolicy: Hide signal icons for disabled SIMs
+kpick 236476 # DreamBackend: Fix launching settings
 
 # frameworks/native
 kpick 224443 # libbinder: Don't log call trace when waiting for vendor service on non-eng builds
@@ -1262,9 +1262,6 @@ kpick 225155 # Broadcom BT: Add support fm/bt via v4l2.
 # hardware/interfaces
 kpick 225506 # Camed HAL extension: Added support in HIDL for Extended FD.
 kpick 225507 # camera: Only link and use vendor.qti.hardware.camera.device if specified
-kpick 233865 # wifi: Fetch softap interface name for creating ap_iface operations.
-kpick 233866 # wifi: Add provision to create/remove dynamic interface(s).
-kpick 233867 # wifi: Add logic to create secondary interface for STA mode too.
 
 # hardware/lineage/interfaces
 kpick 223374 # interfaces: Add 2.0 livedisplay interfaces
@@ -1290,6 +1287,7 @@ kpick 223341 # display: Always assume kernel source is present
 # hardware/qcom/display-caf/msm8974
 
 # hardware/qcom/fm
+kpick 236546 # fm_helium: Update FM_HCI_DIR path
 
 # hardware/qcom/gps
 
@@ -1355,7 +1353,6 @@ kpick 229311 # Assume optional codecs are supported if were supported previously
 # packages/apps/Camera2
 kpick 224752 # Use mCameraAgentNg for getting camera info when available
 kpick 225265 # Add Storage preference (1/2)
-kpick 227123 # Camera2: Fix photo snap delay on front cam.
 
 # packages/apps/Carrierconfig
 
@@ -1417,6 +1414,7 @@ kpick 232793 # Settings: per-app VPN data restriction
 kpick 233634 # Phone ringtone setting for Multi SIM device
 kpick 235978 # Settings: Add switch for linked ring and media notification volumes
 kpick 236184 # Settings: Use correct icon for ring volume
+kpick 236550 # fingerprint: Remove unnecessary spacing in enroll layout
 
 # packages/apps/SettingsIntelligence
 
@@ -1624,6 +1622,8 @@ kpick 233635 # Phone ringtone setting for Multi SIM device
 
 # packages/services/Telephony
 kpick 229610 # Telephony: Support muting by RIL command
+kpick 234321 # Don't start SIP service before decrypted
+kpick 236522 # Fix carrier config option not hidden on a CDMA phone
 
 # system/bt
 kpick 229125 # Increase maximum Bluetooth SBC codec bitpool and bitrate values
@@ -1633,9 +1633,8 @@ kpick 229401 # [DNM] Revert "Return early if vendor-specific command fails"
 
 # system/core
 kpick -f 227110 # init: I hate safety net
-#kpick 226917 # Switch root to /system in first stage mount
-#kpick 226923 # init: First Stage Mount observe nofail mount flag
-#kpick 223085 # adbd: Disable "adb root" by system property (2/3)
+kpick 223085 # adbd: Disable "adb root" by system property
+kpick 234584 # adb: Rework adb root
 kpick 231716 # init: Always use libbootloader_message from bootable/recovery namespace
 kpick 234860 # init: add install_keyring for TWRP FBE decrypt
 
@@ -1698,7 +1697,7 @@ kpick 225982 # roomservice.py: Strip cm.{mk,dependencies} support
 kpick 231249 # roomservice.py: adapt to lineage-16.0
 kpick 226123 # soong_config: Add new flags for HW FDE
 kpick 226125 # soong_config: Add flag for legacy HW FDE
-kpick 226126 # soong_config: Add flag for crypto waiting on QSEE to start
+kpick 226126 # soong_config: Add flag to skip crypto waiting on QSEE to start
 kpick 229589 # lineage: Automatically set soong namespace when setting project pathmap
 kpick 229590 # lineage: Move qcom pathmap setting into "BoardConfig"
 kpick 231291 # repopick: add hashtag support

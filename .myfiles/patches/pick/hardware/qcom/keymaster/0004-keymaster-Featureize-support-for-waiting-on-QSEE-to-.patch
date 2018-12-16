@@ -1,4 +1,4 @@
-From 61e3c808f4c436aca5b4b09bbd44e0673d18fe7b Mon Sep 17 00:00:00 2001
+From 60f97820bd6e3a684d16b69157b4a395a0524bcf Mon Sep 17 00:00:00 2001
 From: myfluxi <linflux@arcor.de>
 Date: Wed, 4 Nov 2015 00:46:09 +0100
 Subject: [PATCH 4/8] keymaster: Featureize support for waiting on QSEE to
@@ -7,9 +7,10 @@ Subject: [PATCH 4/8] keymaster: Featureize support for waiting on QSEE to
 New devices need to wait for QSEE to load the Keymaster into TZ.
 This is signalled by a property being set by qseecomd. Unfortunately
 we don't have a good way to determine if this is the case for
-a particular device, so make it opt-in.
+a particular device, so allow opting out of it.
 
-Set TARGET_KEYMASTER_WAIT_FOR_QSEE=true for this behavior.
+Set TARGET_KEYMASTER_SKIP_WAITING_FOR_QSEE=true to revert
+the new behavior.
 
 Change-Id: I99839b82fdd8ab6550a95e2676a5da03eccfe288
 ---
@@ -18,28 +19,28 @@ Change-Id: I99839b82fdd8ab6550a95e2676a5da03eccfe288
  2 files changed, 9 insertions(+)
 
 diff --git a/Android.mk b/Android.mk
-index 5035fab..7f20035 100644
+index 5035fab..f0e1a21 100644
 --- a/Android.mk
 +++ b/Android.mk
 @@ -14,6 +14,9 @@ ifeq ($(TARGET_BOARD_PLATFORM),msm8084)
  keymaster-def += -D_ION_HEAP_MASK_COMPATIBILITY_WA
  endif
  endif
-+ifeq ($(TARGET_KEYMASTER_WAIT_FOR_QSEE),true)
-+keymaster-def += -DWAIT_FOR_QSEE
++ifeq ($(TARGET_KEYMASTER_SKIP_WAITING_FOR_QSEE),true)
++keymaster-def += -DSKIP_WAITING_FOR_QSEE
 +endif
  
  include $(CLEAR_VARS)
  
 diff --git a/keymaster_qcom.cpp b/keymaster_qcom.cpp
-index b18bb04..62e51bf 100644
+index b18bb04..db43626 100644
 --- a/keymaster_qcom.cpp
 +++ b/keymaster_qcom.cpp
 @@ -743,7 +743,9 @@ static int qcom_km_open(const hw_module_t* module, const char* name,
  {
      int ret = 0;
      unsigned int attempt_num = 0;
-+#ifdef WAIT_FOR_QSEE
++#ifndef SKIP_WAITING_FOR_QSEE
      char property_val[PROPERTY_VALUE_MAX] = {0};
 +#endif
      qcom_keymaster_handle_t* km_handle;
@@ -49,14 +50,14 @@ index b18bb04..62e51bf 100644
      dev->context = (void *)km_handle;
      while (attempt_num < MAX_PROPERTY_GET_ATTEMPTS)
      {
-+#ifdef WAIT_FOR_QSEE
++#ifndef SKIP_WAITING_FOR_QSEE
          property_get("sys.keymaster.loaded", property_val, "");
          if (strncmp(property_val, "true", sizeof(property_val)) == 0)
          {
 +#endif
              ALOGD("keymaster app is loaded");
              break;
-+#ifdef WAIT_FOR_QSEE
++#ifndef SKIP_WAITING_FOR_QSEE
          }
 +#endif
          if (attempt_num == 0)
