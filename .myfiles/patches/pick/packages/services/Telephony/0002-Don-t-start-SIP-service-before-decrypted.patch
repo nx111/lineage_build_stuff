@@ -1,0 +1,54 @@
+From 15a45d46c7360694cba5baee656878dcd5042da3 Mon Sep 17 00:00:00 2001
+From: dianlujitao <dianlujitao@lineageos.org>
+Date: Wed, 14 Nov 2018 19:45:39 +0800
+Subject: [PATCH 2/3] Don't start SIP service before decrypted
+
+ * WiFi service is not considered as a core service so it won't start in
+   min framework, but SipService accesses to WiFi service's API. This
+   would lead to a fatal exception and trigger RescueParty.
+ * We don't really need SipService during such early stage, so simply
+   disable it to avoid invoking WifiManager.
+
+Change-Id: Ie471523a50f83519187c3be02b556aee4b679b4d
+---
+ src/com/android/phone/PhoneGlobals.java | 10 ++++++++--
+ 1 file changed, 8 insertions(+), 2 deletions(-)
+
+diff --git a/src/com/android/phone/PhoneGlobals.java b/src/com/android/phone/PhoneGlobals.java
+index d4da7fea9..b4ced29cc 100644
+--- a/src/com/android/phone/PhoneGlobals.java
++++ b/src/com/android/phone/PhoneGlobals.java
+@@ -248,7 +248,8 @@ public class PhoneGlobals extends ContextWrapper {
+                     // This is the same procedure that is triggered in the SipIncomingCallReceiver
+                     // upon BOOT_COMPLETED.
+                     UserManager userManager = UserManager.get(sMe);
+-                    if (userManager != null && userManager.isUserUnlocked()) {
++                    if (userManager != null && userManager.isUserUnlocked()
++                            && !isDataEncrypted()) {
+                         SipUtil.startSipService();
+                     }
+                     break;
+@@ -685,6 +686,11 @@ public class PhoneGlobals extends ContextWrapper {
+         }
+     }
+ 
++    private static boolean isDataEncrypted() {
++        String voldState = SystemProperties.get("vold.decrypt");
++        return "1".equals(voldState) || "trigger_restart_min_framework".equals(voldState);
++    }
++
+     /**
+      * Receiver for misc intent broadcasts the Phone app cares about.
+      */
+@@ -762,7 +768,7 @@ public class PhoneGlobals extends ContextWrapper {
+             String action = intent.getAction();
+ 
+             SipAccountRegistry sipAccountRegistry = SipAccountRegistry.getInstance();
+-            if (action.equals(Intent.ACTION_BOOT_COMPLETED)) {
++            if (action.equals(Intent.ACTION_BOOT_COMPLETED) && !isDataEncrypted()) {
+                 SipUtil.startSipService();
+             } else if (action.equals(SipManager.ACTION_SIP_SERVICE_UP)
+                     || action.equals(SipManager.ACTION_SIP_CALL_OPTION_CHANGED)) {
+-- 
+2.17.1
+

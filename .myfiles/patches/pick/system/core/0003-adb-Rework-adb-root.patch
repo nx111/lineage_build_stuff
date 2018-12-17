@@ -1,0 +1,134 @@
+From ed5dde2d3d33cd91bfbe21acd6986bcb49ab2c46 Mon Sep 17 00:00:00 2001
+From: Michael Bestas <mkbestas@lineageos.org>
+Date: Tue, 6 Nov 2018 01:00:43 +0200
+Subject: [PATCH 3/5] adb: Rework adb root
+
+Change-Id: I33f67717a86246f7c3e66494ee67ac2b4fae90c0
+---
+ adb/adb_utils.cpp   | 21 +++++++++++++++++++++
+ adb/adb_utils.h     |  4 ++++
+ adb/daemon/main.cpp |  4 ++--
+ adb/services.cpp    |  9 ++++-----
+ adb/sockets.cpp     |  3 ++-
+ 5 files changed, 33 insertions(+), 8 deletions(-)
+
+diff --git a/adb/adb_utils.cpp b/adb/adb_utils.cpp
+index b236fb39f..043287c56 100644
+--- a/adb/adb_utils.cpp
++++ b/adb/adb_utils.cpp
+@@ -37,6 +37,11 @@
+ #include "adb_trace.h"
+ #include "sysdeps.h"
+ 
++#if !ADB_HOST
++#include <android-base/properties.h>
++#include <log/log_properties.h>
++#endif
++
+ #ifdef _WIN32
+ #  ifndef WIN32_LEAN_AND_MEAN
+ #    define WIN32_LEAN_AND_MEAN
+@@ -313,3 +318,19 @@ std::string GetLogFilePath() {
+     return android::base::StringPrintf("%s/adb.%u.log", tmp_dir, getuid());
+ #endif
+ }
++
++#if !ADB_HOST
++bool allow_adb_root() {
++    std::string build_type = android::base::GetProperty("ro.build.type", "");
++    int root_access = android::base::GetIntProperty("persist.sys.root_access", 0);
++
++    if (build_type == "eng") {
++        return true;
++    }
++
++    if ((root_access & 2) != 2) {
++        return false;
++    }
++    return __android_log_is_debuggable();
++}
++#endif
+diff --git a/adb/adb_utils.h b/adb/adb_utils.h
+index f764a0eea..e35bb26f6 100644
+--- a/adb/adb_utils.h
++++ b/adb/adb_utils.h
+@@ -91,4 +91,8 @@ class BlockingQueue {
+ 
+ std::string GetLogFilePath();
+ 
++#if !ADB_HOST
++bool allow_adb_root();
++#endif
++
+ #endif
+diff --git a/adb/daemon/main.cpp b/adb/daemon/main.cpp
+index 49a261f6f..3cdd9370e 100644
+--- a/adb/daemon/main.cpp
++++ b/adb/daemon/main.cpp
+@@ -52,7 +52,7 @@ static const char* root_seclabel = nullptr;
+ 
+ static bool should_drop_capabilities_bounding_set() {
+ #if defined(ALLOW_ADBD_ROOT)
+-    if (__android_log_is_debuggable()) {
++    if (allow_adb_root()) {
+         return false;
+     }
+ #endif
+@@ -72,7 +72,7 @@ static bool should_drop_privileges() {
+     // ro.secure:
+     //   Drop privileges by default. Set to 1 on userdebug and user builds.
+     bool ro_secure = android::base::GetBoolProperty("ro.secure", true);
+-    bool ro_debuggable = __android_log_is_debuggable();
++    bool ro_debuggable = allow_adb_root();
+ 
+     // Drop privileges if ro.secure is set...
+     bool drop = ro_secure;
+diff --git a/adb/services.cpp b/adb/services.cpp
+index 2a7cd516f..83c6efd74 100644
+--- a/adb/services.cpp
++++ b/adb/services.cpp
+@@ -78,16 +78,15 @@ void restart_root_service(int fd, void *cookie) {
+         WriteFdExactly(fd, "adbd is already running as root\n");
+         adb_close(fd);
+     } else {
+-        if (!__android_log_is_debuggable()) {
++#if !defined(ALLOW_ADBD_ROOT)
++        if (android::base::GetProperty("ro.build.type", "") == "user") {
+             WriteFdExactly(fd, "adbd cannot run as root in production builds\n");
+             adb_close(fd);
+             return;
+         }
++#endif
+ 
+-        int root_access = android::base::GetIntProperty("persist.sys.root_access", 0);
+-        std::string build_type = android::base::GetProperty("ro.build.type", "");
+-
+-        if (build_type != "eng" && (root_access & 2) != 2) {
++        if (!allow_adb_root()) {
+             WriteFdExactly(fd, "root access is disabled by system setting - "
+                     "enable in Settings -> System -> Developer options\n");
+             adb_close(fd);
+diff --git a/adb/sockets.cpp b/adb/sockets.cpp
+index 04bd0804e..304030311 100644
+--- a/adb/sockets.cpp
++++ b/adb/sockets.cpp
+@@ -37,6 +37,7 @@
+ 
+ #include "adb.h"
+ #include "adb_io.h"
++#include "adb_utils.h"
+ #include "range.h"
+ #include "transport.h"
+ 
+@@ -366,7 +367,7 @@ asocket* create_local_service_socket(const char* name, atransport* transport) {
+     D("LS(%d): bound to '%s' via %d", s->id, name, fd);
+ 
+ #if !ADB_HOST
+-    if ((!strncmp(name, "root:", 5) && getuid() != 0 && __android_log_is_debuggable()) ||
++    if ((!strncmp(name, "root:", 5) && getuid() != 0 && allow_adb_root()) ||
+         (!strncmp(name, "unroot:", 7) && getuid() == 0) ||
+         !strncmp(name, "usb:", 4) ||
+         !strncmp(name, "tcpip:", 6)) {
+-- 
+2.17.1
+

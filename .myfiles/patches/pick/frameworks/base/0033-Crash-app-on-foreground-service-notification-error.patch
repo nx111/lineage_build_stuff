@@ -1,0 +1,66 @@
+From 4ba48a95cf63745d84378bda9a67cee74bea02b7 Mon Sep 17 00:00:00 2001
+From: Da Xing <qiyueliuhuo813@gmail.com>
+Date: Sun, 18 Nov 2018 20:10:17 +0800
+Subject: [PATCH 33/44] Crash app on foreground service notification error
+
+Resolved issue 118612296.
+
+On any notification error, the NMS silently cancels the notification,
+including foreground service notifications. Thus, an app could pass in a
+garbage notification deliberately and start a foreground service silently.
+
+This patch resolved this issue by judging the notification's flag, and if
+it is a foreground notification, still crash the app as previous platforms,
+and if it is a normal notification, don't crash the app.
+
+Background: In 3ad4cdd1, which was merged into Android 9 release, the crash
+behaviour is removed. But it is an important rule that foreground services
+guaranteed to show an ongoing notification.
+
+Test: Run the sample apk provided in the issue, it's main thread received
+ a RemoteServiceException: Bad notification posted from package...
+as intended behaviour.
+
+Change-Id: I36ea0137ca6978ff401f64dccacb6f2edcadd7db
+Signed-off-by: Da Xing <qiyueliuhuo813@gmail.com>
+---
+ .../NotificationManagerService.java           | 23 +++++++++++++++++--
+ 1 file changed, 21 insertions(+), 2 deletions(-)
+
+diff --git a/services/core/java/com/android/server/notification/NotificationManagerService.java b/services/core/java/com/android/server/notification/NotificationManagerService.java
+index 03bdb83c562..8b86a4d691e 100644
+--- a/services/core/java/com/android/server/notification/NotificationManagerService.java
++++ b/services/core/java/com/android/server/notification/NotificationManagerService.java
+@@ -805,8 +805,27 @@ public class NotificationManagerService extends SystemService {
+         @Override
+         public void onNotificationError(int callingUid, int callingPid, String pkg, String tag, int id,
+                 int uid, int initialPid, String message, int userId) {
+-            cancelNotification(callingUid, callingPid, pkg, tag, id, 0, 0, false, userId,
+-                    REASON_ERROR, null);
++            boolean fgService;
++            synchronized (mNotificationLock) {
++                NotificationRecord r = findNotificationLocked(pkg, tag, id, userId);
++                fgService = r != null && (r.getNotification().flags & FLAG_FOREGROUND_SERVICE) != 0;
++            }
++            String msg = "onNotification error pkg=" + pkg + " tag=" + tag + " id=" + id;
++            if (fgService) {
++                Slog.d(TAG, msg + "; will crashApplication(uid=" + uid
++                        + ", pid=" + initialPid + ")");
++            } else {
++                Slog.d(TAG, msg);
++            }
++            cancelNotification(callingUid, callingPid, pkg, tag, id, 0, 0,
++                    false, userId, REASON_ERROR, null);
++            if (fgService) {
++                // Still crash for foreground services, preventing the not-crash behaviour abused
++                // by apps to give us a garbage notification and silently start a fg service.
++                Binder.withCleanCallingIdentity(
++                    () -> mAm.crashApplication(uid, initialPid, pkg, -1,
++                        "Bad notification posted from package " + pkg + ": " + message));
++            }
+         }
+ 
+         @Override
+-- 
+2.17.1
+
