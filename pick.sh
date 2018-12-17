@@ -41,6 +41,16 @@ function get_defaul_remote()
       done
 }
 
+function sort_projects()
+{
+    [ $# -lt 1 -o ! -f "$1" ] && return
+    grep "^android$" $1
+    while read $f; do
+        [ "$f" == "android" ] && continue
+        echo $f
+    done < $1
+}
+
 function patch_local()
 {
     cd $(gettop)
@@ -302,16 +312,18 @@ function restore_snapshot()
     [ -f "$snapshot_file" ] || return -1
 
     trap 'int_handler' INT
-    cat $snapshot_file | while read line; do
+    sort_projects $snapshot_file | while read line; do
          project=$(echo $line | cut -d, -f1 | sed -e "s/^ *//g" -e "s/ *$//g")
          basecommit=$(echo $line | cut -d, -f2 | sed -e "s/^ *//g" -e "s/ *$//g")
          remoteurl=$(echo $line | cut -d, -f3 | sed -e "s/^ *//g" -e "s/ *$//g")
 
+         [ "$project" = "android" ] && reset_project_dir .repo/manifests
+
          tmp_skip_dirs=/tmp/skip_dirs_$(echo $project | sed -e "s:/:_:g")
-         cd $topdir/$project || resync_project $project;cd $topdir/$project
+         cd $topdir/$project >/dev/null 2>/dev/null || resync_project $project && cd $topdir/$project
 
          echo ">>>  restore project: $project ... "
-         git stash -q || resync_project $project;cd $topdir/$project
+         git stash -q || resync_project $project && cd $topdir/$project
          LANG=en_US git clean -xdf | sed -e "s/Skipping repository //g" | sed -e "s:/$::"> ${tmp_skip_dirs}
          if git log -n0 $basecommit >/dev/null 2>/dev/null; then
              git checkout -q --detach $basecommit>/dev/null 2>/dev/null
@@ -324,7 +336,7 @@ function restore_snapshot()
          [ -d $topdir/.myfiles/patches/pick/$project ] && searchdir="$searchdir $topdir/.myfiles/patches/pick/$project"
          [ -d $topdir/.myfiles/patches/local/$project ] && searchdir="$searchdir $topdir/.myfiles/patches/local/$project"
          [ "$searchdir" != "" ] && \
-         find $searchdir -type f -name "*.patch" -o -name "*.diff" | sed -e "s:$topdir/patches/::"  -e "s|\/|:|" |sort -t : -k 2 | while read line; do
+         find $searchdir -type f -name "*.patch" -o -name "*.diff" | sed -e "s:$topdir/.myfiles/patches/::"  -e "s|\/|:|" |sort -t : -k 2 | while read line; do
              rm -rf $topdir/$project/.git/rebase-apply
              f=$(echo $line | sed -e "s/:/\//")
              fdir=$(dirname $f | sed -e "s:$project/::" | sed -e "s:^[^/]*/::g" |sed -e "s:\[.*::g" | sed -e "s:/$::")
@@ -363,6 +375,25 @@ function restore_snapshot()
                                  done
                               fi
                       fi
+                      if [ "$project" = "android" ]; then
+                            git -C $topdir/.repo/manifests am -3 -q --keep-cr --committer-date-is-author-date < $topdir/.myfiles/patches/$f
+                            rc=$?
+                            if [ $rc -ne 0 ]; then
+                                 first=0
+                                 echo  "  >> git am conflict, please resolv it, then press ENTER to continue,or press 's' skip it ..."
+                                 while ! git -C $topdir/.repo/manifests log -100 | grep "Change-Id: $changeid" >/dev/null 2>/dev/null; do
+                                     [ $first -ne 0 ] && echo "conflicts not resolved,please fix it,then press ENTER to continue,or press 's' skip it ..."
+                                     first=1
+                                     ch=$(sed q </dev/tty)
+                                     if [ "$ch" = "s" ]; then
+                                        echo "skip it ..."
+                                        git -C $topdir/.repo/manifests am --skip
+                                        break
+                                      fi
+                                 done
+                           fi
+                      fi
+
                   else
                       echo "         skipping: $f ...(applied always)"
                   fi
