@@ -1214,7 +1214,6 @@ kpick 230387 # CameraService: Support calling addStates in enumerateProviders
 kpick 230642 # CameraService: Initialize CameraParameters for the cameras and cache them onFirstRef
 kpick 231348 # camera: Allow to use boottime as timestamp reference
 kpick 234010 # libstagefright: omx: Add support for loading prebuilt ddp decoder lib
-kpick 234980 # libcameraservice: force specific cam id for google face unlock
 
 # frameworks/base
 kpick 224266 # SystemUI: Add Lineage statusbar item holder
@@ -1267,7 +1266,6 @@ kpick 225543 # sensorservice: customize sensor fusion mag filter via prop
 kpick 225544 # input: Adjust priority
 kpick 225546 # AppOpsManager: Update with the new ops
 kpick 229400 # HAXX to allow too large dimensions
-kpick 229607 # HACK: SF: Force client composition for all layers
 kpick 230610 # APP may display abnormally in landscape LCM
 kpick 231828 # Translate pointer motion events for OneHandOperation Display Shrink
 kpick 231980 # HWComposer: HWC2: allow SkipValidate to be force disabled
@@ -1275,12 +1273,6 @@ kpick 231980 # HWComposer: HWC2: allow SkipValidate to be force disabled
 # frameworks/opt/net/wifi
 
 # frameworks/opt/telephony
-kpick 227125 # RIL: Allow overriding RadioResponse and RadioIndication
-kpick 229601 # Implement signal strength hacks used on Huawei devices
-kpick 229602 # telephony: Squashed support of dynamic signal strength thresholds
-kpick 229603 # telephony: Query LTE thresholds from CarrierConfig
-kpick 229604 # Telephony: Use a common prop for Huawei RIL hacks (1/2)
-kpick 229605 # Telephony: Don't call onUssdRelease for Huawei RIL
 kpick 234319 # LocaleTracker: Add null check before accessing WifiManager
 
 # hardware/boardcom/libbt
@@ -1653,7 +1645,6 @@ kpick 234612 # Updater: Implement auto update check interval preference
 kpick 233635 # Phone ringtone setting for Multi SIM device
 
 # packages/services/Telephony
-kpick 229610 # Telephony: Support muting by RIL command
 kpick 234321 # Don't start SIP service before decrypted
 kpick 236522 # Fix carrier config option not hidden on a CDMA phone
 
