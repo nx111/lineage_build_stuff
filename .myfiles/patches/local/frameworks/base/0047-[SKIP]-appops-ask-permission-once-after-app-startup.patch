@@ -1,0 +1,185 @@
+From a5716dfb0ecc69c5b13a5cc1c3eda5775c4892f5 Mon Sep 17 00:00:00 2001
+From: nx111 <NX111.AimH@gmail.com>
+Date: Thu, 20 Dec 2018 17:22:16 +0800
+Subject: [PATCH 47/47] appops: ask permission once after app startup.
+
+we don't need ask everytime, just after app resume, check it once and
+keep it 5 mininues.
+
+Change-Id: I9e79cf37653d12b382fe23f768259672c61e5921
+---
+ .../com/android/server/AppOpsService.java     | 51 +++++++++++++++----
+ .../com/android/server/am/ActivityRecord.java |  1 +
+ 2 files changed, 42 insertions(+), 10 deletions(-)
+
+diff --git a/services/core/java/com/android/server/AppOpsService.java b/services/core/java/com/android/server/AppOpsService.java
+index b7c45a82dc5..fbd3afa8a94 100644
+--- a/services/core/java/com/android/server/AppOpsService.java
++++ b/services/core/java/com/android/server/AppOpsService.java
+@@ -407,11 +407,13 @@ public class AppOpsService extends IAppOpsService.Stub {
+         final String packageName;
+         final UidState uidState;
+         final boolean isPrivileged;
++        long startRealTime;
+ 
+         Ops(String _packageName, UidState _uidState, boolean _isPrivileged) {
+             packageName = _packageName;
+             uidState = _uidState;
+             isPrivileged = _isPrivileged;
++            startRealTime = 0;
+         }
+     }
+ 
+@@ -427,7 +429,7 @@ public class AppOpsService extends IAppOpsService.Stub {
+         long time[] = new long[_NUM_UID_STATE];
+         long rejectTime[] = new long[_NUM_UID_STATE];
+         int startNesting;
+-        long startRealtime;
++        long startRealTime;
+         int noteOpCount;
+         int startOpCount;
+         PermissionDialogReqQueue dialogReqQueue;
+@@ -822,6 +824,16 @@ public class AppOpsService extends IAppOpsService.Stub {
+         }
+     };
+ 
++    public void onPackageStart(int uid, String packageName) {
++       synchronized (this) {
++            Ops ops = getOpsRawLocked(uid, packageName, true /* edit */, false /* uidMismatchExpected */);
++            if (ops == null)
++                return;
++            ops.startRealTime = SystemClock.elapsedRealtime();
++       }
++
++    }
++
+     public void packageRemoved(int uid, String packageName) {
+         synchronized (this) {
+             UidState uidState = mUidStates.get(uid);
+@@ -951,9 +963,10 @@ public class AppOpsService extends IAppOpsService.Stub {
+             resOps = new ArrayList<>();
+             for (int j=0; j<pkgOps.size(); j++) {
+                 Op curOp = pkgOps.valueAt(j);
++                curOp.startRealTime = pkgOps.startRealTime;
+                 final boolean running = curOp.duration == -1;
+                 long duration = running
+-                        ? (elapsedNow - curOp.startRealtime)
++                        ? (elapsedNow - curOp.startRealTime)
+                         : curOp.duration;
+                 resOps.add(new AppOpsManager.OpEntry(curOp.op, curOp.mode, curOp.time,
+                         curOp.rejectTime, (int) duration, running, curOp.proxyUid,
+@@ -966,9 +979,10 @@ public class AppOpsService extends IAppOpsService.Stub {
+                     if (resOps == null) {
+                         resOps = new ArrayList<>();
+                     }
++                    curOp.startRealTime = pkgOps.startRealTime;
+                     final boolean running = curOp.duration == -1;
+                     final long duration = running
+-                            ? (elapsedNow - curOp.startRealtime)
++                            ? (elapsedNow - curOp.startRealTime)
+                             : curOp.duration;
+                     resOps.add(new AppOpsManager.OpEntry(curOp.op, curOp.mode, curOp.time,
+                             curOp.rejectTime, (int) duration, running, curOp.proxyUid,
+@@ -1734,7 +1748,7 @@ public class AppOpsService extends IAppOpsService.Stub {
+                     if (DEBUG) Slog.d(TAG, "noteOperation: uid reject #" + uidMode + " for code "
+                             + switchCode + " (" + code + ") uid " + uid + " package "
+                             + packageName);
+-                    op.rejectTime[uidState.state] = System.currentTimeMillis();
++                    op.rejectTime[uidState.state] = SystemClock.elapsedRealtime();
+                     return uidMode;
+                 }
+             } else {
+@@ -1744,7 +1758,7 @@ public class AppOpsService extends IAppOpsService.Stub {
+                     if (DEBUG) Slog.d(TAG, "noteOperation: reject #" + mode + " for code "
+                             + switchCode + " (" + code + ") uid " + uid + " package "
+                             + packageName);
+-                    op.rejectTime[uidState.state] = System.currentTimeMillis();
++                    op.rejectTime[uidState.state] = SystemClock.elapsedRealtime();
+                     op.ignoredCount++;
+                     return mode;
+                 } else if (mode == AppOpsManager.MODE_ASK) {
+@@ -1757,16 +1771,24 @@ public class AppOpsService extends IAppOpsService.Stub {
+                         return mode;
+                     }
+ 
+-                    if (DEBUG) {
++                    if (true) {
+                             Slog.d(TAG, "Package " + op.packageName + " has " + op.noteOpCount
+                                     + " requests and " + op.startOpCount + " start requests with "
+-                                    + op.ignoredCount + " ignored at " + op.time +
++                                    + op.ignoredCount + " ignored at " + Arrays.toString(op.time) +
+                                     " with a duration of " + op.duration +
+                                     " while being delayed " + op.delayedCount + " times");
++                            Slog.d(TAG, "startRealTime=" + op.startRealTime + " rejectTime="+ Arrays.toString(op.rejectTime) + " time=" + Arrays.toString(op.time));
+                             Slog.d(TAG, "Total pkops for " + ops.packageName + " "
+                                     + ops.uidState.pkgOps.size());
+                     }
+ 
++                    // we don't need ask everytime, just after app resume, check it once and keep it 5 mininues.
++                    final long lastcheck = op.time[uidState.state] > op.rejectTime[uidState.state] ?
++                                           op.time[uidState.state] : op.rejectTime[uidState.state];
++                    if (lastcheck > ops.startRealTime && lastcheck < (ops.startRealTime + 5*60*1000L)){
++                         return op.time[uidState.state] >= op.rejectTime[uidState.state] ? AppOpsManager.MODE_ALLOWED : AppOpsManager.MODE_IGNORED;
++                    }
++
+                     // First drop all request events if the device is not interactive, next check
+                     // what the global pkg ops count for the package, then check op scoped count.
+                     // High frequency request ops will be delayed until their delay count ceiling
+@@ -1804,7 +1826,7 @@ public class AppOpsService extends IAppOpsService.Stub {
+             if (req == null) {
+                 if (DEBUG) Slog.d(TAG, "noteOperation: allowing code " + code + " uid " + uid
+                         + " package " + packageName);
+-                op.time[uidState.state] = System.currentTimeMillis();
++                op.time[uidState.state] = SystemClock.elapsedRealtime();
+                 op.rejectTime[uidState.state] = 0;
+                 op.proxyUid = proxyUid;
+                 op.proxyPackageName = proxyPackageName;
+@@ -2049,7 +2071,7 @@ public class AppOpsService extends IAppOpsService.Stub {
+     void finishOperationLocked(Op op, boolean finishNested) {
+         if (op.startNesting <= 1 || finishNested) {
+             if (op.startNesting == 1 || finishNested) {
+-                op.duration = (int)(SystemClock.elapsedRealtime() - op.startRealtime);
++                op.duration = (int)(SystemClock.elapsedRealtime() - op.startRealTime);
+                 op.time[op.uidState.state] = System.currentTimeMillis();
+             } else {
+                 Slog.w(TAG, "Finishing op nesting under-run: uid " + op.uid + " pkg "
+@@ -3626,7 +3648,7 @@ public class AppOpsService extends IAppOpsService.Stub {
+                                 "                  ", op.rejectTime, now, sdf, date);
+                         if (op.duration == -1) {
+                             pw.print("          Running start at: ");
+-                            TimeUtils.formatDuration(nowElapsed-op.startRealtime, pw);
++                            TimeUtils.formatDuration(nowElapsed-op.startRealTime, pw);
+                             pw.println();
+                         } else if (op.duration != 0) {
+                             pw.print("          duration=");
+@@ -3946,6 +3968,15 @@ public class AppOpsService extends IAppOpsService.Stub {
+                     }
+                     scheduleWriteLocked();
+                 }
++                final Ops ops = getOpsRawLocked(uid, packageName, true /* edit */, false /* uidMismatchExpected */);
++                if (mode == AppOpsManager.MODE_ALLOWED) {
++                    op.time[ops.uidState.state] = SystemClock.elapsedRealtime();
++                    op.rejectTime[ops.uidState.state] = 0;
++                    op.allowedCount++;
++                } else {
++                    op.rejectTime[ops.uidState.state] = SystemClock.elapsedRealtime();
++                    op.ignoredCount++;
++                }
+             }
+             UidState uidState = getUidStateLocked(uid, false);
+             if (uidState != null && uidState.pendingAskOp == code) {
+diff --git a/services/core/java/com/android/server/am/ActivityRecord.java b/services/core/java/com/android/server/am/ActivityRecord.java
+index 51bf34206c7..12f2a48bc5e 100644
+--- a/services/core/java/com/android/server/am/ActivityRecord.java
++++ b/services/core/java/com/android/server/am/ActivityRecord.java
+@@ -2133,6 +2133,7 @@ final class ActivityRecord extends ConfigurationContainer implements AppWindowCo
+                 nowVisible = true;
+                 launching = false;
+                 lastVisibleTime = SystemClock.uptimeMillis();
++                service.mAppOpsService.onPackageStart(this.app.uid, this.packageName);
+                 if (idle || mStackSupervisor.isStoppingNoHistoryActivity()) {
+                     // If this activity was already idle or there is an activity that must be
+                     // stopped immediately after visible, then we now need to make sure we perform
+-- 
+2.17.1
+
