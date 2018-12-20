@@ -248,6 +248,7 @@ function projects_snapshot()
          git format-patch "$commit_id" -o $topdir/.myfiles/patches/pick/$project/ | sed -e "s:.*/:              :"
 
          patches_count=$(find $topdir/.myfiles/patches/pick/$project -maxdepth 1 -name "*.patch" -o -name "*.diff" | wc -l)
+         local number=$((patches_count + 1))
          if [ $patches_count -eq 0 ]; then
               rmdir -p --ignore-fail-on-non-empty $topdir/.myfiles/patches/pick/$project
          elif [ -d $topdir/.myfiles/patches/local/$project ]; then
@@ -258,7 +259,6 @@ function projects_snapshot()
                    if [ "$changeid" != "" ]; then
                        if grep -q "Change-Id: $changeid" -r $topdir/.myfiles/patches/pick/$project; then
                            pick_patch=$(grep -H "Change-Id: $changeid" -r $topdir/.myfiles/patches/pick/$project | sed -n 1p | cut -d: -f1)
-                           pick_patch_name=$(basename $pick_patch)
                            if echo $patch_file_name | grep -qE "\[WIP\]|\[SKIP\]|\[ALWAYS\]" ; then
                                [ "${patch_file_name:5:5}" = "[WIP]" ] && rm -f $patchfile && \
                                       mv $pick_patch $(dirname $patchfile)/${pick_patch_name:0:4}-${patch_file_name:5:5}-${pick_patch_name:5}
@@ -275,6 +275,10 @@ function projects_snapshot()
                            fi
                        elif ! echo $patchfile | grep -qE "\[WIP\]|\[SKIP\]|\[ALWAYS\]"; then
                            rm -f $patchfile
+                       elif echo $patchfile | grep -q "^[[:digit:]]\{4,4\}-"; then
+                           prefixNumber=$(echo $number| awk '{printf("%04d\n",$0)}')
+                           mv $patchfile $prefixNumber-${patchfile:5}
+                           number=$((number + 1))
                        fi
                    fi
               done
