@@ -1131,9 +1131,7 @@ fi       # continue pick or not
 kpick 234859 # repopick: cmp() is not available in Python 3, define it manually
 
 # device/samsung/klte-common
-kpick 231209 # klte-common: nfc: pn547: Use prebuilt NFC HAL from 15.1
 kpick 225192 # klte-common: Align ril.h to samsung_msm8974-common P libril changes
-kpick 224917 # DO NOT MERGE: klte-common: Requisite bring-up BS change
 
 # device/samsung/msm8974-common
 kpick 235140 # msm8974-common: sepolicy: Clean up
