@@ -1,0 +1,85 @@
+From 27f62b580932f658db215d6fe5021f07ce352bca Mon Sep 17 00:00:00 2001
+From: nx111 <NX111.AimH@gmail.com>
+Date: Sun, 9 Dec 2018 14:54:02 +0800
+Subject: [PATCH 05/22] repopick: confirm picking when status is merged.
+
+Change-Id: I1ef7a90a9f1d3e058780bfbcd6000ce49149e6b6
+---
+ build/tools/repopick.py | 31 ++++++++++++++++++++++---------
+ 1 file changed, 22 insertions(+), 9 deletions(-)
+
+diff --git a/build/tools/repopick.py b/build/tools/repopick.py
+index 63de5361..50964759 100755
+--- a/build/tools/repopick.py
++++ b/build/tools/repopick.py
+@@ -193,6 +193,7 @@ if __name__ == '__main__':
+     parser.add_argument('-P', '--path', help='use the specified path for the change')
+     parser.add_argument('-t', '--topic', help='pick all commits from a specified topic')
+     parser.add_argument('--test', action='store_true', help='just print all commits\' change number')
++    parser.add_argument('--confirm', action='store_true', help='confirm change that merged')
+     parser.add_argument('-Q', '--query', help='pick all commits using the specified query')
+     parser.add_argument('-g', '--gerrit', default=default_gerrit, help='Gerrit Instance to use. Form proto://[user@]host[:port]')
+     parser.add_argument('-e', '--exclude', nargs=1, help='exclude a list of commit numbers separated by a ,')
+@@ -364,13 +365,6 @@ if __name__ == '__main__':
+             print('Testing change number {0} ...'.format(item['id']))
+         else:
+             args.quiet or print('Applying change number {0}...'.format(item['id']))
+-        # Check if change is open and exit if it's not, unless -f is specified
+-        if (item['status'] != 'OPEN' and item['status'] != 'NEW' and item['status'] != 'DRAFT') and not args.query:
+-            if args.force:
+-                print('!! Force-picking a closed change !!\n')
+-            else:
+-                print('Change status is ' + item['status'] + '. Skipping the cherry pick.\nUse -f to force this pick.')
+-                skipit = True
+ 
+         # Convert the project name to a project path
+         #   - check that the project path exists
+@@ -414,12 +408,25 @@ if __name__ == '__main__':
+         if branch_commits_count <= check_picked_count:
+             check_picked_count = branch_commits_count - 1
+ 
++        # Check if change is open and exit if it's not, unless -f is specified
++        if (item['status'] != 'OPEN' and item['status'] != 'NEW' and item['status'] != 'DRAFT') and not args.query:
++            if args.force:
++                print('!! Force-picking a closed change !!\n')
++            elif item['status'] == 'MERGED' and args.confirm:
++                pass
++            else:
++                print('Change status is ' + item['status'] + '. Skipping the cherry pick.\nUse -f to force this pick.')
++                continue
++
++
+         # Check if change is already picked to HEAD...HEAD~check_picked_count
+         found_change = False
+         for i in range(0, check_picked_count):
+             if subprocess.call(['git', 'cat-file', '-e', 'HEAD~{0}'.format(i)], cwd=project_path, stderr=open(os.devnull, 'wb')):
+                 continue
+-            output = subprocess.check_output(['git', 'show', '-q', 'HEAD~{0}'.format(i)], cwd=project_path).split()
++            output = subprocess.check_output(['git', 'log', '--pretty=%H', '--skip', '{0}'.format(i), '-n', '1'], cwd=project_path).split()
++            commit_sha = output[0]
++            output = subprocess.check_output(['git', 'show', '-q', '{0}'.format(commit_sha)], cwd=project_path).split()
+             if 'Change-Id:' in output:
+                 head_change_id = ''
+                 for j,t in enumerate(reversed(output)):
+@@ -427,11 +434,17 @@ if __name__ == '__main__':
+                         head_change_id = output[len(output) - j]
+                         break
+                 if head_change_id.strip() == item['change_id']:
+-                    print('Skipping {0} - already picked in {1} as HEAD~{2}'.format(item['id'], project_path, i))
++                    if item['status'] != 'MERGED':
++                        print('Skipping {0} - already picked in {1} as HEAD~{2}'.format(item['id'], project_path, i))
+                     found_change = True
+                     break
+         if found_change:
++            if item['status'] == 'MERGED':
++                print('Change status is ' + item['status'] + '. Skipping the cherry pick.\nUse -f to force this pick.')
+             continue
++        elif item['status'] == 'MERGED':
++            print('Change status is ' + item['status'] + ', but not pulled in local.')
++
+ 
+         # Try fetching from GitHub first if using default gerrit
+         if args.gerrit == default_gerrit:
+-- 
+2.17.1
+

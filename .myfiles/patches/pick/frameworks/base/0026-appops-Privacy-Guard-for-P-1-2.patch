@@ -1,4 +1,4 @@
-From 00b538427a9b7d1cb66c46b9129f4f6166024956 Mon Sep 17 00:00:00 2001
+From b93d88a95f73bed965bc4fd22ebceb634872c19d Mon Sep 17 00:00:00 2001
 From: Steve Kondik <steve@cyngn.com>
 Date: Sun, 20 Oct 2013 23:48:00 -0700
 Subject: [PATCH 26/46] appops: Privacy Guard for P (1/2)
@@ -1747,7 +1747,7 @@ index 00000000000..d2661e5b66f
 +    }
 +}
 diff --git a/services/core/java/com/android/server/AppOpsService.java b/services/core/java/com/android/server/AppOpsService.java
-index 786d757557d..0fb07901d7b 100644
+index 786d757557d..3c8fda69944 100644
 --- a/services/core/java/com/android/server/AppOpsService.java
 +++ b/services/core/java/com/android/server/AppOpsService.java
 @@ -1,4 +1,7 @@
@@ -2006,9 +2006,9 @@ index 786d757557d..0fb07901d7b 100644
 +        }
 +    };
 +
-+    public void onPackageStart(int uid, String packageName) {
++    public void PackageResumed(int uid, String packageName) {
 +       synchronized (this) {
-+            Ops ops = getOpsRawLocked(uid, packageName, true /* edit */, false /* uidMismatchExpected */);
++            Ops ops = getOpsRawLocked(uid, packageName, true, false);
 +            if (ops == null)
 +                return;
 +            ops.startRealTime = SystemClock.elapsedRealtime();
@@ -3081,7 +3081,7 @@ index 03d56ebcb12..f604da57b4b 100644
                  idleUids();
              } break;
 diff --git a/services/core/java/com/android/server/am/ActivityRecord.java b/services/core/java/com/android/server/am/ActivityRecord.java
-index a94f22d5d4b..12f2a48bc5e 100644
+index a94f22d5d4b..3ea09d081d4 100644
 --- a/services/core/java/com/android/server/am/ActivityRecord.java
 +++ b/services/core/java/com/android/server/am/ActivityRecord.java
 @@ -180,6 +180,7 @@ import android.view.RemoteAnimationDefinition;
@@ -3101,11 +3101,12 @@ index a94f22d5d4b..12f2a48bc5e 100644
  import org.xmlpull.v1.XmlPullParser;
  import org.xmlpull.v1.XmlPullParserException;
  import org.xmlpull.v1.XmlSerializer;
-@@ -1893,6 +1896,33 @@ final class ActivityRecord extends ConfigurationContainer implements AppWindowCo
+@@ -1893,6 +1896,34 @@ final class ActivityRecord extends ConfigurationContainer implements AppWindowCo
              // pause and then resume again later, which will result in a double life-cycle event.
              stack.checkReadyForSleep();
          }
 +
++        service.mAppOpsService.PackageResumed(this.app.uid, this.packageName);
 +        updatePrivacyGuardNotificationLocked();
 +    }
 +
@@ -3135,14 +3136,6 @@ index a94f22d5d4b..12f2a48bc5e 100644
      }
  
      final void activityStoppedLocked(Bundle newIcicle, PersistableBundle newPersistentState,
-@@ -2103,6 +2133,7 @@ final class ActivityRecord extends ConfigurationContainer implements AppWindowCo
-                 nowVisible = true;
-                 launching = false;
-                 lastVisibleTime = SystemClock.uptimeMillis();
-+                service.mAppOpsService.onPackageStart(this.app.uid, this.packageName);
-                 if (idle || mStackSupervisor.isStoppingNoHistoryActivity()) {
-                     // If this activity was already idle or there is an activity that must be
-                     // stopped immediately after visible, then we now need to make sure we perform
 diff --git a/services/core/java/com/android/server/am/ActivityStackSupervisor.java b/services/core/java/com/android/server/am/ActivityStackSupervisor.java
 index 2ae056fe18a..a00b1131fe3 100644
 --- a/services/core/java/com/android/server/am/ActivityStackSupervisor.java
