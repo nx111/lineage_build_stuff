@@ -1260,6 +1260,8 @@ kpick 236215 # Revert "SystemUI: add navbar layout inversion tuning"
 #kpick 236216 # StatusBarSignalPolicy: Hide signal icons for disabled SIMs
 kpick 236476 # DreamBackend: Fix launching settings
 kpick 236765 # Sounds: Squashed cleanup of sound files
+kpick 236982 # SystemUI: allow device to relocate volume dialog
+kpick 237001 # base: limit direct share targets to reduce lag
 
 # frameworks/native
 kpick 224443 # libbinder: Don't log call trace when waiting for vendor service on non-eng builds
@@ -1348,6 +1350,7 @@ kpick 231895 # VNDK: Added required libs
 kpick 231896 # power: Turn on/off display in SDM439
 kpick 231897 # power: qcom: powerHal for sdm439 and sdm429
 kpick 231898 # Power: Naming convention change
+kpick 237002 # power: Handle launch and interaction hints for perf HAL platforms
 
 # hardware/qcom/thermal
 
