@@ -1182,6 +1182,9 @@ kpick 228582 # sepolicy: qti_init_shell needs to read dir too
 kpick 228583 # sepolicy: allow vold to read persist dirs
 kpick 234544 # sepol: Allow Settings to read ro.vendor.build.security_patch
 kpick 236446 # common: Improve label of I/O sched tuning nodes
+kpick 234613 # common: Expand labeling of sysfs_vibrator nodes using genfscon
+kpick 234837 # common: Label and allow access over LiveDisplay sysfs nodes
+kpick 235402 # common: Allow init to relabel I/O sched tuning nodes
 
 # device/qcom/sepolicy-legacy
 kpick 230237 # common: allow vendor_init to create /data/dpm
@@ -1226,7 +1229,6 @@ kpick 226343 # CameraServiceProxy: Loosen UID check
 kpick 226358 # settings: Allow accessing LineageSettings via settings command
 kpick 226398 # frameworks: base: Port password retention feature
 kpick 226399 # Use fdeCheckPassword error code to indicate pw failure
-kpick 227124 # BatteryService: Add support for oem fast charger detection
 kpick 227290 # PowerProfile: allow overriding default power profile
 kpick 227291 # [DNM] Revert "Handle public volumes and otherwise invalid UUIDs."
 kpick 227896 # SystemUI: Add Profiles tile
@@ -1257,10 +1259,9 @@ kpick 235986 # frameworks: Add unlinked ringtone and notification volumes
 kpick 236156 # CaffeineTile: Mimic old custom tile behavior
 kpick 236213 # Revert "SystemUI: Fix several issues in the ADB over Network tile"
 kpick 236215 # Revert "SystemUI: add navbar layout inversion tuning"
-#kpick 236216 # StatusBarSignalPolicy: Hide signal icons for disabled SIMs
+kpick 236216 # StatusBarSignalPolicy: Hide signal icons for disabled SIMs
 kpick 236476 # DreamBackend: Fix launching settings
 kpick 236765 # Sounds: Squashed cleanup of sound files
-kpick 236982 # SystemUI: allow device to relocate volume dialog
 kpick 237001 # base: limit direct share targets to reduce lag
 
 # frameworks/native
@@ -1373,6 +1374,8 @@ kpick 231960 # bauth: Add enumerate function
 kpick 227931 # lineagesdk: Refactor battery icon options
 kpick 230272 # sdk: Remove VOLUME_KEYS_CONTROL_RING_STREAM
 kpick 230284 # Revert "[3/3] cmsdk: add burnIn protection setting"
+kpick 237074 # lineage-sdk: Handle database downgrading
+kpick 237075 # lineage-sdk: Fix onUpgrade() logic
 
 # packages/apps/Bluetooth
 kpick 229310 # SBC Dual Channel (SBC HD Audio) support
@@ -1699,6 +1702,7 @@ kpick 234886 # Allow init to chmod/chown /proc/slabinfo
 kpick 234987 # Use LOCAL_ADDITIONAL_M4DEFS for file_contexts
 kpick 235196 # Allow dnsmasq to getattr netd unix_stream_socket
 kpick 235258 # Allow fsck_untrusted to getattr block_device
+kpick 237125 # sepolicy: Allow netd to load modules
 
 # system/tool/aidl
 kpick 223133 # AIDL: Add option to generate No-Op methods
@@ -1730,10 +1734,14 @@ kpick 226126 # soong_config: Add flag to skip crypto waiting on QSEE to start
 kpick 229589 # lineage: Automatically set soong namespace when setting project pathmap
 kpick 229590 # lineage: Move qcom pathmap setting into "BoardConfig"
 kpick 231291 # repopick: add hashtag support
+kpick 231939 # extract_utils: avoid doing stuff on files that don't exist
 kpick 231981 # HWComposer: HWC2: allow SkipValidate to be force disabled
 kpick 232663 # overlay: Hide the option to show battery percentage
 kpick 234011 # lineage: Add media_codecs_ddp for AC3 audio
 # kpick 234859 # repopick: cmp() is not available in Python 3, define it manually **((picked at first))**
+kpick 237116 # extract_utils: remove the "set +e" calls during extract()
+kpick 237117 # extract_utils: drop the "/system/" prefix from prints of blob names
+kpick 237118 # extract_utils: introduce support for executing blob fixup scripts
 
 # vendor/qcom/opensource/cryptfs_hw
 kpick 226128 # cryptfs_hw: Add compatibility for pre-O hw crypto

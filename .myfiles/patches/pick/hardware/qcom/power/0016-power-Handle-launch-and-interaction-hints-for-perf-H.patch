@@ -1,4 +1,4 @@
-From 8dce8c1b568aa48213b6d9fdcb36e2917a30d77e Mon Sep 17 00:00:00 2001
+From efda59d41b1309a066386482e92c441e5e91546f Mon Sep 17 00:00:00 2001
 From: BeYkeRYkt <beykerykt@gmail.com>
 Date: Thu, 13 Dec 2018 06:42:35 +0900
 Subject: [PATCH 16/16] power: Handle launch and interaction hints for perf HAL
@@ -13,48 +13,56 @@ Subject: [PATCH 16/16] power: Handle launch and interaction hints for perf HAL
 
 Change-Id: I4c67d886c9dd74ae07094d32bdffc8ef403e04e7
 ---
- hint-data.h  | 16 +++++++++++++++
- power-660.c  | 44 ++++++++++++++++++++++++++++++++++++++++
- power-845.c  | 13 ++++++++++++
- power-8953.c | 57 ++++++++++++++++++++++++++++++++++++++++++++++++++++
- power-8996.c | 57 ++++++++++++++++++++++++++++++++++++++++++++++++++++
- power-8998.c | 57 +++++++++++++++++++++++++++++++++++++++++++++++++---
- utils.c      | 15 ++++++++++++++
- utils.h      |  1 +
- 8 files changed, 257 insertions(+), 3 deletions(-)
+ performance.h | 16 +++++++++++++
+ power-660.c   | 45 +++++++++++++++++++++++++++++++++++++
+ power-845.c   | 62 ++++++++++++++++++++++++++++++++++++++++++++-------
+ power-8953.c  | 58 +++++++++++++++++++++++++++++++++++++++++++++++
+ power-8996.c  | 58 +++++++++++++++++++++++++++++++++++++++++++++++
+ power-8998.c  | 58 ++++++++++++++++++++++++++++++++++++++++++++---
+ utils.c       | 15 +++++++++++++
+ utils.h       |  1 +
+ 8 files changed, 302 insertions(+), 11 deletions(-)
 
-diff --git a/hint-data.h b/hint-data.h
-index 61e064d..c173462 100644
---- a/hint-data.h
-+++ b/hint-data.h
-@@ -54,6 +54,22 @@
- 
- #define DEFAULT_PROFILE_HINT_ID         (0xFF00)
+diff --git a/performance.h b/performance.h
+index 970d42e..461ae31 100644
+--- a/performance.h
++++ b/performance.h
+@@ -42,6 +42,22 @@ extern "C" {
+ #define VENDOR_HINT_DISPLAY_OFF      0x00001040
+ #define VENDOR_HINT_DISPLAY_ON       0x00001041
  
 +#define VENDOR_HINT_FIRST_LAUNCH_BOOST  0x00001081
 +#define VENDOR_HINT_SCROLL_BOOST        0x00001080
 +
-+enum {
++enum LAUNCH_BOOST_TYPE {
 +    LAUNCH_BOOST_V1 = 1,
 +    LAUNCH_BOOST_V2 = 2,
 +    LAUNCH_BOOST_V3 = 3
 +};
 +
-+enum {
++enum SCROLL_BOOST_TYPE {
 +    SCROLL_VERTICAL     = 1,
 +    SCROLL_HORIZONTAL   = 2,
 +    SCROLL_PANEL_VIEW   = 3,
 +    SCROLL_PREFILING    = 4
 +};
 +
- struct hint_data {
-     unsigned long hint_id; /* This is our key. */
-     unsigned long perflock_handle;
+ enum SCREEN_DISPLAY_TYPE {
+     DISPLAY_OFF = 0x00FF,
+ };
 diff --git a/power-660.c b/power-660.c
-index 9b1d666..b0ee044 100644
+index 9b1d666..92e51ef 100644
 --- a/power-660.c
 +++ b/power-660.c
-@@ -246,6 +246,44 @@ static void process_video_encode_hint(void *metadata)
+@@ -31,6 +31,7 @@
+ #define LOG_NIDEBUG 0
+ 
+ #include <errno.h>
++#include <time.h>
+ #include <string.h>
+ #include <sys/types.h>
+ #include <sys/stat.h>
+@@ -246,6 +247,44 @@ static void process_video_encode_hint(void *metadata)
      }
  }
  
@@ -99,7 +107,7 @@ index 9b1d666..b0ee044 100644
  int power_hint_override(power_hint_t hint, void *data)
  {
      if (hint == POWER_HINT_SET_PROFILE) {
-@@ -266,6 +304,12 @@ int power_hint_override(power_hint_t hint, void *data)
+@@ -266,6 +305,12 @@ int power_hint_override(power_hint_t hint, void *data)
          case POWER_HINT_VIDEO_ENCODE:
              process_video_encode_hint(data);
              return HINT_HANDLED;
@@ -113,10 +121,18 @@ index 9b1d666..b0ee044 100644
              break;
      }
 diff --git a/power-845.c b/power-845.c
-index a18ebc7..4342f03 100644
+index a18ebc7..25f78c4 100644
 --- a/power-845.c
 +++ b/power-845.c
-@@ -189,6 +189,16 @@ static int process_video_encode_hint(void *metadata)
+@@ -31,6 +31,7 @@
+ #define LOG_NIDEBUG 0
+ 
+ #include <errno.h>
++#include <time.h>
+ #include <string.h>
+ #include <sys/types.h>
+ #include <sys/stat.h>
+@@ -189,6 +190,55 @@ static int process_video_encode_hint(void *metadata)
      return HINT_NONE;
  }
  
@@ -130,24 +146,80 @@ index a18ebc7..4342f03 100644
 +    return HINT_HANDLED;
 +}
 +
++static int process_interaction_hint(void *data)
++{
++    static struct timespec s_previous_boost_timespec;
++    static int s_previous_duration = 0;
++
++    struct timespec cur_boost_timespec;
++    long long elapsed_time;
++    int duration = 100; // 100 ms by default
++
++    if (current_mode != NORMAL_MODE) {
++        ALOGV("%s: ignoring due to other active perf hints", __func__);
++        return HINT_HANDLED;
++    }
++
++    if (data) {
++        int input_duration = *((int*)data);
++        if (input_duration > duration) {
++            duration = (input_duration > 5000) ? 5000 : input_duration;
++        }
++    }
++
++    clock_gettime(CLOCK_MONOTONIC, &cur_boost_timespec);
++
++    elapsed_time = calc_timespan_us(s_previous_boost_timespec, cur_boost_timespec);
++    // don't hint if previous hint's duration covers this hint's duration
++    if ((s_previous_duration * 1000) > (elapsed_time + duration * 1000)) {
++        return HINT_HANDLED;
++    }
++    s_previous_boost_timespec = cur_boost_timespec;
++    s_previous_duration = duration;
++
++    if (duration >= 1500) {
++        perf_hint_enable_with_type(VENDOR_HINT_SCROLL_BOOST, -1, SCROLL_PREFILING);
++    } else {
++        perf_hint_enable_with_type(VENDOR_HINT_SCROLL_BOOST, duration, SCROLL_VERTICAL);
++    }
++    return HINT_HANDLED;
++}
++
  int power_hint_override(power_hint_t hint, void *data)
  {
      int ret_val = HINT_NONE;
-@@ -212,6 +222,9 @@ int power_hint_override(power_hint_t hint, void *data)
-             ret_val = HINT_HANDLED;
-         }
+@@ -203,14 +253,10 @@ int power_hint_override(power_hint_t hint, void *data)
+             ret_val = process_perf_hint(data, VR_MODE);
              break;
+         case POWER_HINT_INTERACTION:
+-        {
+-            int resources[] = {
+-                MIN_FREQ_LITTLE_CORE_0, 0x514
+-            };
+-            int duration = 100;
+-            interaction(duration, ARRAY_SIZE(resources), resources);
+-            ret_val = HINT_HANDLED;
+-        }
++            ret_val = process_interaction_hint(data);
++            break;
 +        case POWER_HINT_LAUNCH:
 +            ret_val = process_activity_launch_hint(data);
-+            break;
+             break;
          default:
              break;
-     }
 diff --git a/power-8953.c b/power-8953.c
-index 8fba21b..469170c 100644
+index 8fba21b..e403c56 100644
 --- a/power-8953.c
 +++ b/power-8953.c
-@@ -279,6 +279,57 @@ static int process_video_encode_hint(void *metadata)
+@@ -31,6 +31,7 @@
+ #define LOG_NIDEBUG 0
+ 
+ #include <errno.h>
++#include <time.h>
+ #include <string.h>
+ #include <sys/types.h>
+ #include <sys/stat.h>
+@@ -279,6 +280,57 @@ static int process_video_encode_hint(void *metadata)
      return HINT_NONE;
  }
  
@@ -205,7 +277,7 @@ index 8fba21b..469170c 100644
  int power_hint_override(power_hint_t hint, void *data)
  {
      int ret_val = HINT_NONE;
-@@ -307,6 +358,12 @@ int power_hint_override(power_hint_t hint, void *data)
+@@ -307,6 +359,12 @@ int power_hint_override(power_hint_t hint, void *data)
          case POWER_HINT_VR_MODE:
              ret_val = process_perf_hint(data, VR_MODE);
              break;
@@ -219,10 +291,18 @@ index 8fba21b..469170c 100644
              break;
      }
 diff --git a/power-8996.c b/power-8996.c
-index f782299..3d5def3 100644
+index f782299..256b002 100644
 --- a/power-8996.c
 +++ b/power-8996.c
-@@ -265,6 +265,57 @@ static int process_video_encode_hint(void *metadata)
+@@ -31,6 +31,7 @@
+ #define LOG_NIDEBUG 0
+ 
+ #include <errno.h>
++#include <time.h>
+ #include <string.h>
+ #include <sys/types.h>
+ #include <sys/stat.h>
+@@ -265,6 +266,57 @@ static int process_video_encode_hint(void *metadata)
      return HINT_NONE;
  }
  
@@ -280,7 +360,7 @@ index f782299..3d5def3 100644
  int power_hint_override(power_hint_t hint, void *data)
  {
      int ret_val = HINT_NONE;
-@@ -291,6 +342,12 @@ int power_hint_override(power_hint_t hint, void *data)
+@@ -291,6 +343,12 @@ int power_hint_override(power_hint_t hint, void *data)
          case POWER_HINT_VR_MODE:
              ret_val = process_perf_hint(data, VR_MODE);
              break;
@@ -294,10 +374,18 @@ index f782299..3d5def3 100644
              break;
      }
 diff --git a/power-8998.c b/power-8998.c
-index 28b7c38..ea0106c 100644
+index 28b7c38..364fd21 100644
 --- a/power-8998.c
 +++ b/power-8998.c
-@@ -262,6 +262,56 @@ static int process_video_encode_hint(void *metadata)
+@@ -31,6 +31,7 @@
+ #define LOG_NIDEBUG 0
+ 
+ #include <errno.h>
++#include <time.h>
+ #include <string.h>
+ #include <sys/types.h>
+ #include <sys/stat.h>
+@@ -262,6 +263,56 @@ static int process_video_encode_hint(void *metadata)
      return HINT_NONE;
  }
  
@@ -354,7 +442,7 @@ index 28b7c38..ea0106c 100644
  int power_hint_override(power_hint_t hint, void *data)
  {
      int ret_val = HINT_NONE;
-@@ -289,9 +339,10 @@ int power_hint_override(power_hint_t hint, void *data)
+@@ -289,9 +340,10 @@ int power_hint_override(power_hint_t hint, void *data)
              ret_val = process_perf_hint(data, VR_MODE);
              break;
          case POWER_HINT_INTERACTION:
