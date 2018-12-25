@@ -1233,7 +1233,6 @@ kpick 227290 # PowerProfile: allow overriding default power profile
 kpick 227291 # [DNM] Revert "Handle public volumes and otherwise invalid UUIDs."
 kpick 227896 # SystemUI: Add Profiles tile
 kpick 221716 # Where's my circle battery, dude?
-kpick 229166 # NightDisplayController: report unavailable if livedisplay feature is present
 kpick 229307 # Add CHANNEL_MODE_DUAL_CHANNEL constant
 kpick 229308 # Add Dual Channel into Bluetooth Audio Channel Mode developer options menu
 kpick 229309 # Allow SBC as HD audio codec in Bluetooth device configuration
@@ -1440,7 +1439,6 @@ kpick 227120 # Settings: Check interfaces before enabling ADB over network
 kpick 226142 # Settings: Add developer setting for root access
 kpick 232198 # Settings: appops: Privacy Guard for P (2/2)
 kpick 231590 # SimSettings: Add manual SIM provisioning support
-kpick 229167 # Settings: Hide Night Mode suggestion if LiveDisplay feature is present
 kpick 229312 # Add Dual Channel into Bluetooth Audio Channel Mode developer options menu
 kpick 229453 # Settings: use LineageHW serial number
 kpick 231518 # Settings: Check if we have any color modes declared in overlay
