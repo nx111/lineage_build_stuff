@@ -1263,6 +1263,9 @@ kpick 236216 # StatusBarSignalPolicy: Hide signal icons for disabled SIMs
 kpick 236476 # DreamBackend: Fix launching settings
 kpick 236765 # Sounds: Squashed cleanup of sound files
 kpick 237001 # base: limit direct share targets to reduce lag
+kpick 237129 # Merge changes for launching wifidisplay from system settings
+kpick 237142 # Battery: update mod support to P
+kpick 237143 # AudioService: Fix Audio mod volume steps
 
 # frameworks/native
 kpick 224443 # libbinder: Don't log call trace when waiting for vendor service on non-eng builds
@@ -1623,6 +1626,7 @@ kpick 234417 # Snap: Fix layout of zoom option
 kpick 234418 # Snap: Check various feature support before applying
 kpick 234419 # Snap: Add missing NULL check in updateQcfaPictureSize()
 kpick 234423 # Snap: Disable debugging of double open issue
+kpick 236877 # DisableCameraReceiver: Initialize CameraHolder before use
 
 # packages/apps/Stk
 
@@ -1669,6 +1673,8 @@ kpick 223085 # adbd: Disable "adb root" by system property
 kpick 234584 # adb: Rework adb root
 kpick 231716 # init: Always use libbootloader_message from bootable/recovery namespace
 kpick 234860 # init: add install_keyring for TWRP FBE decrypt
+kpick 237140 # healthd: add Battery Moto Mod Support
+kpick 237141 # core: update battery mod support for P
 
 # system/extras
 
@@ -1734,7 +1740,6 @@ kpick 226126 # soong_config: Add flag to skip crypto waiting on QSEE to start
 kpick 229589 # lineage: Automatically set soong namespace when setting project pathmap
 kpick 229590 # lineage: Move qcom pathmap setting into "BoardConfig"
 kpick 231291 # repopick: add hashtag support
-kpick 231939 # extract_utils: avoid doing stuff on files that don't exist
 kpick 231981 # HWComposer: HWC2: allow SkipValidate to be force disabled
 kpick 232663 # overlay: Hide the option to show battery percentage
 kpick 234011 # lineage: Add media_codecs_ddp for AC3 audio
