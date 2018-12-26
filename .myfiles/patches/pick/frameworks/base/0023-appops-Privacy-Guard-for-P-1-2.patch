@@ -1,4 +1,4 @@
-From b035865c33210a467058fe4ed808e764fd5ab6ae Mon Sep 17 00:00:00 2001
+From a9cb1e6ed8fba75fff224d7bfbdde0ca1f95f42d Mon Sep 17 00:00:00 2001
 From: Steve Kondik <steve@cyngn.com>
 Date: Sun, 20 Oct 2013 23:48:00 -0700
 Subject: [PATCH 23/50] appops: Privacy Guard for P (1/2)
@@ -401,7 +401,7 @@ Change-Id: I5414dd0be6a81e143f5035e58709ac4258c93616
  .../statusbar/phone/PhoneStatusBarPolicy.java |  19 +
  .../statusbar/policy/SuController.java        |  27 +
  .../statusbar/policy/SuControllerImpl.java    | 121 ++++
- .../com/android/server/AppOpsService.java     | 611 ++++++++++++++++--
+ .../com/android/server/AppOpsService.java     | 613 ++++++++++++++++--
  .../server/BluetoothManagerService.java       |  10 +
  .../com/android/server/PermissionDialog.java  | 177 +++++
  .../server/PermissionDialogReqQueue.java      | 102 +++
@@ -413,11 +413,8 @@ Change-Id: I5414dd0be6a81e143f5035e58709ac4258c93616
  .../server/pm/PackageManagerService.java      |  17 +
  .../android/server/pm/UserManagerService.java |   2 +
  .../server/pm/UserRestrictionsUtils.java      |   6 +-
- .../server/am/ActivityManagerServiceTest.java |   5 +-
- .../android/server/am/AppErrorDialogTest.java |   3 +-
- .../server/am/CoreSettingsObserverTest.java   |   3 +-
  .../android/telephony/TelephonyManager.java   |  12 +
- 32 files changed, 1945 insertions(+), 101 deletions(-)
+ 29 files changed, 1940 insertions(+), 97 deletions(-)
  create mode 100644 core/res/res/drawable/stat_notify_privacy_guard.xml
  create mode 100644 core/res/res/layout/permission_confirmation_dialog.xml
  create mode 100644 core/res/res/values/lineage_arrays.xml
@@ -1797,7 +1794,7 @@ index 00000000000..d2661e5b66f
 +    }
 +}
 diff --git a/services/core/java/com/android/server/AppOpsService.java b/services/core/java/com/android/server/AppOpsService.java
-index 786d757557d..eb84fc55ea5 100644
+index 786d757557d..c06313569b1 100644
 --- a/services/core/java/com/android/server/AppOpsService.java
 +++ b/services/core/java/com/android/server/AppOpsService.java
 @@ -1,4 +1,7 @@
@@ -2004,7 +2001,7 @@ index 786d757557d..eb84fc55ea5 100644
                      }
  
                      @Override
-@@ -680,9 +765,83 @@ public class AppOpsService extends IAppOpsService.Stub {
+@@ -680,9 +765,85 @@ public class AppOpsService extends IAppOpsService.Stub {
                          return mountMode == Zygote.MOUNT_EXTERNAL_READ
                                  || mountMode == Zygote.MOUNT_EXTERNAL_WRITE;
                      }
@@ -2044,11 +2041,13 @@ index 786d757557d..eb84fc55ea5 100644
 +    private BroadcastReceiver mIntentReceiver = new BroadcastReceiver() {
 +        @Override
 +        public void onReceive(Context context, Intent intent) {
-+            synchronized (AppOpsService.this) {
-+                String action = intent.getAction();
-+                if (action.equals(Intent.ACTION_SCREEN_ON)) {
++            String action = intent.getAction();
++            if (action.equals(Intent.ACTION_SCREEN_ON)) {
++                synchronized (AppOpsService.this) {
 +                    mIsInteractive = true;
-+                } else if (action.equals(Intent.ACTION_SCREEN_OFF)) {
++                }
++            } else if (action.equals(Intent.ACTION_SCREEN_OFF)) {
++                synchronized (AppOpsService.this) {
 +                    for (int i = mUidStates.size() - 1; i >= 0; i--) {
 +                        UidState uidState = mUidStates.valueAt(i);
 +
@@ -2088,7 +2087,7 @@ index 786d757557d..eb84fc55ea5 100644
      public void packageRemoved(int uid, String packageName) {
          synchronized (this) {
              UidState uidState = mUidStates.get(uid);
-@@ -775,7 +934,7 @@ public class AppOpsService extends IAppOpsService.Stub {
+@@ -775,7 +936,7 @@ public class AppOpsService extends IAppOpsService.Stub {
                  if (uidState.startNesting != 0) {
                      // There is some actively running operation...  need to find it
                      // and appropriately update its state.
@@ -2097,7 +2096,7 @@ index 786d757557d..eb84fc55ea5 100644
                      for (int i = uidState.pkgOps.size() - 1; i >= 0; i--) {
                          final Ops ops = uidState.pkgOps.valueAt(i);
                          for (int j = ops.size() - 1; j >= 0; j--) {
-@@ -812,13 +971,14 @@ public class AppOpsService extends IAppOpsService.Stub {
+@@ -812,13 +973,14 @@ public class AppOpsService extends IAppOpsService.Stub {
              resOps = new ArrayList<>();
              for (int j=0; j<pkgOps.size(); j++) {
                  Op curOp = pkgOps.valueAt(j);
@@ -2113,7 +2112,7 @@ index 786d757557d..eb84fc55ea5 100644
              }
          } else {
              for (int j=0; j<ops.length; j++) {
-@@ -827,13 +987,14 @@ public class AppOpsService extends IAppOpsService.Stub {
+@@ -827,13 +989,14 @@ public class AppOpsService extends IAppOpsService.Stub {
                      if (resOps == null) {
                          resOps = new ArrayList<>();
                      }
@@ -2129,7 +2128,7 @@ index 786d757557d..eb84fc55ea5 100644
                  }
              }
          }
-@@ -846,7 +1007,7 @@ public class AppOpsService extends IAppOpsService.Stub {
+@@ -846,7 +1009,7 @@ public class AppOpsService extends IAppOpsService.Stub {
              resOps = new ArrayList<>();
              for (int j=0; j<uidOps.size(); j++) {
                  resOps.add(new AppOpsManager.OpEntry(uidOps.keyAt(j), uidOps.valueAt(j),
@@ -2138,7 +2137,7 @@ index 786d757557d..eb84fc55ea5 100644
              }
          } else {
              for (int j=0; j<ops.length; j++) {
-@@ -856,7 +1017,7 @@ public class AppOpsService extends IAppOpsService.Stub {
+@@ -856,7 +1019,7 @@ public class AppOpsService extends IAppOpsService.Stub {
                          resOps = new ArrayList<>();
                      }
                      resOps.add(new AppOpsManager.OpEntry(uidOps.keyAt(index), uidOps.valueAt(index),
@@ -2147,7 +2146,7 @@ index 786d757557d..eb84fc55ea5 100644
                  }
              }
          }
-@@ -990,7 +1151,8 @@ public class AppOpsService extends IAppOpsService.Stub {
+@@ -990,7 +1153,8 @@ public class AppOpsService extends IAppOpsService.Stub {
          code = AppOpsManager.opToSwitch(code);
  
          synchronized (this) {
@@ -2157,7 +2156,7 @@ index 786d757557d..eb84fc55ea5 100644
  
              UidState uidState = getUidStateLocked(uid, false);
              if (uidState == null) {
-@@ -1539,7 +1701,7 @@ public class AppOpsService extends IAppOpsService.Stub {
+@@ -1539,7 +1703,7 @@ public class AppOpsService extends IAppOpsService.Stub {
              return AppOpsManager.MODE_IGNORED;
          }
          final int proxyMode = noteOperationUnchecked(code, proxyUid,
@@ -2166,7 +2165,7 @@ index 786d757557d..eb84fc55ea5 100644
          if (proxyMode != AppOpsManager.MODE_ALLOWED || Binder.getCallingUid() == proxiedUid) {
              return proxyMode;
          }
-@@ -1548,7 +1710,7 @@ public class AppOpsService extends IAppOpsService.Stub {
+@@ -1548,7 +1712,7 @@ public class AppOpsService extends IAppOpsService.Stub {
              return AppOpsManager.MODE_IGNORED;
          }
          return noteOperationUnchecked(code, proxiedUid, resolveProxiedPackageName,
@@ -2175,7 +2174,7 @@ index 786d757557d..eb84fc55ea5 100644
      }
  
      @Override
-@@ -1559,11 +1721,12 @@ public class AppOpsService extends IAppOpsService.Stub {
+@@ -1559,11 +1723,12 @@ public class AppOpsService extends IAppOpsService.Stub {
          if (resolvedPackageName == null) {
              return AppOpsManager.MODE_IGNORED;
          }
@@ -2190,7 +2189,7 @@ index 786d757557d..eb84fc55ea5 100644
          synchronized (this) {
              final Ops ops = getOpsRawLocked(uid, packageName, true /* edit */,
                      false /* uidMismatchExpected */);
-@@ -1574,6 +1737,7 @@ public class AppOpsService extends IAppOpsService.Stub {
+@@ -1574,6 +1739,7 @@ public class AppOpsService extends IAppOpsService.Stub {
              }
              final Op op = getOpLocked(ops, code, true);
              if (isOpRestrictedLocked(uid, code, packageName)) {
@@ -2198,7 +2197,7 @@ index 786d757557d..eb84fc55ea5 100644
                  return AppOpsManager.MODE_IGNORED;
              }
              final UidState uidState = ops.uidState;
-@@ -1592,28 +1756,99 @@ public class AppOpsService extends IAppOpsService.Stub {
+@@ -1592,28 +1758,99 @@ public class AppOpsService extends IAppOpsService.Stub {
                      if (DEBUG) Slog.d(TAG, "noteOperation: uid reject #" + uidMode + " for code "
                              + switchCode + " (" + code + ") uid " + uid + " package "
                              + packageName);
@@ -2308,7 +2307,7 @@ index 786d757557d..eb84fc55ea5 100644
      }
  
      @Override
-@@ -1670,6 +1905,7 @@ public class AppOpsService extends IAppOpsService.Stub {
+@@ -1670,6 +1907,7 @@ public class AppOpsService extends IAppOpsService.Stub {
      @Override
      public int startOperation(IBinder token, int code, int uid, String packageName,
              boolean startIfModeDefault) {
@@ -2316,7 +2315,7 @@ index 786d757557d..eb84fc55ea5 100644
          verifyIncomingUid(uid);
          verifyIncomingOp(code);
          String resolvedPackageName = resolvePackageName(uid, packageName);
-@@ -1687,51 +1923,61 @@ public class AppOpsService extends IAppOpsService.Stub {
+@@ -1687,51 +1925,61 @@ public class AppOpsService extends IAppOpsService.Stub {
              }
              final Op op = getOpLocked(ops, code, true);
              if (isOpRestrictedLocked(uid, code, resolvedPackageName)) {
@@ -2409,7 +2408,7 @@ index 786d757557d..eb84fc55ea5 100644
      }
  
      @Override
-@@ -1837,7 +2083,7 @@ public class AppOpsService extends IAppOpsService.Stub {
+@@ -1837,7 +2085,7 @@ public class AppOpsService extends IAppOpsService.Stub {
          if (op.startNesting <= 1 || finishNested) {
              if (op.startNesting == 1 || finishNested) {
                  op.duration = (int)(SystemClock.elapsedRealtime() - op.startRealtime);
@@ -2418,7 +2417,7 @@ index 786d757557d..eb84fc55ea5 100644
              } else {
                  Slog.w(TAG, "Finishing op nesting under-run: uid " + op.uid + " pkg "
                          + op.packageName + " code " + op.op + " time=" + op.time
-@@ -1854,6 +2100,10 @@ public class AppOpsService extends IAppOpsService.Stub {
+@@ -1854,6 +2102,10 @@ public class AppOpsService extends IAppOpsService.Stub {
      }
  
      private void verifyIncomingUid(int uid) {
@@ -2429,7 +2428,7 @@ index 786d757557d..eb84fc55ea5 100644
          if (uid == Binder.getCallingUid()) {
              return;
          }
-@@ -2283,15 +2533,46 @@ public class AppOpsService extends IAppOpsService.Stub {
+@@ -2283,15 +2535,46 @@ public class AppOpsService extends IAppOpsService.Stub {
                      uidState.pkgOps = new ArrayMap<>();
                  }
  
@@ -2479,7 +2478,7 @@ index 786d757557d..eb84fc55ea5 100644
                              break;
                          case "d":
                              op.duration = Integer.parseInt(value);
-@@ -2445,8 +2726,12 @@ public class AppOpsService extends IAppOpsService.Stub {
+@@ -2445,8 +2728,12 @@ public class AppOpsService extends IAppOpsService.Stub {
                              AppOpsManager.OpEntry op = ops.get(j);
                              out.startTag(null, "op");
                              out.attribute(null, "n", Integer.toString(op.getOp()));
@@ -2493,7 +2492,7 @@ index 786d757557d..eb84fc55ea5 100644
                              }
                              for (int k = 0; k < _NUM_UID_STATE; k++) {
                                  final long time = op.getLastTimeFor(k);
-@@ -2472,6 +2757,14 @@ public class AppOpsService extends IAppOpsService.Stub {
+@@ -2472,6 +2759,14 @@ public class AppOpsService extends IAppOpsService.Stub {
                              if (proxyPackageName != null) {
                                  out.attribute(null, "pp", proxyPackageName);
                              }
@@ -2508,7 +2507,7 @@ index 786d757557d..eb84fc55ea5 100644
                              out.endTag(null, "op");
                          }
                          out.endTag(null, "uid");
-@@ -2772,7 +3065,7 @@ public class AppOpsService extends IAppOpsService.Stub {
+@@ -2772,7 +3067,7 @@ public class AppOpsService extends IAppOpsService.Stub {
                          }
                          return 0;
                      }
@@ -2517,7 +2516,7 @@ index 786d757557d..eb84fc55ea5 100644
                      for (int i=0; i<ops.size(); i++) {
                          List<AppOpsManager.OpEntry> entries = ops.get(i).getOps();
                          for (int j=0; j<entries.size(); j++) {
-@@ -3038,7 +3331,7 @@ public class AppOpsService extends IAppOpsService.Stub {
+@@ -3038,7 +3333,7 @@ public class AppOpsService extends IAppOpsService.Stub {
              pw.println("Current AppOps Service state:");
              mConstants.dump(pw);
              pw.println();
@@ -2526,7 +2525,7 @@ index 786d757557d..eb84fc55ea5 100644
              final long nowElapsed = SystemClock.elapsedRealtime();
              final long nowUptime = SystemClock.uptimeMillis();
              final SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS");
-@@ -3566,6 +3859,150 @@ public class AppOpsService extends IAppOpsService.Stub {
+@@ -3566,6 +3861,150 @@ public class AppOpsService extends IAppOpsService.Stub {
          }
      }
  
@@ -2677,7 +2676,7 @@ index 786d757557d..eb84fc55ea5 100644
      private static String resolvePackageName(int uid, String packageName)  {
          if (uid == Process.ROOT_UID) {
              return "root";
-@@ -3776,4 +4213,50 @@ public class AppOpsService extends IAppOpsService.Stub {
+@@ -3776,4 +4215,50 @@ public class AppOpsService extends IAppOpsService.Stub {
              }
          }
      }
@@ -3053,7 +3052,7 @@ index 00000000000..be72286a6ae
 +    }
 +}
 diff --git a/services/core/java/com/android/server/am/ActivityManagerService.java b/services/core/java/com/android/server/am/ActivityManagerService.java
-index 03d56ebcb12..bdea713da0a 100644
+index 03d56ebcb12..2c6e6890b35 100644
 --- a/services/core/java/com/android/server/am/ActivityManagerService.java
 +++ b/services/core/java/com/android/server/am/ActivityManagerService.java
 @@ -1938,6 +1938,9 @@ public class ActivityManagerService extends IActivityManager.Stub
@@ -3139,7 +3138,7 @@ index 03d56ebcb12..bdea713da0a 100644
          mAppErrors = null;
          mAppWarnings = null;
 -        mAppOpsService = mInjector.getAppOpsService(null, null);
-+        mAppOpsService = mInjector.getAppOpsService(null, null, null);
++        mAppOpsService = mInjector.getAppOpsService(null, null, this);
          mBatteryStatsService = null;
          mCompatModePackages = null;
          mConstants = null;
@@ -3148,8 +3147,8 @@ index 03d56ebcb12..bdea713da0a 100644
          mProcessStats = new ProcessStatsService(this, new File(systemDir, "procstats"));
  
 -        mAppOpsService = mInjector.getAppOpsService(new File(systemDir, "appops.xml"), mHandler);
-+        mAppOpsService = mInjector.getAppOpsService(new File(systemDir, "appops.xml"),
-+                mHandler, this);
++        mAppOpsService = mInjector.getAppOpsService(new File(systemDir, "appops.xml"), mHandler,
++                this);
  
          mGrantFile = new AtomicFile(new File(systemDir, "urigrants.xml"), "uri-grants");
  
@@ -3449,55 +3448,6 @@ index 9ca02bad50b..975545db440 100644
      );
  
      /**
-diff --git a/services/tests/servicestests/src/com/android/server/am/ActivityManagerServiceTest.java b/services/tests/servicestests/src/com/android/server/am/ActivityManagerServiceTest.java
-index c70d1e18c87..b09d244d0a0 100644
---- a/services/tests/servicestests/src/com/android/server/am/ActivityManagerServiceTest.java
-+++ b/services/tests/servicestests/src/com/android/server/am/ActivityManagerServiceTest.java
-@@ -812,7 +812,8 @@ public class ActivityManagerServiceTest {
-         }
- 
-         @Override
--        public AppOpsService getAppOpsService(File file, Handler handler) {
-+        public AppOpsService getAppOpsService(File file, Handler handler,
-+                ActivityManagerService service) {
-             return mAppOpsService;
-         }
- 
-@@ -830,4 +831,4 @@ public class ActivityManagerServiceTest {
-             mRestricted = restricted;
-         }
-     }
--}
-\ No newline at end of file
-+}
-diff --git a/services/tests/servicestests/src/com/android/server/am/AppErrorDialogTest.java b/services/tests/servicestests/src/com/android/server/am/AppErrorDialogTest.java
-index 3d11c4c84ff..9126a631bad 100644
---- a/services/tests/servicestests/src/com/android/server/am/AppErrorDialogTest.java
-+++ b/services/tests/servicestests/src/com/android/server/am/AppErrorDialogTest.java
-@@ -46,7 +46,8 @@ public class AppErrorDialogTest {
-         mContext = InstrumentationRegistry.getTargetContext();
-         mService = new ActivityManagerService(new ActivityManagerService.Injector() {
-             @Override
--            public AppOpsService getAppOpsService(File file, Handler handler) {
-+            public AppOpsService getAppOpsService(File file, Handler handler,
-+                    ActivityManagerService service) {
-                 return null;
-             }
- 
-diff --git a/services/tests/servicestests/src/com/android/server/am/CoreSettingsObserverTest.java b/services/tests/servicestests/src/com/android/server/am/CoreSettingsObserverTest.java
-index da30c11be81..62b60c0c0a1 100644
---- a/services/tests/servicestests/src/com/android/server/am/CoreSettingsObserverTest.java
-+++ b/services/tests/servicestests/src/com/android/server/am/CoreSettingsObserverTest.java
-@@ -149,7 +149,8 @@ public class CoreSettingsObserverTest {
-             return mContext;
-         }
- 
--        public AppOpsService getAppOpsService(File file, Handler handler) {
-+        public AppOpsService getAppOpsService(File file, Handler handler,
-+                ActivityManagerService service) {
-             return null;
-         }
- 
 diff --git a/telephony/java/android/telephony/TelephonyManager.java b/telephony/java/android/telephony/TelephonyManager.java
 index 37cdb52f7a3..4d4d8b38eb6 100644
 --- a/telephony/java/android/telephony/TelephonyManager.java

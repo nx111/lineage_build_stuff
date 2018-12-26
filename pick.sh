@@ -1169,6 +1169,9 @@ kpick 226443 # soong: Add additional_deps attribute for libraries and binaries
 kpick 229423 # selinux: add domain for snap
 kpick 229424 # selinux: add domain for Gallery
 kpick 234613 # common: Expand labeling of sysfs_vibrator nodes using genfscon
+kpick 237196 # move snap_app type definition to public
+kpick 237203 # selinux: snap: allow to read vendor camera props
+kpick 237205 # selinux: move vendor_camera_prop from device/qcom/sepolicy
 
 # device/qcom/sepolicy
 kpick 228570 # sepolicy: Allow wcnss_service to set wlan.driver properties
@@ -1184,6 +1187,7 @@ kpick 236446 # common: Improve label of I/O sched tuning nodes
 kpick 234613 # common: Expand labeling of sysfs_vibrator nodes using genfscon
 kpick 234837 # common: Label and allow access over LiveDisplay sysfs nodes
 kpick 235402 # common: Allow init to relabel I/O sched tuning nodes
+kpick 237204 # selinux: move vendor_camera_prop to device/lineage/sepolicy
 
 # device/qcom/sepolicy-legacy
 kpick 230237 # common: allow vendor_init to create /data/dpm
@@ -1219,6 +1223,7 @@ kpick 230387 # CameraService: Support calling addStates in enumerateProviders
 kpick 230642 # CameraService: Initialize CameraParameters for the cameras and cache them onFirstRef
 kpick 231348 # camera: Allow to use boottime as timestamp reference
 kpick 234010 # libstagefright: omx: Add support for loading prebuilt ddp decoder lib
+kpick 237206 # audiopolicy: support extended feature in audiopolicymanager
 
 # frameworks/base
 kpick 224266 # SystemUI: Add Lineage statusbar item holder
@@ -1277,12 +1282,14 @@ kpick 229400 # HAXX to allow too large dimensions
 kpick 230610 # APP may display abnormally in landscape LCM
 kpick 231828 # Translate pointer motion events for OneHandOperation Display Shrink
 kpick 231980 # HWComposer: HWC2: allow SkipValidate to be force disabled
+kpick 237194 # Gralloc2: Mark some gralloc bits as valid
 
 # frameworks/opt/net/wifi
 kpick 237173 # WiFi: Ignore connectivity scans during WFD session
 
 # frameworks/opt/telephony
 kpick 234319 # LocaleTracker: Add null check before accessing WifiManager
+kpick 237207 # Fix non-protected broadcasts sent from phone process.
 
 # hardware/boardcom/libbt
 kpick 225155 # Broadcom BT: Add support fm/bt via v4l2.
@@ -1293,7 +1300,6 @@ kpick 225155 # Broadcom BT: Add support fm/bt via v4l2.
 # hardware/boardcom/wlan
 
 # hardware/libhardware
-kpick 237174 # libhardware: Add new display types.
 
 # hardware/interfaces
 kpick 225506 # Camed HAL extension: Added support in HIDL for Extended FD.
@@ -1453,6 +1459,7 @@ kpick 233634 # Phone ringtone setting for Multi SIM device
 kpick 235978 # Settings: Add switch for linked ring and media notification volumes
 kpick 236184 # Settings: Use correct icon for ring volume
 kpick 236550 # fingerprint: Remove unnecessary spacing in enroll layout
+kpick 237183 # settings: hide appendix of app list for power usage.
 
 # packages/apps/SettingsIntelligence
 
