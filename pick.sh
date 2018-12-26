@@ -1108,7 +1108,6 @@ kpick 227747 # lineage: Enable weather apps
 #kpick 227748 # lineage: Enable qcom thermal/vr HALs
 kpick 226755 # lineage: Enable cryptfs_hw
 kpick 231971 # manifest: sync gcc4.9 from aosp oreo
-kpick 232785 # lineage: Ship Snap
 
 patch_local local/android
 echo
@@ -1237,7 +1236,6 @@ kpick 229307 # Add CHANNEL_MODE_DUAL_CHANNEL constant
 kpick 229308 # Add Dual Channel into Bluetooth Audio Channel Mode developer options menu
 kpick 229309 # Allow SBC as HD audio codec in Bluetooth device configuration
 kpick 229606 # ConsumerIR: Support Huawei's DSP chip implementation
-kpick 229612 # Performance: Memory Optimizations.
 kpick 231823 # Do not move the multi-window divider when showing IME
 kpick 231824 # Fix StatusBar icons tinting when in split screen
 kpick 231827 # Add display shrink mode
@@ -1265,6 +1263,8 @@ kpick 237001 # base: limit direct share targets to reduce lag
 kpick 237129 # Merge changes for launching wifidisplay from system settings
 kpick 237142 # Battery: update mod support to P
 kpick 237143 # AudioService: Fix Audio mod volume steps
+kpick 237171 # WiFiDisplayController: Defer the P2P Initialization from its constructor.
+kpick 237172 # WifiDisplayController: handle preexisting p2p connection status
 
 # frameworks/native
 kpick 224443 # libbinder: Don't log call trace when waiting for vendor service on non-eng builds
@@ -1279,6 +1279,7 @@ kpick 231828 # Translate pointer motion events for OneHandOperation Display Shri
 kpick 231980 # HWComposer: HWC2: allow SkipValidate to be force disabled
 
 # frameworks/opt/net/wifi
+kpick 237173 # WiFi: Ignore connectivity scans during WFD session
 
 # frameworks/opt/telephony
 kpick 234319 # LocaleTracker: Add null check before accessing WifiManager
@@ -1290,6 +1291,9 @@ kpick 225155 # Broadcom BT: Add support fm/bt via v4l2.
 # hardware/boardcom/nfc
 
 # hardware/boardcom/wlan
+
+# hardware/libhardware
+kpick 237174 # libhardware: Add new display types.
 
 # hardware/interfaces
 kpick 225506 # Camed HAL extension: Added support in HIDL for Extended FD.
@@ -1453,178 +1457,6 @@ kpick 236550 # fingerprint: Remove unnecessary spacing in enroll layout
 # packages/apps/SettingsIntelligence
 
 # packages/apps/Snap
-kpick 233131 # Revert "SnapdragonCamera: Forbid volume key can take picture"
-kpick 233132 # Revert "SnapdragonCamera: Reduce number of countdown timer option"
-kpick 233133 # Revert "SnapdragonCamera: Add missing permissions"
-kpick 233136 # Rename SnapdragonCamera to Snap
-kpick 233137 # tests: fix class name
-kpick 233140 # Snap: Use AOSP app label
-kpick 233141 # Snap: Remove old icons
-kpick 233143 # SnapdragonCamera: Initialize overlay before control-by-intent
-kpick 234570 # Snap: Re-enable ZSL after exiting HDR mode
-kpick 233145 # SnapdragonCamera: Hide UI after error-checking video preferences
-kpick 233146 # camera: Add parameter debugging support
-kpick 233148 # camera: Remove the luma-adaptation seekbar
-kpick 234571 # Camera: Cleanup and compatibility fixes
-kpick 233149 # camera: Add all focus modes, scene modes, and color effects.
-kpick 233150 # Camera: Add red-eye flash mode support
-kpick 233152 # camera: Check if video sizes are available
-kpick 233153 # Camera2: enable antibanding by default
-kpick 233154 # camera: Remove ICS hack to stop preview after takePicture
-kpick 233156 # Camera: fix preview for landscape devices
-kpick 233160 # Camera2: Don't report incorrect supported picture formats
-kpick 233161 # Camera2: some aapt warnings cleanup
-kpick 233162 # Camera2: Remove CAF video duration code
-kpick 233163 # Camera2: implement exposure compensation settings in video mode
-kpick 234667 # Camera: separate settings for color effects
-kpick 234668 # Camera: Change volume hard key button to zoom function
-kpick 233167 # Camera: Powerkey shutter (2/2)
-kpick 233169 # Camera: Cleanup hardware key handling
-kpick 233170 # Camera: Handle keys only while in app
-kpick 233171 # Camera2: Headset shutter mode
-kpick 233172 # Camera2: Add option to set max screen brightness
-kpick 233173 # SnapdragonCamera: Reset camera state after taking picture
-kpick 234536 # Snap: Add support for additional ISO values
-kpick 233177 # add support for non-standard iso keys and values
-kpick 234572 # Snap: Add support for luminance-condition parameter
-kpick 233179 # option to set manufacturer specific parameters on startup
-kpick 234573 # Snap: Add options to restart preview onPictureTaken
-kpick 233181 # Snap: Make openLegacy an option
-kpick 233182 # Snap: Add touch-to-focus timeout duration settings
-kpick 234669 # Snap: Add support for shutter speed
-kpick 234575 # Snap: Add support for mw_continuous-picture focus mode
-kpick 233191 # Snap: Fall back to default quality for invalid video qualities
-kpick 233186 # SnapdragonCamera: Fix incorrect viewfinder ratio for 13.1MP shots
-kpick 233188 # CameraActivity: Handle NPE when film strip view is null
-kpick 233189 # Snap: Remove CAF Chinese translations
-kpick 233190 # Snap: Fix aapt warnings
-kpick 233192 # Snap: Fix NPE when parameters.getSupportedVideoSizes() is null
-kpick 234574 # Snap: Add special handling of hdr-mode parameter for LGE devices
-kpick 233195 # Snap: Support for HTC's HDR mode
-kpick 234670 # Snap: Remove touch AF/AEC option
-kpick 233197 # Snap: Actually select the highest quality video by default
-kpick 233198 # SnapdragonCamera: Add option to control antibanding in camcorder
-kpick 233199 # SnapdragonCamera: Fix overly-aggressive auto rotation
-kpick 233200 # SnapdragonCamera: Remove 'off' option for antibanding
-kpick 233202 # SnapdragonCamera: Fix UI alignment glitches when nav-bar is enabled
-kpick 233204 # Snap: Don't crash when hardcoded gallery intent fails
-kpick 233205 # SnapdragonCamera: Set camera parameters before restarting preview
-kpick 233206 # Fix crash if Exif-Tag buffer-length and component-count are both 0
-kpick 233208 # Snap: Don't crash if user saved preference is not valid
-kpick 233209 # SnapdragonCamera: Scale up bitrate for HSR recordings
-kpick 233210 # Snap: Fix filtering of unsupported HFR/HSR modes
-kpick 233211 # Snap: Remove auto HDR option when not supported
-kpick 233212 # Snap: Remove video snapshot size when not supported
-kpick 233213 # Snap: Remove face detection option if not supported
-kpick 233215 # Snap: Fix incorrect preview layout surface size in landscape mode
-kpick 233216 # Snap: Do not crash when cur-focus-scale is null
-kpick 233217 # Snap: Fall back to REVIEW intent before VIEW intent
-kpick 233218 # Fix view index tracking.
-kpick 233219 # Snap: Support override maker and model exif tag
-kpick 233221 # Snap: Extend user menu, disable dev menu
-kpick 233222 # Snap: Make developer menu more accessible
-kpick 233223 # Snap: Always allow 100% JPEG quality to be set
-kpick 233224 # Snap: Unbreak auto-HDR
-kpick 233226 # snap: Add constrained longshot mode
-kpick 233227 # Snap: Remove storage menu if no external storage available
-kpick 233229 # CameraNext: dynamically generate available photo resolutions
-kpick 233230 # Snap: add auto-hdr option to photo menu
-kpick 233231 # Allow to re-open Snap from recent menu
-kpick 233232 # Add orientation correction for landscape devices
-kpick 234671 # camera: Touch focus support for camcorder
-kpick 233237 # SnapdragonCamera: Add focus-mode option to camcorder
-kpick 233238 # SnapdragonCamera: Always lock AE and AWB when auto-focus is used
-kpick 233239 # SnapdragonCamera: Lock AE and AWB for tap-to-focus in camcorder
-kpick 233240 # SnapdragonCamera: Unlock AE/AWB after taking a photo with ZSL
-kpick 233241 # Snap: Expose video snapshot size setting
-kpick 233242 # Snap: Add focus time support in camcorder
-kpick 234672 # Snap: Add ability to set the tap-to-focus duration to 0 sec
-kpick 233245 # Snap: Separate default focus time between camera/video
-kpick 233247 # Camera2: Only autofocus before a snap if we are actually in "auto" mode.
-kpick 233248 # camera: Keep touch focus intact during back-to-back ZSL shots
-kpick 233249 # Snap: Fixes for advanced features and scene modes
-kpick 233251 # Snap: grant android.permission.RECEIVE_BOOT_COMPLETED permisions
-kpick 234673 # Snap: Materialize
-kpick 233253 # Snap: Material toasts
-kpick 233255 # Remove unused menu indicators code.
-kpick 233257 # Snap: Add icons to all remaining preferences
-kpick 233258 # Snap: Add icons to all scene modes
-kpick 233259 # snap: Adjust top bar icon order
-kpick 233260 # De-uglify menu.
-kpick 233261 # Use material versions of share/delete/edit icons.
-kpick 233263 # CameraNext: Fallback to do copy exif if exif not exist
-kpick 233264 # CameraNext: don't crash when pref is not boolean
-kpick 233265 # Show UI when pano stitch starts and remove cancel condition
-kpick 233266 # snap: Panorama fixes
-kpick 233267 # Fix broken filenames for cropped images
-kpick 233268 # CropActivity: notify MediaScanner on save complete
-kpick 233269 # CameraNext: stop updating the pano progress bar on pause
-kpick 233270 # Grant read URI permission for playback of video capture
-kpick 233271 # Make panorama able to go 270 degrees in landscape
-kpick 233272 # CameraNext: Update focus behavior for panoramas
-kpick 233273 # Stop data loader on activity destroy.
-kpick 233274 # Initialize focus manager in onResume().
-kpick 233275 # Snap: prevent NPE when checking if controls are visible
-kpick 234674 # Snap: Detect and use Camera2 if available
-kpick 233277 # Snap: CaptureModule: check if ZSL is supported before using it
-kpick 233278 # Snap: Allow switching beyond just 2 cameras
-kpick 233279 # Always apply frame size reduction to panorama pictures
-kpick 233280 # Snap: Simulate back button press when menu back button is pressed
-kpick 233283 # Never ignore finger swipes in gallery mode
-kpick 233284 # Initialize focus overlay manager if it is not initialized.
-kpick 233285 # Camera: Set preview fps after recording.
-kpick 233287 # Snapdragon Camera: Use consistent API for preview fps reset
-kpick 233288 # SnapdragonCamera: Longshot with Burst Functionality.
-kpick 233289 # Protect against multiple shutter callbacks per frame in longshot mode.
-kpick 233290 # ListPreference: prevent ArrayIndexOutOfBoundsException
-kpick 233291 # VideoModule: don't set negative HFR value
-kpick 233292 # SnapdragonCamera: Fix shutter button clicks in rapid succession getting ignored
-kpick 233293 # SnapdragonCamera: Enforce 120ms delay in between shutter clicks
-kpick 233294 # Snap: Render zoom circle in the center of the camera preview
-kpick 233295 # Snap: Don't do touch-to-focus on top of UI elements
-kpick 233296 # SnapdragonCamera: Add missing toast on HSR/HFR override
-kpick 233297 # Snap: Show remaining photos on initial start
-kpick 233298 # Snap: Disable warped pano preview
-kpick 233299 # Snap: Increase default pano capture pixels to 1440x1000
-kpick 233300 # Snap: Adjust scene and filter mode layout dimensions
-kpick 233301 # Snap: Don't close slide out menu after selecting scene mode
-kpick 233302 # Snap: Fix swipe right to open menu
-kpick 233303 # Snap: Fix filter mode button after disabling HDR mode
-kpick 233304 # Snap: Remove "help screen on first start" feature
-kpick 233305 # Snap: Arrange video menu so it's similar to photo menu
-kpick 233306 # Snap: Fix panorama layout
-kpick 233308 # Removed littlemock dependency and cleanup
-kpick 233309 # Snap: Rip out hdr-need-1x option
-kpick 233310 # Snap: check tags before using them
-kpick 233311 # QuickReader: initial commit
-kpick 234675 # Snap: add QReader to module switch
-kpick 233315 # Snap: Add missing thumbnails for filter modes
-kpick 233317 # Snap: Port all string improvements from cm-14.1
-kpick 233319 # Snap: adaptive icon
-kpick 233320 # Snap: Convert "save best" dialog text to a quantity string
-kpick 233322 # Do not crash if we don't have support for RAW files
-kpick 233323 # Snap: don't try to set up cameras with ids greater than MAX_NUM_CAM
-kpick 233326 # Drop new focus indicator into Camera2.
-kpick 233327 # Snap: Add support for focus distance
-kpick 233328 # Snap: Configure focus ring preview dimensions
-kpick 233329 # Snap: Check for ACCESS_FINE_LOCATION instead of ACCESS_COARSE_LOCATION
-kpick 233331 # SnapdragonCamera: Panorama, replace border drawable
-kpick 233332 # Snap: turn developer category title into a translatable string
-kpick 233333 # Snap: Allow quickreader to work with secure device
-kpick 233334 # CameraSettings: Do not crash if zoom ratios are not exposed
-kpick 233335 # Snap: use platform cert
-kpick 234175 # Fix force close when launch camera on P
-kpick 234236 # SnapdragonCamera: SetParameters use the mParameters Object
-kpick 234237 # SnapdragonCamera: Fix parameters NullPointerException
-kpick 234238 # Fix to change default mode to Camera1 HAL1
-kpick 234239 # Fix get aePref is null in PhotoMenu
-kpick 234415 # Snap: Avoid crash with empty RAW output size
-kpick 234416 # Snap: Create correct redeye reduction config icon
-kpick 234417 # Snap: Fix layout of zoom option
-kpick 234418 # Snap: Check various feature support before applying
-kpick 234419 # Snap: Add missing NULL check in updateQcfaPictureSize()
-kpick 234423 # Snap: Disable debugging of double open issue
-kpick 236877 # DisableCameraReceiver: Initialize CameraHolder before use
 
 # packages/apps/Stk
 
