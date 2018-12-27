@@ -1105,9 +1105,9 @@ repo sync android  >/dev/null
 
 kpick 223886 # manifest: Re-add hardware/qcom/data/ipacfg-mgr
 kpick 227747 # lineage: Enable weather apps
-#kpick 227748 # lineage: Enable qcom thermal/vr HALs
 kpick 226755 # lineage: Enable cryptfs_hw
 kpick 231971 # manifest: sync gcc4.9 from aosp oreo
+kpick 237222 # lineage: Remove rcs-services repo
 
 patch_local local/android
 echo
@@ -1134,9 +1134,9 @@ kpick 234859 # repopick: cmp() is not available in Python 3, define it manually
 kpick 225192 # klte-common: Align ril.h to samsung_msm8974-common P libril changes
 
 # device/samsung/msm8974-common
-kpick 235140 # msm8974-common: sepolicy: Clean up
 kpick 235457 # msm8974-common: sepolicy: Limit execmod to specifically labeled files
 kpick 234526 # msm8974-common: sepolicy: Resolve mediaserver denials
+kpick 237215 # msm8974-common: sepolicy: Eliminate qemu_hw_mainkeys_prop entries
 
 # kernel/samsung/msm8974
 kpick 234754 # Add define for O_TMPFILE
@@ -1187,6 +1187,7 @@ kpick 236446 # common: Improve label of I/O sched tuning nodes
 kpick 234613 # common: Expand labeling of sysfs_vibrator nodes using genfscon
 kpick 234837 # common: Label and allow access over LiveDisplay sysfs nodes
 kpick 235402 # common: Allow init to relabel I/O sched tuning nodes
+kpick 237211 # Remove vendor se-labelling of AOSP's qemu.hw.mainkeys prop.
 kpick 237204 # selinux: move vendor_camera_prop to device/lineage/sepolicy
 
 # device/qcom/sepolicy-legacy
@@ -1202,7 +1203,7 @@ kpick 230236 # common: label /sys/devices/virtual/graphics as sysfs_graphics
 kpick 230238 # common: create proc_kernel_sched domain to restrict perf hal access
 kpick 230239 # common: allow uevent to control sysfs_mmc_host via vold
 kpick 234832 # sepolicy: Add additional restricted permissions to vendor_init
-kpick 235455 # legacy: Allow platform_app to read qemu_hw_mainkeys_prop
+#kpick 235455 # legacy: Allow platform_app to read qemu_hw_mainkeys_prop
 
 # development
 kpick 232511 # make-key: Enforce PBEv1 password-protected signing keys
@@ -1472,6 +1473,9 @@ kpick 237183 # settings: hide appendix of app list for power usage.
 
 # packages/apps/Trebuchet
 kpick 234611 # Trebuchet: expand statusbar on swipe down
+kpick 237216 # Trebuchet: update default workspace
+kpick 237217 # Trebuchet: do not rename on QuickStep builds
+kpick 237218 # QSB: request round search bar
 
 # packages/apps/TvSettings
 

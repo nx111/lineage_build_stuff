@@ -1,0 +1,113 @@
+From 7b2778ecb90ec2a22a20428bef89ee803f2e707e Mon Sep 17 00:00:00 2001
+From: Edward Cross <edward.k.cross@gmail.com>
+Date: Wed, 26 Dec 2018 22:18:30 +0100
+Subject: [PATCH 4/5] QSB: request round search bar
+
+Change-Id: Icf81d36e467fdbe5cc4e4a081c8e3ec2ebaa4263
+---
+ proguard.flags                                |  5 ++++
+ .../launcher3/qsb/QsbContainerView.java       | 29 +++++++++++++++++++
+ .../launcher3/qsb/QsbWidgetHostView.java      |  6 ++++
+ 3 files changed, 40 insertions(+)
+
+diff --git a/proguard.flags b/proguard.flags
+index 93b0d34d8..8c9855944 100644
+--- a/proguard.flags
++++ b/proguard.flags
+@@ -139,3 +139,8 @@
+ -dontwarn android.app.**
+ -dontwarn android.view.**
+ -dontwarn android.os.**
++
++# QSB
++-keep class com.android.launcher3.qsb.QsbContainerView$QsbFragment {
++  public <init>(...);
++}
+diff --git a/src/com/android/launcher3/qsb/QsbContainerView.java b/src/com/android/launcher3/qsb/QsbContainerView.java
+index 8e29df16a..c9f6721ef 100644
+--- a/src/com/android/launcher3/qsb/QsbContainerView.java
++++ b/src/com/android/launcher3/qsb/QsbContainerView.java
+@@ -30,6 +30,8 @@ import android.appwidget.AppWidgetProviderInfo;
+ import android.content.ComponentName;
+ import android.content.Context;
+ import android.content.Intent;
++import android.content.pm.ActivityInfo;
++import android.content.pm.PackageManager;
+ import android.graphics.Rect;
+ import android.os.Bundle;
+ import android.util.AttributeSet;
+@@ -53,6 +55,8 @@ import com.android.launcher3.config.FeatureFlags;
+  * AppWidgetManager directly, so that it keeps working in that case.
+  */
+ public class QsbContainerView extends FrameLayout {
++    private static final String QSB_PROVIDER_CLASS
++            = "com.google.android.googlequicksearchbox.SearchWidgetProvider";
+ 
+     public QsbContainerView(Context context) {
+         super(context);
+@@ -75,6 +79,26 @@ public class QsbContainerView extends FrameLayout {
+         super.setPadding(left, top, right, bottom);
+     }
+ 
++    public static void updateDefaultLayout(Context context, AppWidgetProviderInfo info) {
++        ComponentName provider = info.provider;
++        if (QSB_PROVIDER_CLASS.equals(provider.getClassName())) {
++            try {
++                ActivityInfo activityInfo =
++                    context.getPackageManager().getReceiverInfo(provider,
++                        PackageManager.GET_META_DATA);
++                Bundle metaData = activityInfo.metaData;
++                int resId = metaData.getInt(
++                    "com.google.android.gsa.searchwidget.alt_initial_layout_cqsb", -1);
++                if (resId != -1) {
++                    info.initialLayout = resId;
++                }
++            } catch (Exception e) {
++                // Ignore the exception since if any exceptions happen
++                //  the original initialyLayout would be used.
++            }
++        }
++    }
++
+     /**
+      * A fragment to display the QSB.
+      */
+@@ -126,6 +150,11 @@ public class QsbContainerView extends FrameLayout {
+                 return getDefaultView(container, false /* show setup icon */);
+             }
+             Bundle opts = createBindOptions();
++            // round quick search bar
++            opts.putString("attached-launcher-identifier",
++                    getActivity().getPackageName());
++            opts.putString("requested-widget-style", "cqsb");
++
+             Activity activity = getActivity();
+             AppWidgetManager widgetManager = AppWidgetManager.getInstance(activity);
+ 
+diff --git a/src/com/android/launcher3/qsb/QsbWidgetHostView.java b/src/com/android/launcher3/qsb/QsbWidgetHostView.java
+index 407812dd1..906edf92a 100644
+--- a/src/com/android/launcher3/qsb/QsbWidgetHostView.java
++++ b/src/com/android/launcher3/qsb/QsbWidgetHostView.java
+@@ -17,6 +17,7 @@
+ package com.android.launcher3.qsb;
+ 
+ import android.appwidget.AppWidgetHostView;
++import android.appwidget.AppWidgetProviderInfo;
+ import android.content.Context;
+ import android.view.LayoutInflater;
+ import android.view.View;
+@@ -46,6 +47,11 @@ public class QsbWidgetHostView extends AppWidgetHostView {
+         super.updateAppWidget(remoteViews);
+     }
+ 
++    @Override
++    public void setAppWidget(int appWidgetId, AppWidgetProviderInfo info) {
++        QsbContainerView.updateDefaultLayout(getContext(), info);
++        super.setAppWidget(appWidgetId, info);
++    }
+ 
+     public boolean isReinflateRequired(int orientation) {
+         // Re-inflate is required if the orientation has changed since last inflation.
+-- 
+2.17.1
+
