@@ -1289,7 +1289,6 @@ kpick 237173 # WiFi: Ignore connectivity scans during WFD session
 
 # frameworks/opt/telephony
 kpick 234319 # LocaleTracker: Add null check before accessing WifiManager
-kpick 237207 # Fix non-protected broadcasts sent from phone process.
 
 # hardware/boardcom/libbt
 kpick 225155 # Broadcom BT: Add support fm/bt via v4l2.
@@ -1341,11 +1340,11 @@ kpick 224951 # keymaster: Featureize support for waiting on QSEE to start
 kpick 224952 # keymaster: add TARGET_PROVIDES_KEYMASTER
 kpick 224953 # keymaster: Fix compiler warnings
 kpick 224954 # keymaster: move to /vendor
-kpick 233465 # keymaster: Use generated kernel headers
 
 # hardware/qcom/media
 
 # hardware/qcom/media-caf/msm8974
+kpick 237154 # Add -Wno-error to compile with global -Werror.
 
 # hardware/qcom/power
 kpick 231884 # sdm670:power: Turn on/off display
@@ -1556,7 +1555,7 @@ kpick 234581 # update_engine: Fallback to partition without suffix
 # system/vold
 kpick 226109 # vold: Add Hardware FDE feature
 kpick 226110 # system: vold: Remove crypto block device creation
-kpick 226127 # vold: Move QCOM HW FDE inclusion under lineage namespace
+kpick 226127 # vold: Move QCOM HW FDE inclusion under Lineage namespace
 kpick 229304 # vold: Add texfat and sdfat support
 kpick 231717 # vold: Always use libbootloader_message from bootable/recovery namespace
 kpick 235198 # Revert "vold: Also wait for dm device when mounting private volume"
@@ -1573,7 +1572,7 @@ kpick 225982 # roomservice.py: Strip cm.{mk,dependencies} support
 kpick 231249 # roomservice.py: adapt to lineage-16.0
 kpick 226123 # soong_config: Add new flags for HW FDE
 kpick 226125 # soong_config: Add flag for legacy HW FDE
-kpick 226126 # soong_config: Add flag to skip crypto waiting on QSEE to start
+kpick 226126 # soong_config: Add flag for crypto waiting on QSEE to start
 kpick 229589 # lineage: Automatically set soong namespace when setting project pathmap
 kpick 229590 # lineage: Move qcom pathmap setting into "BoardConfig"
 kpick 231291 # repopick: add hashtag support
@@ -1584,6 +1583,7 @@ kpick 234011 # lineage: Add media_codecs_ddp for AC3 audio
 kpick 237116 # extract_utils: remove the "set +e" calls during extract()
 kpick 237117 # extract_utils: drop the "/system/" prefix from prints of blob names
 kpick 237118 # extract_utils: introduce support for executing blob fixup scripts
+kpick 237209 # lineage: Set default ringtone for second SIM
 
 # vendor/qcom/opensource/cryptfs_hw
 kpick 226128 # cryptfs_hw: Add compatibility for pre-O hw crypto
