@@ -1,0 +1,185 @@
+From 5d566f00d640638289f0ec9971f8efa76944aaa9 Mon Sep 17 00:00:00 2001
+From: Joey <joey@lineageos.org>
+Date: Sun, 4 Feb 2018 11:36:32 +0100
+Subject: [PATCH 5/7] Trebuchet: allow disabling workspace edit
+
+Change-Id: I503e19cbc512eac0e4a8c8bccc16a6ccc0e805da
+Signed-off-by: Joey <joey@lineageos.org>
+---
+ res/values/lineage_strings.xml                           | 6 ++++++
+ res/xml/launcher_preferences.xml                         | 8 ++++++++
+ src/com/android/launcher3/SettingsActivity.java          | 4 +++-
+ src/com/android/launcher3/Utilities.java                 | 5 +++++
+ src/com/android/launcher3/dragndrop/DragController.java  | 9 +++++++++
+ .../android/launcher3/popup/PopupContainerWithArrow.java | 3 +++
+ src/com/android/launcher3/popup/SystemShortcut.java      | 5 +++++
+ src/com/android/launcher3/views/OptionsPopupView.java    | 6 ++++--
+ 8 files changed, 43 insertions(+), 3 deletions(-)
+
+diff --git a/res/values/lineage_strings.xml b/res/values/lineage_strings.xml
+index 96a265409..adf4fee83 100644
+--- a/res/values/lineage_strings.xml
++++ b/res/values/lineage_strings.xml
+@@ -43,6 +43,12 @@
+     <string name="desktop_show_labels">Show icon labels on desktop</string>
+     <string name="drawer_show_labels">Show icon labels in drawer</string>
+ 
++    <!-- Edit workspace -->
++    <string name="settings_edit_allow_title">Allow edit</string>
++    <string name="settings_edit_allow_summary_on">Icons and widgets can be added, removed and moved on the homescreen</string>
++    <string name="settings_edit_allow_summary_off">Icons and widgets can\'t be added, removed and moved on the homescreen</string>
++    <string name="settings_edit_widgets_error">It\'s not possible to add widgets to the home screen</string>
++
+     <!-- Folder titles -->
+     <string name="google_title" translatable="false">Google</string>
+     <string name="play_folder_title">Play</string>
+diff --git a/res/xml/launcher_preferences.xml b/res/xml/launcher_preferences.xml
+index 21d49bc61..6e957343a 100644
+--- a/res/xml/launcher_preferences.xml
++++ b/res/xml/launcher_preferences.xml
+@@ -16,6 +16,14 @@
+ 
+ <PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android">
+ 
++    <SwitchPreference
++        android:defaultValue="true"
++        android:key="pref_workspace_edit"
++        android:persistent="true"
++        android:title="@string/settings_edit_allow_title"
++        android:summaryOn="@string/settings_edit_allow_summary_on"
++        android:summaryOff="@string/settings_edit_allow_summary_off" />
++
+     <com.android.launcher3.views.ButtonPreference
+         android:key="pref_icon_badging"
+         android:title="@string/icon_badging_title"
+diff --git a/src/com/android/launcher3/SettingsActivity.java b/src/com/android/launcher3/SettingsActivity.java
+index 990c1b358..26ca61a82 100644
+--- a/src/com/android/launcher3/SettingsActivity.java
++++ b/src/com/android/launcher3/SettingsActivity.java
+@@ -81,6 +81,8 @@ public class SettingsActivity extends Activity {
+     private static final String KEY_SHOW_DESKTOP_LABELS = "pref_desktop_show_labels";
+     private static final String KEY_SHOW_DRAWER_LABELS = "pref_drawer_show_labels";
+ 
++    public static final String KEY_WORKSPACE_EDIT = "pref_workspace_edit";
++
+     @Override
+     protected void onCreate(Bundle savedInstanceState) {
+         super.onCreate(savedInstanceState);
+@@ -100,7 +102,7 @@ public class SettingsActivity extends Activity {
+     /**
+      * This fragment shows the launcher preferences.
+      */
+-    public static class LauncherSettingsFragment extends PreferenceFragment 
++    public static class LauncherSettingsFragment extends PreferenceFragment
+             implements SharedPreferences.OnSharedPreferenceChangeListener {
+ 
+         private IconBadgingObserver mIconBadgingObserver;
+diff --git a/src/com/android/launcher3/Utilities.java b/src/com/android/launcher3/Utilities.java
+index 0e6d56799..2330b10e3 100644
+--- a/src/com/android/launcher3/Utilities.java
++++ b/src/com/android/launcher3/Utilities.java
+@@ -619,4 +619,9 @@ public final class Utilities {
+         msg.setAsynchronous(true);
+         handler.sendMessage(msg);
+     }
++
++    public static boolean isWorkspaceEditAllowed(Context context) {
++        SharedPreferences prefs = getPrefs(context.getApplicationContext());
++        return prefs.getBoolean(SettingsActivity.KEY_WORKSPACE_EDIT, true);
++    }
+ }
+diff --git a/src/com/android/launcher3/dragndrop/DragController.java b/src/com/android/launcher3/dragndrop/DragController.java
+index 8a216fc17..97c0fa916 100644
+--- a/src/com/android/launcher3/dragndrop/DragController.java
++++ b/src/com/android/launcher3/dragndrop/DragController.java
+@@ -37,6 +37,7 @@ import com.android.launcher3.ItemInfo;
+ import com.android.launcher3.Launcher;
+ import com.android.launcher3.R;
+ import com.android.launcher3.ShortcutInfo;
++import com.android.launcher3.Utilities;
+ import com.android.launcher3.accessibility.DragViewStateAnnouncer;
+ import com.android.launcher3.util.ItemInfoMatcher;
+ import com.android.launcher3.util.Thunk;
+@@ -407,10 +408,18 @@ public class DragController implements DragDriver.EventListener, TouchController
+      * Call this from a drag source view.
+      */
+     public boolean onControllerInterceptTouchEvent(MotionEvent ev) {
++        boolean isEditDisabled = !Utilities.isWorkspaceEditAllowed(
++                mLauncher.getApplicationContext());
++
+         if (mOptions != null && mOptions.isAccessibleDrag) {
+             return false;
+         }
+ 
++        if (isEditDisabled) {
++            cancelDrag();
++            return false;
++        }
++
+         // Update the velocity tracker
+         mFlingToDeleteHelper.recordMotionEvent(ev);
+ 
+diff --git a/src/com/android/launcher3/popup/PopupContainerWithArrow.java b/src/com/android/launcher3/popup/PopupContainerWithArrow.java
+index 172cf41e0..16514e149 100644
+--- a/src/com/android/launcher3/popup/PopupContainerWithArrow.java
++++ b/src/com/android/launcher3/popup/PopupContainerWithArrow.java
+@@ -51,6 +51,7 @@ import com.android.launcher3.ItemInfoWithIcon;
+ import com.android.launcher3.Launcher;
+ import com.android.launcher3.LauncherModel;
+ import com.android.launcher3.R;
++import com.android.launcher3.Utilities;
+ import com.android.launcher3.accessibility.LauncherAccessibilityDelegate;
+ import com.android.launcher3.accessibility.ShortcutMenuAccessibilityDelegate;
+ import com.android.launcher3.badge.BadgeInfo;
+@@ -547,6 +548,8 @@ public class PopupContainerWithArrow extends ArrowPopup implements DragSource,
+         if (!ItemLongClickListener.canStartDrag(mLauncher)) return false;
+         // Return early if not the correct view
+         if (!(v.getParent() instanceof DeepShortcutView)) return false;
++        // Return early if workspace edit is disabled
++        if (!Utilities.isWorkspaceEditAllowed(mLauncher.getApplicationContext())) return false;
+ 
+         // Long clicked on a shortcut.
+         DeepShortcutView sv = (DeepShortcutView) v.getParent();
+diff --git a/src/com/android/launcher3/popup/SystemShortcut.java b/src/com/android/launcher3/popup/SystemShortcut.java
+index 3c1cc9057..0348b0bfc 100644
+--- a/src/com/android/launcher3/popup/SystemShortcut.java
++++ b/src/com/android/launcher3/popup/SystemShortcut.java
+@@ -14,6 +14,7 @@ import com.android.launcher3.ItemInfo;
+ import com.android.launcher3.Launcher;
+ import com.android.launcher3.R;
+ import com.android.launcher3.ShortcutInfo;
++import com.android.launcher3.Utilities;
+ import com.android.launcher3.model.WidgetItem;
+ import com.android.launcher3.util.InstantAppResolver;
+ import com.android.launcher3.util.PackageManagerHelper;
+@@ -48,6 +49,10 @@ public abstract class SystemShortcut<T extends BaseDraggingActivity> extends Ite
+         @Override
+         public View.OnClickListener getOnClickListener(final Launcher launcher,
+                 final ItemInfo itemInfo) {
++            if (!Utilities.isWorkspaceEditAllowed(launcher.getApplicationContext())) {
++                return null;
++            }
++
+             final List<WidgetItem> widgets =
+                     launcher.getPopupDataProvider().getWidgetsForPackageUser(new PackageUserKey(
+                             itemInfo.getTargetComponent().getPackageName(), itemInfo.user));
+diff --git a/src/com/android/launcher3/views/OptionsPopupView.java b/src/com/android/launcher3/views/OptionsPopupView.java
+index db4c49226..29020e739 100644
+--- a/src/com/android/launcher3/views/OptionsPopupView.java
++++ b/src/com/android/launcher3/views/OptionsPopupView.java
+@@ -144,8 +144,10 @@ public class OptionsPopupView extends ArrowPopup
+         ArrayList<OptionItem> options = new ArrayList<>();
+         options.add(new OptionItem(R.string.wallpaper_button_text, R.drawable.ic_wallpaper,
+                 ControlType.WALLPAPER_BUTTON, OptionsPopupView::startWallpaperPicker));
+-        options.add(new OptionItem(R.string.widget_button_text, R.drawable.ic_widget,
+-                ControlType.WIDGETS_BUTTON, OptionsPopupView::onWidgetsClicked));
++        if (Utilities.isWorkspaceEditAllowed(launcher)) {
++            options.add(new OptionItem(R.string.widget_button_text, R.drawable.ic_widget,
++                    ControlType.WIDGETS_BUTTON, OptionsPopupView::onWidgetsClicked));
++        }
+         options.add(new OptionItem(R.string.settings_button_text, R.drawable.ic_setting,
+                 ControlType.SETTINGS_BUTTON, OptionsPopupView::startSettings));
+ 
+-- 
+2.17.1
+

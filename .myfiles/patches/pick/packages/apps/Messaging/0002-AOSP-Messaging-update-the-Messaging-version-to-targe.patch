@@ -1,0 +1,356 @@
+From da90ce4b7839ec3bec24f04766c05f576c59a860 Mon Sep 17 00:00:00 2001
+From: Raman Tenneti <rtenneti@google.com>
+Date: Tue, 4 Dec 2018 14:16:48 -0800
+Subject: [PATCH 2/4] AOSP/Messaging - update the Messaging version to target P
+ (28) or higher. Called ContextCompat.startForegroundService to start the
+ service. This would call startService for versions prior to O and calls
+ startForegroundService for versions O and after.
+
+Bug: 119503204
+
+Test: manual - Ran the following CTS tests on Pixel phone. Tested the messaging UI.
+
+$ make -j 40
+
+$ make messagingtests -j
+
+$ ls -l out/target/product/marlin/system/app/messaging/messaging.apk
+-rw-r--r-- 1 rtenneti primarygroup 8974412 Dec  4 13:21 out/target/product/marlin/system/app/messaging/messaging.apk
+
+$  ls -l  out/target/product/marlin/testcases/messagingtests/messagingtests.apk
+-rw-r--r-- 1 rtenneti primarygroup 709233 Dec  4 13:25 out/target/product/marlin/testcases/messagingtests/messagingtests.apk
+
+$ adb install -r -d out/target/product/marlin/system/app/messaging/messaging.apk
+
+$ adb install -r -d out/target/product/marlin/testcases/messagingtests/messagingtests.apk
+
+$ adb shell am instrument -w com.android.messaging.test
+
+jrizzoli: properly create notification channel
+
+Change-Id: I482738ba2a14e94de364d0e38f08d61bcd4bb061
+Signed-off-by: Joey <joey@lineageos.org>
+---
+ AndroidManifest.xml                           |  6 ++-
+ res/values/cm_strings.xml                     |  3 ++
+ .../datamodel/BugleNotifications.java         |  1 -
+ .../datamodel/action/ActionServiceImpl.java   | 28 +++++++++---
+ .../action/BackgroundWorkerService.java       | 45 ++++++++++++++++---
+ tests/AndroidManifest.xml                     |  2 +-
+ .../com/android/messaging/FakeContext.java    | 25 +++++++++++
+ .../action/ActionServiceSystemTest.java       |  9 ++++
+ .../datamodel/action/ActionServiceTest.java   |  9 +++-
+ 9 files changed, 113 insertions(+), 15 deletions(-)
+
+diff --git a/AndroidManifest.xml b/AndroidManifest.xml
+index 738bca7..a4969af 100644
+--- a/AndroidManifest.xml
++++ b/AndroidManifest.xml
+@@ -18,7 +18,7 @@
+     package="com.android.messaging"
+     android:installLocation="internalOnly">
+ 
+-    <uses-sdk android:minSdkVersion="19" android:targetSdkVersion="24" />
++    <uses-sdk android:minSdkVersion="19" android:targetSdkVersion="28" />
+ 
+     <!-- Application holds CPU wakelock while working in background -->
+     <uses-permission android:name="android.permission.WAKE_LOCK" />
+@@ -48,6 +48,10 @@
+     <uses-permission android:name="android.permission.DOWNLOAD_WITHOUT_NOTIFICATION" />
+     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+ 
++    <!-- To preserve access to Service#startForeground on P+. See b/72116995.
++         This is for Play Store accounting and is not user visible. -->
++    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
++
+     <!--  Optional features -->
+     <uses-feature android:name="android.hardware.camera" android:required="false" />
+     <uses-feature android:name="android.hardware.camera.front" android:required="false" />
+diff --git a/res/values/cm_strings.xml b/res/values/cm_strings.xml
+index 5c0f54c..d86a4f1 100644
+--- a/res/values/cm_strings.xml
++++ b/res/values/cm_strings.xml
+@@ -34,4 +34,7 @@
+ 
+     <!-- Mark message as read -->
+     <string name="notification_mark_as_read">Mark as read</string>
++
++    <!-- Notification channel -->
++    <string name="notification_channel_title">Messages</string>
+ </resources>
+diff --git a/src/com/android/messaging/datamodel/BugleNotifications.java b/src/com/android/messaging/datamodel/BugleNotifications.java
+index 1e5184a..21ffb45 100644
+--- a/src/com/android/messaging/datamodel/BugleNotifications.java
++++ b/src/com/android/messaging/datamodel/BugleNotifications.java
+@@ -1244,4 +1244,3 @@ public class BugleNotifications {
+                 builder.build());
+     }
+ }
+-
+diff --git a/src/com/android/messaging/datamodel/action/ActionServiceImpl.java b/src/com/android/messaging/datamodel/action/ActionServiceImpl.java
+index a408dac..b410bf7 100644
+--- a/src/com/android/messaging/datamodel/action/ActionServiceImpl.java
++++ b/src/com/android/messaging/datamodel/action/ActionServiceImpl.java
+@@ -18,12 +18,18 @@ package com.android.messaging.datamodel.action;
+ 
+ import android.app.AlarmManager;
+ import android.app.IntentService;
++import android.app.Notification;
++import android.app.NotificationChannel;
++import android.app.NotificationManager;
+ import android.app.PendingIntent;
+ import android.content.BroadcastReceiver;
+ import android.content.Context;
+ import android.content.Intent;
++import android.os.Build;
+ import android.os.Bundle;
+ import android.os.SystemClock;
++import android.support.v4.app.NotificationCompat;
++import android.support.v4.content.ContextCompat;
+ 
+ import com.android.messaging.Factory;
+ import com.android.messaging.datamodel.DataModel;
+@@ -207,12 +213,27 @@ public class ActionServiceImpl extends IntentService {
+         super.onCreate();
+         mBackgroundWorker = DataModel.get().getBackgroundWorkerForActionService();
+         DataModel.get().getConnectivityUtil().registerForSignalStrength();
++        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
++            String CHANNEL_ID = "my_channel_01";
++            NotificationChannel channel = new NotificationChannel(CHANNEL_ID,
++                    "Channel human readable title 1",
++                    NotificationManager.IMPORTANCE_DEFAULT);
++            ((NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE)).createNotificationChannel(channel);
++            Notification notification = new NotificationCompat.Builder(this, CHANNEL_ID)
++                    .setContentTitle("")
++                    .setContentText("").build();
++            int NOTIFICATION_ID = (int) (System.currentTimeMillis()%10000);
++            startForeground(NOTIFICATION_ID, notification);
++        }
+     }
+ 
+     @Override
+     public void onDestroy() {
+         super.onDestroy();
+         DataModel.get().getConnectivityUtil().unregisterForSignalStrength();
++        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
++            stopForeground(true);
++        }
+     }
+ 
+     private static final String WAKELOCK_ID = "bugle_datamodel_service_wakelock";
+@@ -236,12 +257,7 @@ public class ActionServiceImpl extends IntentService {
+         // memory (in total around 1MB). See this article for background
+         // http://developer.android.com/reference/android/os/TransactionTooLargeException.html
+         // Perhaps we should keep large structures in the action monitor?
+-        if (context.startService(intent) == null) {
+-            LogUtil.e(TAG,
+-                    "ActionService.startServiceWithIntent: failed to start service for intent "
+-                    + intent);
+-            sWakeLock.release(intent, opcode);
+-        }
++        ContextCompat.startForegroundService(context, intent);
+     }
+ 
+     /**
+diff --git a/src/com/android/messaging/datamodel/action/BackgroundWorkerService.java b/src/com/android/messaging/datamodel/action/BackgroundWorkerService.java
+index 4d4b150..5c0af04 100644
+--- a/src/com/android/messaging/datamodel/action/BackgroundWorkerService.java
++++ b/src/com/android/messaging/datamodel/action/BackgroundWorkerService.java
+@@ -17,9 +17,16 @@
+ package com.android.messaging.datamodel.action;
+ 
+ import android.app.IntentService;
++import android.app.IntentService;
++import android.app.Notification;
++import android.app.NotificationChannel;
++import android.app.NotificationManager;
+ import android.content.Context;
+ import android.content.Intent;
++import android.os.Build;
+ import android.os.Bundle;
++import android.support.v4.app.NotificationCompat;
++import android.support.v4.content.ContextCompat;
+ 
+ import com.android.messaging.Factory;
+ import com.android.messaging.datamodel.DataModel;
+@@ -32,6 +39,8 @@ import com.google.common.annotations.VisibleForTesting;
+ 
+ import java.util.List;
+ 
++import com.android.messaging.R;
++
+ /**
+  * Background worker service is an initial example of a background work queue handler
+  * Used to actually "send" messages which may take some time and should not block ActionService
+@@ -40,6 +49,7 @@ import java.util.List;
+ public class BackgroundWorkerService extends IntentService {
+     private static final String TAG = LogUtil.BUGLE_DATAMODEL_TAG;
+     private static final boolean VERBOSE = false;
++    private static final String CHANNEL_ID = "messaging_channel";
+ 
+     private static final String WAKELOCK_ID = "bugle_background_worker_wakelock";
+     @VisibleForTesting
+@@ -97,11 +107,21 @@ public class BackgroundWorkerService extends IntentService {
+             LogUtil.v(TAG, "acquiring wakelock for opcode " + opcode);
+         }
+ 
+-        if (context.startService(intent) == null) {
+-            LogUtil.e(TAG,
+-                    "BackgroundWorkerService.startServiceWithAction: failed to start service for "
+-                    + opcode);
+-            sWakeLock.release(intent, opcode);
++        ContextCompat.startForegroundService(context, intent);
++    }
++
++    @Override
++    public void onCreate() {
++        super.onCreate();
++        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
++        }
++    }
++
++    @Override
++    public void onDestroy() {
++        super.onDestroy();
++        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
++            stopForeground(true);
+         }
+     }
+ 
+@@ -165,4 +185,19 @@ public class BackgroundWorkerService extends IntentService {
+             }
+         }
+     }
++
++    private void createChannel() {
++        NotificationManager manager = getSystemService(NotificationManager.class);
++
++        NotificationChannel existing = manager.getNotificationChannel(CHANNEL_ID);
++        if (existing != null) {
++            return;
++        }
++
++        Context context = Factory.get().getApplicationContext();
++        String title = context.getString(R.string.notification_channel_title);
++        NotificationChannel newChannel = new NotificationChannel(CHANNEL_ID,
++                title, NotificationManager.IMPORTANCE_DEFAULT);
++        manager.createNotificationChannel(newChannel);
++    }
+ }
+diff --git a/tests/AndroidManifest.xml b/tests/AndroidManifest.xml
+index 07f0d17..3ad7d8e 100644
+--- a/tests/AndroidManifest.xml
++++ b/tests/AndroidManifest.xml
+@@ -17,7 +17,7 @@
+ <manifest xmlns:android="http://schemas.android.com/apk/res/android"
+     package="com.android.messaging.test" >
+ 
+-    <uses-sdk android:minSdkVersion="16" android:targetSdkVersion="24"/>
++    <uses-sdk android:minSdkVersion="16" android:targetSdkVersion="28"/>
+ 
+     <application android:label="Messaging Tests" >
+         <uses-library android:name="android.test.runner" />
+diff --git a/tests/src/com/android/messaging/FakeContext.java b/tests/src/com/android/messaging/FakeContext.java
+index 671e0f3..30d4cc1 100644
+--- a/tests/src/com/android/messaging/FakeContext.java
++++ b/tests/src/com/android/messaging/FakeContext.java
+@@ -34,6 +34,7 @@ public class FakeContext extends RenamingDelegatingContext {
+     public interface FakeContextHost {
+         public String getServiceClassName();
+         public void startServiceForStub(Intent intent);
++        public void startForegroundServiceForStub(Intent intent);
+         public void onStartCommandForStub(Intent intent, int flags, int startid);
+     }
+ 
+@@ -60,12 +61,36 @@ public class FakeContext extends RenamingDelegatingContext {
+         return intents;
+     }
+ 
++    @Override
++    public ComponentName startForegroundService(final Intent intent) {
++        // Record that a startForegroundService occurred with the intent that was passed.
++        Log.d(TAG, "MockContext receiving startForegroundService. intent=" + intent.toString());
++        mStartedIntents.add(intent);
++        if (mService == null) {
++            Log.d(TAG, "MockContext startForegroundService.");
++            return super.startForegroundService(intent);
++        } else if (intent.getComponent() != null &&
++                intent.getComponent().getClassName().equals(mService.getServiceClassName())) {
++            if (!mServiceStarted) {
++                Log.d(TAG, "MockContext first start foreground service.");
++                mService.startForegroundServiceForStub(intent);
++            } else {
++                Log.d(TAG, "MockContext not first start foreground service. Calling onStartCommand.");
++                mService.onStartCommandForStub(intent, 0, 0);
++            }
++            mServiceStarted = true;
++            return new ComponentName(this, intent.getComponent().getClassName());
++        }
++        return null;
++    }
++
+     @Override
+     public ComponentName startService(final Intent intent) {
+         // Record that a startService occurred with the intent that was passed.
+         Log.d(TAG, "MockContext receiving startService. intent=" + intent.toString());
+         mStartedIntents.add(intent);
+         if (mService == null) {
++            Log.d(TAG, "MockContext startService.");
+             return super.startService(intent);
+         } else if (intent.getComponent() != null &&
+                 intent.getComponent().getClassName().equals(mService.getServiceClassName())) {
+diff --git a/tests/src/com/android/messaging/datamodel/action/ActionServiceSystemTest.java b/tests/src/com/android/messaging/datamodel/action/ActionServiceSystemTest.java
+index 039bec9..5726692 100644
+--- a/tests/src/com/android/messaging/datamodel/action/ActionServiceSystemTest.java
++++ b/tests/src/com/android/messaging/datamodel/action/ActionServiceSystemTest.java
+@@ -309,11 +309,20 @@ public class ActionServiceSystemTest extends BugleServiceTestCase<ActionServiceI
+ 
+     @Override
+     public void startServiceForStub(final Intent intent) {
++        Log.d(TAG, "ChatActionTest startServiceForStub");
++        this.startService(intent);
++    }
++
++    @Override
++    public void startForegroundServiceForStub(final Intent intent) {
++        Log.d(TAG, "ChatActionTest startForegroundServiceForStub");
++        // TODO(rtenneti): Should we call startForegroundService?
+         this.startService(intent);
+     }
+ 
+     @Override
+     public void onStartCommandForStub(final Intent intent, final int flags, final int startId) {
++        Log.d(TAG, "ChatActionTest onStartCommandForStub");
+         this.getService().onStartCommand(intent, flags, startId);
+     }
+ 
+diff --git a/tests/src/com/android/messaging/datamodel/action/ActionServiceTest.java b/tests/src/com/android/messaging/datamodel/action/ActionServiceTest.java
+index 02cddae..d41f238 100644
+--- a/tests/src/com/android/messaging/datamodel/action/ActionServiceTest.java
++++ b/tests/src/com/android/messaging/datamodel/action/ActionServiceTest.java
+@@ -163,7 +163,7 @@ public class ActionServiceTest extends BugleServiceTestCase<ActionServiceImpl>
+ 
+         mWorker = new StubBackgroundWorker();
+         mContext = new FakeContext(getContext(), this);
+-        FakeFactory.registerWithFakeContext(getContext(),mContext)
++        FakeFactory.registerWithFakeContext(getContext(), mContext)
+                 .withDataModel(new FakeDataModel(mContext)
+                 .withBackgroundWorkerForActionService(mWorker)
+                 .withActionService(new ActionService())
+@@ -187,6 +187,13 @@ public class ActionServiceTest extends BugleServiceTestCase<ActionServiceImpl>
+         mServiceStarted = true;
+     }
+ 
++    @Override
++    public void startForegroundServiceForStub(final Intent intent) {
++        // Do nothing until later
++        assertFalse(mServiceStarted);
++        mServiceStarted = true;
++    }
++
+     @Override
+     public void onStartCommandForStub(final Intent intent, final int flags, final int startId) {
+         assertTrue(mServiceStarted);
+-- 
+2.17.1
+

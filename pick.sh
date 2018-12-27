@@ -527,10 +527,10 @@ function kpick()
     local extract_changeset=0
     local changeNumber
 
-    logfile=$topdir/.pick_tmp.log
-    errfile=$(echo $logfile | sed -e "s/\.log$/\.err/")
-    change_number_list=$topdir/.change_number_list
-    target_script=""
+    local logfile=$topdir/.pick_tmp_$(basename $(mktemp) | cut -d. -f2).log
+    local errfile=$(echo $logfile | sed -e "s/\.log$/\.err/")
+    local change_number_list=$topdir/.change_number_list_$(basename $(mktemp) | cut -d. -f2)
+    local target_script=""
 
     rm -f $logfile $errfile $change_number_list
 
@@ -637,7 +637,7 @@ function kpick_action()
     topdir=$(gettop)
     conflict_resolved=0
     op_force_pick=0
-    logfile=$topdir/.pick_tmp.log
+    logfile=$topdir/.pick_tmp_$(basename $(mktemp) | cut -d. -f2).log
     errfile=$(echo $logfile | sed -e "s/\.log$/\.err/")
 
     rm -f $errfile $logfile
@@ -650,6 +650,8 @@ function kpick_action()
     local nops=""
     local op
     local count=$maxCount
+    local recent_changeid_tmp
+    local md5file
 
     for op in $*; do
         if [ $op_is_m_parent -eq 1 ]; then
@@ -730,7 +732,7 @@ function kpick_action()
               #echo "git fetch $url $ref && git cherry-pick -m $m_parent FETCH_HEAD"
               if git fetch $url $ref; then
                      rchid=$(git log FETCH_HEAD -n 1 | grep Change-Id | cut -d: -f2 | sed -e "s/ //g")
-                     recent_changeid_tmp=/tmp/$(echo $project | sed -e "s:/:_:g")_recent_ids.txt
+                     recent_changeid_tmp=/tmp/$(echo $project | sed -e "s:/:_:g")_recent_ids_$(basename $(mktemp) | cut -d. -f2).txt
                      git log -n 50 | grep Change-Id | cut -d: -f2 | sed -e "s/ //g" > $recent_changeid_tmp
                      if grep -q $rchid $recent_changeid_tmp; then
                          echo "Change is  cherry-picked always! skipping it..."
@@ -777,7 +779,7 @@ function kpick_action()
               echo "!!!!!!!!!!!!!"
               cat $errfile
               [ -z $project ] && project=$(cat $logfile | grep "Project path" | cut -d: -f2 | sed "s/ //g")
-              md5file=/tmp/$(echo $project | sed -e "s:/:_:g")_rrmd5.txt
+              md5file=/tmp/$(echo $project | sed -e "s:/:_:g")_rrmd5_$(basename $(mktemp) | cut -d. -f2).txt
               rm -rf $md5file
               if [ "$project" != "" -a -d $topdir/$project ]; then
                     touch $md5file
@@ -826,7 +828,7 @@ function kpick_action()
               if [ "$pick_mode" = "fetch" ]; then
                     cd $topdir/$project
                     rchid=$(git log FETCH_HEAD -n 1 | grep Change-Id | cut -d: -f2 | sed -e "s/ //g")
-                    recent_changeid_tmp=/tmp/$(echo $project | sed -e "s:/:_:g")_recent_ids.txt
+                    recent_changeid_tmp=/tmp/$(echo $project | sed -e "s:/:_:g")_recent_ids_$(basename $(mktemp) | cut -d. -f2).txt
                     git log -n 50 | grep Change-Id | cut -d: -f2 | sed -e "s/ //g" > $recent_changeid_tmp
                     grep -q $rchid $recent_changeid_tmp || \
                        LANG=en_US git cherry-pick -m $m_parent FETCH_HEAD >$logfile 2>$errfile
@@ -1271,6 +1273,7 @@ kpick 237142 # Battery: update mod support to P
 kpick 237143 # AudioService: Fix Audio mod volume steps
 kpick 237171 # WiFiDisplayController: Defer the P2P Initialization from its constructor.
 kpick 237172 # WifiDisplayController: handle preexisting p2p connection status
+kpick 237230 # Enable Binder Proxy Tracking by Uid only on eng builds
 
 # frameworks/native
 kpick 224443 # libbinder: Don't log call trace when waiting for vendor service on non-eng builds
@@ -1300,6 +1303,9 @@ kpick 225155 # Broadcom BT: Add support fm/bt via v4l2.
 # hardware/boardcom/wlan
 
 # hardware/libhardware
+
+# hardware/libhardware_legacy
+kpick 237240 # Add support for TCP/IP over NAN
 
 # hardware/interfaces
 kpick 225506 # Camed HAL extension: Added support in HIDL for Extended FD.
@@ -1405,6 +1411,7 @@ kpick 225265 # Add Storage preference (1/2)
 kpick 229303 # Only enable presidential CMAS alerts if user is a monkey
 
 # packages/apps/Contacts
+kpick 237247 # Contacts: use white nav bar
 
 # packages/apps/DeskClock
 
@@ -1434,6 +1441,9 @@ kpick 236291 # LineageParts: Correctly initialize trust warning prefs.
 # packages/apps/ManagedProvisoning
 
 # packages/apps/Message
+kpick 237237 # AOSP/Messaging - updated tests target version to 24 to match the Messaing app's targetSdkVersion. All messagingtest ...
+kpick 237238 # AOSP/Messaging - update the Messaging version to target P (28) or higher. Called ContextCompat.startForegroundServi ...
+kpick 237239 # Messaging: use white nav bar
 
 # packages/apps/Nfc
 
@@ -1464,6 +1474,7 @@ kpick 237183 # settings: hide appendix of app list for power usage.
 # packages/apps/SettingsIntelligence
 
 # packages/apps/Snap
+kpick 237244 # Snap: make support for bokeh mode configurable per device
 
 # packages/apps/Stk
 
@@ -1476,6 +1487,8 @@ kpick 234611 # Trebuchet: expand statusbar on swipe down
 kpick 237216 # Trebuchet: update default workspace
 kpick 237217 # Trebuchet: do not rename on QuickStep builds
 kpick 237218 # QSB: request round search bar
+kpick 237245 # Trebuchet: allow disabling workspace edit
+kpick 237246 # Trebuchet: reorganize preferences
 
 # packages/apps/TvSettings
 
