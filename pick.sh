@@ -1339,8 +1339,6 @@ kpick 236546 # fm_helium: Update FM_HCI_DIR path
 # hardware/qcom/gps
 
 # hardware/qcom/keymaster
-kpick 224948 # Keymaster: Support for 64bit userspace and 32bit TZ
-kpick 224949 # keymaster: Set HEAP_MASK_COMPATIBILITY by platform for QCOM_HARDWARE
 kpick 224950 # Keymaster: Check if keymaster TZ app is loaded
 kpick 224951 # keymaster: Featureize support for waiting on QSEE to start
 kpick 224952 # keymaster: add TARGET_PROVIDES_KEYMASTER
@@ -1421,6 +1419,9 @@ kpick 237247 # Contacts: use white nav bar
 # packages/apps/Eleven
 
 # packages/apps/Email
+
+# packages/apps/ExactCalculator
+kpick 237307 # ExactCalculator: support dark mode
 
 # packages/apps/Gallery2
 
@@ -1557,6 +1558,7 @@ kpick 234987 # Use LOCAL_ADDITIONAL_M4DEFS for file_contexts
 kpick 235196 # Allow dnsmasq to getattr netd unix_stream_socket
 kpick 235258 # Allow fsck_untrusted to getattr block_device
 kpick 237125 # sepolicy: Allow netd to load modules
+kpick 237226 # Allow mediaserver to read device directories
 
 # system/tool/aidl
 kpick 223133 # AIDL: Add option to generate No-Op methods
@@ -1596,6 +1598,7 @@ kpick 237116 # extract_utils: remove the "set +e" calls during extract()
 kpick 237117 # extract_utils: drop the "/system/" prefix from prints of blob names
 kpick 237118 # extract_utils: introduce support for executing blob fixup scripts
 kpick 237209 # lineage: Set default ringtone for second SIM
+kpick 237270 # extract_utils: introduce -k (kang mode) option
 
 # vendor/qcom/opensource/cryptfs_hw
 kpick 226128 # cryptfs_hw: Add compatibility for pre-O hw crypto
