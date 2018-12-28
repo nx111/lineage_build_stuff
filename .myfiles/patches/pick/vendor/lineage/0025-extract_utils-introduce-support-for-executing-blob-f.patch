@@ -1,4 +1,4 @@
-From ad909605ed96070c59dac69f7cb4b2e6ac220332 Mon Sep 17 00:00:00 2001
+From 7d8c3e7e62120fb5f3b6c7cbded71c3712b9ff30 Mon Sep 17 00:00:00 2001
 From: Vladimir Oltean <olteanv@gmail.com>
 Date: Mon, 24 Dec 2018 01:05:17 +0200
 Subject: [PATCH 25/26] extract_utils: introduce support for executing blob
@@ -65,11 +65,11 @@ plus the ".sh" suffix.
 Change-Id: Ifdd73c885d995c645f6210597537693d1a2f903f
 Signed-off-by: Vladimir Oltean <olteanv@gmail.com>
 ---
- build/tools/extract_utils.sh | 96 +++++++++++++++++++++++++++++-------
- 1 file changed, 79 insertions(+), 17 deletions(-)
+ build/tools/extract_utils.sh | 103 +++++++++++++++++++++++++++++------
+ 1 file changed, 86 insertions(+), 17 deletions(-)
 
 diff --git a/build/tools/extract_utils.sh b/build/tools/extract_utils.sh
-index 2639f761..579ffcc2 100644
+index 2639f761..996fb02f 100644
 --- a/build/tools/extract_utils.sh
 +++ b/build/tools/extract_utils.sh
 @@ -17,8 +17,10 @@
@@ -83,7 +83,17 @@ index 2639f761..579ffcc2 100644
  PACKAGE_LIST=()
  VENDOR_STATE=-1
  VENDOR_RADIO_STATE=-1
-@@ -669,8 +671,10 @@ function parse_file_list() {
+@@ -659,7 +661,8 @@ function parse_file_list() {
+         exit 1
+     fi
+ 
+-    if [ $# -eq 2 ]; then
++    if [ -n "$2" ]; then
++        echo "Using section \"$2\""
+         LIST=$TMPDIR/files.txt
+         cat $1 | sed -n '/# '"$2"'/I,/^\s*$/p' > $LIST
+     else
+@@ -669,8 +672,10 @@ function parse_file_list() {
  
      PRODUCT_PACKAGES_LIST=()
      PRODUCT_PACKAGES_HASHES=()
@@ -94,7 +104,7 @@ index 2639f761..579ffcc2 100644
  
      while read -r line; do
          if [ -z "$line" ]; then continue; fi
-@@ -682,17 +686,23 @@ function parse_file_list() {
+@@ -682,17 +687,23 @@ function parse_file_list() {
          local COUNT=${#SPLIT[@]}
          local SPEC=${SPLIT[0]}
          local HASH="x"
@@ -118,7 +128,7 @@ index 2639f761..579ffcc2 100644
          fi
  
      done < <(egrep -v '(^#|^[[:space:]]*$)' "$LIST" | LC_ALL=C sort | uniq)
-@@ -911,30 +921,70 @@ function fix_xml() {
+@@ -911,30 +922,71 @@ function fix_xml() {
      mv "$TEMP_XML" "$XML"
  }
  
@@ -187,8 +197,8 @@ index 2639f761..579ffcc2 100644
 -    else
 -        parse_file_list "$1" "$3"
 -    fi
--
 +    parse_file_list "${PROPRIETARY_FILES_TXT}" "${SECTION}"
+ 
  
      local FILELIST=( ${PRODUCT_COPY_FILES_LIST[@]} ${PRODUCT_PACKAGES_LIST[@]} )
      local HASHLIST=( ${PRODUCT_COPY_FILES_HASHES[@]} ${PRODUCT_PACKAGES_HASHES[@]} )
@@ -198,7 +208,7 @@ index 2639f761..579ffcc2 100644
      local OUTPUT_ROOT="$LINEAGE_ROOT"/"$OUTDIR"/proprietary
      local OUTPUT_TMP="$TMPDIR"/"$OUTDIR"/proprietary
  
-@@ -987,7 +1037,7 @@ function extract() {
+@@ -987,7 +1039,7 @@ function extract() {
          VENDOR_STATE=1
      fi
  
@@ -207,7 +217,7 @@ index 2639f761..579ffcc2 100644
  
      for (( i=1; i<COUNT+1; i++ )); do
  
-@@ -1019,20 +1069,17 @@ function extract() {
+@@ -1019,20 +1071,17 @@ function extract() {
  
          # Check pinned files
          local HASH="${HASHLIST[$i-1]}"
@@ -232,7 +242,7 @@ index 2639f761..579ffcc2 100644
                      KEEP="1"
                      if [ ! -f "${VENDOR_REPO_FILE}" ]; then
                          cp -p "$PINNED" "${VENDOR_REPO_FILE}"
-@@ -1062,6 +1109,21 @@ function extract() {
+@@ -1062,6 +1111,26 @@ function extract() {
              fi
          fi
  
@@ -240,14 +250,19 @@ index 2639f761..579ffcc2 100644
 +        # and execute the fixup script if needed
 +        local FIXUP_SCRIPT="${FIXUP_DIR}/${DST_FILE#/system}.sh"
 +        if [ -f "${FIXUP_SCRIPT}" ]; then
++            # Sanity-check the hash and fixup hash for this blob
++            if [ "${FIXUP_HASH}" = "x" ] && [ "${HASH}" != "x" ]; then
++                printf "WARNING: There is a fixup script for %s but it is still pinned.\n" ${DST_FILE#/system/}
++                printf "This is usually a mistake and you may want to either remove the hash, or add an extra one instead.\n"
++            fi
 +            # Don't execute the fixup script if the blob already
 +            # matches the fixup SHA
 +            if [ $(get_hash "${VENDOR_REPO_FILE}") = "${FIXUP_HASH}" ]; then
-+                printf "Skipping fixup script for %s...\n" ${DST_FILE#/system/}
++                printf "    + (Skipping fixup script for %s...)\n" ${DST_FILE#/system/}
 +            else
-+                printf "Fixing up %s...\n" ${DST_FILE#/system/}
++                printf "    + (Fixing up %s (current hash %s)... " ${DST_FILE#/system/} $(get_hash ${VENDOR_REPO_FILE})
 +                "${FIXUP_SCRIPT}" "${VENDOR_REPO_FILE}"
-+                printf "Fixed-up file has hash %s\n" $(get_hash ${VENDOR_REPO_FILE})
++                printf "Fixed-up file has hash %s)\n" $(get_hash ${VENDOR_REPO_FILE})
 +            fi
 +        fi
 +

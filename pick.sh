@@ -1267,7 +1267,6 @@ kpick 236215 # Revert "SystemUI: add navbar layout inversion tuning"
 kpick 236216 # StatusBarSignalPolicy: Hide signal icons for disabled SIMs
 kpick 236476 # DreamBackend: Fix launching settings
 kpick 236765 # Sounds: Squashed cleanup of sound files
-kpick 237001 # base: limit direct share targets to reduce lag
 kpick 237129 # Merge changes for launching wifidisplay from system settings
 kpick 237142 # Battery: update mod support to P
 kpick 237143 # AudioService: Fix Audio mod volume steps
@@ -1436,7 +1435,6 @@ kpick 221756 # StatusBarSettings: Hide battery preference category based on icon
 kpick 229389 # Trust: enforce vendor security patch level check
 kpick 231163 # LineageParts: Add some missing psychedelics
 kpick 232146 # LineageParts: Reenable Privacy Guard
-kpick 236291 # LineageParts: Correctly initialize trust warning prefs.
 
 # packages/apps/ManagedProvisoning
 
@@ -1452,23 +1450,20 @@ kpick 237239 # Messaging: use white nav bar
 # packages/apps/PhoneCommon
 
 # packages/apps/Settings
-kpick 226151 # Settings: show Trust brading in confirm_lock_password UI
-kpick 226148 # Settings: "Security & location" -> "Security & privacy"
-kpick 226154 # fingerprint: Allow devices to configure sensor location
-kpick 227120 # Settings: Check interfaces before enabling ADB over network
 kpick 226142 # Settings: Add developer setting for root access
 kpick 232198 # Settings: appops: Privacy Guard for P (2/2)
+kpick 232442 # Settings: Root appops access in developer settings
+kpick 235978 # Settings: Add switch for linked ring and media notification volumes
+kpick 236184 # Settings: Use correct icon for ring volume
 kpick 231590 # SimSettings: Add manual SIM provisioning support
+kpick 233634 # Phone ringtone setting for Multi SIM device
+kpick 227120 # Settings: Check interfaces before enabling ADB over network
+kpick 236550 # fingerprint: Remove unnecessary spacing in enroll layout
 kpick 229312 # Add Dual Channel into Bluetooth Audio Channel Mode developer options menu
 kpick 229453 # Settings: use LineageHW serial number
 kpick 231518 # Settings: Check if we have any color modes declared in overlay
 kpick 231826 # Update the white list of Data saver
-kpick 232442 # Settings: Root appops access in developer settings
 kpick 232793 # Settings: per-app VPN data restriction
-kpick 233634 # Phone ringtone setting for Multi SIM device
-kpick 235978 # Settings: Add switch for linked ring and media notification volumes
-kpick 236184 # Settings: Use correct icon for ring volume
-kpick 236550 # fingerprint: Remove unnecessary spacing in enroll layout
 kpick 237183 # settings: hide appendix of app list for power usage.
 
 # packages/apps/SettingsIntelligence
