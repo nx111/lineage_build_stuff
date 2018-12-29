@@ -1109,7 +1109,6 @@ kpick 223886 # manifest: Re-add hardware/qcom/data/ipacfg-mgr
 kpick 227747 # lineage: Enable weather apps
 kpick 226755 # lineage: Enable cryptfs_hw
 kpick 231971 # manifest: sync gcc4.9 from aosp oreo
-kpick 237222 # lineage: Remove rcs-services repo
 
 patch_local local/android
 echo
@@ -1172,8 +1171,8 @@ kpick 229423 # selinux: add domain for snap
 kpick 229424 # selinux: add domain for Gallery
 kpick 234613 # common: Expand labeling of sysfs_vibrator nodes using genfscon
 kpick 237196 # move snap_app type definition to public
-kpick 237203 # selinux: snap: allow to read vendor camera props
 kpick 237205 # selinux: move vendor_camera_prop from device/qcom/sepolicy
+kpick 237203 # selinux: snap: allow to read vendor camera props
 
 # device/qcom/sepolicy
 kpick 228570 # sepolicy: Allow wcnss_service to set wlan.driver properties
@@ -1191,6 +1190,8 @@ kpick 234837 # common: Label and allow access over LiveDisplay sysfs nodes
 kpick 235402 # common: Allow init to relabel I/O sched tuning nodes
 kpick 237211 # Remove vendor se-labelling of AOSP's qemu.hw.mainkeys prop.
 kpick 237204 # selinux: move vendor_camera_prop to device/lineage/sepolicy
+kpick 237205 # selinux: move vendor_camera_prop from device/qcom/sepolicy
+kpick 237348 # lineage: Address perf HAL denial with boost enabled
 
 # device/qcom/sepolicy-legacy
 kpick 230237 # common: allow vendor_init to create /data/dpm
@@ -1268,6 +1269,7 @@ kpick 236216 # StatusBarSignalPolicy: Hide signal icons for disabled SIMs
 kpick 236476 # DreamBackend: Fix launching settings
 kpick 236765 # Sounds: Squashed cleanup of sound files
 kpick 237129 # Merge changes for launching wifidisplay from system settings
+kpick 227142 # Battery: add Battery Moto Mod Support
 kpick 237142 # Battery: update mod support to P
 kpick 237143 # AudioService: Fix Audio mod volume steps
 kpick 237171 # WiFiDisplayController: Defer the P2P Initialization from its constructor.
@@ -1599,6 +1601,7 @@ kpick 237117 # extract_utils: drop the "/system/" prefix from prints of blob nam
 kpick 237118 # extract_utils: introduce support for executing blob fixup scripts
 kpick 237209 # lineage: Set default ringtone for second SIM
 kpick 237270 # extract_utils: introduce -k (kang mode) option
+kpick 237311 # lineage: open sdcard root when launching DocumentsUI
 
 # vendor/qcom/opensource/cryptfs_hw
 kpick 226128 # cryptfs_hw: Add compatibility for pre-O hw crypto

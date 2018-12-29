@@ -1,38 +1,35 @@
-From bf9d3fd514574f5ca21921c2875f37b5ba9aa296 Mon Sep 17 00:00:00 2001
+From acfef58ebaff5d7a7e6eeda39495e328675fb7c3 Mon Sep 17 00:00:00 2001
 From: Vachounet <vachounet@live.fr>
 Date: Mon, 3 Dec 2018 14:31:52 +0100
-Subject: [PATCH 40/50] Battery: update mod support to P
+Subject: [PATCH 41/51] Battery: update mod support to P
 
 Change-Id: Iff477569fcba3e5b3d9ccb5ebb8d1b750fb531e5
 Signed-off-by: Erfan Abdi <erfangplus@gmail.com>
-
-# Conflicts:
-#	core/java/android/os/BatteryManager.java
-#	services/core/java/com/android/server/BatteryService.java
 ---
- core/java/android/os/BatteryManager.java      |  18 +
- .../com/android/server/BatteryService.java    | 128 ++++-
+ core/java/android/os/BatteryManager.java      |  15 +-
+ .../com/android/server/BatteryService.java    | 132 ++++-
  .../health/V1_0/BatteryProperties.java        | 105 ++++
  .../hardware/health/V1_0/IMotHealth.java      | 511 ++++++++++++++++++
  .../health/V1_0/PowerSupplyModType.java       |  54 ++
- 5 files changed, 812 insertions(+), 4 deletions(-)
+ 5 files changed, 808 insertions(+), 9 deletions(-)
  create mode 100644 services/core/java/motorola/hardware/health/V1_0/BatteryProperties.java
  create mode 100644 services/core/java/motorola/hardware/health/V1_0/IMotHealth.java
  create mode 100644 services/core/java/motorola/hardware/health/V1_0/PowerSupplyModType.java
 
 diff --git a/core/java/android/os/BatteryManager.java b/core/java/android/os/BatteryManager.java
-index 954071a0ee9..5207fafa8ec 100644
+index 4258adb53dd..5207fafa8ec 100644
 --- a/core/java/android/os/BatteryManager.java
 +++ b/core/java/android/os/BatteryManager.java
-@@ -156,6 +156,24 @@ public class BatteryManager {
+@@ -156,10 +156,23 @@ public class BatteryManager {
      @SystemApi
      public static final String EXTRA_EVENT_TIMESTAMP = "android.os.extra.EVENT_TIMESTAMP";
  
 +    public static final String EXTRA_MOD_FLAG = "mod_flag";
-+    public static final String EXTRA_MOD_LEVEL = "mod_level";
+     public static final String EXTRA_MOD_LEVEL = "mod_level";
 +    public static final String EXTRA_MOD_POWER_SOURCE = "mod_psrc";
-+    public static final String EXTRA_MOD_STATUS = "mod_status";
-+    public static final String EXTRA_MOD_TYPE = "mod_type";
+     public static final String EXTRA_MOD_STATUS = "mod_status";
+     public static final String EXTRA_MOD_TYPE = "mod_type";
+-    public static final String EXTRA_MOD_FLAG = "mod_flag";
 +    public static final String EXTRA_PLUGGED_RAW = "plugged_raw";
 +
 +    public static final int BATTERY_PROPERTY_MOD_CHARGE_FULL = 100;
@@ -45,12 +42,11 @@ index 954071a0ee9..5207fafa8ec 100644
 +    public static final int MOD_POWER_SOURCE_WIRED_TURBO = 6;
 +    public static final int MOD_POWER_SOURCE_WIRELESS = 3;
 +    public static final int MOD_POWER_SOURCE_WIRELESS_TURBO = 7;
-+
+ 
      // values for "status" field in the ACTION_BATTERY_CHANGED Intent
      public static final int BATTERY_STATUS_UNKNOWN = Constants.BATTERY_STATUS_UNKNOWN;
-     public static final int BATTERY_STATUS_CHARGING = Constants.BATTERY_STATUS_CHARGING;
 diff --git a/services/core/java/com/android/server/BatteryService.java b/services/core/java/com/android/server/BatteryService.java
-index 95fbee99f8b..da3dda8b16b 100644
+index d99647e6f57..da3dda8b16b 100644
 --- a/services/core/java/com/android/server/BatteryService.java
 +++ b/services/core/java/com/android/server/BatteryService.java
 @@ -52,6 +52,7 @@ import android.os.ServiceManager;
@@ -203,10 +199,14 @@ index 95fbee99f8b..da3dda8b16b 100644
          intent.putExtra(BatteryManager.EXTRA_VOLTAGE, mHealthInfo.batteryVoltage);
          intent.putExtra(BatteryManager.EXTRA_TEMPERATURE, mHealthInfo.batteryTemperature);
          intent.putExtra(BatteryManager.EXTRA_TECHNOLOGY, mHealthInfo.batteryTechnology);
-@@ -692,6 +743,12 @@ public final class BatteryService extends SystemService {
+@@ -692,10 +743,12 @@ public final class BatteryService extends SystemService {
          intent.putExtra(BatteryManager.EXTRA_MAX_CHARGING_CURRENT, mHealthInfo.maxChargingCurrent);
          intent.putExtra(BatteryManager.EXTRA_MAX_CHARGING_VOLTAGE, mHealthInfo.maxChargingVoltage);
          intent.putExtra(BatteryManager.EXTRA_CHARGE_COUNTER, mHealthInfo.batteryChargeCounter);
+-        intent.putExtra(BatteryManager.EXTRA_MOD_LEVEL, mHealthInfo.modLevel);
+-        intent.putExtra(BatteryManager.EXTRA_MOD_STATUS, mHealthInfo.modStatus);
+-        intent.putExtra(BatteryManager.EXTRA_MOD_TYPE, mHealthInfo.modType);
+-        intent.putExtra(BatteryManager.EXTRA_MOD_FLAG, mHealthInfo.modFlag);
 +        intent.putExtra("mod_level", mBatteryModProps.modLevel);
 +        intent.putExtra("mod_status", mBatteryModProps.modStatus);
 +        intent.putExtra("mod_flag", mBatteryModProps.modFlag);
@@ -216,7 +216,7 @@ index 95fbee99f8b..da3dda8b16b 100644
          if (DEBUG) {
              Slog.d(TAG, "Sending ACTION_BATTERY_CHANGED. scale:" + BATTERY_SCALE
                      + ", info:" + mHealthInfo.toString());
-@@ -1053,6 +1110,51 @@ public final class BatteryService extends SystemService {
+@@ -1057,6 +1110,51 @@ public final class BatteryService extends SystemService {
          Trace.traceEnd(Trace.TRACE_TAG_SYSTEM_SERVER);
      }
  
@@ -268,7 +268,7 @@ index 95fbee99f8b..da3dda8b16b 100644
      private synchronized void updateLedPulse() {
          mLed.updateLightsLocked();
      }
-@@ -1235,6 +1337,24 @@ public final class BatteryService extends SystemService {
+@@ -1239,6 +1337,24 @@ public final class BatteryService extends SystemService {
                              if (result == Result.SUCCESS) prop.setLong(value);
                          });
                          break;
