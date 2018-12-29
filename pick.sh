@@ -1167,10 +1167,7 @@ kpick 226443 # soong: Add additional_deps attribute for libraries and binaries
 # dalvik
 
 # device/lineage/sepolicy
-kpick 229423 # selinux: add domain for snap
-kpick 229424 # selinux: add domain for Gallery
 kpick 234613 # common: Expand labeling of sysfs_vibrator nodes using genfscon
-kpick 237196 # move snap_app type definition to public
 kpick 237205 # selinux: move vendor_camera_prop from device/qcom/sepolicy
 kpick 237203 # selinux: snap: allow to read vendor camera props
 
@@ -1238,7 +1235,6 @@ kpick 226358 # settings: Allow accessing LineageSettings via settings command
 kpick 226398 # frameworks: base: Port password retention feature
 kpick 226399 # Use fdeCheckPassword error code to indicate pw failure
 kpick 227290 # PowerProfile: allow overriding default power profile
-kpick 227291 # [DNM] Revert "Handle public volumes and otherwise invalid UUIDs."
 kpick 227896 # SystemUI: Add Profiles tile
 kpick 221716 # Where's my circle battery, dude?
 kpick 229307 # Add CHANNEL_MODE_DUAL_CHANNEL constant
@@ -1287,7 +1283,6 @@ kpick 229400 # HAXX to allow too large dimensions
 kpick 230610 # APP may display abnormally in landscape LCM
 kpick 231828 # Translate pointer motion events for OneHandOperation Display Shrink
 kpick 231980 # HWComposer: HWC2: allow SkipValidate to be force disabled
-kpick 237194 # Gralloc2: Mark some gralloc bits as valid
 
 # frameworks/opt/net/wifi
 kpick 237173 # WiFi: Ignore connectivity scans during WFD session
@@ -1315,6 +1310,7 @@ kpick 225507 # camera: Only link and use vendor.qti.hardware.camera.device if sp
 # hardware/lineage/interfaces
 kpick 223374 # interfaces: Add 2.0 livedisplay interfaces
 kpick 223410 # interfaces: Add touch HIDL interface definitions
+kpick 237355 # light: aw2013: Mark as shutdown critical
 
 # hardware/lineage/lineagehw
 
@@ -1375,7 +1371,6 @@ kpick 237002 # power: Handle launch and interaction hints for perf HAL platforms
 # hardware/qcom/vr
 
 # hardware/qcom/wlan-caf
-kpick 234861 # Reading the serialno property is forbidden
 
 # hardware/ril
 
@@ -1428,7 +1423,6 @@ kpick 237307 # ExactCalculator: support dark mode
 # packages/apps/Gallery2
 
 # packages/apps/Jelly
-kpick 231418 # Automatic translation import
 
 # packages/apps/KeyChain
 
@@ -1441,7 +1435,7 @@ kpick 232146 # LineageParts: Reenable Privacy Guard
 
 # packages/apps/ManagedProvisoning
 
-# packages/apps/Message
+# packages/apps/Messaging
 kpick 237237 # AOSP/Messaging - updated tests target version to 24 to match the Messaing app's targetSdkVersion. All messagingtest ...
 kpick 237238 # AOSP/Messaging - update the Messaging version to target P (28) or higher. Called ContextCompat.startForegroundServi ...
 kpick 237239 # Messaging: use white nav bar
@@ -1602,6 +1596,7 @@ kpick 237118 # extract_utils: introduce support for executing blob fixup scripts
 kpick 237209 # lineage: Set default ringtone for second SIM
 kpick 237270 # extract_utils: introduce -k (kang mode) option
 kpick 237311 # lineage: open sdcard root when launching DocumentsUI
+kpick 237352 # qcom: Mark some gralloc bits as valid
 
 # vendor/qcom/opensource/cryptfs_hw
 kpick 226128 # cryptfs_hw: Add compatibility for pre-O hw crypto
