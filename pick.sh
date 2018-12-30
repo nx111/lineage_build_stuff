@@ -1107,7 +1107,6 @@ repo sync android  >/dev/null
 
 kpick 223886 # manifest: Re-add hardware/qcom/data/ipacfg-mgr
 kpick 227747 # lineage: Enable weather apps
-kpick 226755 # lineage: Enable cryptfs_hw
 kpick 231971 # manifest: sync gcc4.9 from aosp oreo
 
 patch_local local/android
@@ -1213,7 +1212,7 @@ kpick 227260 # Update bt vendor callbacks array in vfs code
 kpick 227261 # Cast BT_VND_OP_ANT_USERIAL_{OPEN,CLOSE} to bt_vendor_opcode_t in vfs code
 
 # external/perfetto
-kpick  -f 223413 # perfetto_cmd: Resolve missing O_CREAT mode
+kpick -f 223413 # perfetto_cmd: Resolve missing O_CREAT mode
 
 # external/tinycompress
 
@@ -1230,10 +1229,8 @@ kpick 237206 # audiopolicy: support extended feature in audiopolicymanager
 kpick 224266 # SystemUI: Add Lineage statusbar item holder
 kpick 224267 # SystemUI: Network Traffic [1/3]
 kpick 224513 # SystemUI: Disable config_keyguardUserSwitcher on sw600dp
-kpick 226343 # CameraServiceProxy: Loosen UID check
+kpick 226343 # CameraServiceProxy: Loosen UID check conditionally
 kpick 226358 # settings: Allow accessing LineageSettings via settings command
-kpick 226398 # frameworks: base: Port password retention feature
-kpick 226399 # Use fdeCheckPassword error code to indicate pw failure
 kpick 227290 # PowerProfile: allow overriding default power profile
 kpick 227896 # SystemUI: Add Profiles tile
 kpick 221716 # Where's my circle battery, dude?
@@ -1304,8 +1301,6 @@ kpick 225155 # Broadcom BT: Add support fm/bt via v4l2.
 kpick 237240 # Add support for TCP/IP over NAN
 
 # hardware/interfaces
-kpick 225506 # Camed HAL extension: Added support in HIDL for Extended FD.
-kpick 225507 # camera: Only link and use vendor.qti.hardware.camera.device if specified
 
 # hardware/lineage/interfaces
 kpick 223374 # interfaces: Add 2.0 livedisplay interfaces
@@ -1563,9 +1558,6 @@ kpick 223133 # AIDL: Add option to generate No-Op methods
 kpick 234581 # update_engine: Fallback to partition without suffix
 
 # system/vold
-kpick 226109 # vold: Add Hardware FDE feature
-kpick 226110 # system: vold: Remove crypto block device creation
-kpick 226127 # vold: Move QCOM HW FDE inclusion under Lineage namespace
 kpick 229304 # vold: Add texfat and sdfat support
 kpick 231717 # vold: Always use libbootloader_message from bootable/recovery namespace
 kpick 235198 # Revert "vold: Also wait for dm device when mounting private volume"
@@ -1580,7 +1572,6 @@ kpick 225939 # roomservice.py: non-depsonly: bootstrap first device repo from Hu
 kpick 225981 # roomservice.py: depsonly: do not look up device repo by name in the manifest
 kpick 225982 # roomservice.py: Strip cm.{mk,dependencies} support
 kpick 231249 # roomservice.py: adapt to lineage-16.0
-kpick 226123 # soong_config: Add new flags for HW FDE
 kpick 226125 # soong_config: Add flag for legacy HW FDE
 kpick 226126 # soong_config: Add flag for crypto waiting on QSEE to start
 kpick 229589 # lineage: Automatically set soong namespace when setting project pathmap
@@ -1601,7 +1592,6 @@ kpick 237352 # qcom: Mark some gralloc bits as valid
 # vendor/qcom/opensource/cryptfs_hw
 kpick 226128 # cryptfs_hw: Add compatibility for pre-O hw crypto
 kpick 226129 # cryptfs_hw: Featureize support for waiting on QSEE to start
-kpick 226130 # cryptfs_hw: add missing logging tag
 kpick 226403 # cryptfs_hw: Remove unused variable
 
 # vendor/qcom/opensource/thermal-engine

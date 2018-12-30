@@ -1,0 +1,58 @@
+From b7c1d9a6ac866013b842c704dc101b7dd25c06f9 Mon Sep 17 00:00:00 2001
+From: LuK1337 <priv.luk@gmail.com>
+Date: Mon, 17 Sep 2018 17:42:17 +0200
+Subject: [PATCH 1/5] vold: Add texfat and sdfat support
+
+* These drivers will be used as a fallback in case
+  exfat is not listed in /proc/filesystems.
+
+Change-Id: I55336840b56d0e1cb6f2939ea5beb6e7c69f2f5b
+---
+ fs/Exfat.cpp | 17 +++++++++++++----
+ 1 file changed, 13 insertions(+), 4 deletions(-)
+
+diff --git a/fs/Exfat.cpp b/fs/Exfat.cpp
+index 5c15075..77acffe 100644
+--- a/fs/Exfat.cpp
++++ b/fs/Exfat.cpp
+@@ -32,10 +32,19 @@ namespace exfat {
+ 
+ static const char* kMkfsPath = "/system/bin/mkfs.exfat";
+ static const char* kFsckPath = "/system/bin/fsck.exfat";
++static std::string gDriver = "exfat";
+ 
+ bool IsSupported() {
+-    return access(kMkfsPath, X_OK) == 0 && access(kFsckPath, X_OK) == 0 &&
+-           IsFilesystemSupported("exfat");
++    if (access(kMkfsPath, X_OK) != 0 || access(kFsckPath, X_OK) != 0) {
++        return false;
++    }
++    for (const auto& driver : {"exfat", "sdfat", "texfat"}) {
++        if (IsFilesystemSupported(driver)) {
++            gDriver = driver;
++            return true;
++        }
++    }
++    return false;
+ }
+ 
+ status_t Check(const std::string& source) {
+@@ -60,13 +69,13 @@ status_t Mount(const std::string& source, const std::string& target, int ownerUi
+     auto mountData = android::base::StringPrintf("uid=%d,gid=%d,fmask=%o,dmask=%o", ownerUid,
+                                                  ownerGid, permMask, permMask);
+ 
+-    if (mount(source.c_str(), target.c_str(), "exfat", mountFlags, mountData.c_str()) == 0) {
++    if (mount(source.c_str(), target.c_str(), gDriver.c_str(), mountFlags, mountData.c_str()) == 0) {
+         return 0;
+     }
+ 
+     PLOG(ERROR) << "Mount failed; attempting read-only";
+     mountFlags |= MS_RDONLY;
+-    if (mount(source.c_str(), target.c_str(), "exfat", mountFlags, mountData.c_str()) == 0) {
++    if (mount(source.c_str(), target.c_str(), gDriver.c_str(), mountFlags, mountData.c_str()) == 0) {
+         return 0;
+     }
+ 
+-- 
+2.17.1
+

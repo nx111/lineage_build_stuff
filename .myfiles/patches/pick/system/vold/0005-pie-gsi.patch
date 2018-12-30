@@ -1,0 +1,193 @@
+From b1cf4b2065059107f74214face8463f4afb58c0b Mon Sep 17 00:00:00 2001
+From: Luca Stefani <luca.stefani.ge1@gmail.com>
+Date: Fri, 30 Nov 2018 21:47:35 +0100
+Subject: [PATCH 5/5] pie-gsi
+
+commit 520ea88cefb04cf96b0f0bb333f5f5b3738eb4ef
+Merge: d2d48c7 bd15a99
+Author: Android Merger <noreply-android-build-merger@google.com>
+Date:   Fri Nov 30 19:38:21 2018 +0000
+
+    Merge "Merge pi-qpr1-release PQ1A.181105.017.A1 to pi-platform-release am: e101e8712e" into pie-gsi
+
+commit bd15a99d17433311544ff537bb4711cb6d4f2168
+Merge: d2d48c7 e101e87
+Author: Bill Yi <byi@google.com>
+Date:   Fri Nov 30 11:38:17 2018 -0800
+
+    Merge pi-qpr1-release PQ1A.181105.017.A1 to pi-platform-release
+    am: e101e8712e
+
+    Change-Id: I3cf23dd424a8bf73d9830dd8197957575936d21c
+
+commit e101e8712ef07d413168dbbb49ed4acb5d9987a0
+Merge: 87135e2 ecc2701
+Author: Bill Yi <byi@google.com>
+Date:   Wed Nov 28 18:35:05 2018 -0800
+
+    Merge pi-qpr1-release PQ1A.181105.017.A1 to pi-platform-release
+
+    Change-Id: I090e55f0f34ff556118caaecbb21169580c66ab6
+
+commit d2d48c768556428544fcdae3de98aaaf930982ba
+Merge: 4026b96 c5e3a52
+Author: Treehugger Robot <treehugger-gerrit@google.com>
+Date:   Mon Nov 19 04:38:31 2018 +0000
+
+    Merge "Wait for dm device to be ready before format" into pie-gsi
+
+commit c5e3a52edbe0d8c4a0e13ad6ef7b0cecd54b04f4
+Author: Paul Crowley <paulcrowley@google.com>
+Date:   Tue Oct 30 15:59:24 2018 -0700
+
+    Wait for dm device to be ready before format
+
+    It can sometimes take a moment for the dm-device to appear after
+    creation, causing operations on it such as formatting to fail.
+    Ensure the device exists before create_crypto_blk_dev returns.
+
+    Test: adb sm set-virtual-disk true and format as adoptable.
+    Bug: 117586466
+    Change-Id: Id8f571b551f50fc759e78d917e4ac3080e926722
+    Merged-In: Id8f571b551f50fc759e78d917e4ac3080e926722
+    (cherry picked from cfe3972f2d31ae0bfc33b0d9d84ea08d1cb55589)
+
+commit 4026b96576d0d923653e27f57cf65aeaf95427ce
+Merge: 4f2c7b3 2630539
+Author: Android Merger <noreply-android-build-merger@google.com>
+Date:   Wed Oct 17 04:22:21 2018 +0000
+
+    Merge "Merge PPR2.181005.003 from pi-release-2 into pi-platform-release. am: 87135e28b2" into pie-gsi
+
+commit 2630539dfbf37a820828422d8ef3d5380c7ad0b3
+Merge: 4f2c7b3 87135e2
+Author: Bill Rassieur <rassb@google.com>
+Date:   Tue Oct 16 21:22:16 2018 -0700
+
+    Merge PPR2.181005.003 from pi-release-2 into pi-platform-release.
+    am: 87135e28b2
+
+    Change-Id: Ieacb51890d6c7708b2718f1f83d84c4f2f3eaff7
+
+commit 87135e28b216f3950ba786b87f7b17d05089859e
+Merge: 5dce8b6 31cfdaa
+Author: Bill Rassieur <rassb@google.com>
+Date:   Wed Oct 10 17:33:05 2018 +0000
+
+    Merge PPR2.181005.003 from pi-release-2 into pi-platform-release.
+
+    Change-Id: Ifb0130fa2b413d1b8a769684cffb6c6621ea9859
+    BUG: 117431430
+
+Change-Id: I9d0ec80ad396fb134493473b2f7b18b94d9cc60a
+---
+ Utils.cpp   | 19 +++++++++++++++++++
+ Utils.h     |  3 +++
+ cryptfs.cpp |  9 +++++++++
+ 3 files changed, 31 insertions(+)
+
+diff --git a/Utils.cpp b/Utils.cpp
+index 40cb7f0..815c8da 100644
+--- a/Utils.cpp
++++ b/Utils.cpp
+@@ -19,6 +19,7 @@
+ #include "Process.h"
+ #include "sehandle.h"
+ 
++#include <android-base/chrono_utils.h>
+ #include <android-base/file.h>
+ #include <android-base/logging.h>
+ #include <android-base/properties.h>
+@@ -40,10 +41,13 @@
+ #include <sys/wait.h>
+ #include <sys/statvfs.h>
+ 
++#include <thread>
++
+ #ifndef UMOUNT_NOFOLLOW
+ #define UMOUNT_NOFOLLOW    0x00000008  /* Don't follow symlink on umount */
+ #endif
+ 
++using namespace std::chrono_literals;
+ using android::base::ReadFileToString;
+ using android::base::StringPrintf;
+ 
+@@ -735,5 +739,20 @@ bool IsRunningInEmulator() {
+     return android::base::GetBoolProperty("ro.kernel.qemu", false);
+ }
+ 
++// TODO(118708649): fix duplication with init/util.h
++status_t WaitForFile(const char* filename, std::chrono::nanoseconds timeout) {
++    android::base::Timer t;
++    while (t.duration() < timeout) {
++        struct stat sb;
++        if (stat(filename, &sb) != -1) {
++            LOG(INFO) << "wait for '" << filename << "' took " << t;
++            return 0;
++        }
++        std::this_thread::sleep_for(10ms);
++    }
++    LOG(WARNING) << "wait for '" << filename << "' timed out and took " << t;
++    return -1;
++}
++
+ }  // namespace vold
+ }  // namespace android
+diff --git a/Utils.h b/Utils.h
+index 5caa4e9..6169807 100644
+--- a/Utils.h
++++ b/Utils.h
+@@ -24,6 +24,7 @@
+ #include <cutils/multiuser.h>
+ #include <selinux/selinux.h>
+ 
++#include <chrono>
+ #include <vector>
+ #include <string>
+ 
+@@ -125,6 +126,8 @@ bool Readlinkat(int dirfd, const std::string& path, std::string* result);
+ /* Checks if Android is running in QEMU */
+ bool IsRunningInEmulator();
+ 
++status_t WaitForFile(const char* filename, std::chrono::nanoseconds timeout);
++
+ }  // namespace vold
+ }  // namespace android
+ 
+diff --git a/cryptfs.cpp b/cryptfs.cpp
+index c14c1ad..350898f 100644
+--- a/cryptfs.cpp
++++ b/cryptfs.cpp
+@@ -54,6 +54,7 @@
+ #include "hardware_legacy/power.h"
+ #include <logwrap/logwrap.h>
+ #include "ScryptParameters.h"
++#include "Utils.h"
+ #include "VolumeManager.h"
+ #include "VoldUtil.h"
+ #include "Ext4Crypt.h"
+@@ -70,6 +71,8 @@ extern "C" {
+ #include <crypto_scrypt.h>
+ }
+ 
++using namespace std::chrono_literals;
++
+ #define UNUSED __attribute__((unused))
+ 
+ #define DM_CRYPT_BUF_SIZE 4096
+@@ -1355,6 +1358,12 @@ static int create_crypto_blk_dev(struct crypt_mnt_ftr* crypt_ftr, const unsigned
+         goto errout;
+     }
+ 
++    /* Ensure the dm device has been created before returning. */
++    if (android::vold::WaitForFile(crypto_blk_name, 1s) < 0) {
++        // WaitForFile generates a suitable log message
++        goto errout;
++    }
++
+     /* We made it here with no errors.  Woot! */
+     retval = 0;
+ 
+-- 
+2.17.1
+
