@@ -70,11 +70,11 @@ else
 	    make  bootimage
             echo "bootimage: $nbootimg build complete."
         elif [ $force -eq 1 ]; then
-            LINEAGE_VERSION_APPEND_TIME_OF_DAY=true WITH_SU=true LC_ALL=C \
+            LINEAGE_VERSION_APPEND_TIME_OF_DAY=true WITH_SU=true LC_ALL=C REMOVE_OAHL_FROM_BCP=true \
    	    cmka bacon
             result=$?
         else
-            LINEAGE_VERSION_APPEND_TIME_OF_DAY=true WITH_SU=true LC_ALL=C \
+            LINEAGE_VERSION_APPEND_TIME_OF_DAY=true WITH_SU=true LC_ALL=C REMOVE_OAHL_FROM_BCP=true \
    	    mka bacon
             result=$?
         fi

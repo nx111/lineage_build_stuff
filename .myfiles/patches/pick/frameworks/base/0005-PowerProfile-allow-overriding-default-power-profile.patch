@@ -1,0 +1,79 @@
+From 00325556daa69a83adb78028e2475826d10876fc Mon Sep 17 00:00:00 2001
+From: Alexander Martinz <eviscerationls@gmail.com>
+Date: Mon, 5 Jan 2015 22:20:05 +0100
+Subject: [PATCH 05/48] PowerProfile: allow overriding default power profile
+
+  * override it with ro.power_profile.override
+
+[mikeioannina]: Adapt for Pie
+Change-Id: I2b229822b18a54060d577f25c0ddaf5b7e7563b7
+Signed-off-by: Alexander Martinz <eviscerationls@gmail.com>
+---
+ .../com/android/internal/os/PowerProfile.java | 30 +++++++++++++++++--
+ 1 file changed, 28 insertions(+), 2 deletions(-)
+
+diff --git a/core/java/com/android/internal/os/PowerProfile.java b/core/java/com/android/internal/os/PowerProfile.java
+index 246a50f6cea..2ede9c8b76b 100644
+--- a/core/java/com/android/internal/os/PowerProfile.java
++++ b/core/java/com/android/internal/os/PowerProfile.java
+@@ -20,6 +20,8 @@ package com.android.internal.os;
+ import android.content.Context;
+ import android.content.res.Resources;
+ import android.content.res.XmlResourceParser;
++import android.os.SystemProperties;
++import android.util.Slog;
+ 
+ import com.android.internal.annotations.VisibleForTesting;
+ import com.android.internal.util.XmlUtils;
+@@ -37,6 +39,7 @@ import java.util.HashMap;
+  * [hidden]
+  */
+ public class PowerProfile {
++    private static final String TAG = "PowerProfile";
+ 
+     /*
+      * POWER_CPU_SUSPEND: Power consumption when CPU is in power collapse mode.
+@@ -243,8 +246,7 @@ public class PowerProfile {
+     }
+ 
+     private void readPowerValuesFromXml(Context context, boolean forTest) {
+-        final int id = forTest ? com.android.internal.R.xml.power_profile_test :
+-                com.android.internal.R.xml.power_profile;
++        int id = getPowerProfileResId(context, forTest);
+         final Resources resources = context.getResources();
+         XmlResourceParser parser = resources.getXml(id);
+         boolean parsingArray = false;
+@@ -403,6 +405,30 @@ public class PowerProfile {
+         return 0;
+     }
+ 
++    private int getPowerProfileResId(final Context context, boolean forTest) {
++        if (forTest) {
++            return com.android.internal.R.xml.power_profile_test;
++        }
++
++        /*
++         * If ro.power_profile.override is set, use it to override the default.
++         * This is used for devices, which need to dynamically define the power profile.
++         */
++        String powerProfileOverride = SystemProperties.get("ro.power_profile.override");
++        if (!powerProfileOverride.isEmpty()) {
++            int id = context.getResources().getIdentifier(powerProfileOverride, "xml", "android");
++            if (id > 0) {
++                Slog.i(TAG, "getPowerProfileResId: using power profile \""
++                        + powerProfileOverride + "\"");
++                return id;
++            }
++            Slog.e(TAG, "getPowerProfileResId: could not retrieve power profile \""
++                    + powerProfileOverride + "\", using default instead");
++        }
++
++        return com.android.internal.R.xml.power_profile;
++    }
++
+     /**
+      * Returns the number of memory bandwidth buckets defined in power_profile.xml, or a
+      * default value if the subsystem has no recorded value.
+-- 
+2.17.1
+

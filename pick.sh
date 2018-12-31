@@ -753,7 +753,7 @@ function kpick_action()
           grep -q -E "nothing to commit|allow-empty" $errfile && breakout=1 && break
 
 
-          if grep -q -E "error EOF occurred|httplib\.BadStatusLine|urllib2\.URLError|Connection refused" $errfile; then
+          if grep -q -E "error EOF occurred|httplib\.BadStatusLine|urllib2\.URLError|urllib2\.HTTPError|Connection refused" $errfile; then
               #echo "  >> pick was interrupted, retry ("$(expr $tries + 1)")..."
               #cat $logfile | sed -e "/ERROR: git command failed/d"
               #cat $errfile
@@ -1191,7 +1191,6 @@ kpick 237348 # lineage: Address perf HAL denial with boost enabled
 
 # device/qcom/sepolicy-legacy
 kpick 230237 # common: allow vendor_init to create /data/dpm
-kpick 230229 # mm-qcamera-daemon: fix denial
 kpick 230230 # common: fix sensors denial
 kpick 230231 # common: grant cnss-daemon access to sysfs_net
 kpick 230232 # common: grant netmgrd access to sysfs_net nodes
@@ -1229,7 +1228,6 @@ kpick 237206 # audiopolicy: support extended feature in audiopolicymanager
 kpick 224266 # SystemUI: Add Lineage statusbar item holder
 kpick 224267 # SystemUI: Network Traffic [1/3]
 kpick 224513 # SystemUI: Disable config_keyguardUserSwitcher on sw600dp
-kpick 226343 # CameraServiceProxy: Loosen UID check conditionally
 kpick 226358 # settings: Allow accessing LineageSettings via settings command
 kpick 227290 # PowerProfile: allow overriding default power profile
 kpick 227896 # SystemUI: Add Profiles tile
@@ -1274,9 +1272,8 @@ kpick 224443 # libbinder: Don't log call trace when waiting for vendor service o
 kpick 224530 # Triple the available egl function pointers available to a process for certain Nvidia devices.
 kpick 225542 # sensorservice: Register orientation sensor if HAL doesn't provide it
 kpick 225543 # sensorservice: customize sensor fusion mag filter via prop
-kpick 225544 # input: Adjust priority
 kpick 225546 # AppOpsManager: Update with the new ops
-kpick 229400 # HAXX to allow too large dimensions
+kpick 229400 # sf: Workaround BufferLayer::setBuffers issue on 1440p msm8974
 kpick 230610 # APP may display abnormally in landscape LCM
 kpick 231828 # Translate pointer motion events for OneHandOperation Display Shrink
 kpick 231980 # HWComposer: HWC2: allow SkipValidate to be force disabled
@@ -1286,6 +1283,8 @@ kpick 237173 # WiFi: Ignore connectivity scans during WFD session
 
 # frameworks/opt/telephony
 kpick 234319 # LocaleTracker: Add null check before accessing WifiManager
+kpick 237477 # Telephony: Fix loading of older QTI blobs
+kpick 237478 # TelephonyComponentFactory: Overload makeSubscriptionInfoUpdater
 
 # hardware/boardcom/libbt
 kpick 225155 # Broadcom BT: Add support fm/bt via v4l2.
@@ -1354,7 +1353,6 @@ kpick 231890 # power: Turn on/off display
 kpick 231891 # sdm710 : fixed VNDK compilation for warlock
 kpick 231892 # VNDK: Added required libs
 kpick 231893 # Power: Fixing the header inclusion for VNDK.
-kpick 231894 # VNDK: Added required headers for 8998 target
 kpick 231895 # VNDK: Added required libs
 kpick 231896 # power: Turn on/off display in SDM439
 kpick 231897 # power: qcom: powerHal for sdm439 and sdm429
@@ -1385,19 +1383,16 @@ kpick 237074 # lineage-sdk: Handle database downgrading
 kpick 237075 # lineage-sdk: Fix onUpgrade() logic
 
 # packages/apps/Bluetooth
-kpick 229310 # SBC Dual Channel (SBC HD Audio) support
 kpick 229311 # Assume optional codecs are supported if were supported previously
 
 # packages/apps/Calender
 
 # packages/apps/Camera2
-kpick 224752 # Use mCameraAgentNg for getting camera info when available
 kpick 225265 # Add Storage preference (1/2)
 
 # packages/apps/Carrierconfig
 
 # packages/apps/CellBroadcastReciver
-kpick 229303 # Only enable presidential CMAS alerts if user is a monkey
 
 # packages/apps/Contacts
 kpick 237247 # Contacts: use white nav bar
@@ -1418,6 +1413,7 @@ kpick 237307 # ExactCalculator: support dark mode
 # packages/apps/Gallery2
 
 # packages/apps/Jelly
+kpick 237479 # Jelly: use white nav bar
 
 # packages/apps/KeyChain
 
@@ -1431,8 +1427,8 @@ kpick 232146 # LineageParts: Reenable Privacy Guard
 # packages/apps/ManagedProvisoning
 
 # packages/apps/Messaging
-kpick 237237 # AOSP/Messaging - updated tests target version to 24 to match the Messaing app's targetSdkVersion. All messagingtest ...
-kpick 237238 # AOSP/Messaging - update the Messaging version to target P (28) or higher. Called ContextCompat.startForegroundServi ...
+kpick 237237 # AOSP/Messaging: bump to targetSDK 24
+kpick 237238 # AOSP/Messaging: bump targetSDK to 28
 kpick 237239 # Messaging: use white nav bar
 
 # packages/apps/Nfc
@@ -1443,7 +1439,6 @@ kpick 237239 # Messaging: use white nav bar
 
 # packages/apps/Settings
 kpick 226142 # Settings: Add developer setting for root access
-kpick 232198 # Settings: appops: Privacy Guard for P (2/2)
 kpick 232442 # Settings: Root appops access in developer settings
 kpick 235978 # Settings: Add switch for linked ring and media notification volumes
 kpick 236184 # Settings: Use correct icon for ring volume
@@ -1484,6 +1479,8 @@ kpick 234612 # Updater: Implement auto update check interval preference
 
 # packages/inputmethods/LatinIME
 
+# packages/overlays/Lineage
+kpick 236134 # overlays: accents: tune for contrast
 # packages/providers/ContactsProvider
 
 # packages/providers/DownloadProvider
@@ -1504,7 +1501,6 @@ kpick 236522 # Fix carrier config option not hidden on a CDMA phone
 # system/bt
 kpick 229125 # Increase maximum Bluetooth SBC codec bitpool and bitrate values
 kpick 229313 # Explicit SBC Dual Channel (SBC HD) support
-kpick 229314 # Allow using alternative (higher) SBC HD bitrates with a property
 kpick 229401 # [DNM] Revert "Return early if vendor-specific command fails"
 
 # system/core
@@ -1526,10 +1522,8 @@ kpick 232431 # su: Enable Clang Tidy
 kpick 232432 # su: Remove Sammy hacks
 kpick 232433 # su: Fix a clang tidy warning
 kpick 232434 # su: Cleanup includes
-kpick 232435 # su: Use shared libraries
 kpick 232437 # su: Remove mount of emulated storage
 kpick 232438 # su: Initialize windows size
-kpick 232427 # su: Update AppOps API calls
 
 # system/libvintf
 
@@ -1588,11 +1582,11 @@ kpick 237209 # lineage: Set default ringtone for second SIM
 kpick 237270 # extract_utils: introduce -k (kang mode) option
 kpick 237311 # lineage: open sdcard root when launching DocumentsUI
 kpick 237352 # qcom: Mark some gralloc bits as valid
+kpick 237432 # soong_config: Add flag for msm8974 1440p EGL workaround
 
 # vendor/qcom/opensource/cryptfs_hw
 kpick 226128 # cryptfs_hw: Add compatibility for pre-O hw crypto
-kpick 226129 # cryptfs_hw: Featureize support for waiting on QSEE to start
-kpick 226403 # cryptfs_hw: Remove unused variable
+kpick 226129 # cryptfs_hw: Featurize support for waiting on QSEE to start
 
 # vendor/qcom/opensource/thermal-engine
 
