@@ -1235,7 +1235,6 @@ kpick 221716 # Where's my circle battery, dude?
 kpick 229307 # Add CHANNEL_MODE_DUAL_CHANNEL constant
 kpick 229308 # Add Dual Channel into Bluetooth Audio Channel Mode developer options menu
 kpick 229309 # Allow SBC as HD audio codec in Bluetooth device configuration
-kpick 229606 # ConsumerIR: Support Huawei's DSP chip implementation
 kpick 231823 # Do not move the multi-window divider when showing IME
 kpick 231824 # Fix StatusBar icons tinting when in split screen
 kpick 231827 # Add display shrink mode
@@ -1244,6 +1243,7 @@ kpick 231848 # SystemUI: Add one hand mode triggers
 kpick 231851 # onehand: Take into account cutouts
 kpick 231852 # onehand: Remove guide link
 kpick 232197 # appops: Privacy Guard for P (1/2)
+kpick 237613 # AppOpsService: Watch op mode changes when an AppOp restriction dies
 kpick 232796 # NetworkManagement : Add ability to restrict app vpn usage
 kpick 233633 # Phone ringtone setting for Multi SIM device
 kpick 233717 # [DNM][HACK] Persist user brightness model
@@ -1502,6 +1502,7 @@ kpick 236522 # Fix carrier config option not hidden on a CDMA phone
 kpick 229125 # Increase maximum Bluetooth SBC codec bitpool and bitrate values
 kpick 229313 # Explicit SBC Dual Channel (SBC HD) support
 kpick 229401 # [DNM] Revert "Return early if vendor-specific command fails"
+kpick 237616 # Bluetooth: Ensure to release wake lock during turn off
 
 # system/core
 kpick -f 227110 # init: I hate safety net

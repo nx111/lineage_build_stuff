@@ -1,0 +1,499 @@
+From b057e094fe1eaf23c87f00142033c1b289ae2ac7 Mon Sep 17 00:00:00 2001
+From: BeYkeRYkt <beykerykt@gmail.com>
+Date: Thu, 13 Dec 2018 06:42:35 +0900
+Subject: [PATCH 15/15] power: Handle launch and interaction hints for perf HAL
+ platforms
+
+ * MP-CTL does not handle POWER_HINT_INTERACTION and POWER_HINT_LAUNCH
+   directly. Requests for processing are sent by Qualcomm BoostFramework
+   (QPerformance) at the framework service level. Since we do not have
+   BoostFramework, process POWER_HINT_INTERACTION and POWER_HINT_LAUNCH
+   in PowerHAL to ensure a sufficient level of performance.
+ * Perfboostsconfig.xml file required for proper operation
+
+Change-Id: I4c67d886c9dd74ae07094d32bdffc8ef403e04e7
+---
+ performance.h | 16 +++++++++++++
+ power-660.c   | 45 +++++++++++++++++++++++++++++++++++++
+ power-845.c   | 62 ++++++++++++++++++++++++++++++++++++++++++++-------
+ power-8953.c  | 58 +++++++++++++++++++++++++++++++++++++++++++++++
+ power-8996.c  | 58 +++++++++++++++++++++++++++++++++++++++++++++++
+ power-8998.c  | 58 ++++++++++++++++++++++++++++++++++++++++++++---
+ utils.c       | 15 +++++++++++++
+ utils.h       |  1 +
+ 8 files changed, 302 insertions(+), 11 deletions(-)
+
+diff --git a/performance.h b/performance.h
+index 970d42e..461ae31 100644
+--- a/performance.h
++++ b/performance.h
+@@ -42,6 +42,22 @@ extern "C" {
+ #define VENDOR_HINT_DISPLAY_OFF      0x00001040
+ #define VENDOR_HINT_DISPLAY_ON       0x00001041
+ 
++#define VENDOR_HINT_FIRST_LAUNCH_BOOST  0x00001081
++#define VENDOR_HINT_SCROLL_BOOST        0x00001080
++
++enum LAUNCH_BOOST_TYPE {
++    LAUNCH_BOOST_V1 = 1,
++    LAUNCH_BOOST_V2 = 2,
++    LAUNCH_BOOST_V3 = 3
++};
++
++enum SCROLL_BOOST_TYPE {
++    SCROLL_VERTICAL     = 1,
++    SCROLL_HORIZONTAL   = 2,
++    SCROLL_PANEL_VIEW   = 3,
++    SCROLL_PREFILING    = 4
++};
++
+ enum SCREEN_DISPLAY_TYPE {
+     DISPLAY_OFF = 0x00FF,
+ };
+diff --git a/power-660.c b/power-660.c
+index 9b1d666..92e51ef 100644
+--- a/power-660.c
++++ b/power-660.c
+@@ -31,6 +31,7 @@
+ #define LOG_NIDEBUG 0
+ 
+ #include <errno.h>
++#include <time.h>
+ #include <string.h>
+ #include <sys/types.h>
+ #include <sys/stat.h>
+@@ -246,6 +247,44 @@ static void process_video_encode_hint(void *metadata)
+     }
+ }
+ 
++static void process_activity_launch_hint(void *UNUSED(data))
++{
++    perf_hint_enable_with_type(VENDOR_HINT_FIRST_LAUNCH_BOOST, -1, LAUNCH_BOOST_V1);
++}
++
++static void process_interaction_hint(void *data)
++{
++    static struct timespec s_previous_boost_timespec;
++    static int s_previous_duration = 0;
++
++    struct timespec cur_boost_timespec;
++    long long elapsed_time;
++    int duration = 500; // 500 ms by default
++
++    if (data) {
++        int input_duration = *((int*)data);
++        if (input_duration > duration) {
++            duration = (input_duration > 5000) ? 5000 : input_duration;
++        }
++    }
++
++    clock_gettime(CLOCK_MONOTONIC, &cur_boost_timespec);
++
++    elapsed_time = calc_timespan_us(s_previous_boost_timespec, cur_boost_timespec);
++    // don't hint if previous hint's duration covers this hint's duration
++    if ((s_previous_duration * 1000) > (elapsed_time + duration * 1000)) {
++        return;
++    }
++    s_previous_boost_timespec = cur_boost_timespec;
++    s_previous_duration = duration;
++
++    if (duration >= 1500) {
++        perf_hint_enable_with_type(VENDOR_HINT_SCROLL_BOOST, -1, SCROLL_PREFILING);
++    } else {
++        perf_hint_enable_with_type(VENDOR_HINT_SCROLL_BOOST, duration, SCROLL_VERTICAL);
++    }
++}
++
+ int power_hint_override(power_hint_t hint, void *data)
+ {
+     if (hint == POWER_HINT_SET_PROFILE) {
+@@ -266,6 +305,12 @@ int power_hint_override(power_hint_t hint, void *data)
+         case POWER_HINT_VIDEO_ENCODE:
+             process_video_encode_hint(data);
+             return HINT_HANDLED;
++        case POWER_HINT_INTERACTION:
++            process_interaction_hint(data);
++            return HINT_HANDLED;
++        case POWER_HINT_LAUNCH:
++            process_activity_launch_hint(data);
++            return HINT_HANDLED;
+         default:
+             break;
+     }
+diff --git a/power-845.c b/power-845.c
+index a18ebc7..25f78c4 100644
+--- a/power-845.c
++++ b/power-845.c
+@@ -31,6 +31,7 @@
+ #define LOG_NIDEBUG 0
+ 
+ #include <errno.h>
++#include <time.h>
+ #include <string.h>
+ #include <sys/types.h>
+ #include <sys/stat.h>
+@@ -189,6 +190,55 @@ static int process_video_encode_hint(void *metadata)
+     return HINT_NONE;
+ }
+ 
++static int process_activity_launch_hint(void *UNUSED(data))
++{
++    if (current_mode != NORMAL_MODE) {
++        ALOGV("%s: ignoring due to other active perf hints", __func__);
++    } else {
++        perf_hint_enable_with_type(VENDOR_HINT_FIRST_LAUNCH_BOOST, -1, LAUNCH_BOOST_V1);
++    }
++    return HINT_HANDLED;
++}
++
++static int process_interaction_hint(void *data)
++{
++    static struct timespec s_previous_boost_timespec;
++    static int s_previous_duration = 0;
++
++    struct timespec cur_boost_timespec;
++    long long elapsed_time;
++    int duration = 100; // 100 ms by default
++
++    if (current_mode != NORMAL_MODE) {
++        ALOGV("%s: ignoring due to other active perf hints", __func__);
++        return HINT_HANDLED;
++    }
++
++    if (data) {
++        int input_duration = *((int*)data);
++        if (input_duration > duration) {
++            duration = (input_duration > 5000) ? 5000 : input_duration;
++        }
++    }
++
++    clock_gettime(CLOCK_MONOTONIC, &cur_boost_timespec);
++
++    elapsed_time = calc_timespan_us(s_previous_boost_timespec, cur_boost_timespec);
++    // don't hint if previous hint's duration covers this hint's duration
++    if ((s_previous_duration * 1000) > (elapsed_time + duration * 1000)) {
++        return HINT_HANDLED;
++    }
++    s_previous_boost_timespec = cur_boost_timespec;
++    s_previous_duration = duration;
++
++    if (duration >= 1500) {
++        perf_hint_enable_with_type(VENDOR_HINT_SCROLL_BOOST, -1, SCROLL_PREFILING);
++    } else {
++        perf_hint_enable_with_type(VENDOR_HINT_SCROLL_BOOST, duration, SCROLL_VERTICAL);
++    }
++    return HINT_HANDLED;
++}
++
+ int power_hint_override(power_hint_t hint, void *data)
+ {
+     int ret_val = HINT_NONE;
+@@ -203,14 +253,10 @@ int power_hint_override(power_hint_t hint, void *data)
+             ret_val = process_perf_hint(data, VR_MODE);
+             break;
+         case POWER_HINT_INTERACTION:
+-        {
+-            int resources[] = {
+-                MIN_FREQ_LITTLE_CORE_0, 0x514
+-            };
+-            int duration = 100;
+-            interaction(duration, ARRAY_SIZE(resources), resources);
+-            ret_val = HINT_HANDLED;
+-        }
++            ret_val = process_interaction_hint(data);
++            break;
++        case POWER_HINT_LAUNCH:
++            ret_val = process_activity_launch_hint(data);
+             break;
+         default:
+             break;
+diff --git a/power-8953.c b/power-8953.c
+index 8fba21b..e403c56 100644
+--- a/power-8953.c
++++ b/power-8953.c
+@@ -31,6 +31,7 @@
+ #define LOG_NIDEBUG 0
+ 
+ #include <errno.h>
++#include <time.h>
+ #include <string.h>
+ #include <sys/types.h>
+ #include <sys/stat.h>
+@@ -279,6 +280,57 @@ static int process_video_encode_hint(void *metadata)
+     return HINT_NONE;
+ }
+ 
++static int process_activity_launch_hint(void *UNUSED(data))
++{
++    if (current_mode != NORMAL_MODE) {
++        ALOGV("%s: ignoring due to other active perf hints", __func__);
++    } else {
++        perf_hint_enable_with_type(VENDOR_HINT_FIRST_LAUNCH_BOOST, -1, LAUNCH_BOOST_V1);
++    }
++    return HINT_HANDLED;
++}
++
++static int process_interaction_hint(void *data)
++{
++    static struct timespec s_previous_boost_timespec;
++    static int s_previous_duration = 0;
++
++    struct timespec cur_boost_timespec;
++    long long elapsed_time;
++    int duration = 500; // 500 ms by default
++
++    if (current_mode != NORMAL_MODE) {
++        ALOGV("%s: ignoring due to other active perf hints", __func__);
++        return HINT_HANDLED;
++    }
++
++    if (data) {
++        int input_duration = *((int*)data);
++        if (input_duration > duration) {
++            duration = (input_duration > 5000) ? 5000 : input_duration;
++        }
++    }
++
++    clock_gettime(CLOCK_MONOTONIC, &cur_boost_timespec);
++
++    elapsed_time = calc_timespan_us(s_previous_boost_timespec, cur_boost_timespec);
++    // don't hint if previous hint's duration covers this hint's duration
++    if ((s_previous_duration * 1000) > (elapsed_time + duration * 1000)) {
++        return HINT_HANDLED;
++    }
++    s_previous_boost_timespec = cur_boost_timespec;
++    s_previous_duration = duration;
++
++    if (duration >= 1500) {
++        // Use launch boost resources for fling boost
++        perf_hint_enable_with_type(VENDOR_HINT_FIRST_LAUNCH_BOOST, -1, LAUNCH_BOOST_V1);
++    } else {
++        perf_hint_enable_with_type(VENDOR_HINT_SCROLL_BOOST, duration, SCROLL_VERTICAL);
++    }
++
++    return HINT_HANDLED;
++}
++
+ int power_hint_override(power_hint_t hint, void *data)
+ {
+     int ret_val = HINT_NONE;
+@@ -307,6 +359,12 @@ int power_hint_override(power_hint_t hint, void *data)
+         case POWER_HINT_VR_MODE:
+             ret_val = process_perf_hint(data, VR_MODE);
+             break;
++        case POWER_HINT_INTERACTION:
++            ret_val = process_interaction_hint(data);
++            break;
++        case POWER_HINT_LAUNCH:
++            ret_val = process_activity_launch_hint(data);
++            break;
+         default:
+             break;
+     }
+diff --git a/power-8996.c b/power-8996.c
+index f782299..256b002 100644
+--- a/power-8996.c
++++ b/power-8996.c
+@@ -31,6 +31,7 @@
+ #define LOG_NIDEBUG 0
+ 
+ #include <errno.h>
++#include <time.h>
+ #include <string.h>
+ #include <sys/types.h>
+ #include <sys/stat.h>
+@@ -265,6 +266,57 @@ static int process_video_encode_hint(void *metadata)
+     return HINT_NONE;
+ }
+ 
++static int process_activity_launch_hint(void *UNUSED(data))
++{
++    if (current_mode != NORMAL_MODE) {
++        ALOGV("%s: ignoring due to other active perf hints", __func__);
++    } else {
++        perf_hint_enable_with_type(VENDOR_HINT_FIRST_LAUNCH_BOOST, -1, LAUNCH_BOOST_V1);
++    }
++    return HINT_HANDLED;
++}
++
++static int process_interaction_hint(void *data)
++{
++    static struct timespec s_previous_boost_timespec;
++    static int s_previous_duration = 0;
++
++    struct timespec cur_boost_timespec;
++    long long elapsed_time;
++    int duration = 500; // 500 ms by default
++
++    if (current_mode != NORMAL_MODE) {
++        ALOGV("%s: ignoring due to other active perf hints", __func__);
++        return HINT_HANDLED;
++    }
++
++    if (data) {
++        int input_duration = *((int*)data);
++        if (input_duration > duration) {
++            duration = (input_duration > 5000) ? 5000 : input_duration;
++        }
++    }
++
++    clock_gettime(CLOCK_MONOTONIC, &cur_boost_timespec);
++
++    elapsed_time = calc_timespan_us(s_previous_boost_timespec, cur_boost_timespec);
++    // don't hint if previous hint's duration covers this hint's duration
++    if ((s_previous_duration * 1000) > (elapsed_time + duration * 1000)) {
++        return HINT_HANDLED;
++    }
++    s_previous_boost_timespec = cur_boost_timespec;
++    s_previous_duration = duration;
++
++    if (duration >= 1500) {
++        // Use launch boost resources for fling boost
++        perf_hint_enable_with_type(VENDOR_HINT_FIRST_LAUNCH_BOOST, -1, LAUNCH_BOOST_V1);
++    } else {
++        perf_hint_enable_with_type(VENDOR_HINT_SCROLL_BOOST, duration, SCROLL_VERTICAL);
++    }
++
++    return HINT_HANDLED;
++}
++
+ int power_hint_override(power_hint_t hint, void *data)
+ {
+     int ret_val = HINT_NONE;
+@@ -291,6 +343,12 @@ int power_hint_override(power_hint_t hint, void *data)
+         case POWER_HINT_VR_MODE:
+             ret_val = process_perf_hint(data, VR_MODE);
+             break;
++        case POWER_HINT_INTERACTION:
++            ret_val = process_interaction_hint(data);
++            break;
++        case POWER_HINT_LAUNCH:
++            ret_val = process_activity_launch_hint(data);
++            break;
+         default:
+             break;
+     }
+diff --git a/power-8998.c b/power-8998.c
+index af14e67..789b826 100644
+--- a/power-8998.c
++++ b/power-8998.c
+@@ -31,6 +31,7 @@
+ #define LOG_NIDEBUG 0
+ 
+ #include <errno.h>
++#include <time.h>
+ #include <string.h>
+ #include <sys/types.h>
+ #include <sys/stat.h>
+@@ -261,6 +262,56 @@ static int process_video_encode_hint(void *metadata)
+     return HINT_NONE;
+ }
+ 
++static int process_activity_launch_hint(void *UNUSED(data))
++{
++    if (current_mode != NORMAL_MODE) {
++        ALOGV("%s: ignoring due to other active perf hints", __func__);
++    } else {
++        perf_hint_enable_with_type(VENDOR_HINT_FIRST_LAUNCH_BOOST, -1, LAUNCH_BOOST_V1);
++    }
++    return HINT_HANDLED;
++}
++
++static int process_interaction_hint(void *data)
++{
++    static struct timespec s_previous_boost_timespec;
++    static int s_previous_duration = 0;
++
++    struct timespec cur_boost_timespec;
++    long long elapsed_time;
++    int duration = 500; // 500 ms by default
++
++    if (current_mode != NORMAL_MODE) {
++        ALOGV("%s: ignoring due to other active perf hints", __func__);
++        return HINT_HANDLED;
++    }
++
++    if (data) {
++        int input_duration = *((int*)data);
++        if (input_duration > duration) {
++            duration = (input_duration > 5000) ? 5000 : input_duration;
++        }
++    }
++
++    clock_gettime(CLOCK_MONOTONIC, &cur_boost_timespec);
++
++    elapsed_time = calc_timespan_us(s_previous_boost_timespec, cur_boost_timespec);
++    // don't hint if previous hint's duration covers this hint's duration
++    if ((s_previous_duration * 1000) > (elapsed_time + duration * 1000)) {
++        return HINT_HANDLED;
++    }
++    s_previous_boost_timespec = cur_boost_timespec;
++    s_previous_duration = duration;
++
++    if (duration >= 1500) {
++        perf_hint_enable_with_type(VENDOR_HINT_SCROLL_BOOST, -1, SCROLL_PREFILING);
++    } else {
++        perf_hint_enable_with_type(VENDOR_HINT_SCROLL_BOOST, duration, SCROLL_VERTICAL);
++    }
++
++    return HINT_HANDLED;
++}
++
+ int power_hint_override(power_hint_t hint, void *data)
+ {
+     int ret_val = HINT_NONE;
+@@ -288,9 +339,10 @@ int power_hint_override(power_hint_t hint, void *data)
+             ret_val = process_perf_hint(data, VR_MODE);
+             break;
+         case POWER_HINT_INTERACTION:
+-            if (current_mode != NORMAL_MODE) {
+-                ret_val = HINT_HANDLED;
+-            }
++            ret_val = process_interaction_hint(data);
++            break;
++        case POWER_HINT_LAUNCH:
++            ret_val = process_activity_launch_hint(data);
+             break;
+         default:
+             break;
+diff --git a/utils.c b/utils.c
+index ffa3e34..d86ffd8 100644
+--- a/utils.c
++++ b/utils.c
+@@ -273,6 +273,21 @@ int perf_hint_enable(int hint_id , int duration)
+     return lock_handle;
+ }
+ 
++//Same as perf_hint_enable, but with the ability to
++//choose the type
++int perf_hint_enable_with_type(int hint_id, int duration, int type)
++{
++    int lock_handle = 0;
++
++    if (qcopt_handle) {
++        if (perf_hint) {
++            lock_handle = perf_hint(hint_id, NULL, duration, type);
++            if (lock_handle == -1)
++                ALOGE("Failed to acquire lock.");
++        }
++    }
++    return lock_handle;
++}
+ 
+ void release_request(int lock_handle) {
+     if (qcopt_handle && perf_lock_rel)
+diff --git a/utils.h b/utils.h
+index 79ebd33..6975b41 100644
+--- a/utils.h
++++ b/utils.h
+@@ -42,6 +42,7 @@ void undo_initial_hint_action();
+ void release_request(int lock_handle);
+ void interaction(int duration, int num_args, int opt_list[]);
+ int perf_hint_enable(int hint_id, int duration);
++int perf_hint_enable_with_type(int hint_id, int duration, int type);
+ 
+ long long calc_timespan_us(struct timespec start, struct timespec end);
+ int get_soc_id(void);
+-- 
+2.17.1
+
