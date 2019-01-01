@@ -1108,6 +1108,7 @@ repo sync android  >/dev/null
 kpick 223886 # manifest: Re-add hardware/qcom/data/ipacfg-mgr
 kpick 227747 # lineage: Enable weather apps
 kpick 231971 # manifest: sync gcc4.9 from aosp oreo
+kpick 232371 # manifest: Sync extras/su
 
 patch_local local/android
 echo
@@ -1277,6 +1278,7 @@ kpick 229400 # sf: Workaround BufferLayer::setBuffers issue on 1440p msm8974
 kpick 230610 # APP may display abnormally in landscape LCM
 kpick 231828 # Translate pointer motion events for OneHandOperation Display Shrink
 kpick 231980 # HWComposer: HWC2: allow SkipValidate to be force disabled
+kpick 237645 # sf: Add support for multiple displays
 
 # frameworks/opt/net/wifi
 kpick 237173 # WiFi: Ignore connectivity scans during WFD session

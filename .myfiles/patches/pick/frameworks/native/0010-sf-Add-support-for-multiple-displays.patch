@@ -1,0 +1,71 @@
+From 7c532e8d6f98a0d1f85fab798f5f5ddd1a64031d Mon Sep 17 00:00:00 2001
+From: Pullakavi Srinivas <spullaka@codeaurora.org>
+Date: Wed, 30 May 2018 12:42:56 +0530
+Subject: [PATCH 10/10] sf: Add support for multiple displays
+
+- Extend hotplug handling for more multiple display.
+- Wait for client to connection before hotplug notification.
+
+CRs-Fixed: 2274419
+Change-Id: Ibe355a230480a6ec44bb04c2e451fc8ddca7a0fc
+---
+ services/surfaceflinger/DisplayHardware/HWComposer.h | 2 +-
+ services/surfaceflinger/EventThread.cpp              | 6 +++---
+ services/surfaceflinger/SurfaceFlinger.cpp           | 4 ++--
+ 3 files changed, 6 insertions(+), 6 deletions(-)
+
+diff --git a/services/surfaceflinger/DisplayHardware/HWComposer.h b/services/surfaceflinger/DisplayHardware/HWComposer.h
+index f9689482c..77a2c63f2 100644
+--- a/services/surfaceflinger/DisplayHardware/HWComposer.h
++++ b/services/surfaceflinger/DisplayHardware/HWComposer.h
+@@ -183,7 +183,7 @@ private:
+     // For unit tests
+     friend TestableSurfaceFlinger;
+ 
+-    static const int32_t VIRTUAL_DISPLAY_ID_BASE = 2;
++    static const int32_t VIRTUAL_DISPLAY_ID_BASE = HWC_DISPLAY_VIRTUAL;
+ 
+     bool isValidDisplay(int32_t displayId) const;
+     static void validateChange(HWC2::Composition from, HWC2::Composition to);
+diff --git a/services/surfaceflinger/EventThread.cpp b/services/surfaceflinger/EventThread.cpp
+index bc271c8ec..3e6e7097c 100644
+--- a/services/surfaceflinger/EventThread.cpp
++++ b/services/surfaceflinger/EventThread.cpp
+@@ -228,7 +228,9 @@ Vector<sp<EventThread::Connection> > EventThread::waitForEventLocked(
+             }
+         }
+ 
+-        if (!timestamp) {
++        // find out connections waiting for events
++        size_t count = mDisplayEventConnections.size();
++        if (!timestamp && count) {
+             // no vsync event, see if there are some other event
+             eventPending = !mPendingEvents.isEmpty();
+             if (eventPending) {
+@@ -238,8 +240,6 @@ Vector<sp<EventThread::Connection> > EventThread::waitForEventLocked(
+             }
+         }
+ 
+-        // find out connections waiting for events
+-        size_t count = mDisplayEventConnections.size();
+         for (size_t i = 0; i < count;) {
+             sp<Connection> connection(mDisplayEventConnections[i].promote());
+             if (connection != nullptr) {
+diff --git a/services/surfaceflinger/SurfaceFlinger.cpp b/services/surfaceflinger/SurfaceFlinger.cpp
+index 942441058..1434ee98c 100644
+--- a/services/surfaceflinger/SurfaceFlinger.cpp
++++ b/services/surfaceflinger/SurfaceFlinger.cpp
+@@ -2294,8 +2294,8 @@ DisplayDevice::DisplayType SurfaceFlinger::determineDisplayType(hwc2_display_t d
+         return  DisplayDevice::DISPLAY_EXTERNAL;
+     } else if (connection == HWC2::Connection::Connected && !primaryDisplayId) {
+         return DisplayDevice::DISPLAY_PRIMARY;
+-    } else if (connection == HWC2::Connection::Connected && !externalDisplayId) {
+-        return DisplayDevice::DISPLAY_EXTERNAL;
++    } else if ((display >= 0) && (display < DisplayDevice::NUM_BUILTIN_DISPLAY_TYPES)) {
++        return (DisplayDevice::DisplayType)display;
+     }
+ 
+     return DisplayDevice::DISPLAY_ID_INVALID;
+-- 
+2.17.1
+
