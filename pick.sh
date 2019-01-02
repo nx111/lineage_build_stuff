@@ -1137,7 +1137,6 @@ kpick 225192 # klte-common: Align ril.h to samsung_msm8974-common P libril chang
 # device/samsung/msm8974-common
 kpick 235457 # msm8974-common: sepolicy: Limit execmod to specifically labeled files
 kpick 234526 # msm8974-common: sepolicy: Resolve mediaserver denials
-kpick 237215 # msm8974-common: sepolicy: Eliminate qemu_hw_mainkeys_prop entries
 
 # kernel/samsung/msm8974
 kpick 234754 # Add define for O_TMPFILE
@@ -1163,6 +1162,7 @@ kpick 227111 # releasetools: Store the build.prop file in the OTA zip
 kpick 222648 # Allow providing flex and bison binaries
 kpick 224613 # soong: Add LOCAL_AIDL_FLAGS handling
 kpick 226443 # soong: Add additional_deps attribute for libraries and binaries
+kpick 237735 # GCC doesn't support cortex-a55/75, fallback to cortex-a53
 
 # dalvik
 
@@ -1185,7 +1185,6 @@ kpick 236446 # common: Improve label of I/O sched tuning nodes
 kpick 234613 # common: Expand labeling of sysfs_vibrator nodes using genfscon
 kpick 234837 # common: Label and allow access over LiveDisplay sysfs nodes
 kpick 235402 # common: Allow init to relabel I/O sched tuning nodes
-kpick 237211 # Remove vendor se-labelling of AOSP's qemu.hw.mainkeys prop.
 kpick 237204 # selinux: move vendor_camera_prop to device/lineage/sepolicy
 kpick 237205 # selinux: move vendor_camera_prop from device/qcom/sepolicy
 kpick 237348 # lineage: Address perf HAL denial with boost enabled
@@ -1255,8 +1254,6 @@ kpick 235128 # Crash app on foreground service notification error
 kpick 235147 # SystemUI: Name Cellular Tile based on carrier
 kpick 235986 # frameworks: Add unlinked ringtone and notification volumes
 kpick 236156 # CaffeineTile: Mimic old custom tile behavior
-kpick 236213 # Revert "SystemUI: Fix several issues in the ADB over Network tile"
-kpick 236215 # Revert "SystemUI: add navbar layout inversion tuning"
 kpick 236216 # StatusBarSignalPolicy: Hide signal icons for disabled SIMs
 kpick 236476 # DreamBackend: Fix launching settings
 kpick 236765 # Sounds: Squashed cleanup of sound files
@@ -1267,9 +1264,10 @@ kpick 237143 # AudioService: Fix Audio mod volume steps
 kpick 237171 # WiFiDisplayController: Defer the P2P Initialization from its constructor.
 kpick 237172 # WifiDisplayController: handle preexisting p2p connection status
 kpick 237230 # Enable Binder Proxy Tracking by Uid only on eng builds
+kpick 237742 # base: make settings_dark colors same as material_dark
+kpick 237743 # systemui: add dark mode on low battery toggle
 
 # frameworks/native
-kpick 224443 # libbinder: Don't log call trace when waiting for vendor service on non-eng builds
 kpick 224530 # Triple the available egl function pointers available to a process for certain Nvidia devices.
 kpick 225542 # sensorservice: Register orientation sensor if HAL doesn't provide it
 kpick 225543 # sensorservice: customize sensor fusion mag filter via prop
@@ -1382,7 +1380,8 @@ kpick 227931 # lineagesdk: Refactor battery icon options
 kpick 230272 # sdk: Remove VOLUME_KEYS_CONTROL_RING_STREAM
 kpick 230284 # Revert "[3/3] cmsdk: add burnIn protection setting"
 kpick 237074 # lineage-sdk: Handle database downgrading
-kpick 237075 # lineage-sdk: Fix onUpgrade() logic
+kpick 237075 # lineage-sdk: Remove useless logic on database upgrading
+kpick 237740 # sdk: add dark mode on low battery toggle
 
 # packages/apps/Bluetooth
 kpick 229311 # Assume optional codecs are supported if were supported previously
@@ -1397,7 +1396,6 @@ kpick 225265 # Add Storage preference (1/2)
 # packages/apps/CellBroadcastReciver
 
 # packages/apps/Contacts
-kpick 237247 # Contacts: use white nav bar
 
 # packages/apps/DeskClock
 
@@ -1410,7 +1408,6 @@ kpick 237247 # Contacts: use white nav bar
 # packages/apps/Email
 
 # packages/apps/ExactCalculator
-kpick 237307 # ExactCalculator: support dark mode
 
 # packages/apps/Gallery2
 
@@ -1425,13 +1422,11 @@ kpick 221756 # StatusBarSettings: Hide battery preference category based on icon
 kpick 229389 # Trust: enforce vendor security patch level check
 kpick 231163 # LineageParts: Add some missing psychedelics
 kpick 232146 # LineageParts: Reenable Privacy Guard
+kpick 237741 # parts: add dark mode on low battery toggle
 
 # packages/apps/ManagedProvisoning
 
 # packages/apps/Messaging
-kpick 237237 # AOSP/Messaging: bump to targetSDK 24
-kpick 237238 # AOSP/Messaging: bump targetSDK to 28
-kpick 237239 # Messaging: use white nav bar
 
 # packages/apps/Nfc
 
@@ -1532,7 +1527,6 @@ kpick 232438 # su: Initialize windows size
 
 # system/netd
 kpick 232794 # NetD : Allow passing in interface names for vpn app restriction
-kpick 234190 # netd: Allow devices to opt-out of the tethering active FTP helper
 
 # system/qcom
 
@@ -1583,7 +1577,6 @@ kpick 237117 # extract_utils: drop the "/system/" prefix from prints of blob nam
 kpick 237118 # extract_utils: introduce support for executing blob fixup scripts
 kpick 237209 # lineage: Set default ringtone for second SIM
 kpick 237270 # extract_utils: introduce -k (kang mode) option
-kpick 237311 # lineage: open sdcard root when launching DocumentsUI
 kpick 237352 # qcom: Mark some gralloc bits as valid
 kpick 237432 # soong_config: Add flag for msm8974 1440p EGL workaround
 

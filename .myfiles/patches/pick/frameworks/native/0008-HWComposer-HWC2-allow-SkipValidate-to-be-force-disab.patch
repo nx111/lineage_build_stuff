@@ -1,0 +1,67 @@
+From 5125151e4f2905ea3067af2bbae4cae5d1eea5bf Mon Sep 17 00:00:00 2001
+From: Jesse Chan <jc@lineageos.org>
+Date: Thu, 18 Oct 2018 18:09:25 -0700
+Subject: [PATCH 8/9] HWComposer: HWC2: allow SkipValidate to be force disabled
+
+HWC on some devices does not support SkipValidate.
+On earlier versions, hasCapability(HWC2::Capability::SkipValidate)
+will be called to check if SkipValidate is available.
+
+This check has been removed in Pie and now surfaceflinger
+rely on HWC to fallback to validate when there is any client layer.
+But HWC is not reliable as some vendors do not implement fallback at all.
+
+Thus, this change adds a flag to allow SkipValidate to be force disabled.
+
+Change-Id: I5cb1b5de98e7eaff9bc77fb0fa5a4ab6eca0cda4
+
+# Conflicts:
+#	services/surfaceflinger/Android.bp
+---
+ services/surfaceflinger/Android.bp                     | 3 +++
+ services/surfaceflinger/DisplayHardware/HWComposer.cpp | 8 +++++++-
+ 2 files changed, 10 insertions(+), 1 deletion(-)
+
+diff --git a/services/surfaceflinger/Android.bp b/services/surfaceflinger/Android.bp
+index c2a2292b9..8191af00a 100644
+--- a/services/surfaceflinger/Android.bp
++++ b/services/surfaceflinger/Android.bp
+@@ -160,6 +160,9 @@ cc_library_shared {
+             msm8974_1440p_egl_workaround: {
+                 cflags: ["-DALLOW_TOO_LARGE_DIMENSIONS"],
+             },
++            hwc2_no_skipvalidate: {
++                cppflags: ["-DTARGET_HWC2_NO_SKIPVALIDATE"],
++            },
+         },
+     },
+ }
+diff --git a/services/surfaceflinger/DisplayHardware/HWComposer.cpp b/services/surfaceflinger/DisplayHardware/HWComposer.cpp
+index f5f7a821f..1f6df08d4 100644
+--- a/services/surfaceflinger/DisplayHardware/HWComposer.cpp
++++ b/services/surfaceflinger/DisplayHardware/HWComposer.cpp
+@@ -80,6 +80,12 @@
+ #define RETURN_IF_HWC_ERROR(error, displayId, ...) \
+     RETURN_IF_HWC_ERROR_FOR(__FUNCTION__, error, displayId, __VA_ARGS__)
+ 
++#ifdef TARGET_HWC2_NO_SKIPVALIDATE
++#define HAS_SKIPVALIDATE 0
++#else
++#define HAS_SKIPVALIDATE 1
++#endif
++
+ namespace android {
+ 
+ #define MIN_HWC_HEADER_VERSION HWC_HEADER_VERSION
+@@ -435,7 +441,7 @@ status_t HWComposer::prepare(DisplayDevice& displayDevice) {
+     // The check below is incorrect.  We actually rely on HWC here to fall
+     // back to validate when there is any client layer.
+     displayData.validateWasSkipped = false;
+-    if (!displayData.hasClientComposition) {
++    if (HAS_SKIPVALIDATE && !displayData.hasClientComposition) {
+         sp<android::Fence> outPresentFence;
+         uint32_t state = UINT32_MAX;
+         error = hwcDisplay->presentOrValidate(&numTypes, &numRequests, &outPresentFence , &state);
+-- 
+2.17.1
+
