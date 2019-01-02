@@ -1427,6 +1427,7 @@ kpick 237741 # parts: add dark mode on low battery toggle
 # packages/apps/ManagedProvisoning
 
 # packages/apps/Messaging
+kpick 237668 # Messaging: Implement option for notification quick reply.
 
 # packages/apps/Nfc
 
@@ -1478,6 +1479,7 @@ kpick 234612 # Updater: Implement auto update check interval preference
 
 # packages/overlays/Lineage
 kpick 236134 # overlays: accents: tune for contrast
+
 # packages/providers/ContactsProvider
 
 # packages/providers/DownloadProvider
