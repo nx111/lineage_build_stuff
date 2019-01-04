@@ -1,0 +1,440 @@
+From f1e677b82d71511fffd6354a4b3440eea4b55964 Mon Sep 17 00:00:00 2001
+From: Indranil Chakraborty <ichakrab@codeaurora.org>
+Date: Fri, 23 Mar 2018 21:53:55 +0530
+Subject: [PATCH 32/47] Merge changes for launching wifidisplay from system
+ settings
+
+1. wifidisplay: Use ExtendedRemoteDisplay to launch Wifi Display.
+- RemoteDisplay class is used to launch WiFi Display
+  implementation in the Android framework with a discovered peer.
+  There is a need to support proprietary implementation of wifi
+  display instead of the framework implementation.
+- To enable this support, ExtendedRemoteDisplay is added,
+  which launches the proprietary solution. ExtendedRemoteDisplay object
+  is created if the class is available in the package. If the class is
+  not available the default implementation will be used by creating
+  RemoteDisplay.
+
+Change-Id: I2e2a5e552bc86888848c0402bafd873620b05c21
+
+2. wifidisplay: Modify WifiDisplayController
+Spawn RTSP server before P2P connection
+--In order to be sanguine that the RTSP server has been spawned
+  on source, invoke listen() before P2P connection.
+--Add a debug property to enable verbose logging in WifiDisplayController
+Block teardown to avoid severing P2P group
+--Since WFD dispose is asysnchronous, framework proceeds with teardown
+  and dissolves P2P group before WFD stack is able to complete message
+  exchange for teardown.
+--Prevent framework from doing so and allow it to proceed only once
+  WFD stack indicates it's dependence on network is over.
+Add null check guards in WifiDisplayController
+--The WifiP2PGroup delivered in the onGroupInfoAvailable() callback
+  is not guaranteed to be non-null and hence needs to be validated.
+--The same applies to the WFDDevice that is retrieved using
+  info.getOwner()
+
+CRs-Fixed: 1041702
+Change-Id: Ie0e23ba42c1afe42662943cd864ab3077a156e0a
+---
+ .../display/ExtendedRemoteDisplayHelper.java  | 152 ++++++++++++++++++
+ .../server/display/WifiDisplayController.java | 147 ++++++++++-------
+ 2 files changed, 244 insertions(+), 55 deletions(-)
+ create mode 100644 services/core/java/com/android/server/display/ExtendedRemoteDisplayHelper.java
+
+diff --git a/services/core/java/com/android/server/display/ExtendedRemoteDisplayHelper.java b/services/core/java/com/android/server/display/ExtendedRemoteDisplayHelper.java
+new file mode 100644
+index 00000000000..d6306a3175a
+--- /dev/null
++++ b/services/core/java/com/android/server/display/ExtendedRemoteDisplayHelper.java
+@@ -0,0 +1,152 @@
++/*
++ * Copyright (c) 2014, The Linux Foundation. All rights reserved.
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions are
++ * met:
++ *     * Redistributions of source code must retain the above copyright
++ *      notice, this list of conditions and the following disclaimer.
++ *     * Redistributions in binary form must reproduce the above
++ *       copyright notice, this list of conditions and the following
++ *       disclaimer in the documentation and/or other materials provided
++ *      with the distribution.
++ *     * Neither the name of The Linux Foundation nor the names of its
++ *      contributors may be used to endorse or promote products derived
++ *       from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED "AS IS" AND ANY EXPRESS OR IMPLIED
++ * WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
++ * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT
++ * ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS
++ * BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
++ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
++ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR
++ * BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
++ * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
++ * OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
++ * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++package com.android.server.display;
++
++import android.content.Context;
++import android.media.RemoteDisplay;
++import android.os.Handler;
++import android.util.Slog;
++
++import java.lang.reflect.Constructor;
++import java.lang.reflect.InvocationTargetException;
++import java.lang.reflect.Method;
++
++class ExtendedRemoteDisplayHelper {
++    private static final String TAG = "ExtendedRemoteDisplayHelper";
++    private static final boolean DEBUG = false;
++
++    // ExtendedRemoteDisplay class
++    // ExtendedRemoteDisplay is an enhanced RemoteDisplay.
++    // It has similar interface as RemoteDisplay class.
++    private static Class sExtRemoteDisplayClass;
++
++    // Method object for the API ExtendedRemoteDisplay.Listen
++    // ExtendedRemoteDisplay.Listen has the same API signature as RemoteDisplay.Listen
++    // except for an additional argument to pass the Context.
++    private static Method sExtRemoteDisplayListen;
++
++    // Method Object for the API ExtendedRemoteDisplay.Dispose
++    // ExtendedRemoteDisplay.Dispose follows the same API signature as RemoteDisplay.Dispose.
++    private static Method sExtRemoteDisplayDispose;
++
++    static {
++        // Check availability of ExtendedRemoteDisplay runtime
++        try {
++            sExtRemoteDisplayClass = Class.forName("com.qualcomm.wfd.ExtendedRemoteDisplay");
++        } catch (Throwable t) {
++            Slog.i(TAG, "ExtendedRemoteDisplay: not available");
++        }
++
++        if (sExtRemoteDisplayClass != null) {
++            // If ExtendedRemoteDisplay is available find the methods
++            Slog.i(TAG, "ExtendedRemoteDisplay: is available, finding methods");
++            try {
++                Class args[] = { String.class, RemoteDisplay.Listener.class,
++                        Handler.class, Context.class };
++                sExtRemoteDisplayListen =
++                        sExtRemoteDisplayClass.getDeclaredMethod("listen", args);
++            } catch (Throwable t) {
++                Slog.i(TAG, "ExtendedRemoteDisplay.listen: not available");
++            }
++
++            try {
++                Class args[] = {};
++                sExtRemoteDisplayDispose =
++                        sExtRemoteDisplayClass.getDeclaredMethod("dispose", args);
++            } catch (Throwable t) {
++                Slog.i(TAG, "ExtendedRemoteDisplay.dispose: not available");
++            }
++        }
++    }
++
++    /**
++     * Starts listening for displays to be connected on the specified interface.
++     *
++     * @param iface The interface address and port in the form "x.x.x.x:y".
++     * @param listener The listener to invoke when displays are connected or disconnected.
++     * @param handler The handler on which to invoke the listener.
++     * @param context The current service context.
++     *  */
++    public static Object listen(String iface, RemoteDisplay.Listener listener,
++            Handler handler, Context context) {
++        Object extRemoteDisplay = null;
++        if (DEBUG) Slog.i(TAG, "ExtendedRemoteDisplay.listen");
++
++        if (sExtRemoteDisplayListen != null && sExtRemoteDisplayDispose != null) {
++            try {
++                extRemoteDisplay = sExtRemoteDisplayListen.invoke(null,
++                        iface, listener, handler, context);
++            } catch (InvocationTargetException e) {
++                Slog.e(TAG, "ExtendedRemoteDisplay.listen: InvocationTargetException");
++                Throwable cause = e.getCause();
++                if (cause instanceof RuntimeException) {
++                    throw (RuntimeException) cause;
++                } else if (cause instanceof Error) {
++                    throw (Error) cause;
++                } else {
++                    throw new RuntimeException(e);
++                }
++            } catch (IllegalAccessException e) {
++                Slog.e(TAG, "ExtendedRemoteDisplay.listen: IllegalAccessException", e);
++            }
++        }
++        return extRemoteDisplay;
++    }
++
++    /**
++     * Disconnects the remote display and stops listening for new connections.
++     */
++    public static void dispose(Object extRemoteDisplay) {
++        if (DEBUG) Slog.i(TAG, "ExtendedRemoteDisplay.dispose");
++        try {
++            sExtRemoteDisplayDispose.invoke(extRemoteDisplay);
++        } catch (InvocationTargetException e) {
++            Slog.e(TAG, "ExtendedRemoteDisplay.dispose: InvocationTargetException");
++            Throwable cause = e.getCause();
++            if (cause instanceof RuntimeException) {
++                throw (RuntimeException) cause;
++            } else if (cause instanceof Error) {
++                throw (Error) cause;
++            } else {
++                throw new RuntimeException(e);
++            }
++        } catch (IllegalAccessException e) {
++            Slog.e(TAG, "ExtendedRemoteDisplay.dispose: IllegalAccessException", e);
++        }
++    }
++
++    /**
++     * Checks if ExtendedRemoteDisplay is available
++     */
++    public static boolean isAvailable() {
++        return (sExtRemoteDisplayClass != null && sExtRemoteDisplayDispose != null &&
++                sExtRemoteDisplayListen != null);
++    }
++}
+diff --git a/services/core/java/com/android/server/display/WifiDisplayController.java b/services/core/java/com/android/server/display/WifiDisplayController.java
+index fc59b5b0ffe..9e069488172 100644
+--- a/services/core/java/com/android/server/display/WifiDisplayController.java
++++ b/services/core/java/com/android/server/display/WifiDisplayController.java
+@@ -136,6 +136,10 @@ final class WifiDisplayController implements DumpUtils.Dump {
+     // Number of connection retries remaining.
+     private int mConnectionRetriesLeft;
+ 
++    // The Extended remote display that is listening on the connection.
++    // Created after the Wifi P2P network is connected.
++    private Object mExtRemoteDisplay;
++
+     // The remote display that is listening on the connection.
+     // Created after the Wifi P2P network is connected.
+     private RemoteDisplay mRemoteDisplay;
+@@ -358,7 +362,8 @@ final class WifiDisplayController implements DumpUtils.Dump {
+     }
+ 
+     private void updateScanState() {
+-        if (mScanRequested && mWfdEnabled && mDesiredDevice == null) {
++        if (mScanRequested && mWfdEnabled && mDesiredDevice == null &&
++                mConnectedDevice == null && mDisconnectingDevice == null) {
+             if (!mDiscoverPeersInProgress) {
+                 Slog.i(TAG, "Starting Wifi display scan.");
+                 mDiscoverPeersInProgress = true;
+@@ -564,14 +569,21 @@ final class WifiDisplayController implements DumpUtils.Dump {
+ 
+         // Step 1. Before we try to connect to a new device, tell the system we
+         // have disconnected from the old one.
+-        if (mRemoteDisplay != null && mConnectedDevice != mDesiredDevice) {
+-            Slog.i(TAG, "Stopped listening for RTSP connection on " + mRemoteDisplayInterface
+-                    + " from Wifi display: " + mConnectedDevice.deviceName);
++        if ((mRemoteDisplay != null || mExtRemoteDisplay != null) &&
++                mConnectedDevice != mDesiredDevice ||
++                (mRemoteDisplayInterface != null && mConnectedDevice == null)) {
++            Slog.i(TAG, "Stopped listening for RTSP connection on "
++                    + mRemoteDisplayInterface);
++
++            if (mRemoteDisplay != null) {
++                mRemoteDisplay.dispose();
++            } else if (mExtRemoteDisplay != null) {
++                ExtendedRemoteDisplayHelper.dispose(mExtRemoteDisplay);
++            }
+ 
+-            mRemoteDisplay.dispose();
++            mExtRemoteDisplay = null;
+             mRemoteDisplay = null;
+             mRemoteDisplayInterface = null;
+-            mRemoteDisplayConnected = false;
+             mHandler.removeCallbacks(mRtspTimeout);
+ 
+             mWifiP2pManager.setMiracastMode(WifiP2pManager.MIRACAST_DISABLED);
+@@ -581,7 +593,7 @@ final class WifiDisplayController implements DumpUtils.Dump {
+         }
+ 
+         // Step 2. Before we try to connect to a new device, disconnect from the old one.
+-        if (mDisconnectingDevice != null) {
++        if (mRemoteDisplayConnected || mDisconnectingDevice != null) {
+             return; // wait for asynchronous callback
+         }
+         if (mConnectedDevice != null && mConnectedDevice != mDesiredDevice) {
+@@ -665,6 +677,51 @@ final class WifiDisplayController implements DumpUtils.Dump {
+             return; // done
+         }
+ 
++        //Before we connect, we need to set the oldDevice to the desiredDevice to check
++        //the device on receiving callbacks from the Remote display modules
++        final WifiP2pDevice oldDevice = mDesiredDevice;
++        RemoteDisplay.Listener listener = new RemoteDisplay.Listener() {
++            @Override
++            public void onDisplayConnected(Surface surface,
++                     int width, int height, int flags, int session) {
++                 if (mConnectedDevice == oldDevice && !mRemoteDisplayConnected) {
++                    Slog.i(TAG, "Opened RTSP connection with Wifi display: "
++                            + mConnectedDevice.deviceName);
++                    mRemoteDisplayConnected = true;
++                    mHandler.removeCallbacks(mRtspTimeout);
++
++                 if (mWifiDisplayCertMode) {
++                     mListener.onDisplaySessionInfo(
++                     getSessionInfo(mConnectedDeviceGroupInfo, session));
++                 }
++
++                 final WifiDisplay display = createWifiDisplay(mConnectedDevice);
++                 advertiseDisplay(display, surface, width, height, flags);
++                 }
++            }
++
++            @Override
++            public void onDisplayDisconnected() {
++                if (mConnectedDevice == oldDevice) {
++                    Slog.i(TAG, "Closed RTSP connection with Wifi display: "
++                            + mConnectedDevice.deviceName);
++                    mHandler.removeCallbacks(mRtspTimeout);
++                    mRemoteDisplayConnected = false;
++                    disconnect();
++                }
++            }
++
++            @Override
++            public void onDisplayError(int error) {
++                if (mConnectedDevice == oldDevice) {
++                    Slog.i(TAG, "Lost RTSP connection with Wifi display due to error "
++                            + error + ": " + mConnectedDevice.deviceName);
++                    mHandler.removeCallbacks(mRtspTimeout);
++                    handleConnectionFailure(false);
++                }
++            }
++        };
++
+         // Step 5. Try to connect.
+         if (mConnectedDevice == null && mConnectingDevice == null) {
+             Slog.i(TAG, "Connecting to Wifi display: " + mDesiredDevice.deviceName);
+@@ -690,6 +747,18 @@ final class WifiDisplayController implements DumpUtils.Dump {
+             WifiDisplay display = createWifiDisplay(mConnectingDevice);
+             advertiseDisplay(display, null, 0, 0, 0);
+ 
++            if (ExtendedRemoteDisplayHelper.isAvailable() && mExtRemoteDisplay == null) {
++               final int port = getPortNumber(mDesiredDevice);
++               //IP is superfluous for WFD source, and we don't have one at this stage anyway since
++               //P2P connection hasn't been established yet
++               final String iface = "255.255.255.255:" + port;
++               mRemoteDisplayInterface = iface;
++               Slog.i(TAG, "Listening for RTSP connection on " + iface
++                       + " from Wifi display: " + mDesiredDevice.deviceName);
++               mExtRemoteDisplay = ExtendedRemoteDisplayHelper.listen(iface,
++                       listener, mHandler, mContext);
++            }
++
+             final WifiP2pDevice newDevice = mDesiredDevice;
+             mWifiP2pManager.connect(mWifiP2pChannel, config, new ActionListener() {
+                 @Override
+@@ -727,54 +796,16 @@ final class WifiDisplayController implements DumpUtils.Dump {
+ 
+             mWifiP2pManager.setMiracastMode(WifiP2pManager.MIRACAST_SOURCE);
+ 
+-            final WifiP2pDevice oldDevice = mConnectedDevice;
+             final int port = getPortNumber(mConnectedDevice);
+             final String iface = addr.getHostAddress() + ":" + port;
+             mRemoteDisplayInterface = iface;
+ 
+-            Slog.i(TAG, "Listening for RTSP connection on " + iface
+-                    + " from Wifi display: " + mConnectedDevice.deviceName);
+-
+-            mRemoteDisplay = RemoteDisplay.listen(iface, new RemoteDisplay.Listener() {
+-                @Override
+-                public void onDisplayConnected(Surface surface,
+-                        int width, int height, int flags, int session) {
+-                    if (mConnectedDevice == oldDevice && !mRemoteDisplayConnected) {
+-                        Slog.i(TAG, "Opened RTSP connection with Wifi display: "
+-                                + mConnectedDevice.deviceName);
+-                        mRemoteDisplayConnected = true;
+-                        mHandler.removeCallbacks(mRtspTimeout);
+-
+-                        if (mWifiDisplayCertMode) {
+-                            mListener.onDisplaySessionInfo(
+-                                    getSessionInfo(mConnectedDeviceGroupInfo, session));
+-                        }
+-
+-                        final WifiDisplay display = createWifiDisplay(mConnectedDevice);
+-                        advertiseDisplay(display, surface, width, height, flags);
+-                    }
+-                }
+-
+-                @Override
+-                public void onDisplayDisconnected() {
+-                    if (mConnectedDevice == oldDevice) {
+-                        Slog.i(TAG, "Closed RTSP connection with Wifi display: "
+-                                + mConnectedDevice.deviceName);
+-                        mHandler.removeCallbacks(mRtspTimeout);
+-                        disconnect();
+-                    }
+-                }
+-
+-                @Override
+-                public void onDisplayError(int error) {
+-                    if (mConnectedDevice == oldDevice) {
+-                        Slog.i(TAG, "Lost RTSP connection with Wifi display due to error "
+-                                + error + ": " + mConnectedDevice.deviceName);
+-                        mHandler.removeCallbacks(mRtspTimeout);
+-                        handleConnectionFailure(false);
+-                    }
+-                }
+-            }, mHandler, mContext.getOpPackageName());
++            if (!ExtendedRemoteDisplayHelper.isAvailable()) {
++               Slog.i(TAG, "Listening for RTSP connection on " + iface
++                       + " from Wifi display: " + mConnectedDevice.deviceName);
++               mRemoteDisplay = RemoteDisplay.listen(iface, listener,
++                       mHandler, mContext.getOpPackageName());
++            }
+ 
+             // Use extended timeout value for certification, as some tests require user inputs
+             int rtspTimeout = mWifiDisplayCertMode ?
+@@ -785,7 +816,7 @@ final class WifiDisplayController implements DumpUtils.Dump {
+     }
+ 
+     private WifiDisplaySessionInfo getSessionInfo(WifiP2pGroup info, int session) {
+-        if (info == null) {
++        if (info == null || info.getOwner() == null) {
+             return null;
+         }
+         Inet4Address addr = getInterfaceAddress(info);
+@@ -819,6 +850,10 @@ final class WifiDisplayController implements DumpUtils.Dump {
+                 mWifiP2pManager.requestGroupInfo(mWifiP2pChannel, new GroupInfoListener() {
+                     @Override
+                     public void onGroupInfoAvailable(WifiP2pGroup info) {
++                        if (info == null) {
++                           return;
++                        }
++
+                         if (DEBUG) {
+                             Slog.d(TAG, "Received group info: " + describeWifiP2pGroup(info));
+                         }
+@@ -838,8 +873,9 @@ final class WifiDisplayController implements DumpUtils.Dump {
+                         }
+ 
+                         if (mWifiDisplayCertMode) {
+-                            boolean owner = info.getOwner().deviceAddress
+-                                    .equals(mThisDevice.deviceAddress);
++                            boolean owner = info.getOwner() != null ?
++                                    info.getOwner().deviceAddress.equals(
++                                            mThisDevice.deviceAddress) : false;
+                             if (owner && info.getClientList().isEmpty()) {
+                                 // this is the case when we started Autonomous GO,
+                                 // and no client has connected, save group info
+@@ -909,7 +945,8 @@ final class WifiDisplayController implements DumpUtils.Dump {
+         @Override
+         public void run() {
+             if (mConnectedDevice != null
+-                    && mRemoteDisplay != null && !mRemoteDisplayConnected) {
++                    && (mRemoteDisplay != null || mExtRemoteDisplay != null)
++                    && !mRemoteDisplayConnected) {
+                 Slog.i(TAG, "Timed out waiting for Wifi display RTSP connection after "
+                         + RTSP_TIMEOUT_SECONDS + " seconds: "
+                         + mConnectedDevice.deviceName);
+-- 
+2.17.1
+

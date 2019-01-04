@@ -1105,10 +1105,12 @@ reset_overwrite_projects
 repo sync android  >/dev/null
 [ $op_keep_manifests -ne 1 ] && reset_project_dir .repo/manifests
 
-kpick 223886 # manifest: Re-add hardware/qcom/data/ipacfg-mgr
 kpick 227747 # lineage: Enable weather apps
 kpick 231971 # manifest: sync gcc4.9 from aosp oreo
 kpick 232371 # manifest: Sync extras/su
+kpick 237825 # lineage: Add CAF variant of data-ipa-cfg-mgr
+kpick 237826 # lineage: Update qcom repositories groups
+kpick 237827 # lineage: Reenable hardware/lineage/telephony
 
 patch_local local/android
 echo
@@ -1152,6 +1154,7 @@ kpick 234754 # Add define for O_TMPFILE
 # boot/recovery
 kpick 231718 # recovery: Declare a soong namespace
 kpick 234952 # uncrypt: write permission for f2fs_pin_file
+kpick 237829 # recovery: Allow custom bootloader msg offset in block misc
 
 # build/make
 kpick 222742 # build: Use project pathmap for recovery
@@ -1172,7 +1175,6 @@ kpick 237205 # selinux: move vendor_camera_prop from device/qcom/sepolicy
 kpick 237203 # selinux: snap: allow to read vendor camera props
 
 # device/qcom/sepolicy
-kpick 228570 # sepolicy: Allow wcnss_service to set wlan.driver properties
 kpick 228572 # sepolicy: Allow system_server to 'read' qti_debugfs
 kpick 228573 # sepolicy: Add libsdm-disp-vndapis and libsdmutils to SP-HALs
 kpick 228576 # sepolicy: Label mpctl_socket as data_file_type
@@ -1254,7 +1256,6 @@ kpick 235128 # Crash app on foreground service notification error
 kpick 235147 # SystemUI: Name Cellular Tile based on carrier
 kpick 235986 # frameworks: Add unlinked ringtone and notification volumes
 kpick 236156 # CaffeineTile: Mimic old custom tile behavior
-kpick 236216 # StatusBarSignalPolicy: Hide signal icons for disabled SIMs
 kpick 236476 # DreamBackend: Fix launching settings
 kpick 236765 # Sounds: Squashed cleanup of sound files
 kpick 237129 # Merge changes for launching wifidisplay from system settings
@@ -1297,14 +1298,12 @@ kpick 225155 # Broadcom BT: Add support fm/bt via v4l2.
 # hardware/libhardware
 
 # hardware/libhardware_legacy
-kpick 237240 # Add support for TCP/IP over NAN
 
 # hardware/interfaces
 
 # hardware/lineage/interfaces
 kpick 223374 # interfaces: Add 2.0 livedisplay interfaces
 kpick 223410 # interfaces: Add touch HIDL interface definitions
-kpick 237355 # light: aw2013: Mark as shutdown critical
 
 # hardware/lineage/lineagehw
 
@@ -1331,11 +1330,6 @@ kpick 236546 # fm_helium: Update FM_HCI_DIR path
 # hardware/qcom/gps
 
 # hardware/qcom/keymaster
-kpick 224950 # Keymaster: Check if keymaster TZ app is loaded
-kpick 224951 # keymaster: Featureize support for waiting on QSEE to start
-kpick 224952 # keymaster: add TARGET_PROVIDES_KEYMASTER
-kpick 224953 # keymaster: Fix compiler warnings
-kpick 224954 # keymaster: move to /vendor
 
 # hardware/qcom/media
 
@@ -1427,7 +1421,6 @@ kpick 237741 # parts: add dark mode on low battery toggle
 # packages/apps/ManagedProvisoning
 
 # packages/apps/Messaging
-kpick 237668 # Messaging: Implement option for notification quick reply.
 
 # packages/apps/Nfc
 
@@ -1440,7 +1433,6 @@ kpick 226142 # Settings: Add developer setting for root access
 kpick 232442 # Settings: Root appops access in developer settings
 kpick 235978 # Settings: Add switch for linked ring and media notification volumes
 kpick 236184 # Settings: Use correct icon for ring volume
-kpick 231590 # SimSettings: Add manual SIM provisioning support
 kpick 233634 # Phone ringtone setting for Multi SIM device
 kpick 227120 # Settings: Check interfaces before enabling ADB over network
 kpick 236550 # fingerprint: Remove unnecessary spacing in enroll layout
@@ -1479,7 +1471,6 @@ kpick 234612 # Updater: Implement auto update check interval preference
 
 # packages/overlays/Lineage
 kpick 236134 # overlays: accents: tune for contrast
-
 # packages/providers/ContactsProvider
 
 # packages/providers/DownloadProvider
@@ -1500,8 +1491,6 @@ kpick 236522 # Fix carrier config option not hidden on a CDMA phone
 # system/bt
 kpick 229125 # Increase maximum Bluetooth SBC codec bitpool and bitrate values
 kpick 229313 # Explicit SBC Dual Channel (SBC HD) support
-kpick 229401 # [DNM] Revert "Return early if vendor-specific command fails"
-kpick 237616 # Bluetooth: Ensure to release wake lock during turn off
 
 # system/core
 kpick -f 227110 # init: I hate safety net
@@ -1516,12 +1505,13 @@ kpick 237141 # core: update battery mod support for P
 
 # system/extras/su
 kpick 232428 # su: strlcpy is always a friend
-kpick 232429 # su: Run clang format
-kpick 232430 # su: Move to cutils/properties.h
 kpick 232431 # su: Enable Clang Tidy
-kpick 232432 # su: Remove Sammy hacks
 kpick 232433 # su: Fix a clang tidy warning
+kpick 232429 # su: Run clang format
 kpick 232434 # su: Cleanup includes
+kpick 237824 # su: Make gotos looks sane
+kpick 232430 # su: Move to cutils/properties.h
+kpick 232432 # su: Remove Sammy hacks
 kpick 232437 # su: Remove mount of emulated storage
 kpick 232438 # su: Initialize windows size
 
@@ -1549,6 +1539,8 @@ kpick 223133 # AIDL: Add option to generate No-Op methods
 
 # system/update/engine
 kpick 234581 # update_engine: Fallback to partition without suffix
+kpick 237836 # update_engine: Transition to backuptool domain
+kpick 237837 # Android: Reset update progress when booted into new version.
 
 # system/vold
 kpick 229304 # vold: Add texfat and sdfat support
@@ -1567,6 +1559,7 @@ kpick 225982 # roomservice.py: Strip cm.{mk,dependencies} support
 kpick 231249 # roomservice.py: adapt to lineage-16.0
 kpick 226125 # soong_config: Add flag for legacy HW FDE
 kpick 226126 # soong_config: Add flag for crypto waiting on QSEE to start
+kpick 237839 # lineage: qcom: Set proper CAF data-ipa-cfg-mgr pathmap
 kpick 229589 # lineage: Automatically set soong namespace when setting project pathmap
 kpick 229590 # lineage: Move qcom pathmap setting into "BoardConfig"
 kpick 231291 # repopick: add hashtag support
@@ -1581,10 +1574,12 @@ kpick 237209 # lineage: Set default ringtone for second SIM
 kpick 237270 # extract_utils: introduce -k (kang mode) option
 kpick 237352 # qcom: Mark some gralloc bits as valid
 kpick 237432 # soong_config: Add flag for msm8974 1440p EGL workaround
+kpick 237830 # soong_config: Add BOOTLOADER_MESSAGE_OFFSET
 
 # vendor/qcom/opensource/cryptfs_hw
 kpick 226128 # cryptfs_hw: Add compatibility for pre-O hw crypto
 kpick 226129 # cryptfs_hw: Featurize support for waiting on QSEE to start
+kpick 237840 # cryptfs_hw: Fix build warnings
 
 # vendor/qcom/opensource/thermal-engine
 

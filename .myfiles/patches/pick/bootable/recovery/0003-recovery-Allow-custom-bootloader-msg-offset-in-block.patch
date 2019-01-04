@@ -1,0 +1,87 @@
+From 68830a610a8c82c8d1871b76a40a166ca28f5422 Mon Sep 17 00:00:00 2001
+From: Alessandro Astone <ales.astone@gmail.com>
+Date: Fri, 12 Oct 2018 11:12:22 +0200
+Subject: [PATCH 3/3] recovery: Allow custom bootloader msg offset in block
+ misc
+
+* Defines the offset in misc where the bootloader message
+  should be written/read from.
+
+* bootloader_message.cpp is the only file using
+  BOOTLOADER_MESSAGE_OFFSET_IN_MISC and WIPE_PACKAGE_OFFSET_IN_MISC,
+  so we can move their definitions to the cpp.
+  This prevents the need to set BOARD_RECOVERY_BLDRMSG_OFFSET
+  in every module that includes the header.
+
+* Bootloader_message_offset is always set by soong,
+  defaults to 0.
+
+Change-Id: I2b902bcce7f5ca13472e0ac30ac01b4991294dbe
+---
+ bootloader_message/Android.bp                          |  8 ++++++++
+ bootloader_message/bootloader_message.cpp              | 10 ++++++++++
+ .../include/bootloader_message/bootloader_message.h    | 10 ----------
+ 3 files changed, 18 insertions(+), 10 deletions(-)
+
+diff --git a/bootloader_message/Android.bp b/bootloader_message/Android.bp
+index c81c67bd..15c02e2f 100644
+--- a/bootloader_message/Android.bp
++++ b/bootloader_message/Android.bp
+@@ -26,4 +26,12 @@ cc_library_static {
+         "libfs_mgr",
+     ],
+     export_include_dirs: ["include"],
++
++    product_variables: {
++        lineage: {
++            bootloader_message_offset : {
++                cflags: ["-DBOARD_RECOVERY_BLDRMSG_OFFSET=%d"],
++            },
++        },
++    },
+ }
+diff --git a/bootloader_message/bootloader_message.cpp b/bootloader_message/bootloader_message.cpp
+index aaeffdc5..7ebd86a5 100644
+--- a/bootloader_message/bootloader_message.cpp
++++ b/bootloader_message/bootloader_message.cpp
+@@ -29,6 +29,16 @@
+ #include <android-base/unique_fd.h>
+ #include <fs_mgr.h>
+ 
++// Spaces used by misc partition are as below:
++// 0   - 2K     For bootloader_message
++// 2K  - 16K    Used by Vendor's bootloader (the 2K - 4K range may be optionally used
++//              as bootloader_message_ab struct)
++// 16K - 64K    Used by uncrypt and recovery to store wipe_package for A/B devices
++// Note that these offsets are admitted by bootloader,recovery and uncrypt, so they
++// are not configurable without changing all of them.
++static const size_t BOOTLOADER_MESSAGE_OFFSET_IN_MISC = BOARD_RECOVERY_BLDRMSG_OFFSET;
++static const size_t WIPE_PACKAGE_OFFSET_IN_MISC = 16 * 1024 + BOOTLOADER_MESSAGE_OFFSET_IN_MISC;
++
+ static std::string get_misc_blk_device(std::string* err) {
+   std::unique_ptr<fstab, decltype(&fs_mgr_free_fstab)> fstab(fs_mgr_read_fstab_default(),
+                                                              fs_mgr_free_fstab);
+diff --git a/bootloader_message/include/bootloader_message/bootloader_message.h b/bootloader_message/include/bootloader_message/bootloader_message.h
+index 95c19ae5..975e94db 100644
+--- a/bootloader_message/include/bootloader_message/bootloader_message.h
++++ b/bootloader_message/include/bootloader_message/bootloader_message.h
+@@ -21,16 +21,6 @@
+ #include <stddef.h>
+ #include <stdint.h>
+ 
+-// Spaces used by misc partition are as below:
+-// 0   - 2K     For bootloader_message
+-// 2K  - 16K    Used by Vendor's bootloader (the 2K - 4K range may be optionally used
+-//              as bootloader_message_ab struct)
+-// 16K - 64K    Used by uncrypt and recovery to store wipe_package for A/B devices
+-// Note that these offsets are admitted by bootloader,recovery and uncrypt, so they
+-// are not configurable without changing all of them.
+-static const size_t BOOTLOADER_MESSAGE_OFFSET_IN_MISC = 0;
+-static const size_t WIPE_PACKAGE_OFFSET_IN_MISC = 16 * 1024;
+-
+ /* Bootloader Message (2-KiB)
+  *
+  * This structure describes the content of a block in flash
+-- 
+2.17.1
+
