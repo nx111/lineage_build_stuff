@@ -1,7 +1,7 @@
-From 464de3d9883e25234fc689d9d99f2c545a334264 Mon Sep 17 00:00:00 2001
+From acdc6a0340cea4fbba02d6ac4e5b93ddae08762a Mon Sep 17 00:00:00 2001
 From: dianlujitao <dianlujitao@lineageos.org>
 Date: Thu, 3 Jan 2019 12:34:10 +0800
-Subject: [PATCH 15/15] power: Handle launch and interaction hints for perf HAL
+Subject: [PATCH 17/18] power: Handle launch and interaction hints for perf HAL
  platforms
 
  * MP-CTL does not handle POWER_HINT_INTERACTION and POWER_HINT_LAUNCH
@@ -16,12 +16,13 @@ Change-Id: I4c67d886c9dd74ae07094d32bdffc8ef403e04e7
  performance.h | 16 ++++++++++++
  power-660.c   | 50 ++++++++++++++++++++++++++++++++++++++
  power-845.c   | 67 +++++++++++++++++++++++++++++++++++++++++++++------
+ power-8937.c  | 50 ++++++++++++++++++++++++++++++++++++++
  power-8953.c  | 63 ++++++++++++++++++++++++++++++++++++++++++++++++
  power-8996.c  | 63 ++++++++++++++++++++++++++++++++++++++++++++++++
  power-8998.c  | 63 +++++++++++++++++++++++++++++++++++++++++++++---
  utils.c       | 15 ++++++++++++
  utils.h       |  1 +
- 8 files changed, 327 insertions(+), 11 deletions(-)
+ 9 files changed, 377 insertions(+), 11 deletions(-)
 
 diff --git a/performance.h b/performance.h
 index 970d42e..461ae31 100644
@@ -231,6 +232,88 @@ index a18ebc7..0e6a7c2 100644
              break;
          default:
              break;
+diff --git a/power-8937.c b/power-8937.c
+index 5b1b542..bd67289 100644
+--- a/power-8937.c
++++ b/power-8937.c
+@@ -31,6 +31,7 @@
+ #define LOG_NIDEBUG 0
+ 
+ #include <errno.h>
++#include <time.h>
+ #include <string.h>
+ #include <sys/types.h>
+ #include <sys/stat.h>
+@@ -49,6 +50,10 @@
+ #include "performance.h"
+ #include "power-common.h"
+ 
++const int kMaxInteractiveDuration = 5000; /* ms */
++const int kMinInteractiveDuration = 500; /* ms */
++const int kMinFlingDuration = 1500; /* ms */
++
+ static int video_encode_hint_sent;
+ 
+ static int current_power_profile = PROFILE_BALANCED;
+@@ -191,6 +196,45 @@ static void process_video_encode_hint(void *metadata)
+     }
+ }
+ 
++static void process_activity_launch_hint(void *UNUSED(data))
++{
++    perf_hint_enable_with_type(VENDOR_HINT_FIRST_LAUNCH_BOOST, -1, LAUNCH_BOOST_V1);
++}
++
++static void process_interaction_hint(void *data)
++{
++    static struct timespec s_previous_boost_timespec;
++    static int s_previous_duration = 0;
++
++    struct timespec cur_boost_timespec;
++    long long elapsed_time;
++    int duration = kMinInteractiveDuration;
++
++    if (data) {
++        int input_duration = *((int*)data);
++        if (input_duration > duration) {
++            duration = (input_duration > kMaxInteractiveDuration) ?
++                    kMaxInteractiveDuration : input_duration;
++        }
++    }
++
++    clock_gettime(CLOCK_MONOTONIC, &cur_boost_timespec);
++
++    elapsed_time = calc_timespan_us(s_previous_boost_timespec, cur_boost_timespec);
++    // don't hint if previous hint's duration covers this hint's duration
++    if ((s_previous_duration * 1000) > (elapsed_time + duration * 1000)) {
++        return;
++    }
++    s_previous_boost_timespec = cur_boost_timespec;
++    s_previous_duration = duration;
++
++    if (duration >= kMinFlingDuration) {
++        perf_hint_enable_with_type(VENDOR_HINT_SCROLL_BOOST, -1, SCROLL_PREFILING);
++    } else {
++        perf_hint_enable_with_type(VENDOR_HINT_SCROLL_BOOST, duration, SCROLL_VERTICAL);
++    }
++}
++
+ int power_hint_override(power_hint_t hint, void *data)
+ {
+     if (hint == POWER_HINT_SET_PROFILE) {
+@@ -209,6 +253,12 @@ int power_hint_override(power_hint_t hint, void *data)
+         case POWER_HINT_VIDEO_ENCODE:
+             process_video_encode_hint(data);
+             return HINT_HANDLED;
++        case POWER_HINT_INTERACTION:
++            process_interaction_hint(data);
++            return HINT_HANDLED;
++        case POWER_HINT_LAUNCH:
++            process_activity_launch_hint(data);
++            return HINT_HANDLED;
+         default:
+             break;
+     }
 diff --git a/power-8953.c b/power-8953.c
 index 8fba21b..06d1ead 100644
 --- a/power-8953.c

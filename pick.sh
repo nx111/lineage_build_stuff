@@ -1351,7 +1351,10 @@ kpick 231895 # VNDK: Added required libs
 kpick 231896 # power: Turn on/off display in SDM439
 kpick 231897 # power: qcom: powerHal for sdm439 and sdm429
 kpick 231898 # Power: Naming convention change
+kpick 237769 # power: Add specific powerhal for msm8937
+kpick 237770 # power: msm8937: Update power profile settings
 kpick 237002 # power: Handle launch and interaction hints for perf HAL platforms
+kpick 237771 # power: Build with with BOARD_VNDK_VERSION
 
 # hardware/qcom/thermal
 
@@ -1511,7 +1514,7 @@ kpick 232429 # su: Run clang format
 kpick 232434 # su: Cleanup includes
 kpick 237824 # su: Make gotos looks sane
 kpick 232430 # su: Move to cutils/properties.h
-kpick 232432 # su: Remove Sammy hacks
+kpick 232432 # su: Remove samsung hacks
 kpick 232437 # su: Remove mount of emulated storage
 kpick 232438 # su: Initialize windows size
 
@@ -1580,6 +1583,10 @@ kpick 237830 # soong_config: Add BOOTLOADER_MESSAGE_OFFSET
 kpick 226128 # cryptfs_hw: Add compatibility for pre-O hw crypto
 kpick 226129 # cryptfs_hw: Featurize support for waiting on QSEE to start
 kpick 237840 # cryptfs_hw: Fix build warnings
+
+# vendor/qcom/opensource/data-ipa-cfg-mgr
+kpick 237876 # data-ipa-cfg-mgr: Disable all the debugging
+kpick 237877 # data-ipa-cfg-mgr: Disable NAT_DUMP on non-debug builds
 
 # vendor/qcom/opensource/thermal-engine
 
