@@ -1109,6 +1109,7 @@ kpick 227747 # lineage: Enable weather apps
 kpick 231971 # manifest: sync gcc4.9 from aosp oreo
 kpick 237826 # lineage: Update qcom repositories groups
 kpick 237827 # lineage: Reenable hardware/lineage/telephony
+kpick 237953 # manifest: Switch to skia fork
 
 patch_local local/android
 echo
@@ -1170,8 +1171,11 @@ kpick 237735 # GCC doesn't support cortex-a55/75, fallback to cortex-a53
 
 # device/lineage/sepolicy
 kpick 234613 # common: Expand labeling of sysfs_vibrator nodes using genfscon
+kpick 234837 # common: Label and allow access over LiveDisplay sysfs nodes
+kpick 235402 # common: Allow init to relabel I/O sched tuning nodes
 kpick 237205 # selinux: move vendor_camera_prop from device/qcom/sepolicy
 kpick 237203 # selinux: snap: allow to read vendor camera props
+kpick 237838 # Make A/B backuptool permissive
 
 # device/qcom/sepolicy
 kpick 228572 # sepolicy: Allow system_server to 'read' qti_debugfs
@@ -1184,8 +1188,6 @@ kpick 228583 # sepolicy: allow vold to read persist dirs
 kpick 234544 # sepol: Allow Settings to read ro.vendor.build.security_patch
 kpick 236446 # common: Improve label of I/O sched tuning nodes
 kpick 234613 # common: Expand labeling of sysfs_vibrator nodes using genfscon
-kpick 234837 # common: Label and allow access over LiveDisplay sysfs nodes
-kpick 235402 # common: Allow init to relabel I/O sched tuning nodes
 kpick 237204 # selinux: move vendor_camera_prop to device/lineage/sepolicy
 kpick 237205 # selinux: move vendor_camera_prop from device/qcom/sepolicy
 kpick 237348 # lineage: Address perf HAL denial with boost enabled
@@ -1259,6 +1261,7 @@ kpick 237143 # AudioService: Fix Audio mod volume steps
 kpick 237171 # WiFiDisplayController: Defer the P2P Initialization from its constructor.
 kpick 237172 # WifiDisplayController: handle preexisting p2p connection status
 kpick 237743 # systemui: add dark mode on low battery toggle
+kpick 237960 # Revert^2 "PhoneWindowManager: Check if proposed rotation is in range"
 
 # frameworks/native
 kpick 224530 # Triple the available egl function pointers available to a process for certain Nvidia devices.
@@ -1445,11 +1448,6 @@ kpick 237244 # Snap: make support for bokeh mode configurable per device
 
 # packages/apps/Trebuchet
 kpick 234611 # Trebuchet: expand statusbar on swipe down
-kpick 237216 # Trebuchet: update default workspace
-kpick 237217 # Trebuchet: do not rename on QuickStep builds
-kpick 237218 # QSB: request round search bar
-kpick 237245 # Trebuchet: allow disabling workspace edit
-kpick 237246 # Trebuchet: reorganize preferences
 
 # packages/apps/TvSettings
 
@@ -1515,6 +1513,9 @@ kpick 235258 # Allow fsck_untrusted to getattr block_device
 kpick 237125 # sepolicy: Allow netd to load modules
 kpick 237226 # Allow mediaserver to read device directories
 
+# system/timezone
+kpick 237954 # Add python3 support for tools
+
 # system/tool/aidl
 kpick 223133 # AIDL: Add option to generate No-Op methods
 
@@ -1526,9 +1527,6 @@ kpick 237837 # Android: Reset update progress when booted into new version.
 # system/vold
 kpick 229304 # vold: Add texfat and sdfat support
 kpick 231717 # vold: Always use libbootloader_message from bootable/recovery namespace
-kpick 235198 # Revert "vold: Also wait for dm device when mounting private volume"
-kpick 235199 # Revert "vold: Make sure block device exists before formatting it"
-kpick 235200 # pie-gsi
 
 # vendor/lineage
 kpick 223773 # Add IPv6 for Oister and 3. The 3.dk and oister.dk carriers now support IPv6 with the APN ”data.tre.dk”.
@@ -1553,6 +1551,8 @@ kpick 237270 # extract_utils: introduce -k (kang mode) option
 kpick 237352 # qcom: Mark some gralloc bits as valid
 kpick 237432 # soong_config: Add flag for msm8974 1440p EGL workaround
 kpick 237830 # soong_config: Add BOOTLOADER_MESSAGE_OFFSET
+kpick 237957 # Disable art debug and enable minimize debug info
+kpick 237958 # Don't explicitly build uneeded packages
 
 # vendor/qcom/opensource/cryptfs_hw
 
