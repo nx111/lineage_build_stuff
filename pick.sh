@@ -1107,8 +1107,6 @@ repo sync android  >/dev/null
 
 kpick 227747 # lineage: Enable weather apps
 kpick 231971 # manifest: sync gcc4.9 from aosp oreo
-kpick 232371 # manifest: Sync extras/su
-kpick 237825 # lineage: Add CAF variant of data-ipa-cfg-mgr
 kpick 237826 # lineage: Update qcom repositories groups
 kpick 237827 # lineage: Reenable hardware/lineage/telephony
 
@@ -1160,6 +1158,7 @@ kpick 237829 # recovery: Allow custom bootloader msg offset in block misc
 kpick 222742 # build: Use project pathmap for recovery
 kpick 222760 # Add LOCAL_AIDL_FLAGS
 kpick 227111 # releasetools: Store the build.prop file in the OTA zip
+kpick 235674 # Enable dynamic linker and hidden API warnings only on eng build
 
 # build/soong
 kpick 222648 # Allow providing flex and bison binaries
@@ -1231,7 +1230,6 @@ kpick 224266 # SystemUI: Add Lineage statusbar item holder
 kpick 224267 # SystemUI: Network Traffic [1/3]
 kpick 224513 # SystemUI: Disable config_keyguardUserSwitcher on sw600dp
 kpick 226358 # settings: Allow accessing LineageSettings via settings command
-kpick 227290 # PowerProfile: allow overriding default power profile
 kpick 227896 # SystemUI: Add Profiles tile
 kpick 221716 # Where's my circle battery, dude?
 kpick 229307 # Add CHANNEL_MODE_DUAL_CHANNEL constant
@@ -1244,19 +1242,15 @@ kpick 231847 # onehand: Enable debug only on eng builds
 kpick 231848 # SystemUI: Add one hand mode triggers
 kpick 231851 # onehand: Take into account cutouts
 kpick 231852 # onehand: Remove guide link
-kpick 232197 # appops: Privacy Guard for P (1/2)
-kpick 237613 # AppOpsService: Watch op mode changes when an AppOp restriction dies
 kpick 232796 # NetworkManagement : Add ability to restrict app vpn usage
 kpick 233633 # Phone ringtone setting for Multi SIM device
 kpick 233717 # [DNM][HACK] Persist user brightness model
-kpick 234325 # TunerServiceImpl: Blacklist Lineage settings from tuner reset
 kpick 234649 # keyguard: Check for a null errString
 kpick 234715 # Rotation related corrections
 kpick 235128 # Crash app on foreground service notification error
 kpick 235147 # SystemUI: Name Cellular Tile based on carrier
 kpick 235986 # frameworks: Add unlinked ringtone and notification volumes
 kpick 236156 # CaffeineTile: Mimic old custom tile behavior
-kpick 236476 # DreamBackend: Fix launching settings
 kpick 236765 # Sounds: Squashed cleanup of sound files
 kpick 237129 # Merge changes for launching wifidisplay from system settings
 kpick 227142 # Battery: add Battery Moto Mod Support
@@ -1264,15 +1258,12 @@ kpick 237142 # Battery: update mod support to P
 kpick 237143 # AudioService: Fix Audio mod volume steps
 kpick 237171 # WiFiDisplayController: Defer the P2P Initialization from its constructor.
 kpick 237172 # WifiDisplayController: handle preexisting p2p connection status
-kpick 237230 # Enable Binder Proxy Tracking by Uid only on eng builds
-kpick 237742 # base: make settings_dark colors same as material_dark
 kpick 237743 # systemui: add dark mode on low battery toggle
 
 # frameworks/native
 kpick 224530 # Triple the available egl function pointers available to a process for certain Nvidia devices.
 kpick 225542 # sensorservice: Register orientation sensor if HAL doesn't provide it
 kpick 225543 # sensorservice: customize sensor fusion mag filter via prop
-kpick 225546 # AppOpsManager: Update with the new ops
 kpick 229400 # sf: Workaround BufferLayer::setBuffers issue on 1440p msm8974
 kpick 230610 # APP may display abnormally in landscape LCM
 kpick 231828 # Translate pointer motion events for OneHandOperation Display Shrink
@@ -1284,8 +1275,6 @@ kpick 237173 # WiFi: Ignore connectivity scans during WFD session
 
 # frameworks/opt/telephony
 kpick 234319 # LocaleTracker: Add null check before accessing WifiManager
-kpick 237477 # Telephony: Fix loading of older QTI blobs
-kpick 237478 # TelephonyComponentFactory: Overload makeSubscriptionInfoUpdater
 
 # hardware/boardcom/libbt
 kpick 225155 # Broadcom BT: Add support fm/bt via v4l2.
@@ -1379,6 +1368,7 @@ kpick 230284 # Revert "[3/3] cmsdk: add burnIn protection setting"
 kpick 237074 # lineage-sdk: Handle database downgrading
 kpick 237075 # lineage-sdk: Remove useless logic on database upgrading
 kpick 237740 # sdk: add dark mode on low battery toggle
+kpick 237895 # TelephonyExtUtils: Set timeout for (de)activating provision
 
 # packages/apps/Bluetooth
 kpick 229311 # Assume optional codecs are supported if were supported previously
@@ -1417,8 +1407,6 @@ kpick 237479 # Jelly: use white nav bar
 kpick 227930 # LineageParts: Bring back and refactor battery icon options
 kpick 221756 # StatusBarSettings: Hide battery preference category based on icon visibility
 kpick 229389 # Trust: enforce vendor security patch level check
-kpick 231163 # LineageParts: Add some missing psychedelics
-kpick 232146 # LineageParts: Reenable Privacy Guard
 kpick 237741 # parts: add dark mode on low battery toggle
 
 # packages/apps/ManagedProvisoning
@@ -1432,8 +1420,6 @@ kpick 237741 # parts: add dark mode on low battery toggle
 # packages/apps/PhoneCommon
 
 # packages/apps/Settings
-kpick 226142 # Settings: Add developer setting for root access
-kpick 232442 # Settings: Root appops access in developer settings
 kpick 235978 # Settings: Add switch for linked ring and media notification volumes
 kpick 236184 # Settings: Use correct icon for ring volume
 kpick 233634 # Phone ringtone setting for Multi SIM device
@@ -1488,7 +1474,6 @@ kpick 236134 # overlays: accents: tune for contrast
 kpick 233635 # Phone ringtone setting for Multi SIM device
 
 # packages/services/Telephony
-kpick 234321 # Don't start SIP service before decrypted
 kpick 236522 # Fix carrier config option not hidden on a CDMA phone
 
 # system/bt
@@ -1497,7 +1482,6 @@ kpick 229313 # Explicit SBC Dual Channel (SBC HD) support
 
 # system/core
 kpick -f 227110 # init: I hate safety net
-kpick 223085 # adbd: Disable "adb root" by system property
 kpick 234584 # adb: Rework adb root
 kpick 231716 # init: Always use libbootloader_message from bootable/recovery namespace
 kpick 234860 # init: add install_keyring for TWRP FBE decrypt
@@ -1510,12 +1494,6 @@ kpick 237141 # core: update battery mod support for P
 kpick 232428 # su: strlcpy is always a friend
 kpick 232431 # su: Enable Clang Tidy
 kpick 232433 # su: Fix a clang tidy warning
-kpick 232429 # su: Run clang format
-kpick 232434 # su: Cleanup includes
-kpick 237824 # su: Make gotos looks sane
-kpick 232430 # su: Move to cutils/properties.h
-kpick 232432 # su: Remove samsung hacks
-kpick 232437 # su: Remove mount of emulated storage
 kpick 232438 # su: Initialize windows size
 
 # system/libvintf
@@ -1560,9 +1538,6 @@ kpick 225939 # roomservice.py: non-depsonly: bootstrap first device repo from Hu
 kpick 225981 # roomservice.py: depsonly: do not look up device repo by name in the manifest
 kpick 225982 # roomservice.py: Strip cm.{mk,dependencies} support
 kpick 231249 # roomservice.py: adapt to lineage-16.0
-kpick 226125 # soong_config: Add flag for legacy HW FDE
-kpick 226126 # soong_config: Add flag for crypto waiting on QSEE to start
-kpick 237839 # lineage: qcom: Set proper CAF data-ipa-cfg-mgr pathmap
 kpick 229589 # lineage: Automatically set soong namespace when setting project pathmap
 kpick 229590 # lineage: Move qcom pathmap setting into "BoardConfig"
 kpick 231291 # repopick: add hashtag support
@@ -1580,13 +1555,8 @@ kpick 237432 # soong_config: Add flag for msm8974 1440p EGL workaround
 kpick 237830 # soong_config: Add BOOTLOADER_MESSAGE_OFFSET
 
 # vendor/qcom/opensource/cryptfs_hw
-kpick 226128 # cryptfs_hw: Add compatibility for pre-O hw crypto
-kpick 226129 # cryptfs_hw: Featurize support for waiting on QSEE to start
-kpick 237840 # cryptfs_hw: Fix build warnings
 
 # vendor/qcom/opensource/data-ipa-cfg-mgr
-kpick 237876 # data-ipa-cfg-mgr: Disable all the debugging
-kpick 237877 # data-ipa-cfg-mgr: Disable NAT_DUMP on non-debug builds
 
 # vendor/qcom/opensource/thermal-engine
 
