@@ -1296,8 +1296,10 @@ kpick 237142 # Battery: update mod support to P
 kpick 237143 # AudioService: Fix Audio mod volume steps
 kpick 237171 # WiFiDisplayController: Defer the P2P Initialization from its constructor.
 kpick 237172 # WifiDisplayController: handle preexisting p2p connection status
+kpick 237410 # ShortcutService: Use ro.build.date to signal package scanning
 kpick 237743 # systemui: add dark mode on low battery toggle
 kpick 238017 # WindowOrientationListener: Check if proposed rotation is in range
+kpick 238059 # SurfaceControl: Unbreak public API after pie-gsi merge
 
 # frameworks/native
 kpick 224530 # Triple the available egl function pointers available to a process for certain Nvidia devices.
@@ -1408,6 +1410,7 @@ kpick 237074 # lineage-sdk: Handle database downgrading
 kpick 237075 # lineage-sdk: Remove useless logic on database upgrading
 kpick 237740 # sdk: add dark mode on low battery toggle
 kpick 237895 # TelephonyExtUtils: Set timeout for (de)activating provision
+kpick 238056 # lineage-sdk: Start Weather service in onUnlockUser.
 
 # packages/apps/Bluetooth
 kpick 229311 # Assume optional codecs are supported if were supported previously
@@ -1589,6 +1592,7 @@ kpick 237432 # soong_config: Add flag for msm8974 1440p EGL workaround
 kpick 237830 # soong_config: Add BOOTLOADER_MESSAGE_OFFSET
 kpick 237957 # Disable art debug and enable minimize debug info
 kpick 237958 # Don't explicitly build uneeded packages
+kpick 238057 # config: Add Deskclock to power whitelist
 
 # vendor/qcom/opensource/cryptfs_hw
 
