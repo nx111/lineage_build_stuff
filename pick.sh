@@ -17,6 +17,8 @@ runfrom=$0
 conflict_resolved=0
 maxCount=500
 minCount=20
+tmp_picks_info_file=$(dirname $script_file)/.tmp_picks_info_file
+start_check_classification=0
 
 int_handler()
 {
@@ -945,6 +947,7 @@ function kpick_action()
             fi
          fi
     fi
+
     if [ "$changeNumber" != "" -a "$subject" != "" ]; then
            [ ! -f $script_file.tmp -a "${BASH_SOURCE[0]}" = "$runfrom" ] && cp $script_file $script_file.tmp
            if [ -f $script_file.tmp ]; then
@@ -953,7 +956,38 @@ function kpick_action()
                 target_script=$script_file.new
            fi
            [ ! -z $target_script -a -f $target_script ] && \
-           eval  "sed -e \"s|^[[:space:]]*kpick[[:space:]]\{1,\}$changeNumber[[:space:]]*.*|kpick $nops \# $subject|g\" -i $target_script"
+           if [ "$last_project" != "$project" -a "${BASH_SOURCE[0]}" = "$runfrom" -a "$start_check_classification" = "1" ]; then
+               if [ "$last_project" != "" -a "$last_changeNumber" != "" ]; then
+                    [ -f $tmp_picks_info_file ] || touch $tmp_picks_info_file
+                    if ! grep -q $project $tmp_picks_info_file; then
+                        echo "$last_project $last_changeNumber" >>$tmp_picks_info_file
+                        last_project=$project
+                        last_changeNumber=$changeNumber
+                    else
+                        if grep -q "already picked in" $logfile; then
+                           if [ $(grep "kpick[[:space:]]*.*$changeNumber" $target_script | wc -l) -ge 2 ]; then
+                                local first_find_lineNo=$(grep -n "kpick[[:space:]]*.*$changeNumber" $target_script | cut -d: -f1 | head -n 1)
+                                first_find_lineNo=$(( first_find_lineNo + 1 ))
+                                local second_find_lineNo=$(eval "sed -n '$first_find_lineNo,\$p'" $target_script | grep -n "kpick[[:space:]]*.*$changeNumber" | cut -d: -f1 | head -n 1 )
+                                second_find_lineNo=$(( $second_find_lineNo - 1 ))
+                                second_find_lineNo=$(( $first_find_lineNo + $second_find_lineNo ))
+                                eval "sed \"${second_find_lineNo}d\" -i $target_script"
+                           fi
+                        else
+                            eval "sed \"/kpick[[:space:]]*.*$changeNumber/d\" -i $target_script"
+                            project_lastpick=$(grep  $project $tmp_picks_info_file | cut -d" " -f2)
+                            eval "sed \"/kpick[[:space:]]\\{1,\\}.*$project_lastpick/a\\kpick $nops \# $subject\" -i $target_script"
+                            eval "sed \"s|$last_project $last_changeNumber|$last_project $changeNumber|g\" -i $tmp_picks_info_file"
+                        fi
+                    fi
+               else
+                    [ "$last_project" = "" ] && last_project=$project
+                    [ "$last_changeNumber" = "" ] && last_changeNumber=$changeNumber
+               fi
+           else
+               eval  "sed -e \"s|^[[:space:]]*kpick[[:space:]]\{1,\}$changeNumber[[:space:]]*.*|kpick $nops \# $subject|g\" -i $target_script"
+               last_changeNumber=$changeNumber
+           fi
     fi
     rm -f $errfile $logfile
 }
@@ -1098,6 +1132,7 @@ if [ $0 != "bash" -a ! -f $0.tmp -a $op_pick_continue -eq 0 ]; then    # continu
 reset_project_dir vendor/lineage
 repo sync vendor/lineage >/dev/null
 apply_force_changes
+rm -f $tmp_picks_info_file
 reset_overwrite_projects
 
 # android
@@ -1105,11 +1140,7 @@ reset_overwrite_projects
 repo sync android  >/dev/null
 [ $op_keep_manifests -ne 1 ] && reset_project_dir .repo/manifests
 
-kpick 227747 # lineage: Enable weather apps
 kpick 231971 # manifest: sync gcc4.9 from aosp oreo
-kpick 237826 # lineage: Update qcom repositories groups
-kpick 237827 # lineage: Reenable hardware/lineage/telephony
-kpick 237953 # manifest: Switch to skia fork
 
 patch_local local/android
 echo
@@ -1131,6 +1162,10 @@ fi       # continue pick or not
 
 # first pick for repopick
 kpick 234859 # repopick: cmp() is not available in Python 3, define it manually
+
+# start check classification of picking project is correct or not
+rm -f $tmp_picks_info_file
+start_check_classification=1
 
 # device/samsung/klte-common
 kpick 225192 # klte-common: Align ril.h to samsung_msm8974-common P libril changes
@@ -1159,13 +1194,11 @@ kpick 237829 # recovery: Allow custom bootloader msg offset in block misc
 kpick 222742 # build: Use project pathmap for recovery
 kpick 222760 # Add LOCAL_AIDL_FLAGS
 kpick 227111 # releasetools: Store the build.prop file in the OTA zip
-kpick 235674 # Enable dynamic linker and hidden API warnings only on eng build
 
 # build/soong
 kpick 222648 # Allow providing flex and bison binaries
 kpick 224613 # soong: Add LOCAL_AIDL_FLAGS handling
 kpick 226443 # soong: Add additional_deps attribute for libraries and binaries
-kpick 237735 # GCC doesn't support cortex-a55/75, fallback to cortex-a53
 
 # dalvik
 
@@ -1176,6 +1209,9 @@ kpick 235402 # common: Allow init to relabel I/O sched tuning nodes
 kpick 237205 # selinux: move vendor_camera_prop from device/qcom/sepolicy
 kpick 237203 # selinux: snap: allow to read vendor camera props
 kpick 237838 # Make A/B backuptool permissive
+kpick 237348 # lineage: Address perf HAL denial with boost enabled
+kpick 236446 # common: Improve label of I/O sched tuning nodes
+kpick 234544 # sepol: Allow Settings to read ro.vendor.build.security_patch
 
 # device/qcom/sepolicy
 kpick 228572 # sepolicy: Allow system_server to 'read' qti_debugfs
@@ -1185,12 +1221,7 @@ kpick 228578 # sepolicy: rules to allow camera daemon access to app buffer
 kpick 228580 # hal_gnss_default: Do not log udp socket failures
 kpick 228582 # sepolicy: qti_init_shell needs to read dir too
 kpick 228583 # sepolicy: allow vold to read persist dirs
-kpick 234544 # sepol: Allow Settings to read ro.vendor.build.security_patch
-kpick 236446 # common: Improve label of I/O sched tuning nodes
-kpick 234613 # common: Expand labeling of sysfs_vibrator nodes using genfscon
 kpick 237204 # selinux: move vendor_camera_prop to device/lineage/sepolicy
-kpick 237205 # selinux: move vendor_camera_prop from device/qcom/sepolicy
-kpick 237348 # lineage: Address perf HAL denial with boost enabled
 
 # device/qcom/sepolicy-legacy
 kpick 230237 # common: allow vendor_init to create /data/dpm
@@ -1213,8 +1244,13 @@ kpick 232511 # make-key: Enforce PBEv1 password-protected signing keys
 kpick 227260 # Update bt vendor callbacks array in vfs code
 kpick 227261 # Cast BT_VND_OP_ANT_USERIAL_{OPEN,CLOSE} to bt_vendor_opcode_t in vfs code
 
+# external/icu
+# kpick 237955
+
 # external/perfetto
 kpick -f 223413 # perfetto_cmd: Resolve missing O_CREAT mode
+
+# external/skia
 
 # external/tinycompress
 
@@ -1261,7 +1297,7 @@ kpick 237143 # AudioService: Fix Audio mod volume steps
 kpick 237171 # WiFiDisplayController: Defer the P2P Initialization from its constructor.
 kpick 237172 # WifiDisplayController: handle preexisting p2p connection status
 kpick 237743 # systemui: add dark mode on low battery toggle
-kpick 237960 # Revert^2 "PhoneWindowManager: Check if proposed rotation is in range"
+kpick 238017 # WindowOrientationListener: Check if proposed rotation is in range
 
 # frameworks/native
 kpick 224530 # Triple the available egl function pointers available to a process for certain Nvidia devices.
@@ -1577,4 +1613,5 @@ fi
 [ -f $topdir/.myfiles/patches/rr-cache/rr-cache.tmp ] && \
    mv $topdir/.myfiles/patches/rr-cache/rr-cache.tmp $topdir/.myfiles/patches/rr-cache/rr-cache.list
 rrCache backup # backup rr-cache
+rm -f $tmp_picks_info_file
 
