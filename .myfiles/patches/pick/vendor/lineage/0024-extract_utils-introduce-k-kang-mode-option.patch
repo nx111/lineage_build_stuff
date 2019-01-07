@@ -1,7 +1,7 @@
-From fd3f552d761dc53eed540ac0194640e6970f3971 Mon Sep 17 00:00:00 2001
+From 97a014e808bb8a25bef370a971a72d52d2561fca Mon Sep 17 00:00:00 2001
 From: Vladimir Oltean <olteanv@gmail.com>
 Date: Thu, 27 Dec 2018 18:38:18 +0200
-Subject: [PATCH 24/30] extract_utils: introduce -k (kang mode) option
+Subject: [PATCH 24/31] extract_utils: introduce -k (kang mode) option
 
 * The use case is easier updating of pinned blobs. When --kang is set,
   pinning is automatically ignored, and the script will print lines at
@@ -13,11 +13,11 @@ Subject: [PATCH 24/30] extract_utils: introduce -k (kang mode) option
 Change-Id: I648fbcbd4580a4a002b00828bcfee18d1e265d7b
 Signed-off-by: Vladimir Oltean <olteanv@gmail.com>
 ---
- build/tools/extract_utils.sh | 71 ++++++++++++++++++++++++++++++++++--
- 1 file changed, 67 insertions(+), 4 deletions(-)
+ build/tools/extract_utils.sh | 107 ++++++++++++++++++++++++++++-------
+ 1 file changed, 87 insertions(+), 20 deletions(-)
 
 diff --git a/build/tools/extract_utils.sh b/build/tools/extract_utils.sh
-index 996fb02f..bffc9832 100644
+index 996fb02f..30fa8a6a 100644
 --- a/build/tools/extract_utils.sh
 +++ b/build/tools/extract_utils.sh
 @@ -932,6 +932,41 @@ function get_hash() {
@@ -25,38 +25,38 @@ index 996fb02f..bffc9832 100644
  }
  
 +function print_spec() {
-+        local SPEC_PRODUCT_PACKAGE="$1"
-+        local SPEC_SRC_FILE="$2"
-+        local SPEC_DST_FILE="$3"
-+        local SPEC_ARGS="$4"
-+        local SPEC_HASH="$5"
-+        local SPEC_FIXUP_HASH="$6"
++    local SPEC_PRODUCT_PACKAGE="$1"
++    local SPEC_SRC_FILE="$2"
++    local SPEC_DST_FILE="$3"
++    local SPEC_ARGS="$4"
++    local SPEC_HASH="$5"
++    local SPEC_FIXUP_HASH="$6"
 +
-+        local PRODUCT_PACKAGE=""
-+        if [ ${SPEC_PRODUCT_PACKAGE} = true ]; then
-+            PRODUCT_PACKAGE="-"
-+        fi
-+        local SRC=""
-+        if [ ! -z "${SPEC_SRC_FILE}" ] && [ "${SPEC_SRC_FILE}" != "${SPEC_DST_FILE}" ]; then
-+            SRC="${SPEC_SRC_FILE}:"
-+        fi
-+        local DST=""
-+        if [ ! -z "${SPEC_DST_FILE}" ]; then
-+            DST="${SPEC_DST_FILE}"
-+        fi
-+        local ARGS=""
-+        if [ ! -z "${SPEC_ARGS}" ]; then
-+            ARGS=";${SPEC_ARGS}"
-+        fi
-+        local HASH=""
-+        if [ ! -z "${SPEC_HASH}" ] && [ "${SPEC_HASH}" != "x" ]; then
-+            HASH="|${SPEC_HASH}"
-+        fi
-+        local FIXUP_HASH=""
-+        if [ ! -z "${SPEC_FIXUP_HASH}" ] && [ "${SPEC_FIXUP_HASH}" != "x" ]; then
-+            FIXUP_HASH="|${SPEC_FIXUP_HASH}"
-+        fi
-+        printf '%s%s%s%s%s%s\n' "${PRODUCT_PACKAGE}" "${SRC}" "${DST}" "${ARGS}" "${HASH}" "${FIXUP_HASH}"
++    local PRODUCT_PACKAGE=""
++    if [ ${SPEC_PRODUCT_PACKAGE} = true ]; then
++        PRODUCT_PACKAGE="-"
++    fi
++    local SRC=""
++    if [ ! -z "${SPEC_SRC_FILE}" ] && [ "${SPEC_SRC_FILE}" != "${SPEC_DST_FILE}" ]; then
++        SRC="${SPEC_SRC_FILE}:"
++    fi
++    local DST=""
++    if [ ! -z "${SPEC_DST_FILE}" ]; then
++        DST="${SPEC_DST_FILE}"
++    fi
++    local ARGS=""
++    if [ ! -z "${SPEC_ARGS}" ]; then
++        ARGS=";${SPEC_ARGS}"
++    fi
++    local HASH=""
++    if [ ! -z "${SPEC_HASH}" ] && [ "${SPEC_HASH}" != "x" ]; then
++        HASH="|${SPEC_HASH}"
++    fi
++    local FIXUP_HASH=""
++    if [ ! -z "${SPEC_FIXUP_HASH}" ] && [ "${SPEC_FIXUP_HASH}" != "x" ]; then
++        FIXUP_HASH="|${SPEC_FIXUP_HASH}"
++    fi
++    printf '%s%s%s%s%s%s\n' "${PRODUCT_PACKAGE}" "${SRC}" "${DST}" "${ARGS}" "${HASH}" "${FIXUP_HASH}"
 +}
 +
  #
@@ -72,14 +72,18 @@ index 996fb02f..bffc9832 100644
  #
  function extract() {
      # Consume positional parameters
-@@ -952,6 +990,7 @@ function extract() {
+@@ -952,9 +990,10 @@ function extract() {
      local SRC="$1"; shift
      local SECTION=""
      local FIXUP_DIR=""
 +    local KANG=false
  
      # Consume optional, non-positional parameters
-     while [ $# -gt 0 ]; do
+-    while [ $# -gt 0 ]; do
++    while [ "$#" -gt 0 ]; do
+         case "$1" in
+         -s|--section)
+             SECTION="$2"; shift
 @@ -962,6 +1001,10 @@ function extract() {
          -f|--fixup-dir)
              FIXUP_DIR="$2"; shift
@@ -113,7 +117,7 @@ index 996fb02f..bffc9832 100644
  
          if [ "${SPEC_ARGS}" = "rootfs" ]; then
              OUTPUT_DIR="${OUTPUT_ROOT}/rootfs"
-@@ -1063,8 +1114,6 @@ function extract() {
+@@ -1063,10 +1114,9 @@ function extract() {
              DST_FILE="/system/${SPEC_DST_FILE}"
          fi
  
@@ -121,36 +125,101 @@ index 996fb02f..bffc9832 100644
 -
          # Strip the file path in the vendor repo of "system", if present
          local VENDOR_REPO_FILE="$OUTPUT_DIR/${DST_FILE#/system}"
++        local BLOB_DISPLAY_NAME="${DST_FILE#/system/}"
          mkdir -p $(dirname "${VENDOR_REPO_FILE}")
-@@ -1125,12 +1174,26 @@ function extract() {
+ 
+         # Check pinned files
+@@ -1090,8 +1140,12 @@ function extract() {
+             fi
+         fi
+ 
++        if [ "${KANG}" = false ]; then
++            printf '  - %s\n' "${BLOB_DISPLAY_NAME}"
++        fi
++
+         if [ "$KEEP" = "1" ]; then
+-            printf '    + (keeping pinned file with hash %s)\n' "$HASH"
++            printf '    + keeping pinned file with hash %s\n' "${HASH}"
+         else
+             FOUND=false
+             # Try Lineage target first.
+@@ -1106,7 +1160,7 @@ function extract() {
+             done
+ 
+             if [ "${FOUND}" = false ]; then
+-                printf '    !! file not found in source\n'
++                printf '    !! %s: file not found in source\n' "${BLOB_DISPLAY_NAME}"
+                 continue
+             fi
+         fi
+@@ -1117,32 +1171,41 @@ function extract() {
+         if [ -f "${FIXUP_SCRIPT}" ]; then
+             # Sanity-check the hash and fixup hash for this blob
+             if [ "${FIXUP_HASH}" = "x" ] && [ "${HASH}" != "x" ]; then
+-                printf "WARNING: There is a fixup script for %s but it is still pinned.\n" ${DST_FILE#/system/}
++                printf "WARNING: There is a fixup script for %s but it is still pinned.\n" ${BLOB_DISPLAY_NAME}
+                 printf "This is usually a mistake and you may want to either remove the hash, or add an extra one instead.\n"
+             fi
+             # Don't execute the fixup script if the blob already
+             # matches the fixup SHA
              if [ $(get_hash "${VENDOR_REPO_FILE}") = "${FIXUP_HASH}" ]; then
-                 printf "    + (Skipping fixup script for %s...)\n" ${DST_FILE#/system/}
+-                printf "    + (Skipping fixup script for %s...)\n" ${DST_FILE#/system/}
++                printf "    + (Skipping fixup script for %s...)\n" "${BLOB_DISPLAY_NAME}"
              else
 -                printf "    + (Fixing up %s (current hash %s)... " ${DST_FILE#/system/} $(get_hash ${VENDOR_REPO_FILE})
 +                HASH=$(get_hash ${VENDOR_REPO_FILE})
-+                printf "    + (Fixing up %s...)\n" ${DST_FILE#/system/}
++                printf "    + (Fixing up %s...)\n" "${BLOB_DISPLAY_NAME}"
                  "${FIXUP_SCRIPT}" "${VENDOR_REPO_FILE}"
 -                printf "Fixed-up file has hash %s)\n" $(get_hash ${VENDOR_REPO_FILE})
 +                FIXUP_HASH=$(get_hash ${VENDOR_REPO_FILE})
              fi
          fi
  
-+        if [ "${KANG}" = true ]; then
-+            # If kang mode is set, then HASH and FIXUP_HASH are ignored, as
-+            # pinning is disabled. But if a fixup script is present,
-+            # HASH and FIXUP_HASH will be set to the blob hash, pre- and post-
-+            # operation of the fixup script. If there was no fixup script,
-+            # we need to at least set HASH now (so we can print the hash to the
-+            # user - the whole point of kang mode).
-+            [ "${FIXUP_HASH}" = "x" ] && HASH=$(get_hash ${VENDOR_REPO_FILE})
-+            print_spec "${IS_PRODUCT_PACKAGE}" "${SPEC_SRC_FILE}" "${SPEC_DST_FILE}" "${SPEC_ARGS}" "${HASH}" "${FIXUP_HASH}"
-+        else
-+            printf '  - %s \n' "${DST_FILE#/system/}"
+-        if [ "$?" == "0" ]; then
+-            # Deodex apk|jar if that's the case
+-            if [[ "$FULLY_DEODEXED" -ne "1" && "${VENDOR_REPO_FILE}" =~ .(apk|jar)$ ]]; then
+-                oat2dex "${VENDOR_REPO_FILE}" "${SRC_FILE}" "$SRC"
+-                if [ -f "$TMPDIR/classes.dex" ]; then
+-                    zip -gjq "${VENDOR_REPO_FILE}" "$TMPDIR/classes.dex"
+-                    rm "$TMPDIR/classes.dex"
+-                    printf '    (updated %s from odex files)\n' "${SRC_FILE}"
+-                fi
+-            elif [[ "${VENDOR_REPO_FILE}" =~ .xml$ ]]; then
+-                fix_xml "${VENDOR_REPO_FILE}"
++        # If kang mode is set, then HASH and FIXUP_HASH from the spec are
++        # ignored (as pinning is disabled). But if fixup is required for this
++        # blob, we set HASH and FIXUP_HASH to its hash, pre- and post-
++        # operation of the fixup script. If there was no fixup script, we need
++        # to at least set HASH now (so we can print the hash to the user - the
++        # whole point of kang mode).
++        if [ "${KANG}" = true ] && [ "${FIXUP_HASH}" = "x" ]; then
++            HASH=$(get_hash ${VENDOR_REPO_FILE})
 +        fi
 +
-         if [ "$?" == "0" ]; then
-             # Deodex apk|jar if that's the case
-             if [[ "$FULLY_DEODEXED" -ne "1" && "${VENDOR_REPO_FILE}" =~ .(apk|jar)$ ]]; then
++        # Deodex apk|jar if that's the case
++        if [[ "$FULLY_DEODEXED" -ne "1" && "${VENDOR_REPO_FILE}" =~ .(apk|jar)$ ]]; then
++            oat2dex "${VENDOR_REPO_FILE}" "${SRC_FILE}" "$SRC"
++            if [ -f "$TMPDIR/classes.dex" ]; then
++                zip -gjq "${VENDOR_REPO_FILE}" "$TMPDIR/classes.dex"
++                rm "$TMPDIR/classes.dex"
++                printf '    (updated %s from odex files)\n' "${SRC_FILE}"
+             fi
++        elif [[ "${VENDOR_REPO_FILE}" =~ .xml$ ]]; then
++            fix_xml "${VENDOR_REPO_FILE}"
+         fi
+ 
+         if [ -f "${VENDOR_REPO_FILE}" ]; then
+@@ -1155,6 +1218,10 @@ function extract() {
+             fi
+         fi
+ 
++        if [ "${KANG}" =  true ]; then
++            print_spec "${IS_PRODUCT_PACKAGE}" "${SPEC_SRC_FILE}" "${SPEC_DST_FILE}" "${SPEC_ARGS}" "${HASH}" "${FIXUP_HASH}"
++        fi
++
+     done
+ }
+ 
 -- 
 2.17.1
 

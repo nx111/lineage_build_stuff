@@ -1208,7 +1208,6 @@ kpick 234837 # common: Label and allow access over LiveDisplay sysfs nodes
 kpick 235402 # common: Allow init to relabel I/O sched tuning nodes
 kpick 237205 # selinux: move vendor_camera_prop from device/qcom/sepolicy
 kpick 237203 # selinux: snap: allow to read vendor camera props
-kpick 237838 # Make A/B backuptool permissive
 kpick 237348 # lineage: Address perf HAL denial with boost enabled
 kpick 236446 # common: Improve label of I/O sched tuning nodes
 kpick 234544 # sepol: Allow Settings to read ro.vendor.build.security_patch
@@ -1234,8 +1233,13 @@ kpick 230235 # common: grant DRM HIDL HAL ownership access to /data/{misc,vendor
 kpick 230236 # common: label /sys/devices/virtual/graphics as sysfs_graphics
 kpick 230238 # common: create proc_kernel_sched domain to restrict perf hal access
 kpick 230239 # common: allow uevent to control sysfs_mmc_host via vold
-kpick 234832 # sepolicy: Add additional restricted permissions to vendor_init
 #kpick 235455 # legacy: Allow platform_app to read qemu_hw_mainkeys_prop
+kpick 238105 # sepolicy: Fix label of qpnp-charger sysfs
+kpick 238106 # legacy: Label /sys/devices/mdp.0/caps
+kpick 238107 # Revert "sepolicy: Allow wcnss_service to set wlan.driver properties"
+kpick 238108 # sepolicy: Add vendor wifi prop in vendor partition access
+kpick 238109 # wcnss-service: Add sepolicy to access "vendor.wlan." property
+kpick 238125 # Use new vendor_wifi_prop label for bluetooth_loader
 
 # development
 kpick 232511 # make-key: Enforce PBEv1 password-protected signing keys
@@ -1268,7 +1272,6 @@ kpick 224266 # SystemUI: Add Lineage statusbar item holder
 kpick 224267 # SystemUI: Network Traffic [1/3]
 kpick 224513 # SystemUI: Disable config_keyguardUserSwitcher on sw600dp
 kpick 226358 # settings: Allow accessing LineageSettings via settings command
-kpick 227896 # SystemUI: Add Profiles tile
 kpick 221716 # Where's my circle battery, dude?
 kpick 229307 # Add CHANNEL_MODE_DUAL_CHANNEL constant
 kpick 229308 # Add Dual Channel into Bluetooth Audio Channel Mode developer options menu
@@ -1296,16 +1299,13 @@ kpick 237142 # Battery: update mod support to P
 kpick 237143 # AudioService: Fix Audio mod volume steps
 kpick 237171 # WiFiDisplayController: Defer the P2P Initialization from its constructor.
 kpick 237172 # WifiDisplayController: handle preexisting p2p connection status
-kpick 237410 # ShortcutService: Use ro.build.date to signal package scanning
 kpick 237743 # systemui: add dark mode on low battery toggle
-kpick 238017 # WindowOrientationListener: Check if proposed rotation is in range
 kpick 238059 # SurfaceControl: Unbreak public API after pie-gsi merge
 
 # frameworks/native
 kpick 224530 # Triple the available egl function pointers available to a process for certain Nvidia devices.
 kpick 225542 # sensorservice: Register orientation sensor if HAL doesn't provide it
 kpick 225543 # sensorservice: customize sensor fusion mag filter via prop
-kpick 229400 # sf: Workaround BufferLayer::setBuffers issue on 1440p msm8974
 kpick 230610 # APP may display abnormally in landscape LCM
 kpick 231828 # Translate pointer motion events for OneHandOperation Display Shrink
 kpick 231980 # HWComposer: HWC2: allow SkipValidate to be force disabled
@@ -1410,7 +1410,6 @@ kpick 237074 # lineage-sdk: Handle database downgrading
 kpick 237075 # lineage-sdk: Remove useless logic on database upgrading
 kpick 237740 # sdk: add dark mode on low battery toggle
 kpick 237895 # TelephonyExtUtils: Set timeout for (de)activating provision
-kpick 238056 # lineage-sdk: Start Weather service in onUnlockUser.
 
 # packages/apps/Bluetooth
 kpick 229311 # Assume optional codecs are supported if were supported previously
@@ -1469,7 +1468,6 @@ kpick 227120 # Settings: Check interfaces before enabling ADB over network
 kpick 236550 # fingerprint: Remove unnecessary spacing in enroll layout
 kpick 229312 # Add Dual Channel into Bluetooth Audio Channel Mode developer options menu
 kpick 229453 # Settings: use LineageHW serial number
-kpick 231518 # Settings: Check if we have any color modes declared in overlay
 kpick 231826 # Update the white list of Data saver
 kpick 232793 # Settings: per-app VPN data restriction
 kpick 237183 # settings: hide appendix of app list for power usage.
@@ -1486,7 +1484,6 @@ kpick 237244 # Snap: make support for bokeh mode configurable per device
 # packages/apps/Traceur
 
 # packages/apps/Trebuchet
-kpick 234611 # Trebuchet: expand statusbar on swipe down
 
 # packages/apps/TvSettings
 
@@ -1559,9 +1556,6 @@ kpick 237954 # Add python3 support for tools
 kpick 223133 # AIDL: Add option to generate No-Op methods
 
 # system/update/engine
-kpick 234581 # update_engine: Fallback to partition without suffix
-kpick 237836 # update_engine: Transition to backuptool domain
-kpick 237837 # Android: Reset update progress when booted into new version.
 
 # system/vold
 kpick 229304 # vold: Add texfat and sdfat support
@@ -1588,11 +1582,12 @@ kpick 237118 # extract_utils: introduce support for executing blob fixup scripts
 kpick 237209 # lineage: Set default ringtone for second SIM
 kpick 237270 # extract_utils: introduce -k (kang mode) option
 kpick 237352 # qcom: Mark some gralloc bits as valid
-kpick 237432 # soong_config: Add flag for msm8974 1440p EGL workaround
 kpick 237830 # soong_config: Add BOOTLOADER_MESSAGE_OFFSET
 kpick 237957 # Disable art debug and enable minimize debug info
 kpick 237958 # Don't explicitly build uneeded packages
 kpick 238057 # config: Add Deskclock to power whitelist
+kpick 238118 # extract_utils: be compatible with system-as-root layouts
+kpick 238128 # extract_utils: tentative simplification of fixup scripts
 
 # vendor/qcom/opensource/cryptfs_hw
 

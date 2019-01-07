@@ -1,0 +1,162 @@
+From 65b601a0a88e211582a452cb0e58433da736a54f Mon Sep 17 00:00:00 2001
+From: Shigeki Yokomichi <Shigeki.XA.Yokomichi@sony.com>
+Date: Fri, 22 Jun 2018 14:38:32 +0900
+Subject: [PATCH 10/39] Fix StatusBar icons tinting when in split screen
+
+Symptom:
+The color of Wifi and Mobile icons doesn't turn white when enter
+split-screen mode in landscape, even if color of status bar is dark.
+
+Solution:
+Applied every tints to StatusBar icons at onDarkChanged even if they
+are not in the area.
+Consider the area to the darkIntensity of the argument at onDarkChanged.
+And also fixed PhoneWindowManager to send correct bounds to SystemUI
+when in split-screen mode.
+
+Bug: 111420765
+Change-Id: I3db264a5b8e3e72441f6efd3e20a5e4671affe22
+---
+ .../statusbar/StatusBarMobileView.java         | 14 ++++++--------
+ .../systemui/statusbar/StatusBarWifiView.java  | 18 ++++++++----------
+ .../phone/NotificationIconAreaController.java  | 10 ++--------
+ .../server/policy/PhoneWindowManager.java      | 11 +++++++++--
+ 4 files changed, 25 insertions(+), 28 deletions(-)
+
+diff --git a/packages/SystemUI/src/com/android/systemui/statusbar/StatusBarMobileView.java b/packages/SystemUI/src/com/android/systemui/statusbar/StatusBarMobileView.java
+index 29268cbdd04..0f65cab879f 100644
+--- a/packages/SystemUI/src/com/android/systemui/statusbar/StatusBarMobileView.java
++++ b/packages/SystemUI/src/com/android/systemui/statusbar/StatusBarMobileView.java
+@@ -20,7 +20,7 @@ import static com.android.systemui.statusbar.StatusBarIconView.STATE_DOT;
+ import static com.android.systemui.statusbar.StatusBarIconView.STATE_HIDDEN;
+ import static com.android.systemui.statusbar.StatusBarIconView.STATE_ICON;
+ import static com.android.systemui.statusbar.policy.DarkIconDispatcher.getTint;
+-import static com.android.systemui.statusbar.policy.DarkIconDispatcher.isInArea;
++import static com.android.systemui.statusbar.policy.DarkIconDispatcher.getDarkIntensity;
+ 
+ import android.content.Context;
+ import android.content.res.ColorStateList;
+@@ -198,17 +198,15 @@ public class StatusBarMobileView extends FrameLayout implements DarkReceiver,
+ 
+     @Override
+     public void onDarkChanged(Rect area, float darkIntensity, int tint) {
+-        if (!isInArea(area, this)) {
+-            return;
+-        }
+-        mMobileDrawable.setDarkIntensity(darkIntensity);
+-        ColorStateList color = ColorStateList.valueOf(getTint(area, this, tint));
++        mMobileDrawable.setDarkIntensity(getDarkIntensity(area, this, darkIntensity));
++        int areaTint = getTint(area, this, tint);
++        ColorStateList color = ColorStateList.valueOf(areaTint);
+         mIn.setImageTintList(color);
+         mOut.setImageTintList(color);
+         mMobileType.setImageTintList(color);
+         mMobileRoaming.setImageTintList(color);
+-        mDotView.setDecorColor(tint);
+-        mDotView.setIconColor(tint, false);
++        mDotView.setDecorColor(areaTint);
++        mDotView.setIconColor(areaTint, false);
+     }
+ 
+     @Override
+diff --git a/packages/SystemUI/src/com/android/systemui/statusbar/StatusBarWifiView.java b/packages/SystemUI/src/com/android/systemui/statusbar/StatusBarWifiView.java
+index 0ed6b77f704..e42b579e511 100644
+--- a/packages/SystemUI/src/com/android/systemui/statusbar/StatusBarWifiView.java
++++ b/packages/SystemUI/src/com/android/systemui/statusbar/StatusBarWifiView.java
+@@ -20,7 +20,7 @@ import static com.android.systemui.statusbar.StatusBarIconView.STATE_DOT;
+ import static com.android.systemui.statusbar.StatusBarIconView.STATE_HIDDEN;
+ import static com.android.systemui.statusbar.StatusBarIconView.STATE_ICON;
+ import static com.android.systemui.statusbar.policy.DarkIconDispatcher.getTint;
+-import static com.android.systemui.statusbar.policy.DarkIconDispatcher.isInArea;
++import static com.android.systemui.statusbar.policy.DarkIconDispatcher.getDarkIntensity;
+ 
+ import android.content.Context;
+ import android.content.res.ColorStateList;
+@@ -249,18 +249,16 @@ public class StatusBarWifiView extends FrameLayout implements DarkReceiver,
+ 
+     @Override
+     public void onDarkChanged(Rect area, float darkIntensity, int tint) {
+-        if (!isInArea(area, this)) {
+-            return;
+-        }
+-        mDarkIntensity = darkIntensity;
++        mDarkIntensity = getDarkIntensity(area, this, darkIntensity);
+         Drawable d = mWifiIcon.getDrawable();
+         if (d instanceof NeutralGoodDrawable) {
+-            ((NeutralGoodDrawable)d).setDarkIntensity(darkIntensity);
++            ((NeutralGoodDrawable)d).setDarkIntensity(mDarkIntensity);
+         }
+-        mIn.setImageTintList(ColorStateList.valueOf(getTint(area, this, tint)));
+-        mOut.setImageTintList(ColorStateList.valueOf(getTint(area, this, tint)));
+-        mDotView.setDecorColor(tint);
+-        mDotView.setIconColor(tint, false);
++        int areaTint = getTint(area, this, tint);
++        mIn.setImageTintList(ColorStateList.valueOf(areaTint));
++        mOut.setImageTintList(ColorStateList.valueOf(areaTint));
++        mDotView.setDecorColor(areaTint);
++        mDotView.setIconColor(areaTint, false);
+     }
+ 
+ 
+diff --git a/packages/SystemUI/src/com/android/systemui/statusbar/phone/NotificationIconAreaController.java b/packages/SystemUI/src/com/android/systemui/statusbar/phone/NotificationIconAreaController.java
+index 2bfdfebae82..36caf5c6a00 100644
+--- a/packages/SystemUI/src/com/android/systemui/statusbar/phone/NotificationIconAreaController.java
++++ b/packages/SystemUI/src/com/android/systemui/statusbar/phone/NotificationIconAreaController.java
+@@ -127,13 +127,7 @@ public class NotificationIconAreaController implements DarkReceiver {
+         } else {
+             mTintArea.set(tintArea);
+         }
+-        if (mNotificationIconArea != null) {
+-            if (DarkIconDispatcher.isInArea(tintArea, mNotificationIconArea)) {
+-                mIconTint = iconTint;
+-            }
+-        } else {
+-            mIconTint = iconTint;
+-        }
++        mIconTint = iconTint;
+ 
+         applyNotificationIconsTint();
+     }
+@@ -346,7 +340,7 @@ public class NotificationIconAreaController implements DarkReceiver {
+             color = DarkIconDispatcher.getTint(mTintArea, v, mIconTint);
+         }
+         v.setStaticDrawableColor(color);
+-        v.setDecorColor(mIconTint);
++        v.setDecorColor(color);
+     }
+ 
+     public void setFullyDark(boolean fullyDark) {
+diff --git a/services/core/java/com/android/server/policy/PhoneWindowManager.java b/services/core/java/com/android/server/policy/PhoneWindowManager.java
+index 3cd198dc579..44a3bbd08a2 100644
+--- a/services/core/java/com/android/server/policy/PhoneWindowManager.java
++++ b/services/core/java/com/android/server/policy/PhoneWindowManager.java
+@@ -22,6 +22,7 @@ import static android.app.AppOpsManager.OP_SYSTEM_ALERT_WINDOW;
+ import static android.app.AppOpsManager.OP_TOAST_WINDOW;
+ import static android.app.WindowConfiguration.ACTIVITY_TYPE_HOME;
+ import static android.app.WindowConfiguration.ACTIVITY_TYPE_STANDARD;
++import static android.app.WindowConfiguration.ACTIVITY_TYPE_UNDEFINED;
+ import static android.app.WindowConfiguration.WINDOWING_MODE_FREEFORM;
+ import static android.app.WindowConfiguration.WINDOWING_MODE_FULLSCREEN;
+ import static android.app.WindowConfiguration.WINDOWING_MODE_SPLIT_SCREEN_PRIMARY;
+@@ -8965,10 +8966,16 @@ public class PhoneWindowManager implements WindowManagerPolicy {
+                 mTopFullscreenOpaqueWindowState, mTopFullscreenOpaqueOrDimmingWindowState);
+         final int dockedVisibility = updateLightStatusBarLw(0 /* vis */,
+                 mTopDockedOpaqueWindowState, mTopDockedOpaqueOrDimmingWindowState);
+-        mWindowManagerFuncs.getStackBounds(
+-                WINDOWING_MODE_UNDEFINED, ACTIVITY_TYPE_HOME, mNonDockedStackBounds);
+         mWindowManagerFuncs.getStackBounds(
+                 WINDOWING_MODE_SPLIT_SCREEN_PRIMARY, ACTIVITY_TYPE_STANDARD, mDockedStackBounds);
++        if (mDockedStackBounds.isEmpty()) {
++            mWindowManagerFuncs.getStackBounds(WINDOWING_MODE_UNDEFINED,
++                    ACTIVITY_TYPE_HOME, mNonDockedStackBounds);
++        }
++        else {
++            mWindowManagerFuncs.getStackBounds(WINDOWING_MODE_SPLIT_SCREEN_SECONDARY,
++                    ACTIVITY_TYPE_UNDEFINED, mNonDockedStackBounds);
++        }
+         final int visibility = updateSystemBarsLw(win, mLastSystemUiFlags, tmpVisibility);
+         final int diff = visibility ^ mLastSystemUiFlags;
+         final int fullscreenDiff = fullscreenVisibility ^ mLastFullscreenStackSysUiFlags;
+-- 
+2.17.1
+
