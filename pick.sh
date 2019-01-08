@@ -1141,6 +1141,7 @@ repo sync android  >/dev/null
 [ $op_keep_manifests -ne 1 ] && reset_project_dir .repo/manifests
 
 kpick 231971 # manifest: sync gcc4.9 from aosp oreo
+kpick 238415 # manifest: android-9.0.0_r21 -> android-9.0.0_r30
 
 patch_local local/android
 echo
@@ -1183,7 +1184,6 @@ kpick 234754 # Add define for O_TMPFILE
 #kpick 233821
 
 # bionic
-#kpick 223067 -f # libc fortify: Ignore open() O_TMPFILE mode bits warning
 
 # boot/recovery
 kpick 231718 # recovery: Declare a soong namespace
@@ -1194,6 +1194,11 @@ kpick 237829 # recovery: Allow custom bootloader msg offset in block misc
 kpick 222742 # build: Use project pathmap for recovery
 kpick 222760 # Add LOCAL_AIDL_FLAGS
 kpick 227111 # releasetools: Store the build.prop file in the OTA zip
+kpick 238392 # [DO NOT MERGE] Security string update to 2019-01-01 bug:118903919 (cherry picked from commit 1ce690dda1aa7e65e55d21 ...
+kpick 238394 # Version bump to PQ1A.190105.001
+kpick 238395 # [DO NOT MERGE] Security string update to 2019-01-05 bug:118903919 (cherry picked from commit 816323424638190a227c29 ...
+kpick 238397 # Version bump to PQ1A.190105.003
+kpick 238398 # Version bump to PQ1A.190105.004
 
 # build/soong
 kpick 222648 # Allow providing flex and bison binaries
@@ -1233,7 +1238,6 @@ kpick 230235 # common: grant DRM HIDL HAL ownership access to /data/{misc,vendor
 kpick 230236 # common: label /sys/devices/virtual/graphics as sysfs_graphics
 kpick 230238 # common: create proc_kernel_sched domain to restrict perf hal access
 kpick 230239 # common: allow uevent to control sysfs_mmc_host via vold
-#kpick 235455 # legacy: Allow platform_app to read qemu_hw_mainkeys_prop
 kpick 238105 # sepolicy: Fix label of qpnp-charger sysfs
 kpick 238106 # legacy: Label /sys/devices/mdp.0/caps
 kpick 238107 # Revert "sepolicy: Allow wcnss_service to set wlan.driver properties"
@@ -1266,6 +1270,7 @@ kpick 230642 # CameraService: Initialize CameraParameters for the cameras and ca
 kpick 231348 # camera: Allow to use boottime as timestamp reference
 kpick 234010 # libstagefright: omx: Add support for loading prebuilt ddp decoder lib
 kpick 237206 # audiopolicy: support extended feature in audiopolicymanager
+kpick 238400 # Effect config parser: fix use after free on file path
 
 # frameworks/base
 kpick 224266 # SystemUI: Add Lineage statusbar item holder
@@ -1299,7 +1304,8 @@ kpick 237143 # AudioService: Fix Audio mod volume steps
 kpick 237171 # WiFiDisplayController: Defer the P2P Initialization from its constructor.
 kpick 237172 # WifiDisplayController: handle preexisting p2p connection status
 kpick 237743 # systemui: add dark mode on low battery toggle
-kpick 238142 # StatusBarSignalPolicy: Add provisioned to equals and copyTo
+kpick 238142 # StatusBarSignalPolicy: Fix missing provisioned in equals and copyTo
+kpick 238403 # CameraServiceProxy: Notify audio service of camera facing
 
 # frameworks/native
 kpick 224530 # Triple the available egl function pointers available to a process for certain Nvidia devices.
@@ -1337,10 +1343,10 @@ kpick 223410 # interfaces: Add touch HIDL interface definitions
 # hardware/lineage/lineagehw
 
 # hardware/nxp/nfc
-#kpick 223193 # nxp: Rename HAL to @1.1-service-nxp
-#kpick 223194 # nxp: Begin restoring pn547
 
-# hardware/qcom/audio
+# hardware/qcom/audio/default
+kpick 238406 # audio: enable 24bits camcorder
+kpick 238407 # audio: select camcorder snd device according to camera orientation
 
 # hardware/qcom/audio-caf/msm8974
 
@@ -1423,6 +1429,7 @@ kpick 225265 # Add Storage preference (1/2)
 # packages/apps/CellBroadcastReciver
 
 # packages/apps/Contacts
+kpick 238412 # Patch URI vulnerability in contact photo editing
 
 # packages/apps/DeskClock
 
@@ -1450,18 +1457,18 @@ kpick 229389 # Trust: enforce vendor security patch level check
 kpick 237741 # parts: add dark mode on low battery toggle
 
 # packages/apps/ManagedProvisoning
+kpick 238416
 
 # packages/apps/Messaging
 
 # packages/apps/Nfc
 
 # packages/apps/PackagesInstaller
+kpick 238418
 
 # packages/apps/PhoneCommon
 
 # packages/apps/Recorder
-kpick 238140 # Refactor to androidx libraries
-kpick 238141 # Recorder: use outline icon assets
 
 # packages/apps/Settings
 kpick 235978 # Settings: Add switch for linked ring and media notification volumes
@@ -1496,7 +1503,6 @@ kpick 234612 # Updater: Implement auto update check interval preference
 # packages/inputmethods/LatinIME
 
 # packages/overlays/Lineage
-kpick 236134 # overlays: accents: tune for contrast
 
 # packages/providers/ContactsProvider
 
@@ -1517,6 +1523,11 @@ kpick 236522 # Fix carrier config option not hidden on a CDMA phone
 # system/bt
 kpick 229125 # Increase maximum Bluetooth SBC codec bitpool and bitrate values
 kpick 229313 # Explicit SBC Dual Channel (SBC HD) support
+kpick 238421 # Fix possible OOB when AVDT data channel recive ACL data
+kpick 238422 # SDP: Check p_end in save_attr_seq and add_attr
+kpick 238423 # MCAP: Check response length in mca_ccb_hdl_rsp
+kpick 238424 # HH: Check parameter length in bta_hh_ctrl_dat_act
+kpick 238425 # HFP: Check AT command buffer boundary during parsing
 
 # system/core
 kpick -f 227110 # init: I hate safety net
