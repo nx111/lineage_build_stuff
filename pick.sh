@@ -1288,7 +1288,6 @@ kpick 233633 # Phone ringtone setting for Multi SIM device
 kpick 233717 # [DNM][HACK] Persist user brightness model
 kpick 234649 # keyguard: Check for a null errString
 kpick 234715 # Rotation related corrections
-kpick 235128 # Crash app on foreground service notification error
 kpick 235147 # SystemUI: Name Cellular Tile based on carrier
 kpick 235986 # frameworks: Add unlinked ringtone and notification volumes
 kpick 236156 # CaffeineTile: Mimic old custom tile behavior
@@ -1300,7 +1299,7 @@ kpick 237143 # AudioService: Fix Audio mod volume steps
 kpick 237171 # WiFiDisplayController: Defer the P2P Initialization from its constructor.
 kpick 237172 # WifiDisplayController: handle preexisting p2p connection status
 kpick 237743 # systemui: add dark mode on low battery toggle
-kpick 238059 # SurfaceControl: Unbreak public API after pie-gsi merge
+kpick 238142 # StatusBarSignalPolicy: Add provisioned to equals and copyTo
 
 # frameworks/native
 kpick 224530 # Triple the available egl function pointers available to a process for certain Nvidia devices.
@@ -1460,6 +1459,10 @@ kpick 237741 # parts: add dark mode on low battery toggle
 
 # packages/apps/PhoneCommon
 
+# packages/apps/Recorder
+kpick 238140 # Refactor to androidx libraries
+kpick 238141 # Recorder: use outline icon assets
+
 # packages/apps/Settings
 kpick 235978 # Settings: Add switch for linked ring and media notification volumes
 kpick 236184 # Settings: Use correct icon for ring volume
@@ -1494,6 +1497,7 @@ kpick 234612 # Updater: Implement auto update check interval preference
 
 # packages/overlays/Lineage
 kpick 236134 # overlays: accents: tune for contrast
+
 # packages/providers/ContactsProvider
 
 # packages/providers/DownloadProvider

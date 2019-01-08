@@ -1,4 +1,4 @@
-From b20f633d4a1b022e32203355848b1ca27885f6f9 Mon Sep 17 00:00:00 2001
+From 25054d1e70900a2f48c3db53683aa1c4675dcd22 Mon Sep 17 00:00:00 2001
 From: nico <nicorg2529@gmail.com>
 Date: Fri, 4 Jan 2019 15:55:19 +0000
 Subject: [PATCH 7/7] TelephonyExtUtils: Set timeout for (de)activating
@@ -8,11 +8,11 @@ Subject: [PATCH 7/7] TelephonyExtUtils: Set timeout for (de)activating
 
 Change-Id: Ic28c01412bffaec4cadabd3d68434ddef75693ef
 ---
- .../internal/util/TelephonyExtUtils.java      | 54 ++++++++++++++-----
- 1 file changed, 40 insertions(+), 14 deletions(-)
+ .../internal/util/TelephonyExtUtils.java      | 66 +++++++++++++++----
+ 1 file changed, 52 insertions(+), 14 deletions(-)
 
 diff --git a/sdk/src/java/org/lineageos/internal/util/TelephonyExtUtils.java b/sdk/src/java/org/lineageos/internal/util/TelephonyExtUtils.java
-index 59f6d10..f8998c6 100644
+index 59f6d10..f0d62d4 100644
 --- a/sdk/src/java/org/lineageos/internal/util/TelephonyExtUtils.java
 +++ b/sdk/src/java/org/lineageos/internal/util/TelephonyExtUtils.java
 @@ -20,8 +20,10 @@ import android.content.BroadcastReceiver;
@@ -58,18 +58,32 @@ index 59f6d10..f8998c6 100644
 -            }
 -        }
 -        return -1;
-+        return activateDeactivateUiccCard(true, slotId);
++        return setUiccCardProvisioningStatus(PROVISIONED, slotId);
      }
  
      /**
-@@ -164,14 +163,41 @@ public final class TelephonyExtUtils {
+@@ -164,14 +163,53 @@ public final class TelephonyExtUtils {
       * @return The result of the deactivation or -1
       */
      public int deactivateUiccCard(int slotId) {
-+        return activateDeactivateUiccCard(false, slotId);
++        return setUiccCardProvisioningStatus(NOT_PROVISIONED, slotId);
 +    }
 +
-+    private int activateDeactivateUiccCard(boolean activate, int slotId) {
++    private int setUiccCardProvisioningStatus(int provStatus, int slotId) {
++        String actionStr;
++        switch (provStatus) {
++            case PROVISIONED:
++                actionStr = "Activating";
++                break;
++            case NOT_PROVISIONED:
++                actionStr = "Deactivating";
++                break;
++            default:
++                Log.e(TAG, "Invalid argument for setUiccCardProvisioningStatus " +
++                    "(provStatus=" + provStatus + ", slotId=" + slotId + ")");
++                return -1;
++        }
++
          IExtTelephony service = getService();
 -        if (service != null) {
 -            try {
@@ -80,13 +94,11 @@ index 59f6d10..f8998c6 100644
 +            return -1;
 +        }
 +
-+        String actionStr = activate ? "Activating" : "Deactivating";
-+
 +        AsyncTask<Integer, Void, Integer> task = new AsyncTask<Integer, Void, Integer>() {
 +            @Override
 +            protected Integer doInBackground(Integer... params) {
 +                try {
-+                    return params[0] == 1
++                    return params[0] == PROVISIONED
 +                        ? mExtTelephony.activateUiccCard(params[1])
 +                        : mExtTelephony.deactivateUiccCard(params[1]);
 +                } catch (RemoteException ex) {
@@ -97,11 +109,11 @@ index 59f6d10..f8998c6 100644
 +        };
 +
 +        try {
-+            return task.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR, activate ? 1 : 0, slotId)
++            return task.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR, provStatus, slotId)
 +                    .get(ACTIVATE_TIME_OUT, TimeUnit.MILLISECONDS);
 +        } catch (TimeoutException ex) {
 +            Log.e(TAG, actionStr + " sub timed out for slotId: " + slotId);
-+            SystemProperties.set(PROP_TIME_OUT , Integer.toString(slotId + 1));
++            SystemProperties.set(PROP_TIME_OUT, Integer.toString(slotId + 1));
 +        } catch (Exception ex) {
 +            Log.e(TAG, actionStr + " sub task failed for slotId: " + slotId);
          }
