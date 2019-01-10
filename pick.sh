@@ -1141,7 +1141,6 @@ repo sync android  >/dev/null
 [ $op_keep_manifests -ne 1 ] && reset_project_dir .repo/manifests
 
 kpick 231971 # manifest: sync gcc4.9 from aosp oreo
-kpick 238415 # manifest: android-9.0.0_r21 -> android-9.0.0_r30
 
 patch_local local/android
 echo
@@ -1170,10 +1169,12 @@ start_check_classification=1
 
 # device/samsung/klte-common
 kpick 225192 # klte-common: Align ril.h to samsung_msm8974-common P libril changes
+kpick 238522 # klte-common: Add IGloveMode to device manifest
 
 # device/samsung/msm8974-common
 kpick 235457 # msm8974-common: sepolicy: Limit execmod to specifically labeled files
 kpick 234526 # msm8974-common: sepolicy: Resolve mediaserver denials
+kpick 238521 # msm8974-common: Build vendor.lineage.touch HAL from hardware/samsung
 
 # kernel/samsung/msm8974
 kpick 234754 # Add define for O_TMPFILE
@@ -1194,11 +1195,6 @@ kpick 237829 # recovery: Allow custom bootloader msg offset in block misc
 kpick 222742 # build: Use project pathmap for recovery
 kpick 222760 # Add LOCAL_AIDL_FLAGS
 kpick 227111 # releasetools: Store the build.prop file in the OTA zip
-kpick 238392 # [DO NOT MERGE] Security string update to 2019-01-01 bug:118903919 (cherry picked from commit 1ce690dda1aa7e65e55d21 ...
-kpick 238394 # Version bump to PQ1A.190105.001
-kpick 238395 # [DO NOT MERGE] Security string update to 2019-01-05 bug:118903919 (cherry picked from commit 816323424638190a227c29 ...
-kpick 238397 # Version bump to PQ1A.190105.003
-kpick 238398 # Version bump to PQ1A.190105.004
 
 # build/soong
 kpick 222648 # Allow providing flex and bison binaries
@@ -1208,10 +1204,10 @@ kpick 226443 # soong: Add additional_deps attribute for libraries and binaries
 # dalvik
 
 # device/lineage/sepolicy
-kpick 234613 # common: Expand labeling of sysfs_vibrator nodes using genfscon
-kpick 234837 # common: Label and allow access over LiveDisplay sysfs nodes
-kpick 235402 # common: Allow init to relabel I/O sched tuning nodes
 kpick 237205 # selinux: move vendor_camera_prop from device/qcom/sepolicy
+kpick 238586 # common: Label vendor.camera.aux.packageblacklist
+kpick 238587 # common: Allow appdomain to get vendor_camera_prop
+kpick 238588 # common: Allow system_server to get vendor_camera_prop
 kpick 237203 # selinux: snap: allow to read vendor camera props
 kpick 237348 # lineage: Address perf HAL denial with boost enabled
 kpick 236446 # common: Improve label of I/O sched tuning nodes
@@ -1225,7 +1221,9 @@ kpick 228578 # sepolicy: rules to allow camera daemon access to app buffer
 kpick 228580 # hal_gnss_default: Do not log udp socket failures
 kpick 228582 # sepolicy: qti_init_shell needs to read dir too
 kpick 228583 # sepolicy: allow vold to read persist dirs
+kpick 238500 # sepolicy: Allow all apps to read vendor camera props
 kpick 237204 # selinux: move vendor_camera_prop to device/lineage/sepolicy
+kpick 238593 # sepolicy: Allow system_server to read vendor camera props
 
 # device/qcom/sepolicy-legacy
 kpick 230237 # common: allow vendor_init to create /data/dpm
@@ -1270,7 +1268,6 @@ kpick 230642 # CameraService: Initialize CameraParameters for the cameras and ca
 kpick 231348 # camera: Allow to use boottime as timestamp reference
 kpick 234010 # libstagefright: omx: Add support for loading prebuilt ddp decoder lib
 kpick 237206 # audiopolicy: support extended feature in audiopolicymanager
-kpick 238400 # Effect config parser: fix use after free on file path
 
 # frameworks/base
 kpick 224266 # SystemUI: Add Lineage statusbar item holder
@@ -1305,7 +1302,9 @@ kpick 237171 # WiFiDisplayController: Defer the P2P Initialization from its cons
 kpick 237172 # WifiDisplayController: handle preexisting p2p connection status
 kpick 237743 # systemui: add dark mode on low battery toggle
 kpick 238142 # StatusBarSignalPolicy: Fix missing provisioned in equals and copyTo
-kpick 238403 # CameraServiceProxy: Notify audio service of camera facing
+kpick 238463 # Move high touch sensitivity and hovering to InputService
+#kpick 238486 # PhoneWindowManager: Migrate to vendor.lineage.touch
+#kpick 238517 # InputMethodManagerService: Convert to vendor.lineage.touch
 
 # frameworks/native
 kpick 224530 # Triple the available egl function pointers available to a process for certain Nvidia devices.
@@ -1320,7 +1319,6 @@ kpick 237645 # sf: Add support for multiple displays
 kpick 237173 # WiFi: Ignore connectivity scans during WFD session
 
 # frameworks/opt/telephony
-kpick 234319 # LocaleTracker: Add null check before accessing WifiManager
 
 # hardware/boardcom/libbt
 kpick 225155 # Broadcom BT: Add support fm/bt via v4l2.
@@ -1339,14 +1337,13 @@ kpick 225155 # Broadcom BT: Add support fm/bt via v4l2.
 # hardware/lineage/interfaces
 kpick 223374 # interfaces: Add 2.0 livedisplay interfaces
 kpick 223410 # interfaces: Add touch HIDL interface definitions
+kpick 238431 # livedisplay: Update FOSS status prop for Pie
 
 # hardware/lineage/lineagehw
 
 # hardware/nxp/nfc
 
 # hardware/qcom/audio/default
-kpick 238406 # audio: enable 24bits camcorder
-kpick 238407 # audio: select camcorder snd device according to camera orientation
 
 # hardware/qcom/audio-caf/msm8974
 
@@ -1406,6 +1403,8 @@ kpick 227614 # Disable IOemHook implemenation in rild.
 #kpick 228524 # power: Convert power HAL to native binderized HAL
 kpick 231194 # power: properly initialize cluster states
 kpick 231960 # bauth: Add enumerate function
+kpick 238519 # samsung: Add dummy lineagehw HIDL interfaces for vendor.lineage.touch
+kpick 238520 # hidl: touch: Add binderized service implementation
 
 # lineage-sdk
 kpick 227931 # lineagesdk: Refactor battery icon options
@@ -1415,6 +1414,7 @@ kpick 237074 # lineage-sdk: Handle database downgrading
 kpick 237075 # lineage-sdk: Remove useless logic on database upgrading
 kpick 237740 # sdk: add dark mode on low battery toggle
 kpick 237895 # TelephonyExtUtils: Set timeout for (de)activating provision
+#kpick 238484 # lineage-sdk: Migrate to vendor.lineage.touch
 
 # packages/apps/Bluetooth
 kpick 229311 # Assume optional codecs are supported if were supported previously
@@ -1429,7 +1429,6 @@ kpick 225265 # Add Storage preference (1/2)
 # packages/apps/CellBroadcastReciver
 
 # packages/apps/Contacts
-kpick 238412 # Patch URI vulnerability in contact photo editing
 
 # packages/apps/DeskClock
 
@@ -1455,16 +1454,16 @@ kpick 227930 # LineageParts: Bring back and refactor battery icon options
 kpick 221756 # StatusBarSettings: Hide battery preference category based on icon visibility
 kpick 229389 # Trust: enforce vendor security patch level check
 kpick 237741 # parts: add dark mode on low battery toggle
+#kpick 238485 # LineageParts: Migrate to vendor.lineage.touch
 
 # packages/apps/ManagedProvisoning
-kpick 238416
 
 # packages/apps/Messaging
+#kpick 238551
 
 # packages/apps/Nfc
 
 # packages/apps/PackagesInstaller
-kpick 238418
 
 # packages/apps/PhoneCommon
 
@@ -1481,8 +1480,12 @@ kpick 229453 # Settings: use LineageHW serial number
 kpick 231826 # Update the white list of Data saver
 kpick 232793 # Settings: per-app VPN data restriction
 kpick 237183 # settings: hide appendix of app list for power usage.
+#kpick 238487 # Settings: Migrate to vendor.lineage.touch
 
 # packages/apps/SettingsIntelligence
+
+# packages/apps/SetupWizard
+#kpick 238488 # SetupWizard: Migrate to vendor.lineage.touch
 
 # packages/apps/Snap
 kpick 237244 # Snap: make support for bokeh mode configurable per device
@@ -1523,11 +1526,6 @@ kpick 236522 # Fix carrier config option not hidden on a CDMA phone
 # system/bt
 kpick 229125 # Increase maximum Bluetooth SBC codec bitpool and bitrate values
 kpick 229313 # Explicit SBC Dual Channel (SBC HD) support
-kpick 238421 # Fix possible OOB when AVDT data channel recive ACL data
-kpick 238422 # SDP: Check p_end in save_attr_seq and add_attr
-kpick 238423 # MCAP: Check response length in mca_ccb_hdl_rsp
-kpick 238424 # HH: Check parameter length in bta_hh_ctrl_dat_act
-kpick 238425 # HFP: Check AT command buffer boundary during parsing
 
 # system/core
 kpick -f 227110 # init: I hate safety net
@@ -1551,6 +1549,7 @@ kpick 232438 # su: Initialize windows size
 kpick 232794 # NetD : Allow passing in interface names for vpn app restriction
 
 # system/qcom
+kpick 237859 # softap: sdk: Add 'vendor.' prefix to wlan.driver.config
 
 # system/security
 
@@ -1562,7 +1561,6 @@ kpick 234987 # Use LOCAL_ADDITIONAL_M4DEFS for file_contexts
 kpick 235196 # Allow dnsmasq to getattr netd unix_stream_socket
 kpick 235258 # Allow fsck_untrusted to getattr block_device
 kpick 237125 # sepolicy: Allow netd to load modules
-kpick 237226 # Allow mediaserver to read device directories
 
 # system/timezone
 kpick 237954 # Add python3 support for tools
