@@ -1,0 +1,124 @@
+From 376ac93c39e205ed1e9ea206ee0efd6af478c739 Mon Sep 17 00:00:00 2001
+From: Keith Mok <kmok@cyngn.com>
+Date: Fri, 4 Mar 2016 08:52:30 -0800
+Subject: [PATCH 3/3] zlib: crc optimization for arm64
+
+Use arm64 crc32 instruction set if available
+
+Doing 100M data crc 100 times:
+Without using arm64 crc instruction set takes:
+14.85s
+With arm64 crc instruction set takes:
+2.08s
+
+Performance measured on snapdragon 810, with cpu
+frequency set to max and cpu governor change to
+userspace.
+
+[mikeioannina]: Adapt for zlib 1.2.11
+
+Change-Id: I3ee5be087d04573c004fc6f4b22988cdda1b81e7
+---
+ src/crc32.c | 69 +++++++++++++++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 69 insertions(+)
+
+diff --git a/src/crc32.c b/src/crc32.c
+index 9580440..8ec957d 100644
+--- a/src/crc32.c
++++ b/src/crc32.c
+@@ -199,10 +199,59 @@ const z_crc_t FAR * ZEXPORT get_crc_table()
+ #define DO8 DO1; DO1; DO1; DO1; DO1; DO1; DO1; DO1
+ 
+ /* ========================================================================= */
++#ifdef __aarch64__
++#include <sys/auxv.h>
++#ifndef HWCAP_CRC32
++#define HWCAP_CRC32 (1 << 7)
++#endif /* HWCAP_CRC32 */
++
++#define CRC32X(crc, value) __asm__("crc32x %w[c], %w[c], %x[v]":[c]"+r"(crc):[v]"r"(value))
++#define CRC32W(crc, value) __asm__("crc32w %w[c], %w[c], %w[v]":[c]"+r"(crc):[v]"r"(value))
++#define CRC32H(crc, value) __asm__("crc32h %w[c], %w[c], %w[v]":[c]"+r"(crc):[v]"r"(value))
++#define CRC32B(crc, value) __asm__("crc32b %w[c], %w[c], %w[v]":[c]"+r"(crc):[v]"r"(value))
++local unsigned long crc32_aarch64(crc, buf, len)
++    unsigned long crc;
++    const unsigned char FAR *buf;
++    z_size_t len;
++{
++    if (buf == Z_NULL) return 0UL;
++
++    long length = len;
++
++    crc = crc ^ 0xffffffffUL;
++
++    asm(".cpu generic+crc");    /* Allow crc instructions in asm */
++    while ((length -= 8) >= 0) {
++        CRC32X(crc, *((unsigned long*)buf));
++        buf += 8;
++    }
++
++    /* The following is more efficient than the straight loop */
++    if (length & 4) {
++        CRC32W(crc, *((unsigned int*)buf));
++        buf += 4;
++    }
++    if (length & 2) {
++        CRC32H(crc, *((unsigned short*)buf));
++        buf += 2;
++    }
++    if (length & 1)
++        CRC32B(crc, *buf);
++
++    return crc ^ 0xffffffffUL;
++}
++#endif
++#ifdef __aarch64__
++local unsigned long crc32_generic(crc, buf, len)
++    unsigned long crc;
++    const unsigned char FAR *buf;
++    z_size_t len;
++#else
+ unsigned long ZEXPORT crc32_z(crc, buf, len)
+     unsigned long crc;
+     const unsigned char FAR *buf;
+     z_size_t len;
++#endif
+ {
+     if (buf == Z_NULL) return 0UL;
+ 
+@@ -234,12 +283,32 @@ unsigned long ZEXPORT crc32_z(crc, buf, len)
+ }
+ 
+ /* ========================================================================= */
++#ifdef __aarch64__
++typedef unsigned long (*crc32_func_t)(unsigned long, const unsigned char FAR *buf, uInt);
++local crc32_func_t crc32_func = crc32_generic;
++
++/*
++ * On library load, determine what sort of crc we are going to do
++ * and set crc function pointers appropriately.
++ */
++void __attribute__ ((constructor)) init_cpu_support_flag(void) {
++    unsigned long auxv = getauxval(AT_HWCAP);
++    if (auxv & HWCAP_CRC32) {
++        crc32_func = crc32_aarch64;
++    }
++}
++#endif
++
+ unsigned long ZEXPORT crc32(crc, buf, len)
+     unsigned long crc;
+     const unsigned char FAR *buf;
+     uInt len;
+ {
++#ifdef __aarch64__
++    return crc32_func(crc, buf, len);
++#else
+     return crc32_z(crc, buf, len);
++#endif
+ }
+ 
+ #ifdef BYFOUR
+-- 
+2.17.1
+

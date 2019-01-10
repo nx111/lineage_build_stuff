@@ -1185,6 +1185,7 @@ kpick 234754 # Add define for O_TMPFILE
 #kpick 233821
 
 # bionic
+kpick 225463 #  bionic: Let popen and system fall back to /sbin/sh
 
 # boot/recovery
 kpick 231718 # recovery: Declare a soong namespace
@@ -1195,6 +1196,7 @@ kpick 237829 # recovery: Allow custom bootloader msg offset in block misc
 kpick 222742 # build: Use project pathmap for recovery
 kpick 222760 # Add LOCAL_AIDL_FLAGS
 kpick 227111 # releasetools: Store the build.prop file in the OTA zip
+kpick 238610 # build: only write build_number.txt when BUILD_NUMBER has changed
 
 # build/soong
 kpick 222648 # Allow providing flex and bison binaries
@@ -1212,15 +1214,14 @@ kpick 237203 # selinux: snap: allow to read vendor camera props
 kpick 237348 # lineage: Address perf HAL denial with boost enabled
 kpick 236446 # common: Improve label of I/O sched tuning nodes
 kpick 234544 # sepol: Allow Settings to read ro.vendor.build.security_patch
+kpick 238602 # sepolicies: add Trust hal
 
 # device/qcom/sepolicy
 kpick 228572 # sepolicy: Allow system_server to 'read' qti_debugfs
 kpick 228573 # sepolicy: Add libsdm-disp-vndapis and libsdmutils to SP-HALs
-kpick 228576 # sepolicy: Label mpctl_socket as data_file_type
 kpick 228578 # sepolicy: rules to allow camera daemon access to app buffer
 kpick 228580 # hal_gnss_default: Do not log udp socket failures
 kpick 228582 # sepolicy: qti_init_shell needs to read dir too
-kpick 228583 # sepolicy: allow vold to read persist dirs
 kpick 238500 # sepolicy: Allow all apps to read vendor camera props
 kpick 237204 # selinux: move vendor_camera_prop to device/lineage/sepolicy
 kpick 238593 # sepolicy: Allow system_server to read vendor camera props
@@ -1242,6 +1243,7 @@ kpick 238107 # Revert "sepolicy: Allow wcnss_service to set wlan.driver properti
 kpick 238108 # sepolicy: Add vendor wifi prop in vendor partition access
 kpick 238109 # wcnss-service: Add sepolicy to access "vendor.wlan." property
 kpick 238125 # Use new vendor_wifi_prop label for bluetooth_loader
+kpick 238636 # sepolicy: Add type vendor_display_prop for legacy devices
 
 # development
 kpick 232511 # make-key: Enforce PBEv1 password-protected signing keys
@@ -1250,8 +1252,23 @@ kpick 232511 # make-key: Enforce PBEv1 password-protected signing keys
 kpick 227260 # Update bt vendor callbacks array in vfs code
 kpick 227261 # Cast BT_VND_OP_ANT_USERIAL_{OPEN,CLOSE} to bt_vendor_opcode_t in vfs code
 
+# external/e2fsprogs
+kpick 225215 # e2fsprogs: Prepare for adding and using static libs
+kpick 225216 # e2fsprogs: Build static libs for recovery
+kpick 225217 # e2fsprogs: Build libresize2fs for recovery
+
+# external/f2fs-tools
+kpick 225225 # f2fs-tools: Add static libs for recovery
+kpick 225226 # f2fs-tools: Rename quota symbols
+kpick 225227 # f2fs-tools: Rename utf conversion symbols
+
+# external/gptfdisk
+kpick 225228
+
 # external/icu
 # kpick 237955
+
+# external/libtar
 
 # external/perfetto
 kpick -f 223413 # perfetto_cmd: Resolve missing O_CREAT mode
@@ -1260,7 +1277,14 @@ kpick -f 223413 # perfetto_cmd: Resolve missing O_CREAT mode
 
 # external/tinycompress
 
+# external/toybox
+kpick 225232
+kpick 225233 # toybox: Add install to symlinks
+
 # external/zlib
+kpick 225237
+kpick 225238 # minizip: Clean up the code
+kpick 225239 # zlib: crc optimization for arm64
 
 # frameworks/av
 kpick 230387 # CameraService: Support calling addStates in enumerateProviders
@@ -1337,7 +1361,6 @@ kpick 225155 # Broadcom BT: Add support fm/bt via v4l2.
 # hardware/lineage/interfaces
 kpick 223374 # interfaces: Add 2.0 livedisplay interfaces
 kpick 223410 # interfaces: Add touch HIDL interface definitions
-kpick 238431 # livedisplay: Update FOSS status prop for Pie
 
 # hardware/lineage/lineagehw
 
@@ -1489,6 +1512,7 @@ kpick 237183 # settings: hide appendix of app list for power usage.
 
 # packages/apps/Snap
 kpick 237244 # Snap: make support for bokeh mode configurable per device
+kpick 238595 # Snap: Yet Another String Improvement
 
 # packages/apps/Stk
 
@@ -1497,6 +1521,7 @@ kpick 237244 # Snap: make support for bokeh mode configurable per device
 # packages/apps/Traceur
 
 # packages/apps/Trebuchet
+kpick 238596 # Trebuchet: Correct icon settings string
 
 # packages/apps/TvSettings
 
@@ -1549,7 +1574,6 @@ kpick 232438 # su: Initialize windows size
 kpick 232794 # NetD : Allow passing in interface names for vpn app restriction
 
 # system/qcom
-kpick 237859 # softap: sdk: Add 'vendor.' prefix to wlan.driver.config
 
 # system/security
 
@@ -1596,8 +1620,6 @@ kpick 237209 # lineage: Set default ringtone for second SIM
 kpick 237270 # extract_utils: introduce -k (kang mode) option
 kpick 237352 # qcom: Mark some gralloc bits as valid
 kpick 237830 # soong_config: Add BOOTLOADER_MESSAGE_OFFSET
-kpick 237957 # Disable art debug and enable minimize debug info
-kpick 237958 # Don't explicitly build uneeded packages
 kpick 238057 # config: Add Deskclock to power whitelist
 kpick 238118 # extract_utils: be compatible with system-as-root layouts
 kpick 238128 # extract_utils: tentative simplification of fixup scripts
