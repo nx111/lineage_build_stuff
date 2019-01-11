@@ -963,6 +963,7 @@ function kpick_action()
                         echo "$last_project $last_changeNumber" >>$tmp_picks_info_file
                         last_project=$project
                         last_changeNumber=$changeNumber
+                        eval  "sed -e \"s|^[[:space:]]*kpick[[:space:]]\{1,\}$changeNumber[[:space:]]*.*|kpick $nops \# $subject|g\" -i $target_script"
                     else
                         if grep -q "already picked in" $logfile; then
                            if [ $(grep "kpick[[:space:]]*.*$changeNumber" $target_script | wc -l) -ge 2 ]; then
@@ -983,6 +984,7 @@ function kpick_action()
                else
                     [ "$last_project" = "" ] && last_project=$project
                     [ "$last_changeNumber" = "" ] && last_changeNumber=$changeNumber
+                    eval  "sed -e \"s|^[[:space:]]*kpick[[:space:]]\{1,\}$changeNumber[[:space:]]*.*|kpick $nops \# $subject|g\" -i $target_script"
                fi
            else
                eval  "sed -e \"s|^[[:space:]]*kpick[[:space:]]\{1,\}$changeNumber[[:space:]]*.*|kpick $nops \# $subject|g\" -i $target_script"
@@ -1185,7 +1187,7 @@ kpick 234754 # Add define for O_TMPFILE
 #kpick 233821
 
 # bionic
-kpick 225463 #  bionic: Let popen and system fall back to /sbin/sh
+kpick 225463 # bionic: Let popen and system fall back to /sbin/sh
 
 # boot/recovery
 kpick 231718 # recovery: Declare a soong namespace
@@ -1263,7 +1265,7 @@ kpick 225226 # f2fs-tools: Rename quota symbols
 kpick 225227 # f2fs-tools: Rename utf conversion symbols
 
 # external/gptfdisk
-kpick 225228
+kpick 225228 # gptfdisk: Build static lib for recovery fstools
 
 # external/icu
 # kpick 237955
@@ -1278,11 +1280,11 @@ kpick -f 223413 # perfetto_cmd: Resolve missing O_CREAT mode
 # external/tinycompress
 
 # external/toybox
-kpick 225232
+kpick 225232 # toybox: Use toybox for dd and grep in recovery
 kpick 225233 # toybox: Add install to symlinks
 
 # external/zlib
-kpick 225237
+kpick 225237 # zlib: Fix build under Android 6.0 and higher
 kpick 225238 # minizip: Clean up the code
 kpick 225239 # zlib: crc optimization for arm64
 
@@ -1329,6 +1331,8 @@ kpick 238142 # StatusBarSignalPolicy: Fix missing provisioned in equals and copy
 kpick 238463 # Move high touch sensitivity and hovering to InputService
 #kpick 238486 # PhoneWindowManager: Migrate to vendor.lineage.touch
 #kpick 238517 # InputMethodManagerService: Convert to vendor.lineage.touch
+kpick 238703 # Reenable home button wake.
+kpick 238696 # fonts: Build different fonts.xml if EXCLUDE_SERIF_FONTS is true
 
 # frameworks/native
 kpick 224530 # Triple the available egl function pointers available to a process for certain Nvidia devices.
@@ -1357,10 +1361,13 @@ kpick 225155 # Broadcom BT: Add support fm/bt via v4l2.
 # hardware/libhardware_legacy
 
 # hardware/interfaces
+kpick 238694 # Configstore: Don't override LOCAL_CFLAGS
 
 # hardware/lineage/interfaces
 kpick 223374 # interfaces: Add 2.0 livedisplay interfaces
 kpick 223410 # interfaces: Add touch HIDL interface definitions
+kpick 238583 # interfaces: Add trust 1.0 HAL
+kpick 238585 # trust: create service
 
 # hardware/lineage/lineagehw
 
@@ -1477,6 +1484,7 @@ kpick 221756 # StatusBarSettings: Hide battery preference category based on icon
 kpick 229389 # Trust: enforce vendor security patch level check
 kpick 237741 # parts: add dark mode on low battery toggle
 #kpick 238485 # LineageParts: Migrate to vendor.lineage.touch
+kpick 238702 # StatusBarSettings: Hide network traffic settings if device has a notch
 
 # packages/apps/ManagedProvisoning
 
