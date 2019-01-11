@@ -1468,7 +1468,6 @@ kpick 225265 # Add Storage preference (1/2)
 # packages/apps/Gallery2
 
 # packages/apps/Jelly
-kpick 237479 # Jelly: use white nav bar
 
 # packages/apps/KeyChain
 
