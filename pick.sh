@@ -1331,7 +1331,7 @@ kpick 238463 # Move high touch sensitivity and hovering to InputService
 #kpick 238517 # InputMethodManagerService: Convert to vendor.lineage.touch
 kpick 238601 # base: add Trust usb restrictor
 kpick 238696 # fonts: Build different fonts.xml if EXCLUDE_SERIF_FONTS is true
-kpick 238703 # Reenable home button wake.
+kpick 238703 # Add the home-key to the KeyEvent.isWakeKey-function, so it can be used to wakeup the device.
 kpick 238806 # Fix SystemUI FC after disabling navbar and unlocking the phone
 
 # frameworks/native
