@@ -1187,12 +1187,11 @@ kpick 234754 # Add define for O_TMPFILE
 #kpick 233821
 
 # bionic
-kpick 225463 # bionic: Let popen and system fall back to /sbin/sh
+kpick 238738 # bionic: Prefer /sbin/sh if it exists
 
 # boot/recovery
 kpick 231718 # recovery: Declare a soong namespace
 kpick 234952 # uncrypt: write permission for f2fs_pin_file
-kpick 237829 # recovery: Allow custom bootloader msg offset in block misc
 
 # build/make
 kpick 222742 # build: Use project pathmap for recovery
@@ -1245,7 +1244,6 @@ kpick 238107 # Revert "sepolicy: Allow wcnss_service to set wlan.driver properti
 kpick 238108 # sepolicy: Add vendor wifi prop in vendor partition access
 kpick 238109 # wcnss-service: Add sepolicy to access "vendor.wlan." property
 kpick 238125 # Use new vendor_wifi_prop label for bluetooth_loader
-kpick 238636 # sepolicy: Add type vendor_display_prop for legacy devices
 
 # development
 kpick 232511 # make-key: Enforce PBEv1 password-protected signing keys
@@ -1331,8 +1329,10 @@ kpick 238142 # StatusBarSignalPolicy: Fix missing provisioned in equals and copy
 kpick 238463 # Move high touch sensitivity and hovering to InputService
 #kpick 238486 # PhoneWindowManager: Migrate to vendor.lineage.touch
 #kpick 238517 # InputMethodManagerService: Convert to vendor.lineage.touch
-kpick 238703 # Reenable home button wake.
+kpick 238601 # base: add Trust usb restrictor
 kpick 238696 # fonts: Build different fonts.xml if EXCLUDE_SERIF_FONTS is true
+kpick 238703 # Reenable home button wake.
+kpick 238806 # Fix SystemUI FC after disabling navbar and unlocking the phone
 
 # frameworks/native
 kpick 224530 # Triple the available egl function pointers available to a process for certain Nvidia devices.
@@ -1445,6 +1445,8 @@ kpick 237075 # lineage-sdk: Remove useless logic on database upgrading
 kpick 237740 # sdk: add dark mode on low battery toggle
 kpick 237895 # TelephonyExtUtils: Set timeout for (de)activating provision
 #kpick 238484 # lineage-sdk: Migrate to vendor.lineage.touch
+kpick 238604 # sdk: add Trust usb restrictor
+kpick 238712 # sdk: Trust: Return TRUST_FEATURE_LEVEL_BAD on encryption inactive
 
 # packages/apps/Bluetooth
 kpick 229311 # Assume optional codecs are supported if were supported previously
@@ -1484,7 +1486,9 @@ kpick 221756 # StatusBarSettings: Hide battery preference category based on icon
 kpick 229389 # Trust: enforce vendor security patch level check
 kpick 237741 # parts: add dark mode on low battery toggle
 #kpick 238485 # LineageParts: Migrate to vendor.lineage.touch
+kpick 238603 # parts: add Trust usb restrictor
 kpick 238702 # StatusBarSettings: Hide network traffic settings if device has a notch
+kpick 238713 # LineageParts: Trust: Fix encryption status for legacy devices
 
 # packages/apps/ManagedProvisoning
 
@@ -1528,7 +1532,6 @@ kpick 238595 # Snap: Yet Another String Improvement
 # packages/apps/Traceur
 
 # packages/apps/Trebuchet
-kpick 238596 # Trebuchet: Correct icon settings string
 
 # packages/apps/TvSettings
 
@@ -1553,7 +1556,6 @@ kpick 234612 # Updater: Implement auto update check interval preference
 kpick 233635 # Phone ringtone setting for Multi SIM device
 
 # packages/services/Telephony
-kpick 236522 # Fix carrier config option not hidden on a CDMA phone
 
 # system/bt
 kpick 229125 # Increase maximum Bluetooth SBC codec bitpool and bitrate values
@@ -1594,7 +1596,6 @@ kpick 235258 # Allow fsck_untrusted to getattr block_device
 kpick 237125 # sepolicy: Allow netd to load modules
 
 # system/timezone
-kpick 237954 # Add python3 support for tools
 
 # system/tool/aidl
 kpick 223133 # AIDL: Add option to generate No-Op methods
@@ -1627,7 +1628,6 @@ kpick 237209 # lineage: Set default ringtone for second SIM
 kpick 237270 # extract_utils: introduce -k (kang mode) option
 kpick 237352 # qcom: Mark some gralloc bits as valid
 kpick 237830 # soong_config: Add BOOTLOADER_MESSAGE_OFFSET
-kpick 238057 # config: Add Deskclock to power whitelist
 kpick 238118 # extract_utils: be compatible with system-as-root layouts
 kpick 238128 # extract_utils: tentative simplification of fixup scripts
 
