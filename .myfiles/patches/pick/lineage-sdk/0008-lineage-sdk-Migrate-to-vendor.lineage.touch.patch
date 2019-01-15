@@ -1,0 +1,477 @@
+From 25ca33749952c6013a5f22685307d4128746e074 Mon Sep 17 00:00:00 2001
+From: Luca Stefani <luca.stefani.ge1@gmail.com>
+Date: Tue, 8 Jan 2019 18:46:42 +0100
+Subject: [PATCH 08/11] lineage-sdk: Migrate to vendor.lineage.touch
+
+Change-Id: Icd134266cacdf6040597af091fdb223ece8ac551
+---
+ api/lineage_current.txt                       | 15 ----
+ .../internal/LineageHardwareService.java      | 58 --------------
+ .../hardware/ILineageHardwareService.aidl     |  4 -
+ .../hardware/LineageHardwareManager.java      | 54 -------------
+ .../hardware/TouchscreenGesture.aidl          | 20 -----
+ .../hardware/TouchscreenGesture.java          | 78 -------------------
+ .../tests/hardware/LineageHardwareTest.java   |  9 ---
+ 7 files changed, 238 deletions(-)
+ delete mode 100644 sdk/src/java/lineageos/hardware/TouchscreenGesture.aidl
+ delete mode 100644 sdk/src/java/lineageos/hardware/TouchscreenGesture.java
+
+diff --git a/api/lineage_current.txt b/api/lineage_current.txt
+index cb4b518..e4e41ac 100644
+--- a/api/lineage_current.txt
++++ b/api/lineage_current.txt
+@@ -198,7 +198,6 @@ package lineageos.hardware {
+     method public java.util.List<android.util.Range<java.lang.Float>> getPictureAdjustmentRanges();
+     method public java.lang.String getSerialNumber();
+     method public int getSupportedFeatures();
+-    method public lineageos.hardware.TouchscreenGesture[] getTouchscreenGestures();
+     method public int getVibratorDefaultIntensity();
+     method public int getVibratorIntensity();
+     method public int getVibratorMaxIntensity();
+@@ -213,7 +212,6 @@ package lineageos.hardware {
+     method public deprecated boolean setDisplayGammaCalibration(int, int[]);
+     method public boolean setDisplayMode(lineageos.hardware.DisplayMode, boolean);
+     method public boolean setPictureAdjustment(lineageos.hardware.HSIC);
+-    method public boolean setTouchscreenGestureEnabled(lineageos.hardware.TouchscreenGesture, boolean);
+     method public boolean setVibratorIntensity(int);
+     field public static final int FEATURE_ADAPTIVE_BACKLIGHT = 1; // 0x1
+     field public static final int FEATURE_AUTO_CONTRAST = 4096; // 0x1000
+@@ -222,15 +220,11 @@ package lineageos.hardware {
+     field public static final int FEATURE_DISPLAY_COLOR_CALIBRATION = 4; // 0x4
+     field public static final int FEATURE_DISPLAY_GAMMA_CALIBRATION = 8; // 0x8
+     field public static final int FEATURE_DISPLAY_MODES = 8192; // 0x2000
+-    field public static final int FEATURE_HIGH_TOUCH_SENSITIVITY = 16; // 0x10
+-    field public static final int FEATURE_KEY_DISABLE = 32; // 0x20
+     field public static final int FEATURE_LONG_TERM_ORBITS = 64; // 0x40
+     field public static final int FEATURE_PICTURE_ADJUSTMENT = 262144; // 0x40000
+     field public static final int FEATURE_READING_ENHANCEMENT = 16384; // 0x4000
+     field public static final int FEATURE_SERIAL_NUMBER = 128; // 0x80
+     field public static final int FEATURE_SUNLIGHT_ENHANCEMENT = 256; // 0x100
+-    field public static final int FEATURE_TOUCHSCREEN_GESTURES = 524288; // 0x80000
+-    field public static final int FEATURE_TOUCH_HOVERING = 2048; // 0x800
+     field public static final int FEATURE_VIBRATOR = 1024; // 0x400
+   }
+ 
+@@ -301,15 +295,6 @@ package lineageos.hardware {
+     field public static final int MODE_OUTDOOR = 3; // 0x3
+   }
+ 
+-  public class TouchscreenGesture implements android.os.Parcelable {
+-    ctor public TouchscreenGesture(int, java.lang.String, int);
+-    method public int describeContents();
+-    method public void writeToParcel(android.os.Parcel, int);
+-    field public final int id;
+-    field public final int keycode;
+-    field public final java.lang.String name;
+-  }
+-
+ }
+ 
+ package lineageos.os {
+diff --git a/lineage/lib/main/java/org/lineageos/platform/internal/LineageHardwareService.java b/lineage/lib/main/java/org/lineageos/platform/internal/LineageHardwareService.java
+index 9d55748..ecc974f 100644
+--- a/lineage/lib/main/java/org/lineageos/platform/internal/LineageHardwareService.java
++++ b/lineage/lib/main/java/org/lineageos/platform/internal/LineageHardwareService.java
+@@ -33,7 +33,6 @@ import lineageos.hardware.ILineageHardwareService;
+ import lineageos.hardware.LineageHardwareManager;
+ import lineageos.hardware.DisplayMode;
+ import lineageos.hardware.HSIC;
+-import lineageos.hardware.TouchscreenGesture;
+ 
+ import java.io.File;
+ import java.util.ArrayList;
+@@ -47,15 +46,11 @@ import org.lineageos.hardware.ColorEnhancement;
+ import org.lineageos.hardware.DisplayColorCalibration;
+ import org.lineageos.hardware.DisplayGammaCalibration;
+ import org.lineageos.hardware.DisplayModeControl;
+-import org.lineageos.hardware.HighTouchSensitivity;
+-import org.lineageos.hardware.KeyDisabler;
+ import org.lineageos.hardware.LongTermOrbits;
+ import org.lineageos.hardware.PictureAdjustment;
+ import org.lineageos.hardware.ReadingEnhancement;
+ import org.lineageos.hardware.SerialNumber;
+ import org.lineageos.hardware.SunlightEnhancement;
+-import org.lineageos.hardware.TouchscreenGestures;
+-import org.lineageos.hardware.TouchscreenHovering;
+ import org.lineageos.hardware.VibratorHW;
+ 
+ /** @hide */
+@@ -109,9 +104,6 @@ public class LineageHardwareService extends LineageSystemService {
+         public HSIC getDefaultPictureAdjustment();
+         public boolean setPictureAdjustment(HSIC hsic);
+         public List<Range<Float>> getPictureAdjustmentRanges();
+-
+-        public TouchscreenGesture[] getTouchscreenGestures();
+-        public boolean setTouchscreenGestureEnabled(TouchscreenGesture gesture, boolean state);
+     }
+ 
+     private class LegacyLineageHardware implements LineageHardwareInterface {
+@@ -127,10 +119,6 @@ public class LineageHardwareService extends LineageSystemService {
+                 mSupportedFeatures |= LineageHardwareManager.FEATURE_DISPLAY_COLOR_CALIBRATION;
+             if (DisplayGammaCalibration.isSupported())
+                 mSupportedFeatures |= LineageHardwareManager.FEATURE_DISPLAY_GAMMA_CALIBRATION;
+-            if (HighTouchSensitivity.isSupported())
+-                mSupportedFeatures |= LineageHardwareManager.FEATURE_HIGH_TOUCH_SENSITIVITY;
+-            if (KeyDisabler.isSupported())
+-                mSupportedFeatures |= LineageHardwareManager.FEATURE_KEY_DISABLE;
+             if (LongTermOrbits.isSupported())
+                 mSupportedFeatures |= LineageHardwareManager.FEATURE_LONG_TERM_ORBITS;
+             if (ReadingEnhancement.isSupported())
+@@ -141,8 +129,6 @@ public class LineageHardwareService extends LineageSystemService {
+                 mSupportedFeatures |= LineageHardwareManager.FEATURE_SUNLIGHT_ENHANCEMENT;
+             if (VibratorHW.isSupported())
+                 mSupportedFeatures |= LineageHardwareManager.FEATURE_VIBRATOR;
+-            if (TouchscreenHovering.isSupported())
+-                mSupportedFeatures |= LineageHardwareManager.FEATURE_TOUCH_HOVERING;
+             if (AutoContrast.isSupported())
+                 mSupportedFeatures |= LineageHardwareManager.FEATURE_AUTO_CONTRAST;
+             if (DisplayModeControl.isSupported())
+@@ -151,8 +137,6 @@ public class LineageHardwareService extends LineageSystemService {
+                 mSupportedFeatures |= LineageHardwareManager.FEATURE_COLOR_BALANCE;
+             if (PictureAdjustment.isSupported())
+                 mSupportedFeatures |= LineageHardwareManager.FEATURE_PICTURE_ADJUSTMENT;
+-            if (TouchscreenGestures.isSupported())
+-                mSupportedFeatures |= LineageHardwareManager.FEATURE_TOUCHSCREEN_GESTURES;
+         }
+ 
+         public int getSupportedFeatures() {
+@@ -167,16 +151,10 @@ public class LineageHardwareService extends LineageSystemService {
+                     return AutoContrast.isEnabled();
+                 case LineageHardwareManager.FEATURE_COLOR_ENHANCEMENT:
+                     return ColorEnhancement.isEnabled();
+-                case LineageHardwareManager.FEATURE_HIGH_TOUCH_SENSITIVITY:
+-                    return HighTouchSensitivity.isEnabled();
+-                case LineageHardwareManager.FEATURE_KEY_DISABLE:
+-                    return KeyDisabler.isActive();
+                 case LineageHardwareManager.FEATURE_READING_ENHANCEMENT:
+                     return ReadingEnhancement.isEnabled();
+                 case LineageHardwareManager.FEATURE_SUNLIGHT_ENHANCEMENT:
+                     return SunlightEnhancement.isEnabled();
+-                case LineageHardwareManager.FEATURE_TOUCH_HOVERING:
+-                    return TouchscreenHovering.isEnabled();
+                 default:
+                     Log.e(TAG, "feature " + feature + " is not a boolean feature");
+                     return false;
+@@ -191,16 +169,10 @@ public class LineageHardwareService extends LineageSystemService {
+                     return AutoContrast.setEnabled(enable);
+                 case LineageHardwareManager.FEATURE_COLOR_ENHANCEMENT:
+                     return ColorEnhancement.setEnabled(enable);
+-                case LineageHardwareManager.FEATURE_HIGH_TOUCH_SENSITIVITY:
+-                    return HighTouchSensitivity.setEnabled(enable);
+-                case LineageHardwareManager.FEATURE_KEY_DISABLE:
+-                    return KeyDisabler.setActive(enable);
+                 case LineageHardwareManager.FEATURE_READING_ENHANCEMENT:
+                     return ReadingEnhancement.setEnabled(enable);
+                 case LineageHardwareManager.FEATURE_SUNLIGHT_ENHANCEMENT:
+                     return SunlightEnhancement.setEnabled(enable);
+-                case LineageHardwareManager.FEATURE_TOUCH_HOVERING:
+-                    return TouchscreenHovering.setEnabled(enable);
+                 default:
+                     Log.e(TAG, "feature " + feature + " is not a boolean feature");
+                     return false;
+@@ -367,14 +339,6 @@ public class LineageHardwareService extends LineageSystemService {
+                     PictureAdjustment.getContrastRange(),
+                     PictureAdjustment.getSaturationThresholdRange());
+         }
+-
+-        public TouchscreenGesture[] getTouchscreenGestures() {
+-            return TouchscreenGestures.getAvailableGestures();
+-        }
+-
+-        public boolean setTouchscreenGestureEnabled(TouchscreenGesture gesture, boolean state) {
+-            return TouchscreenGestures.setGestureEnabled(gesture, state);
+-        }
+     }
+ 
+     private LineageHardwareInterface getImpl(Context context) {
+@@ -755,27 +719,5 @@ public class LineageHardwareService extends LineageSystemService {
+             }
+             return new float[10];
+         }
+-
+-        @Override
+-        public TouchscreenGesture[] getTouchscreenGestures() {
+-            mContext.enforceCallingOrSelfPermission(
+-                    lineageos.platform.Manifest.permission.HARDWARE_ABSTRACTION_ACCESS, null);
+-            if (!isSupported(LineageHardwareManager.FEATURE_TOUCHSCREEN_GESTURES)) {
+-                Log.e(TAG, "Touchscreen gestures are not supported");
+-                return null;
+-            }
+-            return mLineageHwImpl.getTouchscreenGestures();
+-        }
+-
+-        @Override
+-        public boolean setTouchscreenGestureEnabled(TouchscreenGesture gesture, boolean state) {
+-            mContext.enforceCallingOrSelfPermission(
+-                    lineageos.platform.Manifest.permission.HARDWARE_ABSTRACTION_ACCESS, null);
+-            if (!isSupported(LineageHardwareManager.FEATURE_TOUCHSCREEN_GESTURES)) {
+-                Log.e(TAG, "Touchscreen gestures are not supported");
+-                return false;
+-            }
+-            return mLineageHwImpl.setTouchscreenGestureEnabled(gesture, state);
+-        }
+     };
+ }
+diff --git a/sdk/src/java/lineageos/hardware/ILineageHardwareService.aidl b/sdk/src/java/lineageos/hardware/ILineageHardwareService.aidl
+index a223cff..fa190d4 100644
+--- a/sdk/src/java/lineageos/hardware/ILineageHardwareService.aidl
++++ b/sdk/src/java/lineageos/hardware/ILineageHardwareService.aidl
+@@ -19,7 +19,6 @@ package lineageos.hardware;
+ 
+ import lineageos.hardware.DisplayMode;
+ import lineageos.hardware.HSIC;
+-import lineageos.hardware.TouchscreenGesture;
+ 
+ /** @hide */
+ interface ILineageHardwareService {
+@@ -62,7 +61,4 @@ interface ILineageHardwareService {
+     HSIC getDefaultPictureAdjustment();
+     boolean setPictureAdjustment(in HSIC hsic);
+     float[] getPictureAdjustmentRanges();
+-
+-    TouchscreenGesture[] getTouchscreenGestures();
+-    boolean setTouchscreenGestureEnabled(in TouchscreenGesture gesture, boolean state);
+ }
+diff --git a/sdk/src/java/lineageos/hardware/LineageHardwareManager.java b/sdk/src/java/lineageos/hardware/LineageHardwareManager.java
+index 4b625df..50e725a 100644
+--- a/sdk/src/java/lineageos/hardware/LineageHardwareManager.java
++++ b/sdk/src/java/lineageos/hardware/LineageHardwareManager.java
+@@ -80,18 +80,6 @@ public final class LineageHardwareManager {
+     @VisibleForTesting
+     public static final int FEATURE_DISPLAY_GAMMA_CALIBRATION = 0x8;
+ 
+-    /**
+-     * High touch sensitivity for touch panels
+-     */
+-    @VisibleForTesting
+-    public static final int FEATURE_HIGH_TOUCH_SENSITIVITY = 0x10;
+-
+-    /**
+-     * Hardware navigation key disablement
+-     */
+-    @VisibleForTesting
+-    public static final int FEATURE_KEY_DISABLE = 0x20;
+-
+     /**
+      * Long term orbits (LTO)
+      */
+@@ -116,12 +104,6 @@ public final class LineageHardwareManager {
+     @VisibleForTesting
+     public static final int FEATURE_VIBRATOR = 0x400;
+ 
+-    /**
+-     * Touchscreen hovering
+-     */
+-    @VisibleForTesting
+-    public static final int FEATURE_TOUCH_HOVERING = 0x800;
+-
+     /**
+      * Auto contrast
+      */
+@@ -152,20 +134,11 @@ public final class LineageHardwareManager {
+     @VisibleForTesting
+     public static final int FEATURE_PICTURE_ADJUSTMENT = 0x40000;
+ 
+-    /**
+-     * Touchscreen gesture
+-     */
+-    @VisibleForTesting
+-    public static final int FEATURE_TOUCHSCREEN_GESTURES = 0x80000;
+-
+     private static final List<Integer> BOOLEAN_FEATURES = Arrays.asList(
+         FEATURE_ADAPTIVE_BACKLIGHT,
+         FEATURE_AUTO_CONTRAST,
+         FEATURE_COLOR_ENHANCEMENT,
+-        FEATURE_HIGH_TOUCH_SENSITIVITY,
+-        FEATURE_KEY_DISABLE,
+         FEATURE_SUNLIGHT_ENHANCEMENT,
+-        FEATURE_TOUCH_HOVERING,
+         FEATURE_READING_ENHANCEMENT
+     );
+ 
+@@ -848,31 +821,4 @@ public final class LineageHardwareManager {
+         }
+         return true;
+     }
+-
+-    /**
+-     * @return a list of available touchscreen gestures on the devices
+-     */
+-    public TouchscreenGesture[] getTouchscreenGestures() {
+-        try {
+-            if (checkService()) {
+-                return sService.getTouchscreenGestures();
+-            }
+-        } catch (RemoteException e) {
+-        }
+-        return null;
+-    }
+-
+-    /**
+-     * @return true if setting the activation status was successful
+-     */
+-    public boolean setTouchscreenGestureEnabled(
+-            TouchscreenGesture gesture, boolean state) {
+-        try {
+-            if (checkService()) {
+-                return sService.setTouchscreenGestureEnabled(gesture, state);
+-            }
+-        } catch (RemoteException e) {
+-        }
+-        return false;
+-    }
+ }
+diff --git a/sdk/src/java/lineageos/hardware/TouchscreenGesture.aidl b/sdk/src/java/lineageos/hardware/TouchscreenGesture.aidl
+deleted file mode 100644
+index b968673..0000000
+--- a/sdk/src/java/lineageos/hardware/TouchscreenGesture.aidl
++++ /dev/null
+@@ -1,20 +0,0 @@
+-/*
+- * Copyright (C) 2016 The CyanogenMod Project
+- *               2017 The LineageOS Project
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License");
+- * you may not use this file except in compliance with the License.
+- * You may obtain a copy of the License at
+- *
+- *      http://www.apache.org/licenses/LICENSE-2.0
+- *
+- * Unless required by applicable law or agreed to in writing, software
+- * distributed under the License is distributed on an "AS IS" BASIS,
+- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+- * See the License for the specific language governing permissions and
+- * limitations under the License.
+- */
+-
+-package lineageos.hardware;
+-
+-parcelable TouchscreenGesture;
+diff --git a/sdk/src/java/lineageos/hardware/TouchscreenGesture.java b/sdk/src/java/lineageos/hardware/TouchscreenGesture.java
+deleted file mode 100644
+index 2af933f..0000000
+--- a/sdk/src/java/lineageos/hardware/TouchscreenGesture.java
++++ /dev/null
+@@ -1,78 +0,0 @@
+-/*
+- * Copyright (C) 2016 The CyanogenMod Project
+- *               2017 The LineageOS Project
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License");
+- * you may not use this file except in compliance with the License.
+- * You may obtain a copy of the License at
+- *
+- *      http://www.apache.org/licenses/LICENSE-2.0
+- *
+- * Unless required by applicable law or agreed to in writing, software
+- * distributed under the License is distributed on an "AS IS" BASIS,
+- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+- * See the License for the specific language governing permissions and
+- * limitations under the License.
+- */
+-
+-package lineageos.hardware;
+-
+-import android.os.Parcel;
+-import android.os.Parcelable;
+-
+-/**
+- * Touchscreen gestures API
+- *
+- * A device may implement several touchscreen gestures for use while
+- * the display is turned off, such as drawing alphabets and shapes.
+- * These gestures can be interpreted by userspace to activate certain
+- * actions and launch certain apps, such as to skip music tracks,
+- * to turn on the flashlight, or to launch the camera app.
+- *
+- * This *should always* be supported by the hardware directly.
+- * A lot of recent touch controllers have a firmware option for this.
+- *
+- * This API provides support for enumerating the gestures
+- * supported by the touchscreen.
+- *
+- * A TouchscreenGesture is referenced by it's identifier and carries an
+- * associated name (up to the user to translate this value).
+- */
+-public class TouchscreenGesture implements Parcelable {
+-
+-    public final int id;
+-    public final String name;
+-    public final int keycode;
+-
+-    public TouchscreenGesture(int id, String name, int keycode) {
+-        this.id = id;
+-        this.name = name;
+-        this.keycode = keycode;
+-    }
+-
+-    @Override
+-    public int describeContents() {
+-        return 0;
+-    }
+-
+-    @Override
+-    public void writeToParcel(Parcel parcel, int flags) {
+-        parcel.writeInt(id);
+-        parcel.writeString(name);
+-        parcel.writeInt(keycode);
+-    }
+-
+-    /** @hide */
+-    public static final Parcelable.Creator<TouchscreenGesture> CREATOR =
+-            new Parcelable.Creator<TouchscreenGesture>() {
+-
+-        public TouchscreenGesture createFromParcel(Parcel in) {
+-            return new TouchscreenGesture(in.readInt(), in.readString(), in.readInt());
+-        }
+-
+-        @Override
+-        public TouchscreenGesture[] newArray(int size) {
+-            return new TouchscreenGesture[size];
+-        }
+-    };
+-}
+diff --git a/tests/src/org/lineageos/tests/hardware/LineageHardwareTest.java b/tests/src/org/lineageos/tests/hardware/LineageHardwareTest.java
+index 6d24747..acf62a7 100644
+--- a/tests/src/org/lineageos/tests/hardware/LineageHardwareTest.java
++++ b/tests/src/org/lineageos/tests/hardware/LineageHardwareTest.java
+@@ -39,12 +39,9 @@ public class LineageHardwareTest extends TestActivity {
+             LineageHardwareManager.FEATURE_COLOR_ENHANCEMENT,
+             LineageHardwareManager.FEATURE_DISPLAY_COLOR_CALIBRATION,
+             LineageHardwareManager.FEATURE_DISPLAY_GAMMA_CALIBRATION,
+-            LineageHardwareManager.FEATURE_HIGH_TOUCH_SENSITIVITY,
+-            LineageHardwareManager.FEATURE_KEY_DISABLE,
+             LineageHardwareManager.FEATURE_LONG_TERM_ORBITS,
+             LineageHardwareManager.FEATURE_SERIAL_NUMBER,
+             LineageHardwareManager.FEATURE_SUNLIGHT_ENHANCEMENT,
+-            LineageHardwareManager.FEATURE_TOUCH_HOVERING,
+             LineageHardwareManager.FEATURE_AUTO_CONTRAST,
+             LineageHardwareManager.FEATURE_DISPLAY_MODES,
+             LineageHardwareManager.FEATURE_PERSISTENT_STORAGE
+@@ -55,12 +52,9 @@ public class LineageHardwareTest extends TestActivity {
+             "FEATURE_COLOR_ENHANCEMENT",
+             "FEATURE_DISPLAY_COLOR_CALIBRATION",
+             "FEATURE_DISPLAY_GAMMA_CALIBRATION",
+-            "FEATURE_HIGH_TOUCH_SENSITIVITY",
+-            "FEATURE_KEY_DISABLE",
+             "FEATURE_LONG_TERM_ORBITS",
+             "FEATURE_SERIAL_NUMBER",
+             "FEATURE_SUNLIGHT_ENHANCEMENT",
+-            "FEATURE_TOUCH_HOVERING",
+             "FEATURE_AUTO_CONTRAST",
+             "FEATURE_DISPLAY_MODES",
+             "FEATURE_PERSISTENT_STORAGE"
+@@ -69,10 +63,7 @@ public class LineageHardwareTest extends TestActivity {
+     private static final List<Integer> BOOLEAN_FEATURES = Arrays.asList(
+             LineageHardwareManager.FEATURE_ADAPTIVE_BACKLIGHT,
+             LineageHardwareManager.FEATURE_COLOR_ENHANCEMENT,
+-            LineageHardwareManager.FEATURE_HIGH_TOUCH_SENSITIVITY,
+-            LineageHardwareManager.FEATURE_KEY_DISABLE,
+             LineageHardwareManager.FEATURE_SUNLIGHT_ENHANCEMENT,
+-            LineageHardwareManager.FEATURE_TOUCH_HOVERING,
+             LineageHardwareManager.FEATURE_AUTO_CONTRAST
+     );
+ 
+-- 
+2.17.1
+

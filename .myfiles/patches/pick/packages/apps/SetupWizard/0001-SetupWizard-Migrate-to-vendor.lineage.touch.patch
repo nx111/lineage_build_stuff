@@ -1,0 +1,120 @@
+From 4519c67276fb8c7d543d675eb8d7a7adf106c032 Mon Sep 17 00:00:00 2001
+From: Luca Stefani <luca.stefani.ge1@gmail.com>
+Date: Tue, 8 Jan 2019 18:55:04 +0100
+Subject: [PATCH] SetupWizard: Migrate to vendor.lineage.touch
+
+Change-Id: Ib9eda6fbffb4badc7ad6fea31c9a372317b5d95d
+---
+ Android.mk                                    |  3 +++
+ .../lineageos/setupwizard/FinishActivity.java | 15 ++++++++----
+ .../setupwizard/LineageSettingsActivity.java  | 23 +++++++++----------
+ 3 files changed, 25 insertions(+), 16 deletions(-)
+
+diff --git a/Android.mk b/Android.mk
+index 3a5b621..fad9b70 100644
+--- a/Android.mk
++++ b/Android.mk
+@@ -26,6 +26,9 @@ LOCAL_STATIC_JAVA_LIBRARIES := \
+     libphonenumber \
+     org.lineageos.platform.internal
+ 
++LOCAL_STATIC_JAVA_LIBRARIES += \
++    vendor.lineage.touch-V1.0-java
++
+ LOCAL_JAVA_LIBRARIES := \
+     telephony-common
+ 
+diff --git a/src/org/lineageos/setupwizard/FinishActivity.java b/src/org/lineageos/setupwizard/FinishActivity.java
+index 858d3bb..519d219 100644
+--- a/src/org/lineageos/setupwizard/FinishActivity.java
++++ b/src/org/lineageos/setupwizard/FinishActivity.java
+@@ -34,6 +34,7 @@ import android.graphics.Bitmap;
+ import android.graphics.Point;
+ import android.os.Bundle;
+ import android.os.Handler;
++import android.os.RemoteException;
+ import android.os.UserHandle;
+ import android.preference.PreferenceManager;
+ import android.view.View;
+@@ -42,10 +43,13 @@ import android.widget.ImageView;
+ 
+ import com.android.setupwizardlib.util.WizardManagerHelper;
+ 
++import lineageos.providers.LineageSettings;
++
+ import org.lineageos.setupwizard.util.EnableAccessibilityController;
+ 
+-import lineageos.hardware.LineageHardwareManager;
+-import lineageos.providers.LineageSettings;
++import vendor.lineage.touch.V1_0.IKeyDisabler;
++
++import java.util.NoSuchElementException;
+ 
+ public class FinishActivity extends BaseSetupWizardActivity {
+ 
+@@ -213,8 +217,11 @@ public class FinishActivity extends BaseSetupWizardActivity {
+ 
+         LineageSettings.System.putIntForUser(context.getContentResolver(),
+                 LineageSettings.System.FORCE_SHOW_NAVBAR, enabled ? 1 : 0, UserHandle.USER_CURRENT);
+-        LineageHardwareManager hardware = LineageHardwareManager.getInstance(context);
+-        hardware.set(LineageHardwareManager.FEATURE_KEY_DISABLE, enabled);
++        try {
++            IKeyDisabler keyDisabler = IKeyDisabler.getService(true /* retry */);
++            keyDisabler.setEnabled(enabled);
++        } catch (NoSuchElementException | RemoteException e) {
++        }
+ 
+         /* Save/restore button timeouts to disable them in softkey mode */
+         if (enabled) {
+diff --git a/src/org/lineageos/setupwizard/LineageSettingsActivity.java b/src/org/lineageos/setupwizard/LineageSettingsActivity.java
+index d72d2e0..2298fcb 100644
+--- a/src/org/lineageos/setupwizard/LineageSettingsActivity.java
++++ b/src/org/lineageos/setupwizard/LineageSettingsActivity.java
+@@ -45,9 +45,12 @@ import com.android.setupwizardlib.util.WizardManagerHelper;
+ 
+ import org.lineageos.setupwizard.R;
+ 
+-import lineageos.hardware.LineageHardwareManager;
+ import lineageos.providers.LineageSettings;
+ 
++import vendor.lineage.touch.V1_0.IKeyDisabler;
++
++import java.util.NoSuchElementException;
++
+ public class LineageSettingsActivity extends BaseSetupWizardActivity {
+ 
+     public static final String TAG = LineageSettingsActivity.class.getSimpleName();
+@@ -126,10 +129,7 @@ public class LineageSettingsActivity extends BaseSetupWizardActivity {
+         navKeysRow.setOnClickListener(mNavKeysClickListener);
+         mNavKeys = (CheckBox) findViewById(R.id.nav_keys_checkbox);
+         mSupportsKeyDisabler = isKeyDisablerSupported(this);
+-        if (mSupportsKeyDisabler) {
+-            boolean navKeysDisabled = isKeyDisablerActive(this);
+-            mNavKeys.setChecked(navKeysDisabled);
+-        } else {
++        if (!mSupportsKeyDisabler) {
+             navKeysRow.setVisibility(View.GONE);
+         }
+ 
+@@ -213,12 +213,11 @@ public class LineageSettingsActivity extends BaseSetupWizardActivity {
+     }
+ 
+     private static boolean isKeyDisablerSupported(Context context) {
+-        final LineageHardwareManager hardware = LineageHardwareManager.getInstance(context);
+-        return hardware.isSupported(LineageHardwareManager.FEATURE_KEY_DISABLE);
+-    }
+-
+-    private static boolean isKeyDisablerActive(Context context) {
+-        final LineageHardwareManager hardware = LineageHardwareManager.getInstance(context);
+-        return hardware.get(LineageHardwareManager.FEATURE_KEY_DISABLE);
++        try {
++            IKeyDisabler keyDisabler = IKeyDisabler.getService(true /* retry */);
++            return true;
++        } catch (NoSuchElementException | RemoteException e) {
++            return false;
++        }
+     }
+ }
+-- 
+2.17.1
+

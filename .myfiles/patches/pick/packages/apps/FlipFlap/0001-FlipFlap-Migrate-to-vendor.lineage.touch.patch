@@ -1,0 +1,116 @@
+From 97dd38059730d5aa00bda9c19d4fcd1ae8f6b72b Mon Sep 17 00:00:00 2001
+From: Bruno Martins <bgcngm@gmail.com>
+Date: Sun, 13 Jan 2019 22:37:28 +0000
+Subject: [PATCH 1/2] FlipFlap: Migrate to vendor.lineage.touch
+
+Change-Id: I4b312d464ad9bb0017d6a879abd33a87b71f5fc3
+---
+ Android.mk                                      |  3 ++-
+ .../flipflap/FlipFlapSettingsFragment.java      |  2 +-
+ src/org/lineageos/flipflap/FlipFlapUtils.java   | 17 ++++++++++++-----
+ src/org/lineageos/flipflap/FlipFlapView.java    |  6 +++---
+ 4 files changed, 18 insertions(+), 10 deletions(-)
+
+diff --git a/Android.mk b/Android.mk
+index c10fbd2..4836f4f 100644
+--- a/Android.mk
++++ b/Android.mk
+@@ -13,7 +13,8 @@ LOCAL_STATIC_ANDROID_LIBRARIES := \
+     android-support-v7-recyclerview \
+ 
+ LOCAL_STATIC_JAVA_LIBRARIES := \
+-    org.lineageos.platform.internal
++    org.lineageos.platform.internal \
++    vendor.lineage.touch-V1.0-java
+ 
+ LOCAL_SRC_FILES := $(call all-java-files-under, src)
+ 
+diff --git a/src/org/lineageos/flipflap/FlipFlapSettingsFragment.java b/src/org/lineageos/flipflap/FlipFlapSettingsFragment.java
+index aabbed9..e4c7f57 100644
+--- a/src/org/lineageos/flipflap/FlipFlapSettingsFragment.java
++++ b/src/org/lineageos/flipflap/FlipFlapSettingsFragment.java
+@@ -105,7 +105,7 @@ public class FlipFlapSettingsFragment extends PreferenceFragment
+         if (!FlipFlapUtils.showsChargingStatus(cover)) {
+             getPreferenceScreen().removePreference(designCategory);
+         }
+-        if (!FlipFlapUtils.getHighTouchSensitivitySupported(getContext())) {
++        if (!FlipFlapUtils.getHighTouchSensitivitySupported()) {
+             behaviourCategory.removePreference(touchSensitivityPref);
+         }
+     }
+diff --git a/src/org/lineageos/flipflap/FlipFlapUtils.java b/src/org/lineageos/flipflap/FlipFlapUtils.java
+index 03bd9c6..da95253 100644
+--- a/src/org/lineageos/flipflap/FlipFlapUtils.java
++++ b/src/org/lineageos/flipflap/FlipFlapUtils.java
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright (c) 2017 The LineageOS Project
++ * Copyright (C) 2017-2019 The LineageOS Project
+  *
+  * This program is free software; you can redistribute it and/or
+  * modify it under the terms of the GNU General Public License
+@@ -22,11 +22,14 @@ package org.lineageos.flipflap;
+ 
+ import android.content.Context;
+ import android.content.SharedPreferences;
++import android.os.RemoteException;
+ import android.preference.PreferenceManager;
+ 
+ import com.android.internal.util.ArrayUtils;
+ 
+-import lineageos.hardware.LineageHardwareManager;
++import vendor.lineage.touch.V1_0.IGloveMode;
++
++import java.util.NoSuchElementException;
+ 
+ public class FlipFlapUtils {
+ 
+@@ -85,9 +88,13 @@ public class FlipFlapUtils {
+         return PreferenceManager.getDefaultSharedPreferences(context);
+     }
+ 
+-    public static boolean getHighTouchSensitivitySupported(Context context) {
+-        final LineageHardwareManager hardware = LineageHardwareManager.getInstance(context);
+-        return hardware.isSupported(LineageHardwareManager.FEATURE_HIGH_TOUCH_SENSITIVITY);
++    public static boolean getHighTouchSensitivitySupported() {
++        try {
++            IGloveMode gloveMode = IGloveMode.getService(true /* retry */);
++            return true;
++        } catch (NoSuchElementException | RemoteException e) {
++            return false;
++        }
+     }
+ 
+ }
+diff --git a/src/org/lineageos/flipflap/FlipFlapView.java b/src/org/lineageos/flipflap/FlipFlapView.java
+index 0ef5c02..207e757 100644
+--- a/src/org/lineageos/flipflap/FlipFlapView.java
++++ b/src/org/lineageos/flipflap/FlipFlapView.java
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright (c) 2017 The LineageOS Project
++ * Copyright (C) 2017-2019 The LineageOS Project
+  *
+  * This program is free software; you can redistribute it and/or
+  * modify it under the terms of the GNU General Public License
+@@ -419,7 +419,7 @@ public class FlipFlapView extends FrameLayout {
+ 
+     private void checkHighTouchSensitivity() {
+         if (shouldUseHighTouchSensitivity() &&
+-                FlipFlapUtils.getHighTouchSensitivitySupported(getContext())) {
++                FlipFlapUtils.getHighTouchSensitivitySupported()) {
+             mUserHighTouchState = LineageSettings.System.getInt(mContext.getContentResolver(),
+                     LineageSettings.System.HIGH_TOUCH_SENSITIVITY_ENABLE, 0);
+             LineageSettings.System.putInt(mContext.getContentResolver(),
+@@ -429,7 +429,7 @@ public class FlipFlapView extends FrameLayout {
+ 
+     private void restoreHighTouchSensitivity() {
+         if (shouldUseHighTouchSensitivity() &&
+-                FlipFlapUtils.getHighTouchSensitivitySupported(getContext())) {
++                FlipFlapUtils.getHighTouchSensitivitySupported()) {
+             LineageSettings.System.putInt(mContext.getContentResolver(),
+                     LineageSettings.System.HIGH_TOUCH_SENSITIVITY_ENABLE, mUserHighTouchState);
+         }
+-- 
+2.17.1
+

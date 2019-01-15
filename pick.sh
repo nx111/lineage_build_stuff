@@ -103,12 +103,13 @@ function patch_local()
                              first=0
                              echo  "  >> git am conflict, please resolv it, then press ENTER to continue,or press 's' skip it ..."
                              while ! git log -100 | grep "Change-Id: $changeid" >/dev/null 2>/dev/null; do
-                                 [ $first -ne 0 ] && echo "conflicts not resolved,please fix it,then press ENTER to continue,or press 's' skip it ..."
+                                 [ $first -ne 0 ] && echo "conflicts not resolved,please fix it,then press ENTER to continue,or press 's' skip it, 'd' drop it and delete it ..."
                                  first=1
                                  ch=$(sed q </dev/tty)
-                                 if [ "$ch" = "s" ]; then
+                                 if [ "$ch" = "s" -o "$ch" = "d" ]; then
                                     echo "skip it ..."
                                     git am --skip
+                                    [ "$ch" = "d" ] && rm $topdir/.myfiles/patches/$f
                                     break
                                   fi
                              done
@@ -537,12 +538,7 @@ function kpick()
     rm -f $logfile $errfile $change_number_list
 
     for op in $*; do
-        if [ -z "$changeNumber" ] && [[ $op =~ ^[0-9]+$ || $op =~ ^[0-9]+\/[0-9]+$ ]] && [ $(echo $op | cut -d/ -f1) -gt 1000 ]; then
-             changeNumber=$op
-        elif [[ "$op" =~ ^[[:digit:]]+\-[[:digit:]]+$ ]]; then
-             query="$query $op"
-             iRange=$op
-        elif  [ "$op" = "-t" -o "$op" = "--topic" ]; then
+        if  [ "$op" = "-t" -o "$op" = "--topic" ]; then
              is_topic_op=1
              query="$query $op"
         elif [ "$op" = "-x" ]; then
@@ -562,6 +558,11 @@ function kpick()
              query="$query $op"
              iQuery=$op
              is_query_op=0
+        elif [ -z "$changeNumber" ] && [[ $op =~ ^[0-9]+$ || $op =~ ^[0-9]+\/[0-9]+$ ]] && [ $(echo $op | cut -d/ -f1) -gt 1000 ]; then
+             changeNumber=$op
+        elif [[ "$op" =~ ^[[:digit:]]+\-[[:digit:]]+$ ]]; then
+             query="$query $op"
+             iRange=$op
         elif [ $is_path_op -eq 1 ]; then
              query="$query $op"
              vars="$vars $op"
@@ -600,13 +601,13 @@ function kpick()
     if [ ! -z $target_script -a -f $target_script ] && [ $extract_changeset -eq 1 ]; then
         if [ "$iQuery" != "" ]; then
              mLine=$(grep -n "^[[:space:]]*kpick.*$iQuery" $target_script | cut -d: -f1 )
-             eval sed -e \"s/\\\([[:space:]]*kpick.*$iQuery\\\)/#\\1/\" -i $target_script
+             eval "sed -e \"s|\\([[:space:]]*kpick.*$iQuery\\)|#\\1|\" -i $target_script"
         elif [ "$iTopic" != "" ]; then
              mLine=$(grep -n "^[[:space:]]*kpick.*$iTopic" $target_script | cut -d: -f1 )
-             eval sed -e \"s/\\\([[:space:]]*kpick.*$iTopic\\\)/#\\1/\" -i $target_script
+             eval "sed -e \"s|\\([[:space:]]*kpick.*$iTopic\\)|#\\1|\" -i $target_script"
         elif [ "$iRange" != "" ]; then
              mLine=$(grep -n "^[[:space:]]*kpick.*$iRange" $target_script | cut -d: -f1 )
-             eval sed -e \"s/\\\([[:space:]]*kpick.*$iRange\\\)/#\\1/\" -i $target_script
+             eval "sed -e \"s/\\([[:space:]]*kpick.*$iRange\\)|#\\1/\" -i $target_script"
         fi
         if [ $? -ne 0 ]; then
             if [ "${BASH_SOURCE[0]}" = "$runfrom" ]; then
@@ -622,8 +623,15 @@ function kpick()
     while read line; do
         number=$(echo $line | sed -e "s/  / /g")
         if [ ! -z $target_script -a -f $target_script ] && [ $extract_changeset -eq 1 ]; then
-           sed "${mLine}akpick $number" -i  $target_script || exit -1
-           mLine=$(grep -n "^[[:space:]]*kpick $number" $target_script | cut -d: -f1 )
+           sed "${mLine}akpick $number" -i  $target_script 
+           if [ $? -ne 0 ]; then
+               if [ "${BASH_SOURCE[0]}" != "$runfrom" ]; then
+                    return $?
+               else
+                    exit -1
+               fi
+           fi
+           mLine=$(grep -n "^[[:space:]]*kpick $number" $target_script | head -n 1 |  cut -d: -f1 )
         fi
     done < $change_number_list
 
@@ -679,9 +687,8 @@ function kpick_action()
     if  [ "$changeNumber" = "" ]; then
          return -1
     fi
-
     # calculate check Count
-    LANG=en_US repopick --test $changeNumber > $logfile 2>$errfile
+    LANG=en_US repopick --test $changeNumber >$logfile 2>$errfile
     if [ -f $errfile ] && ! grep -q "error: unrecognized arguments: --test" $errfile; then
           if grep -q "\--> Project path:" $logfile; then
               local project_dir=$(grep "\--> Project path:" $logfile | cut -d: -f2 | sed  "s/ //g")
@@ -889,7 +896,8 @@ function kpick_action()
           fi
         fi
     elif [ -f $logfile ]; then
-        [ "$project" = "" ] && project=$(cat $logfile | grep "Project path" | cut -d: -f2 | sed "s/ //g")
+        [ "$project" = "" ] && project=$(cat $logfile | grep "Project path" | cut -d: -f2)
+        [ "$project" = "" ] || project=$(echo $project | sed "s/ //g")
         ref=$(grep "\['git fetch" $logfile | cut -d, -f2 | cut -d\' -f2)
         if [ "$project" = "android" -a $op_keep_manifests -ne 1 ]; then
              cd $topdir/android
@@ -916,7 +924,7 @@ function kpick_action()
                     target_script=$script_file.new
                fi
                [ ! -z $target_script -a -f $target_script ] && \
-                  eval  sed -E \"/[[:space:]]*kpick[[:space:]]\{1,\}$changeNumber[[:space:]]*.*/d\" -i $target_script
+                  eval  "sed \"/[[:space:]]*kpick[[:space:]]\\{1,\\}$changeNumber[[:space:]]*.*/d\" -i $target_script"
             elif grep -q -E "Change status is ABANDONED." $logfile; then
                [ ! -f $script_file.tmp -a "${BASH_SOURCE[0]}" = "$runfrom" ] && cp $script_file $script_file.tmp
                if [ -f $script_file.tmp ]; then
@@ -925,7 +933,7 @@ function kpick_action()
                     target_script=$script_file.new
                fi
                [ ! -z $target_script -a -f $target_script ] && \
-               eval  sed -E \"/[[:space:]]*kpick[[:space:]]\{1,\}$changeNumber[[:space:]]*.*/d\" -i $target_script
+               eval  "sed  \"/[[:space:]]*kpick[[:space:]]\\{1,\\}$changeNumber[[:space:]]*.*/d\" -i $target_script"
             elif grep -q -E "Change $changeNumber not found, skipping" $logfile; then
                [ ! -f $script_file.tmp -a "${BASH_SOURCE[0]}" = "$runfrom" ] && cp $script_file $script_file.tmp
                if [ -f $script_file.tmp ]; then
@@ -934,7 +942,7 @@ function kpick_action()
                     target_script=$script_file.new
                fi
                [ ! -z $target_script -a -f $target_script ] && \
-               eval  sed -E \"/[[:space:]]*kpick[[:space:]]\{1,\}$changeNumber[[:space:]]*.*/d\" -i $target_script
+               eval  "sed \"/[[:space:]]*kpick[[:space:]]\\{1,\\}$changeNumber[[:space:]]*.*/d\" -i $target_script"
             elif [ -f $errfile ] && grep -q "could not determine the project path for" $errfile; then
                [ ! -f $script_file.tmp -a "${BASH_SOURCE[0]}" = "$runfrom" ] && cp $script_file $script_file.tmp
                if [ -f $script_file.tmp ]; then
@@ -943,12 +951,12 @@ function kpick_action()
                     target_script=$script_file.new
                fi
                [ ! -z $target_script -a -f $target_script ] && \
-               eval  sed -E \"/[[:space:]]*kpick[[:space:]]\{1,\}$changeNumber[[:space:]]*.*/d\" -i $target_script
+               eval  "sed \"s|^[[:space:]]*\\(kpick[[:space:]]\\{1,\\}$changeNumber[[:space:]]*.*\\)|# \1|\" -i $target_script"
             fi
          fi
     fi
 
-    if [ "$changeNumber" != "" -a "$subject" != "" ]; then
+    if [ "$changeNumber" != "" -a "$subject" != "" -a "$project" != "" ]; then
            [ ! -f $script_file.tmp -a "${BASH_SOURCE[0]}" = "$runfrom" ] && cp $script_file $script_file.tmp
            if [ -f $script_file.tmp ]; then
                 target_script=$script_file.tmp
@@ -1212,10 +1220,12 @@ kpick 238586 # common: Label vendor.camera.aux.packageblacklist
 kpick 238587 # common: Allow appdomain to get vendor_camera_prop
 kpick 238588 # common: Allow system_server to get vendor_camera_prop
 kpick 237203 # selinux: snap: allow to read vendor camera props
-kpick 237348 # lineage: Address perf HAL denial with boost enabled
 kpick 236446 # common: Improve label of I/O sched tuning nodes
-kpick 234544 # sepol: Allow Settings to read ro.vendor.build.security_patch
+kpick 234544 # sepolicy: Allow Settings to read ro.vendor.build.security_patch
 kpick 238602 # sepolicies: add Trust hal
+kpick 239080 # sepolicy: Allow recovery update_engine to setexec backuptool
+kpick 239081 # sepolicy: Label vendor.camera.aux. list properties
+kpick 239138 # common: Add vendor.lineage.touch rules
 
 # device/qcom/sepolicy
 kpick 228572 # sepolicy: Allow system_server to 'read' qti_debugfs
@@ -1233,17 +1243,13 @@ kpick 230230 # common: fix sensors denial
 kpick 230231 # common: grant cnss-daemon access to sysfs_net
 kpick 230232 # common: grant netmgrd access to sysfs_net nodes
 kpick 230233 # common: allow sensors HIDL HAL to access /dev/sensors
-kpick 230234 # common: allow wifi HIDL HAL to read tombstones
 kpick 230235 # common: grant DRM HIDL HAL ownership access to /data/{misc,vendor}/media/
-kpick 230236 # common: label /sys/devices/virtual/graphics as sysfs_graphics
-kpick 230238 # common: create proc_kernel_sched domain to restrict perf hal access
-kpick 230239 # common: allow uevent to control sysfs_mmc_host via vold
-kpick 238105 # sepolicy: Fix label of qpnp-charger sysfs
 kpick 238106 # legacy: Label /sys/devices/mdp.0/caps
 kpick 238107 # Revert "sepolicy: Allow wcnss_service to set wlan.driver properties"
 kpick 238108 # sepolicy: Add vendor wifi prop in vendor partition access
 kpick 238109 # wcnss-service: Add sepolicy to access "vendor.wlan." property
 kpick 238125 # Use new vendor_wifi_prop label for bluetooth_loader
+kpick 239068 # common: label /sys/devices/virtual/net/lo as sysfs_net
 
 # development
 kpick 232511 # make-key: Enforce PBEv1 password-protected signing keys
@@ -1269,6 +1275,7 @@ kpick 225228 # gptfdisk: Build static lib for recovery fstools
 # kpick 237955
 
 # external/libtar
+# kpick 238626
 
 # external/perfetto
 kpick -f 223413 # perfetto_cmd: Resolve missing O_CREAT mode
@@ -1327,11 +1334,10 @@ kpick 237172 # WifiDisplayController: handle preexisting p2p connection status
 kpick 237743 # systemui: add dark mode on low battery toggle
 kpick 238142 # StatusBarSignalPolicy: Fix missing provisioned in equals and copyTo
 kpick 238463 # Move high touch sensitivity and hovering to InputService
-#kpick 238486 # PhoneWindowManager: Migrate to vendor.lineage.touch
-#kpick 238517 # InputMethodManagerService: Convert to vendor.lineage.touch
+kpick 238486 # PhoneWindowManager: Migrate to vendor.lineage.touch
+kpick 238517 # InputMethodManagerService: Convert to vendor.lineage.touch
 kpick 238601 # base: add Trust usb restrictor
 kpick 238696 # fonts: Build different fonts.xml if EXCLUDE_SERIF_FONTS is true
-kpick 238703 # Add the home-key to the KeyEvent.isWakeKey-function, so it can be used to wakeup the device.
 kpick 238806 # Fix SystemUI FC after disabling navbar and unlocking the phone
 
 # frameworks/native
@@ -1370,6 +1376,7 @@ kpick 238583 # interfaces: Add trust 1.0 HAL
 kpick 238585 # trust: create service
 
 # hardware/lineage/lineagehw
+kpick 239043 # lineagehw: Migrate to vendor.lineage.touch
 
 # hardware/nxp/nfc
 
@@ -1413,10 +1420,6 @@ kpick 231895 # VNDK: Added required libs
 kpick 231896 # power: Turn on/off display in SDM439
 kpick 231897 # power: qcom: powerHal for sdm439 and sdm429
 kpick 231898 # Power: Naming convention change
-kpick 237769 # power: Add specific powerhal for msm8937
-kpick 237770 # power: msm8937: Update power profile settings
-kpick 237002 # power: Handle launch and interaction hints for perf HAL platforms
-kpick 237771 # power: Build with with BOARD_VNDK_VERSION
 
 # hardware/qcom/thermal
 
@@ -1444,9 +1447,10 @@ kpick 237074 # lineage-sdk: Handle database downgrading
 kpick 237075 # lineage-sdk: Remove useless logic on database upgrading
 kpick 237740 # sdk: add dark mode on low battery toggle
 kpick 237895 # TelephonyExtUtils: Set timeout for (de)activating provision
-#kpick 238484 # lineage-sdk: Migrate to vendor.lineage.touch
+kpick 238484 # lineage-sdk: Migrate to vendor.lineage.touch
 kpick 238604 # sdk: add Trust usb restrictor
 kpick 238712 # sdk: Trust: Return TRUST_FEATURE_LEVEL_BAD on encryption inactive
+kpick 239098 # ConstraintsHelper: Support removing LineageHW HIDL prefs
 
 # packages/apps/Bluetooth
 kpick 229311 # Assume optional codecs are supported if were supported previously
@@ -1474,6 +1478,10 @@ kpick 225265 # Add Storage preference (1/2)
 
 # packages/apps/ExactCalculator
 
+# packages/apps/FlipFlap
+kpick 239071 # FlipFlap: Migrate to vendor.lineage.touch
+kpick 239079 # FlipFlap: Match Pie settings UI
+
 # packages/apps/Gallery2
 
 # packages/apps/Jelly
@@ -1485,7 +1493,7 @@ kpick 227930 # LineageParts: Bring back and refactor battery icon options
 kpick 221756 # StatusBarSettings: Hide battery preference category based on icon visibility
 kpick 229389 # Trust: enforce vendor security patch level check
 kpick 237741 # parts: add dark mode on low battery toggle
-#kpick 238485 # LineageParts: Migrate to vendor.lineage.touch
+kpick 238485 # LineageParts: Migrate to vendor.lineage.touch
 kpick 238603 # parts: add Trust usb restrictor
 kpick 238702 # StatusBarSettings: Hide network traffic settings if device has a notch
 kpick 238713 # LineageParts: Trust: Fix encryption status for legacy devices
@@ -1519,7 +1527,7 @@ kpick 237183 # settings: hide appendix of app list for power usage.
 # packages/apps/SettingsIntelligence
 
 # packages/apps/SetupWizard
-#kpick 238488 # SetupWizard: Migrate to vendor.lineage.touch
+kpick 238488 # SetupWizard: Migrate to vendor.lineage.touch
 
 # packages/apps/Snap
 kpick 237244 # Snap: make support for bokeh mode configurable per device
@@ -1558,8 +1566,9 @@ kpick 233635 # Phone ringtone setting for Multi SIM device
 # packages/services/Telephony
 
 # system/bt
-kpick 229125 # Increase maximum Bluetooth SBC codec bitpool and bitrate values
+kpick 239040 # Increase maximum Bluetooth SBC codec bitrate for SBC HD
 kpick 229313 # Explicit SBC Dual Channel (SBC HD) support
+kpick 229314 # Allow using alternative (higher) SBC HD bitrates with a property
 
 # system/core
 kpick -f 227110 # init: I hate safety net
@@ -1588,7 +1597,6 @@ kpick 232794 # NetD : Allow passing in interface names for vpn app restriction
 
 # system/sepolicy
 kpick 230613 # Allow webview_zygote to read /dev/ion
-kpick 234884 # Allow init to write to /proc/cpu/alignment
 kpick 234886 # Allow init to chmod/chown /proc/slabinfo
 kpick 234987 # Use LOCAL_ADDITIONAL_M4DEFS for file_contexts
 kpick 235196 # Allow dnsmasq to getattr netd unix_stream_socket
@@ -1655,4 +1663,4 @@ fi
    mv $topdir/.myfiles/patches/rr-cache/rr-cache.tmp $topdir/.myfiles/patches/rr-cache/rr-cache.list
 rrCache backup # backup rr-cache
 rm -f $tmp_picks_info_file
-
+rm -f $topdir/.pick_tmp_* $topdir/.change_number_list_*
