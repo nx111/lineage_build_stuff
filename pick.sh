@@ -607,7 +607,7 @@ function kpick()
              eval "sed -e \"s|\\([[:space:]]*kpick.*$iTopic\\)|#\\1|\" -i $target_script"
         elif [ "$iRange" != "" ]; then
              mLine=$(grep -n "^[[:space:]]*kpick.*$iRange" $target_script | cut -d: -f1 )
-             eval "sed -e \"s/\\([[:space:]]*kpick.*$iRange\\)|#\\1/\" -i $target_script"
+             eval "sed -e \"s|\\([[:space:]]*kpick.*$iRange\\)|#\\1|\" -i $target_script"
         fi
         if [ $? -ne 0 ]; then
             if [ "${BASH_SOURCE[0]}" = "$runfrom" ]; then
@@ -1206,6 +1206,7 @@ kpick 222742 # build: Use project pathmap for recovery
 kpick 222760 # Add LOCAL_AIDL_FLAGS
 kpick 227111 # releasetools: Store the build.prop file in the OTA zip
 kpick 238610 # build: only write build_number.txt when BUILD_NUMBER has changed
+kpick 239212 # Stop using the `files` target for droidcore
 
 # build/soong
 kpick 222648 # Allow providing flex and bison binaries
@@ -1339,6 +1340,7 @@ kpick 238517 # InputMethodManagerService: Convert to vendor.lineage.touch
 kpick 238601 # base: add Trust usb restrictor
 kpick 238696 # fonts: Build different fonts.xml if EXCLUDE_SERIF_FONTS is true
 kpick 238806 # Fix SystemUI FC after disabling navbar and unlocking the phone
+kpick 239179 # Camera: Force HAL1 for predefined package list.
 
 # frameworks/native
 kpick 224530 # Triple the available egl function pointers available to a process for certain Nvidia devices.
@@ -1597,7 +1599,6 @@ kpick 232794 # NetD : Allow passing in interface names for vpn app restriction
 
 # system/sepolicy
 kpick 230613 # Allow webview_zygote to read /dev/ion
-kpick 234886 # Allow init to chmod/chown /proc/slabinfo
 kpick 234987 # Use LOCAL_ADDITIONAL_M4DEFS for file_contexts
 kpick 235196 # Allow dnsmasq to getattr netd unix_stream_socket
 kpick 235258 # Allow fsck_untrusted to getattr block_device
