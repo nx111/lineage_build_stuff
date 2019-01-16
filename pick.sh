@@ -1251,6 +1251,11 @@ kpick 238108 # sepolicy: Add vendor wifi prop in vendor partition access
 kpick 238109 # wcnss-service: Add sepolicy to access "vendor.wlan." property
 kpick 238125 # Use new vendor_wifi_prop label for bluetooth_loader
 kpick 239068 # common: label /sys/devices/virtual/net/lo as sysfs_net
+kpick 239241 # sepolicy: Label more qpnp-charger sysfs as sysfs_battery_supply
+kpick 239242 # sepolicy: Label sysfs_disk_stat nodes
+kpick 239243 # sepolicy: Label sysfs_android_usb
+#kpick 239244 # sepolicy: Label msm8974 sysfs_ssr_toggle
+#kpick 239245 # sepolicy: Label msm8974 lcd-backlight sysfs
 
 # development
 kpick 232511 # make-key: Enforce PBEv1 password-protected signing keys
@@ -1271,6 +1276,7 @@ kpick 225227 # f2fs-tools: Rename utf conversion symbols
 
 # external/gptfdisk
 kpick 225228 # gptfdisk: Build static lib for recovery fstools
+kpick 239254 # gptfdisk: Provide sgdisk_read for direct reads of the partition table
 
 # external/icu
 # kpick 237955
@@ -1334,7 +1340,6 @@ kpick 237171 # WiFiDisplayController: Defer the P2P Initialization from its cons
 kpick 237172 # WifiDisplayController: handle preexisting p2p connection status
 kpick 237743 # systemui: add dark mode on low battery toggle
 kpick 238142 # StatusBarSignalPolicy: Fix missing provisioned in equals and copyTo
-kpick 238463 # Move high touch sensitivity and hovering to InputService
 kpick 238486 # PhoneWindowManager: Migrate to vendor.lineage.touch
 kpick 238517 # InputMethodManagerService: Convert to vendor.lineage.touch
 kpick 238601 # base: add Trust usb restrictor
@@ -1482,7 +1487,6 @@ kpick 225265 # Add Storage preference (1/2)
 
 # packages/apps/FlipFlap
 kpick 239071 # FlipFlap: Migrate to vendor.lineage.touch
-kpick 239079 # FlipFlap: Match Pie settings UI
 
 # packages/apps/Gallery2
 
