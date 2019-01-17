@@ -1232,7 +1232,6 @@ kpick 239138 # common: Add vendor.lineage.touch rules
 kpick 228572 # sepolicy: Allow system_server to 'read' qti_debugfs
 kpick 228573 # sepolicy: Add libsdm-disp-vndapis and libsdmutils to SP-HALs
 kpick 228578 # sepolicy: rules to allow camera daemon access to app buffer
-kpick 228580 # hal_gnss_default: Do not log udp socket failures
 kpick 228582 # sepolicy: qti_init_shell needs to read dir too
 kpick 238500 # sepolicy: Allow all apps to read vendor camera props
 kpick 237204 # selinux: move vendor_camera_prop to device/lineage/sepolicy
@@ -1252,10 +1251,10 @@ kpick 238109 # wcnss-service: Add sepolicy to access "vendor.wlan." property
 kpick 238125 # Use new vendor_wifi_prop label for bluetooth_loader
 kpick 239068 # common: label /sys/devices/virtual/net/lo as sysfs_net
 kpick 239241 # sepolicy: Label more qpnp-charger sysfs as sysfs_battery_supply
-kpick 239242 # sepolicy: Label sysfs_disk_stat nodes
-kpick 239243 # sepolicy: Label sysfs_android_usb
-#kpick 239244 # sepolicy: Label msm8974 sysfs_ssr_toggle
-#kpick 239245 # sepolicy: Label msm8974 lcd-backlight sysfs
+#kpick 239242 # sepolicy: Label sysfs_disk_stat nodes
+#kpick 239243 # sepolicy: Label sysfs_android_usb
+kpick 239244 # sepolicy: Label msm8974 sysfs_ssr_toggle
+kpick 239245 # sepolicy: Label msm8974 lcd-backlight sysfs
 
 # development
 kpick 232511 # make-key: Enforce PBEv1 password-protected signing keys
@@ -1312,7 +1311,6 @@ kpick 224266 # SystemUI: Add Lineage statusbar item holder
 kpick 224267 # SystemUI: Network Traffic [1/3]
 kpick 224513 # SystemUI: Disable config_keyguardUserSwitcher on sw600dp
 kpick 226358 # settings: Allow accessing LineageSettings via settings command
-kpick 221716 # Where's my circle battery, dude?
 kpick 229307 # Add CHANNEL_MODE_DUAL_CHANNEL constant
 kpick 229308 # Add Dual Channel into Bluetooth Audio Channel Mode developer options menu
 kpick 229309 # Allow SBC as HD audio codec in Bluetooth device configuration
@@ -1447,7 +1445,6 @@ kpick 238519 # samsung: Add dummy lineagehw HIDL interfaces for vendor.lineage.t
 kpick 238520 # hidl: touch: Add binderized service implementation
 
 # lineage-sdk
-kpick 227931 # lineagesdk: Refactor battery icon options
 kpick 230272 # sdk: Remove VOLUME_KEYS_CONTROL_RING_STREAM
 kpick 230284 # Revert "[3/3] cmsdk: add burnIn protection setting"
 kpick 237074 # lineage-sdk: Handle database downgrading
@@ -1458,6 +1455,7 @@ kpick 238484 # lineage-sdk: Migrate to vendor.lineage.touch
 kpick 238604 # sdk: add Trust usb restrictor
 kpick 238712 # sdk: Trust: Return TRUST_FEATURE_LEVEL_BAD on encryption inactive
 kpick 239098 # ConstraintsHelper: Support removing LineageHW HIDL prefs
+kpick 239278 # PerformanceManager: Allow wait for MPCTL to start on boot
 
 # packages/apps/Bluetooth
 kpick 229311 # Assume optional codecs are supported if were supported previously
@@ -1495,13 +1493,9 @@ kpick 239071 # FlipFlap: Migrate to vendor.lineage.touch
 # packages/apps/KeyChain
 
 # packages/apps/LineageParts
-kpick 227930 # LineageParts: Bring back and refactor battery icon options
-kpick 221756 # StatusBarSettings: Hide battery preference category based on icon visibility
-kpick 229389 # Trust: enforce vendor security patch level check
 kpick 237741 # parts: add dark mode on low battery toggle
 kpick 238485 # LineageParts: Migrate to vendor.lineage.touch
 kpick 238603 # parts: add Trust usb restrictor
-kpick 238702 # StatusBarSettings: Hide network traffic settings if device has a notch
 kpick 238713 # LineageParts: Trust: Fix encryption status for legacy devices
 
 # packages/apps/ManagedProvisoning
@@ -1578,11 +1572,11 @@ kpick 229314 # Allow using alternative (higher) SBC HD bitrates with a property
 
 # system/core
 kpick -f 227110 # init: I hate safety net
-kpick 234584 # adb: Rework adb root
 kpick 231716 # init: Always use libbootloader_message from bootable/recovery namespace
 kpick 234860 # init: add install_keyring for TWRP FBE decrypt
 kpick 237140 # healthd: add Battery Moto Mod Support
 kpick 237141 # core: update battery mod support for P
+kpick 239277 # reboot: only run fsck when detecting filesystem inconsistency
 
 # system/extras
 
@@ -1631,7 +1625,6 @@ kpick 229589 # lineage: Automatically set soong namespace when setting project p
 kpick 229590 # lineage: Move qcom pathmap setting into "BoardConfig"
 kpick 231291 # repopick: add hashtag support
 kpick 231981 # HWComposer: HWC2: allow SkipValidate to be force disabled
-kpick 232663 # overlay: Hide the option to show battery percentage
 kpick 234011 # lineage: Add media_codecs_ddp for AC3 audio
 # kpick 234859 # repopick: cmp() is not available in Python 3, define it manually **((picked at first))**
 kpick 237116 # extract_utils: remove the "set +e" calls during extract()
