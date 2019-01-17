@@ -1221,7 +1221,6 @@ kpick 238586 # common: Label vendor.camera.aux.packageblacklist
 kpick 238587 # common: Allow appdomain to get vendor_camera_prop
 kpick 238588 # common: Allow system_server to get vendor_camera_prop
 kpick 237203 # selinux: snap: allow to read vendor camera props
-kpick 236446 # common: Improve label of I/O sched tuning nodes
 kpick 234544 # sepolicy: Allow Settings to read ro.vendor.build.security_patch
 kpick 238602 # sepolicies: add Trust hal
 kpick 239080 # sepolicy: Allow recovery update_engine to setexec backuptool
@@ -1255,6 +1254,10 @@ kpick 239241 # sepolicy: Label more qpnp-charger sysfs as sysfs_battery_supply
 #kpick 239243 # sepolicy: Label sysfs_android_usb
 kpick 239244 # sepolicy: Label msm8974 sysfs_ssr_toggle
 kpick 239245 # sepolicy: Label msm8974 lcd-backlight sysfs
+#kpick 239281 # sepolicy: Label msm8974 leds-qpnp sysfs
+#kpick 239282 # sepolicy: Label msm_pm sysfs as sysfs_msm_perf
+kpick 239283 # sepolicy: Label msm8974 devfreq sysfs
+kpick 239284 # sepolicy: Allow mm-qcamerad use appdomain fd
 
 # development
 kpick 232511 # make-key: Enforce PBEv1 password-protected signing keys
@@ -1372,7 +1375,6 @@ kpick 225155 # Broadcom BT: Add support fm/bt via v4l2.
 # hardware/libhardware_legacy
 
 # hardware/interfaces
-kpick 238694 # Configstore: Don't override LOCAL_CFLAGS
 
 # hardware/lineage/interfaces
 kpick 223374 # interfaces: Add 2.0 livedisplay interfaces
@@ -1486,6 +1488,9 @@ kpick 225265 # Add Storage preference (1/2)
 # packages/apps/FlipFlap
 kpick 239071 # FlipFlap: Migrate to vendor.lineage.touch
 
+# packages/apps/FMRadio
+kpick 239290 # FMRadio: build with AAPT2
+
 # packages/apps/Gallery2
 
 # packages/apps/Jelly
@@ -1545,6 +1550,7 @@ kpick 238595 # Snap: Yet Another String Improvement
 
 # packages/apps/Updater
 kpick 234612 # Updater: Implement auto update check interval preference
+kpick 239289 # Updater: put identical code to helper method
 
 # packages/inputmethods/LatinIME
 
@@ -1627,15 +1633,11 @@ kpick 231291 # repopick: add hashtag support
 kpick 231981 # HWComposer: HWC2: allow SkipValidate to be force disabled
 kpick 234011 # lineage: Add media_codecs_ddp for AC3 audio
 # kpick 234859 # repopick: cmp() is not available in Python 3, define it manually **((picked at first))**
-kpick 237116 # extract_utils: remove the "set +e" calls during extract()
 kpick 237117 # extract_utils: drop the "/system/" prefix from prints of blob names
 kpick 237118 # extract_utils: introduce support for executing blob fixup scripts
 kpick 237209 # lineage: Set default ringtone for second SIM
-kpick 237270 # extract_utils: introduce -k (kang mode) option
 kpick 237352 # qcom: Mark some gralloc bits as valid
 kpick 237830 # soong_config: Add BOOTLOADER_MESSAGE_OFFSET
-kpick 238118 # extract_utils: be compatible with system-as-root layouts
-kpick 238128 # extract_utils: tentative simplification of fixup scripts
 
 # vendor/qcom/opensource/cryptfs_hw
 
