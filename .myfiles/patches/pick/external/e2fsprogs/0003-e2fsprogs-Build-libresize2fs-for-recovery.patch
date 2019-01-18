@@ -1,50 +1,15 @@
-From 2f639dcee89da3dcb265d97bd24152c3587cf23f Mon Sep 17 00:00:00 2001
+From 26dcbe5c475dd6abd279cfaab13609cd7f9f1785 Mon Sep 17 00:00:00 2001
 From: Tom Marshall <tdm.code@gmail.com>
 Date: Mon, 19 Mar 2018 19:51:16 +0100
-Subject: [PATCH 3/4] e2fsprogs: Build libresize2fs for recovery
+Subject: [PATCH 3/5] e2fsprogs: Build libresize2fs for recovery
 
- * Add libresize2fs target.
- * Remove resource tracking stuff, it is not useful and conflicts
-   with libe2fsck.
+ * Add libresize2fs.
 
 Change-Id: I88cd83f0df21593ca4382cd7c7f8f086efa99d07
 ---
- e2fsck/e2fsck.h         |  2 --
- e2fsck/extents.c        |  4 ++++
- resize/Android.bp       | 15 +++++++++++++++
- resize/resize2fs.c      |  2 ++
- resize/resize2fs.h      |  7 +++++++
- resize/resource_track.c |  3 ++-
- 6 files changed, 30 insertions(+), 3 deletions(-)
+ resize/Android.bp | 15 +++++++++++++++
+ 1 file changed, 15 insertions(+)
 
-diff --git a/e2fsck/e2fsck.h b/e2fsck/e2fsck.h
-index f3568106..807e382a 100644
---- a/e2fsck/e2fsck.h
-+++ b/e2fsck/e2fsck.h
-@@ -133,8 +133,6 @@ struct dx_dirblock_info {
- #define DX_FLAG_FIRST		4
- #define DX_FLAG_LAST		8
- 
--#define RESOURCE_TRACK
--
- #ifdef RESOURCE_TRACK
- /*
-  * This structure is used for keeping track of how much resources have
-diff --git a/e2fsck/extents.c b/e2fsck/extents.c
-index 7f28e6dd..c093d69e 100644
---- a/e2fsck/extents.c
-+++ b/e2fsck/extents.c
-@@ -358,6 +358,10 @@ static void rebuild_extents(e2fsck_t ctx, const char *pass_name, int pr_header)
- 	ext2_ino_t		ino = 0;
- 	errcode_t		retval;
- 
-+#ifndef RESOURCE_TRACK
-+	(void)pass_name; /* unused */
-+#endif
-+
- 	if (!ext2fs_has_feature_extents(ctx->fs->super) ||
- 	    !ext2fs_test_valid(ctx->fs) ||
- 	    ctx->invalid_bitmaps) {
 diff --git a/resize/Android.bp b/resize/Android.bp
 index d55e24c2..caf767bb 100644
 --- a/resize/Android.bp
@@ -68,76 +33,6 @@ index d55e24c2..caf767bb 100644
 +    cflags: ["-W", "-Wall", "-Wno-macro-redefined", "-Dmain=resize2fs_main"],
 +    include_dirs: ["external/e2fsprogs/lib"],
 +}
-diff --git a/resize/resize2fs.c b/resize/resize2fs.c
-index 8f6d95e7..e33e7378 100644
---- a/resize/resize2fs.c
-+++ b/resize/resize2fs.c
-@@ -101,7 +101,9 @@ errcode_t resize_fs(ext2_filsys fs, blk64_t *new_size, int flags,
- {
- 	ext2_resize_t	rfs;
- 	errcode_t	retval;
-+#ifdef RESOURCE_TRACK
- 	struct resource_track	rtrack, overall_track;
-+#endif
- 
- 	/*
- 	 * Create the data structure
-diff --git a/resize/resize2fs.h b/resize/resize2fs.h
-index 829fcd8e..71851301 100644
---- a/resize/resize2fs.h
-+++ b/resize/resize2fs.h
-@@ -85,6 +85,7 @@ typedef struct ext2_sim_progress *ext2_sim_progmeter;
- #define RESIZE_ENABLE_64BIT		0x0400
- #define RESIZE_DISABLE_64BIT		0x0800
- 
-+#ifdef RESOURCE_TRACK
- /*
-  * This structure is used for keeping track of how much resources have
-  * been used for a particular resize2fs pass.
-@@ -98,6 +99,7 @@ struct resource_track {
- 	unsigned long long bytes_read;
- 	unsigned long long bytes_written;
- };
-+#endif
- 
- /*
-  * The core state structure for the ext2 resizer
-@@ -170,12 +172,17 @@ extern char *program_name;
- extern errcode_t online_resize_fs(ext2_filsys fs, const char *mtpt,
- 				  blk64_t *new_size, int flags);
- 
-+#ifdef RESOURCE_TRACK
- /* resource_track.c */
- extern void init_resource_track(struct resource_track *track, const char *desc,
- 				io_channel channel);
- extern void print_resource_track(ext2_resize_t rfs,
- 				 struct resource_track *track,
- 				 io_channel channel);
-+#else
-+#define print_resource_track(track, desc, channel) do { } while (0)
-+#define init_resource_track(rfs, track, channel) do { } while (0)
-+#endif
- 
- /* sim_progress.c */
- extern errcode_t ext2fs_progress_init(ext2_sim_progmeter *ret_prog,
-diff --git a/resize/resource_track.c b/resize/resource_track.c
-index f0efe114..b3ebb44d 100644
---- a/resize/resource_track.c
-+++ b/resize/resource_track.c
-@@ -18,6 +18,7 @@
- #endif
- #include <sys/resource.h>
- 
-+#ifdef RESOURCE_TRACK
- void init_resource_track(struct resource_track *track, const char *desc,
- 			 io_channel channel)
- {
-@@ -125,4 +126,4 @@ void print_resource_track(ext2_resize_t rfs, struct resource_track *track,
- skip_io:
- 	fflush(stdout);
- }
--
-+#endif /* RESOURCE_TRACK */
 -- 
 2.17.1
 

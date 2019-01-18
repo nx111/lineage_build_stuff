@@ -1259,9 +1259,10 @@ kpick 239245 # sepolicy: Label msm8974 lcd-backlight sysfs
 #kpick 239283 # sepolicy: Label msm8974 devfreq sysfs
 kpick 239284 # sepolicy: Allow mm-qcamerad use appdomain fd
 kpick 239326 # sepolicy: Add permissions for LCD brightness control
+#kpick 239347 # sepolicy: Label sysfs_net
+
 
 # development
-kpick 232511 # make-key: Enforce PBEv1 password-protected signing keys
 
 # external/ant-wireless/ant_native
 kpick 227260 # Update bt vendor callbacks array in vfs code
@@ -1271,11 +1272,17 @@ kpick 227261 # Cast BT_VND_OP_ANT_USERIAL_{OPEN,CLOSE} to bt_vendor_opcode_t in 
 kpick 225215 # e2fsprogs: Prepare for adding and using static libs
 kpick 225216 # e2fsprogs: Build static libs for recovery
 kpick 225217 # e2fsprogs: Build libresize2fs for recovery
+kpick 239375 # Revert "resize: Make a target for standalone resize2fs_static binary"
+
+# external/exfat
+kpick 239376 # exfat: Add static libs for recovery
+kpick 239377 # exfat: Rename utf conversion symbols
 
 # external/f2fs-tools
 kpick 225225 # f2fs-tools: Add static libs for recovery
 kpick 225226 # f2fs-tools: Rename quota symbols
 kpick 225227 # f2fs-tools: Rename utf conversion symbols
+kpick 239378 # f2fs-tools: Add sload.f2fs support to libf2fs_fsck
 
 # external/gptfdisk
 kpick 225228 # gptfdisk: Build static lib for recovery fstools
@@ -1286,6 +1293,9 @@ kpick 239254 # gptfdisk: Provide sgdisk_read for direct reads of the partition t
 
 # external/libtar
 # kpick 238626
+
+# external/ntfs-3g
+kpick 239379 # ntfs-3g: Add static libs for recovery
 
 # external/perfetto
 kpick -f 223413 # perfetto_cmd: Resolve missing O_CREAT mode
@@ -1638,6 +1648,10 @@ kpick 237117 # extract_utils: drop the "/system/" prefix from prints of blob nam
 kpick 239303 # extract_utils: cleanup variable names and arguments passed to extract() function
 kpick 237270 # extract_utils: introduce -k (kang mode) option
 kpick 237118 # extract_utils: introduce support for executing blob fixup scripts
+kpick 239358 # extract_utils: template: use quotation marks and variable curly braces consistently
+kpick 239359 # extract_utils: template: make --section argument non-positional
+kpick 239360 # extract_utils: template: introduce kang mode
+kpick 237270 # extract_utils: introduce -k (kang mode) option
 kpick 237209 # lineage: Set default ringtone for second SIM
 kpick 237352 # qcom: Mark some gralloc bits as valid
 kpick 237830 # soong_config: Add BOOTLOADER_MESSAGE_OFFSET
