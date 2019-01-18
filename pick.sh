@@ -1256,8 +1256,9 @@ kpick 239244 # sepolicy: Label msm8974 sysfs_ssr_toggle
 kpick 239245 # sepolicy: Label msm8974 lcd-backlight sysfs
 #kpick 239281 # sepolicy: Label msm8974 leds-qpnp sysfs
 #kpick 239282 # sepolicy: Label msm_pm sysfs as sysfs_msm_perf
-kpick 239283 # sepolicy: Label msm8974 devfreq sysfs
+#kpick 239283 # sepolicy: Label msm8974 devfreq sysfs
 kpick 239284 # sepolicy: Allow mm-qcamerad use appdomain fd
+kpick 239326 # sepolicy: Add permissions for LCD brightness control
 
 # development
 kpick 232511 # make-key: Enforce PBEv1 password-protected signing keys
@@ -1634,6 +1635,8 @@ kpick 231981 # HWComposer: HWC2: allow SkipValidate to be force disabled
 kpick 234011 # lineage: Add media_codecs_ddp for AC3 audio
 # kpick 234859 # repopick: cmp() is not available in Python 3, define it manually **((picked at first))**
 kpick 237117 # extract_utils: drop the "/system/" prefix from prints of blob names
+kpick 239303 # extract_utils: cleanup variable names and arguments passed to extract() function
+kpick 237270 # extract_utils: introduce -k (kang mode) option
 kpick 237118 # extract_utils: introduce support for executing blob fixup scripts
 kpick 237209 # lineage: Set default ringtone for second SIM
 kpick 237352 # qcom: Mark some gralloc bits as valid
