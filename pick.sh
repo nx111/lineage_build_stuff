@@ -487,7 +487,9 @@ function get_active_rrcache()
     [ -d $topdir/$project ] || return -1
 
     local md5file=$2
-    local rr_cache_list="rr-cache.tmp"
+    local rr_cache_list="rr-cache.list"
+    [ "${BASH_SOURCE[0]}" = "$runfrom" -o -f ${rr_cache_list%.*}.tmp ] \
+        && rr_cache_list = ${rr_cache_list%.*}.tmp
     [ -f "$md5file" ] || return -1
     rrtmp=/tmp/$(echo $project | sed -e "s:/:_:g")_rr.tmp
     while read line; do
