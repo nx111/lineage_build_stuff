@@ -1,0 +1,71 @@
+From 3ba4050d974a54f13ea4dbc7064440c7d7185447 Mon Sep 17 00:00:00 2001
+From: Ruchi Kandoi <kandoiruchi@google.com>
+Date: Fri, 4 Nov 2016 09:56:58 -0700
+Subject: [PATCH 2/4] libmemtrack: Add open method for msm8974.memtrack
+
+Open method is used to dl-open the HAL for hidl.
+
+Test: HIDL successfully loads the HAL
+Bug: 31180823
+Change-Id: I1b5f24328488e3194fd6b42a92da33e6e9fca8bb
+Signed-off-by: Ruchi Kandoi <kandoiruchi@google.com>
+---
+ msm8084/libmemtrack/memtrack_msm.c | 34 +++++++++++++++++++++++++++++-
+ 1 file changed, 33 insertions(+), 1 deletion(-)
+
+diff --git a/msm8084/libmemtrack/memtrack_msm.c b/msm8084/libmemtrack/memtrack_msm.c
+index e369d5fd4..e8aa0aa29 100644
+--- a/msm8084/libmemtrack/memtrack_msm.c
++++ b/msm8084/libmemtrack/memtrack_msm.c
+@@ -15,6 +15,8 @@
+  */
+ 
+ #include <errno.h>
++#include <stdlib.h>
++#include <utils/Log.h>
+ 
+ #include <hardware/memtrack.h>
+ 
+@@ -42,8 +44,38 @@ int msm_memtrack_get_memory(const struct memtrack_module *module,
+     return -EINVAL;
+ }
+ 
++static int memtrack_open(__attribute__((unused)) const hw_module_t* module, const char* name,
++                    hw_device_t** device)
++{
++    ALOGD("%s: enter; name=%s", __FUNCTION__, name);
++    int retval = 0; /* 0 is ok; -1 is error */
++
++    if (strcmp(name, "memtrack") == 0) {
++        struct memtrack_module *dev = (struct memtrack_module *)calloc(1,
++                sizeof(struct memtrack_module));
++
++        if (dev) {
++            /* Common hw_device_t fields */
++            dev->common.tag = HARDWARE_DEVICE_TAG;
++            dev->common.module_api_version = MEMTRACK_MODULE_API_VERSION_0_1;
++            dev->common.hal_api_version = HARDWARE_HAL_API_VERSION;
++
++            dev->init = msm_memtrack_init;
++            dev->getMemory = msm_memtrack_get_memory;
++
++            *device = (hw_device_t*)dev;
++        } else
++            retval = -ENOMEM;
++    } else {
++        retval = -EINVAL;
++    }
++
++    ALOGD("%s: exit %d", __FUNCTION__, retval);
++    return retval;
++}
++
+ static struct hw_module_methods_t memtrack_module_methods = {
+-    .open = NULL,
++    .open = memtrack_open,
+ };
+ 
+ struct memtrack_module HAL_MODULE_INFO_SYM = {
+-- 
+2.17.1
+

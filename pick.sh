@@ -1301,6 +1301,12 @@ kpick 230642 # CameraService: Initialize CameraParameters for the cameras and ca
 kpick 231348 # camera: Allow to use boottime as timestamp reference
 kpick 234010 # libstagefright: omx: Add support for loading prebuilt ddp decoder lib
 kpick 237206 # audiopolicy: support extended feature in audiopolicymanager
+kpick 238927 # Revert "Removed unused class and its test"
+kpick 238928 # Revert "stagefright: remove Miracast sender code"
+kpick 238929 # libstagefright_wfd: libmediaplayer2: compilation fixes
+kpick 238931 # stagefright: Fix SurfaceMediaSource getting handle from wrong position issue
+kpick 238932 # stagefright: Fix buffer handle retrieval in signalBufferReturned
+kpick 239642 # libstagefright_wfd: video encoder does not actually release MediaBufferBase when done
 
 # frameworks/base
 kpick 224266 # SystemUI: Add Lineage statusbar item holder
@@ -1334,7 +1340,6 @@ kpick 237171 # WiFiDisplayController: Defer the P2P Initialization from its cons
 kpick 237172 # WifiDisplayController: handle preexisting p2p connection status
 kpick 237743 # systemui: add dark mode on low battery toggle
 kpick 238486 # PhoneWindowManager: Migrate to vendor.lineage.touch
-kpick 238517 -f # InputMethodManagerService: Convert to vendor.lineage.touch
 kpick 238601 # base: add Trust usb restrictor
 kpick 238696 # fonts: Build different fonts.xml if EXCLUDE_SERIF_FONTS is true
 kpick 238806 # Fix SystemUI FC after disabling navbar and unlocking the phone
@@ -1378,8 +1383,8 @@ kpick 238585 # trust: create service
 #kpick 239524 # livedisplay: Update impl for 2.0 interface
 
 # hardware/lineage/lineagehw
-#kpick 239441 # lineagehw: Deprecate some features
-#kpick 239442 # lineagehw: Remove reference to HIDL stuff
+kpick 239441 # lineagehw: Deprecate some features
+kpick 239442 # lineagehw: Remove reference to HIDL stuff
 kpick 239043 # lineagehw: Migrate to vendor.lineage.touch
 
 # hardware/lineage/livedisplay
@@ -1401,13 +1406,14 @@ kpick 239549 # livedisplay: legacymm: Wire it up
 
 # hardware/qcom/display
 kpick 223341 # display: Always assume kernel source is present
+kpick 239622 # libmemtrack: Add open method for msm8974.memtrack
+kpick 239623 # Add missing includes.
+kpick 239624 # Make memtrack build with the VNDK.
 
 # hardware/qcom/display-caf/msm8974
 
 # hardware/qcom/fm
 kpick 236546 # fm_helium: Update FM_HCI_DIR path
-kpick 239445 # libfm_jni: Rename the QC introduced props to have vendor tag added
-kpick 239446 # libfm_jni: Fix typo in ctl.stop
 
 # hardware/qcom/gps
 
@@ -1451,6 +1457,7 @@ kpick 231194 # power: properly initialize cluster states
 kpick 231960 # bauth: Add enumerate function
 kpick 238519 # samsung: Add dummy lineagehw HIDL interfaces for vendor.lineage.touch
 kpick 238520 # hidl: touch: Add binderized service implementation
+kpick 239597 # samsung: Add dummy lineagehw HIDL interfaces for vendor.lineage.livedisplay
 kpick 239598 # hidl: livedisplay: Add binderized service implementation
 
 # lineage-sdk
@@ -1462,7 +1469,7 @@ kpick 238604 # sdk: add Trust usb restrictor
 kpick 238712 # sdk: Trust: Return TRUST_FEATURE_LEVEL_BAD on encryption inactive
 kpick 239278 # PerformanceManager: Allow wait for MPCTL to start on boot
 kpick 239443 # sdk: Deprecate some unused lineagehw features
-#kpick 239449 # sdk: Add HIDL compat in LineageHardwareManager
+kpick 239449 # sdk: Add HIDL compat in LineageHardwareManager
 #kpick 238484 # lineage-sdk: Migrate to vendor.lineage.touch
 kpick 239492 # LineageSettingsProvider: Fix migration of FORCE_SHOW_NAVBAR
 
@@ -1513,7 +1520,7 @@ kpick 238713 # LineageParts: Trust: Fix encryption status for legacy devices
 # packages/apps/ManagedProvisoning
 
 # packages/apps/Messaging
-kpick 239621 # Messaging: improve notification channels 
+kpick 239621 # Messaging: improve notification channels
 
 # packages/apps/Nfc
 
@@ -1533,7 +1540,6 @@ kpick 229312 # Add Dual Channel into Bluetooth Audio Channel Mode developer opti
 kpick 231826 # Update the white list of Data saver
 kpick 232793 # Settings: per-app VPN data restriction
 kpick 237183 # settings: hide appendix of app list for power usage.
-kpick 238487 # Settings: Migrate to vendor.lineage.touch
 
 # packages/apps/SettingsIntelligence
 

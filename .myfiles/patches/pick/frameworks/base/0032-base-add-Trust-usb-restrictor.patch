@@ -1,0 +1,101 @@
+From 1653cac56aff16afab2d5d70e5c74218a52e929b Mon Sep 17 00:00:00 2001
+From: Joey <joey@lineageos.org>
+Date: Wed, 9 Jan 2019 22:22:46 +0100
+Subject: [PATCH 32/42] base: add Trust usb restrictor
+
+Change-Id: Ie2cb8e91d0f13f0d1473a48d22839b378701c756
+Signed-off-by: Joey <joey@lineageos.org>
+
+# Conflicts:
+#	services/core/Android.bp
+---
+ services/core/Android.bp                      |  1 +
+ .../policy/keyguard/KeyguardStateMonitor.java | 25 +++++++++++++++++++
+ 2 files changed, 26 insertions(+)
+
+diff --git a/services/core/Android.bp b/services/core/Android.bp
+index 230dbf91147..6a264d04868 100644
+--- a/services/core/Android.bp
++++ b/services/core/Android.bp
+@@ -46,6 +46,7 @@ java_library_static {
+         "android.hardware.configstore-V1.0-java",
+         "android.hardware.contexthub-V1.0-java",
+         "vendor.lineage.touch-V1.0-java",
++        "vendor.lineage.trust-V1.0-java",
+     ],
+ }
+ 
+diff --git a/services/core/java/com/android/server/policy/keyguard/KeyguardStateMonitor.java b/services/core/java/com/android/server/policy/keyguard/KeyguardStateMonitor.java
+index 1cba1c7bed1..8d1bb7e480b 100644
+--- a/services/core/java/com/android/server/policy/keyguard/KeyguardStateMonitor.java
++++ b/services/core/java/com/android/server/policy/keyguard/KeyguardStateMonitor.java
+@@ -18,6 +18,7 @@ package com.android.server.policy.keyguard;
+ 
+ import android.app.ActivityManager;
+ import android.content.Context;
++import android.content.ContentResolver;
+ import android.os.RemoteException;
+ import android.os.ServiceManager;
+ import android.security.IKeystoreService;
+@@ -27,7 +28,11 @@ import com.android.internal.policy.IKeyguardService;
+ import com.android.internal.policy.IKeyguardStateCallback;
+ import com.android.internal.widget.LockPatternUtils;
+ 
++import lineageos.providers.LineageSettings;
++import vendor.lineage.trust.V1_0.IUsbRestrict;
++
+ import java.io.PrintWriter;
++import java.util.NoSuchElementException;
+ 
+ /**
+  * Maintains a cached copy of Keyguard's state.
+@@ -53,12 +58,16 @@ public class KeyguardStateMonitor extends IKeyguardStateCallback.Stub {
+     private final LockPatternUtils mLockPatternUtils;
+     private final StateCallback mCallback;
+ 
++    private IUsbRestrict mUsbRestrictor;
++    private ContentResolver mContentResolver;
++
+     IKeystoreService mKeystoreService;
+ 
+     public KeyguardStateMonitor(Context context, IKeyguardService service, StateCallback callback) {
+         mLockPatternUtils = new LockPatternUtils(context);
+         mCurrentUserId = ActivityManager.getCurrentUser();
+         mCallback = callback;
++        mContentResolver = context.getContentResolver();
+ 
+         mKeystoreService = IKeystoreService.Stub.asInterface(ServiceManager
+                 .getService("android.security.keystore"));
+@@ -68,6 +77,12 @@ public class KeyguardStateMonitor extends IKeyguardStateCallback.Stub {
+         } catch (RemoteException e) {
+             Slog.w(TAG, "Remote Exception", e);
+         }
++
++        try {
++            mUsbRestrictor = IUsbRestrict.getService();
++        } catch (NoSuchElementException | RemoteException ignored) {
++            // Ignore, the hal is not available
++        }
+     }
+ 
+     public boolean isShowing() {
+@@ -100,6 +115,16 @@ public class KeyguardStateMonitor extends IKeyguardStateCallback.Stub {
+         } catch (RemoteException e) {
+             Slog.e(TAG, "Error informing keystore of screen lock", e);
+         }
++
++        boolean shouldRestrictUsb = LineageSettings.Secure.getInt(mContentResolver,
++                LineageSettings.Secure.TRUST_RESTRICT_USB_KEYGUARD, 0) == 1;
++        if (shouldRestrictUsb) {
++            try {
++                mUsbRestrictor.setEnabled(showing);
++            } catch (RemoteException ignored) {
++                // This feature is not supported
++            }
++        }
+     }
+ 
+     @Override // Binder interface
+-- 
+2.17.1
+
