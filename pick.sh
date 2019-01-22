@@ -1223,6 +1223,7 @@ kpick 234544 # sepolicy: Allow Settings to read ro.vendor.build.security_patch
 kpick 238602 # sepolicies: add Trust hal
 kpick 239080 # sepolicy: Allow recovery update_engine to setexec backuptool
 kpick 239081 # sepolicy: Label vendor.camera.aux. list properties
+kpick 239703 # common: Migrate to livedisplay 2.0
 kpick 239138 # common: Add vendor.lineage.touch rules
 
 # device/qcom/sepolicy
@@ -1237,7 +1238,9 @@ kpick 230231 # common: grant cnss-daemon access to sysfs_net
 kpick 230232 # common: grant netmgrd access to sysfs_net nodes
 kpick 230233 # common: allow sensors HIDL HAL to access /dev/sensors
 kpick 239068 # common: label /sys/devices/virtual/net/lo as sysfs_net
-
+kpick 239478 # sepolicy: Add rps to sysfs context and allow netmgrd access
+kpick 239736 # sepolicy-legacy: Allow vold to open keymaster firmware
+#kpick 239741 # common: permit libqdutils operation (linked by mediaserver) during WFD
 
 # development
 
@@ -1500,6 +1503,7 @@ kpick 239290 # FMRadio: build with AAPT2
 kpick 237741 # parts: add dark mode on low battery toggle
 kpick 238485 # LineageParts: Migrate to vendor.lineage.touch
 kpick 238603 # parts: add Trust usb restrictor
+kpick 239762 # LineageStats: explicitly cancel old jobs
 
 # packages/apps/ManagedProvisoning
 
