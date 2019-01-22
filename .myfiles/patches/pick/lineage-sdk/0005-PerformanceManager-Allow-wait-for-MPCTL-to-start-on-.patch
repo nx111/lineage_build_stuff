@@ -1,0 +1,152 @@
+From 86f8d4631e2c1d8a510f202799393f58042846da Mon Sep 17 00:00:00 2001
+From: dianlujitao <dianlujitao@lineageos.org>
+Date: Wed, 16 Jan 2019 16:41:47 +0800
+Subject: [PATCH 5/7] PerformanceManager: Allow wait for MPCTL to start on boot
+
+ * For devices using Qualcomm MPCTL interface as power profile backend,
+   setting the user's profile preference fails on boot, because we call
+   perf_lock_acq before MPCTL is ready.
+ * To fix the issue, add an option to wait for MPCTL service to start
+   before setting stored power profile.
+ * We should not only wait for the service to start but also post boot
+   parsed property to be set, because MPCTL service won't actually
+   initialize if the property is not set to 1.
+
+Change-Id: Ib749c3eb548dad0ab24868ee0048247a0b80dd6a
+---
+ .../internal/PerformanceManagerService.java   | 49 ++++++++++++++++++-
+ lineage/res/res/values/config.xml             |  4 ++
+ lineage/res/res/values/symbols.xml            |  2 +
+ 3 files changed, 54 insertions(+), 1 deletion(-)
+
+diff --git a/lineage/lib/main/java/org/lineageos/platform/internal/PerformanceManagerService.java b/lineage/lib/main/java/org/lineageos/platform/internal/PerformanceManagerService.java
+index bb56c7d..9545dc3 100644
+--- a/lineage/lib/main/java/org/lineageos/platform/internal/PerformanceManagerService.java
++++ b/lineage/lib/main/java/org/lineageos/platform/internal/PerformanceManagerService.java
+@@ -35,6 +35,7 @@ import android.os.PowerManagerInternal;
+ import android.os.PowerSaveState;
+ import android.os.Process;
+ import android.os.RemoteException;
++import android.os.SystemProperties;
+ import android.util.ArrayMap;
+ import android.util.Slog;
+ 
+@@ -42,6 +43,7 @@ import com.android.server.ServiceThread;
+ 
+ import java.io.FileDescriptor;
+ import java.io.PrintWriter;
++import java.lang.Thread;
+ import java.util.ArrayDeque;
+ import java.util.Date;
+ import java.util.Locale;
+@@ -76,6 +78,7 @@ public class PerformanceManagerService extends LineageSystemService {
+ 
+     private final ServiceThread mHandlerThread;
+     private final HintHandler mHandler;
++    private final Thread mWaitMpctlThread;
+ 
+     // keep in sync with hardware/libhardware/include/hardware/power.h
+     private final int POWER_HINT_SET_PROFILE  = 0x00000111;
+@@ -92,6 +95,7 @@ public class PerformanceManagerService extends LineageSystemService {
+ 
+     // Manipulate state variables under lock
+     private boolean mLowPowerModeEnabled = false;
++    private boolean mMpctlReady          = true;
+     private boolean mSystemReady         = false;
+     private int     mUserProfile         = -1;
+     private int     mActiveProfile       = -1;
+@@ -118,6 +122,47 @@ public class PerformanceManagerService extends LineageSystemService {
+         mHandlerThread.start();
+ 
+         mHandler = new HintHandler(mHandlerThread.getLooper());
++
++        if (mContext.getResources().getBoolean(R.bool.config_waitForMpctlOnBoot)) {
++            mMpctlReady = false;
++            mWaitMpctlThread = new Thread(() -> {
++                int retries = 20;
++                while (retries-- > 0) {
++                    if (!SystemProperties.getBoolean("sys.post_boot.parsed", false) &&
++                            !SystemProperties.getBoolean("vendor.post_boot.parsed", false)) {
++                        continue;
++                    }
++
++                    if (SystemProperties.get("init.svc.perfd").equals("running") ||
++                            SystemProperties.get("init.svc.vendor.perfd").equals("running") ||
++                            SystemProperties.get("init.svc.perf-hal-1-0").equals("running") ||
++                            SystemProperties.get("init.svc.mpdecision").equals("running")) {
++                        break;
++                    }
++
++                    try {
++                        Thread.sleep(100);
++                    } catch (InterruptedException e) {
++                        Slog.w(TAG, "Interrupted:", e);
++                    }
++                }
++
++                // Give mp-ctl enough time to initialize
++                try {
++                    Thread.sleep(1000);
++                } catch (InterruptedException e) {
++                    Slog.w(TAG, "Interrupted:", e);
++                }
++
++                synchronized (mLock) {
++                    mMpctlReady = true;
++                    setPowerProfileLocked(mUserProfile, false);
++                }
++            });
++            mWaitMpctlThread.setDaemon(true);
++        } else {
++            mWaitMpctlThread = null;
++        }
+     }
+ 
+     private class PerformanceSettingsObserver extends ContentObserver {
+@@ -206,6 +251,8 @@ public class PerformanceManagerService extends LineageSystemService {
+                             new IntentFilter(Intent.ACTION_LOCALE_CHANGED));
+                 }
+             }
++        } else if (phase == PHASE_BOOT_COMPLETED && !mMpctlReady) {
++            mWaitMpctlThread.start();
+         }
+     }
+ 
+@@ -227,7 +274,7 @@ public class PerformanceManagerService extends LineageSystemService {
+             Slog.v(TAG, String.format(Locale.US,"setPowerProfileL(%d, fromUser=%b)", profile, fromUser));
+         }
+ 
+-        if (!mSystemReady) {
++        if (!mSystemReady || !mMpctlReady) {
+             Slog.e(TAG, "System is not ready, dropping profile request");
+             return false;
+         }
+diff --git a/lineage/res/res/values/config.xml b/lineage/res/res/values/config.xml
+index 9122403..1bead47 100644
+--- a/lineage/res/res/values/config.xml
++++ b/lineage/res/res/values/config.xml
+@@ -244,4 +244,8 @@
+ 
+     <!-- Whether device has a notch -->
+     <bool name="config_haveNotch">false</bool>
++
++    <!-- Whether device needs to wait for Qualcomm MPCTL service to start
++         before setting power profiles on boot. -->
++    <bool name="config_waitForMpctlOnBoot">false</bool>
+ </resources>
+diff --git a/lineage/res/res/values/symbols.xml b/lineage/res/res/values/symbols.xml
+index 02ba9ae..da41026 100644
+--- a/lineage/res/res/values/symbols.xml
++++ b/lineage/res/res/values/symbols.xml
+@@ -38,6 +38,8 @@
+     <java-symbol type="string" name="perf_profile_bias_power_summary" />
+     <java-symbol type="string" name="perf_profile_bias_perf_summary" />
+ 
++    <java-symbol type="bool" name="config_waitForMpctlOnBoot" />
++
+     <!-- Proximity check on screen on -->
+     <java-symbol type="bool" name="config_proximityCheckOnWake" />
+ 
+-- 
+2.17.1
+

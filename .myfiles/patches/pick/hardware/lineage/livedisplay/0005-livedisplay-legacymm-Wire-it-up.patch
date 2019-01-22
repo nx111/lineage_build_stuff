@@ -1,4 +1,4 @@
-From 525649d791267fcdbfc8abb0def9e63edc7d566e Mon Sep 17 00:00:00 2001
+From f777332493c97885252ebec8334265a3c7475fbc Mon Sep 17 00:00:00 2001
 From: Paul Keith <javelinanddart@gmail.com>
 Date: Sat, 19 Jan 2019 18:03:15 +0100
 Subject: [PATCH 5/5] livedisplay: legacymm: Wire it up
@@ -6,17 +6,19 @@ Subject: [PATCH 5/5] livedisplay: legacymm: Wire it up
 Change-Id: Ic580ceb333c361444d4e009db1a34ccca8fbbbfc
 ---
  legacymm/Android.bp                           |  21 +--
- legacymm/ColorBalance.cpp                     |  80 +++++++--
- legacymm/ColorBalance.h                       |  27 ++-
- legacymm/DisplayModes.cpp                     | 150 +++++++++++++++--
- legacymm/DisplayModes.h                       |  36 +++-
- legacymm/PictureAdjustment.cpp                | 141 ++++++++++++++--
- legacymm/PictureAdjustment.h                  |  51 +++++-
+ legacymm/ColorBalance.cpp                     |  81 ++++++++--
+ legacymm/ColorBalance.h                       |  20 ++-
+ legacymm/Constants.h                          |  36 +++++
+ legacymm/DisplayModes.cpp                     | 153 ++++++++++++++++--
+ legacymm/DisplayModes.h                       |  27 +++-
+ legacymm/PictureAdjustment.cpp                | 143 ++++++++++++++--
+ legacymm/PictureAdjustment.h                  |  31 +++-
+ legacymm/Types.h                              |  62 +++++++
+ legacymm/service.cpp                          | 151 +++++++++++++++++
  ...ineage.livedisplay@2.0-service-legacymm.rc |   4 +
- legacymm/service.cpp                          | 156 ++++++++++++++++++
- ...ineage.livedisplay@2.0-service-legacymm.rc |   4 +
- 10 files changed, 597 insertions(+), 73 deletions(-)
- create mode 100644 legacymm/lineage.livedisplay@2.0-service-legacymm.rc
+ 11 files changed, 656 insertions(+), 73 deletions(-)
+ create mode 100644 legacymm/Constants.h
+ create mode 100644 legacymm/Types.h
  create mode 100644 legacymm/service.cpp
  create mode 100644 legacymm/vendor.lineage.livedisplay@2.0-service-legacymm.rc
 
@@ -61,21 +63,22 @@ index 6ee7089..873fffb 100644
          "libhidltransport",
          "libutils",
 diff --git a/legacymm/ColorBalance.cpp b/legacymm/ColorBalance.cpp
-index b05533c..a7e6e92 100644
+index b05533c..5c6549a 100644
 --- a/legacymm/ColorBalance.cpp
 +++ b/legacymm/ColorBalance.cpp
-@@ -14,7 +14,10 @@
+@@ -14,7 +14,11 @@
   * limitations under the License.
   */
  
 +#include <dlfcn.h>
 +
  #include "ColorBalance.h"
-+#include "DisplayModes.h"
++#include "Constants.h"
++#include "Types.h"
  
  namespace vendor {
  namespace lineage {
-@@ -22,29 +25,82 @@ namespace livedisplay {
+@@ -22,29 +26,82 @@ namespace livedisplay {
  namespace V2_0 {
  namespace legacymm {
  
@@ -106,17 +109,17 @@ index b05533c..a7e6e92 100644
 +        return false;
 +    }
 +
-+    if (range.max < 1000 || range.min < 0) {
++    if (range.max != 0 || range.min != 0) {
 +        return false;
 +    }
 +
 +    if (disp_api_supported(0, DISPLAY_MODES_FEATURE) != 0 &&
 +        disp_api_get_num_display_modes != nullptr &&
 +        disp_api_get_num_display_modes(0, 0, &count) == 0) {
-+        return count <= 0;
++        return count > 0;
 +    }
 +
-+    return true;
++    return false;
 +}
 +
  // Methods from ::vendor::lineage::livedisplay::V2_0::IColorBalance follow.
@@ -171,7 +174,7 @@ index b05533c..a7e6e92 100644
  }  // namespace V2_0
  }  // namespace livedisplay
 diff --git a/legacymm/ColorBalance.h b/legacymm/ColorBalance.h
-index b2f0bb5..7d8a81b 100644
+index b2f0bb5..98f2bbd 100644
 --- a/legacymm/ColorBalance.h
 +++ b/legacymm/ColorBalance.h
 @@ -17,9 +17,9 @@
@@ -185,18 +188,11 @@ index b2f0bb5..7d8a81b 100644
  
  namespace vendor {
  namespace lineage {
-@@ -35,19 +35,34 @@ using ::android::hardware::Return;
+@@ -35,19 +35,27 @@ using ::android::hardware::Return;
  using ::android::hardware::Void;
  using ::android::sp;
  
 -struct ColorBalance : public IColorBalance {
-+#define COLOR_BALANCE_FEATURE 0
-+
-+struct mm_cb_range {
-+    int max;
-+    int min;
-+};
-+
 +class ColorBalance : public IColorBalance {
 +  public:
 +    ColorBalance(void* libHandle);
@@ -225,22 +221,66 @@ index b2f0bb5..7d8a81b 100644
  }  // namespace legacymm
  }  // namespace V2_0
  }  // namespace livedisplay
+diff --git a/legacymm/Constants.h b/legacymm/Constants.h
+new file mode 100644
+index 0000000..61c9b60
+--- /dev/null
++++ b/legacymm/Constants.h
+@@ -0,0 +1,36 @@
++/*
++ * Copyright (C) 2019 The LineageOS Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#ifndef VENDOR_LINEAGE_LIVEDISPLAY_V2_0_LEGACYMM_CONSTANTS_H
++#define VENDOR_LINEAGE_LIVEDISPLAY_V2_0_LEGACYMM_CONSTANTS_H
++
++namespace vendor {
++namespace lineage {
++namespace livedisplay {
++namespace V2_0 {
++namespace legacymm {
++
++#define COLOR_BALANCE_FEATURE 0
++#define DISPLAY_MODES_FEATURE 1
++#define PICTURE_ADJUSTMENT_FEATURE 4
++
++}  // namespace legacymm
++}  // namespace V2_0
++}  // namespace livedisplay
++}  // namespace lineage
++}  // namespace vendor
++
++#endif  // VENDOR_LINEAGE_LIVEDISPLAY_V2_0_LEGACYMM_CONSTANTS_H
 diff --git a/legacymm/DisplayModes.cpp b/legacymm/DisplayModes.cpp
-index 770bc62..01c613b 100644
+index 770bc62..7717c58 100644
 --- a/legacymm/DisplayModes.cpp
 +++ b/legacymm/DisplayModes.cpp
-@@ -14,7 +14,10 @@
+@@ -14,7 +14,12 @@
   * limitations under the License.
   */
  
 +#include <dlfcn.h>
 +
++#include "Constants.h"
  #include "DisplayModes.h"
 +#include "PictureAdjustment.h"
++#include "Types.h"
  
  namespace vendor {
  namespace lineage {
-@@ -22,34 +25,159 @@ namespace livedisplay {
+@@ -22,34 +27,160 @@ namespace livedisplay {
  namespace V2_0 {
  namespace legacymm {
  
@@ -289,7 +329,8 @@ index 770bc62..01c613b 100644
 +    std::vector<DisplayMode> modes;
 +    int count = 0;
 +
-+    if (disp_api_get_num_display_modes(0, 0, &count) != 0) {
++    if (disp_api_get_num_display_modes == nullptr ||
++        disp_api_get_num_display_modes(0, 0, &count) != 0) {
 +        return modes;
 +    }
 +
@@ -412,7 +453,7 @@ index 770bc62..01c613b 100644
  }  // namespace V2_0
  }  // namespace livedisplay
 diff --git a/legacymm/DisplayModes.h b/legacymm/DisplayModes.h
-index f7a74fd..86edfb9 100644
+index f7a74fd..337efa7 100644
 --- a/legacymm/DisplayModes.h
 +++ b/legacymm/DisplayModes.h
 @@ -17,9 +17,9 @@
@@ -426,20 +467,11 @@ index f7a74fd..86edfb9 100644
  
  namespace vendor {
  namespace lineage {
-@@ -35,19 +35,43 @@ using ::android::hardware::Return;
+@@ -35,19 +35,34 @@ using ::android::hardware::Return;
  using ::android::hardware::Void;
  using ::android::sp;
  
 -struct DisplayModes : public IDisplayModes {
-+#define DISPLAY_MODES_FEATURE 1
-+
-+struct mm_disp_mode {
-+    int id;
-+    char* name;
-+    uint32_t len;
-+    int32_t type;
-+};
-+
 +class DisplayModes : public IDisplayModes {
 +  public:
 +    DisplayModes(void* libHandle);
@@ -476,19 +508,22 @@ index f7a74fd..86edfb9 100644
  }  // namespace legacymm
  }  // namespace V2_0
 diff --git a/legacymm/PictureAdjustment.cpp b/legacymm/PictureAdjustment.cpp
-index 773fac8..77aabb4 100644
+index 773fac8..2c2a05e 100644
 --- a/legacymm/PictureAdjustment.cpp
 +++ b/legacymm/PictureAdjustment.cpp
-@@ -14,6 +14,8 @@
+@@ -14,7 +14,11 @@
   * limitations under the License.
   */
  
 +#include <dlfcn.h>
 +
++#include "Constants.h"
  #include "PictureAdjustment.h"
++#include "Types.h"
  
  namespace vendor {
-@@ -22,54 +24,159 @@ namespace livedisplay {
+ namespace lineage {
+@@ -22,54 +26,159 @@ namespace livedisplay {
  namespace V2_0 {
  namespace legacymm {
  
@@ -666,7 +701,7 @@ index 773fac8..77aabb4 100644
  }  // namespace V2_0
  }  // namespace livedisplay
 diff --git a/legacymm/PictureAdjustment.h b/legacymm/PictureAdjustment.h
-index 126ec70..7274132 100644
+index 126ec70..2c13027 100644
 --- a/legacymm/PictureAdjustment.h
 +++ b/legacymm/PictureAdjustment.h
 @@ -17,9 +17,9 @@
@@ -680,13 +715,94 @@ index 126ec70..7274132 100644
  
  namespace vendor {
  namespace lineage {
-@@ -35,8 +35,34 @@ using ::android::hardware::Return;
+@@ -35,8 +35,14 @@ using ::android::hardware::Return;
  using ::android::hardware::Void;
  using ::android::sp;
  
 -struct PictureAdjustment : public IPictureAdjustment {
 -    // Methods from ::vendor::lineage::livedisplay::V2_0::IPictureAdjustment follow.
-+#define PICTURE_ADJUSTMENT_FEATURE 4
++class PictureAdjustment : public IPictureAdjustment {
++  public:
++    PictureAdjustment(void* libHandle);
++
++    bool isSupported();
++
++    // Methods from ::vendor::lineage::livedisplay::V2_0::IPictureAdjustment
++    // follow.
+     Return<void> getHueRange(getHueRange_cb _hidl_cb) override;
+     Return<void> getSaturationRange(getSaturationRange_cb _hidl_cb) override;
+     Return<void> getIntensityRange(getIntensityRange_cb _hidl_cb) override;
+@@ -44,14 +50,23 @@ struct PictureAdjustment : public IPictureAdjustment {
+     Return<void> getSaturationThresholdRange(getSaturationThresholdRange_cb _hidl_cb) override;
+     Return<void> getPictureAdjustment(getPictureAdjustment_cb _hidl_cb) override;
+     Return<void> getDefaultPictureAdjustment(getDefaultPictureAdjustment_cb _hidl_cb) override;
+-    Return<bool> setPictureAdjustment(const ::vendor::lineage::livedisplay::V2_0::HSIC& hsic) override;
++    Return<bool> setPictureAdjustment(
++        const ::vendor::lineage::livedisplay::V2_0::HSIC& hsic) override;
+ 
+-    // Methods from ::android::hidl::base::V1_0::IBase follow.
++    static void updateDefaultPictureAdjustment();
+ 
+-};
++  private:
++    void* mLibHandle;
++
++    int (*disp_api_supported)(int32_t, int32_t);
++    int (*disp_api_get_pa_range)(int32_t, void*);
++    int (*disp_api_get_pa_config)(int32_t, void*);
++    int (*disp_api_set_pa_config)(int32_t, void*);
+ 
+-// FIXME: most likely delete, this is only for passthrough implementations
+-// extern "C" IPictureAdjustment* HIDL_FETCH_IPictureAdjustment(const char* name);
++    HSIC getPictureAdjustmentInternal();
++
++    HSIC mDefaultPictureAdjustment;
++};
+ 
+ }  // namespace legacymm
+ }  // namespace V2_0
+diff --git a/legacymm/Types.h b/legacymm/Types.h
+new file mode 100644
+index 0000000..06e070a
+--- /dev/null
++++ b/legacymm/Types.h
+@@ -0,0 +1,62 @@
++/*
++ * Copyright (C) 2019 The LineageOS Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#ifndef VENDOR_LINEAGE_LIVEDISPLAY_V2_0_LEGACYMM_TYPES_H
++#define VENDOR_LINEAGE_LIVEDISPLAY_V2_0_LEGACYMM_TYPES_H
++
++namespace vendor {
++namespace lineage {
++namespace livedisplay {
++namespace V2_0 {
++namespace legacymm {
++
++struct mm_cb_range {
++    int max;
++    int min;
++};
++
++struct mm_disp_mode {
++    int id;
++    char* name;
++    uint32_t len;
++    int32_t type;
++};
 +
 +struct mm_pa_data {
 +    int hue;
@@ -706,62 +822,19 @@ index 126ec70..7274132 100644
 +    struct mm_pa_data min;
 +};
 +
-+class PictureAdjustment : public IPictureAdjustment {
-+  public:
-+    PictureAdjustment(void* libHandle);
++}  // namespace legacymm
++}  // namespace V2_0
++}  // namespace livedisplay
++}  // namespace lineage
++}  // namespace vendor
 +
-+    bool isSupported();
-+
-+    // Methods from ::vendor::lineage::livedisplay::V2_0::IPictureAdjustment
-+    // follow.
-     Return<void> getHueRange(getHueRange_cb _hidl_cb) override;
-     Return<void> getSaturationRange(getSaturationRange_cb _hidl_cb) override;
-     Return<void> getIntensityRange(getIntensityRange_cb _hidl_cb) override;
-@@ -44,14 +70,23 @@ struct PictureAdjustment : public IPictureAdjustment {
-     Return<void> getSaturationThresholdRange(getSaturationThresholdRange_cb _hidl_cb) override;
-     Return<void> getPictureAdjustment(getPictureAdjustment_cb _hidl_cb) override;
-     Return<void> getDefaultPictureAdjustment(getDefaultPictureAdjustment_cb _hidl_cb) override;
--    Return<bool> setPictureAdjustment(const ::vendor::lineage::livedisplay::V2_0::HSIC& hsic) override;
-+    Return<bool> setPictureAdjustment(
-+        const ::vendor::lineage::livedisplay::V2_0::HSIC& hsic) override;
- 
--    // Methods from ::android::hidl::base::V1_0::IBase follow.
-+    static void updateDefaultPictureAdjustment();
- 
--};
-+  private:
-+    void* mLibHandle;
- 
--// FIXME: most likely delete, this is only for passthrough implementations
--// extern "C" IPictureAdjustment* HIDL_FETCH_IPictureAdjustment(const char* name);
-+    int (*disp_api_supported)(int32_t, int32_t);
-+    int (*disp_api_get_pa_range)(int32_t, void*);
-+    int (*disp_api_get_pa_config)(int32_t, void*);
-+    int (*disp_api_set_pa_config)(int32_t, void*);
-+
-+    HSIC getPictureAdjustmentInternal();
-+
-+    HSIC mDefaultPictureAdjustment;
-+};
- 
- }  // namespace legacymm
- }  // namespace V2_0
-diff --git a/legacymm/lineage.livedisplay@2.0-service-legacymm.rc b/legacymm/lineage.livedisplay@2.0-service-legacymm.rc
-new file mode 100644
-index 0000000..20fdc4a
---- /dev/null
-+++ b/legacymm/lineage.livedisplay@2.0-service-legacymm.rc
-@@ -0,0 +1,4 @@
-+service livedisplay-hal-2-0-legacymm /system/bin/hw/vendor.lineage.livedisplay@2.0-service-legacymm
-+    class hal
-+    user system
-+    group system
++#endif  // VENDOR_LINEAGE_LIVEDISPLAY_V2_0_LEGACYMM_TYPES_H
 diff --git a/legacymm/service.cpp b/legacymm/service.cpp
 new file mode 100644
-index 0000000..684db8e
+index 0000000..6ffd8f1
 --- /dev/null
 +++ b/legacymm/service.cpp
-@@ -0,0 +1,156 @@
+@@ -0,0 +1,151 @@
 +/*
 + * Copyright (C) 2018-2019 The LineageOS Project
 + *
@@ -840,8 +913,7 @@ index 0000000..684db8e
 +
 +    cb = new ColorBalance(libHandle);
 +    if (cb == nullptr) {
-+        LOG(ERROR) << "Can not create an instance of LiveDisplay HAL ColorBalance "
-+                      "Iface, exiting.";
++        LOG(ERROR) << "Can not create an instance of LiveDisplay HAL ColorBalance Iface, exiting.";
 +        goto shutdown;
 +    }
 +    if (cb->isSupported()) {
@@ -850,8 +922,7 @@ index 0000000..684db8e
 +
 +    dm = new DisplayModes(libHandle);
 +    if (dm == nullptr) {
-+        LOG(ERROR) << "Can not create an instance of LiveDisplay HAL DisplayModes "
-+                      "Iface, exiting.";
++        LOG(ERROR) << "Can not create an instance of LiveDisplay HAL DisplayModes Iface, exiting.";
 +        goto shutdown;
 +    }
 +    if (dm->isSupported()) {
@@ -860,8 +931,8 @@ index 0000000..684db8e
 +
 +    pa = new PictureAdjustment(libHandle);
 +    if (pa == nullptr) {
-+        LOG(ERROR) << "Can not create an instance of LiveDisplay HAL "
-+                      "PictureAdjustment Iface, exiting.";
++        LOG(ERROR)
++            << "Can not create an instance of LiveDisplay HAL PictureAdjustment Iface, exiting.";
 +        goto shutdown;
 +    }
 +    if (pa->isSupported()) {
@@ -873,8 +944,7 @@ index 0000000..684db8e
 +    if (cb->isSupported()) {
 +        status = cb->registerAsService();
 +        if (status != OK) {
-+            LOG(ERROR) << "Could not register service for LiveDisplay HAL "
-+                          "ColorBalance Iface ("
++            LOG(ERROR) << "Could not register service for LiveDisplay HAL ColorBalance Iface ("
 +                       << status << ")";
 +            goto shutdown;
 +        }
@@ -883,8 +953,7 @@ index 0000000..684db8e
 +    if (dm->isSupported()) {
 +        status = dm->registerAsService();
 +        if (status != OK) {
-+            LOG(ERROR) << "Could not register service for LiveDisplay HAL "
-+                          "DisplayModes Iface ("
++            LOG(ERROR) << "Could not register service for LiveDisplay HAL DisplayModes Iface ("
 +                       << status << ")";
 +            goto shutdown;
 +        }
@@ -893,8 +962,7 @@ index 0000000..684db8e
 +    if (pa->isSupported()) {
 +        status = pa->registerAsService();
 +        if (status != OK) {
-+            LOG(ERROR) << "Could not register service for LiveDisplay HAL "
-+                          "PictureAdjustment Iface ("
++            LOG(ERROR) << "Could not register service for LiveDisplay HAL PictureAdjustment Iface ("
 +                       << status << ")";
 +            goto shutdown;
 +        }

@@ -1,8 +1,8 @@
-From e11399dde05964d2ecd2b9e9801f672785402dcc Mon Sep 17 00:00:00 2001
+From 9a95cd0816c056f4601f8b25d3c133cb10f3eae8 Mon Sep 17 00:00:00 2001
 From: Vladimir Oltean <olteanv@gmail.com>
 Date: Thu, 17 Jan 2019 03:07:34 +0200
-Subject: [PATCH 22/28] extract_utils: introduce support for executing blob
- fixup scripts
+Subject: [PATCH 22/31] extract_utils: introduce support for executing blob
+ fixups
 
 * Traditionally, the task of hex-editing blobs has been approached in 2 ways:
   (1) Do it out-of-band, commit the modified blob, and record its edited
@@ -52,11 +52,11 @@ Subject: [PATCH 22/28] extract_utils: introduce support for executing blob
 Change-Id: Ifdd73c885d995c645f6210597537693d1a2f903f
 Signed-off-by: Vladimir Oltean <olteanv@gmail.com>
 ---
- build/tools/extract_utils.sh | 87 +++++++++++++++++++++++++++---------
- 1 file changed, 67 insertions(+), 20 deletions(-)
+ build/tools/extract_utils.sh | 90 ++++++++++++++++++++++++++++--------
+ 1 file changed, 70 insertions(+), 20 deletions(-)
 
 diff --git a/build/tools/extract_utils.sh b/build/tools/extract_utils.sh
-index 2d644dcd..a9bef639 100644
+index 2d644dcd..242c0eb7 100644
 --- a/build/tools/extract_utils.sh
 +++ b/build/tools/extract_utils.sh
 @@ -17,8 +17,10 @@
@@ -105,7 +105,7 @@ index 2d644dcd..a9bef639 100644
          fi
  
      done < <(egrep -v '(^#|^[[:space:]]*$)' "$LIST" | LC_ALL=C sort | uniq)
-@@ -912,6 +922,16 @@ function fix_xml() {
+@@ -912,12 +922,23 @@ function fix_xml() {
      mv "$TEMP_XML" "$XML"
  }
  
@@ -122,7 +122,14 @@ index 2d644dcd..a9bef639 100644
  function print_spec() {
      local SPEC_PRODUCT_PACKAGE="$1"
      local SPEC_SRC_FILE="$2"
-@@ -939,7 +959,22 @@ function print_spec() {
+     local SPEC_DST_FILE="$3"
+     local SPEC_ARGS="$4"
+     local SPEC_HASH="$5"
++    local SPEC_FIXUP_HASH="$6"
+ 
+     local PRODUCT_PACKAGE=""
+     if [ ${SPEC_PRODUCT_PACKAGE} = true ]; then
+@@ -939,7 +960,22 @@ function print_spec() {
      if [ ! -z "${SPEC_HASH}" ] && [ "${SPEC_HASH}" != "x" ]; then
          HASH="|${SPEC_HASH}"
      fi
@@ -146,7 +153,7 @@ index 2d644dcd..a9bef639 100644
  }
  
  #
-@@ -999,6 +1034,7 @@ function extract() {
+@@ -999,6 +1035,7 @@ function extract() {
  
      local FILELIST=( ${PRODUCT_COPY_FILES_LIST[@]} ${PRODUCT_PACKAGES_LIST[@]} )
      local HASHLIST=( ${PRODUCT_COPY_FILES_HASHES[@]} ${PRODUCT_PACKAGES_HASHES[@]} )
@@ -154,7 +161,7 @@ index 2d644dcd..a9bef639 100644
      local PRODUCT_COPY_FILES_COUNT=${#PRODUCT_COPY_FILES_LIST[@]}
      local COUNT=${#FILELIST[@]}
      local OUTPUT_ROOT="$LINEAGE_ROOT"/"$OUTDIR"/proprietary
-@@ -1091,20 +1127,17 @@ function extract() {
+@@ -1091,20 +1128,17 @@ function extract() {
  
          # Check pinned files
          local HASH="$(echo ${HASHLIST[$i-1]} | awk '{ print tolower($0); }')"
@@ -179,7 +186,7 @@ index 2d644dcd..a9bef639 100644
                      KEEP="1"
                      if [ ! -f "${VENDOR_REPO_FILE}" ]; then
                          cp -p "$PINNED" "${VENDOR_REPO_FILE}"
-@@ -1138,17 +1171,31 @@ function extract() {
+@@ -1138,19 +1172,23 @@ function extract() {
              fi
          fi
  
@@ -204,30 +211,34 @@ index 2d644dcd..a9bef639 100644
 +                zip -gjq "${VENDOR_REPO_FILE}" "$TMPDIR/classes.dex"
 +                rm "$TMPDIR/classes.dex"
 +                printf '    (updated %s from odex files)\n' "${SRC_FILE}"
-+            fi
+             fi
 +        elif [[ "${VENDOR_REPO_FILE}" =~ .xml$ ]]; then
 +            fix_xml "${VENDOR_REPO_FILE}"
-+        fi
+         fi
 +        # Now run user-supplied fixup function
 +        blob_fixup "${BLOB_DISPLAY_NAME}" "${VENDOR_REPO_FILE}"
 +        local POST_FIXUP_HASH=$(get_hash ${VENDOR_REPO_FILE})
-+
-+        # Check whether the fixup pipeline actually did anything.
-+        if [ "${PRE_FIXUP_HASH}" != "${POST_FIXUP_HASH}" ]; then
-+            printf "    + Fixed up %s\n" "${BLOB_DISPLAY_NAME}"
-+            # Now sanity-check the spec for this blob.
-+            if [ "${FIXUP_HASH}" = "x" ] && [ "${HASH}" != "x" ]; then
-+                printf "WARNING: The %s file was fixed up, but it is pinned.\n" ${BLOB_DISPLAY_NAME}
-+                printf "This is a mistake and you want to either remove the hash completely, or add an extra one.\n"
-             fi
-         fi
  
-@@ -1163,7 +1210,7 @@ function extract() {
+         if [ -f "${VENDOR_REPO_FILE}" ]; then
+             local DIR=$(dirname "${VENDOR_REPO_FILE}")
+@@ -1163,7 +1201,19 @@ function extract() {
          fi
  
          if [ "${KANG}" =  true ]; then
 -            print_spec "${IS_PRODUCT_PACKAGE}" "${SPEC_SRC_FILE}" "${SPEC_DST_FILE}" "${SPEC_ARGS}" "${HASH}"
 +            print_spec "${IS_PRODUCT_PACKAGE}" "${SPEC_SRC_FILE}" "${SPEC_DST_FILE}" "${SPEC_ARGS}" "${PRE_FIXUP_HASH}" "${POST_FIXUP_HASH}"
++        fi
++
++        # Check and print whether the fixup pipeline actually did anything.
++        # This isn't done right after the fixup pipeline because we want this print
++        # to come after print_spec above, when in kang mode.
++        if [ "${PRE_FIXUP_HASH}" != "${POST_FIXUP_HASH}" ]; then
++            printf "    + Fixed up %s\n" "${BLOB_DISPLAY_NAME}"
++            # Now sanity-check the spec for this blob.
++            if [ "${KANG}" = false ] && [ "${FIXUP_HASH}" = "x" ] && [ "${HASH}" != "x" ]; then
++                printf "WARNING: The %s file was fixed up, but it is pinned.\n" ${BLOB_DISPLAY_NAME}
++                printf "This is a mistake and you want to either remove the hash completely, or add an extra one.\n"
++            fi
          fi
  
      done

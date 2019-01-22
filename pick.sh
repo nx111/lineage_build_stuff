@@ -1191,6 +1191,8 @@ kpick 238521 # msm8974-common: Build vendor.lineage.touch HAL from hardware/sams
 
 # kernel/samsung/msm8974
 kpick 234754 # Add define for O_TMPFILE
+kpick 239737 # crypto: Allow kernel to compile without CONFIG_CRYPTO_FIPS
+kpick 239738 # ARM: configs: Disable CONFIG_CRYPTO_FIPS for hlte devices
 
 # =============== END DEVICE STUFF ========================
 
@@ -1228,7 +1230,6 @@ kpick 228572 # sepolicy: Allow system_server to 'read' qti_debugfs
 kpick 228573 # sepolicy: Add libsdm-disp-vndapis and libsdmutils to SP-HALs
 kpick 228578 # sepolicy: rules to allow camera daemon access to app buffer
 kpick 228582 # sepolicy: qti_init_shell needs to read dir too
-kpick 239506 # sepolicy: Label vendor.camera.aux.packageblacklist
 
 # device/qcom/sepolicy-legacy
 kpick 230230 # common: fix sensors denial
@@ -1236,12 +1237,6 @@ kpick 230231 # common: grant cnss-daemon access to sysfs_net
 kpick 230232 # common: grant netmgrd access to sysfs_net nodes
 kpick 230233 # common: allow sensors HIDL HAL to access /dev/sensors
 kpick 239068 # common: label /sys/devices/virtual/net/lo as sysfs_net
-#kpick 239242 # sepolicy: Label sysfs_disk_stat nodes
-#kpick 239243 # sepolicy: Label sysfs_android_usb
-#kpick 239281 # sepolicy: Label msm8974 leds-qpnp sysfs
-#kpick 239282 # sepolicy: Label msm_pm sysfs as sysfs_msm_perf
-#kpick 239283 # sepolicy: Label msm8974 devfreq sysfs
-#kpick 239347 # sepolicy: Label sysfs_net
 
 
 # development
@@ -1342,14 +1337,11 @@ kpick 237743 # systemui: add dark mode on low battery toggle
 kpick 238486 # PhoneWindowManager: Migrate to vendor.lineage.touch
 kpick 238601 # base: add Trust usb restrictor
 kpick 238696 # fonts: Build different fonts.xml if EXCLUDE_SERIF_FONTS is true
-kpick 238806 # Fix SystemUI FC after disabling navbar and unlocking the phone
 kpick 239179 # Camera: Force HAL1 for predefined package list.
 kpick 239520 # Reset all package signatures on boot
 
 # frameworks/native
 kpick 224530 # Triple the available egl function pointers available to a process for certain Nvidia devices.
-kpick 225542 # sensorservice: Register orientation sensor if HAL doesn't provide it
-kpick 225543 # sensorservice: customize sensor fusion mag filter via prop
 kpick 225544 # input: Adjust priority
 kpick 231828 # Translate pointer motion events for OneHandOperation Display Shrink
 kpick 231980 # HWComposer: HWC2: allow SkipValidate to be force disabled
@@ -1383,8 +1375,8 @@ kpick 238585 # trust: create service
 #kpick 239524 # livedisplay: Update impl for 2.0 interface
 
 # hardware/lineage/lineagehw
-kpick 239441 # lineagehw: Deprecate some features
-kpick 239442 # lineagehw: Remove reference to HIDL stuff
+#kpick 239441 # lineagehw: Deprecate some features
+#kpick 239442 # lineagehw: Remove reference to HIDL stuff
 kpick 239043 # lineagehw: Migrate to vendor.lineage.touch
 
 # hardware/lineage/livedisplay
@@ -1406,9 +1398,6 @@ kpick 239549 # livedisplay: legacymm: Wire it up
 
 # hardware/qcom/display
 kpick 223341 # display: Always assume kernel source is present
-kpick 239622 # libmemtrack: Add open method for msm8974.memtrack
-kpick 239623 # Add missing includes.
-kpick 239624 # Make memtrack build with the VNDK.
 
 # hardware/qcom/display-caf/msm8974
 
@@ -1454,7 +1443,6 @@ kpick 227614 # Disable IOemHook implemenation in rild.
 # hardware/samsung
 #kpick 228524 # power: Convert power HAL to native binderized HAL
 kpick 231194 # power: properly initialize cluster states
-kpick 231960 # bauth: Add enumerate function
 kpick 238519 # samsung: Add dummy lineagehw HIDL interfaces for vendor.lineage.touch
 kpick 238520 # hidl: touch: Add binderized service implementation
 kpick 239597 # samsung: Add dummy lineagehw HIDL interfaces for vendor.lineage.livedisplay
@@ -1464,13 +1452,11 @@ kpick 239598 # hidl: livedisplay: Add binderized service implementation
 kpick 230272 # sdk: Remove VOLUME_KEYS_CONTROL_RING_STREAM
 kpick 237074 # lineage-sdk: Handle database downgrading
 kpick 237740 # sdk: add dark mode on low battery toggle
-kpick 237895 # TelephonyExtUtils: Set timeout for (de)activating provision
 kpick 238604 # sdk: add Trust usb restrictor
-kpick 238712 # sdk: Trust: Return TRUST_FEATURE_LEVEL_BAD on encryption inactive
 kpick 239278 # PerformanceManager: Allow wait for MPCTL to start on boot
 kpick 239443 # sdk: Deprecate some unused lineagehw features
 kpick 239449 # sdk: Add HIDL compat in LineageHardwareManager
-#kpick 238484 # lineage-sdk: Migrate to vendor.lineage.touch
+kpick 238484 # lineage-sdk: Migrate to vendor.lineage.touch
 kpick 239492 # LineageSettingsProvider: Fix migration of FORCE_SHOW_NAVBAR
 
 # packages/apps/Bluetooth
@@ -1479,7 +1465,6 @@ kpick 229311 # Assume optional codecs are supported if were supported previously
 # packages/apps/Calender
 
 # packages/apps/Camera2
-kpick 225265 # Add Storage preference (1/2)
 
 # packages/apps/Carrierconfig
 
@@ -1515,7 +1500,6 @@ kpick 239290 # FMRadio: build with AAPT2
 kpick 237741 # parts: add dark mode on low battery toggle
 kpick 238485 # LineageParts: Migrate to vendor.lineage.touch
 kpick 238603 # parts: add Trust usb restrictor
-kpick 238713 # LineageParts: Trust: Fix encryption status for legacy devices
 
 # packages/apps/ManagedProvisoning
 
@@ -1544,9 +1528,6 @@ kpick 237183 # settings: hide appendix of app list for power usage.
 # packages/apps/SettingsIntelligence
 
 # packages/apps/SetupWizard
-kpick 239428 # LineageSettingsActivity: Account for user stored KeyDisabler setting
-kpick 239436 # FinishActivity: Remove useless call to LineageHardwareManager
-kpick 239479 # FinishActivity: Do not write the currently set FORCE_SHOW_NAVBAR value
 kpick 238488 # SetupWizard: Migrate to vendor.lineage.touch
 
 # packages/apps/Snap
@@ -1559,6 +1540,7 @@ kpick 237244 # Snap: make support for bokeh mode configurable per device
 # packages/apps/Traceur
 
 # packages/apps/Trebuchet
+kpick 239699 # TrebuchetQuickStep: Define missing permissions
 
 # packages/apps/TvSettings
 
@@ -1646,11 +1628,13 @@ kpick 234011 # lineage: Add media_codecs_ddp for AC3 audio
 kpick 237117 # extract_utils: drop the "/system/" prefix from prints of blob names
 kpick 239303 # extract_utils: cleanup variable names and arguments passed to extract() function
 kpick 237270 # extract_utils: introduce -k (kang mode) option
-kpick 237118 # extract_utils: introduce support for executing blob fixup scripts
+kpick 237118 # extract_utils: introduce support for executing blob fixups
+kpick 239526 # extract_utils: add option to print dependency graph for elf files
+kpick 239477 # extract_utils: make --section match words anywhere in the line
 kpick 239358 # extract_utils: template: use quotation marks and variable curly braces consistently
 kpick 239359 # extract_utils: template: make --section argument non-positional
 kpick 239360 # extract_utils: template: introduce kang mode
-kpick 237270 # extract_utils: introduce -k (kang mode) option
+kpick 239527 # extract_utils: template: add support for the dependency graph function
 kpick 237209 # lineage: Set default ringtone for second SIM
 kpick 237352 # qcom: Mark some gralloc bits as valid
 kpick 237830 # soong_config: Add BOOTLOADER_MESSAGE_OFFSET

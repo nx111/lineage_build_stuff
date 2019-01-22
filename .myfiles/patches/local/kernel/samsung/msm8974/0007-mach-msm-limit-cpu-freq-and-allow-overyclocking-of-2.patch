@@ -1,0 +1,865 @@
+From 2f86bf1f527ad4d05b6777b902fc8a8c3c1cc15d Mon Sep 17 00:00:00 2001
+From: nx111 <gd.zhangdz@gmail.com>
+Date: Mon, 23 Apr 2018 21:40:12 +0800
+Subject: [PATCH 07/25] mach-msm: limit cpu freq , and allow overyclocking of 2
+ cores.
+
+Change-Id: Ice8a1cb450188720e36a1667f3f94162c5c68e06
+---
+ arch/arm/mach-msm/Kconfig                |  23 +++
+ arch/arm/mach-msm/Makefile               |   3 +
+ arch/arm/mach-msm/cpufreq.c              | 113 ++++++++++++-
+ arch/arm/mach-msm/cpufreq_limit.c        | 148 +++++++++++++++++
+ arch/arm/mach-msm/include/mach/cpufreq.h |  24 +++
+ arch/arm/mach-msm/msm_rq_stats.c         |  20 +++
+ arch/arm/mach-msm/msm_turbo.c            |  56 +++++++
+ drivers/cpufreq/cpufreq.c                | 199 +++++++++++++++--------
+ drivers/cpufreq/cpufreq_stats.c          |   4 +-
+ include/linux/cpufreq.h                  |   9 +
+ 10 files changed, 532 insertions(+), 67 deletions(-)
+ create mode 100644 arch/arm/mach-msm/cpufreq_limit.c
+ create mode 100644 arch/arm/mach-msm/msm_turbo.c
+
+diff --git a/arch/arm/mach-msm/Kconfig b/arch/arm/mach-msm/Kconfig
+index 6b01a5afd623..f1c45216139d 100644
+--- a/arch/arm/mach-msm/Kconfig
++++ b/arch/arm/mach-msm/Kconfig
+@@ -3539,6 +3539,20 @@ config MSM_DEVFREQ_CPUBW
+ 	select DEVFREQ_GOV_POWERSAVE
+ 	select DEVFREQ_GOV_USERSPACE
+ 	select DEVFREQ_GOV_MSM_CPUFREQ
++
++config MSM_CPUFREQ_LIMITER
++	tristate "MSM CPU frequency limiter"
++	default n
++	help
++	  This driver limits MSM CPU frequency through sysfs file system.
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called cpufreq_stats.
++
++	  If in doubt, say N.
++
++config CPU_VOLTAGE_TABLE
++	bool "Enable CPU Voltage Table via sysfs for adjustements"
+ 	default n
+ 	help
+ 	  Different devfreq governors use this devfreq device to make CPU to
+@@ -3546,6 +3560,15 @@ config MSM_DEVFREQ_CPUBW
+ 	  agnostic interface to so that some of the devfreq governors can be
+ 	  shared across SoCs.
+ 
++config TURBO_BOOST
++	bool "Enable CPU Turbo boost option"
++	depends on CPU_OVERCLOCK
++	default y
++	help
++	  This option allows overclocking of 2 cores to higher clock rate
++	  than stock maximum.  When more than 2 cores are active, the clock
++	  is limited to stock max speeds
++
+ config MSM_AVS_HW
+ 	bool "Enable Adaptive Voltage Scaling (AVS)"
+ 	default n
+diff --git a/arch/arm/mach-msm/Makefile b/arch/arm/mach-msm/Makefile
+index 024eeff9495b..5b3c9f094de6 100644
+--- a/arch/arm/mach-msm/Makefile
++++ b/arch/arm/mach-msm/Makefile
+@@ -518,3 +518,6 @@ else
+ obj-$(CONFIG_SEC_THERMISTOR) += sec_thermistor.o msm8974-thermistor.o
+ endif
+ obj-$(CONFIG_GSM_MODEM_SPRD6500) += board-sprd6500-spi.o board-sprd6500-modems.o
++obj-$(CONFIG_MSM_CPUFREQ_LIMITER) += cpufreq_limit.o
++obj-$(CONFIG_FORCE_FAST_CHARGE) += fastchg.o
++obj-$(CONFIG_TURBO_BOOST) += msm_turbo.o
+diff --git a/arch/arm/mach-msm/cpufreq.c b/arch/arm/mach-msm/cpufreq.c
+index ac70dd7bfda8..848cc643819d 100644
+--- a/arch/arm/mach-msm/cpufreq.c
++++ b/arch/arm/mach-msm/cpufreq.c
+@@ -17,7 +17,6 @@
+  *
+  */
+ 
+-#include <linux/earlysuspend.h>
+ #include <linux/init.h>
+ #include <linux/module.h>
+ #include <linux/cpufreq.h>
+@@ -65,6 +64,21 @@ struct cpufreq_work_struct {
+ 
+ static DEFINE_PER_CPU(struct cpufreq_work_struct, cpufreq_work);
+ static struct workqueue_struct *msm_cpufreq_wq;
++
++struct cpu_freq {
++	uint32_t max;
++	uint32_t min;
++	uint32_t allowed_max;
++	uint32_t allowed_min;
++	uint32_t limits_init;
++};
++
++static DEFINE_PER_CPU(struct cpu_freq, cpu_freq_info);
++
++#ifdef CONFIG_TURBO_BOOST
++extern int msm_turbo(int);
++#endif
++
+ #ifdef CONFIG_SEC_DVFS
+ static unsigned int upper_limit_freq;
+ static unsigned int lower_limit_freq;
+@@ -161,6 +175,23 @@ static int set_cpu_freq(struct cpufreq_policy *policy, unsigned int new_freq,
+ 	int saved_sched_rt_prio = -EINVAL;
+ 	struct cpufreq_freqs freqs;
+ 	struct sched_param param = { .sched_priority = MAX_RT_PRIO-1 };
++	struct cpu_freq *limit = &per_cpu(cpu_freq_info, policy->cpu);
++
++#ifdef CONFIG_TURBO_BOOST
++	new_freq = msm_turbo(new_freq);
++#endif
++
++	if (limit->limits_init) {
++		if (new_freq > limit->allowed_max) {
++			new_freq = limit->allowed_max;
++			pr_debug("max: limiting freq to %d\n", new_freq);
++		}
++
++		if (new_freq < limit->allowed_min) {
++			new_freq = limit->allowed_min;
++			pr_debug("min: limiting freq to %d\n", new_freq);
++		}
++	}
+ 
+ #ifdef CONFIG_SEC_DVFS
+ 	if (lower_limit_freq || upper_limit_freq) {
+@@ -183,6 +214,11 @@ static int set_cpu_freq(struct cpufreq_policy *policy, unsigned int new_freq,
+ 			return 0;
+ 	}
+ #endif
++
++#ifdef CONFIG_TURBO_BOOST
++	new_freq = msm_turbo(new_freq);
++#endif
++
+ 	freqs.old = policy->cur;
+ 	freqs.new = new_freq;
+ 	freqs.cpu = policy->cpu;
+@@ -316,6 +352,71 @@ static unsigned int msm_cpufreq_get_freq(unsigned int cpu)
+ 	return acpuclk_get_rate(cpu);
+ }
+ 
++#ifdef CONFIG_LOW_CPUCLOCKS
++#define LOW_CPUCLOCKS_FREQ_MIN	162000
++#endif
++
++static inline int msm_cpufreq_limits_init(void)
++{
++	int cpu = 0;
++	int i = 0;
++	struct cpufreq_frequency_table *table = NULL;
++	uint32_t min = (uint32_t) -1;
++	uint32_t max = 0;
++	struct cpu_freq *limit = NULL;
++
++	for_each_possible_cpu(cpu) {
++		limit = &per_cpu(cpu_freq_info, cpu);
++		table = cpufreq_frequency_get_table(cpu);
++		if (table == NULL) {
++			pr_err("%s: error reading cpufreq table for cpu %d\n",
++					__func__, cpu);
++			continue;
++		}
++		for (i = 0; (table[i].frequency != CPUFREQ_TABLE_END); i++) {
++			if (table[i].frequency > max)
++				max = table[i].frequency;
++			if (table[i].frequency < min)
++				min = table[i].frequency;
++		}
++		limit->allowed_min = min;
++		limit->allowed_max = max;
++		limit->min = min;
++		limit->max = max;
++		limit->limits_init = 1;
++	}
++
++	return 0;
++}
++
++int msm_cpufreq_set_freq_limits(uint32_t cpu, uint32_t min, uint32_t max)
++{
++	struct cpu_freq *limit = &per_cpu(cpu_freq_info, cpu);
++
++	if (!limit->limits_init)
++		msm_cpufreq_limits_init();
++
++	if ((min != MSM_CPUFREQ_NO_LIMIT) &&
++		min >= limit->min && min <= limit->max)
++		limit->allowed_min = min;
++	else
++		limit->allowed_min = limit->min;
++
++
++	if ((max != MSM_CPUFREQ_NO_LIMIT) &&
++		max <= limit->max && max >= limit->min)
++		limit->allowed_max = max;
++	else
++		limit->allowed_max = limit->max;
++
++	//pr_debug("%s: Limiting cpu %d min = %d, max = %d\n",
++	//		__func__, cpu,
++	//		limit->allowed_min, limit->allowed_max);
++
++	return 0;
++}
++EXPORT_SYMBOL(msm_cpufreq_set_freq_limits);
++
+ static int __cpuinit msm_cpufreq_init(struct cpufreq_policy *policy)
+ {
+ 	int cur_freq;
+@@ -346,12 +447,20 @@ static int __cpuinit msm_cpufreq_init(struct cpufreq_policy *policy)
+ 
+ 	if (cpufreq_frequency_table_cpuinfo(policy, table)) {
+ #ifdef CONFIG_MSM_CPU_FREQ_SET_MIN_MAX
++#ifdef CONFIG_LOW_CPUCLOCKS
++		policy->cpuinfo.min_freq = LOW_CPUCLOCKS_FREQ_MIN;
++#else
+ 		policy->cpuinfo.min_freq = CONFIG_MSM_CPU_FREQ_MIN;
++#endif
+ 		policy->cpuinfo.max_freq = CONFIG_MSM_CPU_FREQ_MAX;
+ #endif
+ 	}
+ #ifdef CONFIG_MSM_CPU_FREQ_SET_MIN_MAX
++#ifdef CONFIG_LOW_CPUCLOCKS
++	policy->min = LOW_CPUCLOCKS_FREQ_MIN;
++#else
+ 	policy->min = CONFIG_MSM_CPU_FREQ_MIN;
++#endif
+ 	policy->max = CONFIG_MSM_CPU_FREQ_MAX;
+ #endif
+ #ifdef CONFIG_SEC_DVFS
+@@ -395,6 +504,7 @@ static int __cpuinit msm_cpufreq_init(struct cpufreq_policy *policy)
+ 
+ static int __cpuinit msm_cpufreq_cpu_callback(struct notifier_block *nfb,
+ 		unsigned long action, void *hcpu)
++
+ {
+ 	unsigned int cpu = (unsigned long)hcpu;
+ 	int rc;
+@@ -709,6 +819,7 @@ static int __init msm_cpufreq_register(void)
+ 	platform_driver_probe(&msm_cpufreq_plat_driver, msm_cpufreq_probe);
+ 	msm_cpufreq_wq = alloc_workqueue("msm-cpufreq", WQ_HIGHPRI, 0);
+ 	register_hotcpu_notifier(&msm_cpufreq_cpu_notifier);
++
+ 	return cpufreq_register_driver(&msm_cpufreq_driver);
+ }
+ 
+diff --git a/arch/arm/mach-msm/cpufreq_limit.c b/arch/arm/mach-msm/cpufreq_limit.c
+new file mode 100644
+index 000000000000..a52aa77da8fa
+--- /dev/null
++++ b/arch/arm/mach-msm/cpufreq_limit.c
+@@ -0,0 +1,148 @@
++/*
++ * Author: Paul Reioux aka Faux123 <reioux@gmail.com>
++ *
++ * Copyright 2012-2014 Paul Reioux
++ *
++ * This software is licensed under the terms of the GNU General Public
++ * License version 2, as published by the Free Software Foundation, and
++ * may be copied, distributed, and modified under those terms.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ *
++ */
++
++#include <linux/module.h>
++#include <linux/kobject.h>
++#include <linux/sysfs.h>
++
++#include <linux/cpu.h>
++#include <linux/cpufreq.h>
++
++#include <mach/cpufreq.h>
++
++#define MSM_CPUFREQ_LIMIT_MAJOR		1
++#define MSM_CPUFREQ_LIMIT_MINOR		2
++
++//#define DEBUG_CPU_LIMITER
++
++uint32_t limited_max_freq = 2265600;
++
++static int update_cpu_max_freq(int cpu, uint32_t max_freq)
++{
++	int ret = 0;
++
++	ret = msm_cpufreq_set_freq_limits(cpu, MSM_CPUFREQ_NO_LIMIT, max_freq);
++	if (ret)
++		return ret;
++
++	limited_max_freq = max_freq;
++#ifdef DEBUG_CPU_LIMITER
++	if (max_freq != MSM_CPUFREQ_NO_LIMIT)
++		pr_info("%s: Limiting cpu%d max frequency to %d\n",
++			__func__, cpu, max_freq);
++	else
++		pr_info("%s: Max frequency reset for cpu%d\n",
++			__func__, cpu);
++#endif
++	ret = cpufreq_update_policy(cpu);
++
++	return ret;
++}
++
++static ssize_t msm_cpufreq_limit_show(struct kobject *kobj,
++		struct kobj_attribute *attr, char *buf)
++{
++	return sprintf(buf, "%u\n", limited_max_freq);
++}
++
++static ssize_t msm_cpufreq_limit_store(struct kobject *kobj,
++		struct kobj_attribute *attr, const char *buf, size_t count)
++{
++	int cpu = 0;
++	int ret = 0;
++
++	unsigned int data;
++
++	if(sscanf(buf, "%u\n", &data) == 1) {
++		for_each_possible_cpu(cpu) {
++			ret = update_cpu_max_freq(cpu, data);
++			if (ret)
++				pr_debug("can't limit cpu%d max freq to %d\n",
++					cpu, data);
++		}
++		if (!ret)
++			limited_max_freq = data;
++	}
++
++	return count;
++}
++
++static ssize_t msm_cpufreq_limit_version_show(struct kobject *kobj,
++		struct kobj_attribute *attr, char *buf)
++{
++	return sprintf(buf, "version: %u.%u\n",
++			MSM_CPUFREQ_LIMIT_MAJOR, MSM_CPUFREQ_LIMIT_MINOR);
++}
++
++static struct kobj_attribute msm_cpufreq_limit_attribute = 
++	__ATTR(cpufreq_limit, 0666,
++		msm_cpufreq_limit_show,
++		msm_cpufreq_limit_store);
++
++static struct kobj_attribute msm_cpufreq_limit_version_attribute = 
++	__ATTR(msm_cpufreq_limit_version, 0444 ,
++		msm_cpufreq_limit_version_show,
++		NULL);
++
++static struct attribute *msm_cpufreq_limit_attrs[] =
++	{
++		&msm_cpufreq_limit_attribute.attr,
++		&msm_cpufreq_limit_version_attribute.attr,
++		NULL,
++	};
++
++static struct attribute_group msm_cpufreq_limit_attr_group =
++	{
++		.attrs = msm_cpufreq_limit_attrs,
++	};
++
++static struct kobject *msm_cpufreq_limit_kobj;
++
++static int msm_cpufreq_limit_init(void)
++{
++	int sysfs_result;
++
++	msm_cpufreq_limit_kobj =
++		kobject_create_and_add("msm_cpufreq_limit", kernel_kobj);
++	if (!msm_cpufreq_limit_kobj) {
++		pr_err("%s msm_cpufreq_limit_kobj kobject create failed!\n",
++			__func__);
++		return -ENOMEM;
++        }
++
++	sysfs_result = sysfs_create_group(msm_cpufreq_limit_kobj,
++			&msm_cpufreq_limit_attr_group);
++
++        if (sysfs_result) {
++		pr_info("%s msm_cpufreq_limit_kobj create failed!\n",
++			__func__);
++		kobject_put(msm_cpufreq_limit_kobj);
++	}
++	return sysfs_result;
++}
++
++static void msm_cpufreq_limit_exit(void)
++{
++	if (msm_cpufreq_limit_kobj != NULL)
++		kobject_put(msm_cpufreq_limit_kobj);
++}
++
++module_init(msm_cpufreq_limit_init);
++module_exit(msm_cpufreq_limit_exit);
++MODULE_LICENSE("GPL v2"); 
++MODULE_AUTHOR("Paul Reioux <reioux@gmail.com>");
++MODULE_DESCRIPTION("Krait CPU frequency Limit Driver");
++
+diff --git a/arch/arm/mach-msm/include/mach/cpufreq.h b/arch/arm/mach-msm/include/mach/cpufreq.h
+index 46872d78371e..747934b877b3 100644
+--- a/arch/arm/mach-msm/include/mach/cpufreq.h
++++ b/arch/arm/mach-msm/include/mach/cpufreq.h
+@@ -13,6 +13,8 @@
+ #ifndef __MACH_CPUFREQ_H
+ #define __MACH_CPUFREQ_H
+ 
++#define MSM_CPUFREQ_NO_LIMIT 0xFFFFFFFF
++
+ #if defined(CONFIG_DEVFREQ_GOV_MSM_CPUFREQ)
+ extern int devfreq_msm_cpufreq_update_bw(void);
+ extern int register_devfreq_msm_cpufreq(void);
+@@ -29,11 +31,33 @@ static int register_devfreq_msm_cpufreq(void)
+ 
+ #if defined(CONFIG_CPU_FREQ_MSM)
+ extern unsigned long msm_cpufreq_get_bw(void);
++
++/**
++ * msm_cpufreq_set_freq_limit() - Set max/min freq limits on cpu
++ *
++ * @cpu: The cpu core for which the limits apply
++ * @max: The max frequency allowed
++ * @min: The min frequency allowed
++ *
++ * If the @max or @min is set to MSM_CPUFREQ_NO_LIMIT, the limit
++ * will default to the CPUFreq limit.
++ *
++ * returns 0 on success, errno on failure
++ */
++extern int msm_cpufreq_set_freq_limits(
++		uint32_t cpu, uint32_t min, uint32_t max);
+ #else
+ extern unsigned long msm_cpufreq_get_bw(void)
+ {
+ 	return ULONG_MAX;
+ }
++
++static inline int msm_cpufreq_set_freq_limits(
++		uint32_t cpu, uint32_t min, uint32_t max)
++{
++	return -ENOSYS;
++}
++
+ #endif
+ 
+ #endif
+diff --git a/arch/arm/mach-msm/msm_rq_stats.c b/arch/arm/mach-msm/msm_rq_stats.c
+index c209bea8210f..895e3f357728 100644
+--- a/arch/arm/mach-msm/msm_rq_stats.c
++++ b/arch/arm/mach-msm/msm_rq_stats.c
+@@ -38,6 +38,7 @@
+ 
+ struct notifier_block freq_transition;
+ struct notifier_block cpu_hotplug;
++struct notifier_block freq_policy;
+ 
+ struct cpu_load_data {
+ 	cputime64_t prev_cpu_idle;
+@@ -240,6 +241,22 @@ static int system_suspend_handler(struct notifier_block *nb,
+ 	return NOTIFY_OK;
+ }
+ 
++static int freq_policy_handler(struct notifier_block *nb,
++			unsigned long event, void *data)
++{
++	struct cpufreq_policy *policy = data;
++	struct cpu_load_data *this_cpu = &per_cpu(cpuload, policy->cpu);
++
++	if (event != CPUFREQ_NOTIFY)
++		goto out;
++
++	this_cpu->policy_max = policy->max;
++
++	pr_debug("Policy max changed from %u to %u, event %lu\n",
++			this_cpu->policy_max, policy->max, event);
++out:
++	return NOTIFY_DONE;
++}
+ 
+ static ssize_t hotplug_disable_show(struct kobject *kobj,
+ 		struct kobj_attribute *attr, char *buf)
+@@ -468,9 +485,12 @@ static int __init msm_rq_stats_init(void)
+ 	}
+ 	freq_transition.notifier_call = cpufreq_transition_handler;
+ 	cpu_hotplug.notifier_call = cpu_hotplug_handler;
++	freq_policy.notifier_call = freq_policy_handler;
+ 	cpufreq_register_notifier(&freq_transition,
+ 					CPUFREQ_TRANSITION_NOTIFIER);
+ 	register_hotcpu_notifier(&cpu_hotplug);
++	cpufreq_register_notifier(&freq_policy,
++					CPUFREQ_POLICY_NOTIFIER);
+ 
+ 	return ret;
+ }
+diff --git a/arch/arm/mach-msm/msm_turbo.c b/arch/arm/mach-msm/msm_turbo.c
+new file mode 100644
+index 000000000000..6301b4c10a80
+--- /dev/null
++++ b/arch/arm/mach-msm/msm_turbo.c
+@@ -0,0 +1,56 @@
++/* arch/arm/mach-msm/msm_turbo.c
++ *
++ * MSM architecture cpufreq turbo boost driver
++ *
++ * Copyright (c) 2012-2014, Paul Reioux. All rights reserved.
++ * Author: Paul Reioux <reioux@gmail.com>
++ *
++ * This software is licensed under the terms of the GNU General Public
++ * License version 2, as published by the Free Software Foundation, and
++ * may be copied, distributed, and modified under those terms.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ *
++ */
++
++#include <linux/kernel.h>
++#include <linux/module.h>
++#include <linux/cpumask.h>
++
++#ifdef CONFIG_TURBO_BOOST
++#ifdef CONFIG_OC_ULTIMATE
++#define STOCK_CPU_MAX_SPEED	2572800
++#else
++#define STOCK_CPU_MAX_SPEED	2265600
++#endif
++#endif
++
++int msm_turbo(int cpufreq)
++{
++	if (num_online_cpus() > 2) {
++		if (cpufreq > STOCK_CPU_MAX_SPEED)
++			cpufreq = STOCK_CPU_MAX_SPEED;
++        }
++	return cpufreq;
++}
++
++static int msm_turbo_boost_init(void)
++{
++	return 0;
++}
++
++static void msm_turbo_boost_exit(void)
++{
++
++}
++
++module_init(msm_turbo_boost_init);
++module_exit(msm_turbo_boost_exit);
++
++MODULE_LICENSE("GPL V2");
++MODULE_AUTHOR("Paul Reioux <reioux@gmail.com>");
++MODULE_DESCRIPTION("MSM turbo boost module");
++
+diff --git a/drivers/cpufreq/cpufreq.c b/drivers/cpufreq/cpufreq.c
+index 9fb48835c63d..eb47f688a75c 100644
+--- a/drivers/cpufreq/cpufreq.c
++++ b/drivers/cpufreq/cpufreq.c
+@@ -39,14 +39,7 @@
+  */
+ static struct cpufreq_driver *cpufreq_driver;
+ static DEFINE_PER_CPU(struct cpufreq_policy *, cpufreq_cpu_data);
+-#ifdef CONFIG_HOTPLUG_CPU
+-/* This one keeps track of the previously set governor of a removed CPU */
+-struct cpufreq_cpu_save_data {
+-	char gov[CPUFREQ_NAME_LEN];
+-	unsigned int max, min;
+-};
+-static DEFINE_PER_CPU(struct cpufreq_cpu_save_data, cpufreq_policy_save);
+-#endif
++
+ static DEFINE_SPINLOCK(cpufreq_driver_lock);
+ 
+ /*
+@@ -783,26 +776,6 @@ static int cpufreq_add_dev_policy(unsigned int cpu,
+ #ifdef CONFIG_SMP
+ 	unsigned long flags;
+ 	unsigned int j;
+-#ifdef CONFIG_HOTPLUG_CPU
+-	struct cpufreq_governor *gov;
+-
+-	gov = __find_governor(per_cpu(cpufreq_policy_save, cpu).gov);
+-	if (gov) {
+-		policy->governor = gov;
+-		pr_debug("Restoring governor %s for cpu %d\n",
+-		       policy->governor->name, cpu);
+-	}
+-	if (per_cpu(cpufreq_policy_save, cpu).min) {
+-		policy->min = per_cpu(cpufreq_policy_save, cpu).min;
+-		policy->user_policy.min = policy->min;
+-	}
+-	if (per_cpu(cpufreq_policy_save, cpu).max) {
+-		policy->max = per_cpu(cpufreq_policy_save, cpu).max;
+-		policy->user_policy.max = policy->max;
+-	}
+-	pr_debug("Restoring CPU%d min %d and max %d\n",
+-		cpu, policy->min, policy->max);
+-#endif
+ 
+ 	for_each_cpu(j, policy->cpus) {
+ 		struct cpufreq_policy *managed_policy;
+@@ -1033,10 +1006,15 @@ static int cpufreq_add_dev(struct device *dev, struct subsys_interface *sif)
+ #ifdef CONFIG_HOTPLUG_CPU
+ 	for_each_online_cpu(sibling) {
+ 		struct cpufreq_policy *cp = per_cpu(cpufreq_cpu_data, sibling);
+-		if (cp && cp->governor &&
+-		    (cpumask_test_cpu(cpu, cp->related_cpus))) {
++		if (cp && cp->governor) {
+ 			policy->governor = cp->governor;
++			policy->min = cp->min;
++			policy->max = cp->max;
++			policy->user_policy.min = cp->user_policy.min;
++			policy->user_policy.max = cp->user_policy.max;
++
+ 			found = 1;
++			//pr_info("sibling: found sibling!\n");
+ 			break;
+ 		}
+ 	}
+@@ -1152,15 +1130,6 @@ static int __cpufreq_remove_dev(struct device *dev, struct subsys_interface *sif
+ 
+ #ifdef CONFIG_SMP
+ 
+-#ifdef CONFIG_HOTPLUG_CPU
+-	strncpy(per_cpu(cpufreq_policy_save, cpu).gov, data->governor->name,
+-			CPUFREQ_NAME_LEN);
+-	per_cpu(cpufreq_policy_save, cpu).min = data->user_policy.min;
+-	per_cpu(cpufreq_policy_save, cpu).max = data->user_policy.max;
+-	pr_debug("Saving CPU%d user policy min %d and max %d\n",
+-			cpu, data->user_policy.min, data->user_policy.max);
+-#endif
+-
+ 	/* if we have other CPUs still registered, we need to unlink them,
+ 	 * or else wait_for_completion below will lock up. Clean the
+ 	 * per_cpu(cpufreq_cpu_data) while holding the lock, and remove
+@@ -1181,16 +1150,6 @@ static int __cpufreq_remove_dev(struct device *dev, struct subsys_interface *sif
+ 			if (j == cpu)
+ 				continue;
+ 			pr_debug("removing link for cpu %u\n", j);
+-#ifdef CONFIG_HOTPLUG_CPU
+-			strncpy(per_cpu(cpufreq_policy_save, j).gov,
+-				data->governor->name, CPUFREQ_NAME_LEN);
+-			per_cpu(cpufreq_policy_save, j).min
+-						= data->user_policy.min;
+-			per_cpu(cpufreq_policy_save, j).max
+-						= data->user_policy.max;
+-			pr_debug("Saving CPU%d user policy min %d and max %d\n",
+-					j, data->min, data->max);
+-#endif
+ 			cpu_dev = get_cpu_device(j);
+ 			kobj = &cpu_dev->kobj;
+ 			unlock_policy_rwsem_write(cpu);
+@@ -1706,28 +1665,12 @@ EXPORT_SYMBOL_GPL(cpufreq_register_governor);
+ 
+ void cpufreq_unregister_governor(struct cpufreq_governor *governor)
+ {
+-#ifdef CONFIG_HOTPLUG_CPU
+-	int cpu;
+-#endif
+-
+ 	if (!governor)
+ 		return;
+ 
+ 	if (cpufreq_disabled())
+ 		return;
+ 
+-#ifdef CONFIG_HOTPLUG_CPU
+-	for_each_present_cpu(cpu) {
+-		if (cpu_online(cpu))
+-			continue;
+-		if (!strcmp(per_cpu(cpufreq_policy_save, cpu).gov,
+-					governor->name))
+-			strcpy(per_cpu(cpufreq_policy_save, cpu).gov, "\0");
+-		per_cpu(cpufreq_policy_save, cpu).min = 0;
+-		per_cpu(cpufreq_policy_save, cpu).max = 0;
+-	}
+-#endif
+-
+ 	mutex_lock(&cpufreq_governor_mutex);
+ 	list_del(&governor->governor_list);
+ 	mutex_unlock(&cpufreq_governor_mutex);
+@@ -1858,6 +1801,132 @@ error_out:
+ 	return ret;
+ }
+ 
++#ifdef CONFIG_CPUFREQ_LIMIT_MAX_FREQ // limit max freq
++enum {
++	SET_MIN = 0,
++	SET_MAX
++};
++
++int cpufreq_set_limits_off(int cpu, unsigned int limit, unsigned int value)
++{
++	int ret = -EINVAL;
++	unsigned long flags;
++
++	if (!(limit == SET_MIN || limit == SET_MAX))
++		goto out;
++	if (!cpu_is_offline(cpu))
++		goto out;
++
++	spin_lock_irqsave(&cpufreq_driver_lock, flags);
++
++	if (!cpufreq_driver)
++		goto out_unlock;
++
++	if (!try_module_get(cpufreq_driver->owner))
++		goto out_unlock;
++
++	ret = 0;
++	pr_info("%s: Setting [min/max:0/1] = %d frequency of cpu[%d]  to %d\n",  __func__, limit, cpu, value);
++
++out_unlock:
++	spin_unlock_irqrestore(&cpufreq_driver_lock, flags);
++out:
++	return ret;
++}
++
++int cpufreq_set_limits(int cpu, unsigned int limit, unsigned int value)
++{
++	struct cpufreq_policy new_policy;
++	struct cpufreq_policy *cur_policy;
++	int ret = -EINVAL;
++
++	if (!(limit == SET_MIN || limit == SET_MAX))
++		goto out;
++	if (cpu_is_offline(cpu))
++		goto out;
++
++	cur_policy = cpufreq_cpu_get(cpu);
++	if (!cur_policy)
++		goto out;
++	if (lock_policy_rwsem_write(cpu) < 0)
++		goto out_put_freq;
++
++	memcpy(&new_policy, cur_policy, sizeof(struct cpufreq_policy));
++
++	if (limit == SET_MAX)
++	{
++		// for app boost = DVFS lock
++		if (cur_policy->min > value)
++		{
++			new_policy.min = value;
++			ret = __cpufreq_set_policy(cur_policy, &new_policy);
++			if(ret < 0)
++				goto out_unlock;
++
++			cur_policy->user_policy.min = cur_policy->min;
++		}
++
++		new_policy.max = value;
++	}
++	else
++	{
++		// no other cases to change min value, now
++		if (cur_policy->max < value)
++			value = cur_policy->max;
++
++		new_policy.min = value;
++	}
++
++	ret = __cpufreq_set_policy(cur_policy, &new_policy);
++	if(ret < 0)
++		goto out_unlock;
++
++	if (limit == SET_MAX)
++		cur_policy->user_policy.max = cur_policy->max;
++	else
++		cur_policy->user_policy.min = cur_policy->min;
++
++	ret = 0;
++	pr_info("%s: Setting [min/max:0/1] = %d frequency of cpu[%d]  to %d\n",  __func__, limit, cpu, value);
++out_unlock:
++	unlock_policy_rwsem_write(cpu);
++out_put_freq:
++	cpufreq_cpu_put(cur_policy);
++out:
++	return ret;
++}
++
++int cpufreq_get_limits(int cpu, unsigned int limit)
++{
++	struct cpufreq_policy *cur_policy;
++	int ret = -EINVAL;
++	unsigned int value = 0;
++	if (!(limit == SET_MIN || limit == SET_MAX))
++		goto out;
++	if (cpu_is_offline(cpu))
++		goto out;
++	cur_policy = cpufreq_cpu_get(cpu);
++	if (!cur_policy)
++		goto out;
++	if (lock_policy_rwsem_write(cpu) < 0)
++		goto out_put_freq;
++
++	if (limit == SET_MAX)
++		value = cur_policy->max;
++	else
++		value = cur_policy->min;
++
++	ret = value;
++	unlock_policy_rwsem_write(cpu);
++	pr_info("%s: [min/max:0/1] = %d frequency of cpu[%d]: %d\n", __func__, limit, cpu, value);
++
++out_put_freq:
++	cpufreq_cpu_put(cur_policy);
++out:
++	return ret;
++}
++#endif
++
+ /**
+  *	cpufreq_update_policy - re-evaluate an existing cpufreq policy
+  *	@cpu: CPU which shall be re-evaluated
+diff --git a/drivers/cpufreq/cpufreq_stats.c b/drivers/cpufreq/cpufreq_stats.c
+index e2599926990d..a9898f854a52 100644
+--- a/drivers/cpufreq/cpufreq_stats.c
++++ b/drivers/cpufreq/cpufreq_stats.c
+@@ -376,8 +376,10 @@ static int cpufreq_stats_create_table(struct cpufreq_policy *policy,
+ 	struct cpufreq_policy *data;
+ 	unsigned int alloc_size;
+ 	unsigned int cpu = policy->cpu;
++
+ 	if (per_cpu(cpufreq_stats_table, cpu))
+-		return -EBUSY;
++		return 0;
++
+ 	stat = kzalloc(sizeof(struct cpufreq_stats), GFP_KERNEL);
+ 	if ((stat) == NULL)
+ 		return -ENOMEM;
+diff --git a/include/linux/cpufreq.h b/include/linux/cpufreq.h
+index 3c1394f57fd6..65933385dc67 100644
+--- a/include/linux/cpufreq.h
++++ b/include/linux/cpufreq.h
+@@ -268,8 +268,17 @@ void cpufreq_notify_transition(struct cpufreq_freqs *freqs, unsigned int state);
+ void cpufreq_notify_utilization(struct cpufreq_policy *policy,
+ 		unsigned int load);
+ 
++#ifdef CONFIG_MSM_CPUFREQ_LIMITER
++extern unsigned int limited_max_freq;
++#endif
++
+ static inline void cpufreq_verify_within_limits(struct cpufreq_policy *policy, unsigned int min, unsigned int max)
+ {
++
++#ifdef CONFIG_MSM_CPUFREQ_LIMITER
++	max = min(limited_max_freq, max);
++#endif
++
+ 	if (policy->min < min)
+ 		policy->min = min;
+ 	if (policy->max < min)
+-- 
+2.17.1
+
