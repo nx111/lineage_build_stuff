@@ -1210,6 +1210,8 @@ kpick 222742 # build: Use project pathmap for recovery
 kpick 222760 # Add LOCAL_AIDL_FLAGS
 kpick 227111 # releasetools: Store the build.prop file in the OTA zip
 kpick 239212 # Stop using the `files` target for droidcore
+kpick 239761 # Revert "build: only write build_number.txt when BUILD_NUMBER has changed"
+kpick 239760 # Don't export BUILD_NUMBER in envsetup
 
 # build/soong
 kpick 222648 # Allow providing flex and bison binaries
@@ -1291,7 +1293,6 @@ kpick 225233 # toybox: Add install to symlinks
 # external/zlib
 kpick 225237 # zlib: Fix build under Android 6.0 and higher
 kpick 225238 # minizip: Clean up the code
-kpick 225239 # zlib: crc optimization for arm64
 
 # frameworks/av
 kpick 230387 # CameraService: Support calling addStates in enumerateProviders
@@ -1337,7 +1338,6 @@ kpick 237143 # AudioService: Fix Audio mod volume steps
 kpick 237171 # WiFiDisplayController: Defer the P2P Initialization from its constructor.
 kpick 237172 # WifiDisplayController: handle preexisting p2p connection status
 kpick 237743 # systemui: add dark mode on low battery toggle
-kpick 238486 # PhoneWindowManager: Migrate to vendor.lineage.touch
 kpick 238601 # base: add Trust usb restrictor
 kpick 238696 # fonts: Build different fonts.xml if EXCLUDE_SERIF_FONTS is true
 kpick 239179 # Camera: Force HAL1 for predefined package list.
@@ -1378,9 +1378,8 @@ kpick 238585 # trust: create service
 #kpick 239524 # livedisplay: Update impl for 2.0 interface
 
 # hardware/lineage/lineagehw
-#kpick 239441 # lineagehw: Deprecate some features
-#kpick 239442 # lineagehw: Remove reference to HIDL stuff
-kpick 239043 # lineagehw: Migrate to vendor.lineage.touch
+kpick 239441 # lineagehw: Deprecate some features
+kpick 239442 # lineagehw: Remove reference to HIDL stuff
 
 # hardware/lineage/livedisplay
 kpick 239500 # livedisplay: qti: Add LineageOS copyrights
@@ -1459,7 +1458,6 @@ kpick 238604 # sdk: add Trust usb restrictor
 kpick 239278 # PerformanceManager: Allow wait for MPCTL to start on boot
 kpick 239443 # sdk: Deprecate some unused lineagehw features
 kpick 239449 # sdk: Add HIDL compat in LineageHardwareManager
-kpick 238484 # lineage-sdk: Migrate to vendor.lineage.touch
 kpick 239492 # LineageSettingsProvider: Fix migration of FORCE_SHOW_NAVBAR
 
 # packages/apps/Bluetooth
@@ -1488,10 +1486,8 @@ kpick 229311 # Assume optional codecs are supported if were supported previously
 # packages/apps/ExactCalculator
 
 # packages/apps/FlipFlap
-kpick 239071 # FlipFlap: Migrate to vendor.lineage.touch
 
 # packages/apps/FMRadio
-kpick 239290 # FMRadio: build with AAPT2
 
 # packages/apps/Gallery2
 
@@ -1501,7 +1497,6 @@ kpick 239290 # FMRadio: build with AAPT2
 
 # packages/apps/LineageParts
 kpick 237741 # parts: add dark mode on low battery toggle
-kpick 238485 # LineageParts: Migrate to vendor.lineage.touch
 kpick 238603 # parts: add Trust usb restrictor
 kpick 239762 # LineageStats: explicitly cancel old jobs
 
@@ -1532,7 +1527,6 @@ kpick 237183 # settings: hide appendix of app list for power usage.
 # packages/apps/SettingsIntelligence
 
 # packages/apps/SetupWizard
-kpick 238488 # SetupWizard: Migrate to vendor.lineage.touch
 
 # packages/apps/Snap
 kpick 237244 # Snap: make support for bokeh mode configurable per device

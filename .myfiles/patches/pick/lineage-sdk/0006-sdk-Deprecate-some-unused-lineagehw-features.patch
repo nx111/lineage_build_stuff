@@ -1,0 +1,665 @@
+From 0fc36303947d203d55b988a016c261c5e515f17e Mon Sep 17 00:00:00 2001
+From: Paul Keith <javelinanddart@gmail.com>
+Date: Fri, 18 Jan 2019 16:09:01 +0100
+Subject: [PATCH 6/8] sdk: Deprecate some unused lineagehw features
+
+* DISPLAY_GAMMA_CALIBRATION
+* LONG_TERM_ORBITS
+* SERIAL_NUMBER
+* While we're at it, cleanup tests for removal of other features too
+
+Change-Id: I1a572cf3bcc5298d208a3dc234f9d82da1105bf0
+---
+ api/lineage_current.txt                       |  12 --
+ .../internal/LineageHardwareService.java      | 138 --------------
+ .../hardware/ILineageHardwareService.aidl     |  10 -
+ .../hardware/LineageHardwareManager.java      | 176 ------------------
+ .../lineageos/providers/LineageSettings.java  |   7 -
+ .../tests/hardware/LineageHardwareTest.java   |  98 ----------
+ 6 files changed, 441 deletions(-)
+
+diff --git a/api/lineage_current.txt b/api/lineage_current.txt
+index cb4b518..a92dea8 100644
+--- a/api/lineage_current.txt
++++ b/api/lineage_current.txt
+@@ -185,18 +185,10 @@ package lineageos.hardware {
+     method public int getDisplayColorCalibrationDefault();
+     method public int getDisplayColorCalibrationMax();
+     method public int getDisplayColorCalibrationMin();
+-    method public deprecated int[] getDisplayGammaCalibration(int);
+-    method public deprecated int getDisplayGammaCalibrationMax();
+-    method public deprecated int getDisplayGammaCalibrationMin();
+     method public lineageos.hardware.DisplayMode[] getDisplayModes();
+     method public static lineageos.hardware.LineageHardwareManager getInstance(android.content.Context);
+-    method public java.lang.String getLtoDestination();
+-    method public long getLtoDownloadInterval();
+-    method public java.lang.String getLtoSource();
+-    method public deprecated int getNumGammaControls();
+     method public lineageos.hardware.HSIC getPictureAdjustment();
+     method public java.util.List<android.util.Range<java.lang.Float>> getPictureAdjustmentRanges();
+-    method public java.lang.String getSerialNumber();
+     method public int getSupportedFeatures();
+     method public lineageos.hardware.TouchscreenGesture[] getTouchscreenGestures();
+     method public int getVibratorDefaultIntensity();
+@@ -210,7 +202,6 @@ package lineageos.hardware {
+     method public boolean set(int, boolean);
+     method public boolean setColorBalance(int);
+     method public boolean setDisplayColorCalibration(int[]);
+-    method public deprecated boolean setDisplayGammaCalibration(int, int[]);
+     method public boolean setDisplayMode(lineageos.hardware.DisplayMode, boolean);
+     method public boolean setPictureAdjustment(lineageos.hardware.HSIC);
+     method public boolean setTouchscreenGestureEnabled(lineageos.hardware.TouchscreenGesture, boolean);
+@@ -220,14 +211,11 @@ package lineageos.hardware {
+     field public static final int FEATURE_COLOR_BALANCE = 131072; // 0x20000
+     field public static final int FEATURE_COLOR_ENHANCEMENT = 2; // 0x2
+     field public static final int FEATURE_DISPLAY_COLOR_CALIBRATION = 4; // 0x4
+-    field public static final int FEATURE_DISPLAY_GAMMA_CALIBRATION = 8; // 0x8
+     field public static final int FEATURE_DISPLAY_MODES = 8192; // 0x2000
+     field public static final int FEATURE_HIGH_TOUCH_SENSITIVITY = 16; // 0x10
+     field public static final int FEATURE_KEY_DISABLE = 32; // 0x20
+-    field public static final int FEATURE_LONG_TERM_ORBITS = 64; // 0x40
+     field public static final int FEATURE_PICTURE_ADJUSTMENT = 262144; // 0x40000
+     field public static final int FEATURE_READING_ENHANCEMENT = 16384; // 0x4000
+-    field public static final int FEATURE_SERIAL_NUMBER = 128; // 0x80
+     field public static final int FEATURE_SUNLIGHT_ENHANCEMENT = 256; // 0x100
+     field public static final int FEATURE_TOUCHSCREEN_GESTURES = 524288; // 0x80000
+     field public static final int FEATURE_TOUCH_HOVERING = 2048; // 0x800
+diff --git a/lineage/lib/main/java/org/lineageos/platform/internal/LineageHardwareService.java b/lineage/lib/main/java/org/lineageos/platform/internal/LineageHardwareService.java
+index 9d55748..c1e0aeb 100644
+--- a/lineage/lib/main/java/org/lineageos/platform/internal/LineageHardwareService.java
++++ b/lineage/lib/main/java/org/lineageos/platform/internal/LineageHardwareService.java
+@@ -45,14 +45,11 @@ import org.lineageos.hardware.AutoContrast;
+ import org.lineageos.hardware.ColorBalance;
+ import org.lineageos.hardware.ColorEnhancement;
+ import org.lineageos.hardware.DisplayColorCalibration;
+-import org.lineageos.hardware.DisplayGammaCalibration;
+ import org.lineageos.hardware.DisplayModeControl;
+ import org.lineageos.hardware.HighTouchSensitivity;
+ import org.lineageos.hardware.KeyDisabler;
+-import org.lineageos.hardware.LongTermOrbits;
+ import org.lineageos.hardware.PictureAdjustment;
+ import org.lineageos.hardware.ReadingEnhancement;
+-import org.lineageos.hardware.SerialNumber;
+ import org.lineageos.hardware.SunlightEnhancement;
+ import org.lineageos.hardware.TouchscreenGestures;
+ import org.lineageos.hardware.TouchscreenHovering;
+@@ -79,19 +76,9 @@ public class LineageHardwareService extends LineageSystemService {
+         public int[] getDisplayColorCalibration();
+         public boolean setDisplayColorCalibration(int[] rgb);
+ 
+-        public int getNumGammaControls();
+-        public int[] getDisplayGammaCalibration(int idx);
+-        public boolean setDisplayGammaCalibration(int idx, int[] rgb);
+-
+         public int[] getVibratorIntensity();
+         public boolean setVibratorIntensity(int intensity);
+ 
+-        public String getLtoSource();
+-        public String getLtoDestination();
+-        public long getLtoDownloadInterval();
+-
+-        public String getSerialNumber();
+-
+         public boolean requireAdaptiveBacklightForSunlightEnhancement();
+         public boolean isSunlightEnhancementSelfManaged();
+ 
+@@ -125,18 +112,12 @@ public class LineageHardwareService extends LineageSystemService {
+                 mSupportedFeatures |= LineageHardwareManager.FEATURE_COLOR_ENHANCEMENT;
+             if (DisplayColorCalibration.isSupported())
+                 mSupportedFeatures |= LineageHardwareManager.FEATURE_DISPLAY_COLOR_CALIBRATION;
+-            if (DisplayGammaCalibration.isSupported())
+-                mSupportedFeatures |= LineageHardwareManager.FEATURE_DISPLAY_GAMMA_CALIBRATION;
+             if (HighTouchSensitivity.isSupported())
+                 mSupportedFeatures |= LineageHardwareManager.FEATURE_HIGH_TOUCH_SENSITIVITY;
+             if (KeyDisabler.isSupported())
+                 mSupportedFeatures |= LineageHardwareManager.FEATURE_KEY_DISABLE;
+-            if (LongTermOrbits.isSupported())
+-                mSupportedFeatures |= LineageHardwareManager.FEATURE_LONG_TERM_ORBITS;
+             if (ReadingEnhancement.isSupported())
+                 mSupportedFeatures |= LineageHardwareManager.FEATURE_READING_ENHANCEMENT;
+-            if (SerialNumber.isSupported())
+-                mSupportedFeatures |= LineageHardwareManager.FEATURE_SERIAL_NUMBER;
+             if (SunlightEnhancement.isSupported())
+                 mSupportedFeatures |= LineageHardwareManager.FEATURE_SUNLIGHT_ENHANCEMENT;
+             if (VibratorHW.isSupported())
+@@ -257,31 +238,6 @@ public class LineageHardwareService extends LineageSystemService {
+             return DisplayColorCalibration.setColors(rgbToString(rgb));
+         }
+ 
+-        public int getNumGammaControls() {
+-            return DisplayGammaCalibration.getNumberOfControls();
+-        }
+-
+-        public int[] getDisplayGammaCalibration(int idx) {
+-            int[] rgb = splitStringToInt(DisplayGammaCalibration.getCurGamma(idx), " ");
+-            if (rgb == null || rgb.length != 3) {
+-                Log.e(TAG, "Invalid gamma calibration string");
+-                return null;
+-            }
+-            int[] currentCalibration = new int[5];
+-            currentCalibration[LineageHardwareManager.GAMMA_CALIBRATION_RED_INDEX] = rgb[0];
+-            currentCalibration[LineageHardwareManager.GAMMA_CALIBRATION_GREEN_INDEX] = rgb[1];
+-            currentCalibration[LineageHardwareManager.GAMMA_CALIBRATION_BLUE_INDEX] = rgb[2];
+-            currentCalibration[LineageHardwareManager.GAMMA_CALIBRATION_MIN_INDEX] =
+-                DisplayGammaCalibration.getMinValue(idx);
+-            currentCalibration[LineageHardwareManager.GAMMA_CALIBRATION_MAX_INDEX] =
+-                DisplayGammaCalibration.getMaxValue(idx);
+-            return currentCalibration;
+-        }
+-
+-        public boolean setDisplayGammaCalibration(int idx, int[] rgb) {
+-            return DisplayGammaCalibration.setGamma(idx, rgbToString(rgb));
+-        }
+-
+         public int[] getVibratorIntensity() {
+             int[] vibrator = new int[5];
+             vibrator[LineageHardwareManager.VIBRATOR_INTENSITY_INDEX] = VibratorHW.getCurIntensity();
+@@ -296,23 +252,6 @@ public class LineageHardwareService extends LineageSystemService {
+             return VibratorHW.setIntensity(intensity);
+         }
+ 
+-        public String getLtoSource() {
+-            return LongTermOrbits.getSourceLocation();
+-        }
+-
+-        public String getLtoDestination() {
+-            File file = LongTermOrbits.getDestinationLocation();
+-            return file.getAbsolutePath();
+-        }
+-
+-        public long getLtoDownloadInterval() {
+-            return LongTermOrbits.getDownloadInterval();
+-        }
+-
+-        public String getSerialNumber() {
+-            return SerialNumber.getSerialNumber();
+-        }
+-
+         public boolean requireAdaptiveBacklightForSunlightEnhancement() {
+             return SunlightEnhancement.isAdaptiveBacklightRequired();
+         }
+@@ -494,39 +433,6 @@ public class LineageHardwareService extends LineageSystemService {
+             return mLineageHwImpl.setDisplayColorCalibration(rgb);
+         }
+ 
+-        @Override
+-        public int getNumGammaControls() {
+-            mContext.enforceCallingOrSelfPermission(
+-                    lineageos.platform.Manifest.permission.HARDWARE_ABSTRACTION_ACCESS, null);
+-            if (!isSupported(LineageHardwareManager.FEATURE_DISPLAY_GAMMA_CALIBRATION)) {
+-                Log.e(TAG, "Display gamma calibration is not supported");
+-                return 0;
+-            }
+-            return mLineageHwImpl.getNumGammaControls();
+-        }
+-
+-        @Override
+-        public int[] getDisplayGammaCalibration(int idx) {
+-            mContext.enforceCallingOrSelfPermission(
+-                    lineageos.platform.Manifest.permission.HARDWARE_ABSTRACTION_ACCESS, null);
+-            if (!isSupported(LineageHardwareManager.FEATURE_DISPLAY_GAMMA_CALIBRATION)) {
+-                Log.e(TAG, "Display gamma calibration is not supported");
+-                return null;
+-            }
+-            return mLineageHwImpl.getDisplayGammaCalibration(idx);
+-        }
+-
+-        @Override
+-        public boolean setDisplayGammaCalibration(int idx, int[] rgb) {
+-            mContext.enforceCallingOrSelfPermission(
+-                    lineageos.platform.Manifest.permission.HARDWARE_ABSTRACTION_ACCESS, null);
+-            if (!isSupported(LineageHardwareManager.FEATURE_DISPLAY_GAMMA_CALIBRATION)) {
+-                Log.e(TAG, "Display gamma calibration is not supported");
+-                return false;
+-            }
+-            return mLineageHwImpl.setDisplayGammaCalibration(idx, rgb);
+-        }
+-
+         @Override
+         public int[] getVibratorIntensity() {
+             mContext.enforceCallingOrSelfPermission(
+@@ -549,50 +455,6 @@ public class LineageHardwareService extends LineageSystemService {
+             return mLineageHwImpl.setVibratorIntensity(intensity);
+         }
+ 
+-        @Override
+-        public String getLtoSource() {
+-            mContext.enforceCallingOrSelfPermission(
+-                    lineageos.platform.Manifest.permission.HARDWARE_ABSTRACTION_ACCESS, null);
+-            if (!isSupported(LineageHardwareManager.FEATURE_LONG_TERM_ORBITS)) {
+-                Log.e(TAG, "Long term orbits is not supported");
+-                return null;
+-            }
+-            return mLineageHwImpl.getLtoSource();
+-        }
+-
+-        @Override
+-        public String getLtoDestination() {
+-            mContext.enforceCallingOrSelfPermission(
+-                    lineageos.platform.Manifest.permission.HARDWARE_ABSTRACTION_ACCESS, null);
+-            if (!isSupported(LineageHardwareManager.FEATURE_LONG_TERM_ORBITS)) {
+-                Log.e(TAG, "Long term orbits is not supported");
+-                return null;
+-            }
+-            return mLineageHwImpl.getLtoDestination();
+-        }
+-
+-        @Override
+-        public long getLtoDownloadInterval() {
+-            mContext.enforceCallingOrSelfPermission(
+-                    lineageos.platform.Manifest.permission.HARDWARE_ABSTRACTION_ACCESS, null);
+-            if (!isSupported(LineageHardwareManager.FEATURE_LONG_TERM_ORBITS)) {
+-                Log.e(TAG, "Long term orbits is not supported");
+-                return 0;
+-            }
+-            return mLineageHwImpl.getLtoDownloadInterval();
+-        }
+-
+-        @Override
+-        public String getSerialNumber() {
+-            mContext.enforceCallingOrSelfPermission(
+-                    lineageos.platform.Manifest.permission.HARDWARE_ABSTRACTION_ACCESS, null);
+-            if (!isSupported(LineageHardwareManager.FEATURE_SERIAL_NUMBER)) {
+-                Log.e(TAG, "Serial number is not supported");
+-                return null;
+-            }
+-            return mLineageHwImpl.getSerialNumber();
+-        }
+-
+         @Override
+         public boolean requireAdaptiveBacklightForSunlightEnhancement() {
+             mContext.enforceCallingOrSelfPermission(
+diff --git a/sdk/src/java/lineageos/hardware/ILineageHardwareService.aidl b/sdk/src/java/lineageos/hardware/ILineageHardwareService.aidl
+index a223cff..b6abb5f 100644
+--- a/sdk/src/java/lineageos/hardware/ILineageHardwareService.aidl
++++ b/sdk/src/java/lineageos/hardware/ILineageHardwareService.aidl
+@@ -31,19 +31,9 @@ interface ILineageHardwareService {
+     int[] getDisplayColorCalibration();
+     boolean setDisplayColorCalibration(in int[] rgb);
+ 
+-    int getNumGammaControls();
+-    int[] getDisplayGammaCalibration(int idx);
+-    boolean setDisplayGammaCalibration(int idx, in int[] rgb);
+-
+     int[] getVibratorIntensity();
+     boolean setVibratorIntensity(int intensity);
+ 
+-    String getLtoSource();
+-    String getLtoDestination();
+-    long getLtoDownloadInterval();
+-
+-    String getSerialNumber();
+-
+     boolean requireAdaptiveBacklightForSunlightEnhancement();
+ 
+     DisplayMode[] getDisplayModes();
+diff --git a/sdk/src/java/lineageos/hardware/LineageHardwareManager.java b/sdk/src/java/lineageos/hardware/LineageHardwareManager.java
+index 4b625df..c09dbec 100644
+--- a/sdk/src/java/lineageos/hardware/LineageHardwareManager.java
++++ b/sdk/src/java/lineageos/hardware/LineageHardwareManager.java
+@@ -74,12 +74,6 @@ public final class LineageHardwareManager {
+     @VisibleForTesting
+     public static final int FEATURE_DISPLAY_COLOR_CALIBRATION = 0x4;
+ 
+-    /**
+-     * Display gamma calibration
+-     */
+-    @VisibleForTesting
+-    public static final int FEATURE_DISPLAY_GAMMA_CALIBRATION = 0x8;
+-
+     /**
+      * High touch sensitivity for touch panels
+      */
+@@ -92,18 +86,6 @@ public final class LineageHardwareManager {
+     @VisibleForTesting
+     public static final int FEATURE_KEY_DISABLE = 0x20;
+ 
+-    /**
+-     * Long term orbits (LTO)
+-     */
+-    @VisibleForTesting
+-    public static final int FEATURE_LONG_TERM_ORBITS = 0x40;
+-
+-    /**
+-     * Serial number other than ro.serialno
+-     */
+-    @VisibleForTesting
+-    public static final int FEATURE_SERIAL_NUMBER = 0x80;
+-
+     /**
+      * Increased display readability in bright light
+      */
+@@ -485,164 +467,6 @@ public final class LineageHardwareManager {
+         return false;
+     }
+ 
+-    /**
+-     * {@hide}
+-     */
+-    public static final int GAMMA_CALIBRATION_RED_INDEX = 0;
+-    /**
+-     * {@hide}
+-     */
+-    public static final int GAMMA_CALIBRATION_GREEN_INDEX = 1;
+-    /**
+-     * {@hide}
+-     */
+-    public static final int GAMMA_CALIBRATION_BLUE_INDEX = 2;
+-    /**
+-     * {@hide}
+-     */
+-    public static final int GAMMA_CALIBRATION_MIN_INDEX = 3;
+-    /**
+-     * {@hide}
+-     */
+-    public static final int GAMMA_CALIBRATION_MAX_INDEX = 4;
+-
+-    private int[] getDisplayGammaCalibrationArray(int idx) {
+-        try {
+-            if (checkService()) {
+-                return sService.getDisplayGammaCalibration(idx);
+-            }
+-        } catch (RemoteException e) {
+-        }
+-        return null;
+-    }
+-
+-    /**
+-     * @return the number of RGB controls the device supports
+-     *
+-     * @deprecated
+-     */
+-    @Deprecated
+-    public int getNumGammaControls() {
+-        try {
+-            if (checkService()) {
+-                return sService.getNumGammaControls();
+-            }
+-        } catch (RemoteException e) {
+-        }
+-        return 0;
+-    }
+-
+-    /**
+-     * @param idx the control to query
+-     *
+-     * @return the current RGB gamma calibration for the given control
+-     *
+-     * @deprecated
+-     */
+-    @Deprecated
+-    public int[] getDisplayGammaCalibration(int idx) {
+-        int[] arr = getDisplayGammaCalibrationArray(idx);
+-        if (arr == null || arr.length < 3) {
+-            return null;
+-        }
+-        return Arrays.copyOf(arr, 3);
+-    }
+-
+-    /**
+-     * @return the minimum value for all colors
+-     *
+-     * @deprecated
+-     */
+-    @Deprecated
+-    public int getDisplayGammaCalibrationMin() {
+-        return getArrayValue(getDisplayGammaCalibrationArray(0), GAMMA_CALIBRATION_MIN_INDEX, 0);
+-    }
+-
+-    /**
+-     * @return the maximum value for all colors
+-     *
+-     * @deprecated
+-     */
+-    @Deprecated
+-    public int getDisplayGammaCalibrationMax() {
+-        return getArrayValue(getDisplayGammaCalibrationArray(0), GAMMA_CALIBRATION_MAX_INDEX, 0);
+-    }
+-
+-    /**
+-     * Set the display gamma calibration for a specific control
+-     *
+-     * @param idx the control to set
+-     * @param rgb RGB color calibration.  Each value must be between
+-     * {@link #getDisplayGammaCalibrationMin()} and {@link #getDisplayGammaCalibrationMax()},
+-     * inclusive.
+-     *
+-     * @return true on success, false otherwise.
+-     *
+-     * @deprecated
+-     */
+-    @Deprecated
+-    public boolean setDisplayGammaCalibration(int idx, int[] rgb) {
+-        try {
+-            if (checkService()) {
+-                return sService.setDisplayGammaCalibration(idx, rgb);
+-            }
+-        } catch (RemoteException e) {
+-        }
+-        return false;
+-    }
+-
+-    /**
+-     * @return the source location of LTO data, or null on failure
+-     */
+-    public String getLtoSource() {
+-        try {
+-            if (checkService()) {
+-                return sService.getLtoSource();
+-            }
+-        } catch (RemoteException e) {
+-        }
+-        return null;
+-    }
+-
+-    /**
+-     * @return the destination location of LTO data, or null on failure
+-     */
+-    public String getLtoDestination() {
+-        try {
+-            if (checkService()) {
+-                return sService.getLtoDestination();
+-            }
+-        } catch (RemoteException e) {
+-        }
+-        return null;
+-    }
+-
+-    /**
+-     * @return the interval, in milliseconds, to trigger LTO data download
+-     */
+-    public long getLtoDownloadInterval() {
+-        try {
+-            if (checkService()) {
+-                return sService.getLtoDownloadInterval();
+-            }
+-        } catch (RemoteException e) {
+-        }
+-        return 0;
+-    }
+-
+-    /**
+-     * @return the serial number to display instead of ro.serialno, or null on failure
+-     */
+-    public String getSerialNumber() {
+-        try {
+-            if (checkService()) {
+-                return sService.getSerialNumber();
+-            }
+-        } catch (RemoteException e) {
+-        }
+-        return null;
+-    }
+-
+     /**
+      * @return true if adaptive backlight should be enabled when sunlight enhancement
+      * is enabled.
+diff --git a/sdk/src/java/lineageos/providers/LineageSettings.java b/sdk/src/java/lineageos/providers/LineageSettings.java
+index e2a6de1..a6b2b08 100644
+--- a/sdk/src/java/lineageos/providers/LineageSettings.java
++++ b/sdk/src/java/lineageos/providers/LineageSettings.java
+@@ -2999,13 +2999,6 @@ public final class LineageSettings {
+          */
+         public static final String VIBRATOR_INTENSITY = "vibrator_intensity";
+ 
+-        /**
+-         * Display gamma calibration values
+-         * Suffix this with the control to set
+-         * @hide
+-         */
+-        public static final String DISPLAY_GAMMA_CALIBRATION_PREFIX = "display_gamma_";
+-
+         /**
+          * Current active & enabled Weather Provider Service
+          *
+diff --git a/tests/src/org/lineageos/tests/hardware/LineageHardwareTest.java b/tests/src/org/lineageos/tests/hardware/LineageHardwareTest.java
+index 6d24747..9fde946 100644
+--- a/tests/src/org/lineageos/tests/hardware/LineageHardwareTest.java
++++ b/tests/src/org/lineageos/tests/hardware/LineageHardwareTest.java
+@@ -38,32 +38,24 @@ public class LineageHardwareTest extends TestActivity {
+             LineageHardwareManager.FEATURE_ADAPTIVE_BACKLIGHT,
+             LineageHardwareManager.FEATURE_COLOR_ENHANCEMENT,
+             LineageHardwareManager.FEATURE_DISPLAY_COLOR_CALIBRATION,
+-            LineageHardwareManager.FEATURE_DISPLAY_GAMMA_CALIBRATION,
+             LineageHardwareManager.FEATURE_HIGH_TOUCH_SENSITIVITY,
+             LineageHardwareManager.FEATURE_KEY_DISABLE,
+-            LineageHardwareManager.FEATURE_LONG_TERM_ORBITS,
+-            LineageHardwareManager.FEATURE_SERIAL_NUMBER,
+             LineageHardwareManager.FEATURE_SUNLIGHT_ENHANCEMENT,
+             LineageHardwareManager.FEATURE_TOUCH_HOVERING,
+             LineageHardwareManager.FEATURE_AUTO_CONTRAST,
+             LineageHardwareManager.FEATURE_DISPLAY_MODES,
+-            LineageHardwareManager.FEATURE_PERSISTENT_STORAGE
+     );
+ 
+     private static final List<String> FEATURE_STRINGS = Arrays.asList(
+             "FEATURE_ADAPTIVE_BACKLIGHT",
+             "FEATURE_COLOR_ENHANCEMENT",
+             "FEATURE_DISPLAY_COLOR_CALIBRATION",
+-            "FEATURE_DISPLAY_GAMMA_CALIBRATION",
+             "FEATURE_HIGH_TOUCH_SENSITIVITY",
+             "FEATURE_KEY_DISABLE",
+-            "FEATURE_LONG_TERM_ORBITS",
+-            "FEATURE_SERIAL_NUMBER",
+             "FEATURE_SUNLIGHT_ENHANCEMENT",
+             "FEATURE_TOUCH_HOVERING",
+             "FEATURE_AUTO_CONTRAST",
+             "FEATURE_DISPLAY_MODES",
+-            "FEATURE_PERSISTENT_STORAGE"
+     );
+ 
+     private static final List<Integer> BOOLEAN_FEATURES = Arrays.asList(
+@@ -112,36 +104,6 @@ public class LineageHardwareTest extends TestActivity {
+         }
+     }
+ 
+-    private boolean ltoSupported() {
+-        if (mHardwareManager.isSupported(LineageHardwareManager.FEATURE_LONG_TERM_ORBITS)) {
+-            return true;
+-        } else {
+-            Toast.makeText(LineageHardwareTest.this, "Long Term Orbits not supported",
+-                    Toast.LENGTH_SHORT).show();
+-            return false;
+-        }
+-    }
+-
+-    private boolean serialSupported() {
+-        if (mHardwareManager.isSupported(LineageHardwareManager.FEATURE_SERIAL_NUMBER)) {
+-            return true;
+-        } else {
+-            Toast.makeText(LineageHardwareTest.this, "Serial number not supported",
+-                    Toast.LENGTH_SHORT).show();
+-            return false;
+-        }
+-    }
+-
+-    private boolean uniqueDeviceIdSupported() {
+-        if (mHardwareManager.isSupported(LineageHardwareManager.FEATURE_UNIQUE_DEVICE_ID)) {
+-            return true;
+-        } else {
+-            Toast.makeText(LineageHardwareTest.this, "Unique device ID not supported",
+-                    Toast.LENGTH_SHORT).show();
+-            return false;
+-        }
+-    }
+-
+     private boolean displayModesSupported() {
+         if (mHardwareManager.isSupported(LineageHardwareManager.FEATURE_DISPLAY_MODES)) {
+             return true;
+@@ -152,16 +114,6 @@ public class LineageHardwareTest extends TestActivity {
+         }
+     }
+ 
+-    private boolean persistentStorageSupported() {
+-        if (mHardwareManager.isSupported(LineageHardwareManager.FEATURE_PERSISTENT_STORAGE)) {
+-            return true;
+-        } else {
+-            Toast.makeText(LineageHardwareTest.this, "Persistent storage not supported",
+-                    Toast.LENGTH_SHORT).show();
+-            return false;
+-        }
+-    }
+-
+     private Test[] mTests = new Test[] {
+             new Test("Test get supported features") {
+                 public void run() {
+@@ -301,56 +253,6 @@ public class LineageHardwareTest extends TestActivity {
+                     }
+                 }
+             },
+-            new Test("Test Get Long Term Orbits Source") {
+-                @Override
+-                protected void run() {
+-                    if (ltoSupported()) {
+-                        Toast.makeText(LineageHardwareTest.this, "Long Term Orbit Source " +
+-                                        mHardwareManager.getLtoSource(),
+-                                Toast.LENGTH_SHORT).show();
+-                    }
+-                }
+-            },
+-            new Test("Test Get Long Term Orbits Destination") {
+-                @Override
+-                protected void run() {
+-                    if (ltoSupported()) {
+-                        Toast.makeText(LineageHardwareTest.this, "Long Term Orbit Destination " +
+-                                        mHardwareManager.getLtoDestination(),
+-                                Toast.LENGTH_SHORT).show();
+-                    }
+-                }
+-            },
+-            new Test("Test Get Long Term Orbits Interval") {
+-                @Override
+-                protected void run() {
+-                    if (ltoSupported()) {
+-                        Toast.makeText(LineageHardwareTest.this, "Long Term Orbit Download Interval " +
+-                                        mHardwareManager.getLtoDownloadInterval(),
+-                                Toast.LENGTH_SHORT).show();
+-                    }
+-                }
+-            },
+-            new Test("Test Get Serial Number") {
+-                @Override
+-                protected void run() {
+-                    if (serialSupported()) {
+-                        Toast.makeText(LineageHardwareTest.this, "Serial number " +
+-                                        mHardwareManager.getSerialNumber(),
+-                                Toast.LENGTH_SHORT).show();
+-                    }
+-                }
+-            },
+-            new Test("Test Get Unique Device ID") {
+-                @Override
+-                protected void run() {
+-                    if (uniqueDeviceIdSupported()) {
+-                        Toast.makeText(LineageHardwareTest.this, "Unique Device ID " +
+-                                        mHardwareManager.getUniqueDeviceId(),
+-                                Toast.LENGTH_SHORT).show();
+-                    }
+-                }
+-            },
+             new Test("Test Get Display Modes") {
+                 @Override
+                 protected void run() {
+-- 
+2.17.1
+
