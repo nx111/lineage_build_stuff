@@ -1,22 +1,22 @@
-From ca56c9c9822bf8b087bfc85208440885bee7e0de Mon Sep 17 00:00:00 2001
+From 81f8b5bb36dfe9ab47e797430196d091f7019b33 Mon Sep 17 00:00:00 2001
 From: Paul Keith <javelinanddart@gmail.com>
 Date: Sat, 19 Jan 2019 18:03:15 +0100
-Subject: [PATCH 5/5] livedisplay: legacymm: Wire it up
+Subject: [PATCH 5/8] livedisplay: legacymm: Wire it up
 
 Change-Id: Ic580ceb333c361444d4e009db1a34ccca8fbbbfc
 ---
  legacymm/Android.bp                           |  21 +--
- legacymm/ColorBalance.cpp                     |  81 ++++++++--
+ legacymm/ColorBalance.cpp                     |  81 +++++++--
  legacymm/ColorBalance.h                       |  20 ++-
- legacymm/Constants.h                          |  36 +++++
- legacymm/DisplayModes.cpp                     | 153 ++++++++++++++++--
- legacymm/DisplayModes.h                       |  27 +++-
- legacymm/PictureAdjustment.cpp                | 143 ++++++++++++++--
+ legacymm/Constants.h                          |  36 ++++
+ legacymm/DisplayModes.cpp                     | 153 +++++++++++++++--
+ legacymm/DisplayModes.h                       |  27 ++-
+ legacymm/PictureAdjustment.cpp                | 147 +++++++++++++++--
  legacymm/PictureAdjustment.h                  |  31 +++-
  legacymm/Types.h                              |  62 +++++++
- legacymm/service.cpp                          | 151 +++++++++++++++++
+ legacymm/service.cpp                          | 155 ++++++++++++++++++
  ...ineage.livedisplay@2.0-service-legacymm.rc |   4 +
- 11 files changed, 656 insertions(+), 73 deletions(-)
+ 11 files changed, 665 insertions(+), 72 deletions(-)
  create mode 100644 legacymm/Constants.h
  create mode 100644 legacymm/Types.h
  create mode 100644 legacymm/service.cpp
@@ -508,7 +508,7 @@ index f7a74fd..337efa7 100644
  }  // namespace legacymm
  }  // namespace V2_0
 diff --git a/legacymm/PictureAdjustment.cpp b/legacymm/PictureAdjustment.cpp
-index 773fac8..2c2a05e 100644
+index 773fac8..3ce4b47 100644
 --- a/legacymm/PictureAdjustment.cpp
 +++ b/legacymm/PictureAdjustment.cpp
 @@ -14,7 +14,11 @@
@@ -523,7 +523,7 @@ index 773fac8..2c2a05e 100644
  
  namespace vendor {
  namespace lineage {
-@@ -22,54 +26,159 @@ namespace livedisplay {
+@@ -22,54 +26,165 @@ namespace livedisplay {
  namespace V2_0 {
  namespace legacymm {
  
@@ -555,9 +555,9 @@ index 773fac8..2c2a05e 100644
 +        return false;
 +    }
 +
-+    return !(r.max.hue == 0 || r.min.hue == 0 || r.max.saturation == 0.f ||
-+             r.min.saturation == 0.f || r.max.intensity == 0.f || r.min.intensity == 0.f ||
-+             r.max.contrast == 0.f || r.min.contrast == 0.f);
++    return r.max.hue != 0 && r.min.hue != 0 && r.max.saturation != 0.f &&
++             r.min.saturation != 0.f && r.max.intensity != 0.f && r.min.intensity != 0.f &&
++             r.max.contrast != 0.f && r.min.contrast != 0.f;
 +}
 +
 +HSIC PictureAdjustment::getPictureAdjustmentInternal() {
@@ -591,6 +591,7 @@ index 773fac8..2c2a05e 100644
 +        if (disp_api_get_pa_range(0, &r) == 0) {
 +            range.max = r.max.hue;
 +            range.min = r.min.hue;
++            range.step = 1;
 +        }
 +    }
 +
@@ -607,6 +608,7 @@ index 773fac8..2c2a05e 100644
 +        if (disp_api_get_pa_range(0, &r) == 0) {
 +            range.max = r.max.saturation;
 +            range.min = r.min.saturation;
++            range.step = 1;
 +        }
 +    }
 +
@@ -623,6 +625,7 @@ index 773fac8..2c2a05e 100644
 +        if (disp_api_get_pa_range(0, &r) == 0) {
 +            range.max = r.max.intensity;
 +            range.min = r.min.intensity;
++            range.step = 1;
 +        }
 +    }
 +
@@ -639,6 +642,7 @@ index 773fac8..2c2a05e 100644
 +        if (disp_api_get_pa_range(0, &r) == 0) {
 +            range.max = r.max.contrast;
 +            range.min = r.min.contrast;
++            range.step = 1;
 +        }
 +    }
 +
@@ -655,6 +659,7 @@ index 773fac8..2c2a05e 100644
 +        if (disp_api_get_pa_range(0, &r) == 0) {
 +            range.max = r.max.saturationThreshold;
 +            range.min = r.min.saturationThreshold;
++            range.step = 1;
 +        }
 +    }
 +
@@ -678,13 +683,13 @@ index 773fac8..2c2a05e 100644
 -    // TODO implement
 -    return bool {};
 -}
--
 +Return<bool> PictureAdjustment::setPictureAdjustment(
 +    const ::vendor::lineage::livedisplay::V2_0::HSIC& hsic) {
 +    mm_pa_config config = {0xF,
 +                           {static_cast<int>(hsic.hue), static_cast<int>(hsic.saturation),
 +                            static_cast<int>(hsic.intensity), static_cast<int>(hsic.contrast),
 +                            static_cast<int>(hsic.saturationThreshold)}};
+ 
 +    if (disp_api_set_pa_config != nullptr) {
 +        return disp_api_set_pa_config(0, &config) == 0;
 +    }
@@ -831,10 +836,10 @@ index 0000000..06e070a
 +#endif  // VENDOR_LINEAGE_LIVEDISPLAY_V2_0_LEGACYMM_TYPES_H
 diff --git a/legacymm/service.cpp b/legacymm/service.cpp
 new file mode 100644
-index 0000000..6ffd8f1
+index 0000000..cf92ba2
 --- /dev/null
 +++ b/legacymm/service.cpp
-@@ -0,0 +1,151 @@
+@@ -0,0 +1,155 @@
 +/*
 + * Copyright (C) 2018-2019 The LineageOS Project
 + *
@@ -937,6 +942,10 @@ index 0000000..6ffd8f1
 +    }
 +    if (pa->isSupported()) {
 +        services++;
++    }
++
++    if (services == 0) {
++        goto shutdown;
 +    }
 +
 +    configureRpcThreadpool(services, true /*callerWillJoin*/);

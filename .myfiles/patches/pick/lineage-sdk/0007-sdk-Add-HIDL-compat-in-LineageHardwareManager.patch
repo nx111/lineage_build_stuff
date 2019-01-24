@@ -1,9 +1,9 @@
-From 8282c74bd9cb45583776d6fbe119fa798bc17f9a Mon Sep 17 00:00:00 2001
+From 3b2621318d2c589ba943ec78da880c7268d5630c Mon Sep 17 00:00:00 2001
 From: Paul Keith <javelinanddart@gmail.com>
 Date: Fri, 18 Jan 2019 17:58:26 +0100
 Subject: [PATCH 7/8] sdk: Add HIDL compat in LineageHardwareManager
 
-* While we're at it, hide the use of getSupportedFeatures(),
+* While we're at it, remove getSupportedFeatures(),
   since it only works for lineagehw java features, not hidl
 * Cleanup some minor styling/organization issues
 
@@ -13,8 +13,8 @@ Change-Id: I905010bc7c6d7d8578eeca501be23f665127aa27
  api/lineage_current.txt                       |   2 -
  .../internal/LineageHardwareService.java      |   4 +-
  .../java/lineageos/hardware/HIDLHelper.java   |  87 +++++
- .../hardware/LineageHardwareManager.java      | 319 +++++++++++++++---
- 5 files changed, 360 insertions(+), 64 deletions(-)
+ .../hardware/LineageHardwareManager.java      | 335 ++++++++++++++----
+ 5 files changed, 363 insertions(+), 77 deletions(-)
  create mode 100644 sdk/src/java/lineageos/hardware/HIDLHelper.java
 
 diff --git a/Android.bp b/Android.bp
@@ -200,7 +200,7 @@ index 0000000..6ca202c
 +
 +}
 diff --git a/sdk/src/java/lineageos/hardware/LineageHardwareManager.java b/sdk/src/java/lineageos/hardware/LineageHardwareManager.java
-index c09dbec..54cc646 100644
+index c09dbec..e09c8dc 100644
 --- a/sdk/src/java/lineageos/hardware/LineageHardwareManager.java
 +++ b/sdk/src/java/lineageos/hardware/LineageHardwareManager.java
 @@ -1,6 +1,6 @@
@@ -290,27 +290,19 @@ index c09dbec..54cc646 100644
      /**
       * @hide to prevent subclassing from outside of the framework
       */
-@@ -179,6 +203,8 @@ public final class LineageHardwareManager {
-      * @return {@link LineageHardwareManager}
-      */
-     public static LineageHardwareManager getInstance(Context context) {
-+        context.enforceCallingOrSelfPermission(
-+                lineageos.platform.Manifest.permission.HARDWARE_ABSTRACTION_ACCESS, null);
-         if (sLineageHardwareManagerInstance == null) {
-             sLineageHardwareManagerInstance = new LineageHardwareManager(context);
-         }
-@@ -200,6 +226,7 @@ public final class LineageHardwareManager {
+@@ -199,27 +223,66 @@ public final class LineageHardwareManager {
+     }
  
      /**
-      * @return the supported features bitmask
-+     * @hide
+-     * @return the supported features bitmask
++     * Determine if a Lineage Hardware feature is supported on this device
++     *
++     * @param feature The Lineage Hardware feature to query
++     *
++     * @return true if the feature is supported, false otherwise.
       */
-     public int getSupportedFeatures() {
-         try {
-@@ -219,9 +246,55 @@ public final class LineageHardwareManager {
-      * @return true if the feature is supported, false otherwise.
-      */
-     public boolean isSupported(int feature) {
+-    public int getSupportedFeatures() {
++    public boolean isSupported(int feature) {
 +        return isSupportedHIDL(feature) || isSupportedLegacy(feature);
 +    }
 +
@@ -322,9 +314,26 @@ index c09dbec..54cc646 100644
 +    }
 +
 +    private boolean isSupportedLegacy(int feature) {
-         return feature == (getSupportedFeatures() & feature);
+         try {
+             if (checkService()) {
+-                return sService.getSupportedFeatures();
++                return feature == (sService.getSupportedFeatures() & feature);
+             }
+         } catch (RemoteException e) {
+         }
+-        return 0;
++        return false;
      }
  
+-    /**
+-     * Determine if a Lineage Hardware feature is supported on this device
+-     *
+-     * @param feature The Lineage Hardware feature to query
+-     *
+-     * @return true if the feature is supported, false otherwise.
+-     */
+-    public boolean isSupported(int feature) {
+-        return feature == (getSupportedFeatures() & feature);
 +    private IBase getHIDLService(int feature) {
 +        try {
 +            switch (feature) {
@@ -358,12 +367,10 @@ index c09dbec..54cc646 100644
 +        } catch (NoSuchElementException | RemoteException e) {
 +        }
 +        return null;
-+    }
-+
+     }
+ 
      /**
-      * String version for preference constraints
-      *
-@@ -257,11 +330,40 @@ public final class LineageHardwareManager {
+@@ -257,11 +320,40 @@ public final class LineageHardwareManager {
          }
  
          try {
@@ -405,7 +412,7 @@ index c09dbec..54cc646 100644
          return false;
      }
  
-@@ -281,7 +383,35 @@ public final class LineageHardwareManager {
+@@ -281,7 +373,35 @@ public final class LineageHardwareManager {
          }
  
          try {
@@ -442,19 +449,19 @@ index c09dbec..54cc646 100644
                  return sService.set(feature, enable);
              }
          } catch (RemoteException e) {
-@@ -396,19 +526,19 @@ public final class LineageHardwareManager {
+@@ -396,19 +516,19 @@ public final class LineageHardwareManager {
      /**
       * {@hide}
       */
 -    public static final int COLOR_CALIBRATION_DEFAULT_INDEX = 3;
+-    /**
+-     * {@hide}
+-     */
+-    public static final int COLOR_CALIBRATION_MIN_INDEX = 4;
 +    public static final int COLOR_CALIBRATION_MIN_INDEX = 3;
      /**
       * {@hide}
       */
--    public static final int COLOR_CALIBRATION_MIN_INDEX = 4;
--    /**
--     * {@hide}
--     */
 -    public static final int COLOR_CALIBRATION_MAX_INDEX = 5;
 +    public static final int COLOR_CALIBRATION_MAX_INDEX = 4;
  
@@ -469,7 +476,7 @@ index c09dbec..54cc646 100644
                  return sService.getDisplayColorCalibration();
              }
          } catch (RemoteException e) {
-@@ -427,24 +557,37 @@ public final class LineageHardwareManager {
+@@ -427,24 +547,37 @@ public final class LineageHardwareManager {
          return Arrays.copyOf(arr, 3);
      }
  
@@ -515,7 +522,7 @@ index c09dbec..54cc646 100644
          return getArrayValue(getDisplayColorCalibrationArray(), COLOR_CALIBRATION_MAX_INDEX, 0);
      }
  
-@@ -459,7 +602,12 @@ public final class LineageHardwareManager {
+@@ -459,7 +592,12 @@ public final class LineageHardwareManager {
       */
      public boolean setDisplayColorCalibration(int[] rgb) {
          try {
@@ -529,7 +536,7 @@ index c09dbec..54cc646 100644
                  return sService.setDisplayColorCalibration(rgb);
              }
          } catch (RemoteException e) {
-@@ -472,6 +620,10 @@ public final class LineageHardwareManager {
+@@ -472,6 +610,10 @@ public final class LineageHardwareManager {
       * is enabled.
       */
      public boolean requireAdaptiveBacklightForSunlightEnhancement() {
@@ -540,7 +547,7 @@ index c09dbec..54cc646 100644
          try {
              if (checkService()) {
                  return sService.requireAdaptiveBacklightForSunlightEnhancement();
-@@ -485,6 +637,10 @@ public final class LineageHardwareManager {
+@@ -485,6 +627,10 @@ public final class LineageHardwareManager {
       * @return true if this implementation does it's own lux metering
       */
      public boolean isSunlightEnhancementSelfManaged() {
@@ -551,7 +558,7 @@ index c09dbec..54cc646 100644
          try {
              if (checkService()) {
                  return sService.isSunlightEnhancementSelfManaged();
-@@ -499,7 +655,10 @@ public final class LineageHardwareManager {
+@@ -499,7 +645,10 @@ public final class LineageHardwareManager {
       */
      public DisplayMode[] getDisplayModes() {
          try {
@@ -563,7 +570,7 @@ index c09dbec..54cc646 100644
                  return sService.getDisplayModes();
              }
          } catch (RemoteException e) {
-@@ -512,7 +671,10 @@ public final class LineageHardwareManager {
+@@ -512,7 +661,10 @@ public final class LineageHardwareManager {
       */
      public DisplayMode getCurrentDisplayMode() {
          try {
@@ -575,7 +582,7 @@ index c09dbec..54cc646 100644
                  return sService.getCurrentDisplayMode();
              }
          } catch (RemoteException e) {
-@@ -525,7 +687,10 @@ public final class LineageHardwareManager {
+@@ -525,7 +677,10 @@ public final class LineageHardwareManager {
       */
      public DisplayMode getDefaultDisplayMode() {
          try {
@@ -587,7 +594,7 @@ index c09dbec..54cc646 100644
                  return sService.getDefaultDisplayMode();
              }
          } catch (RemoteException e) {
-@@ -538,7 +703,10 @@ public final class LineageHardwareManager {
+@@ -538,7 +693,10 @@ public final class LineageHardwareManager {
       */
      public boolean setDisplayMode(DisplayMode mode, boolean makeDefault) {
          try {
@@ -599,7 +606,7 @@ index c09dbec..54cc646 100644
                  return sService.setDisplayMode(mode, makeDefault);
              }
          } catch (RemoteException e) {
-@@ -550,16 +718,18 @@ public final class LineageHardwareManager {
+@@ -550,16 +708,18 @@ public final class LineageHardwareManager {
       * @return the available range for color temperature adjustments
       */
      public Range<Integer> getColorBalanceRange() {
@@ -624,7 +631,7 @@ index c09dbec..54cc646 100644
      }
  
      /**
-@@ -567,7 +737,10 @@ public final class LineageHardwareManager {
+@@ -567,7 +727,10 @@ public final class LineageHardwareManager {
       */
      public int getColorBalance() {
          try {
@@ -636,7 +643,7 @@ index c09dbec..54cc646 100644
                  return sService.getColorBalance();
              }
          } catch (RemoteException e) {
-@@ -584,7 +757,10 @@ public final class LineageHardwareManager {
+@@ -584,7 +747,10 @@ public final class LineageHardwareManager {
       */
      public boolean setColorBalance(int value) {
          try {
@@ -648,7 +655,7 @@ index c09dbec..54cc646 100644
                  return sService.setColorBalance(value);
              }
          } catch (RemoteException e) {
-@@ -599,7 +775,11 @@ public final class LineageHardwareManager {
+@@ -599,7 +765,11 @@ public final class LineageHardwareManager {
       */
      public HSIC getPictureAdjustment() {
          try {
@@ -661,7 +668,7 @@ index c09dbec..54cc646 100644
                  return sService.getPictureAdjustment();
              }
          } catch (RemoteException e) {
-@@ -614,7 +794,11 @@ public final class LineageHardwareManager {
+@@ -614,7 +784,11 @@ public final class LineageHardwareManager {
       */
      public HSIC getDefaultPictureAdjustment() {
          try {
@@ -674,7 +681,7 @@ index c09dbec..54cc646 100644
                  return sService.getDefaultPictureAdjustment();
              }
          } catch (RemoteException e) {
-@@ -630,7 +814,11 @@ public final class LineageHardwareManager {
+@@ -630,7 +804,11 @@ public final class LineageHardwareManager {
       */
      public boolean setPictureAdjustment(final HSIC hsic) {
          try {
@@ -687,7 +694,7 @@ index c09dbec..54cc646 100644
                  return sService.setPictureAdjustment(hsic);
              }
          } catch (RemoteException e) {
-@@ -645,7 +833,16 @@ public final class LineageHardwareManager {
+@@ -645,7 +823,16 @@ public final class LineageHardwareManager {
       */
      public List<Range<Float>> getPictureAdjustmentRanges() {
          try {
@@ -705,7 +712,7 @@ index c09dbec..54cc646 100644
                  float[] ranges = sService.getPictureAdjustmentRanges();
                  if (ranges.length > 7) {
                      return Arrays.asList(new Range<Float>(ranges[0], ranges[1]),
-@@ -662,23 +859,16 @@ public final class LineageHardwareManager {
+@@ -662,23 +849,16 @@ public final class LineageHardwareManager {
          return null;
      }
  
@@ -734,7 +741,7 @@ index c09dbec..54cc646 100644
                  return sService.getTouchscreenGestures();
              }
          } catch (RemoteException e) {
-@@ -692,11 +882,28 @@ public final class LineageHardwareManager {
+@@ -692,11 +872,28 @@ public final class LineageHardwareManager {
      public boolean setTouchscreenGestureEnabled(
              TouchscreenGesture gesture, boolean state) {
          try {

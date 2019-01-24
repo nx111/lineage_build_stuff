@@ -1,0 +1,109 @@
+From adcf32e0cd33c703adc59dcd764e79380da1c0d6 Mon Sep 17 00:00:00 2001
+From: Paul Keith <javelinanddart@gmail.com>
+Date: Wed, 23 Jan 2019 16:05:36 +0100
+Subject: [PATCH 8/8] fix?
+
+Change-Id: I2f70b16395947ccc69db3b5cdea48718bbcbc545
+---
+ sdm/DisplayModes.cpp | 25 +++++--------------------
+ sdm/DisplayModes.h   |  3 +--
+ 2 files changed, 6 insertions(+), 22 deletions(-)
+
+diff --git a/sdm/DisplayModes.cpp b/sdm/DisplayModes.cpp
+index bdc2831..abacc1b 100644
+--- a/sdm/DisplayModes.cpp
++++ b/sdm/DisplayModes.cpp
+@@ -30,6 +30,7 @@ namespace sdm {
+ DisplayModes::DisplayModes(void* libHandle, uint64_t cookie) {
+     mLibHandle = libHandle;
+     mCookie = cookie;
++    mCurrentModeId = -1;
+     disp_api_get_feature_version =
+         reinterpret_cast<int32_t (*)(uint64_t, uint32_t, void*, uint32_t*)>(
+             dlsym(mLibHandle, "disp_api_get_feature_version"));
+@@ -39,9 +40,6 @@ DisplayModes::DisplayModes(void* libHandle, uint64_t cookie) {
+     disp_api_get_display_modes =
+         reinterpret_cast<int32_t (*)(uint64_t, uint32_t, int32_t, void*, int32_t, uint32_t*)>(
+             dlsym(mLibHandle, "disp_api_get_display_modes"));
+-    disp_api_get_active_display_mode =
+-        reinterpret_cast<int32_t (*)(uint64_t, uint32_t, int32_t*, uint32_t*, uint32_t*)>(
+-            dlsym(mLibHandle, "disp_api_get_active_display_mode"));
+     disp_api_set_active_display_mode =
+         reinterpret_cast<int32_t (*)(uint64_t, uint32_t, int32_t, uint32_t)>(
+             dlsym(mLibHandle, "disp_api_set_active_display_mode"));
+@@ -130,19 +128,6 @@ DisplayMode DisplayModes::getDisplayModeById(int32_t id) {
+     return DisplayMode{-1, ""};
+ }
+ 
+-DisplayMode DisplayModes::getCurrentDisplayModeInternal() {
+-    int32_t id = 0;
+-    uint32_t mask = 0, flags = 0;
+-
+-    if (disp_api_get_active_display_mode != nullptr) {
+-        if (disp_api_get_active_display_mode(mCookie, 0, &id, &mask, &flags) == 0 && id >= 0) {
+-            return getDisplayModeById(id);
+-        }
+-    }
+-
+-    return DisplayMode{-1, ""};
+-}
+-
+ DisplayMode DisplayModes::getDefaultDisplayModeInternal() {
+     int32_t id = 0;
+     uint32_t flags = 0;
+@@ -163,7 +148,7 @@ Return<void> DisplayModes::getDisplayModes(getDisplayModes_cb _hidl_cb) {
+ }
+ 
+ Return<void> DisplayModes::getCurrentDisplayMode(getCurrentDisplayMode_cb _hidl_cb) {
+-    _hidl_cb(getCurrentDisplayModeInternal());
++    _hidl_cb(getDisplayModeById(mCurrentModeId));
+     return Void();
+ }
+ 
+@@ -173,9 +158,7 @@ Return<void> DisplayModes::getDefaultDisplayMode(getDefaultDisplayMode_cb _hidl_
+ }
+ 
+ Return<bool> DisplayModes::setDisplayMode(int32_t modeID, bool makeDefault) {
+-    DisplayMode currentMode = getCurrentDisplayModeInternal();
+-
+-    if (currentMode.id >= 0 && currentMode.id == modeID) {
++    if (mCurrentModeId >= 0 && mCurrentModeId == modeID) {
+         return true;
+     }
+ 
+@@ -194,6 +177,8 @@ Return<bool> DisplayModes::setDisplayMode(int32_t modeID, bool makeDefault) {
+         return false;
+     }
+ 
++    mCurrentModeId = modeID;
++
+     PictureAdjustment::updateDefaultPictureAdjustment();
+ 
+     return true;
+diff --git a/sdm/DisplayModes.h b/sdm/DisplayModes.h
+index 29f9cfb..6dd871b 100644
+--- a/sdm/DisplayModes.h
++++ b/sdm/DisplayModes.h
+@@ -50,10 +50,10 @@ class DisplayModes : public IDisplayModes {
+   private:
+     void* mLibHandle;
+     uint64_t mCookie;
++    int32_t mCurrentModeId;
+ 
+     int32_t (*disp_api_get_feature_version)(uint64_t, uint32_t, void*, uint32_t*);
+     int32_t (*disp_api_get_num_display_modes)(uint64_t, uint32_t, int32_t, int32_t*, uint32_t*);
+-    int32_t (*disp_api_get_display_modes)(uint64_t, uint32_t, int32_t, void*, int32_t, uint32_t*);
+     int32_t (*disp_api_get_active_display_mode)(uint64_t, uint32_t, int32_t*, uint32_t*, uint32_t*);
+     int32_t (*disp_api_set_active_display_mode)(uint64_t, uint32_t, int32_t, uint32_t);
+     int32_t (*disp_api_get_default_display_mode)(uint64_t, uint32_t, int32_t*, uint32_t*);
+@@ -61,7 +61,6 @@ class DisplayModes : public IDisplayModes {
+ 
+     std::vector<DisplayMode> getDisplayModesInternal();
+     DisplayMode getDisplayModeById(int32_t id);
+-    DisplayMode getCurrentDisplayModeInternal();
+     DisplayMode getDefaultDisplayModeInternal();
+ };
+ 
+-- 
+2.17.1
+

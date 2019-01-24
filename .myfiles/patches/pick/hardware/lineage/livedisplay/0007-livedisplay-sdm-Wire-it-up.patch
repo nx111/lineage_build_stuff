@@ -1,0 +1,1404 @@
+From b6c7ac451c45e2d9fe08865e43c67c03d2e0c5df Mon Sep 17 00:00:00 2001
+From: Paul Keith <javelinanddart@gmail.com>
+Date: Sun, 20 Jan 2019 04:24:30 +0100
+Subject: [PATCH 7/8] livedisplay: sdm: Wire it up
+
+* Utils.cpp/h partially borrowed from livedisplay@1.0
+
+Change-Id: Icc8714a46637545877bf821404af0f25ed54a01c
+---
+ sdm/AdaptiveBacklight.cpp                     |  46 +++-
+ sdm/AdaptiveBacklight.h                       |  16 +-
+ sdm/Android.bp                                |  37 ++--
+ sdm/ColorBalance.cpp                          |  97 +++++++--
+ sdm/ColorBalance.h                            |  21 +-
+ sdm/Constants.h                               |  42 ++++
+ sdm/DisplayModes.cpp                          | 171 ++++++++++++++-
+ sdm/DisplayModes.h                            |  28 ++-
+ sdm/PictureAdjustment.cpp                     | 158 ++++++++++++--
+ sdm/PictureAdjustment.h                       |  29 ++-
+ sdm/Types.h                                   |  78 +++++++
+ sdm/Utils.cpp                                 |  73 +++++++
+ sdm/Utils.h                                   |  40 ++++
+ sdm/lineage.livedisplay@2.0-service-sdm.rc    |   4 +
+ sdm/service.cpp                               | 203 ++++++++++++++++++
+ ...dor.lineage.livedisplay@2.0-service-sdm.rc |   4 +
+ 16 files changed, 958 insertions(+), 89 deletions(-)
+ create mode 100644 sdm/Constants.h
+ create mode 100644 sdm/Types.h
+ create mode 100644 sdm/Utils.cpp
+ create mode 100644 sdm/Utils.h
+ create mode 100644 sdm/lineage.livedisplay@2.0-service-sdm.rc
+ create mode 100644 sdm/service.cpp
+ create mode 100644 sdm/vendor.lineage.livedisplay@2.0-service-sdm.rc
+
+diff --git a/sdm/AdaptiveBacklight.cpp b/sdm/AdaptiveBacklight.cpp
+index 3b67692..61ad43a 100644
+--- a/sdm/AdaptiveBacklight.cpp
++++ b/sdm/AdaptiveBacklight.cpp
+@@ -14,7 +14,15 @@
+  * limitations under the License.
+  */
+ 
++#include <stdio.h>
++#include <string.h>
++
++#include <android-base/properties.h>
++
+ #include "AdaptiveBacklight.h"
++#include "Constants.h"
++#include "Types.h"
++#include "Utils.h"
+ 
+ namespace vendor {
+ namespace lineage {
+@@ -22,24 +30,42 @@ namespace livedisplay {
+ namespace V2_0 {
+ namespace sdm {
+ 
++using ::android::base::GetBoolProperty;
++
++AdaptiveBacklight::AdaptiveBacklight() {
++    mEnabled = false;
++}
++
++bool AdaptiveBacklight::isSupported() {
++    return GetBoolProperty(FOSS_PROPERTY, false);
++}
++
+ // Methods from ::vendor::lineage::livedisplay::V2_0::IAdaptiveBacklight follow.
+ Return<bool> AdaptiveBacklight::isEnabled() {
+-    // TODO implement
+-    return bool {};
++    return mEnabled;
+ }
+ 
+ Return<bool> AdaptiveBacklight::setEnabled(bool enabled) {
+-    // TODO implement
+-    return bool {};
+-}
++    char* buf = new char[DPPS_BUF_SIZE];
+ 
++    if (mEnabled == enabled) {
++        delete[] buf;
++        return true;
++    }
+ 
+-// Methods from ::android::hidl::base::V1_0::IBase follow.
++    sprintf(buf, "%s", enabled ? FOSS_ON : FOSS_OFF);
++    if (Utils::sendDPPSCommand(buf, DPPS_BUF_SIZE) == 0) {
++        if (strncmp(buf, "Success", 7) == 0) {
++            mEnabled = enabled;
++            delete[] buf;
++            return true;
++        }
++    }
++
++    delete[] buf;
++    return false;
++}
+ 
+-//IAdaptiveBacklight* HIDL_FETCH_IAdaptiveBacklight(const char* /* name */) {
+-    //return new AdaptiveBacklight();
+-//}
+-//
+ }  // namespace sdm
+ }  // namespace V2_0
+ }  // namespace livedisplay
+diff --git a/sdm/AdaptiveBacklight.h b/sdm/AdaptiveBacklight.h
+index 131b3bf..4d582a3 100644
+--- a/sdm/AdaptiveBacklight.h
++++ b/sdm/AdaptiveBacklight.h
+@@ -17,9 +17,9 @@
+ #ifndef VENDOR_LINEAGE_LIVEDISPLAY_V2_0_ADAPTIVEBACKLIGHT_H
+ #define VENDOR_LINEAGE_LIVEDISPLAY_V2_0_ADAPTIVEBACKLIGHT_H
+ 
+-#include <vendor/lineage/livedisplay/2.0/IAdaptiveBacklight.h>
+ #include <hidl/MQDescriptor.h>
+ #include <hidl/Status.h>
++#include <vendor/lineage/livedisplay/2.0/IAdaptiveBacklight.h>
+ 
+ namespace vendor {
+ namespace lineage {
+@@ -35,18 +35,20 @@ using ::android::hardware::Return;
+ using ::android::hardware::Void;
+ using ::android::sp;
+ 
+-struct AdaptiveBacklight : public IAdaptiveBacklight {
++class AdaptiveBacklight : public IAdaptiveBacklight {
++  public:
++    AdaptiveBacklight();
++
++    bool isSupported();
++
+     // Methods from ::vendor::lineage::livedisplay::V2_0::IAdaptiveBacklight follow.
+     Return<bool> isEnabled() override;
+     Return<bool> setEnabled(bool enabled) override;
+ 
+-    // Methods from ::android::hidl::base::V1_0::IBase follow.
+-
++  private:
++    bool mEnabled;
+ };
+ 
+-// FIXME: most likely delete, this is only for passthrough implementations
+-// extern "C" IAdaptiveBacklight* HIDL_FETCH_IAdaptiveBacklight(const char* name);
+-
+ }  // namespace sdm
+ }  // namespace V2_0
+ }  // namespace livedisplay
+diff --git a/sdm/Android.bp b/sdm/Android.bp
+index 7f59000..1bac043 100644
+--- a/sdm/Android.bp
++++ b/sdm/Android.bp
+@@ -12,31 +12,40 @@
+ // See the License for the specific language governing permissions and
+ // limitations under the License.
+ 
+-cc_library_shared {
+-    // FIXME: this should only be -impl for a passthrough hal.
+-    // In most cases, to convert this to a binderized implementation, you should:
+-    // - change '-impl' to '-service' here and make it a cc_binary instead of a
+-    //   cc_library_shared.
+-    // - add a *.rc file for this module.
+-    // - delete HIDL_FETCH_I* functions.
+-    // - call configureRpcThreadpool and registerAsService on the instance.
+-    // You may also want to append '-impl/-service' with a specific identifier like
+-    // '-vendor' or '-<hardware identifier>' etc to distinguish it.
+-    name: "vendor.lineage.livedisplay@2.0-impl",
++cc_defaults {
++    name: "livedisplay_sdm_defaults",
++    defaults: ["hidl_defaults"],
+     relative_install_path: "hw",
+-    // FIXME: this should be 'vendor: true' for modules that will eventually be
+-    // on AOSP.
+-    proprietary: true,
+     srcs: [
+         "AdaptiveBacklight.cpp",
+         "ColorBalance.cpp",
+         "DisplayModes.cpp",
+         "PictureAdjustment.cpp",
++        "Utils.cpp",
++        "service.cpp",
+     ],
+     shared_libs: [
++        "libbase",
++        "libbinder",
++        "libcutils",
++        "libdl",
+         "libhidlbase",
+         "libhidltransport",
+         "libutils",
+         "vendor.lineage.livedisplay@2.0",
+     ],
+ }
++
++cc_binary {
++    name: "lineage.livedisplay@2.0-service-sdm",
++    init_rc: ["lineage.livedisplay@2.0-service-sdm.rc"],
++    defaults: ["livedisplay_sdm_defaults"],
++    cflags: ["-DLIVES_IN_SYSTEM"],
++}
++
++cc_binary {
++    name: "vendor.lineage.livedisplay@2.0-service-sdm",
++    init_rc: ["vendor.lineage.livedisplay@2.0-service-sdm.rc"],
++    defaults: ["livedisplay_sdm_defaults"],
++    proprietary: true,
++}
+diff --git a/sdm/ColorBalance.cpp b/sdm/ColorBalance.cpp
+index 33b116c..f9f5a44 100644
+--- a/sdm/ColorBalance.cpp
++++ b/sdm/ColorBalance.cpp
+@@ -14,7 +14,11 @@
+  * limitations under the License.
+  */
+ 
++#include <dlfcn.h>
++
+ #include "ColorBalance.h"
++#include "Constants.h"
++#include "Types.h"
+ 
+ namespace vendor {
+ namespace lineage {
+@@ -22,29 +26,98 @@ namespace livedisplay {
+ namespace V2_0 {
+ namespace sdm {
+ 
++ColorBalance::ColorBalance(void* libHandle, uint64_t cookie) {
++    mLibHandle = libHandle;
++    mCookie = cookie;
++    disp_api_get_feature_version =
++        reinterpret_cast<int32_t (*)(uint64_t, uint32_t, void*, uint32_t*)>(
++            dlsym(mLibHandle, "disp_api_get_feature_version"));
++    disp_api_get_global_color_balance_range =
++        reinterpret_cast<int32_t (*)(uint64_t, uint32_t, void*)>(
++            dlsym(mLibHandle, "disp_api_get_global_color_balance_range"));
++    disp_api_get_global_color_balance =
++        reinterpret_cast<int32_t (*)(uint64_t, uint32_t, int32_t*, uint32_t*)>(
++            dlsym(mLibHandle, "disp_api_get_global_color_balance"));
++    disp_api_set_global_color_balance =
++        reinterpret_cast<int32_t (*)(uint64_t, uint32_t, int32_t, uint32_t)>(
++            dlsym(mLibHandle, "disp_api_set_global_color_balance"));
++    disp_api_get_num_display_modes =
++        reinterpret_cast<int32_t (*)(uint64_t, uint32_t, int32_t, int32_t*, uint32_t*)>(
++            dlsym(mLibHandle, "disp_api_get_num_display_modes"));
++}
++
++bool ColorBalance::isSupported() {
++    Range range{};
++    sdm_feature_version version{};
++    // int32_t count = 0;
++    uint32_t flags = 0;
++
++    if (disp_api_get_feature_version == nullptr ||
++        disp_api_get_feature_version(mCookie, COLOR_BALANCE_FEATURE, &version, &flags) != 0) {
++        return false;
++    }
++
++    if (version.x <= 0 && version.y <= 0 && version.z <= 0) {
++        return false;
++    }
++
++    if (disp_api_get_global_color_balance_range == nullptr ||
++        disp_api_get_global_color_balance_range(mCookie, 0, &range) != 0) {
++        return false;
++    }
++
++    if (range.max == 0 || range.min == 0) {
++        return false;
++    }
++
++    // This is how this is supposed to work, but for some reason it causes conflicts
++    /*
++        if (disp_api_get_feature_version(mCookie, DISPLAY_MODES_FEATURE, &version, &flags) == 0 &&
++            (version.x > 0 && version.y > 0 && version.z > 0) &&
++            disp_api_get_num_display_modes != nullptr &&
++            disp_api_get_num_display_modes(mCookie, 0, 0, &count, &flags) == 0) {
++            return count > 0;
++        }
++    */
++
++    return false;
++}
++
+ // Methods from ::vendor::lineage::livedisplay::V2_0::IColorBalance follow.
+ Return<void> ColorBalance::getColorBalanceRange(getColorBalanceRange_cb _hidl_cb) {
+-    // TODO implement
++    Range range{};
++
++    if (disp_api_get_global_color_balance_range != nullptr) {
++        if (disp_api_get_global_color_balance_range(mCookie, 0, &range) != 0) {
++            range.max = range.min = 0;
++        }
++    }
++
++    _hidl_cb(range);
+     return Void();
+ }
+ 
+ Return<int32_t> ColorBalance::getColorBalance() {
+-    // TODO implement
+-    return int32_t {};
+-}
++    int32_t value = 0;
++    uint32_t flags = 0;
+ 
+-Return<bool> ColorBalance::setColorBalance(int32_t value) {
+-    // TODO implement
+-    return bool {};
++    if (disp_api_get_global_color_balance != nullptr) {
++        if (disp_api_get_global_color_balance(mCookie, 0, &value, &flags) != 0) {
++            value = 0;
++        }
++    }
++
++    return value;
+ }
+ 
++Return<bool> ColorBalance::setColorBalance(int32_t value) {
++    if (disp_api_set_global_color_balance != nullptr) {
++        return disp_api_set_global_color_balance(mCookie, 0, value, 0) == 0;
++    }
+ 
+-// Methods from ::android::hidl::base::V1_0::IBase follow.
++    return false;
++}
+ 
+-//IColorBalance* HIDL_FETCH_IColorBalance(const char* /* name */) {
+-    //return new ColorBalance();
+-//}
+-//
+ }  // namespace sdm
+ }  // namespace V2_0
+ }  // namespace livedisplay
+diff --git a/sdm/ColorBalance.h b/sdm/ColorBalance.h
+index bce2699..1827645 100644
+--- a/sdm/ColorBalance.h
++++ b/sdm/ColorBalance.h
+@@ -17,9 +17,9 @@
+ #ifndef VENDOR_LINEAGE_LIVEDISPLAY_V2_0_COLORBALANCE_H
+ #define VENDOR_LINEAGE_LIVEDISPLAY_V2_0_COLORBALANCE_H
+ 
+-#include <vendor/lineage/livedisplay/2.0/IColorBalance.h>
+ #include <hidl/MQDescriptor.h>
+ #include <hidl/Status.h>
++#include <vendor/lineage/livedisplay/2.0/IColorBalance.h>
+ 
+ namespace vendor {
+ namespace lineage {
+@@ -35,19 +35,28 @@ using ::android::hardware::Return;
+ using ::android::hardware::Void;
+ using ::android::sp;
+ 
+-struct ColorBalance : public IColorBalance {
++class ColorBalance : public IColorBalance {
++  public:
++    ColorBalance(void* libHandle, uint64_t cookie);
++
++    bool isSupported();
++
+     // Methods from ::vendor::lineage::livedisplay::V2_0::IColorBalance follow.
+     Return<void> getColorBalanceRange(getColorBalanceRange_cb _hidl_cb) override;
+     Return<int32_t> getColorBalance() override;
+     Return<bool> setColorBalance(int32_t value) override;
+ 
+-    // Methods from ::android::hidl::base::V1_0::IBase follow.
++  private:
++    void* mLibHandle;
++    uint64_t mCookie;
+ 
++    int32_t (*disp_api_get_feature_version)(uint64_t, uint32_t, void*, uint32_t*);
++    int32_t (*disp_api_get_global_color_balance_range)(uint64_t, uint32_t, void*);
++    int32_t (*disp_api_get_global_color_balance)(uint64_t, uint32_t, int32_t*, uint32_t*);
++    int32_t (*disp_api_set_global_color_balance)(uint64_t, uint32_t, int32_t, uint32_t);
++    int32_t (*disp_api_get_num_display_modes)(uint64_t, uint32_t, int32_t, int32_t*, uint32_t*);
+ };
+ 
+-// FIXME: most likely delete, this is only for passthrough implementations
+-// extern "C" IColorBalance* HIDL_FETCH_IColorBalance(const char* name);
+-
+ }  // namespace sdm
+ }  // namespace V2_0
+ }  // namespace livedisplay
+diff --git a/sdm/Constants.h b/sdm/Constants.h
+new file mode 100644
+index 0000000..132bd67
+--- /dev/null
++++ b/sdm/Constants.h
+@@ -0,0 +1,42 @@
++/*
++ * Copyright (C) 2019 The LineageOS Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#ifndef VENDOR_LINEAGE_LIVEDISPLAY_V2_0_SDM_CONSTANTS_H
++#define VENDOR_LINEAGE_LIVEDISPLAY_V2_0_SDM_CONSTANTS_H
++
++namespace vendor {
++namespace lineage {
++namespace livedisplay {
++namespace V2_0 {
++namespace sdm {
++
++#define DPPS_BUF_SIZE 64
++
++#define FOSS_PROPERTY "ro.vendor.display.foss"
++#define FOSS_ON "foss:on"
++#define FOSS_OFF "foss:off"
++
++#define COLOR_BALANCE_FEATURE 3
++#define DISPLAY_MODES_FEATURE 4
++#define PICTURE_ADJUSTMENT_FEATURE 1
++
++}  // namespace sdm
++}  // namespace V2_0
++}  // namespace livedisplay
++}  // namespace lineage
++}  // namespace vendor
++
++#endif  // VENDOR_LINEAGE_LIVEDISPLAY_V2_0_SDM_CONSTANTS_H
+diff --git a/sdm/DisplayModes.cpp b/sdm/DisplayModes.cpp
+index 11c6738..bdc2831 100644
+--- a/sdm/DisplayModes.cpp
++++ b/sdm/DisplayModes.cpp
+@@ -14,7 +14,12 @@
+  * limitations under the License.
+  */
+ 
++#include <dlfcn.h>
++
++#include "Constants.h"
+ #include "DisplayModes.h"
++#include "PictureAdjustment.h"
++#include "Types.h"
+ 
+ namespace vendor {
+ namespace lineage {
+@@ -22,34 +27,178 @@ namespace livedisplay {
+ namespace V2_0 {
+ namespace sdm {
+ 
++DisplayModes::DisplayModes(void* libHandle, uint64_t cookie) {
++    mLibHandle = libHandle;
++    mCookie = cookie;
++    disp_api_get_feature_version =
++        reinterpret_cast<int32_t (*)(uint64_t, uint32_t, void*, uint32_t*)>(
++            dlsym(mLibHandle, "disp_api_get_feature_version"));
++    disp_api_get_num_display_modes =
++        reinterpret_cast<int32_t (*)(uint64_t, uint32_t, int32_t, int32_t*, uint32_t*)>(
++            dlsym(mLibHandle, "disp_api_get_num_display_modes"));
++    disp_api_get_display_modes =
++        reinterpret_cast<int32_t (*)(uint64_t, uint32_t, int32_t, void*, int32_t, uint32_t*)>(
++            dlsym(mLibHandle, "disp_api_get_display_modes"));
++    disp_api_get_active_display_mode =
++        reinterpret_cast<int32_t (*)(uint64_t, uint32_t, int32_t*, uint32_t*, uint32_t*)>(
++            dlsym(mLibHandle, "disp_api_get_active_display_mode"));
++    disp_api_set_active_display_mode =
++        reinterpret_cast<int32_t (*)(uint64_t, uint32_t, int32_t, uint32_t)>(
++            dlsym(mLibHandle, "disp_api_set_active_display_mode"));
++    disp_api_get_default_display_mode =
++        reinterpret_cast<int32_t (*)(uint64_t, uint32_t, int32_t*, uint32_t*)>(
++            dlsym(mLibHandle, "disp_api_get_default_display_mode"));
++    disp_api_set_default_display_mode =
++        reinterpret_cast<int32_t (*)(uint64_t, uint32_t, int32_t, uint32_t)>(
++            dlsym(mLibHandle, "disp_api_set_default_display_mode"));
++
++    if (isSupported()) {
++        DisplayMode mode = getDefaultDisplayModeInternal();
++        if (mode.id > 0) {
++            setDisplayMode(mode.id, false);
++        }
++    }
++}
++
++bool DisplayModes::isSupported() {
++    sdm_feature_version version{};
++    int32_t count = 0;
++    uint32_t flags = 0;
++
++    if (disp_api_get_feature_version == nullptr ||
++        disp_api_get_feature_version(mCookie, DISPLAY_MODES_FEATURE, &version, &flags) != 0) {
++        return false;
++    }
++
++    if (version.x <= 0 && version.y <= 0 && version.z <= 0) {
++        return false;
++    }
++
++    if (disp_api_get_num_display_modes != nullptr) {
++        if (disp_api_get_num_display_modes(mCookie, 0, 0, &count, &flags) == 0) {
++            return count > 0;
++        }
++    }
++
++    return false;
++}
++
++std::vector<DisplayMode> DisplayModes::getDisplayModesInternal() {
++    std::vector<DisplayMode> modes;
++    int32_t count = 0;
++    uint32_t flags = 0;
++
++    if (disp_api_get_num_display_modes == nullptr ||
++        disp_api_get_num_display_modes(mCookie, 0, 0, &count, &flags) != 0) {
++        return modes;
++    }
++
++    if (disp_api_get_display_modes != nullptr) {
++        sdm_disp_mode* tmp = new sdm_disp_mode[count];
++        for (int i = 0; i < count; i++) {
++            tmp[i].id = -1;
++            tmp[i].name = new char[128];
++            tmp[i].len = 128;
++        }
++
++        if (disp_api_get_display_modes(mCookie, 0, 0, tmp, count, &flags) == 0) {
++            for (int i = 0; i < count; i++) {
++                modes.push_back(DisplayMode{tmp[i].id, std::string(tmp[i].name, tmp[i].len)});
++                delete[] tmp[i].name;
++            }
++        } else {
++            for (int i = 0; i < count; i++) {
++                delete[] tmp[i].name;
++            }
++        }
++
++        delete[] tmp;
++    }
++
++    return modes;
++}
++
++DisplayMode DisplayModes::getDisplayModeById(int32_t id) {
++    std::vector<DisplayMode> modes = getDisplayModesInternal();
++
++    for (const DisplayMode& mode : modes) {
++        if (mode.id == id) {
++            return mode;
++        }
++    }
++
++    return DisplayMode{-1, ""};
++}
++
++DisplayMode DisplayModes::getCurrentDisplayModeInternal() {
++    int32_t id = 0;
++    uint32_t mask = 0, flags = 0;
++
++    if (disp_api_get_active_display_mode != nullptr) {
++        if (disp_api_get_active_display_mode(mCookie, 0, &id, &mask, &flags) == 0 && id >= 0) {
++            return getDisplayModeById(id);
++        }
++    }
++
++    return DisplayMode{-1, ""};
++}
++
++DisplayMode DisplayModes::getDefaultDisplayModeInternal() {
++    int32_t id = 0;
++    uint32_t flags = 0;
++
++    if (disp_api_get_default_display_mode != nullptr) {
++        if (disp_api_get_default_display_mode(mCookie, 0, &id, &flags) == 0 && id >= 0) {
++            return getDisplayModeById(id);
++        }
++    }
++
++    return DisplayMode{-1, ""};
++}
++
+ // Methods from ::vendor::lineage::livedisplay::V2_0::IDisplayModes follow.
+ Return<void> DisplayModes::getDisplayModes(getDisplayModes_cb _hidl_cb) {
+-    // TODO implement
++    _hidl_cb(getDisplayModesInternal());
+     return Void();
+ }
+ 
+ Return<void> DisplayModes::getCurrentDisplayMode(getCurrentDisplayMode_cb _hidl_cb) {
+-    // TODO implement
++    _hidl_cb(getCurrentDisplayModeInternal());
+     return Void();
+ }
+ 
+ Return<void> DisplayModes::getDefaultDisplayMode(getDefaultDisplayMode_cb _hidl_cb) {
+-    // TODO implement
++    _hidl_cb(getDefaultDisplayModeInternal());
+     return Void();
+ }
+ 
+ Return<bool> DisplayModes::setDisplayMode(int32_t modeID, bool makeDefault) {
+-    // TODO implement
+-    return bool {};
+-}
++    DisplayMode currentMode = getCurrentDisplayModeInternal();
++
++    if (currentMode.id >= 0 && currentMode.id == modeID) {
++        return true;
++    }
+ 
++    DisplayMode mode = getDisplayModeById(modeID);
++    if (mode.id < 0) {
++        return false;
++    }
+ 
+-// Methods from ::android::hidl::base::V1_0::IBase follow.
++    if (disp_api_set_active_display_mode == nullptr ||
++        disp_api_set_active_display_mode(mCookie, 0, modeID, 0)) {
++        return false;
++    }
++
++    if (makeDefault && (disp_api_set_default_display_mode == nullptr ||
++                        disp_api_set_default_display_mode(mCookie, 0, modeID, 0))) {
++        return false;
++    }
++
++    PictureAdjustment::updateDefaultPictureAdjustment();
++
++    return true;
++}
+ 
+-//IDisplayModes* HIDL_FETCH_IDisplayModes(const char* /* name */) {
+-    //return new DisplayModes();
+-//}
+-//
+ }  // namespace sdm
+ }  // namespace V2_0
+ }  // namespace livedisplay
+diff --git a/sdm/DisplayModes.h b/sdm/DisplayModes.h
+index ce68728..29f9cfb 100644
+--- a/sdm/DisplayModes.h
++++ b/sdm/DisplayModes.h
+@@ -17,9 +17,9 @@
+ #ifndef VENDOR_LINEAGE_LIVEDISPLAY_V2_0_DISPLAYMODES_H
+ #define VENDOR_LINEAGE_LIVEDISPLAY_V2_0_DISPLAYMODES_H
+ 
+-#include <vendor/lineage/livedisplay/2.0/IDisplayModes.h>
+ #include <hidl/MQDescriptor.h>
+ #include <hidl/Status.h>
++#include <vendor/lineage/livedisplay/2.0/IDisplayModes.h>
+ 
+ namespace vendor {
+ namespace lineage {
+@@ -35,19 +35,35 @@ using ::android::hardware::Return;
+ using ::android::hardware::Void;
+ using ::android::sp;
+ 
+-struct DisplayModes : public IDisplayModes {
++class DisplayModes : public IDisplayModes {
++  public:
++    DisplayModes(void* libHandle, uint64_t cookie);
++
++    bool isSupported();
++
+     // Methods from ::vendor::lineage::livedisplay::V2_0::IDisplayModes follow.
+     Return<void> getDisplayModes(getDisplayModes_cb _hidl_cb) override;
+     Return<void> getCurrentDisplayMode(getCurrentDisplayMode_cb _hidl_cb) override;
+     Return<void> getDefaultDisplayMode(getDefaultDisplayMode_cb _hidl_cb) override;
+     Return<bool> setDisplayMode(int32_t modeID, bool makeDefault) override;
+ 
+-    // Methods from ::android::hidl::base::V1_0::IBase follow.
++  private:
++    void* mLibHandle;
++    uint64_t mCookie;
+ 
+-};
++    int32_t (*disp_api_get_feature_version)(uint64_t, uint32_t, void*, uint32_t*);
++    int32_t (*disp_api_get_num_display_modes)(uint64_t, uint32_t, int32_t, int32_t*, uint32_t*);
++    int32_t (*disp_api_get_display_modes)(uint64_t, uint32_t, int32_t, void*, int32_t, uint32_t*);
++    int32_t (*disp_api_get_active_display_mode)(uint64_t, uint32_t, int32_t*, uint32_t*, uint32_t*);
++    int32_t (*disp_api_set_active_display_mode)(uint64_t, uint32_t, int32_t, uint32_t);
++    int32_t (*disp_api_get_default_display_mode)(uint64_t, uint32_t, int32_t*, uint32_t*);
++    int32_t (*disp_api_set_default_display_mode)(uint64_t, uint32_t, int32_t, uint32_t);
+ 
+-// FIXME: most likely delete, this is only for passthrough implementations
+-// extern "C" IDisplayModes* HIDL_FETCH_IDisplayModes(const char* name);
++    std::vector<DisplayMode> getDisplayModesInternal();
++    DisplayMode getDisplayModeById(int32_t id);
++    DisplayMode getCurrentDisplayModeInternal();
++    DisplayMode getDefaultDisplayModeInternal();
++};
+ 
+ }  // namespace sdm
+ }  // namespace V2_0
+diff --git a/sdm/PictureAdjustment.cpp b/sdm/PictureAdjustment.cpp
+index 8f832d2..e20709f 100644
+--- a/sdm/PictureAdjustment.cpp
++++ b/sdm/PictureAdjustment.cpp
+@@ -14,7 +14,11 @@
+  * limitations under the License.
+  */
+ 
++#include <dlfcn.h>
++
++#include "Constants.h"
+ #include "PictureAdjustment.h"
++#include "Types.h"
+ 
+ namespace vendor {
+ namespace lineage {
+@@ -22,54 +26,176 @@ namespace livedisplay {
+ namespace V2_0 {
+ namespace sdm {
+ 
++static sp<PictureAdjustment> sInstance;
++
++PictureAdjustment::PictureAdjustment(void* libHandle, uint64_t cookie) {
++    sInstance = this;
++
++    mLibHandle = libHandle;
++    mCookie = cookie;
++    disp_api_get_feature_version =
++        reinterpret_cast<int32_t (*)(uint64_t, uint32_t, void*, uint32_t*)>(
++            dlsym(mLibHandle, "disp_api_get_feature_version"));
++    disp_api_get_global_pa_range = reinterpret_cast<int32_t (*)(uint64_t, uint32_t, void*)>(
++        dlsym(mLibHandle, "disp_api_get_global_pa_range"));
++    disp_api_get_global_pa_config =
++        reinterpret_cast<int32_t (*)(uint64_t, uint32_t, uint32_t*, void*)>(
++            dlsym(mLibHandle, "disp_api_get_global_pa_config"));
++    disp_api_set_global_pa_config =
++        reinterpret_cast<int32_t (*)(uint64_t, uint32_t, uint32_t, void*)>(
++            dlsym(mLibHandle, "disp_api_set_global_pa_config"));
++    mDefaultPictureAdjustment = HSIC{};
++}
++
++bool PictureAdjustment::isSupported() {
++    sdm_feature_version version{};
++    hsic_ranges r{};
++    uint32_t flags = 0;
++
++    if (disp_api_get_feature_version == nullptr ||
++        disp_api_get_feature_version(mCookie, PICTURE_ADJUSTMENT_FEATURE, &version, &flags) != 0) {
++        return false;
++    }
++
++    if (version.x <= 0 && version.y <= 0 && version.z <= 0) {
++        return false;
++    }
++
++    if (disp_api_get_global_pa_range == nullptr ||
++        disp_api_get_global_pa_range(mCookie, 0, &r) != 0) {
++        return false;
++    }
++
++    return r.hue.max != 0 && r.hue.min != 0 && r.saturation.max != 0.f &&
++             r.saturation.min != 0.f && r.intensity.max != 0.f && r.intensity.min != 0.f &&
++             r.contrast.max != 0.f && r.contrast.min != 0.f;
++}
++
++HSIC PictureAdjustment::getPictureAdjustmentInternal() {
++    hsic_config config{};
++    uint32_t enable = 0;
++
++    if (disp_api_get_global_pa_config != nullptr) {
++        if (disp_api_get_global_pa_config(mCookie, 0, &enable, &config) == 0) {
++            return HSIC{static_cast<float>(config.data.hue), config.data.saturation,
++                        config.data.intensity, config.data.contrast,
++                        config.data.saturationThreshold};
++        }
++    }
++
++    return HSIC{};
++}
++
++void PictureAdjustment::updateDefaultPictureAdjustment() {
++    if (sInstance != nullptr) {
++        sInstance->mDefaultPictureAdjustment = sInstance->getPictureAdjustmentInternal();
++    }
++}
++
+ // Methods from ::vendor::lineage::livedisplay::V2_0::IPictureAdjustment follow.
+ Return<void> PictureAdjustment::getHueRange(getHueRange_cb _hidl_cb) {
+-    // TODO implement
++    FloatRange range{};
++    hsic_ranges r{};
++
++    if (disp_api_get_global_pa_range != nullptr) {
++        if (disp_api_get_global_pa_range(mCookie, 0, &r) == 0) {
++            range.max = r.hue.max;
++            range.min = r.hue.min;
++            range.step = r.hue.step;
++        }
++    }
++
++    _hidl_cb(range);
+     return Void();
+ }
+ 
+ Return<void> PictureAdjustment::getSaturationRange(getSaturationRange_cb _hidl_cb) {
+-    // TODO implement
++    FloatRange range{};
++    hsic_ranges r{};
++
++    if (disp_api_get_global_pa_range != nullptr) {
++        if (disp_api_get_global_pa_range(mCookie, 0, &r) == 0) {
++            range.max = r.saturation.max;
++            range.min = r.saturation.min;
++            range.step = r.saturation.step;
++        }
++    }
++
++    _hidl_cb(range);
+     return Void();
+ }
+ 
+ Return<void> PictureAdjustment::getIntensityRange(getIntensityRange_cb _hidl_cb) {
+-    // TODO implement
++    FloatRange range{};
++    hsic_ranges r{};
++
++    if (disp_api_get_global_pa_range != nullptr) {
++        if (disp_api_get_global_pa_range(mCookie, 0, &r) == 0) {
++            range.max = r.intensity.max;
++            range.min = r.intensity.min;
++            range.step = r.intensity.step;
++        }
++    }
++
++    _hidl_cb(range);
+     return Void();
+ }
+ 
+ Return<void> PictureAdjustment::getContrastRange(getContrastRange_cb _hidl_cb) {
+-    // TODO implement
++    FloatRange range{};
++    hsic_ranges r{};
++
++    if (disp_api_get_global_pa_range != nullptr) {
++        if (disp_api_get_global_pa_range(mCookie, 0, &r) == 0) {
++            range.max = r.contrast.max;
++            range.min = r.contrast.min;
++            range.step = r.contrast.step;
++        }
++    }
++
++    _hidl_cb(range);
+     return Void();
+ }
+ 
+ Return<void> PictureAdjustment::getSaturationThresholdRange(getSaturationThresholdRange_cb _hidl_cb) {
+-    // TODO implement
++    FloatRange range{};
++    hsic_ranges r{};
++
++    if (disp_api_get_global_pa_range != nullptr) {
++        if (disp_api_get_global_pa_range(mCookie, 0, &r) == 0) {
++            range.max = r.saturationThreshold.max;
++            range.min = r.saturationThreshold.min;
++            range.step = r.saturationThreshold.step;
++        }
++    }
++
++    _hidl_cb(range);
+     return Void();
+ }
+ 
+ Return<void> PictureAdjustment::getPictureAdjustment(getPictureAdjustment_cb _hidl_cb) {
+-    // TODO implement
++    _hidl_cb(getPictureAdjustmentInternal());
+     return Void();
+ }
+ 
+ Return<void> PictureAdjustment::getDefaultPictureAdjustment(getDefaultPictureAdjustment_cb _hidl_cb) {
+-    // TODO implement
++    _hidl_cb(mDefaultPictureAdjustment);
+     return Void();
+ }
+ 
+-Return<bool> PictureAdjustment::setPictureAdjustment(const ::vendor::lineage::livedisplay::V2_0::HSIC& hsic) {
+-    // TODO implement
+-    return bool {};
+-}
++Return<bool> PictureAdjustment::setPictureAdjustment(
++    const ::vendor::lineage::livedisplay::V2_0::HSIC& hsic) {
++    hsic_config config = {0,
++                          {static_cast<int32_t>(hsic.hue), hsic.saturation, hsic.intensity,
++                           hsic.contrast, hsic.saturationThreshold}};
+ 
++    if (disp_api_set_global_pa_config != nullptr) {
++        return disp_api_set_global_pa_config(mCookie, 0, 1, &config) == 0;
++    }
+ 
+-// Methods from ::android::hidl::base::V1_0::IBase follow.
++    return false;
++}
+ 
+-//IPictureAdjustment* HIDL_FETCH_IPictureAdjustment(const char* /* name */) {
+-    //return new PictureAdjustment();
+-//}
+-//
+ }  // namespace sdm
+ }  // namespace V2_0
+ }  // namespace livedisplay
+diff --git a/sdm/PictureAdjustment.h b/sdm/PictureAdjustment.h
+index 2e79964..efa6b6c 100644
+--- a/sdm/PictureAdjustment.h
++++ b/sdm/PictureAdjustment.h
+@@ -17,9 +17,9 @@
+ #ifndef VENDOR_LINEAGE_LIVEDISPLAY_V2_0_PICTUREADJUSTMENT_H
+ #define VENDOR_LINEAGE_LIVEDISPLAY_V2_0_PICTUREADJUSTMENT_H
+ 
+-#include <vendor/lineage/livedisplay/2.0/IPictureAdjustment.h>
+ #include <hidl/MQDescriptor.h>
+ #include <hidl/Status.h>
++#include <vendor/lineage/livedisplay/2.0/IPictureAdjustment.h>
+ 
+ namespace vendor {
+ namespace lineage {
+@@ -35,7 +35,12 @@ using ::android::hardware::Return;
+ using ::android::hardware::Void;
+ using ::android::sp;
+ 
+-struct PictureAdjustment : public IPictureAdjustment {
++class PictureAdjustment : public IPictureAdjustment {
++  public:
++    PictureAdjustment(void* libHandle, uint64_t cookie);
++
++    bool isSupported();
++
+     // Methods from ::vendor::lineage::livedisplay::V2_0::IPictureAdjustment follow.
+     Return<void> getHueRange(getHueRange_cb _hidl_cb) override;
+     Return<void> getSaturationRange(getSaturationRange_cb _hidl_cb) override;
+@@ -44,14 +49,24 @@ struct PictureAdjustment : public IPictureAdjustment {
+     Return<void> getSaturationThresholdRange(getSaturationThresholdRange_cb _hidl_cb) override;
+     Return<void> getPictureAdjustment(getPictureAdjustment_cb _hidl_cb) override;
+     Return<void> getDefaultPictureAdjustment(getDefaultPictureAdjustment_cb _hidl_cb) override;
+-    Return<bool> setPictureAdjustment(const ::vendor::lineage::livedisplay::V2_0::HSIC& hsic) override;
++    Return<bool> setPictureAdjustment(
++        const ::vendor::lineage::livedisplay::V2_0::HSIC& hsic) override;
+ 
+-    // Methods from ::android::hidl::base::V1_0::IBase follow.
++    static void updateDefaultPictureAdjustment();
+ 
+-};
++  private:
++    void* mLibHandle;
++    uint64_t mCookie;
++
++    int32_t (*disp_api_get_feature_version)(uint64_t, uint32_t, void*, uint32_t*);
++    int32_t (*disp_api_get_global_pa_range)(uint64_t, uint32_t, void*);
++    int32_t (*disp_api_get_global_pa_config)(uint64_t, uint32_t, uint32_t*, void*);
++    int32_t (*disp_api_set_global_pa_config)(uint64_t, uint32_t, uint32_t, void*);
+ 
+-// FIXME: most likely delete, this is only for passthrough implementations
+-// extern "C" IPictureAdjustment* HIDL_FETCH_IPictureAdjustment(const char* name);
++    HSIC getPictureAdjustmentInternal();
++
++    HSIC mDefaultPictureAdjustment;
++};
+ 
+ }  // namespace sdm
+ }  // namespace V2_0
+diff --git a/sdm/Types.h b/sdm/Types.h
+new file mode 100644
+index 0000000..ad37e58
+--- /dev/null
++++ b/sdm/Types.h
+@@ -0,0 +1,78 @@
++/*
++ * Copyright (C) 2019 The LineageOS Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#ifndef VENDOR_LINEAGE_LIVEDISPLAY_V2_0_SDM_TYPES_H
++#define VENDOR_LINEAGE_LIVEDISPLAY_V2_0_SDM_TYPES_H
++
++namespace vendor {
++namespace lineage {
++namespace livedisplay {
++namespace V2_0 {
++namespace sdm {
++
++struct sdm_feature_version {
++    uint8_t x, y;
++    uint16_t z;
++};
++
++struct sdm_disp_mode {
++    int32_t id;
++    int32_t type;
++    int32_t len;
++    char* name;
++};
++
++struct hsic_data {
++    int32_t hue;
++    float saturation;
++    float intensity;
++    float contrast;
++    float saturationThreshold;
++};
++
++struct hsic_config {
++    uint32_t unused;
++    hsic_data data;
++};
++
++struct hsic_int_range {
++    int32_t max;
++    int32_t min;
++    uint32_t step;
++};
++
++struct hsic_float_range {
++    float max;
++    float min;
++    float step;
++};
++
++struct hsic_ranges {
++    uint32_t unused;
++    struct hsic_int_range hue;
++    struct hsic_float_range saturation;
++    struct hsic_float_range intensity;
++    struct hsic_float_range contrast;
++    struct hsic_float_range saturationThreshold;
++};
++
++}  // namespace sdm
++}  // namespace V2_0
++}  // namespace livedisplay
++}  // namespace lineage
++}  // namespace vendor
++
++#endif  // VENDOR_LINEAGE_LIVEDISPLAY_V2_0_SDM_TYPES_H
+diff --git a/sdm/Utils.cpp b/sdm/Utils.cpp
+new file mode 100644
+index 0000000..add3bdf
+--- /dev/null
++++ b/sdm/Utils.cpp
+@@ -0,0 +1,73 @@
++/*
++ * Copyright (C) 2016 The CyanogenMod Project
++ *               2017-2019 The LineageOS Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#include <errno.h>
++#include <fcntl.h>
++#include <poll.h>
++#include <signal.h>
++#include <stdio.h>
++#include <sys/stat.h>
++#include <unistd.h>
++#include <string>
++
++#include <cutils/sockets.h>
++
++#include "Utils.h"
++
++namespace vendor {
++namespace lineage {
++namespace livedisplay {
++namespace V2_0 {
++namespace sdm {
++
++int Utils::sendDPPSCommand(char* buf, size_t len) {
++    int rc = 0;
++    int sock = socket_local_client("pps", ANDROID_SOCKET_NAMESPACE_RESERVED, SOCK_STREAM);
++    if (sock < 0) {
++        return sock;
++    }
++
++    if (write(sock, buf, strlen(buf) + 1) > 0) {
++        memset(buf, 0, len);
++        ssize_t ret;
++        while ((ret = read(sock, buf, len)) > 0) {
++            if ((size_t)ret == len) {
++                break;
++            }
++            len -= ret;
++            buf += ret;
++
++            struct pollfd p = {.fd = sock, .events = POLLIN, .revents = 0};
++
++            ret = poll(&p, 1, 20);
++            if ((ret <= 0) || !(p.revents & POLLIN)) {
++                break;
++            }
++        }
++    } else {
++        rc = -EIO;
++    }
++
++    close(sock);
++    return rc;
++}
++
++}  // namespace sdm
++}  // namespace V2_0
++}  // namespace livedisplay
++}  // namespace lineage
++}  // namespace vendor
+diff --git a/sdm/Utils.h b/sdm/Utils.h
+new file mode 100644
+index 0000000..4f4496d
+--- /dev/null
++++ b/sdm/Utils.h
+@@ -0,0 +1,40 @@
++/*
++ * Copyright (C) 2016 The CyanogenMod Project
++ *               2017-2019 The LineageOS Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#ifndef VENDOR_LINEAGE_LIVEDISPLAY_V2_0_SDM_UTILS_H
++#define VENDOR_LINEAGE_LIVEDISPLAY_V2_0_SDM_UTILS_H
++
++#include <stdlib.h>
++
++namespace vendor {
++namespace lineage {
++namespace livedisplay {
++namespace V2_0 {
++namespace sdm {
++
++class Utils {
++  public:
++    static int sendDPPSCommand(char* buf, size_t len);
++};
++
++}  // namespace sdm
++}  // namespace V2_0
++}  // namespace livedisplay
++}  // namespace lineage
++}  // namespace vendor
++
++#endif  // VENDOR_LINEAGE_LIVEDISPLAY_V2_0_SDM_UTILS_H
+diff --git a/sdm/lineage.livedisplay@2.0-service-sdm.rc b/sdm/lineage.livedisplay@2.0-service-sdm.rc
+new file mode 100644
+index 0000000..dd76017
+--- /dev/null
++++ b/sdm/lineage.livedisplay@2.0-service-sdm.rc
+@@ -0,0 +1,4 @@
++service livedisplay-hal-2-0-sdm /system/bin/hw/lineage.livedisplay@2.0-service-sdm
++    class hal
++    user system
++    group system
+diff --git a/sdm/service.cpp b/sdm/service.cpp
+new file mode 100644
+index 0000000..214fc8b
+--- /dev/null
++++ b/sdm/service.cpp
+@@ -0,0 +1,203 @@
++/*
++ * Copyright (C) 2018-2019 The LineageOS Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#include <dlfcn.h>
++
++#ifdef LIVES_IN_SYSTEM
++#define LOG_TAG "lineage.livedisplay@2.0-service-sdm"
++#else
++#define LOG_TAG "vendor.lineage.livedisplay@2.0-service-sdm"
++#endif
++
++#include <android-base/logging.h>
++#include <binder/ProcessState.h>
++#include <hidl/HidlTransportSupport.h>
++
++#include "AdaptiveBacklight.h"
++#include "ColorBalance.h"
++#include "DisplayModes.h"
++#include "PictureAdjustment.h"
++
++#ifdef LIVES_IN_SYSTEM
++#define SDM_DISP_LIB "libsdm-disp-apis.so"
++#else
++#define SDM_DISP_LIB "libsdm-disp-vndapis.so"
++#endif
++
++using android::hardware::configureRpcThreadpool;
++using android::hardware::joinRpcThreadpool;
++using android::sp;
++using android::status_t;
++using android::OK;
++
++using ::vendor::lineage::livedisplay::V2_0::IAdaptiveBacklight;
++using ::vendor::lineage::livedisplay::V2_0::sdm::AdaptiveBacklight;
++using ::vendor::lineage::livedisplay::V2_0::IColorBalance;
++using ::vendor::lineage::livedisplay::V2_0::sdm::ColorBalance;
++using ::vendor::lineage::livedisplay::V2_0::IDisplayModes;
++using ::vendor::lineage::livedisplay::V2_0::sdm::DisplayModes;
++using ::vendor::lineage::livedisplay::V2_0::IPictureAdjustment;
++using ::vendor::lineage::livedisplay::V2_0::sdm::PictureAdjustment;
++
++int main() {
++    // Vendor backend
++    void* libHandle = nullptr;
++    int32_t (*disp_api_init)(uint64_t*, uint32_t) = nullptr;
++    int32_t (*disp_api_deinit)(uint64_t, uint32_t) = nullptr;
++    uint64_t cookie = 0;
++
++    // HIDL frontend
++    sp<AdaptiveBacklight> ab;
++    sp<ColorBalance> cb;
++    sp<DisplayModes> dm;
++    sp<PictureAdjustment> pa;
++    uint8_t services = 0;
++
++    status_t status = OK;
++
++#ifdef LIVES_IN_SYSTEM
++    android::ProcessState::initWithDriver("/dev/binder");
++#else
++    android::ProcessState::initWithDriver("/dev/vndbinder");
++#endif
++
++    LOG(INFO) << "LiveDisplay HAL service is starting.";
++
++    libHandle = dlopen(SDM_DISP_LIB, RTLD_NOW);
++    if (libHandle == nullptr) {
++        LOG(ERROR) << "Can not get " << SDM_DISP_LIB << " (" << dlerror() << ")";
++        goto shutdown;
++    }
++
++    disp_api_init =
++        reinterpret_cast<int32_t (*)(uint64_t*, uint32_t)>(dlsym(libHandle, "disp_api_init"));
++    if (disp_api_init == nullptr) {
++        LOG(ERROR) << "Can not get disp_api_init from " << SDM_DISP_LIB << " (" << dlerror() << ")";
++        goto shutdown;
++    }
++
++    disp_api_deinit =
++        reinterpret_cast<int32_t(*)(uint64_t, uint32_t)>(dlsym(libHandle, "disp_api_deinit"));
++    if (disp_api_deinit == nullptr) {
++        LOG(ERROR) << "Can not get disp_api_deinit from " << SDM_DISP_LIB << " (" << dlerror()
++                   << ")";
++        goto shutdown;
++    }
++
++    status = disp_api_init(&cookie, 0);
++    if (status != OK) {
++        LOG(ERROR) << "Can not initialize " << SDM_DISP_LIB << " (" << status << ")";
++        goto shutdown;
++    }
++
++    ab = new AdaptiveBacklight();
++    if (ab == nullptr) {
++        LOG(ERROR)
++            << "Can not create an instance of LiveDisplay HAL AdaptiveBacklight Iface, exiting.";
++        goto shutdown;
++    }
++    if (ab->isSupported()) {
++        services++;
++    }
++
++    cb = new ColorBalance(libHandle, cookie);
++    if (cb == nullptr) {
++        LOG(ERROR) << "Can not create an instance of LiveDisplay HAL ColorBalance Iface, exiting.";
++        goto shutdown;
++    }
++    if (cb->isSupported()) {
++        services++;
++    }
++
++    dm = new DisplayModes(libHandle, cookie);
++    if (dm == nullptr) {
++        LOG(ERROR) << "Can not create an instance of LiveDisplay HAL DisplayModes Iface, exiting.";
++        goto shutdown;
++    }
++    if (dm->isSupported()) {
++        services++;
++    }
++
++    pa = new PictureAdjustment(libHandle, cookie);
++    if (pa == nullptr) {
++        LOG(ERROR)
++            << "Can not create an instance of LiveDisplay HAL PictureAdjustment Iface, exiting.";
++        goto shutdown;
++    }
++    if (pa->isSupported()) {
++        services++;
++    }
++
++    if (services == 0) {
++        goto shutdown;
++    }
++
++    configureRpcThreadpool(services, true /*callerWillJoin*/);
++
++    if (ab->isSupported()) {
++        status = ab->registerAsService();
++        if (status != OK) {
++            LOG(ERROR) << "Could not register service for LiveDisplay HAL AdaptiveBacklight Iface ("
++                       << status << ")";
++            goto shutdown;
++        }
++    }
++
++    if (cb->isSupported()) {
++        status = cb->registerAsService();
++        if (status != OK) {
++            LOG(ERROR) << "Could not register service for LiveDisplay HAL ColorBalance Iface ("
++                       << status << ")";
++            goto shutdown;
++        }
++    }
++
++    if (dm->isSupported()) {
++        status = dm->registerAsService();
++        if (status != OK) {
++            LOG(ERROR) << "Could not register service for LiveDisplay HAL DisplayModes Iface ("
++                       << status << ")";
++            goto shutdown;
++        }
++    }
++
++    if (pa->isSupported()) {
++        status = pa->registerAsService();
++        if (status != OK) {
++            LOG(ERROR) << "Could not register service for LiveDisplay HAL PictureAdjustment Iface ("
++                       << status << ")";
++            goto shutdown;
++        }
++    }
++
++    LOG(INFO) << "LiveDisplay HAL service is ready.";
++    joinRpcThreadpool();
++    // Should not pass this line
++
++shutdown:
++    // Cleanup what we started
++    if (disp_api_deinit != nullptr) {
++        disp_api_deinit(cookie, 0);
++    }
++
++    if (libHandle != nullptr) {
++        dlclose(libHandle);
++    }
++
++    // In normal operation, we don't expect the thread pool to shutdown
++    LOG(ERROR) << "LiveDisplay HAL service is shutting down.";
++    return 1;
++}
+diff --git a/sdm/vendor.lineage.livedisplay@2.0-service-sdm.rc b/sdm/vendor.lineage.livedisplay@2.0-service-sdm.rc
+new file mode 100644
+index 0000000..69eacc5
+--- /dev/null
++++ b/sdm/vendor.lineage.livedisplay@2.0-service-sdm.rc
+@@ -0,0 +1,4 @@
++service vendor.livedisplay-hal-2-0-sdm /vendor/bin/hw/vendor.lineage.livedisplay@2.0-service-sdm
++    class hal
++    user system
++    group system
+-- 
+2.17.1
+

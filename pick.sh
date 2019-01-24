@@ -1239,10 +1239,14 @@ kpick 230230 # common: fix sensors denial
 kpick 230231 # common: grant cnss-daemon access to sysfs_net
 kpick 230232 # common: grant netmgrd access to sysfs_net nodes
 kpick 230233 # common: allow sensors HIDL HAL to access /dev/sensors
-kpick 239068 # common: label /sys/devices/virtual/net/lo as sysfs_net
+#kpick 239068 # common: label /sys/devices/virtual/net/lo as sysfs_net
 kpick 239478 # sepolicy: Add rps to sysfs context and allow netmgrd access
 kpick 239736 # sepolicy-legacy: Allow vold to open keymaster firmware
-#kpick 239741 # common: permit libqdutils operation (linked by mediaserver) during WFD
+kpick 239741 # common: permit libqdutils operation (linked by mediaserver) during WFD
+kpick 239885 # legacy: Label msm8916 sysfs_usb_supply
+kpick 239886 # legacy: Label msm8916 sysfs_android_usb
+kpick 239887 # legacy: Label msm8916 sysfs_disk_stat
+#kpick 239924 # common: relabel /sys/module/tcp_cubic for netmgrd access
 
 # development
 
@@ -1342,6 +1346,7 @@ kpick 238601 # base: add Trust usb restrictor
 kpick 238696 # fonts: Build different fonts.xml if EXCLUDE_SERIF_FONTS is true
 kpick 239179 # Camera: Force HAL1 for predefined package list.
 kpick 239520 # Reset all package signatures on boot
+kpick 239928 # audio: Don't play sound effects if stream is muted
 
 # frameworks/native
 kpick 224530 # Triple the available egl function pointers available to a process for certain Nvidia devices.
@@ -1387,8 +1392,12 @@ kpick 239546 # livedisplay: Update for new .hal definitions
 kpick 239547 # livedisplay: Split impls into legacymm and sdm
 kpick 239548 # livedisplay: legacymm: Remove unused HALs
 kpick 239549 # livedisplay: legacymm: Wire it up
+kpick 239607 # livedisplay: sdm: Remove unused HALs
+kpick 239608 # livedisplay: sdm: Wire it up
+kpick 239888 # fix?
 
 # hardware/nxp/nfc
+kpick 239927 # hardware: nxp: Restore pn547 support
 
 # hardware/qcom/audio/default
 
@@ -1498,7 +1507,6 @@ kpick 229311 # Assume optional codecs are supported if were supported previously
 # packages/apps/LineageParts
 kpick 237741 # parts: add dark mode on low battery toggle
 kpick 238603 # parts: add Trust usb restrictor
-kpick 239762 # LineageStats: explicitly cancel old jobs
 
 # packages/apps/ManagedProvisoning
 
@@ -1538,7 +1546,6 @@ kpick 237244 # Snap: make support for bokeh mode configurable per device
 # packages/apps/Traceur
 
 # packages/apps/Trebuchet
-kpick 239699 # TrebuchetQuickStep: Define missing permissions
 
 # packages/apps/TvSettings
 
