@@ -1225,8 +1225,8 @@ kpick 234544 # sepolicy: Allow Settings to read ro.vendor.build.security_patch
 kpick 238602 # sepolicies: add Trust hal
 kpick 239080 # sepolicy: Allow recovery update_engine to setexec backuptool
 kpick 239081 # sepolicy: Label vendor.camera.aux. list properties
-kpick 239703 # common: Migrate to livedisplay 2.0
 kpick 239138 # common: Add vendor.lineage.touch rules
+kpick 239703 # common: Migrate to livedisplay 2.0
 
 # device/qcom/sepolicy
 kpick 228572 # sepolicy: Allow system_server to 'read' qti_debugfs
@@ -1243,7 +1243,7 @@ kpick 230233 # common: allow sensors HIDL HAL to access /dev/sensors
 kpick 239478 # sepolicy: Add rps to sysfs context and allow netmgrd access
 kpick 239736 # sepolicy-legacy: Allow vold to open keymaster firmware
 kpick 239741 # common: permit libqdutils operation (linked by mediaserver) during WFD
-kpick 239885 # legacy: Label msm8916 sysfs_usb_supply
+kpick 239885 # legacy: Label msm8916 sysfs_{battery,usb}_supply
 kpick 239886 # legacy: Label msm8916 sysfs_android_usb
 kpick 239887 # legacy: Label msm8916 sysfs_disk_stat
 #kpick 239924 # common: relabel /sys/module/tcp_cubic for netmgrd access
@@ -1468,6 +1468,7 @@ kpick 239278 # PerformanceManager: Allow wait for MPCTL to start on boot
 kpick 239443 # sdk: Deprecate some unused lineagehw features
 kpick 239449 # sdk: Add HIDL compat in LineageHardwareManager
 kpick 239492 # LineageSettingsProvider: Fix migration of FORCE_SHOW_NAVBAR
+kpick 239987 # TelephonyExtUtils: Handle extphone binder death
 
 # packages/apps/Bluetooth
 kpick 229311 # Assume optional codecs are supported if were supported previously

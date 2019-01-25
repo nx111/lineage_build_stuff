@@ -1,7 +1,7 @@
-From 08860ad5df65c58c624dd7870b17e272b1dc4b1f Mon Sep 17 00:00:00 2001
+From 6802694a1930b1e403604eb78014dff47289ecd6 Mon Sep 17 00:00:00 2001
 From: Jan Altensen <info@stricted.net>
 Date: Sun, 20 Jan 2019 02:40:07 +0100
-Subject: [PATCH 5/6] hidl: livedisplay: Add binderized service implementation
+Subject: [PATCH 5/5] hidl: livedisplay: Add binderized service implementation
 
 * Change default ::implementation namespace to ::samsung
 * Fill in required methods for used impls
@@ -29,13 +29,13 @@ Change-Id: I545a7c0ac8bf4fce04da73a0d39d4ac1938496f2
  .../hidl/livedisplay/PictureAdjustment.h      | 20 ++--
  .../hidl/livedisplay/ReadingEnhancement.cpp   |  6 +-
  .../hidl/livedisplay/ReadingEnhancement.h     |  6 +-
- .../hidl/livedisplay/SunlightEnhancement.cpp  | 36 +++++---
+ .../hidl/livedisplay/SunlightEnhancement.cpp  | 47 +++++++---
  .../hidl/livedisplay/SunlightEnhancement.h    | 14 +--
  lineagehw/hidl/livedisplay/service.cpp        | 91 +++++++++++++++++++
  ...lineage.livedisplay@2.0-service.samsung.rc |  4 +
  .../lineageos/hardware/AdaptiveBacklight.java | 59 ------------
  .../hardware/SunlightEnhancement.java         | 86 ------------------
- 23 files changed, 229 insertions(+), 260 deletions(-)
+ 23 files changed, 240 insertions(+), 260 deletions(-)
  create mode 100644 lineagehw/hidl/livedisplay/service.cpp
  create mode 100644 lineagehw/hidl/livedisplay/vendor.lineage.livedisplay@2.0-service.samsung.rc
  delete mode 100644 lineagehw/src/org/lineageos/hardware/AdaptiveBacklight.java
@@ -698,10 +698,10 @@ index 20e909a..f4a6d1c 100644
  }  // namespace livedisplay
  }  // namespace lineage
 diff --git a/lineagehw/hidl/livedisplay/SunlightEnhancement.cpp b/lineagehw/hidl/livedisplay/SunlightEnhancement.cpp
-index 8a3c329..b4b8b04 100644
+index 8a3c329..f7bc949 100644
 --- a/lineagehw/hidl/livedisplay/SunlightEnhancement.cpp
 +++ b/lineagehw/hidl/livedisplay/SunlightEnhancement.cpp
-@@ -14,33 +14,43 @@
+@@ -14,33 +14,54 @@
   * limitations under the License.
   */
  
@@ -717,38 +717,49 @@ index 8a3c329..b4b8b04 100644
 +namespace samsung {
  
  // Methods from ::vendor::lineage::livedisplay::V2_0::ISunlightEnhancement follow.
+-Return<bool> SunlightEnhancement::isEnabled() {
+-    // TODO implement
+-    return bool {};
 +bool SunlightEnhancement::isSupported() {
 +    std::ofstream file("/sys/class/mdnie/mdnie/outdoor");
-+    return file.good();
-+}
-+
-+// Methods from ::vendor::lineage::livedisplay::V2_0::IAdaptiveBacklight follow.
- Return<bool> SunlightEnhancement::isEnabled() {
++    std::ofstream file2("/sys/class/mdnie/mdnie/lux");
++    return file.good() || file2.good();
+ }
+ 
+-Return<bool> SunlightEnhancement::setEnabled(bool enabled) {
 -    // TODO implement
 -    return bool {};
++// Methods from ::vendor::lineage::livedisplay::V2_0::IAdaptiveBacklight follow.
++Return<bool> SunlightEnhancement::isEnabled() {
 +    std::ifstream file("/sys/class/mdnie/mdnie/outdoor");
++    std::ifstream file2("/sys/class/mdnie/mdnie/lux");
++    int status = -1;
 +
 +    if (file.is_open()) {
-+        std::string line;
-+        getline(file, line);
-+        if (!line.compare("1"))
-+            return true;
++        file >> status;
++    }
++    else if (file2.is_open()) {
++        file2 >> status;
 +    }
 +
-+    return false;
++    return (file.good() || file2.good()) && status > 0;
  }
  
- Return<bool> SunlightEnhancement::setEnabled(bool enabled) {
--    // TODO implement
--    return bool {};
++Return<bool> SunlightEnhancement::setEnabled(bool enabled) {
 +    std::ofstream file("/sys/class/mdnie/mdnie/outdoor");
-+    file << (enabled ? "1" : "0");
-+    return true;
- }
++    std::ifstream file2("/sys/class/mdnie/mdnie/lux");
++    if (file.is_open()) {
++        file << (enabled ? "1" : "0");
++    }
++    else if (file2.is_open()) {
++        /* see drivers/video/fbdev/exynos/decon_7880/panels/mdnie_lite_table*, get_hbm_index */
++        file << (enabled ? "40000" : "0");
++    }
  
--
 -// Methods from ::android::hidl::base::V1_0::IBase follow.
--
++    return true;
++}
+ 
 -//ISunlightEnhancement* HIDL_FETCH_ISunlightEnhancement(const char* /* name */) {
 -    //return new SunlightEnhancement();
 -//}

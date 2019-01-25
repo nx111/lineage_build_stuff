@@ -1,7 +1,7 @@
-From 3ab359f11aa7eb8d37798d631b82cb196d36ab0e Mon Sep 17 00:00:00 2001
+From b1e6b164e0a9570335bee56541c6b73cf1654d37 Mon Sep 17 00:00:00 2001
 From: Paul Keith <javelinanddart@gmail.com>
 Date: Wed, 9 Jan 2019 00:11:40 +0100
-Subject: [PATCH 3/6] hidl: touch: Add binderized service implementation
+Subject: [PATCH 3/5] hidl: touch: Add binderized service implementation
 
 * Change default ::implementation namespace to ::samsung
 * Fill in required methods for used impls
@@ -13,19 +13,19 @@ Subject: [PATCH 3/6] hidl: touch: Add binderized service implementation
 Change-Id: Iadc3b6e385233d103c3349ce31a08d6d040886c7
 ---
  lineagehw/hidl/touch/Android.bp               |  18 ++-
- lineagehw/hidl/touch/GloveMode.cpp            |  29 +++--
- lineagehw/hidl/touch/GloveMode.h              |  14 ++-
- lineagehw/hidl/touch/KeyDisabler.cpp          |  21 ++--
- lineagehw/hidl/touch/KeyDisabler.h            |  14 ++-
- lineagehw/hidl/touch/StylusMode.cpp           |  29 +++--
- lineagehw/hidl/touch/StylusMode.h             |  14 ++-
- lineagehw/hidl/touch/TouchscreenGesture.cpp   |   8 +-
+ lineagehw/hidl/touch/GloveMode.cpp            |  43 +++++--
+ lineagehw/hidl/touch/GloveMode.h              |  17 +--
+ lineagehw/hidl/touch/KeyDisabler.cpp          |  34 +++--
+ lineagehw/hidl/touch/KeyDisabler.h            |  17 +--
+ lineagehw/hidl/touch/StylusMode.cpp           |  43 +++++--
+ lineagehw/hidl/touch/StylusMode.h             |  17 +--
+ lineagehw/hidl/touch/TouchscreenGesture.cpp   |  10 +-
  lineagehw/hidl/touch/TouchscreenGesture.h     |   8 +-
  lineagehw/hidl/touch/service.cpp              | 116 ++++++++++++++++++
  ...endor.lineage.touch@1.0-service.samsung.rc |   4 +
  .../hardware/HighTouchSensitivity.java        |  96 ---------------
  .../hardware/TouchscreenHovering.java         |  98 ---------------
- 13 files changed, 208 insertions(+), 261 deletions(-)
+ 13 files changed, 253 insertions(+), 268 deletions(-)
  create mode 100644 lineagehw/hidl/touch/service.cpp
  create mode 100644 lineagehw/hidl/touch/vendor.lineage.touch@1.0-service.samsung.rc
  delete mode 100644 lineagehw/src/org/lineageos/hardware/HighTouchSensitivity.java
@@ -70,10 +70,10 @@ index 310fb52..0197b6c 100644
          "libhidltransport",
          "libutils",
 diff --git a/lineagehw/hidl/touch/GloveMode.cpp b/lineagehw/hidl/touch/GloveMode.cpp
-index 37c58ed..fcd1751 100644
+index 37c58ed..dcac846 100644
 --- a/lineagehw/hidl/touch/GloveMode.cpp
 +++ b/lineagehw/hidl/touch/GloveMode.cpp
-@@ -14,28 +14,37 @@
+@@ -14,28 +14,49 @@
   * limitations under the License.
   */
  
@@ -87,7 +87,11 @@ index 37c58ed..fcd1751 100644
  namespace V1_0 {
 -namespace implementation {
 +namespace samsung {
-+
+ 
+-// Methods from ::vendor::lineage::touch::V1_0::IGloveMode follow.
+-Return<void> GloveMode::setEnabled(bool enabled) {
+-    // TODO implement
+-    return Void();
 +bool GloveMode::isSupported() {
 +    std::ifstream file("/sys/class/sec/tsp/cmd_list");
 +    if (file.is_open()) {
@@ -99,19 +103,28 @@ index 37c58ed..fcd1751 100644
 +        file.close();
 +    }
 +    return false;
-+}
- 
- // Methods from ::vendor::lineage::touch::V1_0::IGloveMode follow.
- Return<void> GloveMode::setEnabled(bool enabled) {
--    // TODO implement
-+    std::ofstream file("/sys/class/sec/tsp/cmd");
-+    file << "glove_mode," << (enabled ? "1" : "0");
-     return Void();
  }
  
--
++// Methods from ::vendor::lineage::touch::V1_0::IGloveMode follow.
++Return<bool> GloveMode::isEnabled() {
++    std::ifstream file("/sys/class/sec/tsp/cmd_result");
++    if (file.is_open()) {
++        std::string line;
++        getline(file, line);
++        if (!line.compare("glove_mode,1:OK"))
++            return true;
++        file.close();
++    }
++    return false;
++}
+ 
 -// Methods from ::android::hidl::base::V1_0::IBase follow.
--
++Return<bool> GloveMode::setEnabled(bool enabled) {
++    std::ofstream file("/sys/class/sec/tsp/cmd");
++    file << "glove_mode," << (enabled ? "1" : "0");
++    return true;
++}
+ 
 -//IGloveMode* HIDL_FETCH_IGloveMode(const char* /* name */) {
 -    //return new GloveMode();
 -//}
@@ -122,7 +135,7 @@ index 37c58ed..fcd1751 100644
  }  // namespace touch
  }  // namespace lineage
 diff --git a/lineagehw/hidl/touch/GloveMode.h b/lineagehw/hidl/touch/GloveMode.h
-index 925ceb4..eec37be 100644
+index 925ceb4..7208a8d 100644
 --- a/lineagehw/hidl/touch/GloveMode.h
 +++ b/lineagehw/hidl/touch/GloveMode.h
 @@ -25,7 +25,7 @@ namespace vendor {
@@ -134,7 +147,7 @@ index 925ceb4..eec37be 100644
  
  using ::android::hardware::hidl_array;
  using ::android::hardware::hidl_memory;
-@@ -35,7 +35,12 @@ using ::android::hardware::Return;
+@@ -35,18 +35,21 @@ using ::android::hardware::Return;
  using ::android::hardware::Void;
  using ::android::sp;
  
@@ -146,9 +159,11 @@ index 925ceb4..eec37be 100644
 +    bool isSupported();
 +
      // Methods from ::vendor::lineage::touch::V1_0::IGloveMode follow.
-     Return<void> setEnabled(bool enabled) override;
+-    Return<void> setEnabled(bool enabled) override;
++    Return<bool> isEnabled() override;
++    Return<bool> setEnabled(bool enabled) override;
  
-@@ -43,10 +48,7 @@ struct GloveMode : public IGloveMode {
+     // Methods from ::android::hidl::base::V1_0::IBase follow.
  
  };
  
@@ -161,10 +176,10 @@ index 925ceb4..eec37be 100644
  }  // namespace touch
  }  // namespace lineage
 diff --git a/lineagehw/hidl/touch/KeyDisabler.cpp b/lineagehw/hidl/touch/KeyDisabler.cpp
-index 469e147..4587e0e 100644
+index 469e147..54691a0 100644
 --- a/lineagehw/hidl/touch/KeyDisabler.cpp
 +++ b/lineagehw/hidl/touch/KeyDisabler.cpp
-@@ -14,28 +14,29 @@
+@@ -14,28 +14,40 @@
   * limitations under the License.
   */
  
@@ -178,23 +193,35 @@ index 469e147..4587e0e 100644
  namespace V1_0 {
 -namespace implementation {
 +namespace samsung {
-+
+ 
+-// Methods from ::vendor::lineage::touch::V1_0::IKeyDisabler follow.
+-Return<void> KeyDisabler::setEnabled(bool enabled) {
+-    // TODO implement
+-    return Void();
 +bool KeyDisabler::isSupported() {
 +    std::ofstream file("/sys/class/sec/sec_touchkey/input/enabled");
 +    return file.good();
-+}
- 
- // Methods from ::vendor::lineage::touch::V1_0::IKeyDisabler follow.
- Return<void> KeyDisabler::setEnabled(bool enabled) {
--    // TODO implement
-+    std::ofstream file("/sys/class/sec/sec_touchkey/input/enabled");
-+    file << (enabled ? "0" : "1");
-     return Void();
  }
  
--
++// Methods from ::vendor::lineage::touch::V1_0::IKeyDisabler follow.
++Return<bool> KeyDisabler::isEnabled() {
++    std::ifstream file("/sys/class/sec/sec_touchkey/input/enabled");
++    int status = -1;
++
++    if (file.is_open()) {
++        file >> status;
++    }
+ 
 -// Methods from ::android::hidl::base::V1_0::IBase follow.
--
++    return file.good() && status == 0;
++}
++
++Return<bool> KeyDisabler::setEnabled(bool enabled) {
++    std::ofstream file("/sys/class/sec/sec_touchkey/input/enabled");
++    file << (enabled ? "0" : "1");
++    return true;
++}
+ 
 -//IKeyDisabler* HIDL_FETCH_IKeyDisabler(const char* /* name */) {
 -    //return new KeyDisabler();
 -//}
@@ -205,7 +232,7 @@ index 469e147..4587e0e 100644
  }  // namespace touch
  }  // namespace lineage
 diff --git a/lineagehw/hidl/touch/KeyDisabler.h b/lineagehw/hidl/touch/KeyDisabler.h
-index ffe4f0d..2b2a57a 100644
+index ffe4f0d..3b56b46 100644
 --- a/lineagehw/hidl/touch/KeyDisabler.h
 +++ b/lineagehw/hidl/touch/KeyDisabler.h
 @@ -25,7 +25,7 @@ namespace vendor {
@@ -217,7 +244,7 @@ index ffe4f0d..2b2a57a 100644
  
  using ::android::hardware::hidl_array;
  using ::android::hardware::hidl_memory;
-@@ -35,7 +35,12 @@ using ::android::hardware::Return;
+@@ -35,18 +35,21 @@ using ::android::hardware::Return;
  using ::android::hardware::Void;
  using ::android::sp;
  
@@ -229,9 +256,11 @@ index ffe4f0d..2b2a57a 100644
 +    bool isSupported();
 +
      // Methods from ::vendor::lineage::touch::V1_0::IKeyDisabler follow.
-     Return<void> setEnabled(bool enabled) override;
+-    Return<void> setEnabled(bool enabled) override;
++    Return<bool> isEnabled() override;
++    Return<bool> setEnabled(bool enabled) override;
  
-@@ -43,10 +48,7 @@ struct KeyDisabler : public IKeyDisabler {
+     // Methods from ::android::hidl::base::V1_0::IBase follow.
  
  };
  
@@ -244,10 +273,10 @@ index ffe4f0d..2b2a57a 100644
  }  // namespace touch
  }  // namespace lineage
 diff --git a/lineagehw/hidl/touch/StylusMode.cpp b/lineagehw/hidl/touch/StylusMode.cpp
-index 5f5a33a..22ddc64 100644
+index 5f5a33a..aa86e7a 100644
 --- a/lineagehw/hidl/touch/StylusMode.cpp
 +++ b/lineagehw/hidl/touch/StylusMode.cpp
-@@ -14,28 +14,37 @@
+@@ -14,28 +14,49 @@
   * limitations under the License.
   */
  
@@ -261,7 +290,11 @@ index 5f5a33a..22ddc64 100644
  namespace V1_0 {
 -namespace implementation {
 +namespace samsung {
-+
+ 
+-// Methods from ::vendor::lineage::touch::V1_0::IStylusMode follow.
+-Return<void> StylusMode::setEnabled(bool enabled) {
+-    // TODO implement
+-    return Void();
 +bool StylusMode::isSupported() {
 +    std::ifstream file("/sys/class/sec/tsp/cmd_list");
 +    if (file.is_open()) {
@@ -273,19 +306,28 @@ index 5f5a33a..22ddc64 100644
 +        file.close();
 +    }
 +    return false;
-+}
- 
- // Methods from ::vendor::lineage::touch::V1_0::IStylusMode follow.
- Return<void> StylusMode::setEnabled(bool enabled) {
--    // TODO implement
-+    std::ofstream file("/sys/class/sec/tsp/cmd");
-+    file << "hover_enable," << (enabled ? "1" : "0");
-     return Void();
  }
  
--
++// Methods from ::vendor::lineage::touch::V1_0::IStylusMode follow.
++Return<bool> StylusMode::isEnabled() {
++    std::ifstream file("/sys/class/sec/tsp/cmd_result");
++    if (file.is_open()) {
++        std::string line;
++        getline(file, line);
++        if (!line.compare("hover_enable,1:OK"))
++            return true;
++        file.close();
++    }
++    return false;
++}
+ 
 -// Methods from ::android::hidl::base::V1_0::IBase follow.
--
++Return<bool> StylusMode::setEnabled(bool enabled) {
++    std::ofstream file("/sys/class/sec/tsp/cmd");
++    file << "hover_enable," << (enabled ? "1" : "0");
++    return true;
++}
+ 
 -//IStylusMode* HIDL_FETCH_IStylusMode(const char* /* name */) {
 -    //return new StylusMode();
 -//}
@@ -296,7 +338,7 @@ index 5f5a33a..22ddc64 100644
  }  // namespace touch
  }  // namespace lineage
 diff --git a/lineagehw/hidl/touch/StylusMode.h b/lineagehw/hidl/touch/StylusMode.h
-index 4e7401d..3211343 100644
+index 4e7401d..2eae6c8 100644
 --- a/lineagehw/hidl/touch/StylusMode.h
 +++ b/lineagehw/hidl/touch/StylusMode.h
 @@ -25,7 +25,7 @@ namespace vendor {
@@ -308,7 +350,7 @@ index 4e7401d..3211343 100644
  
  using ::android::hardware::hidl_array;
  using ::android::hardware::hidl_memory;
-@@ -35,7 +35,12 @@ using ::android::hardware::Return;
+@@ -35,18 +35,21 @@ using ::android::hardware::Return;
  using ::android::hardware::Void;
  using ::android::sp;
  
@@ -320,9 +362,11 @@ index 4e7401d..3211343 100644
 +    bool isSupported();
 +
      // Methods from ::vendor::lineage::touch::V1_0::IStylusMode follow.
-     Return<void> setEnabled(bool enabled) override;
+-    Return<void> setEnabled(bool enabled) override;
++    Return<bool> isEnabled() override;
++    Return<bool> setEnabled(bool enabled) override;
  
-@@ -43,10 +48,7 @@ struct StylusMode : public IStylusMode {
+     // Methods from ::android::hidl::base::V1_0::IBase follow.
  
  };
  
@@ -335,10 +379,10 @@ index 4e7401d..3211343 100644
  }  // namespace touch
  }  // namespace lineage
 diff --git a/lineagehw/hidl/touch/TouchscreenGesture.cpp b/lineagehw/hidl/touch/TouchscreenGesture.cpp
-index cadea2b..3e8f2af 100644
+index cadea2b..e7233dc 100644
 --- a/lineagehw/hidl/touch/TouchscreenGesture.cpp
 +++ b/lineagehw/hidl/touch/TouchscreenGesture.cpp
-@@ -20,15 +20,15 @@ namespace vendor {
+@@ -20,17 +20,17 @@ namespace vendor {
  namespace lineage {
  namespace touch {
  namespace V1_0 {
@@ -353,10 +397,13 @@ index cadea2b..3e8f2af 100644
  }
  
 -Return<void> TouchscreenGesture::setGestureEnabled(const ::vendor::lineage::touch::V1_0::Gesture& gesture, bool enabled) {
-+Return<void> TouchscreenGesture::setGestureEnabled(const ::vendor::lineage::touch::V1_0::Gesture&, bool) {
++Return<bool> TouchscreenGesture::setGestureEnabled(const ::vendor::lineage::touch::V1_0::Gesture&, bool) {
      // TODO implement
-     return Void();
+-    return Void();
++    return bool {};
  }
+ 
+ 
 @@ -40,7 +40,7 @@ Return<void> TouchscreenGesture::setGestureEnabled(const ::vendor::lineage::touc
      //return new TouchscreenGesture();
  //}
@@ -367,7 +414,7 @@ index cadea2b..3e8f2af 100644
  }  // namespace touch
  }  // namespace lineage
 diff --git a/lineagehw/hidl/touch/TouchscreenGesture.h b/lineagehw/hidl/touch/TouchscreenGesture.h
-index bb2d336..ba20e1d 100644
+index bb2d336..2fb8fd1 100644
 --- a/lineagehw/hidl/touch/TouchscreenGesture.h
 +++ b/lineagehw/hidl/touch/TouchscreenGesture.h
 @@ -25,7 +25,7 @@ namespace vendor {
@@ -386,7 +433,7 @@ index bb2d336..ba20e1d 100644
 -    Return<void> getSupportedGestures(getSupportedGestures_cb _hidl_cb) override;
 -    Return<void> setGestureEnabled(const ::vendor::lineage::touch::V1_0::Gesture& gesture, bool enabled) override;
 +    Return<void> getSupportedGestures(getSupportedGestures_cb) override;
-+    Return<void> setGestureEnabled(const ::vendor::lineage::touch::V1_0::Gesture&, bool) override;
++    Return<bool> setGestureEnabled(const ::vendor::lineage::touch::V1_0::Gesture&, bool) override;
  
      // Methods from ::android::hidl::base::V1_0::IBase follow.
  
