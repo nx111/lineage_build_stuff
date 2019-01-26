@@ -1210,8 +1210,6 @@ kpick 222742 # build: Use project pathmap for recovery
 kpick 222760 # Add LOCAL_AIDL_FLAGS
 kpick 227111 # releasetools: Store the build.prop file in the OTA zip
 kpick 239212 # Stop using the `files` target for droidcore
-kpick 239761 # Revert "build: only write build_number.txt when BUILD_NUMBER has changed"
-kpick 239760 # Don't export BUILD_NUMBER in envsetup
 
 # build/soong
 kpick 222648 # Allow providing flex and bison binaries
@@ -1236,14 +1234,9 @@ kpick 228582 # sepolicy: qti_init_shell needs to read dir too
 
 # device/qcom/sepolicy-legacy
 kpick 230230 # common: fix sensors denial
-kpick 230231 # common: grant cnss-daemon access to sysfs_net
-kpick 230232 # common: grant netmgrd access to sysfs_net nodes
-kpick 230233 # common: allow sensors HIDL HAL to access /dev/sensors
 #kpick 239068 # common: label /sys/devices/virtual/net/lo as sysfs_net
-kpick 239478 # sepolicy: Add rps to sysfs context and allow netmgrd access
 kpick 239736 # sepolicy-legacy: Allow vold to open keymaster firmware
 kpick 239741 # common: permit libqdutils operation (linked by mediaserver) during WFD
-kpick 239885 # legacy: Label msm8916 sysfs_{battery,usb}_supply
 kpick 239886 # legacy: Label msm8916 sysfs_android_usb
 kpick 239887 # legacy: Label msm8916 sysfs_disk_stat
 #kpick 239924 # common: relabel /sys/module/tcp_cubic for netmgrd access
@@ -1584,7 +1577,6 @@ kpick 231716 # init: Always use libbootloader_message from bootable/recovery nam
 kpick 234860 # init: add install_keyring for TWRP FBE decrypt
 kpick 237140 # healthd: add Battery Moto Mod Support
 kpick 237141 # core: update battery mod support for P
-kpick 239277 # reboot: only run fsck when detecting filesystem inconsistency
 
 # system/extras
 
