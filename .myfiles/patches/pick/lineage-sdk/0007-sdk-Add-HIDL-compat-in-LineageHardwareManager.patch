@@ -1,9 +1,9 @@
-From 8618d0f1f4fb52757808251b71c10d3de3edaa9e Mon Sep 17 00:00:00 2001
+From d8cfd9a132bcd05a38ec3d5a803bcdcc69fdb646 Mon Sep 17 00:00:00 2001
 From: Paul Keith <javelinanddart@gmail.com>
 Date: Fri, 18 Jan 2019 17:58:26 +0100
-Subject: [PATCH 7/9] sdk: Add HIDL compat in LineageHardwareManager
+Subject: [PATCH 07/10] sdk: Add HIDL compat in LineageHardwareManager
 
-* While we're at it, remove getSupportedFeatures(),
+* While we're at it, hide the use of getSupportedFeatures(),
   since it only works for lineagehw java features, not hidl
 * Cleanup some minor styling/organization issues
 
@@ -11,10 +11,10 @@ Change-Id: I905010bc7c6d7d8578eeca501be23f665127aa27
 ---
  Android.bp                                    |  12 +-
  api/lineage_current.txt                       |   2 -
- .../internal/LineageHardwareService.java      |   4 +-
- .../java/lineageos/hardware/HIDLHelper.java   |  87 +++++
- .../hardware/LineageHardwareManager.java      | 335 ++++++++++++++----
- 5 files changed, 363 insertions(+), 77 deletions(-)
+ .../internal/LineageHardwareService.java      |  52 +--
+ .../java/lineageos/hardware/HIDLHelper.java   |  87 ++++
+ .../hardware/LineageHardwareManager.java      | 391 ++++++++++++++----
+ 5 files changed, 416 insertions(+), 128 deletions(-)
  create mode 100644 sdk/src/java/lineageos/hardware/HIDLHelper.java
 
 diff --git a/Android.bp b/Android.bp
@@ -86,7 +86,7 @@ index a92dea8..ec3212f 100644
      method public int getVibratorDefaultIntensity();
      method public int getVibratorIntensity();
 diff --git a/lineage/lib/main/java/org/lineageos/platform/internal/LineageHardwareService.java b/lineage/lib/main/java/org/lineageos/platform/internal/LineageHardwareService.java
-index c1e0aeb..f856d7e 100644
+index c1e0aeb..4672d14 100644
 --- a/lineage/lib/main/java/org/lineageos/platform/internal/LineageHardwareService.java
 +++ b/lineage/lib/main/java/org/lineageos/platform/internal/LineageHardwareService.java
 @@ -1,6 +1,6 @@
@@ -97,7 +97,26 @@ index c1e0aeb..f856d7e 100644
   *
   * Licensed under the Apache License, Version 2.0 (the "License");
   * you may not use this file except in compliance with the License.
-@@ -225,8 +225,6 @@ public class LineageHardwareService extends LineageSystemService {
+@@ -22,7 +22,6 @@ import android.os.IBinder;
+ import android.os.RemoteCallbackList;
+ import android.os.RemoteException;
+ import android.os.UserHandle;
+-import android.util.ArrayMap;
+ import android.util.Log;
+ import android.util.Range;
+ 
+@@ -64,10 +63,6 @@ public class LineageHardwareService extends LineageSystemService {
+     private final Context mContext;
+     private final LineageHardwareInterface mLineageHwImpl;
+ 
+-    private final ArrayMap<String, String> mDisplayModeMappings =
+-            new ArrayMap<String, String>();
+-    private final boolean mFilterDisplayModes;
+-
+     private interface LineageHardwareInterface {
+         public int getSupportedFeatures();
+         public boolean get(int feature);
+@@ -225,8 +220,6 @@ public class LineageHardwareService extends LineageSystemService {
              currentCalibration[LineageHardwareManager.COLOR_CALIBRATION_RED_INDEX] = rgb[0];
              currentCalibration[LineageHardwareManager.COLOR_CALIBRATION_GREEN_INDEX] = rgb[1];
              currentCalibration[LineageHardwareManager.COLOR_CALIBRATION_BLUE_INDEX] = rgb[2];
@@ -106,6 +125,84 @@ index c1e0aeb..f856d7e 100644
              currentCalibration[LineageHardwareManager.COLOR_CALIBRATION_MIN_INDEX] =
                  DisplayColorCalibration.getMinValue();
              currentCalibration[LineageHardwareManager.COLOR_CALIBRATION_MAX_INDEX] =
+@@ -325,19 +318,6 @@ public class LineageHardwareService extends LineageSystemService {
+         mContext = context;
+         mLineageHwImpl = getImpl(context);
+         publishBinderService(LineageContextConstants.LINEAGE_HARDWARE_SERVICE, mService);
+-
+-        final String[] mappings = mContext.getResources().getStringArray(
+-                org.lineageos.platform.internal.R.array.config_displayModeMappings);
+-        if (mappings != null && mappings.length > 0) {
+-            for (String mapping : mappings) {
+-                String[] split = mapping.split(":");
+-                if (split.length == 2) {
+-                    mDisplayModeMappings.put(split[0], split[1]);
+-                }
+-            }
+-        }
+-        mFilterDisplayModes = mContext.getResources().getBoolean(
+-                org.lineageos.platform.internal.R.bool.config_filterDisplayModes);
+     }
+ 
+     @Override
+@@ -359,19 +339,6 @@ public class LineageHardwareService extends LineageSystemService {
+     public void onStart() {
+     }
+ 
+-    private DisplayMode remapDisplayMode(DisplayMode in) {
+-        if (in == null) {
+-            return null;
+-        }
+-        if (mDisplayModeMappings.containsKey(in.name)) {
+-            return new DisplayMode(in.id, mDisplayModeMappings.get(in.name));
+-        }
+-        if (!mFilterDisplayModes) {
+-            return in;
+-        }
+-        return null;
+-    }
+-
+     private final IBinder mService = new ILineageHardwareService.Stub() {
+ 
+         private boolean isSupported(int feature) {
+@@ -485,18 +452,7 @@ public class LineageHardwareService extends LineageSystemService {
+                 Log.e(TAG, "Display modes are not supported");
+                 return null;
+             }
+-            final DisplayMode[] modes = mLineageHwImpl.getDisplayModes();
+-            if (modes == null) {
+-                return null;
+-            }
+-            final ArrayList<DisplayMode> remapped = new ArrayList<DisplayMode>();
+-            for (DisplayMode mode : modes) {
+-                DisplayMode r = remapDisplayMode(mode);
+-                if (r != null) {
+-                    remapped.add(r);
+-                }
+-            }
+-            return remapped.toArray(new DisplayMode[remapped.size()]);
++            return mLineageHwImpl.getDisplayModes();
+         }
+ 
+         @Override
+@@ -507,7 +463,7 @@ public class LineageHardwareService extends LineageSystemService {
+                 Log.e(TAG, "Display modes are not supported");
+                 return null;
+             }
+-            return remapDisplayMode(mLineageHwImpl.getCurrentDisplayMode());
++            return mLineageHwImpl.getCurrentDisplayMode();
+         }
+ 
+         @Override
+@@ -518,7 +474,7 @@ public class LineageHardwareService extends LineageSystemService {
+                 Log.e(TAG, "Display modes are not supported");
+                 return null;
+             }
+-            return remapDisplayMode(mLineageHwImpl.getDefaultDisplayMode());
++            return mLineageHwImpl.getDefaultDisplayMode();
+         }
+ 
+         @Override
 diff --git a/sdk/src/java/lineageos/hardware/HIDLHelper.java b/sdk/src/java/lineageos/hardware/HIDLHelper.java
 new file mode 100644
 index 0000000..6ca202c
@@ -200,7 +297,7 @@ index 0000000..6ca202c
 +
 +}
 diff --git a/sdk/src/java/lineageos/hardware/LineageHardwareManager.java b/sdk/src/java/lineageos/hardware/LineageHardwareManager.java
-index c09dbec..e09c8dc 100644
+index c09dbec..33a62cd 100644
 --- a/sdk/src/java/lineageos/hardware/LineageHardwareManager.java
 +++ b/sdk/src/java/lineageos/hardware/LineageHardwareManager.java
 @@ -1,6 +1,6 @@
@@ -211,7 +308,7 @@ index c09dbec..e09c8dc 100644
   *
   * Licensed under the Apache License, Version 2.0 (the "License");
   * you may not use this file except in compliance with the License.
-@@ -17,6 +17,7 @@
+@@ -17,23 +17,46 @@
  package lineageos.hardware;
  
  import android.content.Context;
@@ -219,12 +316,13 @@ index c09dbec..e09c8dc 100644
  import android.os.IBinder;
  import android.os.RemoteException;
  import android.os.ServiceManager;
-@@ -25,15 +26,37 @@ import android.util.Range;
++import android.util.ArrayMap;
+ import android.util.Log;
+ import android.util.Range;
  
  import com.android.internal.annotations.VisibleForTesting;
- 
 +import com.android.internal.util.ArrayUtils;
-+
+ 
  import lineageos.app.LineageContextConstants;
 +import lineageos.hardware.DisplayMode;
 +import lineageos.hardware.HIDLHelper;
@@ -275,7 +373,7 @@ index c09dbec..e09c8dc 100644
  
      /**
       * Adaptive backlight support (this refers to technologies like NVIDIA SmartDimmer,
-@@ -151,8 +169,14 @@ public final class LineageHardwareManager {
+@@ -151,8 +169,17 @@ public final class LineageHardwareManager {
          FEATURE_READING_ENHANCEMENT
      );
  
@@ -284,13 +382,36 @@ index c09dbec..e09c8dc 100644
  
 +    private Context mContext;
 +
++    private final ArrayMap<String, String> mDisplayModeMappings = new ArrayMap<String, String>();
++    private final boolean mFilterDisplayModes;
++
 +    // HIDL hals
 +    private HashMap<Integer, IBase> mHIDLMap = new HashMap<Integer, IBase>();
 +
      /**
       * @hide to prevent subclassing from outside of the framework
       */
-@@ -199,27 +223,66 @@ public final class LineageHardwareManager {
+@@ -171,6 +198,19 @@ public final class LineageHardwareManager {
+                     " crashed, was not started, or the interface has been called to early in" +
+                     " SystemServer init");
+         }
++
++        final String[] mappings = mContext.getResources().getStringArray(
++                org.lineageos.platform.internal.R.array.config_displayModeMappings);
++        if (mappings != null && mappings.length > 0) {
++            for (String mapping : mappings) {
++                String[] split = mapping.split(":");
++                if (split.length == 2) {
++                    mDisplayModeMappings.put(split[0], split[1]);
++                }
++            }
++        }
++        mFilterDisplayModes = mContext.getResources().getBoolean(
++                org.lineageos.platform.internal.R.bool.config_filterDisplayModes);
+     }
+ 
+     /**
+@@ -199,27 +239,66 @@ public final class LineageHardwareManager {
      }
  
      /**
@@ -370,7 +491,7 @@ index c09dbec..e09c8dc 100644
      }
  
      /**
-@@ -257,11 +320,40 @@ public final class LineageHardwareManager {
+@@ -257,7 +336,35 @@ public final class LineageHardwareManager {
          }
  
          try {
@@ -407,12 +528,7 @@ index c09dbec..e09c8dc 100644
                  return sService.get(feature);
              }
          } catch (RemoteException e) {
-         }
-+
-         return false;
-     }
- 
-@@ -281,7 +373,35 @@ public final class LineageHardwareManager {
+@@ -281,7 +388,35 @@ public final class LineageHardwareManager {
          }
  
          try {
@@ -449,19 +565,19 @@ index c09dbec..e09c8dc 100644
                  return sService.set(feature, enable);
              }
          } catch (RemoteException e) {
-@@ -396,19 +516,19 @@ public final class LineageHardwareManager {
+@@ -396,19 +531,19 @@ public final class LineageHardwareManager {
      /**
       * {@hide}
       */
 -    public static final int COLOR_CALIBRATION_DEFAULT_INDEX = 3;
--    /**
--     * {@hide}
--     */
--    public static final int COLOR_CALIBRATION_MIN_INDEX = 4;
 +    public static final int COLOR_CALIBRATION_MIN_INDEX = 3;
      /**
       * {@hide}
       */
+-    public static final int COLOR_CALIBRATION_MIN_INDEX = 4;
+-    /**
+-     * {@hide}
+-     */
 -    public static final int COLOR_CALIBRATION_MAX_INDEX = 5;
 +    public static final int COLOR_CALIBRATION_MAX_INDEX = 4;
  
@@ -476,7 +592,7 @@ index c09dbec..e09c8dc 100644
                  return sService.getDisplayColorCalibration();
              }
          } catch (RemoteException e) {
-@@ -427,24 +547,37 @@ public final class LineageHardwareManager {
+@@ -427,24 +562,37 @@ public final class LineageHardwareManager {
          return Arrays.copyOf(arr, 3);
      }
  
@@ -522,7 +638,7 @@ index c09dbec..e09c8dc 100644
          return getArrayValue(getDisplayColorCalibrationArray(), COLOR_CALIBRATION_MAX_INDEX, 0);
      }
  
-@@ -459,7 +592,12 @@ public final class LineageHardwareManager {
+@@ -459,7 +607,12 @@ public final class LineageHardwareManager {
       */
      public boolean setDisplayColorCalibration(int[] rgb) {
          try {
@@ -536,7 +652,7 @@ index c09dbec..e09c8dc 100644
                  return sService.setDisplayColorCalibration(rgb);
              }
          } catch (RemoteException e) {
-@@ -472,6 +610,10 @@ public final class LineageHardwareManager {
+@@ -472,6 +625,10 @@ public final class LineageHardwareManager {
       * is enabled.
       */
      public boolean requireAdaptiveBacklightForSunlightEnhancement() {
@@ -547,7 +663,7 @@ index c09dbec..e09c8dc 100644
          try {
              if (checkService()) {
                  return sService.requireAdaptiveBacklightForSunlightEnhancement();
-@@ -485,6 +627,10 @@ public final class LineageHardwareManager {
+@@ -485,6 +642,10 @@ public final class LineageHardwareManager {
       * @return true if this implementation does it's own lux metering
       */
      public boolean isSunlightEnhancementSelfManaged() {
@@ -558,43 +674,81 @@ index c09dbec..e09c8dc 100644
          try {
              if (checkService()) {
                  return sService.isSunlightEnhancementSelfManaged();
-@@ -499,7 +645,10 @@ public final class LineageHardwareManager {
+@@ -498,39 +659,64 @@ public final class LineageHardwareManager {
+      * @return a list of available display modes on the devices
       */
      public DisplayMode[] getDisplayModes() {
++        DisplayMode[] modes = null;
          try {
 -            if (checkService()) {
+-                return sService.getDisplayModes();
 +            if (isSupportedHIDL(FEATURE_DISPLAY_MODES)) {
 +                IDisplayModes displayModes = (IDisplayModes) mHIDLMap.get(FEATURE_DISPLAY_MODES);
-+                return HIDLHelper.fromHIDLModes(displayModes.getDisplayModes());
++                modes = HIDLHelper.fromHIDLModes(displayModes.getDisplayModes());
 +            } else if (checkService()) {
-                 return sService.getDisplayModes();
++                modes= sService.getDisplayModes();
              }
          } catch (RemoteException e) {
-@@ -512,7 +661,10 @@ public final class LineageHardwareManager {
++        } finally {
++            if (modes == null) {
++                return null;
++            }
++            final ArrayList<DisplayMode> remapped = new ArrayList<DisplayMode>();
++            for (DisplayMode mode : modes) {
++                DisplayMode r = remapDisplayMode(mode);
++                if (r != null) {
++                    remapped.add(r);
++                }
++            }
++            return remapped.toArray(new DisplayMode[remapped.size()]);
+         }
+-        return null;
+     }
+ 
+     /**
+      * @return the currently active display mode
       */
      public DisplayMode getCurrentDisplayMode() {
++        DisplayMode mode = null;
          try {
 -            if (checkService()) {
+-                return sService.getCurrentDisplayMode();
 +            if (isSupportedHIDL(FEATURE_DISPLAY_MODES)) {
 +                IDisplayModes displayModes = (IDisplayModes) mHIDLMap.get(FEATURE_DISPLAY_MODES);
-+                return HIDLHelper.fromHIDLMode(displayModes.getCurrentDisplayMode());
++                mode = HIDLHelper.fromHIDLMode(displayModes.getCurrentDisplayMode());
 +            } else if (checkService()) {
-                 return sService.getCurrentDisplayMode();
++                mode = sService.getCurrentDisplayMode();
              }
          } catch (RemoteException e) {
-@@ -525,7 +677,10 @@ public final class LineageHardwareManager {
++        } finally {
++            return mode != null ? remapDisplayMode(mode) : null;
+         }
+-        return null;
+     }
+ 
+     /**
+      * @return the default display mode to be set on boot
       */
      public DisplayMode getDefaultDisplayMode() {
++        DisplayMode mode = null;
          try {
 -            if (checkService()) {
+-                return sService.getDefaultDisplayMode();
 +            if (isSupportedHIDL(FEATURE_DISPLAY_MODES)) {
 +                IDisplayModes displayModes = (IDisplayModes) mHIDLMap.get(FEATURE_DISPLAY_MODES);
-+                return HIDLHelper.fromHIDLMode(displayModes.getDefaultDisplayMode());
++                mode = HIDLHelper.fromHIDLMode(displayModes.getDefaultDisplayMode());
 +            } else if (checkService()) {
-                 return sService.getDefaultDisplayMode();
++                mode = sService.getDefaultDisplayMode();
              }
          } catch (RemoteException e) {
-@@ -538,7 +693,10 @@ public final class LineageHardwareManager {
++        } finally {
++            return mode != null ? remapDisplayMode(mode) : null;
+         }
+-        return null;
+     }
+ 
+     /**
+@@ -538,7 +724,10 @@ public final class LineageHardwareManager {
       */
      public boolean setDisplayMode(DisplayMode mode, boolean makeDefault) {
          try {
@@ -606,7 +760,24 @@ index c09dbec..e09c8dc 100644
                  return sService.setDisplayMode(mode, makeDefault);
              }
          } catch (RemoteException e) {
-@@ -550,16 +708,18 @@ public final class LineageHardwareManager {
+@@ -546,20 +735,35 @@ public final class LineageHardwareManager {
+         return false;
+     }
+ 
++    private DisplayMode remapDisplayMode(DisplayMode in) {
++        if (in == null) {
++            return null;
++        }
++        if (mDisplayModeMappings.containsKey(in.name)) {
++            return new DisplayMode(in.id, mDisplayModeMappings.get(in.name));
++        }
++        if (!mFilterDisplayModes) {
++            return in;
++        }
++        return null;
++    }
++
+     /**
       * @return the available range for color temperature adjustments
       */
      public Range<Integer> getColorBalanceRange() {
@@ -631,7 +802,7 @@ index c09dbec..e09c8dc 100644
      }
  
      /**
-@@ -567,7 +727,10 @@ public final class LineageHardwareManager {
+@@ -567,7 +771,10 @@ public final class LineageHardwareManager {
       */
      public int getColorBalance() {
          try {
@@ -643,7 +814,7 @@ index c09dbec..e09c8dc 100644
                  return sService.getColorBalance();
              }
          } catch (RemoteException e) {
-@@ -584,7 +747,10 @@ public final class LineageHardwareManager {
+@@ -584,7 +791,10 @@ public final class LineageHardwareManager {
       */
      public boolean setColorBalance(int value) {
          try {
@@ -655,7 +826,7 @@ index c09dbec..e09c8dc 100644
                  return sService.setColorBalance(value);
              }
          } catch (RemoteException e) {
-@@ -599,7 +765,11 @@ public final class LineageHardwareManager {
+@@ -599,7 +809,11 @@ public final class LineageHardwareManager {
       */
      public HSIC getPictureAdjustment() {
          try {
@@ -668,7 +839,7 @@ index c09dbec..e09c8dc 100644
                  return sService.getPictureAdjustment();
              }
          } catch (RemoteException e) {
-@@ -614,7 +784,11 @@ public final class LineageHardwareManager {
+@@ -614,7 +828,11 @@ public final class LineageHardwareManager {
       */
      public HSIC getDefaultPictureAdjustment() {
          try {
@@ -681,7 +852,7 @@ index c09dbec..e09c8dc 100644
                  return sService.getDefaultPictureAdjustment();
              }
          } catch (RemoteException e) {
-@@ -630,7 +804,11 @@ public final class LineageHardwareManager {
+@@ -630,7 +848,11 @@ public final class LineageHardwareManager {
       */
      public boolean setPictureAdjustment(final HSIC hsic) {
          try {
@@ -694,7 +865,7 @@ index c09dbec..e09c8dc 100644
                  return sService.setPictureAdjustment(hsic);
              }
          } catch (RemoteException e) {
-@@ -645,7 +823,16 @@ public final class LineageHardwareManager {
+@@ -645,7 +867,16 @@ public final class LineageHardwareManager {
       */
      public List<Range<Float>> getPictureAdjustmentRanges() {
          try {
@@ -712,7 +883,7 @@ index c09dbec..e09c8dc 100644
                  float[] ranges = sService.getPictureAdjustmentRanges();
                  if (ranges.length > 7) {
                      return Arrays.asList(new Range<Float>(ranges[0], ranges[1]),
-@@ -662,23 +849,16 @@ public final class LineageHardwareManager {
+@@ -662,23 +893,16 @@ public final class LineageHardwareManager {
          return null;
      }
  
@@ -741,7 +912,7 @@ index c09dbec..e09c8dc 100644
                  return sService.getTouchscreenGestures();
              }
          } catch (RemoteException e) {
-@@ -692,11 +872,28 @@ public final class LineageHardwareManager {
+@@ -692,11 +916,28 @@ public final class LineageHardwareManager {
      public boolean setTouchscreenGestureEnabled(
              TouchscreenGesture gesture, boolean state) {
          try {

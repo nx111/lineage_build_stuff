@@ -1234,12 +1234,12 @@ kpick 228582 # sepolicy: qti_init_shell needs to read dir too
 
 # device/qcom/sepolicy-legacy
 kpick 230230 # common: fix sensors denial
-#kpick 239068 # common: label /sys/devices/virtual/net/lo as sysfs_net
 kpick 239736 # sepolicy-legacy: Allow vold to open keymaster firmware
 kpick 239741 # common: permit libqdutils operation (linked by mediaserver) during WFD
 kpick 239886 # legacy: Label msm8916 sysfs_android_usb
 kpick 239887 # legacy: Label msm8916 sysfs_disk_stat
-#kpick 239924 # common: relabel /sys/module/tcp_cubic for netmgrd access
+kpick 240027 # sepolicy: legacy: add additional usb charging path label
+kpick 240028 # sepolicy: vendor_init: allow vendor_init to read firmware files
 
 # development
 
@@ -1340,6 +1340,7 @@ kpick 238696 # fonts: Build different fonts.xml if EXCLUDE_SERIF_FONTS is true
 kpick 239179 # Camera: Force HAL1 for predefined package list.
 kpick 239520 # Reset all package signatures on boot
 kpick 239928 # audio: Don't play sound effects if stream is muted
+kpick 240034 # [AlarmManager]Use the correct func interface for send msg args
 
 # frameworks/native
 kpick 224530 # Triple the available egl function pointers available to a process for certain Nvidia devices.
@@ -1387,7 +1388,6 @@ kpick 239548 # livedisplay: legacymm: Remove unused HALs
 kpick 239549 # livedisplay: legacymm: Wire it up
 kpick 239607 # livedisplay: sdm: Remove unused HALs
 kpick 239608 # livedisplay: sdm: Wire it up
-kpick 239888 # fix?
 
 # hardware/nxp/nfc
 kpick 239927 # hardware: nxp: Restore pn547 support
@@ -1462,6 +1462,7 @@ kpick 239443 # sdk: Deprecate some unused lineagehw features
 kpick 239449 # sdk: Add HIDL compat in LineageHardwareManager
 kpick 239492 # LineageSettingsProvider: Fix migration of FORCE_SHOW_NAVBAR
 kpick 239987 # TelephonyExtUtils: Handle extphone binder death
+kpick 240050 # LiveDisplayService: Catch NPE before LiveDisplayConfig is initialized
 
 # packages/apps/Bluetooth
 kpick 229311 # Assume optional codecs are supported if were supported previously
@@ -1577,6 +1578,7 @@ kpick 231716 # init: Always use libbootloader_message from bootable/recovery nam
 kpick 234860 # init: add install_keyring for TWRP FBE decrypt
 kpick 237140 # healthd: add Battery Moto Mod Support
 kpick 237141 # core: update battery mod support for P
+kpick 240018 # Fix path for default prop
 
 # system/extras
 

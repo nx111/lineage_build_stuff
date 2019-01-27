@@ -1,4 +1,4 @@
-From 6b8b5c57802c1ca1768cc59f2b2b8b1b52158d77 Mon Sep 17 00:00:00 2001
+From bef750cce4d9e893e8319b044e46b0078a558611 Mon Sep 17 00:00:00 2001
 From: Jan Altensen <info@stricted.net>
 Date: Sun, 20 Jan 2019 02:40:07 +0100
 Subject: [PATCH 5/5] hidl: livedisplay: Add binderized service implementation
@@ -12,40 +12,44 @@ Subject: [PATCH 5/5] hidl: livedisplay: Add binderized service implementation
 
 Change-Id: I545a7c0ac8bf4fce04da73a0d39d4ac1938496f2
 ---
- .../hidl/livedisplay/AdaptiveBacklight.cpp    | 35 ++++---
- .../hidl/livedisplay/AdaptiveBacklight.h      | 14 +--
- lineagehw/hidl/livedisplay/Android.bp         | 18 ++--
- lineagehw/hidl/livedisplay/AutoContrast.cpp   |  6 +-
- lineagehw/hidl/livedisplay/AutoContrast.h     |  6 +-
- lineagehw/hidl/livedisplay/ColorBalance.cpp   |  8 +-
- lineagehw/hidl/livedisplay/ColorBalance.h     |  8 +-
- .../hidl/livedisplay/ColorEnhancement.cpp     |  6 +-
- lineagehw/hidl/livedisplay/ColorEnhancement.h |  6 +-
- .../livedisplay/DisplayColorCalibration.cpp   |  8 +-
- .../livedisplay/DisplayColorCalibration.h     |  8 +-
- lineagehw/hidl/livedisplay/DisplayModes.cpp   | 12 +--
- lineagehw/hidl/livedisplay/DisplayModes.h     | 12 +--
- .../hidl/livedisplay/PictureAdjustment.cpp    | 20 ++--
- .../hidl/livedisplay/PictureAdjustment.h      | 20 ++--
- .../hidl/livedisplay/ReadingEnhancement.cpp   |  6 +-
- .../hidl/livedisplay/ReadingEnhancement.h     |  6 +-
- .../hidl/livedisplay/SunlightEnhancement.cpp  | 47 +++++++---
- .../hidl/livedisplay/SunlightEnhancement.h    | 14 +--
- lineagehw/hidl/livedisplay/service.cpp        | 91 +++++++++++++++++++
- ...lineage.livedisplay@2.0-service.samsung.rc |  4 +
- .../lineageos/hardware/AdaptiveBacklight.java | 59 ------------
- .../hardware/SunlightEnhancement.java         | 86 ------------------
- 23 files changed, 240 insertions(+), 260 deletions(-)
+ .../hidl/livedisplay/AdaptiveBacklight.cpp    |  31 +++--
+ .../hidl/livedisplay/AdaptiveBacklight.h      |  14 ++-
+ lineagehw/hidl/livedisplay/Android.bp         |  19 ++-
+ lineagehw/hidl/livedisplay/AutoContrast.cpp   |   6 +-
+ lineagehw/hidl/livedisplay/AutoContrast.h     |   6 +-
+ lineagehw/hidl/livedisplay/ColorBalance.cpp   |   8 +-
+ lineagehw/hidl/livedisplay/ColorBalance.h     |   8 +-
+ .../hidl/livedisplay/ColorEnhancement.cpp     |   6 +-
+ lineagehw/hidl/livedisplay/ColorEnhancement.h |   6 +-
+ .../livedisplay/DisplayColorCalibration.cpp   |   8 +-
+ .../livedisplay/DisplayColorCalibration.h     |   8 +-
+ lineagehw/hidl/livedisplay/DisplayModes.cpp   |  12 +-
+ lineagehw/hidl/livedisplay/DisplayModes.h     |  12 +-
+ .../hidl/livedisplay/PictureAdjustment.cpp    |  20 ++--
+ .../hidl/livedisplay/PictureAdjustment.h      |  20 ++--
+ .../hidl/livedisplay/ReadingEnhancement.cpp   |   6 +-
+ .../hidl/livedisplay/ReadingEnhancement.h     |   6 +-
+ .../hidl/livedisplay/SunlightEnhancement.cpp  |  36 ++++--
+ .../hidl/livedisplay/SunlightEnhancement.h    |  14 ++-
+ .../livedisplay/SunlightEnhancementExynos.cpp |  59 +++++++++
+ .../livedisplay/SunlightEnhancementExynos.h   |  58 +++++++++
+ lineagehw/hidl/livedisplay/service.cpp        | 113 ++++++++++++++++++
+ ...lineage.livedisplay@2.0-service.samsung.rc |   4 +
+ .../lineageos/hardware/AdaptiveBacklight.java |  59 ---------
+ .../hardware/SunlightEnhancement.java         |  86 -------------
+ 25 files changed, 366 insertions(+), 259 deletions(-)
+ create mode 100644 lineagehw/hidl/livedisplay/SunlightEnhancementExynos.cpp
+ create mode 100644 lineagehw/hidl/livedisplay/SunlightEnhancementExynos.h
  create mode 100644 lineagehw/hidl/livedisplay/service.cpp
  create mode 100644 lineagehw/hidl/livedisplay/vendor.lineage.livedisplay@2.0-service.samsung.rc
  delete mode 100644 lineagehw/src/org/lineageos/hardware/AdaptiveBacklight.java
  delete mode 100644 lineagehw/src/org/lineageos/hardware/SunlightEnhancement.java
 
 diff --git a/lineagehw/hidl/livedisplay/AdaptiveBacklight.cpp b/lineagehw/hidl/livedisplay/AdaptiveBacklight.cpp
-index 755f7f2..d796827 100644
+index 755f7f2..bccd387 100644
 --- a/lineagehw/hidl/livedisplay/AdaptiveBacklight.cpp
 +++ b/lineagehw/hidl/livedisplay/AdaptiveBacklight.cpp
-@@ -14,33 +14,42 @@
+@@ -14,33 +14,38 @@
   * limitations under the License.
   */
  
@@ -70,15 +74,11 @@ index 755f7f2..d796827 100644
 -    // TODO implement
 -    return bool {};
 +    std::ifstream file("/sys/class/lcd/panel/power_reduce");
++    int value;
 +
-+    if (file.is_open()) {
-+        std::string line;
-+        getline(file, line);
-+        if (!line.compare("1"))
-+            return true;
-+    }
++    file >> value;
 +
-+    return false;
++    return !file.fail() && value == 1;
  }
  
  Return<bool> AdaptiveBacklight::setEnabled(bool enabled) {
@@ -141,7 +141,7 @@ index c0e0c4e..48d83ee 100644
  }  // namespace livedisplay
  }  // namespace lineage
 diff --git a/lineagehw/hidl/livedisplay/Android.bp b/lineagehw/hidl/livedisplay/Android.bp
-index 276c386..52b8d4f 100644
+index 276c386..bff717b 100644
 --- a/lineagehw/hidl/livedisplay/Android.bp
 +++ b/lineagehw/hidl/livedisplay/Android.bp
 @@ -12,17 +12,10 @@
@@ -166,10 +166,11 @@ index 276c386..52b8d4f 100644
      relative_install_path: "hw",
      // FIXME: this should be 'vendor: true' for modules that will eventually be
      // on AOSP.
-@@ -37,8 +30,11 @@ cc_library_shared {
+@@ -37,8 +30,12 @@ cc_library_shared {
          "PictureAdjustment.cpp",
          "ReadingEnhancement.cpp",
          "SunlightEnhancement.cpp",
++        "SunlightEnhancementExynos.cpp",
 +        "service.cpp",
      ],
      shared_libs: [
@@ -698,10 +699,10 @@ index 20e909a..f4a6d1c 100644
  }  // namespace livedisplay
  }  // namespace lineage
 diff --git a/lineagehw/hidl/livedisplay/SunlightEnhancement.cpp b/lineagehw/hidl/livedisplay/SunlightEnhancement.cpp
-index 8a3c329..f7bc949 100644
+index 8a3c329..6b6c7b7 100644
 --- a/lineagehw/hidl/livedisplay/SunlightEnhancement.cpp
 +++ b/lineagehw/hidl/livedisplay/SunlightEnhancement.cpp
-@@ -14,33 +14,54 @@
+@@ -14,33 +14,45 @@
   * limitations under the License.
   */
  
@@ -717,43 +718,33 @@ index 8a3c329..f7bc949 100644
 +namespace samsung {
  
  // Methods from ::vendor::lineage::livedisplay::V2_0::ISunlightEnhancement follow.
--Return<bool> SunlightEnhancement::isEnabled() {
--    // TODO implement
--    return bool {};
 +bool SunlightEnhancement::isSupported() {
 +    std::ofstream file("/sys/class/mdnie/mdnie/outdoor");
-+    std::ofstream file2("/sys/class/mdnie/mdnie/lux");
-+    return file.good() || file2.good();
- }
- 
--Return<bool> SunlightEnhancement::setEnabled(bool enabled) {
++    return file.good();
++}
++
++// Methods from ::vendor::lineage::livedisplay::V2_0::IAdaptiveBacklight follow.
+ Return<bool> SunlightEnhancement::isEnabled() {
 -    // TODO implement
 -    return bool {};
-+// Methods from ::vendor::lineage::livedisplay::V2_0::IAdaptiveBacklight follow.
-+Return<bool> SunlightEnhancement::isEnabled() {
 +    std::ifstream file("/sys/class/mdnie/mdnie/outdoor");
-+    std::ifstream file2("/sys/class/mdnie/mdnie/lux");
 +    int status = -1;
 +
 +    if (file.is_open()) {
 +        file >> status;
 +    }
-+    else if (file2.is_open()) {
-+        file2 >> status;
-+    }
 +
-+    return (file.good() || file2.good()) && status > 0;
++    return file.good() && status > 0;
  }
  
-+Return<bool> SunlightEnhancement::setEnabled(bool enabled) {
+ Return<bool> SunlightEnhancement::setEnabled(bool enabled) {
+-    // TODO implement
+-    return bool {};
+-}
 +    std::ofstream file("/sys/class/mdnie/mdnie/outdoor");
-+    std::ifstream file2("/sys/class/mdnie/mdnie/lux");
+ 
 +    if (file.is_open()) {
 +        file << (enabled ? "1" : "0");
-+    }
-+    else if (file2.is_open()) {
-+        /* see drivers/video/fbdev/exynos/decon_7880/panels/mdnie_lite_table*, get_hbm_index */
-+        file << (enabled ? "40000" : "0");
 +    }
  
 -// Methods from ::android::hidl::base::V1_0::IBase follow.
@@ -808,12 +799,141 @@ index 7571831..6dd813a 100644
  }  // namespace V2_0
  }  // namespace livedisplay
  }  // namespace lineage
+diff --git a/lineagehw/hidl/livedisplay/SunlightEnhancementExynos.cpp b/lineagehw/hidl/livedisplay/SunlightEnhancementExynos.cpp
+new file mode 100644
+index 0000000..d0b4d8c
+--- /dev/null
++++ b/lineagehw/hidl/livedisplay/SunlightEnhancementExynos.cpp
+@@ -0,0 +1,59 @@
++/*
++ * Copyright (C) 2019 The LineageOS Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#include <fstream>
++
++#include "SunlightEnhancement.h"
++
++namespace vendor {
++namespace lineage {
++namespace livedisplay {
++namespace V2_0 {
++namespace samsung {
++
++// Methods from ::vendor::lineage::livedisplay::V2_0::ISunlightEnhancement follow.
++bool SunlightEnhancementExynos::isSupported() {
++    std::ofstream file("/sys/class/mdnie/mdnie/lux");
++    return file.good();
++}
++
++// Methods from ::vendor::lineage::livedisplay::V2_0::IAdaptiveBacklight follow.
++Return<bool> SunlightEnhancementExynos::isEnabled() {
++    std::ifstream file("/sys/class/mdnie/mdnie/lux");
++    int status = -1;
++
++    if (file.is_open()) {
++        file >> status;
++    }
++
++    return file.good() && status > 0;
++}
++
++Return<bool> SunlightEnhancementExynos::setEnabled(bool enabled) {
++    std::ifstream file("/sys/class/mdnie/mdnie/lux");
++    if (file.is_open()) {
++        /* see drivers/video/fbdev/exynos/decon_7880/panels/mdnie_lite_table*, get_hbm_index */
++        file << (enabled ? "40000" : "0");
++    }
++
++    return true;
++}
++
++}  // namespace samsung
++}  // namespace V2_0
++}  // namespace livedisplay
++}  // namespace lineage
++}  // namespace vendor
+diff --git a/lineagehw/hidl/livedisplay/SunlightEnhancementExynos.h b/lineagehw/hidl/livedisplay/SunlightEnhancementExynos.h
+new file mode 100644
+index 0000000..5c5b7a5
+--- /dev/null
++++ b/lineagehw/hidl/livedisplay/SunlightEnhancementExynos.h
+@@ -0,0 +1,58 @@
++/*
++ * Copyright (C) 2019 The LineageOS Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#ifndef VENDOR_LINEAGE_LIVEDISPLAY_V2_0_SUNLIGHTENHANCEMENTEXYNOS_H
++#define VENDOR_LINEAGE_LIVEDISPLAY_V2_0_SUNLIGHTENHANCEMENTEXYNOS_H
++
++#include <vendor/lineage/livedisplay/2.0/ISunlightEnhancement.h>
++#include <hidl/MQDescriptor.h>
++#include <hidl/Status.h>
++
++namespace vendor {
++namespace lineage {
++namespace livedisplay {
++namespace V2_0 {
++namespace samsung {
++
++using ::android::hardware::hidl_array;
++using ::android::hardware::hidl_memory;
++using ::android::hardware::hidl_string;
++using ::android::hardware::hidl_vec;
++using ::android::hardware::Return;
++using ::android::hardware::Void;
++using ::android::sp;
++
++class SunlightEnhancementExynos : public ISunlightEnhancement {
++  public:
++    SunlightEnhancementExynos() = default;
++
++    bool isSupported();
++
++    // Methods from ::vendor::lineage::livedisplay::V2_0::ISunlightEnhancement follow.
++    Return<bool> isEnabled() override;
++    Return<bool> setEnabled(bool enabled) override;
++
++    // Methods from ::android::hidl::base::V1_0::IBase follow.
++
++};
++
++}  // namespace samsung
++}  // namespace V2_0
++}  // namespace livedisplay
++}  // namespace lineage
++}  // namespace vendor
++
++#endif  // VENDOR_LINEAGE_LIVEDISPLAY_V2_0_SUNLIGHTENHANCEMENTEXYNOS_H
 diff --git a/lineagehw/hidl/livedisplay/service.cpp b/lineagehw/hidl/livedisplay/service.cpp
 new file mode 100644
-index 0000000..e84f7b4
+index 0000000..78e5112
 --- /dev/null
 +++ b/lineagehw/hidl/livedisplay/service.cpp
-@@ -0,0 +1,91 @@
+@@ -0,0 +1,113 @@
 +/*
 + * Copyright (C) 2019 The LineageOS Project
 + *
@@ -838,6 +958,7 @@ index 0000000..e84f7b4
 +
 +#include "AdaptiveBacklight.h"
 +#include "SunlightEnhancement.h"
++#include "SunlightEnhancementExynos.h"
 +
 +using android::hardware::configureRpcThreadpool;
 +using android::hardware::joinRpcThreadpool;
@@ -847,10 +968,12 @@ index 0000000..e84f7b4
 +
 +using vendor::lineage::livedisplay::V2_0::samsung::AdaptiveBacklight;
 +using vendor::lineage::livedisplay::V2_0::samsung::SunlightEnhancement;
++using vendor::lineage::livedisplay::V2_0::samsung::SunlightEnhancementExynos;
 +
 +int main() {
 +    sp<AdaptiveBacklight> adaptiveBacklight;
 +    sp<SunlightEnhancement> sunlightEnhancement;
++    sp<SunlightEnhancementExynos> sunlightEnhancementExynos;
 +    status_t status;
 +    uint8_t services = 0;
 +
@@ -874,6 +997,15 @@ index 0000000..e84f7b4
 +        services++;
 +    }
 +
++    sunlightEnhancementExynos = new SunlightEnhancementExynos();
++    if (sunlightEnhancementExynos == nullptr) {
++        LOG(ERROR) << "Can not create an instance of LiveDisplay HAL SunlightEnhancement Iface, exiting.";
++        goto shutdown;
++    }
++    if (sunlightEnhancementExynos->isSupported()) {
++        services++;
++    }
++
 +    configureRpcThreadpool(services, true /*callerWillJoin*/);
 +
 +    if (adaptiveBacklight->isSupported()) {
@@ -888,6 +1020,16 @@ index 0000000..e84f7b4
 +
 +    if (sunlightEnhancement->isSupported()) {
 +        status = sunlightEnhancement->registerAsService();
++        if (status != OK) {
++            LOG(ERROR)
++                << "Could not register service for LiveDisplay HAL SunlightEnhancement Iface ("
++                << status << ")";
++            goto shutdown;
++        }
++    }
++
++    if (sunlightEnhancementExynos->isSupported()) {
++        status = sunlightEnhancementExynos->registerAsService();
 +        if (status != OK) {
 +            LOG(ERROR)
 +                << "Could not register service for LiveDisplay HAL SunlightEnhancement Iface ("
