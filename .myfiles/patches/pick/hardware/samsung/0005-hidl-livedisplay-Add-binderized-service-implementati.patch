@@ -1,4 +1,4 @@
-From bef750cce4d9e893e8319b044e46b0078a558611 Mon Sep 17 00:00:00 2001
+From 1d08c598cd5bd491366c36e67eb0f5ac14e36159 Mon Sep 17 00:00:00 2001
 From: Jan Altensen <info@stricted.net>
 Date: Sun, 20 Jan 2019 02:40:07 +0100
 Subject: [PATCH 5/5] hidl: livedisplay: Add binderized service implementation
@@ -6,40 +6,46 @@ Subject: [PATCH 5/5] hidl: livedisplay: Add binderized service implementation
 * Change default ::implementation namespace to ::samsung
 * Fill in required methods for used impls
 * Cleanup passthrough code for used impls
-* Fix compile of unused impls
+* Remove unused impls
 * Add and setup binderized service
 * Remove lineagehw impls
 
 Change-Id: I545a7c0ac8bf4fce04da73a0d39d4ac1938496f2
 ---
- .../hidl/livedisplay/AdaptiveBacklight.cpp    |  31 +++--
- .../hidl/livedisplay/AdaptiveBacklight.h      |  14 ++-
- lineagehw/hidl/livedisplay/Android.bp         |  19 ++-
- lineagehw/hidl/livedisplay/AutoContrast.cpp   |   6 +-
- lineagehw/hidl/livedisplay/AutoContrast.h     |   6 +-
- lineagehw/hidl/livedisplay/ColorBalance.cpp   |   8 +-
- lineagehw/hidl/livedisplay/ColorBalance.h     |   8 +-
- .../hidl/livedisplay/ColorEnhancement.cpp     |   6 +-
- lineagehw/hidl/livedisplay/ColorEnhancement.h |   6 +-
+ .../hidl/livedisplay/AdaptiveBacklight.cpp    |  31 ++--
+ .../hidl/livedisplay/AdaptiveBacklight.h      |  12 +-
+ lineagehw/hidl/livedisplay/Android.bp         |  24 +--
+ lineagehw/hidl/livedisplay/AutoContrast.cpp   |  47 ------
+ lineagehw/hidl/livedisplay/ColorBalance.h     |  57 -------
+ .../hidl/livedisplay/ColorEnhancement.cpp     |  47 ------
  .../livedisplay/DisplayColorCalibration.cpp   |   8 +-
  .../livedisplay/DisplayColorCalibration.h     |   8 +-
  lineagehw/hidl/livedisplay/DisplayModes.cpp   |  12 +-
  lineagehw/hidl/livedisplay/DisplayModes.h     |  12 +-
- .../hidl/livedisplay/PictureAdjustment.cpp    |  20 ++--
- .../hidl/livedisplay/PictureAdjustment.h      |  20 ++--
- .../hidl/livedisplay/ReadingEnhancement.cpp   |   6 +-
- .../hidl/livedisplay/ReadingEnhancement.h     |   6 +-
- .../hidl/livedisplay/SunlightEnhancement.cpp  |  36 ++++--
- .../hidl/livedisplay/SunlightEnhancement.h    |  14 ++-
- .../livedisplay/SunlightEnhancementExynos.cpp |  59 +++++++++
- .../livedisplay/SunlightEnhancementExynos.h   |  58 +++++++++
- lineagehw/hidl/livedisplay/service.cpp        | 113 ++++++++++++++++++
+ .../hidl/livedisplay/PictureAdjustment.cpp    |  77 ---------
+ .../hidl/livedisplay/PictureAdjustment.h      |  62 -------
+ .../hidl/livedisplay/ReadingEnhancement.cpp   |  30 +++-
+ .../hidl/livedisplay/ReadingEnhancement.h     |  11 +-
+ ...lance.cpp => ReadingEnhancementExynos.cpp} |  43 +++--
+ ...hancement.h => ReadingEnhancementExynos.h} |  24 +--
+ .../hidl/livedisplay/SunlightEnhancement.cpp  |  46 +++--
+ .../hidl/livedisplay/SunlightEnhancement.h    |  12 +-
+ .../livedisplay/SunlightEnhancementExynos.cpp |  59 +++++++
+ ...Contrast.h => SunlightEnhancementExynos.h} |  22 +--
+ lineagehw/hidl/livedisplay/service.cpp        | 157 ++++++++++++++++++
  ...lineage.livedisplay@2.0-service.samsung.rc |   4 +
- .../lineageos/hardware/AdaptiveBacklight.java |  59 ---------
- .../hardware/SunlightEnhancement.java         |  86 -------------
- 25 files changed, 366 insertions(+), 259 deletions(-)
+ .../lineageos/hardware/AdaptiveBacklight.java |  59 -------
+ .../hardware/SunlightEnhancement.java         |  86 ----------
+ 24 files changed, 393 insertions(+), 557 deletions(-)
+ delete mode 100644 lineagehw/hidl/livedisplay/AutoContrast.cpp
+ delete mode 100644 lineagehw/hidl/livedisplay/ColorBalance.h
+ delete mode 100644 lineagehw/hidl/livedisplay/ColorEnhancement.cpp
+ delete mode 100644 lineagehw/hidl/livedisplay/PictureAdjustment.cpp
+ delete mode 100644 lineagehw/hidl/livedisplay/PictureAdjustment.h
+ rename lineagehw/hidl/livedisplay/{ColorBalance.cpp => ReadingEnhancementExynos.cpp} (50%)
+ rename lineagehw/hidl/livedisplay/{ColorEnhancement.h => ReadingEnhancementExynos.h} (65%)
  create mode 100644 lineagehw/hidl/livedisplay/SunlightEnhancementExynos.cpp
- create mode 100644 lineagehw/hidl/livedisplay/SunlightEnhancementExynos.h
+ rename lineagehw/hidl/livedisplay/{AutoContrast.h => SunlightEnhancementExynos.h} (69%)
  create mode 100644 lineagehw/hidl/livedisplay/service.cpp
  create mode 100644 lineagehw/hidl/livedisplay/vendor.lineage.livedisplay@2.0-service.samsung.rc
  delete mode 100644 lineagehw/src/org/lineageos/hardware/AdaptiveBacklight.java
@@ -102,7 +108,7 @@ index 755f7f2..bccd387 100644
  }  // namespace livedisplay
  }  // namespace lineage
 diff --git a/lineagehw/hidl/livedisplay/AdaptiveBacklight.h b/lineagehw/hidl/livedisplay/AdaptiveBacklight.h
-index c0e0c4e..48d83ee 100644
+index c0e0c4e..35502ba 100644
 --- a/lineagehw/hidl/livedisplay/AdaptiveBacklight.h
 +++ b/lineagehw/hidl/livedisplay/AdaptiveBacklight.h
 @@ -25,7 +25,7 @@ namespace vendor {
@@ -114,21 +120,19 @@ index c0e0c4e..48d83ee 100644
  
  using ::android::hardware::hidl_array;
  using ::android::hardware::hidl_memory;
-@@ -35,7 +35,12 @@ using ::android::hardware::Return;
+@@ -35,7 +35,10 @@ using ::android::hardware::Return;
  using ::android::hardware::Void;
  using ::android::sp;
  
 -struct AdaptiveBacklight : public IAdaptiveBacklight {
 +class AdaptiveBacklight : public IAdaptiveBacklight {
 +  public:
-+    AdaptiveBacklight() = default;
-+
 +    bool isSupported();
 +
      // Methods from ::vendor::lineage::livedisplay::V2_0::IAdaptiveBacklight follow.
      Return<bool> isEnabled() override;
      Return<bool> setEnabled(bool enabled) override;
-@@ -44,10 +49,7 @@ struct AdaptiveBacklight : public IAdaptiveBacklight {
+@@ -44,10 +47,7 @@ struct AdaptiveBacklight : public IAdaptiveBacklight {
  
  };
  
@@ -141,10 +145,10 @@ index c0e0c4e..48d83ee 100644
  }  // namespace livedisplay
  }  // namespace lineage
 diff --git a/lineagehw/hidl/livedisplay/Android.bp b/lineagehw/hidl/livedisplay/Android.bp
-index 276c386..bff717b 100644
+index 276c386..eb355cc 100644
 --- a/lineagehw/hidl/livedisplay/Android.bp
 +++ b/lineagehw/hidl/livedisplay/Android.bp
-@@ -12,17 +12,10 @@
+@@ -12,33 +12,27 @@
  // See the License for the specific language governing permissions and
  // limitations under the License.
  
@@ -166,9 +170,17 @@ index 276c386..bff717b 100644
      relative_install_path: "hw",
      // FIXME: this should be 'vendor: true' for modules that will eventually be
      // on AOSP.
-@@ -37,8 +30,12 @@ cc_library_shared {
-         "PictureAdjustment.cpp",
+     proprietary: true,
+     srcs: [
+         "AdaptiveBacklight.cpp",
+-        "AutoContrast.cpp",
+-        "ColorBalance.cpp",
+-        "ColorEnhancement.cpp",
+         "DisplayColorCalibration.cpp",
+         "DisplayModes.cpp",
+-        "PictureAdjustment.cpp",
          "ReadingEnhancement.cpp",
++        "ReadingEnhancementExynos.cpp",
          "SunlightEnhancement.cpp",
 +        "SunlightEnhancementExynos.cpp",
 +        "service.cpp",
@@ -180,198 +192,174 @@ index 276c386..bff717b 100644
          "libhidltransport",
          "libutils",
 diff --git a/lineagehw/hidl/livedisplay/AutoContrast.cpp b/lineagehw/hidl/livedisplay/AutoContrast.cpp
-index af16fc7..8269774 100644
+deleted file mode 100644
+index af16fc7..0000000
 --- a/lineagehw/hidl/livedisplay/AutoContrast.cpp
-+++ b/lineagehw/hidl/livedisplay/AutoContrast.cpp
-@@ -20,7 +20,7 @@ namespace vendor {
- namespace lineage {
- namespace livedisplay {
- namespace V2_0 {
++++ /dev/null
+@@ -1,47 +0,0 @@
+-/*
+- * Copyright (C) 2019 The LineageOS Project
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License");
+- * you may not use this file except in compliance with the License.
+- * You may obtain a copy of the License at
+- *
+- *      http://www.apache.org/licenses/LICENSE-2.0
+- *
+- * Unless required by applicable law or agreed to in writing, software
+- * distributed under the License is distributed on an "AS IS" BASIS,
+- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+- * See the License for the specific language governing permissions and
+- * limitations under the License.
+- */
+-
+-#include "AutoContrast.h"
+-
+-namespace vendor {
+-namespace lineage {
+-namespace livedisplay {
+-namespace V2_0 {
 -namespace implementation {
-+namespace samsung {
- 
- // Methods from ::vendor::lineage::livedisplay::V2_0::IAutoContrast follow.
- Return<bool> AutoContrast::isEnabled() {
-@@ -28,7 +28,7 @@ Return<bool> AutoContrast::isEnabled() {
-     return bool {};
- }
- 
+-
+-// Methods from ::vendor::lineage::livedisplay::V2_0::IAutoContrast follow.
+-Return<bool> AutoContrast::isEnabled() {
+-    // TODO implement
+-    return bool {};
+-}
+-
 -Return<bool> AutoContrast::setEnabled(bool enabled) {
-+Return<bool> AutoContrast::setEnabled(bool) {
-     // TODO implement
-     return bool {};
- }
-@@ -40,7 +40,7 @@ Return<bool> AutoContrast::setEnabled(bool enabled) {
-     //return new AutoContrast();
- //}
- //
+-    // TODO implement
+-    return bool {};
+-}
+-
+-
+-// Methods from ::android::hidl::base::V1_0::IBase follow.
+-
+-//IAutoContrast* HIDL_FETCH_IAutoContrast(const char* /* name */) {
+-    //return new AutoContrast();
+-//}
+-//
 -}  // namespace implementation
-+}  // namespace samsung
- }  // namespace V2_0
- }  // namespace livedisplay
- }  // namespace lineage
-diff --git a/lineagehw/hidl/livedisplay/AutoContrast.h b/lineagehw/hidl/livedisplay/AutoContrast.h
-index 44a8be6..f1efc16 100644
---- a/lineagehw/hidl/livedisplay/AutoContrast.h
-+++ b/lineagehw/hidl/livedisplay/AutoContrast.h
-@@ -25,7 +25,7 @@ namespace vendor {
- namespace lineage {
- namespace livedisplay {
- namespace V2_0 {
--namespace implementation {
-+namespace samsung {
- 
- using ::android::hardware::hidl_array;
- using ::android::hardware::hidl_memory;
-@@ -38,7 +38,7 @@ using ::android::sp;
- struct AutoContrast : public IAutoContrast {
-     // Methods from ::vendor::lineage::livedisplay::V2_0::IAutoContrast follow.
-     Return<bool> isEnabled() override;
--    Return<bool> setEnabled(bool enabled) override;
-+    Return<bool> setEnabled(bool) override;
- 
-     // Methods from ::android::hidl::base::V1_0::IBase follow.
- 
-@@ -47,7 +47,7 @@ struct AutoContrast : public IAutoContrast {
- // FIXME: most likely delete, this is only for passthrough implementations
- // extern "C" IAutoContrast* HIDL_FETCH_IAutoContrast(const char* name);
- 
--}  // namespace implementation
-+}  // namespace samsung
- }  // namespace V2_0
- }  // namespace livedisplay
- }  // namespace lineage
-diff --git a/lineagehw/hidl/livedisplay/ColorBalance.cpp b/lineagehw/hidl/livedisplay/ColorBalance.cpp
-index f636990..547d9ed 100644
---- a/lineagehw/hidl/livedisplay/ColorBalance.cpp
-+++ b/lineagehw/hidl/livedisplay/ColorBalance.cpp
-@@ -20,10 +20,10 @@ namespace vendor {
- namespace lineage {
- namespace livedisplay {
- namespace V2_0 {
--namespace implementation {
-+namespace samsung {
- 
- // Methods from ::vendor::lineage::livedisplay::V2_0::IColorBalance follow.
--Return<void> ColorBalance::getColorBalanceRange(getColorBalanceRange_cb _hidl_cb) {
-+Return<void> ColorBalance::getColorBalanceRange(getColorBalanceRange_cb) {
-     // TODO implement
-     return Void();
- }
-@@ -33,7 +33,7 @@ Return<int32_t> ColorBalance::getColorBalance() {
-     return int32_t {};
- }
- 
--Return<bool> ColorBalance::setColorBalance(int32_t value) {
-+Return<bool> ColorBalance::setColorBalance(int32_t) {
-     // TODO implement
-     return bool {};
- }
-@@ -45,7 +45,7 @@ Return<bool> ColorBalance::setColorBalance(int32_t value) {
-     //return new ColorBalance();
- //}
- //
--}  // namespace implementation
-+}  // namespace samsung
- }  // namespace V2_0
- }  // namespace livedisplay
- }  // namespace lineage
+-}  // namespace V2_0
+-}  // namespace livedisplay
+-}  // namespace lineage
+-}  // namespace vendor
 diff --git a/lineagehw/hidl/livedisplay/ColorBalance.h b/lineagehw/hidl/livedisplay/ColorBalance.h
-index b760c7c..b4cd5f4 100644
+deleted file mode 100644
+index b760c7c..0000000
 --- a/lineagehw/hidl/livedisplay/ColorBalance.h
-+++ b/lineagehw/hidl/livedisplay/ColorBalance.h
-@@ -25,7 +25,7 @@ namespace vendor {
- namespace lineage {
- namespace livedisplay {
- namespace V2_0 {
++++ /dev/null
+@@ -1,57 +0,0 @@
+-/*
+- * Copyright (C) 2019 The LineageOS Project
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License");
+- * you may not use this file except in compliance with the License.
+- * You may obtain a copy of the License at
+- *
+- *      http://www.apache.org/licenses/LICENSE-2.0
+- *
+- * Unless required by applicable law or agreed to in writing, software
+- * distributed under the License is distributed on an "AS IS" BASIS,
+- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+- * See the License for the specific language governing permissions and
+- * limitations under the License.
+- */
+-
+-#ifndef VENDOR_LINEAGE_LIVEDISPLAY_V2_0_COLORBALANCE_H
+-#define VENDOR_LINEAGE_LIVEDISPLAY_V2_0_COLORBALANCE_H
+-
+-#include <vendor/lineage/livedisplay/2.0/IColorBalance.h>
+-#include <hidl/MQDescriptor.h>
+-#include <hidl/Status.h>
+-
+-namespace vendor {
+-namespace lineage {
+-namespace livedisplay {
+-namespace V2_0 {
 -namespace implementation {
-+namespace samsung {
- 
- using ::android::hardware::hidl_array;
- using ::android::hardware::hidl_memory;
-@@ -37,9 +37,9 @@ using ::android::sp;
- 
- struct ColorBalance : public IColorBalance {
-     // Methods from ::vendor::lineage::livedisplay::V2_0::IColorBalance follow.
+-
+-using ::android::hardware::hidl_array;
+-using ::android::hardware::hidl_memory;
+-using ::android::hardware::hidl_string;
+-using ::android::hardware::hidl_vec;
+-using ::android::hardware::Return;
+-using ::android::hardware::Void;
+-using ::android::sp;
+-
+-struct ColorBalance : public IColorBalance {
+-    // Methods from ::vendor::lineage::livedisplay::V2_0::IColorBalance follow.
 -    Return<void> getColorBalanceRange(getColorBalanceRange_cb _hidl_cb) override;
-+    Return<void> getColorBalanceRange(getColorBalanceRange_cb) override;
-     Return<int32_t> getColorBalance() override;
+-    Return<int32_t> getColorBalance() override;
 -    Return<bool> setColorBalance(int32_t value) override;
-+    Return<bool> setColorBalance(int32_t) override;
- 
-     // Methods from ::android::hidl::base::V1_0::IBase follow.
- 
-@@ -48,7 +48,7 @@ struct ColorBalance : public IColorBalance {
- // FIXME: most likely delete, this is only for passthrough implementations
- // extern "C" IColorBalance* HIDL_FETCH_IColorBalance(const char* name);
- 
+-
+-    // Methods from ::android::hidl::base::V1_0::IBase follow.
+-
+-};
+-
+-// FIXME: most likely delete, this is only for passthrough implementations
+-// extern "C" IColorBalance* HIDL_FETCH_IColorBalance(const char* name);
+-
 -}  // namespace implementation
-+}  // namespace samsung
- }  // namespace V2_0
- }  // namespace livedisplay
- }  // namespace lineage
+-}  // namespace V2_0
+-}  // namespace livedisplay
+-}  // namespace lineage
+-}  // namespace vendor
+-
+-#endif  // VENDOR_LINEAGE_LIVEDISPLAY_V2_0_COLORBALANCE_H
 diff --git a/lineagehw/hidl/livedisplay/ColorEnhancement.cpp b/lineagehw/hidl/livedisplay/ColorEnhancement.cpp
-index e87961d..19a7045 100644
+deleted file mode 100644
+index e87961d..0000000
 --- a/lineagehw/hidl/livedisplay/ColorEnhancement.cpp
-+++ b/lineagehw/hidl/livedisplay/ColorEnhancement.cpp
-@@ -20,7 +20,7 @@ namespace vendor {
- namespace lineage {
- namespace livedisplay {
- namespace V2_0 {
++++ /dev/null
+@@ -1,47 +0,0 @@
+-/*
+- * Copyright (C) 2019 The LineageOS Project
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License");
+- * you may not use this file except in compliance with the License.
+- * You may obtain a copy of the License at
+- *
+- *      http://www.apache.org/licenses/LICENSE-2.0
+- *
+- * Unless required by applicable law or agreed to in writing, software
+- * distributed under the License is distributed on an "AS IS" BASIS,
+- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+- * See the License for the specific language governing permissions and
+- * limitations under the License.
+- */
+-
+-#include "ColorEnhancement.h"
+-
+-namespace vendor {
+-namespace lineage {
+-namespace livedisplay {
+-namespace V2_0 {
 -namespace implementation {
-+namespace samsung {
- 
- // Methods from ::vendor::lineage::livedisplay::V2_0::IColorEnhancement follow.
- Return<bool> ColorEnhancement::isEnabled() {
-@@ -28,7 +28,7 @@ Return<bool> ColorEnhancement::isEnabled() {
-     return bool {};
- }
- 
+-
+-// Methods from ::vendor::lineage::livedisplay::V2_0::IColorEnhancement follow.
+-Return<bool> ColorEnhancement::isEnabled() {
+-    // TODO implement
+-    return bool {};
+-}
+-
 -Return<bool> ColorEnhancement::setEnabled(bool enabled) {
-+Return<bool> ColorEnhancement::setEnabled(bool) {
-     // TODO implement
-     return bool {};
- }
-@@ -40,7 +40,7 @@ Return<bool> ColorEnhancement::setEnabled(bool enabled) {
-     //return new ColorEnhancement();
- //}
- //
+-    // TODO implement
+-    return bool {};
+-}
+-
+-
+-// Methods from ::android::hidl::base::V1_0::IBase follow.
+-
+-//IColorEnhancement* HIDL_FETCH_IColorEnhancement(const char* /* name */) {
+-    //return new ColorEnhancement();
+-//}
+-//
 -}  // namespace implementation
-+}  // namespace samsung
- }  // namespace V2_0
- }  // namespace livedisplay
- }  // namespace lineage
-diff --git a/lineagehw/hidl/livedisplay/ColorEnhancement.h b/lineagehw/hidl/livedisplay/ColorEnhancement.h
-index 925cdfc..7df2b65 100644
---- a/lineagehw/hidl/livedisplay/ColorEnhancement.h
-+++ b/lineagehw/hidl/livedisplay/ColorEnhancement.h
-@@ -25,7 +25,7 @@ namespace vendor {
- namespace lineage {
- namespace livedisplay {
- namespace V2_0 {
--namespace implementation {
-+namespace samsung {
- 
- using ::android::hardware::hidl_array;
- using ::android::hardware::hidl_memory;
-@@ -38,7 +38,7 @@ using ::android::sp;
- struct ColorEnhancement : public IColorEnhancement {
-     // Methods from ::vendor::lineage::livedisplay::V2_0::IColorEnhancement follow.
-     Return<bool> isEnabled() override;
--    Return<bool> setEnabled(bool enabled) override;
-+    Return<bool> setEnabled(bool) override;
- 
-     // Methods from ::android::hidl::base::V1_0::IBase follow.
- 
-@@ -47,7 +47,7 @@ struct ColorEnhancement : public IColorEnhancement {
- // FIXME: most likely delete, this is only for passthrough implementations
- // extern "C" IColorEnhancement* HIDL_FETCH_IColorEnhancement(const char* name);
- 
--}  // namespace implementation
-+}  // namespace samsung
- }  // namespace V2_0
- }  // namespace livedisplay
- }  // namespace lineage
+-}  // namespace V2_0
+-}  // namespace livedisplay
+-}  // namespace lineage
+-}  // namespace vendor
 diff --git a/lineagehw/hidl/livedisplay/DisplayColorCalibration.cpp b/lineagehw/hidl/livedisplay/DisplayColorCalibration.cpp
 index e471f3e..bfcda86 100644
 --- a/lineagehw/hidl/livedisplay/DisplayColorCalibration.cpp
@@ -524,90 +512,133 @@ index 90f0cb3..06a188c 100644
  }  // namespace livedisplay
  }  // namespace lineage
 diff --git a/lineagehw/hidl/livedisplay/PictureAdjustment.cpp b/lineagehw/hidl/livedisplay/PictureAdjustment.cpp
-index bedec52..ad32cd1 100644
+deleted file mode 100644
+index bedec52..0000000
 --- a/lineagehw/hidl/livedisplay/PictureAdjustment.cpp
-+++ b/lineagehw/hidl/livedisplay/PictureAdjustment.cpp
-@@ -20,45 +20,45 @@ namespace vendor {
- namespace lineage {
- namespace livedisplay {
- namespace V2_0 {
++++ /dev/null
+@@ -1,77 +0,0 @@
+-/*
+- * Copyright (C) 2019 The LineageOS Project
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License");
+- * you may not use this file except in compliance with the License.
+- * You may obtain a copy of the License at
+- *
+- *      http://www.apache.org/licenses/LICENSE-2.0
+- *
+- * Unless required by applicable law or agreed to in writing, software
+- * distributed under the License is distributed on an "AS IS" BASIS,
+- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+- * See the License for the specific language governing permissions and
+- * limitations under the License.
+- */
+-
+-#include "PictureAdjustment.h"
+-
+-namespace vendor {
+-namespace lineage {
+-namespace livedisplay {
+-namespace V2_0 {
 -namespace implementation {
-+namespace samsung {
- 
- // Methods from ::vendor::lineage::livedisplay::V2_0::IPictureAdjustment follow.
+-
+-// Methods from ::vendor::lineage::livedisplay::V2_0::IPictureAdjustment follow.
 -Return<void> PictureAdjustment::getHueRange(getHueRange_cb _hidl_cb) {
-+Return<void> PictureAdjustment::getHueRange(getHueRange_cb) {
-     // TODO implement
-     return Void();
- }
- 
+-    // TODO implement
+-    return Void();
+-}
+-
 -Return<void> PictureAdjustment::getSaturationRange(getSaturationRange_cb _hidl_cb) {
-+Return<void> PictureAdjustment::getSaturationRange(getSaturationRange_cb) {
-     // TODO implement
-     return Void();
- }
- 
+-    // TODO implement
+-    return Void();
+-}
+-
 -Return<void> PictureAdjustment::getIntensityRange(getIntensityRange_cb _hidl_cb) {
-+Return<void> PictureAdjustment::getIntensityRange(getIntensityRange_cb) {
-     // TODO implement
-     return Void();
- }
- 
+-    // TODO implement
+-    return Void();
+-}
+-
 -Return<void> PictureAdjustment::getContrastRange(getContrastRange_cb _hidl_cb) {
-+Return<void> PictureAdjustment::getContrastRange(getContrastRange_cb) {
-     // TODO implement
-     return Void();
- }
- 
+-    // TODO implement
+-    return Void();
+-}
+-
 -Return<void> PictureAdjustment::getSaturationThresholdRange(getSaturationThresholdRange_cb _hidl_cb) {
-+Return<void> PictureAdjustment::getSaturationThresholdRange(getSaturationThresholdRange_cb) {
-     // TODO implement
-     return Void();
- }
- 
+-    // TODO implement
+-    return Void();
+-}
+-
 -Return<void> PictureAdjustment::getPictureAdjustment(getPictureAdjustment_cb _hidl_cb) {
-+Return<void> PictureAdjustment::getPictureAdjustment(getPictureAdjustment_cb) {
-     // TODO implement
-     return Void();
- }
- 
+-    // TODO implement
+-    return Void();
+-}
+-
 -Return<void> PictureAdjustment::getDefaultPictureAdjustment(getDefaultPictureAdjustment_cb _hidl_cb) {
-+Return<void> PictureAdjustment::getDefaultPictureAdjustment(getDefaultPictureAdjustment_cb) {
-     // TODO implement
-     return Void();
- }
- 
+-    // TODO implement
+-    return Void();
+-}
+-
 -Return<bool> PictureAdjustment::setPictureAdjustment(const ::vendor::lineage::livedisplay::V2_0::HSIC& hsic) {
-+Return<bool> PictureAdjustment::setPictureAdjustment(const ::vendor::lineage::livedisplay::V2_0::HSIC&) {
-     // TODO implement
-     return bool {};
- }
-@@ -70,7 +70,7 @@ Return<bool> PictureAdjustment::setPictureAdjustment(const ::vendor::lineage::li
-     //return new PictureAdjustment();
- //}
- //
+-    // TODO implement
+-    return bool {};
+-}
+-
+-
+-// Methods from ::android::hidl::base::V1_0::IBase follow.
+-
+-//IPictureAdjustment* HIDL_FETCH_IPictureAdjustment(const char* /* name */) {
+-    //return new PictureAdjustment();
+-//}
+-//
 -}  // namespace implementation
-+}  // namespace samsung
- }  // namespace V2_0
- }  // namespace livedisplay
- }  // namespace lineage
+-}  // namespace V2_0
+-}  // namespace livedisplay
+-}  // namespace lineage
+-}  // namespace vendor
 diff --git a/lineagehw/hidl/livedisplay/PictureAdjustment.h b/lineagehw/hidl/livedisplay/PictureAdjustment.h
-index 17bfe66..c8291fc 100644
+deleted file mode 100644
+index 17bfe66..0000000
 --- a/lineagehw/hidl/livedisplay/PictureAdjustment.h
-+++ b/lineagehw/hidl/livedisplay/PictureAdjustment.h
-@@ -25,7 +25,7 @@ namespace vendor {
- namespace lineage {
- namespace livedisplay {
- namespace V2_0 {
++++ /dev/null
+@@ -1,62 +0,0 @@
+-/*
+- * Copyright (C) 2019 The LineageOS Project
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License");
+- * you may not use this file except in compliance with the License.
+- * You may obtain a copy of the License at
+- *
+- *      http://www.apache.org/licenses/LICENSE-2.0
+- *
+- * Unless required by applicable law or agreed to in writing, software
+- * distributed under the License is distributed on an "AS IS" BASIS,
+- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+- * See the License for the specific language governing permissions and
+- * limitations under the License.
+- */
+-
+-#ifndef VENDOR_LINEAGE_LIVEDISPLAY_V2_0_PICTUREADJUSTMENT_H
+-#define VENDOR_LINEAGE_LIVEDISPLAY_V2_0_PICTUREADJUSTMENT_H
+-
+-#include <vendor/lineage/livedisplay/2.0/IPictureAdjustment.h>
+-#include <hidl/MQDescriptor.h>
+-#include <hidl/Status.h>
+-
+-namespace vendor {
+-namespace lineage {
+-namespace livedisplay {
+-namespace V2_0 {
 -namespace implementation {
-+namespace samsung {
- 
- using ::android::hardware::hidl_array;
- using ::android::hardware::hidl_memory;
-@@ -37,14 +37,14 @@ using ::android::sp;
- 
- struct PictureAdjustment : public IPictureAdjustment {
-     // Methods from ::vendor::lineage::livedisplay::V2_0::IPictureAdjustment follow.
+-
+-using ::android::hardware::hidl_array;
+-using ::android::hardware::hidl_memory;
+-using ::android::hardware::hidl_string;
+-using ::android::hardware::hidl_vec;
+-using ::android::hardware::Return;
+-using ::android::hardware::Void;
+-using ::android::sp;
+-
+-struct PictureAdjustment : public IPictureAdjustment {
+-    // Methods from ::vendor::lineage::livedisplay::V2_0::IPictureAdjustment follow.
 -    Return<void> getHueRange(getHueRange_cb _hidl_cb) override;
 -    Return<void> getSaturationRange(getSaturationRange_cb _hidl_cb) override;
 -    Return<void> getIntensityRange(getIntensityRange_cb _hidl_cb) override;
@@ -616,49 +647,73 @@ index 17bfe66..c8291fc 100644
 -    Return<void> getPictureAdjustment(getPictureAdjustment_cb _hidl_cb) override;
 -    Return<void> getDefaultPictureAdjustment(getDefaultPictureAdjustment_cb _hidl_cb) override;
 -    Return<bool> setPictureAdjustment(const ::vendor::lineage::livedisplay::V2_0::HSIC& hsic) override;
-+    Return<void> getHueRange(getHueRange_cb) override;
-+    Return<void> getSaturationRange(getSaturationRange_cb) override;
-+    Return<void> getIntensityRange(getIntensityRange_cb) override;
-+    Return<void> getContrastRange(getContrastRange_cb) override;
-+    Return<void> getSaturationThresholdRange(getSaturationThresholdRange_cb) override;
-+    Return<void> getPictureAdjustment(getPictureAdjustment_cb) override;
-+    Return<void> getDefaultPictureAdjustment(getDefaultPictureAdjustment_cb) override;
-+    Return<bool> setPictureAdjustment(const ::vendor::lineage::livedisplay::V2_0::HSIC&) override;
- 
-     // Methods from ::android::hidl::base::V1_0::IBase follow.
- 
-@@ -53,7 +53,7 @@ struct PictureAdjustment : public IPictureAdjustment {
- // FIXME: most likely delete, this is only for passthrough implementations
- // extern "C" IPictureAdjustment* HIDL_FETCH_IPictureAdjustment(const char* name);
- 
+-
+-    // Methods from ::android::hidl::base::V1_0::IBase follow.
+-
+-};
+-
+-// FIXME: most likely delete, this is only for passthrough implementations
+-// extern "C" IPictureAdjustment* HIDL_FETCH_IPictureAdjustment(const char* name);
+-
 -}  // namespace implementation
-+}  // namespace samsung
- }  // namespace V2_0
- }  // namespace livedisplay
- }  // namespace lineage
+-}  // namespace V2_0
+-}  // namespace livedisplay
+-}  // namespace lineage
+-}  // namespace vendor
+-
+-#endif  // VENDOR_LINEAGE_LIVEDISPLAY_V2_0_PICTUREADJUSTMENT_H
 diff --git a/lineagehw/hidl/livedisplay/ReadingEnhancement.cpp b/lineagehw/hidl/livedisplay/ReadingEnhancement.cpp
-index ea27c90..ed35b37 100644
+index ea27c90..fdcb165 100644
 --- a/lineagehw/hidl/livedisplay/ReadingEnhancement.cpp
 +++ b/lineagehw/hidl/livedisplay/ReadingEnhancement.cpp
-@@ -20,7 +20,7 @@ namespace vendor {
+@@ -14,23 +14,41 @@
+  * limitations under the License.
+  */
+ 
++#include <fstream>
++
+ #include "ReadingEnhancement.h"
+ 
+ namespace vendor {
  namespace lineage {
  namespace livedisplay {
  namespace V2_0 {
 -namespace implementation {
 +namespace samsung {
++
++// Methods from ::vendor::lineage::livedisplay::V2_0::ISunlightEnhancement follow.
++bool ReadingEnhancement::isSupported() {
++    std::ofstream file("/sys/devices/virtual/mdnie/mdnie/accessibility");
++    return file.good();
++}
  
  // Methods from ::vendor::lineage::livedisplay::V2_0::IReadingEnhancement follow.
  Return<bool> ReadingEnhancement::isEnabled() {
-@@ -28,7 +28,7 @@ Return<bool> ReadingEnhancement::isEnabled() {
-     return bool {};
+-    // TODO implement
+-    return bool {};
++    std::ifstream file("/sys/devices/virtual/mdnie/mdnie/accessibility");
++    std::string line;
++
++    if (file.is_open()) {
++        file >> line;
++    }
++
++    return !line.compare("Current accessibility : DSI0 : GRAYSCALE ");
  }
  
--Return<bool> ReadingEnhancement::setEnabled(bool enabled) {
-+Return<bool> ReadingEnhancement::setEnabled(bool) {
-     // TODO implement
-     return bool {};
+ Return<bool> ReadingEnhancement::setEnabled(bool enabled) {
+-    // TODO implement
+-    return bool {};
++    std::ofstream file("/sys/devices/virtual/mdnie/mdnie/accessibility");
++    if (file.is_open()) {
++        file << (enabled ? "4" : "0");
++    }
++
++    return true;
  }
-@@ -40,7 +40,7 @@ Return<bool> ReadingEnhancement::setEnabled(bool enabled) {
+ 
+ 
+@@ -40,7 +58,7 @@ Return<bool> ReadingEnhancement::setEnabled(bool enabled) {
      //return new ReadingEnhancement();
  //}
  //
@@ -668,7 +723,7 @@ index ea27c90..ed35b37 100644
  }  // namespace livedisplay
  }  // namespace lineage
 diff --git a/lineagehw/hidl/livedisplay/ReadingEnhancement.h b/lineagehw/hidl/livedisplay/ReadingEnhancement.h
-index 20e909a..f4a6d1c 100644
+index 20e909a..dd215e0 100644
 --- a/lineagehw/hidl/livedisplay/ReadingEnhancement.h
 +++ b/lineagehw/hidl/livedisplay/ReadingEnhancement.h
 @@ -25,7 +25,7 @@ namespace vendor {
@@ -680,8 +735,15 @@ index 20e909a..f4a6d1c 100644
  
  using ::android::hardware::hidl_array;
  using ::android::hardware::hidl_memory;
-@@ -38,7 +38,7 @@ using ::android::sp;
- struct ReadingEnhancement : public IReadingEnhancement {
+@@ -35,10 +35,13 @@ using ::android::hardware::Return;
+ using ::android::hardware::Void;
+ using ::android::sp;
+ 
+-struct ReadingEnhancement : public IReadingEnhancement {
++class ReadingEnhancement : public IReadingEnhancement {
++  public:
++    bool isSupported();
++
      // Methods from ::vendor::lineage::livedisplay::V2_0::IReadingEnhancement follow.
      Return<bool> isEnabled() override;
 -    Return<bool> setEnabled(bool enabled) override;
@@ -689,7 +751,7 @@ index 20e909a..f4a6d1c 100644
  
      // Methods from ::android::hidl::base::V1_0::IBase follow.
  
-@@ -47,7 +47,7 @@ struct ReadingEnhancement : public IReadingEnhancement {
+@@ -47,7 +50,7 @@ struct ReadingEnhancement : public IReadingEnhancement {
  // FIXME: most likely delete, this is only for passthrough implementations
  // extern "C" IReadingEnhancement* HIDL_FETCH_IReadingEnhancement(const char* name);
  
@@ -698,11 +760,144 @@ index 20e909a..f4a6d1c 100644
  }  // namespace V2_0
  }  // namespace livedisplay
  }  // namespace lineage
+diff --git a/lineagehw/hidl/livedisplay/ColorBalance.cpp b/lineagehw/hidl/livedisplay/ReadingEnhancementExynos.cpp
+similarity index 50%
+rename from lineagehw/hidl/livedisplay/ColorBalance.cpp
+rename to lineagehw/hidl/livedisplay/ReadingEnhancementExynos.cpp
+index f636990..a51672e 100644
+--- a/lineagehw/hidl/livedisplay/ColorBalance.cpp
++++ b/lineagehw/hidl/livedisplay/ReadingEnhancementExynos.cpp
+@@ -14,38 +14,47 @@
+  * limitations under the License.
+  */
+ 
+-#include "ColorBalance.h"
++#include <fstream>
++
++#include "ReadingEnhancementExynos.h"
+ 
+ namespace vendor {
+ namespace lineage {
+ namespace livedisplay {
+ namespace V2_0 {
+-namespace implementation {
++namespace samsung {
+ 
+-// Methods from ::vendor::lineage::livedisplay::V2_0::IColorBalance follow.
+-Return<void> ColorBalance::getColorBalanceRange(getColorBalanceRange_cb _hidl_cb) {
+-    // TODO implement
+-    return Void();
++// Methods from ::vendor::lineage::livedisplay::V2_0::ISunlightEnhancement follow.
++bool ReadingEnhancementExynos::isSupported() {
++    std::ofstream file("/sys/class/mdnie/mdnie/accessibility");
++    return file.good();
+ }
+ 
+-Return<int32_t> ColorBalance::getColorBalance() {
+-    // TODO implement
+-    return int32_t {};
++// Methods from ::vendor::lineage::livedisplay::V2_0::IReadingEnhancement follow.
++Return<bool> ReadingEnhancementExynos::isEnabled() {
++    std::ifstream file("/sys/class/mdnie/mdnie/accessibility");
++    int status;
++
++    if (file.is_open()) {
++        file >> status;
++    }
++
++    return file.good() && status == 4;
+ }
+ 
+-Return<bool> ColorBalance::setColorBalance(int32_t value) {
+-    // TODO implement
+-    return bool {};
++Return<bool> ReadingEnhancementExynos::setEnabled(bool enabled) {
++    std::ofstream file("/sys/class/mdnie/mdnie/accessibility");
++    if (file.is_open()) {
++        file << (enabled ? "4" : "0");
++    }
++
++    return true;
+ }
+ 
+ 
+ // Methods from ::android::hidl::base::V1_0::IBase follow.
+ 
+-//IColorBalance* HIDL_FETCH_IColorBalance(const char* /* name */) {
+-    //return new ColorBalance();
+-//}
+-//
+-}  // namespace implementation
++}  // namespace samsung
+ }  // namespace V2_0
+ }  // namespace livedisplay
+ }  // namespace lineage
+diff --git a/lineagehw/hidl/livedisplay/ColorEnhancement.h b/lineagehw/hidl/livedisplay/ReadingEnhancementExynos.h
+similarity index 65%
+rename from lineagehw/hidl/livedisplay/ColorEnhancement.h
+rename to lineagehw/hidl/livedisplay/ReadingEnhancementExynos.h
+index 925cdfc..8791ecd 100644
+--- a/lineagehw/hidl/livedisplay/ColorEnhancement.h
++++ b/lineagehw/hidl/livedisplay/ReadingEnhancementExynos.h
+@@ -14,10 +14,10 @@
+  * limitations under the License.
+  */
+ 
+-#ifndef VENDOR_LINEAGE_LIVEDISPLAY_V2_0_COLORENHANCEMENT_H
+-#define VENDOR_LINEAGE_LIVEDISPLAY_V2_0_COLORENHANCEMENT_H
++#ifndef VENDOR_LINEAGE_LIVEDISPLAY_V2_0_READINGENHANCEMENTEXYNOS_H
++#define VENDOR_LINEAGE_LIVEDISPLAY_V2_0_READINGENHANCEMENTEXYNOS_H
+ 
+-#include <vendor/lineage/livedisplay/2.0/IColorEnhancement.h>
++#include <vendor/lineage/livedisplay/2.0/IReadingEnhancement.h>
+ #include <hidl/MQDescriptor.h>
+ #include <hidl/Status.h>
+ 
+@@ -25,7 +25,7 @@ namespace vendor {
+ namespace lineage {
+ namespace livedisplay {
+ namespace V2_0 {
+-namespace implementation {
++namespace samsung {
+ 
+ using ::android::hardware::hidl_array;
+ using ::android::hardware::hidl_memory;
+@@ -35,22 +35,22 @@ using ::android::hardware::Return;
+ using ::android::hardware::Void;
+ using ::android::sp;
+ 
+-struct ColorEnhancement : public IColorEnhancement {
+-    // Methods from ::vendor::lineage::livedisplay::V2_0::IColorEnhancement follow.
++class ReadingEnhancementExynos : public IReadingEnhancement {
++  public:
++    bool isSupported();
++
++    // Methods from ::vendor::lineage::livedisplay::V2_0::IReadingEnhancement follow.
+     Return<bool> isEnabled() override;
+-    Return<bool> setEnabled(bool enabled) override;
++    Return<bool> setEnabled(bool) override;
+ 
+     // Methods from ::android::hidl::base::V1_0::IBase follow.
+ 
+ };
+ 
+-// FIXME: most likely delete, this is only for passthrough implementations
+-// extern "C" IColorEnhancement* HIDL_FETCH_IColorEnhancement(const char* name);
+-
+-}  // namespace implementation
++}  // namespace samsung
+ }  // namespace V2_0
+ }  // namespace livedisplay
+ }  // namespace lineage
+ }  // namespace vendor
+ 
+-#endif  // VENDOR_LINEAGE_LIVEDISPLAY_V2_0_COLORENHANCEMENT_H
++#endif  // VENDOR_LINEAGE_LIVEDISPLAY_V2_0_READINGENHANCEMENTEXYNOS_H
 diff --git a/lineagehw/hidl/livedisplay/SunlightEnhancement.cpp b/lineagehw/hidl/livedisplay/SunlightEnhancement.cpp
-index 8a3c329..6b6c7b7 100644
+index 8a3c329..851b8e3 100644
 --- a/lineagehw/hidl/livedisplay/SunlightEnhancement.cpp
 +++ b/lineagehw/hidl/livedisplay/SunlightEnhancement.cpp
-@@ -14,33 +14,45 @@
+@@ -14,33 +14,55 @@
   * limitations under the License.
   */
  
@@ -719,32 +914,42 @@ index 8a3c329..6b6c7b7 100644
  
  // Methods from ::vendor::lineage::livedisplay::V2_0::ISunlightEnhancement follow.
 +bool SunlightEnhancement::isSupported() {
-+    std::ofstream file("/sys/class/mdnie/mdnie/outdoor");
-+    return file.good();
++    std::ofstream fileSRE("/sys/class/mdnie/mdnie/outdoor");
++    std::ofstream fileHBM("/sys/class/lcd/panel/panel/auto_brightness");
++    return fileSRE.good() || fileHBM.good();
 +}
 +
 +// Methods from ::vendor::lineage::livedisplay::V2_0::IAdaptiveBacklight follow.
  Return<bool> SunlightEnhancement::isEnabled() {
 -    // TODO implement
 -    return bool {};
-+    std::ifstream file("/sys/class/mdnie/mdnie/outdoor");
-+    int status = -1;
++    std::ifstream fileSRE("/sys/class/mdnie/mdnie/outdoor");
++    std::ifstream fileHBM("/sys/class/lcd/panel/panel/auto_brightness");
++    int statusSRE = -1;
++    int statusHBM = -1;
 +
-+    if (file.is_open()) {
-+        file >> status;
++    if (fileSRE.is_open()) {
++        fileSRE >> statusSRE;
++    }
++    if (fileHBM.is_open()) {
++        fileHBM >> statusHBM;
 +    }
 +
-+    return file.good() && status > 0;
++    return (fileSRE.good() || fileHBM.good()) && ((statusSRE == 1 && statusHBM == 6) || statusSRE == 1);
  }
  
  Return<bool> SunlightEnhancement::setEnabled(bool enabled) {
 -    // TODO implement
 -    return bool {};
 -}
-+    std::ofstream file("/sys/class/mdnie/mdnie/outdoor");
++    std::ofstream fileSRE("/sys/class/mdnie/mdnie/outdoor");
++    std::ofstream fileHBM("/sys/class/lcd/panel/panel/auto_brightness");
  
-+    if (file.is_open()) {
-+        file << (enabled ? "1" : "0");
++    if (fileSRE.is_open()) {
++        fileSRE << (enabled ? "1" : "0");
++    }
++    if (fileHBM.is_open()) {
++        fileHBM << (enabled ? "6" : "0");
 +    }
  
 -// Methods from ::android::hidl::base::V1_0::IBase follow.
@@ -761,7 +966,7 @@ index 8a3c329..6b6c7b7 100644
  }  // namespace livedisplay
  }  // namespace lineage
 diff --git a/lineagehw/hidl/livedisplay/SunlightEnhancement.h b/lineagehw/hidl/livedisplay/SunlightEnhancement.h
-index 7571831..6dd813a 100644
+index 7571831..eb70f8e 100644
 --- a/lineagehw/hidl/livedisplay/SunlightEnhancement.h
 +++ b/lineagehw/hidl/livedisplay/SunlightEnhancement.h
 @@ -25,7 +25,7 @@ namespace vendor {
@@ -773,21 +978,19 @@ index 7571831..6dd813a 100644
  
  using ::android::hardware::hidl_array;
  using ::android::hardware::hidl_memory;
-@@ -35,7 +35,12 @@ using ::android::hardware::Return;
+@@ -35,7 +35,10 @@ using ::android::hardware::Return;
  using ::android::hardware::Void;
  using ::android::sp;
  
 -struct SunlightEnhancement : public ISunlightEnhancement {
 +class SunlightEnhancement : public ISunlightEnhancement {
 +  public:
-+    SunlightEnhancement() = default;
-+
 +    bool isSupported();
 +
      // Methods from ::vendor::lineage::livedisplay::V2_0::ISunlightEnhancement follow.
      Return<bool> isEnabled() override;
      Return<bool> setEnabled(bool enabled) override;
-@@ -44,10 +49,7 @@ struct SunlightEnhancement : public ISunlightEnhancement {
+@@ -44,10 +47,7 @@ struct SunlightEnhancement : public ISunlightEnhancement {
  
  };
  
@@ -801,7 +1004,7 @@ index 7571831..6dd813a 100644
  }  // namespace lineage
 diff --git a/lineagehw/hidl/livedisplay/SunlightEnhancementExynos.cpp b/lineagehw/hidl/livedisplay/SunlightEnhancementExynos.cpp
 new file mode 100644
-index 0000000..d0b4d8c
+index 0000000..8ff2ec4
 --- /dev/null
 +++ b/lineagehw/hidl/livedisplay/SunlightEnhancementExynos.cpp
 @@ -0,0 +1,59 @@
@@ -823,7 +1026,7 @@ index 0000000..d0b4d8c
 +
 +#include <fstream>
 +
-+#include "SunlightEnhancement.h"
++#include "SunlightEnhancementExynos.h"
 +
 +namespace vendor {
 +namespace lineage {
@@ -850,7 +1053,7 @@ index 0000000..d0b4d8c
 +}
 +
 +Return<bool> SunlightEnhancementExynos::setEnabled(bool enabled) {
-+    std::ifstream file("/sys/class/mdnie/mdnie/lux");
++    std::ofstream file("/sys/class/mdnie/mdnie/lux");
 +    if (file.is_open()) {
 +        /* see drivers/video/fbdev/exynos/decon_7880/panels/mdnie_lite_table*, get_hbm_index */
 +        file << (enabled ? "40000" : "0");
@@ -864,76 +1067,72 @@ index 0000000..d0b4d8c
 +}  // namespace livedisplay
 +}  // namespace lineage
 +}  // namespace vendor
-diff --git a/lineagehw/hidl/livedisplay/SunlightEnhancementExynos.h b/lineagehw/hidl/livedisplay/SunlightEnhancementExynos.h
-new file mode 100644
-index 0000000..5c5b7a5
---- /dev/null
+diff --git a/lineagehw/hidl/livedisplay/AutoContrast.h b/lineagehw/hidl/livedisplay/SunlightEnhancementExynos.h
+similarity index 69%
+rename from lineagehw/hidl/livedisplay/AutoContrast.h
+rename to lineagehw/hidl/livedisplay/SunlightEnhancementExynos.h
+index 44a8be6..5bf9798 100644
+--- a/lineagehw/hidl/livedisplay/AutoContrast.h
 +++ b/lineagehw/hidl/livedisplay/SunlightEnhancementExynos.h
-@@ -0,0 +1,58 @@
-+/*
-+ * Copyright (C) 2019 The LineageOS Project
-+ *
-+ * Licensed under the Apache License, Version 2.0 (the "License");
-+ * you may not use this file except in compliance with the License.
-+ * You may obtain a copy of the License at
-+ *
-+ *      http://www.apache.org/licenses/LICENSE-2.0
-+ *
-+ * Unless required by applicable law or agreed to in writing, software
-+ * distributed under the License is distributed on an "AS IS" BASIS,
-+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-+ * See the License for the specific language governing permissions and
-+ * limitations under the License.
-+ */
-+
+@@ -14,10 +14,10 @@
+  * limitations under the License.
+  */
+ 
+-#ifndef VENDOR_LINEAGE_LIVEDISPLAY_V2_0_AUTOCONTRAST_H
+-#define VENDOR_LINEAGE_LIVEDISPLAY_V2_0_AUTOCONTRAST_H
 +#ifndef VENDOR_LINEAGE_LIVEDISPLAY_V2_0_SUNLIGHTENHANCEMENTEXYNOS_H
 +#define VENDOR_LINEAGE_LIVEDISPLAY_V2_0_SUNLIGHTENHANCEMENTEXYNOS_H
-+
+ 
+-#include <vendor/lineage/livedisplay/2.0/IAutoContrast.h>
 +#include <vendor/lineage/livedisplay/2.0/ISunlightEnhancement.h>
-+#include <hidl/MQDescriptor.h>
-+#include <hidl/Status.h>
-+
-+namespace vendor {
-+namespace lineage {
-+namespace livedisplay {
-+namespace V2_0 {
+ #include <hidl/MQDescriptor.h>
+ #include <hidl/Status.h>
+ 
+@@ -25,7 +25,7 @@ namespace vendor {
+ namespace lineage {
+ namespace livedisplay {
+ namespace V2_0 {
+-namespace implementation {
 +namespace samsung {
-+
-+using ::android::hardware::hidl_array;
-+using ::android::hardware::hidl_memory;
-+using ::android::hardware::hidl_string;
-+using ::android::hardware::hidl_vec;
-+using ::android::hardware::Return;
-+using ::android::hardware::Void;
-+using ::android::sp;
-+
+ 
+ using ::android::hardware::hidl_array;
+ using ::android::hardware::hidl_memory;
+@@ -35,8 +35,11 @@ using ::android::hardware::Return;
+ using ::android::hardware::Void;
+ using ::android::sp;
+ 
+-struct AutoContrast : public IAutoContrast {
+-    // Methods from ::vendor::lineage::livedisplay::V2_0::IAutoContrast follow.
 +class SunlightEnhancementExynos : public ISunlightEnhancement {
 +  public:
-+    SunlightEnhancementExynos() = default;
-+
 +    bool isSupported();
 +
 +    // Methods from ::vendor::lineage::livedisplay::V2_0::ISunlightEnhancement follow.
-+    Return<bool> isEnabled() override;
-+    Return<bool> setEnabled(bool enabled) override;
-+
-+    // Methods from ::android::hidl::base::V1_0::IBase follow.
-+
-+};
-+
+     Return<bool> isEnabled() override;
+     Return<bool> setEnabled(bool enabled) override;
+ 
+@@ -44,13 +47,10 @@ struct AutoContrast : public IAutoContrast {
+ 
+ };
+ 
+-// FIXME: most likely delete, this is only for passthrough implementations
+-// extern "C" IAutoContrast* HIDL_FETCH_IAutoContrast(const char* name);
+-
+-}  // namespace implementation
 +}  // namespace samsung
-+}  // namespace V2_0
-+}  // namespace livedisplay
-+}  // namespace lineage
-+}  // namespace vendor
-+
+ }  // namespace V2_0
+ }  // namespace livedisplay
+ }  // namespace lineage
+ }  // namespace vendor
+ 
+-#endif  // VENDOR_LINEAGE_LIVEDISPLAY_V2_0_AUTOCONTRAST_H
 +#endif  // VENDOR_LINEAGE_LIVEDISPLAY_V2_0_SUNLIGHTENHANCEMENTEXYNOS_H
 diff --git a/lineagehw/hidl/livedisplay/service.cpp b/lineagehw/hidl/livedisplay/service.cpp
 new file mode 100644
-index 0000000..78e5112
+index 0000000..3fe3d50
 --- /dev/null
 +++ b/lineagehw/hidl/livedisplay/service.cpp
-@@ -0,0 +1,113 @@
+@@ -0,0 +1,157 @@
 +/*
 + * Copyright (C) 2019 The LineageOS Project
 + *
@@ -957,6 +1156,8 @@ index 0000000..78e5112
 +#include <hidl/HidlTransportSupport.h>
 +
 +#include "AdaptiveBacklight.h"
++#include "ReadingEnhancement.h"
++#include "ReadingEnhancementExynos.h"
 +#include "SunlightEnhancement.h"
 +#include "SunlightEnhancementExynos.h"
 +
@@ -967,11 +1168,15 @@ index 0000000..78e5112
 +using android::OK;
 +
 +using vendor::lineage::livedisplay::V2_0::samsung::AdaptiveBacklight;
++using vendor::lineage::livedisplay::V2_0::samsung::ReadingEnhancement;
++using vendor::lineage::livedisplay::V2_0::samsung::ReadingEnhancementExynos;
 +using vendor::lineage::livedisplay::V2_0::samsung::SunlightEnhancement;
 +using vendor::lineage::livedisplay::V2_0::samsung::SunlightEnhancementExynos;
 +
 +int main() {
 +    sp<AdaptiveBacklight> adaptiveBacklight;
++    sp<ReadingEnhancement> readingEnhancement;
++    sp<ReadingEnhancementExynos> readingEnhancementExynos;
 +    sp<SunlightEnhancement> sunlightEnhancement;
 +    sp<SunlightEnhancementExynos> sunlightEnhancementExynos;
 +    status_t status;
@@ -985,6 +1190,24 @@ index 0000000..78e5112
 +        goto shutdown;
 +    }
 +    if (adaptiveBacklight->isSupported()) {
++        services++;
++    }
++
++    readingEnhancement = new ReadingEnhancement();
++    if (readingEnhancement == nullptr) {
++        LOG(ERROR) << "Can not create an instance of LiveDisplay HAL ReadingEnhancement Iface, exiting.";
++        goto shutdown;
++    }
++    if (readingEnhancement->isSupported()) {
++        services++;
++    }
++
++    readingEnhancementExynos = new ReadingEnhancementExynos();
++    if (readingEnhancementExynos == nullptr) {
++        LOG(ERROR) << "Can not create an instance of LiveDisplay HAL ReadingEnhancement Iface, exiting.";
++        goto shutdown;
++    }
++    if (readingEnhancementExynos->isSupported()) {
 +        services++;
 +    }
 +
@@ -1013,6 +1236,26 @@ index 0000000..78e5112
 +        if (status != OK) {
 +            LOG(ERROR)
 +                << "Could not register service for LiveDisplay HAL AdaptiveBacklight Iface ("
++                << status << ")";
++            goto shutdown;
++        }
++    }
++
++    if (readingEnhancement->isSupported()) {
++        status = readingEnhancement->registerAsService();
++        if (status != OK) {
++            LOG(ERROR)
++                << "Could not register service for LiveDisplay HAL ReadingEnhancement Iface ("
++                << status << ")";
++            goto shutdown;
++        }
++    }
++
++    if (readingEnhancementExynos->isSupported()) {
++        status = readingEnhancementExynos->registerAsService();
++        if (status != OK) {
++            LOG(ERROR)
++                << "Could not register service for LiveDisplay HAL ReadingEnhancement Iface ("
 +                << status << ")";
 +            goto shutdown;
 +        }

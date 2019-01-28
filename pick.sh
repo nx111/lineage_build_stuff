@@ -1341,6 +1341,7 @@ kpick 239179 # Camera: Force HAL1 for predefined package list.
 kpick 239520 # Reset all package signatures on boot
 kpick 239928 # audio: Don't play sound effects if stream is muted
 kpick 240034 # [AlarmManager]Use the correct func interface for send msg args
+kpick 240084 # ServiceRegistry: Don't throw an exception if OEM_LOCK is missing
 
 # frameworks/native
 kpick 224530 # Triple the available egl function pointers available to a process for certain Nvidia devices.
@@ -1461,7 +1462,6 @@ kpick 239278 # PerformanceManager: Allow wait for MPCTL to start on boot
 kpick 239443 # sdk: Deprecate some unused lineagehw features
 kpick 239449 # sdk: Add HIDL compat in LineageHardwareManager
 kpick 239492 # LineageSettingsProvider: Fix migration of FORCE_SHOW_NAVBAR
-kpick 239987 # TelephonyExtUtils: Handle extphone binder death
 kpick 240050 # LiveDisplayService: Catch NPE before LiveDisplayConfig is initialized
 
 # packages/apps/Bluetooth
@@ -1526,6 +1526,8 @@ kpick 229312 # Add Dual Channel into Bluetooth Audio Channel Mode developer opti
 kpick 231826 # Update the white list of Data saver
 kpick 232793 # Settings: per-app VPN data restriction
 kpick 237183 # settings: hide appendix of app list for power usage.
+kpick 240083 # Settings: Fix developer settings for devices without oem_lock service
+kpick 240095 # Settings: Move artwork and visualizer to "Lock screen preferences"
 
 # packages/apps/SettingsIntelligence
 
@@ -1541,6 +1543,7 @@ kpick 237244 # Snap: make support for bokeh mode configurable per device
 # packages/apps/Traceur
 
 # packages/apps/Trebuchet
+kpick 240080 # Trebuchet: Implement protected apps
 
 # packages/apps/TvSettings
 

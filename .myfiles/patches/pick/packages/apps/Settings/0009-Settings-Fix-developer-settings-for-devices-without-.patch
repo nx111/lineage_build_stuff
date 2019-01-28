@@ -1,0 +1,88 @@
+From 4af8139b45f762b6de80fe9e56ee4d59800321c4 Mon Sep 17 00:00:00 2001
+From: Scott Warner <Tortel1210@gmail.com>
+Date: Sun, 27 Jan 2019 13:08:39 -0500
+Subject: [PATCH 09/12] Settings: Fix developer settings for devices without
+ oem_lock service
+
+Change-Id: If5e5595b3fe9d5092227ff4f61612091870f4b7a
+---
+ .../DevelopmentSettingsDashboardFragment.java |  6 +++++-
+ .../OemUnlockPreferenceController.java        | 19 ++++++++++++++-----
+ 2 files changed, 19 insertions(+), 6 deletions(-)
+
+diff --git a/src/com/android/settings/development/DevelopmentSettingsDashboardFragment.java b/src/com/android/settings/development/DevelopmentSettingsDashboardFragment.java
+index f2011bc612..a703e61216 100644
+--- a/src/com/android/settings/development/DevelopmentSettingsDashboardFragment.java
++++ b/src/com/android/settings/development/DevelopmentSettingsDashboardFragment.java
+@@ -415,7 +415,11 @@ public class DevelopmentSettingsDashboardFragment extends RestrictedDashboardFra
+         controllers.add(new HdcpCheckingPreferenceController(context));
+         controllers.add(new DarkUIPreferenceController(context));
+         controllers.add(new BluetoothSnoopLogPreferenceController(context));
+-        controllers.add(new OemUnlockPreferenceController(context, activity, fragment));
++        try {
++            controllers.add(new OemUnlockPreferenceController(context, activity, fragment));
++        } catch (Exception e) {
++            Log.w("DevelopementSettings", "Supressing exception");
++        }
+         controllers.add(new FileEncryptionPreferenceController(context));
+         controllers.add(new PictureColorModePreferenceController(context, lifecycle));
+         controllers.add(new WebViewAppPreferenceController(context));
+diff --git a/src/com/android/settings/development/OemUnlockPreferenceController.java b/src/com/android/settings/development/OemUnlockPreferenceController.java
+index fdec27e396..fd1d35879e 100644
+--- a/src/com/android/settings/development/OemUnlockPreferenceController.java
++++ b/src/com/android/settings/development/OemUnlockPreferenceController.java
+@@ -53,7 +53,7 @@ public class OemUnlockPreferenceController extends DeveloperOptionsPreferenceCon
+     public OemUnlockPreferenceController(Context context, Activity activity,
+             DevelopmentSettingsDashboardFragment fragment) {
+         super(context);
+-        mOemLockManager = (OemLockManager) context.getSystemService(Context.OEM_LOCK_SERVICE);
++        mOemLockManager = getLockManager(context);
+         mUserManager = (UserManager) context.getSystemService(Context.USER_SERVICE);
+         mTelephonyManager = (TelephonyManager) context.getSystemService(Context.TELEPHONY_SERVICE);
+         mFragment = fragment;
+@@ -64,6 +64,15 @@ public class OemUnlockPreferenceController extends DeveloperOptionsPreferenceCon
+         }
+     }
+ 
++    private OemLockManager getLockManager(Context context) {
++        try {
++            return (OemLockManager) context.getSystemService(Context.OEM_LOCK_SERVICE);
++        } catch (Exception e) {
++            // Ignore
++            return null;
++        }
++    }
++
+     @Override
+     public boolean isAvailable() {
+         return mOemLockManager != null &&
+@@ -182,7 +191,7 @@ public class OemUnlockPreferenceController extends DeveloperOptionsPreferenceCon
+      */
+     @VisibleForTesting
+     boolean isBootloaderUnlocked() {
+-        return mOemLockManager.isDeviceOemUnlocked();
++        return mOemLockManager != null && mOemLockManager.isDeviceOemUnlocked();
+     }
+ 
+     private boolean enableOemUnlockPreference() {
+@@ -209,14 +218,14 @@ public class OemUnlockPreferenceController extends DeveloperOptionsPreferenceCon
+     @VisibleForTesting
+     boolean isOemUnlockAllowedByUserAndCarrier() {
+         final UserHandle userHandle = UserHandle.of(UserHandle.myUserId());
+-        return mOemLockManager.isOemUnlockAllowedByCarrier()
++        return mOemLockManager == null || (mOemLockManager.isOemUnlockAllowedByCarrier()
+                 && !mUserManager.hasBaseUserRestriction(UserManager.DISALLOW_FACTORY_RESET,
+-                userHandle);
++                userHandle));
+     }
+ 
+     @VisibleForTesting
+     boolean isOemUnlockedAllowed() {
+-        return mOemLockManager.isOemUnlockAllowed();
++        return mOemLockManager != null && mOemLockManager.isOemUnlockAllowed();
+     }
+ 
+ }
+-- 
+2.17.1
+
