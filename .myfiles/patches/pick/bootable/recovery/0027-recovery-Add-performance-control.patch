@@ -1,0 +1,96 @@
+From 11f69ed1b10ebbadb72fce367d35a211f187cb7d Mon Sep 17 00:00:00 2001
+From: Steve Kondik <shade@chemlab.org>
+Date: Thu, 3 Apr 2014 22:50:38 -0700
+Subject: [PATCH 27/44] recovery: Add performance control
+
+ * Crank it up when installing
+
+Change-Id: I997d937901ff446834e6c479aaf629bee51de388
+---
+ adb_install.cpp |  3 +++
+ install.cpp     | 11 +++++++++++
+ install.h       |  2 ++
+ 3 files changed, 16 insertions(+)
+
+diff --git a/adb_install.cpp b/adb_install.cpp
+index fb1b232d..86d14a55 100644
+--- a/adb_install.cpp
++++ b/adb_install.cpp
+@@ -175,11 +175,14 @@ void stop_sideload() {
+ }
+ 
+ int wait_sideload() {
++  set_perf_mode(true);
+   pthread_join(sideload_thread, nullptr);
+ 
+   ui->FlushKeys();
+ 
+   maybe_restart_adbd();
+ 
++  set_perf_mode(false);
++
+   return sideload_data.result;
+ }
+diff --git a/install.cpp b/install.cpp
+index aa446254..9b6123b5 100644
+--- a/install.cpp
++++ b/install.cpp
+@@ -49,6 +49,8 @@
+ #include <vintf/VintfObjectRecovery.h>
+ #include <ziparchive/zip_archive.h>
+ 
++#include <cutils/properties.h>
++
+ #include "common.h"
+ #include "otautil/SysUtil.h"
+ #include "otautil/ThermalUtil.h"
+@@ -614,8 +616,10 @@ static int really_install_package(std::string path, bool* wipe_cache, bool needs
+   }
+ 
+   // Verify package.
++  set_perf_mode(true);
+   if (!verify_package(map.addr, map.length)) {
+     log_buffer->push_back(android::base::StringPrintf("error: %d", kZipVerificationFailure));
++    set_perf_mode(false);
+     return INSTALL_CORRUPT;
+   }
+ 
+@@ -627,6 +631,7 @@ static int really_install_package(std::string path, bool* wipe_cache, bool needs
+     log_buffer->push_back(android::base::StringPrintf("error: %d", kZipOpenFailure));
+ 
+     CloseArchive(zip);
++    set_perf_mode(false);
+     return INSTALL_CORRUPT;
+   }
+ 
+@@ -648,6 +653,7 @@ static int really_install_package(std::string path, bool* wipe_cache, bool needs
+   ui->Print("\n");
+ 
+   CloseArchive(zip);
++  set_perf_mode(false);
+   return result;
+ }
+ 
+@@ -761,3 +767,8 @@ bool verify_package(const unsigned char* package_data, size_t package_size) {
+   }
+   return true;
+ }
++
++void
++set_perf_mode(bool enable) {
++    property_set("recovery.perf.mode", enable ? "1" : "0");
++}
+diff --git a/install.h b/install.h
+index f3fda305..6cfa9cf6 100644
+--- a/install.h
++++ b/install.h
+@@ -40,4 +40,6 @@ bool read_metadata_from_package(ZipArchiveHandle zip, std::string* metadata);
+ // entry doesn't exist.
+ bool verify_package_compatibility(ZipArchiveHandle package_zip);
+ 
++void set_perf_mode(bool enable);
++
+ #endif  // RECOVERY_INSTALL_H_
+-- 
+2.17.1
+

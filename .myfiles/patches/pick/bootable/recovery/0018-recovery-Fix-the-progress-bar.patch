@@ -1,0 +1,125 @@
+From a9450976b786041278399b21aa69a4397e93fb5b Mon Sep 17 00:00:00 2001
+From: Steve Kondik <shade@chemlab.org>
+Date: Fri, 12 Sep 2014 18:52:28 -0700
+Subject: [PATCH 18/44] recovery: Fix the progress bar
+
+ * The progress thread is running all the time, which causes the device
+   to heat up while in recovery. Start this thread only when the
+   progress mode is set to something other than EMPTY, and add a
+   terminating condition so that it exits when finished.
+
+ * Incorporate Tom's patch to keep it updated when visible, since
+   both are needed to get working progress indications without
+   killing batteries.
+
+ * Clear buffer in draw_progress_locked() and always call this in
+   update_progress_locked().  This is necessary to ensure that all
+   backing frames in the graphics implementation get updated because
+   we aren't guaranteed to have any particular number of backing
+   frames.
+
+ * Remove dialogs on wipe operations since we are using the progress
+   animation now.
+
+ * Set progress indicator after showing "Formatting" text to avoid
+   momentary flicker.
+
+Change-Id: Ib70d2cb25f01d9920ffb698b5b5b47af827ef483
+---
+ recovery.cpp  |  6 +++---
+ screen_ui.cpp | 20 +++++++++++---------
+ 2 files changed, 14 insertions(+), 12 deletions(-)
+
+diff --git a/recovery.cpp b/recovery.cpp
+index 8ea15ecf..e348bb4e 100644
+--- a/recovery.cpp
++++ b/recovery.cpp
+@@ -629,9 +629,6 @@ static bool erase_volume(const char* volume) {
+   bool is_cache = (strcmp(volume, CACHE_ROOT) == 0);
+   bool is_data = (strcmp(volume, DATA_ROOT) == 0);
+ 
+-  ui->SetBackground(RecoveryUI::ERASING);
+-  ui->SetProgressType(RecoveryUI::INDETERMINATE);
+-
+   std::vector<saved_log_file> log_files;
+ 
+   if (is_cache) {
+@@ -674,6 +671,9 @@ static bool erase_volume(const char* volume) {
+ 
+   ui->Print("Formatting %s...\n", volume);
+ 
++  ui->SetBackground(RecoveryUI::ERASING);
++  ui->SetProgressType(RecoveryUI::INDETERMINATE);
++
+   ensure_path_unmounted(volume);
+ 
+   int result;
+diff --git a/screen_ui.cpp b/screen_ui.cpp
+index 9fe6501f..c529cb1e 100644
+--- a/screen_ui.cpp
++++ b/screen_ui.cpp
+@@ -184,6 +184,8 @@ void ScreenRecoveryUI::draw_background_locked() {
+ // called with updateMutex locked.
+ void ScreenRecoveryUI::draw_foreground_locked() {
+   if (currentIcon != NONE) {
++    gr_color(0, 0, 0, 255);
++    gr_clear();
+     GRSurface* frame = GetCurrentFrame();
+     int frame_width = gr_get_width(frame);
+     int frame_height = gr_get_height(frame);
+@@ -487,12 +489,7 @@ void ScreenRecoveryUI::update_screen_locked() {
+ // Updates only the progress bar, if possible, otherwise redraws the screen.
+ // Should only be called with updateMutex locked.
+ void ScreenRecoveryUI::update_progress_locked() {
+-  if (show_text || !pagesIdentical) {
+-    draw_screen_locked();  // Must redraw the whole screen
+-    pagesIdentical = true;
+-  } else {
+-    draw_foreground_locked();  // Draw only the progress bar and overlays
+-  }
++  draw_foreground_locked();
+   gr_flip();
+ }
+ 
+@@ -512,7 +509,7 @@ void ScreenRecoveryUI::ProgressThreadLoop() {
+ 
+     // update the installation animation, if active
+     // skip this if we have a text overlay (too expensive to update)
+-    if ((currentIcon == INSTALLING_UPDATE || currentIcon == ERASING) && !show_text) {
++    if ((currentIcon == INSTALLING_UPDATE || currentIcon == ERASING)) {
+       if (!intro_done) {
+         if (current_frame == intro_frames - 1) {
+           intro_done = true;
+@@ -542,6 +539,10 @@ void ScreenRecoveryUI::ProgressThreadLoop() {
+     if (redraw) update_progress_locked();
+ 
+     pthread_mutex_unlock(&updateMutex);
++
++    if (progressBarType == EMPTY)
++      break;
++
+     double end = now();
+     // minimum of 20ms delay between frames
+     double delay = interval - (end - start);
+@@ -632,8 +633,6 @@ bool ScreenRecoveryUI::Init(const std::string& locale) {
+ 
+   LoadAnimation();
+ 
+-  pthread_create(&progress_thread_, nullptr, ProgressThreadStartRoutine, this);
+-
+   return true;
+ }
+ 
+@@ -692,6 +691,9 @@ void ScreenRecoveryUI::SetProgressType(ProgressType type) {
+   pthread_mutex_lock(&updateMutex);
+   if (progressBarType != type) {
+     progressBarType = type;
++    if (progressBarType != EMPTY) {
++      pthread_create(&progress_thread_, nullptr, ProgressThreadStartRoutine, this);
++    }
+   }
+   progressScopeStart = 0;
+   progressScopeSize = 0;
+-- 
+2.17.1
+

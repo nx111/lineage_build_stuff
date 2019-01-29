@@ -1203,13 +1203,57 @@ kpick 239738 # ARM: configs: Disable CONFIG_CRYPTO_FIPS for hlte devices
 kpick 238738 # bionic: Prefer /sbin/sh if it exists
 
 # boot/recovery
-kpick 231718 # recovery: Declare a soong namespace
+kpick 230746 # recovery: Get a proper shell environment in recovery
+kpick 238951 # Revert "recovery: Fork a process for fuse when sideloading from SD card."
+kpick 238952 # recovery: ui: Default to touch enabled
+kpick 238953 # recovery: ui: Minor cleanup for touch code
+kpick 238954 # recovery: ui: Support hardware virtual keys
+kpick 238955 # recovery: Puke out an /etc/fstab so stuff like busybox/toybox is happy
+kpick 238956 # recovery: Enable gunzip/gzip/unzip/zip commands
+kpick 238957 # recovery: Add fstools
+kpick 238958 # recovery: Include vendor init trigger
+kpick 238959 # recovery: Allow device-specific recovery modules
+kpick 238960 # recovery: Implement a volume manager
+kpick 238961 # recovery: Blank screen during shutdown and reboot
+kpick 238962 # recovery: Provide sideload cancellation
+kpick 238963 # recovery: bu: Implement backup/restore
+kpick 238964 # recovery: Provide caching for sideload files
+kpick 238965 # recovery: Add wipe system partition option
+kpick 238966 # recovery: Return to main menu after selection
+kpick 238967 # recovery: Fix the progress bar
+kpick 238968 # recovery: Dejank the menus, fix colors
+kpick 238969 # recovery: updater: Fix multi-stage docs
+kpick 238970 # recovery: Allow devices to reboot to download mode
+kpick 238971 # minui: support to pan display (FBIOPAN_DISPLAY)
+kpick 238973 # recovery: Remove "Supported API" message
+kpick 238974 # recovery: Enable the menu for User builds
+kpick 238975 # minui: accept RGBA and treat it as RGBX
+kpick 238976 # recovery: init: mount pstore fs
+kpick 238977 # recovery: Add performance control
+kpick 238978 # minui: Skip EV_REL input devices.
+kpick 238979 # recovery: Graphical UI
+kpick 238980 # recovery: New install/progress animation
+kpick 238981 # recovery: Respect margins in background and foreground screens
+kpick 238982 # recovery: Add awk lib and driver
+kpick 238983 # recovery: Fix redraws, flickering, and animation
+kpick 238985 # recovery: Do not show emulated when data is encrypted
+kpick 238986 # recovery: Add statusbar margin for panels with rounded corners
+kpick 238987 # recovery: Allow device specific backlight path
+kpick 238988 # recovery: Rework sideload threading code for flexibility
+kpick 238989 # recovery: Allow detecting user/release build at compile time
+kpick 238990 # recovery: Allow bypassing signature verification on non-release builds
+kpick 238991 # recovery: minui: Implement image scaling
+kpick 238992 # recovery: Scale logo image if necessary
+kpick 238993 # recovery: Add runtime checks for A/B vs traditional updates
+kpick 239450 # recovery: Remove HOST_OS guard for f2fs tools
+kpick 239451 # recovery: Add resize2fs, tune2fs to fstools
 
 # build/make
 kpick 222742 # build: Use project pathmap for recovery
 kpick 222760 # Add LOCAL_AIDL_FLAGS
 kpick 227111 # releasetools: Store the build.prop file in the OTA zip
 kpick 239212 # Stop using the `files` target for droidcore
+kpick 239296 # build: Remove charger from recovery unless needed
 
 # build/soong
 kpick 222648 # Allow providing flex and bison binaries
@@ -1227,7 +1271,6 @@ kpick 239138 # common: Add vendor.lineage.touch rules
 kpick 239703 # common: Migrate to livedisplay 2.0
 
 # device/qcom/sepolicy
-kpick 228572 # sepolicy: Allow system_server to 'read' qti_debugfs
 kpick 228573 # sepolicy: Add libsdm-disp-vndapis and libsdmutils to SP-HALs
 kpick 228578 # sepolicy: rules to allow camera daemon access to app buffer
 kpick 228582 # sepolicy: qti_init_shell needs to read dir too
@@ -1236,9 +1279,6 @@ kpick 228582 # sepolicy: qti_init_shell needs to read dir too
 kpick 230230 # common: fix sensors denial
 kpick 239736 # sepolicy-legacy: Allow vold to open keymaster firmware
 kpick 239741 # common: permit libqdutils operation (linked by mediaserver) during WFD
-kpick 239886 # legacy: Label msm8916 sysfs_android_usb
-kpick 239887 # legacy: Label msm8916 sysfs_disk_stat
-kpick 240027 # sepolicy: legacy: add additional usb charging path label
 kpick 240028 # sepolicy: vendor_init: allow vendor_init to read firmware files
 
 # development
@@ -1263,6 +1303,9 @@ kpick 225226 # f2fs-tools: Rename quota symbols
 kpick 225227 # f2fs-tools: Rename utf conversion symbols
 kpick 239378 # f2fs-tools: Add sload.f2fs support to libf2fs_fsck
 
+# external/fsck_msdos
+kpick 239460 # fsck_msdos: Build static lib for recovery
+
 # external/gptfdisk
 kpick 225228 # gptfdisk: Build static lib for recovery fstools
 kpick 239254 # gptfdisk: Provide sgdisk_read for direct reads of the partition table
@@ -1271,10 +1314,13 @@ kpick 239254 # gptfdisk: Provide sgdisk_read for direct reads of the partition t
 # kpick 237955
 
 # external/libtar
-# kpick 238626
+kpick 238626 # libtar: Build fixes
 
 # external/ntfs-3g
 kpick 239379 # ntfs-3g: Add static libs for recovery
+
+# external/one-true-awk
+kpick 225231 # awk: Add libawk_main for recovery and fixup symbols
 
 # external/perfetto
 kpick -f 223413 # perfetto_cmd: Resolve missing O_CREAT mode
@@ -1288,8 +1334,9 @@ kpick 225232 # toybox: Use toybox for dd and grep in recovery
 kpick 225233 # toybox: Add install to symlinks
 
 # external/zlib
-kpick 225237 # zlib: Fix build under Android 6.0 and higher
+kpick 225237 # minizip: Fix build under Android 6.0 and higher
 kpick 225238 # minizip: Clean up the code
+kpick 238630 # minizip: More build fixes
 
 # frameworks/av
 kpick 230387 # CameraService: Support calling addStates in enumerateProviders
@@ -1340,7 +1387,7 @@ kpick 238696 # fonts: Build different fonts.xml if EXCLUDE_SERIF_FONTS is true
 kpick 239179 # Camera: Force HAL1 for predefined package list.
 kpick 239520 # Reset all package signatures on boot
 kpick 239928 # audio: Don't play sound effects if stream is muted
-kpick 240034 # [AlarmManager]Use the correct func interface for send msg args
+#kpick 240034 # [AlarmManager]Use the correct func interface for send msg args
 kpick 240084 # ServiceRegistry: Don't throw an exception if OEM_LOCK is missing
 
 # frameworks/native
@@ -1617,11 +1664,11 @@ kpick 231717 # vold: Always use libbootloader_message from bootable/recovery nam
 # vendor/lineage
 kpick 223773 # Add IPv6 for Oister and 3. The 3.dk and oister.dk carriers now support IPv6 with the APN ”data.tre.dk”.
 kpick 225921 # overlay: Update list of GSF/GMS activities
-kpick 225938 # roomservice.py: document the hell out of the current behavior of the script
-kpick 225939 # roomservice.py: non-depsonly: bootstrap first device repo from Hudson
-kpick 225981 # roomservice.py: depsonly: do not look up device repo by name in the manifest
-kpick 225982 # roomservice.py: Strip cm.{mk,dependencies} support
-kpick 231249 # roomservice.py: adapt to lineage-16.0
+kpick 225938 # roomservice: document the hell out of the current behavior of the script
+kpick 225939 # roomservice: non-depsonly: bootstrap first device repo from Hudson
+kpick 225981 # roomservice: depsonly: do not look up device repo by name in the manifest
+kpick 225982 # roomservice: Strip cm.{mk,dependencies} support
+kpick 231249 # roomservice: adapt to lineage-16.0 realities
 kpick 229589 # lineage: Automatically set soong namespace when setting project pathmap
 kpick 229590 # lineage: Move qcom pathmap setting into "BoardConfig"
 kpick 231291 # repopick: add hashtag support

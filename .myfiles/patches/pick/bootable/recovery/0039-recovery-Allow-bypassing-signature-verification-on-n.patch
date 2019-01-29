@@ -1,0 +1,190 @@
+From a0f92888f8b3a4219da951c59a9c4a60947ee7b7 Mon Sep 17 00:00:00 2001
+From: Tom Marshall <tdm.code@gmail.com>
+Date: Thu, 21 Jun 2018 00:57:24 +0200
+Subject: [PATCH 39/44] recovery: Allow bypassing signature verification on
+ non-release builds
+
+For non-release (userdebug, eng) builds, when signature verification
+fails, ask the user whether they wish to install anyway.
+
+Change-Id: I950ad455e6f698cabe348f0482eb64287cc88a08
+---
+ adb_install.cpp |  4 ++--
+ adb_install.h   |  2 +-
+ install.cpp     | 10 +++++-----
+ install.h       |  4 ++--
+ recovery.cpp    | 29 +++++++++++++++++++++++++----
+ 5 files changed, 35 insertions(+), 14 deletions(-)
+
+diff --git a/adb_install.cpp b/adb_install.cpp
+index 35fbaf5f..1e9fd4db 100644
+--- a/adb_install.cpp
++++ b/adb_install.cpp
+@@ -144,7 +144,7 @@ void sideload_wait(bool cancel) {
+   pthread_join(sideload_thread, nullptr);
+ }
+ 
+-int sideload_install(bool* wipe_cache, const char* install_file) {
++int sideload_install(bool* wipe_cache, const char* install_file, bool verify) {
+   int result = INSTALL_ERROR;
+   if (sideload_started) {
+     modified_flash = true;
+@@ -154,7 +154,7 @@ int sideload_install(bool* wipe_cache, const char* install_file) {
+     result = install_package(FUSE_SIDELOAD_HOST_PATHNAME,
+                              wipe_cache,
+                              install_file,
+-                             false, 0);
++                             false, 0, verify);
+ 
+     set_perf_mode(false);
+   }
+diff --git a/adb_install.h b/adb_install.h
+index 61c34652..cb061b8a 100644
+--- a/adb_install.h
++++ b/adb_install.h
+@@ -19,7 +19,7 @@
+ 
+ void sideload_start();
+ void sideload_wait(bool cancel);
+-int  sideload_install(bool* wipe_cache, const char* install_file);
++int  sideload_install(bool* wipe_cache, const char* install_file, bool verify);
+ void sideload_stop();
+ 
+ #endif
+diff --git a/install.cpp b/install.cpp
+index 9b6123b5..06d8886b 100644
+--- a/install.cpp
++++ b/install.cpp
+@@ -572,7 +572,7 @@ bool verify_package_compatibility(ZipArchiveHandle package_zip) {
+ 
+ static int really_install_package(std::string path, bool* wipe_cache, bool needs_mount,
+                                   std::vector<std::string>* log_buffer, int retry_count,
+-                                  int* max_temperature) {
++                                  bool verify, int* max_temperature) {
+   ui->SetBackground(RecoveryUI::INSTALLING_UPDATE);
+   ui->Print("Finding update package...\n");
+   // Give verification half the progress bar...
+@@ -617,10 +617,10 @@ static int really_install_package(std::string path, bool* wipe_cache, bool needs
+ 
+   // Verify package.
+   set_perf_mode(true);
+-  if (!verify_package(map.addr, map.length)) {
++  if (verify && !verify_package(map.addr, map.length)) {
+     log_buffer->push_back(android::base::StringPrintf("error: %d", kZipVerificationFailure));
+     set_perf_mode(false);
+-    return INSTALL_CORRUPT;
++    return INSTALL_UNVERIFIED;
+   }
+ 
+   // Try to open the package.
+@@ -658,7 +658,7 @@ static int really_install_package(std::string path, bool* wipe_cache, bool needs
+ }
+ 
+ int install_package(const std::string& path, bool* wipe_cache, const std::string& install_file,
+-                    bool needs_mount, int retry_count) {
++                    bool needs_mount, int retry_count, bool verify) {
+   CHECK(!path.empty());
+   CHECK(!install_file.empty());
+   CHECK(wipe_cache != nullptr);
+@@ -676,7 +676,7 @@ int install_package(const std::string& path, bool* wipe_cache, const std::string
+     result = INSTALL_ERROR;
+   } else {
+     result = really_install_package(path, wipe_cache, needs_mount, &log_buffer, retry_count,
+-                                    &max_temperature);
++                                    verify, &max_temperature);
+   }
+ 
+   // Measure the time spent to apply OTA update in seconds.
+diff --git a/install.h b/install.h
+index 6cfa9cf6..39cc768f 100644
+--- a/install.h
++++ b/install.h
+@@ -21,12 +21,12 @@
+ #include <ziparchive/zip_archive.h>
+ 
+ enum { INSTALL_SUCCESS, INSTALL_ERROR, INSTALL_CORRUPT, INSTALL_NONE, INSTALL_SKIPPED,
+-        INSTALL_RETRY };
++        INSTALL_RETRY, INSTALL_UNVERIFIED };
+ 
+ // Installs the given update package. If INSTALL_SUCCESS is returned and *wipe_cache is true on
+ // exit, caller should wipe the cache partition.
+ int install_package(const std::string& package, bool* wipe_cache, const std::string& install_file,
+-                    bool needs_mount, int retry_count);
++                    bool needs_mount, int retry_count, bool verify);
+ 
+ // Verify the package by ota keys. Return true if the package is verified successfully,
+ // otherwise return false.
+diff --git a/recovery.cpp b/recovery.cpp
+index 2a0b8564..f654efe2 100644
+--- a/recovery.cpp
++++ b/recovery.cpp
+@@ -899,6 +899,15 @@ static bool yes_no(Device* device, const char* question1, const char* question2)
+     return (chosen_item == 1);
+ }
+ 
++static bool ask_to_continue_unverified_install(Device* device) {
++#ifdef RELEASE_BUILD
++    return false;
++#else
++    ui->SetProgressType(RecoveryUI::EMPTY);
++    return yes_no(device, "Signature verification failed", "Install anyway?");
++#endif
++}
++
+ static bool ask_to_wipe_data(Device* device) {
+     return yes_no(device, "Wipe all user data?", "  THIS CAN NOT BE UNDONE!");
+ }
+@@ -1238,7 +1247,14 @@ static int apply_from_storage(Device* device, VolumeInfo& vi, bool* wipe_cache)
+     VolumeManager::Instance()->volumeUnmount(vi.mId, true);
+ 
+     status = install_package(FUSE_SIDELOAD_HOST_PATHNAME, wipe_cache,
+-                                 TEMPORARY_INSTALL_FILE, false, 0/*retry_count*/);
++                                 TEMPORARY_INSTALL_FILE, false, 0/*retry_count*/,
++                                 true/*verify*/);
++    if (status == INSTALL_UNVERIFIED &&
++      ask_to_continue_unverified_install(device)) {
++        status = install_package(FUSE_SIDELOAD_HOST_PATHNAME, wipe_cache,
++                                 TEMPORARY_INSTALL_FILE, false, 0/*retry_count*/,
++                                 false/*verify*/);
++    }
+ 
+     finish_sdcard_fuse(token);
+     return status;
+@@ -1285,10 +1301,15 @@ refresh:
+                                       false, 0, device);
+         if (item == Device::kRefresh) {
+             sideload_wait(false);
+-            status = sideload_install(wipe_cache, TEMPORARY_INSTALL_FILE);
++            status = sideload_install(wipe_cache, TEMPORARY_INSTALL_FILE, true);
++            if (status == INSTALL_UNVERIFIED &&
++              ask_to_continue_unverified_install(device)) {
++                status = sideload_install(wipe_cache, TEMPORARY_INSTALL_FILE, false);
++            }
+         }
+         else {
+             sideload_wait(true);
++            status = INSTALL_NONE;
+         }
+         sideload_stop();
+     }
+@@ -1890,7 +1911,7 @@ int main(int argc, char **argv) {
+       }
+ 
+       status = install_package(update_package, &should_wipe_cache, TEMPORARY_INSTALL_FILE, true,
+-                               retry_count);
++                               retry_count, true);
+       if (status == INSTALL_SUCCESS && should_wipe_cache) {
+         wipe_cache(false, device);
+       }
+@@ -1953,7 +1974,7 @@ int main(int argc, char **argv) {
+     }
+     sideload_start();
+     sideload_wait(false);
+-    status = sideload_install(&should_wipe_cache, TEMPORARY_INSTALL_FILE);
++    status = sideload_install(&should_wipe_cache, TEMPORARY_INSTALL_FILE, true);
+     sideload_stop();
+     if (status == INSTALL_SUCCESS && should_wipe_cache) {
+       if (!wipe_cache(false, device)) {
+-- 
+2.17.1
+

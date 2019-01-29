@@ -1,4 +1,4 @@
-From 1d08c598cd5bd491366c36e67eb0f5ac14e36159 Mon Sep 17 00:00:00 2001
+From 0ef385946bb15a8286f98b562a71a8d9ef8c5465 Mon Sep 17 00:00:00 2001
 From: Jan Altensen <info@stricted.net>
 Date: Sun, 20 Jan 2019 02:40:07 +0100
 Subject: [PATCH 5/5] hidl: livedisplay: Add binderized service implementation
@@ -12,31 +12,32 @@ Subject: [PATCH 5/5] hidl: livedisplay: Add binderized service implementation
 
 Change-Id: I545a7c0ac8bf4fce04da73a0d39d4ac1938496f2
 ---
- .../hidl/livedisplay/AdaptiveBacklight.cpp    |  31 ++--
+ .../hidl/livedisplay/AdaptiveBacklight.cpp    |  31 +--
  .../hidl/livedisplay/AdaptiveBacklight.h      |  12 +-
  lineagehw/hidl/livedisplay/Android.bp         |  24 +--
- lineagehw/hidl/livedisplay/AutoContrast.cpp   |  47 ------
- lineagehw/hidl/livedisplay/ColorBalance.h     |  57 -------
- .../hidl/livedisplay/ColorEnhancement.cpp     |  47 ------
+ lineagehw/hidl/livedisplay/AutoContrast.cpp   |  47 -----
+ lineagehw/hidl/livedisplay/ColorBalance.h     |  57 ------
+ .../hidl/livedisplay/ColorEnhancement.cpp     |  47 -----
  .../livedisplay/DisplayColorCalibration.cpp   |   8 +-
  .../livedisplay/DisplayColorCalibration.h     |   8 +-
- lineagehw/hidl/livedisplay/DisplayModes.cpp   |  12 +-
- lineagehw/hidl/livedisplay/DisplayModes.h     |  12 +-
- .../hidl/livedisplay/PictureAdjustment.cpp    |  77 ---------
- .../hidl/livedisplay/PictureAdjustment.h      |  62 -------
- .../hidl/livedisplay/ReadingEnhancement.cpp   |  30 +++-
- .../hidl/livedisplay/ReadingEnhancement.h     |  11 +-
+ lineagehw/hidl/livedisplay/DisplayModes.cpp   | 106 +++++++++--
+ lineagehw/hidl/livedisplay/DisplayModes.h     |  23 ++-
+ .../hidl/livedisplay/PictureAdjustment.cpp    |  77 --------
+ .../hidl/livedisplay/PictureAdjustment.h      |  62 ------
+ .../hidl/livedisplay/ReadingEnhancement.cpp   |  34 +++-
+ .../hidl/livedisplay/ReadingEnhancement.h     |  14 +-
  ...lance.cpp => ReadingEnhancementExynos.cpp} |  43 +++--
  ...hancement.h => ReadingEnhancementExynos.h} |  24 +--
  .../hidl/livedisplay/SunlightEnhancement.cpp  |  46 +++--
  .../hidl/livedisplay/SunlightEnhancement.h    |  12 +-
- .../livedisplay/SunlightEnhancementExynos.cpp |  59 +++++++
+ .../livedisplay/SunlightEnhancementExynos.cpp |  59 ++++++
  ...Contrast.h => SunlightEnhancementExynos.h} |  22 +--
- lineagehw/hidl/livedisplay/service.cpp        | 157 ++++++++++++++++++
+ lineagehw/hidl/livedisplay/service.cpp        | 179 ++++++++++++++++++
  ...lineage.livedisplay@2.0-service.samsung.rc |   4 +
- .../lineageos/hardware/AdaptiveBacklight.java |  59 -------
- .../hardware/SunlightEnhancement.java         |  86 ----------
- 24 files changed, 393 insertions(+), 557 deletions(-)
+ .../lineageos/hardware/AdaptiveBacklight.java |  59 ------
+ .../hardware/DisplayModeControl.java          | 142 --------------
+ .../hardware/SunlightEnhancement.java         |  86 ---------
+ 25 files changed, 508 insertions(+), 718 deletions(-)
  delete mode 100644 lineagehw/hidl/livedisplay/AutoContrast.cpp
  delete mode 100644 lineagehw/hidl/livedisplay/ColorBalance.h
  delete mode 100644 lineagehw/hidl/livedisplay/ColorEnhancement.cpp
@@ -49,6 +50,7 @@ Change-Id: I545a7c0ac8bf4fce04da73a0d39d4ac1938496f2
  create mode 100644 lineagehw/hidl/livedisplay/service.cpp
  create mode 100644 lineagehw/hidl/livedisplay/vendor.lineage.livedisplay@2.0-service.samsung.rc
  delete mode 100644 lineagehw/src/org/lineageos/hardware/AdaptiveBacklight.java
+ delete mode 100644 lineagehw/src/org/lineageos/hardware/DisplayModeControl.java
  delete mode 100644 lineagehw/src/org/lineageos/hardware/SunlightEnhancement.java
 
 diff --git a/lineagehw/hidl/livedisplay/AdaptiveBacklight.cpp b/lineagehw/hidl/livedisplay/AdaptiveBacklight.cpp
@@ -431,51 +433,147 @@ index f4df651..8c1f8f8 100644
  }  // namespace livedisplay
  }  // namespace lineage
 diff --git a/lineagehw/hidl/livedisplay/DisplayModes.cpp b/lineagehw/hidl/livedisplay/DisplayModes.cpp
-index 6fcf88d..b16ae47 100644
+index 6fcf88d..0202be6 100644
 --- a/lineagehw/hidl/livedisplay/DisplayModes.cpp
 +++ b/lineagehw/hidl/livedisplay/DisplayModes.cpp
-@@ -20,25 +20,25 @@ namespace vendor {
+@@ -14,43 +14,121 @@
+  * limitations under the License.
+  */
+ 
++#define LOG_TAG "DisplayModesService"
++
+ #include "DisplayModes.h"
++#include <android-base/logging.h>
++#include <fstream>
+ 
+ namespace vendor {
  namespace lineage {
  namespace livedisplay {
  namespace V2_0 {
 -namespace implementation {
 +namespace samsung {
++
++
++static constexpr const char* kModePath = "/sys/class/mdnie/mdnie/mode";
++static constexpr const char* kModeMaxPath = "/sys/class/mdnie/mdnie/mode_max";
++static constexpr const char* kDefaultPath = "/data/misc/.displaymodedefault";
++
++const std::map<int32_t, std::string> DisplayModes::kModeMap = {
++    {0, "Dynamic"},
++    {1, "Standard"},
++    {2, "Natural"},
++    {3, "Cinema"},
++    {4, "Adaptive"},
++    {5, "Reading"},
++};
++
++DisplayModes::DisplayModes() : mDefaultModeId(0) {
++    std::ifstream defaultFile(kDefaultPath);
++    int value;
++
++    defaultFile >> value;
++    LOG(DEBUG) << "Default file read result " << value << " fail " << defaultFile.fail();
++    if (defaultFile.fail()) {
++        return;
++    }
++
++    for (const auto& entry : kModeMap) {
++        if (value == entry.first) {
++            mDefaultModeId = entry.first;
++            break;
++        }
++    }
++}
++
++bool DisplayModes::isSupported() {
++    std::ofstream modeFile(kModePath);
++    return modeFile.good();
++}
  
  // Methods from ::vendor::lineage::livedisplay::V2_0::IDisplayModes follow.
 -Return<void> DisplayModes::getDisplayModes(getDisplayModes_cb _hidl_cb) {
-+Return<void> DisplayModes::getDisplayModes(getDisplayModes_cb) {
-     // TODO implement
+-    // TODO implement
++Return<void> DisplayModes::getDisplayModes(getDisplayModes_cb resultCb) {
++    std::ifstream maxModeFile(kModeMaxPath);
++    int value;
++    std::vector<DisplayMode> modes;
++    if (!maxModeFile.fail()) {
++        maxModeFile >> value;
++    } else {
++        value = kModeMap.size();
++    }
++    for (const auto& entry : kModeMap) {
++        if (entry.first < value)
++            modes.push_back({entry.first, entry.second});
++    }
++    resultCb(modes);
      return Void();
  }
  
 -Return<void> DisplayModes::getCurrentDisplayMode(getCurrentDisplayMode_cb _hidl_cb) {
-+Return<void> DisplayModes::getCurrentDisplayMode(getCurrentDisplayMode_cb) {
-     // TODO implement
+-    // TODO implement
++Return<void> DisplayModes::getCurrentDisplayMode(getCurrentDisplayMode_cb resultCb) {
++    int32_t currentModeId = mDefaultModeId;
++    std::ifstream modeFile(kModePath);
++    int value;
++    modeFile >> value;
++    if (!modeFile.fail()) {
++        for (const auto& entry : kModeMap) {
++            if (value == entry.first) {
++                currentModeId = entry.first;
++                break;
++            }
++        }
++    }
++    resultCb({currentModeId, kModeMap.at(currentModeId)});
      return Void();
  }
  
 -Return<void> DisplayModes::getDefaultDisplayMode(getDefaultDisplayMode_cb _hidl_cb) {
-+Return<void> DisplayModes::getDefaultDisplayMode(getDefaultDisplayMode_cb) {
-     // TODO implement
+-    // TODO implement
++Return<void> DisplayModes::getDefaultDisplayMode(getDefaultDisplayMode_cb resultCb) {
++    resultCb({mDefaultModeId, kModeMap.at(mDefaultModeId)});
      return Void();
  }
  
--Return<bool> DisplayModes::setDisplayMode(int32_t modeID, bool makeDefault) {
-+Return<bool> DisplayModes::setDisplayMode(int32_t, bool) {
-     // TODO implement
-     return bool {};
+ Return<bool> DisplayModes::setDisplayMode(int32_t modeID, bool makeDefault) {
+-    // TODO implement
+-    return bool {};
++    const auto iter = kModeMap.find(modeID);
++    if (iter == kModeMap.end()) {
++        return false;
++    }
++    std::ofstream modeFile(kModePath);
++    modeFile << iter->first;
++    if (modeFile.fail()) {
++        return false;
++    }
++
++    if (makeDefault) {
++        std::ofstream defaultFile(kDefaultPath);
++        defaultFile << iter->first;
++        if (defaultFile.fail()) {
++            return false;
++        }
++        mDefaultModeId = iter->first;
++    }
++    return true;
  }
-@@ -50,7 +50,7 @@ Return<bool> DisplayModes::setDisplayMode(int32_t modeID, bool makeDefault) {
-     //return new DisplayModes();
- //}
- //
+ 
+ 
+ // Methods from ::android::hidl::base::V1_0::IBase follow.
+ 
+-//IDisplayModes* HIDL_FETCH_IDisplayModes(const char* /* name */) {
+-    //return new DisplayModes();
+-//}
+-//
 -}  // namespace implementation
 +}  // namespace samsung
  }  // namespace V2_0
  }  // namespace livedisplay
  }  // namespace lineage
 diff --git a/lineagehw/hidl/livedisplay/DisplayModes.h b/lineagehw/hidl/livedisplay/DisplayModes.h
-index 90f0cb3..06a188c 100644
+index 90f0cb3..ef539fc 100644
 --- a/lineagehw/hidl/livedisplay/DisplayModes.h
 +++ b/lineagehw/hidl/livedisplay/DisplayModes.h
 @@ -25,7 +25,7 @@ namespace vendor {
@@ -487,25 +585,35 @@ index 90f0cb3..06a188c 100644
  
  using ::android::hardware::hidl_array;
  using ::android::hardware::hidl_memory;
-@@ -37,10 +37,10 @@ using ::android::sp;
+@@ -35,21 +35,24 @@ using ::android::hardware::Return;
+ using ::android::hardware::Void;
+ using ::android::sp;
  
- struct DisplayModes : public IDisplayModes {
+-struct DisplayModes : public IDisplayModes {
++class DisplayModes : public IDisplayModes {
++  public:
++    DisplayModes();
++    bool isSupported();
++
      // Methods from ::vendor::lineage::livedisplay::V2_0::IDisplayModes follow.
 -    Return<void> getDisplayModes(getDisplayModes_cb _hidl_cb) override;
 -    Return<void> getCurrentDisplayMode(getCurrentDisplayMode_cb _hidl_cb) override;
 -    Return<void> getDefaultDisplayMode(getDefaultDisplayMode_cb _hidl_cb) override;
--    Return<bool> setDisplayMode(int32_t modeID, bool makeDefault) override;
-+    Return<void> getDisplayModes(getDisplayModes_cb) override;
-+    Return<void> getCurrentDisplayMode(getCurrentDisplayMode_cb) override;
-+    Return<void> getDefaultDisplayMode(getDefaultDisplayMode_cb) override;
-+    Return<bool> setDisplayMode(int32_t, bool) override;
++    Return<void> getDisplayModes(getDisplayModes_cb resultCb) override;
++    Return<void> getCurrentDisplayMode(getCurrentDisplayMode_cb resultCb) override;
++    Return<void> getDefaultDisplayMode(getDefaultDisplayMode_cb resultCb) override;
+     Return<bool> setDisplayMode(int32_t modeID, bool makeDefault) override;
  
      // Methods from ::android::hidl::base::V1_0::IBase follow.
+-
++  private:
++    static const std::map<int32_t, std::string> kModeMap;
++    int32_t mDefaultModeId;
+ };
  
-@@ -49,7 +49,7 @@ struct DisplayModes : public IDisplayModes {
- // FIXME: most likely delete, this is only for passthrough implementations
- // extern "C" IDisplayModes* HIDL_FETCH_IDisplayModes(const char* name);
- 
+-// FIXME: most likely delete, this is only for passthrough implementations
+-// extern "C" IDisplayModes* HIDL_FETCH_IDisplayModes(const char* name);
+-
 -}  // namespace implementation
 +}  // namespace samsung
  }  // namespace V2_0
@@ -663,10 +771,10 @@ index 17bfe66..0000000
 -
 -#endif  // VENDOR_LINEAGE_LIVEDISPLAY_V2_0_PICTUREADJUSTMENT_H
 diff --git a/lineagehw/hidl/livedisplay/ReadingEnhancement.cpp b/lineagehw/hidl/livedisplay/ReadingEnhancement.cpp
-index ea27c90..fdcb165 100644
+index ea27c90..a811075 100644
 --- a/lineagehw/hidl/livedisplay/ReadingEnhancement.cpp
 +++ b/lineagehw/hidl/livedisplay/ReadingEnhancement.cpp
-@@ -14,23 +14,41 @@
+@@ -14,33 +14,47 @@
   * limitations under the License.
   */
  
@@ -713,17 +821,19 @@ index ea27c90..fdcb165 100644
  }
  
  
-@@ -40,7 +58,7 @@ Return<bool> ReadingEnhancement::setEnabled(bool enabled) {
-     //return new ReadingEnhancement();
- //}
- //
+ // Methods from ::android::hidl::base::V1_0::IBase follow.
+ 
+-//IReadingEnhancement* HIDL_FETCH_IReadingEnhancement(const char* /* name */) {
+-    //return new ReadingEnhancement();
+-//}
+-//
 -}  // namespace implementation
 +}  // namespace samsung
  }  // namespace V2_0
  }  // namespace livedisplay
  }  // namespace lineage
 diff --git a/lineagehw/hidl/livedisplay/ReadingEnhancement.h b/lineagehw/hidl/livedisplay/ReadingEnhancement.h
-index 20e909a..dd215e0 100644
+index 20e909a..6fa7084 100644
 --- a/lineagehw/hidl/livedisplay/ReadingEnhancement.h
 +++ b/lineagehw/hidl/livedisplay/ReadingEnhancement.h
 @@ -25,7 +25,7 @@ namespace vendor {
@@ -735,7 +845,7 @@ index 20e909a..dd215e0 100644
  
  using ::android::hardware::hidl_array;
  using ::android::hardware::hidl_memory;
-@@ -35,10 +35,13 @@ using ::android::hardware::Return;
+@@ -35,19 +35,19 @@ using ::android::hardware::Return;
  using ::android::hardware::Void;
  using ::android::sp;
  
@@ -751,10 +861,11 @@ index 20e909a..dd215e0 100644
  
      // Methods from ::android::hidl::base::V1_0::IBase follow.
  
-@@ -47,7 +50,7 @@ struct ReadingEnhancement : public IReadingEnhancement {
- // FIXME: most likely delete, this is only for passthrough implementations
- // extern "C" IReadingEnhancement* HIDL_FETCH_IReadingEnhancement(const char* name);
+ };
  
+-// FIXME: most likely delete, this is only for passthrough implementations
+-// extern "C" IReadingEnhancement* HIDL_FETCH_IReadingEnhancement(const char* name);
+-
 -}  // namespace implementation
 +}  // namespace samsung
  }  // namespace V2_0
@@ -1129,10 +1240,10 @@ index 44a8be6..5bf9798 100644
 +#endif  // VENDOR_LINEAGE_LIVEDISPLAY_V2_0_SUNLIGHTENHANCEMENTEXYNOS_H
 diff --git a/lineagehw/hidl/livedisplay/service.cpp b/lineagehw/hidl/livedisplay/service.cpp
 new file mode 100644
-index 0000000..3fe3d50
+index 0000000..13b9c83
 --- /dev/null
 +++ b/lineagehw/hidl/livedisplay/service.cpp
-@@ -0,0 +1,157 @@
+@@ -0,0 +1,179 @@
 +/*
 + * Copyright (C) 2019 The LineageOS Project
 + *
@@ -1156,6 +1267,7 @@ index 0000000..3fe3d50
 +#include <hidl/HidlTransportSupport.h>
 +
 +#include "AdaptiveBacklight.h"
++#include "DisplayModes.h"
 +#include "ReadingEnhancement.h"
 +#include "ReadingEnhancementExynos.h"
 +#include "SunlightEnhancement.h"
@@ -1168,6 +1280,7 @@ index 0000000..3fe3d50
 +using android::OK;
 +
 +using vendor::lineage::livedisplay::V2_0::samsung::AdaptiveBacklight;
++using vendor::lineage::livedisplay::V2_0::samsung::DisplayModes;
 +using vendor::lineage::livedisplay::V2_0::samsung::ReadingEnhancement;
 +using vendor::lineage::livedisplay::V2_0::samsung::ReadingEnhancementExynos;
 +using vendor::lineage::livedisplay::V2_0::samsung::SunlightEnhancement;
@@ -1175,6 +1288,7 @@ index 0000000..3fe3d50
 +
 +int main() {
 +    sp<AdaptiveBacklight> adaptiveBacklight;
++    sp<DisplayModes> displayModes;
 +    sp<ReadingEnhancement> readingEnhancement;
 +    sp<ReadingEnhancementExynos> readingEnhancementExynos;
 +    sp<SunlightEnhancement> sunlightEnhancement;
@@ -1190,6 +1304,15 @@ index 0000000..3fe3d50
 +        goto shutdown;
 +    }
 +    if (adaptiveBacklight->isSupported()) {
++        services++;
++    }
++
++    displayModes = new DisplayModes();
++    if (displayModes == nullptr) {
++        LOG(ERROR) << "Can not create an instance of LiveDisplay HAL DisplayModes Iface, exiting.";
++        goto shutdown;
++    }
++    if (displayModes->isSupported()) {
 +        services++;
 +    }
 +
@@ -1236,6 +1359,16 @@ index 0000000..3fe3d50
 +        if (status != OK) {
 +            LOG(ERROR)
 +                << "Could not register service for LiveDisplay HAL AdaptiveBacklight Iface ("
++                << status << ")";
++            goto shutdown;
++        }
++    }
++
++    if (displayModes->isSupported()) {
++        status = displayModes->registerAsService();
++        if (status != OK) {
++            LOG(ERROR)
++                << "Could not register service for LiveDisplay HAL DisplayModes Iface ("
 +                << status << ")";
 +            goto shutdown;
 +        }
@@ -1364,6 +1497,154 @@ index dd3f93a..0000000
 -     */
 -    public static boolean setEnabled(boolean status) {
 -        return FileUtils.writeLine(FILE_CABC, status ? "1" : "0");
+-    }
+-}
+diff --git a/lineagehw/src/org/lineageos/hardware/DisplayModeControl.java b/lineagehw/src/org/lineageos/hardware/DisplayModeControl.java
+deleted file mode 100644
+index a03a591..0000000
+--- a/lineagehw/src/org/lineageos/hardware/DisplayModeControl.java
++++ /dev/null
+@@ -1,142 +0,0 @@
+-/*
+- * Copyright (C) 2015-2016 The CyanogenMod Project
+- *           (C) 2017 The LineageOS Project
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License");
+- * you may not use this file except in compliance with the License.
+- * You may obtain a copy of the License at
+- *
+- *      http://www.apache.org/licenses/LICENSE-2.0
+- *
+- * Unless required by applicable law or agreed to in writing, software
+- * distributed under the License is distributed on an "AS IS" BASIS,
+- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+- * See the License for the specific language governing permissions and
+- * limitations under the License.
+- */
+-
+-package org.lineageos.hardware;
+-
+-import lineageos.hardware.DisplayMode;
+-import org.lineageos.internal.util.FileUtils;
+-
+-import java.util.Arrays;
+-
+-/*
+- * Display Modes API
+- *
+- * A device may implement a list of preset display modes for different
+- * viewing intents, such as movies, photos, or extra vibrance. These
+- * modes may have multiple components such as gamma correction, white
+- * point adjustment, etc, but are activated by a single control point.
+- *
+- * This API provides support for enumerating and selecting the
+- * modes supported by the hardware.
+- */
+-
+-public class DisplayModeControl {
+-
+-    private static final String MODE_PATH = "/sys/class/mdnie/mdnie/mode";
+-    private static final String MAX_PATH = "/sys/class/mdnie/mdnie/mode_max";
+-    private static final String DEFAULT_PATH = "/data/misc/.displaymodedefault";
+-
+-    private static final DisplayMode[] DISPLAY_MODES = {
+-        new DisplayMode(0, "Dynamic"),
+-        new DisplayMode(1, "Standard"),
+-        new DisplayMode(2, "Natural"),
+-        new DisplayMode(3, "Cinema"),
+-        new DisplayMode(4, "Adaptive"),
+-        new DisplayMode(5, "Reading"),
+-    };
+-
+-    static {
+-        if (FileUtils.isFileReadable(DEFAULT_PATH)) {
+-            setMode(getDefaultMode(), false);
+-        } else if (FileUtils.isFileReadable(MODE_PATH)) {
+-            /* If default mode is not set yet, set current mode as default */
+-            setMode(getCurrentMode(), true);
+-        }
+-    }
+-
+-    /*
+-     * All HAF classes should export this boolean.
+-     * Real implementations must, of course, return true
+-     */
+-    public static boolean isSupported() {
+-        return FileUtils.isFileWritable(MODE_PATH) &&
+-                FileUtils.isFileReadable(MODE_PATH) &&
+-                FileUtils.isFileWritable(DEFAULT_PATH) &&
+-                FileUtils.isFileReadable(DEFAULT_PATH);
+-    }
+-
+-    /*
+-     * Get the list of available modes. A mode has an integer
+-     * identifier and a string name.
+-     *
+-     * It is the responsibility of the upper layers to
+-     * map the name to a human-readable format or perform translation.
+-     */
+-    public static DisplayMode[] getAvailableModes() {
+-        /* node is unreadable */
+-        if (!FileUtils.isFileReadable(MAX_PATH)) {
+-            return DISPLAY_MODES;
+-        }
+-
+-        int max;
+-        try {
+-            max = Integer.parseInt(FileUtils.readOneLine(MAX_PATH));
+-        } catch (NumberFormatException e) {
+-            /* max is not an integer */
+-            return DISPLAY_MODES;
+-        }
+-
+-        /* max is invalid */
+-        return Arrays.copyOfRange(DISPLAY_MODES, 0,
+-                max >= 0 ? max : DISPLAY_MODES.length);
+-    }
+-
+-    /*
+-     * Get the name of the currently selected mode. This can return
+-     * null if no mode is selected.
+-     */
+-    public static DisplayMode getCurrentMode() {
+-        try {
+-            int mode = Integer.parseInt(FileUtils.readOneLine(MODE_PATH));
+-            return DISPLAY_MODES[mode];
+-        } catch (NumberFormatException | ArrayIndexOutOfBoundsException e) {
+-            return null;
+-        }
+-    }
+-
+-    /*
+-     * Selects a mode from the list of available modes by it's
+-     * string identifier. Returns true on success, false for
+-     * failure. It is up to the implementation to determine
+-     * if this mode is valid.
+-     */
+-    public static boolean setMode(DisplayMode mode, boolean makeDefault) {
+-        if (mode == null) {
+-            return false;
+-        }
+-
+-        boolean success = FileUtils.writeLine(MODE_PATH, String.valueOf(mode.id));
+-        if (success && makeDefault) {
+-            return FileUtils.writeLine(DEFAULT_PATH, String.valueOf(mode.id));
+-        }
+-
+-        return success;
+-    }
+-
+-    /*
+-     * Gets the preferred default mode for this device by it's
+-     * string identifier. Can return null if there is no default.
+-     */
+-    public static DisplayMode getDefaultMode() {
+-        try {
+-            int mode = Integer.parseInt(FileUtils.readOneLine(DEFAULT_PATH));
+-            return DISPLAY_MODES[mode];
+-        } catch (NumberFormatException | ArrayIndexOutOfBoundsException e) {
+-            return null;
+-        }
 -    }
 -}
 diff --git a/lineagehw/src/org/lineageos/hardware/SunlightEnhancement.java b/lineagehw/src/org/lineageos/hardware/SunlightEnhancement.java

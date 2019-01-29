@@ -1,0 +1,4982 @@
+From c20d67129bec63b7fc882d7fac80f98b0fa325fc Mon Sep 17 00:00:00 2001
+From: Tom Marshall <tdm.code@gmail.com>
+Date: Fri, 4 Jan 2019 14:37:31 -0800
+Subject: [PATCH 11/44] recovery: Implement a volume manager
+
+This is a copy of the pre-binderized vold which has been converted to
+use direct calls instead of sockets and stripped down to only what is
+needed to support recovery.
+
+Change-Id: Ic82d929e052b5ba70ecf7b475e0a223d77d9687e
+---
+ Android.bp                                    |   1 +
+ Android.mk                                    |   3 +
+ device.cpp                                    |   9 +-
+ device.h                                      |   7 +-
+ etc/init.rc                                   |  20 +
+ fuse_sdcard_provider.cpp                      |   4 -
+ install.cpp                                   |  19 +-
+ mounts.cpp                                    |  12 +
+ mounts.h                                      |   1 +
+ recovery.cpp                                  | 132 ++++--
+ roots.cpp                                     |  84 +++-
+ roots.h                                       |   8 +-
+ ui.cpp                                        |  25 +-
+ ui.h                                          |   7 +
+ volclient.cpp                                 |  25 ++
+ volclient.h                                   |  33 ++
+ volume_manager/Android.bp                     |  55 +++
+ volume_manager/Disk.cpp                       | 393 +++++++++++++++++
+ volume_manager/Disk.h                         | 124 ++++++
+ volume_manager/DiskPartition.cpp              |  80 ++++
+ volume_manager/DiskPartition.h                |  54 +++
+ volume_manager/EmulatedVolume.cpp             |  97 ++++
+ volume_manager/EmulatedVolume.h               |  62 +++
+ volume_manager/NetlinkHandler.cpp             |  57 +++
+ volume_manager/NetlinkHandler.h               |  34 ++
+ volume_manager/NetlinkManager.cpp             | 105 +++++
+ volume_manager/NetlinkManager.h               |  44 ++
+ volume_manager/Process.cpp                    | 218 +++++++++
+ volume_manager/Process.h                      |  35 ++
+ volume_manager/PublicVolume.cpp               | 158 +++++++
+ volume_manager/PublicVolume.h                 |  75 ++++
+ volume_manager/ResponseCode.cpp               |  42 ++
+ volume_manager/ResponseCode.h                 |  90 ++++
+ volume_manager/Utils.cpp                      | 336 ++++++++++++++
+ volume_manager/Utils.h                        |  87 ++++
+ volume_manager/VolumeBase.cpp                 | 193 ++++++++
+ volume_manager/VolumeBase.h                   | 137 ++++++
+ volume_manager/VolumeManager.cpp              | 414 ++++++++++++++++++
+ volume_manager/fs/Exfat.cpp                   |  79 ++++
+ volume_manager/fs/Exfat.h                     |  38 ++
+ volume_manager/fs/Ext4.cpp                    | 170 +++++++
+ volume_manager/fs/Ext4.h                      |  40 ++
+ volume_manager/fs/F2fs.cpp                    |  93 ++++
+ volume_manager/fs/F2fs.h                      |  39 ++
+ volume_manager/fs/Ntfs.cpp                    |  84 ++++
+ volume_manager/fs/Ntfs.h                      |  38 ++
+ volume_manager/fs/Vfat.cpp                    | 171 ++++++++
+ volume_manager/fs/Vfat.h                      |  39 ++
+ .../include/volume_manager/VolumeManager.h    | 131 ++++++
+ volume_manager/sehandle.h                     |  24 +
+ 50 files changed, 4175 insertions(+), 51 deletions(-)
+ create mode 100644 volclient.cpp
+ create mode 100644 volclient.h
+ create mode 100644 volume_manager/Android.bp
+ create mode 100644 volume_manager/Disk.cpp
+ create mode 100644 volume_manager/Disk.h
+ create mode 100644 volume_manager/DiskPartition.cpp
+ create mode 100644 volume_manager/DiskPartition.h
+ create mode 100644 volume_manager/EmulatedVolume.cpp
+ create mode 100644 volume_manager/EmulatedVolume.h
+ create mode 100644 volume_manager/NetlinkHandler.cpp
+ create mode 100644 volume_manager/NetlinkHandler.h
+ create mode 100644 volume_manager/NetlinkManager.cpp
+ create mode 100644 volume_manager/NetlinkManager.h
+ create mode 100644 volume_manager/Process.cpp
+ create mode 100644 volume_manager/Process.h
+ create mode 100644 volume_manager/PublicVolume.cpp
+ create mode 100644 volume_manager/PublicVolume.h
+ create mode 100644 volume_manager/ResponseCode.cpp
+ create mode 100644 volume_manager/ResponseCode.h
+ create mode 100644 volume_manager/Utils.cpp
+ create mode 100644 volume_manager/Utils.h
+ create mode 100644 volume_manager/VolumeBase.cpp
+ create mode 100644 volume_manager/VolumeBase.h
+ create mode 100644 volume_manager/VolumeManager.cpp
+ create mode 100644 volume_manager/fs/Exfat.cpp
+ create mode 100644 volume_manager/fs/Exfat.h
+ create mode 100644 volume_manager/fs/Ext4.cpp
+ create mode 100644 volume_manager/fs/Ext4.h
+ create mode 100644 volume_manager/fs/F2fs.cpp
+ create mode 100644 volume_manager/fs/F2fs.h
+ create mode 100644 volume_manager/fs/Ntfs.cpp
+ create mode 100644 volume_manager/fs/Ntfs.h
+ create mode 100644 volume_manager/fs/Vfat.cpp
+ create mode 100644 volume_manager/fs/Vfat.h
+ create mode 100644 volume_manager/include/volume_manager/VolumeManager.h
+ create mode 100644 volume_manager/sehandle.h
+
+diff --git a/Android.bp b/Android.bp
+index f8c6a4b7..fdb4040b 100644
+--- a/Android.bp
++++ b/Android.bp
+@@ -5,4 +5,5 @@ subdirs = [
+     "otafault",
+     "otautil",
+     "uncrypt",
++    "volume_manager",
+ ]
+diff --git a/Android.mk b/Android.mk
+index 5cc1a6c6..b5a24ff1 100644
+--- a/Android.mk
++++ b/Android.mk
+@@ -64,6 +64,7 @@ LOCAL_STATIC_LIBRARIES := \
+     libcrypto \
+     libbase \
+     libziparchive \
++    libvolume_manager \
+ 
+ include $(BUILD_STATIC_LIBRARY)
+ 
+@@ -80,6 +81,7 @@ LOCAL_SRC_FILES := \
+     rotate_logs.cpp \
+     screen_ui.cpp \
+     ui.cpp \
++    volclient.cpp \
+     vr_ui.cpp \
+     wear_ui.cpp \
+ 
+@@ -172,6 +174,7 @@ LOCAL_STATIC_LIBRARIES += \
+     libsparse \
+     libreboot \
+     libziparchive \
++    libvolume_manager \
+     libminipigz_static \
+     libzopfli_static \
+     libminizip_static \
+diff --git a/device.cpp b/device.cpp
+index f0980e8a..5c34e57c 100644
+--- a/device.cpp
++++ b/device.cpp
+@@ -19,8 +19,7 @@
+ static const char* MENU_ITEMS[] = {
+   "Reboot system now",
+   "Reboot to bootloader",
+-  "Apply update from ADB",
+-  "Apply update from SD card",
++  "Apply update",
+   "Wipe data/factory reset",
+ #ifndef AB_OTA_UPDATER
+   "Wipe cache partition",
+@@ -36,8 +35,7 @@ static const char* MENU_ITEMS[] = {
+ static const Device::BuiltinAction MENU_ACTIONS[] = {
+   Device::REBOOT,
+   Device::REBOOT_BOOTLOADER,
+-  Device::APPLY_ADB_SIDELOAD,
+-  Device::APPLY_SDCARD,
++  Device::APPLY_UPDATE,
+   Device::WIPE_DATA,
+ #ifndef AB_OTA_UPDATER
+   Device::WIPE_CACHE,
+@@ -94,6 +92,9 @@ int Device::HandleMenuKey(int key, bool visible) {
+     case KEY_BACK:
+       return kGoBack;
+ 
++    case KEY_REFRESH:
++      return kRefresh;
++
+     default:
+       // If you have all of the above buttons, any other buttons
+       // are ignored. Otherwise, any button cycles the highlight.
+diff --git a/device.h b/device.h
+index c31fd524..7d3477cb 100644
+--- a/device.h
++++ b/device.h
+@@ -56,9 +56,9 @@ class Device {
+   enum BuiltinAction {
+     NO_ACTION = 0,
+     REBOOT = 1,
+-    APPLY_SDCARD = 2,
++    APPLY_UPDATE = 2,
+     // APPLY_CACHE was 3.
+-    APPLY_ADB_SIDELOAD = 4,
++    // APPLY_ADB_SIDELOAD was 4.
+     WIPE_DATA = 5,
+     WIPE_CACHE = 6,
+     REBOOT_BOOTLOADER = 7,
+@@ -87,6 +87,7 @@ class Device {
+   static const int kInvokeItem = -4;
+   static const int kGoBack = -5;
+   static const int kGoHome = -6;
++  static const int kRefresh = -7;
+ 
+   // Called before and after we do a wipe data/factory reset operation, either via a reboot from the
+   // main system with the --wipe_data flag, or when the user boots into recovery image manually and
+@@ -101,6 +102,8 @@ class Device {
+     return true;
+   }
+ 
++  virtual void handleVolumeChanged() { ui_->onVolumeChanged(); }
++
+  private:
+   RecoveryUI* ui_;
+ };
+diff --git a/etc/init.rc b/etc/init.rc
+index fedbe6e7..92b68458 100644
+--- a/etc/init.rc
++++ b/etc/init.rc
+@@ -27,6 +27,16 @@ on init
+     chown root shell /tmp
+     chmod 0775 /tmp
+ 
++    mkdir /mnt 0775 root system
++    mkdir /storage 0050 root sdcard_r
++    mount tmpfs tmpfs /storage mode=0050,uid=0,gid=1028
++
++    # See storage config details at http://source.android.com/tech/storage/
++    mkdir /mnt/shell 0700 shell shell
++
++    # Directory for staging bindmounts
++    mkdir /mnt/staging 0700 root root
++
+     write /proc/sys/kernel/panic_on_oops 1
+     write /proc/sys/vm/max_map_count 1000000
+ 
+@@ -112,3 +122,13 @@ on property:lineage.service.adb.root=1
+     write /sys/class/android_usb/android0/enable 0
+     restart adbd
+     write /sys/class/android_usb/android0/enable 1
++
++on property:sys.storage.ums_enabled=1
++    write /sys/class/android_usb/android0/enable 0
++    write /sys/class/android_usb/android0/functions adb,mass_storage
++    write /sys/class/android_usb/android0/enable 1
++
++on property:sys.storage.ums_enabled=0
++    write /sys/class/android_usb/android0/enable 0
++    write /sys/class/android_usb/android0/functions adb
++    write /sys/class/android_usb/android0/enable ${lineage.service.adb.root}
+diff --git a/fuse_sdcard_provider.cpp b/fuse_sdcard_provider.cpp
+index 81f927d2..ce96ffd4 100644
+--- a/fuse_sdcard_provider.cpp
++++ b/fuse_sdcard_provider.cpp
+@@ -114,10 +114,6 @@ void* start_sdcard_fuse(const char* path) {
+     }
+   }
+ 
+-  // The installation process expects to find the sdcard unmounted. Unmount it with MNT_DETACH so
+-  // that our open file continues to work but new references see it as unmounted.
+-  umount2("/sdcard", MNT_DETACH);
+-
+   return t;
+ }
+ 
+diff --git a/install.cpp b/install.cpp
+index d0589317..4661110f 100644
+--- a/install.cpp
++++ b/install.cpp
+@@ -561,7 +561,7 @@ bool verify_package_compatibility(ZipArchiveHandle package_zip) {
+   return false;
+ }
+ 
+-static int really_install_package(const std::string& path, bool* wipe_cache, bool needs_mount,
++static int really_install_package(std::string path, bool* wipe_cache, bool needs_mount,
+                                   std::vector<std::string>* log_buffer, int retry_count,
+                                   int* max_temperature) {
+   ui->SetBackground(RecoveryUI::INSTALLING_UPDATE);
+@@ -569,6 +569,23 @@ static int really_install_package(const std::string& path, bool* wipe_cache, boo
+   // Give verification half the progress bar...
+   ui->SetProgressType(RecoveryUI::DETERMINATE);
+   ui->ShowProgress(VERIFICATION_PROGRESS_FRACTION, VERIFICATION_PROGRESS_TIME);
++
++    // Resolve symlink in case legacy /sdcard path is used
++    // Requires: symlink uses absolute path
++    if (path.size() > 1) {
++      size_t root_pos = path.find('/', 1);
++      if (root_pos != std::string::npos) {
++        char link_path[PATH_MAX];
++        ssize_t link_len;
++        memset(link_path, 0, sizeof(link_path));
++        link_len = readlink(path.substr(0, root_pos).c_str(),
++                            link_path, sizeof(link_path)-1);
++        if (link_len > 0) {
++          path = link_path + path.substr(root_pos);
++        }
++      }
++    }
++
+   LOG(INFO) << "Update location: " << path;
+ 
+   // Map the update package into memory.
+diff --git a/mounts.cpp b/mounts.cpp
+index 76fa6573..ad391821 100644
+--- a/mounts.cpp
++++ b/mounts.cpp
+@@ -80,3 +80,15 @@ int unmount_mounted_volume(MountedVolume* volume) {
+   }
+   return result;
+ }
++
++int unmount_mounted_volume_detach(MountedVolume* volume) {
++  // Intentionally pass the empty string to umount if the caller tries to unmount a volume they
++  // already unmounted using this function.
++  std::string mount_point = volume->mount_point;
++  volume->mount_point.clear();
++  int result = umount2(mount_point.c_str(), MNT_DETACH);
++  if (result == -1) {
++    PLOG(WARNING) << "Failed to umount " << mount_point;
++  }
++  return result;
++}
+diff --git a/mounts.h b/mounts.h
+index 0de1ebd0..b510878e 100644
+--- a/mounts.h
++++ b/mounts.h
+@@ -24,5 +24,6 @@ bool scan_mounted_volumes();
+ MountedVolume* find_mounted_volume_by_mount_point(const char* mount_point);
+ 
+ int unmount_mounted_volume(MountedVolume* volume);
++int unmount_mounted_volume_detach(MountedVolume* volume);
+ 
+ #endif
+diff --git a/recovery.cpp b/recovery.cpp
+index 5445b4d6..548d03bb 100644
+--- a/recovery.cpp
++++ b/recovery.cpp
+@@ -56,6 +56,7 @@
+ #include <selinux/label.h>
+ #include <selinux/selinux.h>
+ #include <ziparchive/zip_archive.h>
++#include <volume_manager/VolumeManager.h>
+ 
+ #include "adb_install.h"
+ #include "common.h"
+@@ -72,6 +73,7 @@
+ #include "screen_ui.h"
+ #include "stub_ui.h"
+ #include "ui.h"
++#include "volclient.h"
+ 
+ // For e2fsprogs
+ extern "C" {
+@@ -134,6 +136,9 @@ struct recovery_cmd get_command(char* command) {
+   return recovery_cmds[i];
+ }
+ 
++using android::volmgr::VolumeInfo;
++using android::volmgr::VolumeManager;
++
+ static const struct option OPTIONS[] = {
+   { "update_package", required_argument, NULL, 'u' },
+   { "retry_count", required_argument, NULL, 'n' },
+@@ -169,7 +174,6 @@ static const char *CONVERT_FBE_FILE = "/tmp/convert_fbe/convert_fbe";
+ static const char *CACHE_ROOT = "/cache";
+ static const char *DATA_ROOT = "/data";
+ static const char* METADATA_ROOT = "/metadata";
+-static const char *SDCARD_ROOT = "/sdcard";
+ static const char *TEMPORARY_LOG_FILE = "/tmp/recovery.log";
+ static const char *TEMPORARY_INSTALL_FILE = "/tmp/last_install";
+ static const char *LAST_KMSG_FILE = "/cache/recovery/last_kmsg";
+@@ -722,8 +726,8 @@ static bool erase_volume(const char* volume) {
+ // return a positive number beyond the given range. Caller sets 'menu_only' to true to ensure only
+ // a menu item gets selected. 'initial_selection' controls the initial cursor location. Returns the
+ // (non-negative) chosen item number, or -1 if timed out waiting for input.
+-static int get_menu_selection(const char* const* headers, const char* const* items, bool menu_only,
+-                              int initial_selection, Device* device) {
++int get_menu_selection(const char* const* headers, const char* const* items, bool menu_only,
++                       int initial_selection, Device* device) {
+   // Throw away keys pressed previously, so user doesn't accidentally trigger menu items.
+   ui->FlushKeys();
+ 
+@@ -765,12 +769,16 @@ static int get_menu_selection(const char* const* headers, const char* const* ite
+         case Device::kGoHome:
+           chosen_item = Device::kGoHome;
+           break;
++        case Device::kRefresh:
++          chosen_item = Device::kRefresh;
++          break;
+       }
+     } else if (!menu_only) {
+       chosen_item = action;
+     }
+     if (chosen_item == Device::kGoBack ||
+-        chosen_item == Device::kGoHome) {
++        chosen_item == Device::kGoHome ||
++        chosen_item == Device::kRefresh) {
+       break;
+     }
+   }
+@@ -781,8 +789,6 @@ static int get_menu_selection(const char* const* headers, const char* const* ite
+ 
+ // Returns the selected filename, or an empty string.
+ static std::string browse_directory(const std::string& path, Device* device) {
+-  ensure_path_mounted(path.c_str());
+-
+   std::unique_ptr<DIR, decltype(&closedir)> d(opendir(path.c_str()), closedir);
+   if (!d) {
+     PLOG(ERROR) << "error opening " << path;
+@@ -829,6 +835,9 @@ static std::string browse_directory(const std::string& path, Device* device) {
+       // Go up but continue browsing (if the caller is browse_directory).
+       return "";
+     }
++    if (chosen_item == Device::kRefresh) {
++      return "@refresh";
++    }
+ 
+     const std::string& item = zips[chosen_item];
+ 
+@@ -850,8 +859,11 @@ static std::string browse_directory(const std::string& path, Device* device) {
+ static bool yes_no(Device* device, const char* question1, const char* question2) {
+     const char* headers[] = { question1, question2, NULL };
+     const char* items[] = { " No", " Yes", NULL };
+-
+-    int chosen_item = get_menu_selection(headers, items, true, 0, device);
++    int chosen_item;
++    do {
++        chosen_item = get_menu_selection(headers, items, true, 0, device);
++    }
++    while (chosen_item == Device::kRefresh);
+     return (chosen_item == 1);
+ }
+ 
+@@ -1148,33 +1160,90 @@ static void run_graphics_test() {
+   ui->ShowText(true);
+ }
+ 
+-static int apply_from_sdcard(Device* device, bool* wipe_cache) {
++static int apply_from_storage(Device* device, VolumeInfo& vi, bool* wipe_cache) {
+     modified_flash = true;
+ 
+-    if (ensure_path_mounted(SDCARD_ROOT) != 0) {
+-        ui->Print("\n-- Couldn't mount %s.\n", SDCARD_ROOT);
++    int status;
++
++    if (!VolumeManager::Instance()->volumeMount(vi.mId)) {
+         return INSTALL_ERROR;
+     }
+ 
+-    std::string path = browse_directory(SDCARD_ROOT, device);
+-    if (path == "@") {
+-        return INSTALL_NONE;
++    std::string path;
++    do {
++        path = browse_directory(vi.mPath, device);
++        if (path == "@") {
++            return INSTALL_NONE;
++        }
+     }
++    while (path == "@refresh");
++
+     if (path.empty()) {
+         ui->Print("\n-- No package file selected.\n");
+-        ensure_path_unmounted(SDCARD_ROOT);
+-        return INSTALL_ERROR;
++        VolumeManager::Instance()->volumeUnmount(vi.mId);
++        return INSTALL_NONE;
+     }
+ 
+     ui->Print("\n-- Install %s ...\n", path.c_str());
+     set_sdcard_update_bootloader_message();
+     void* token = start_sdcard_fuse(path.c_str());
++    if (!token) {
++        LOG(ERROR) << "Failed to start FUSE for sdcard install";
++        return INSTALL_ERROR;
++    }
+ 
+-    int status = install_package(FUSE_SIDELOAD_HOST_PATHNAME, wipe_cache,
++    VolumeManager::Instance()->volumeUnmount(vi.mId, true);
++
++    status = install_package(FUSE_SIDELOAD_HOST_PATHNAME, wipe_cache,
+                                  TEMPORARY_INSTALL_FILE, false, 0/*retry_count*/);
+ 
+     finish_sdcard_fuse(token);
+-    ensure_path_unmounted(SDCARD_ROOT);
++    return status;
++}
++
++static int
++show_apply_update_menu(Device* device, bool* wipe_cache) {
++    static const char* headers[] = { "Apply update", nullptr };
++    char* menu_items[MAX_NUM_MANAGED_VOLUMES + 1 + 1];
++
++    const int item_sideload = 0;
++    int n, i;
++
++refresh:
++    menu_items[item_sideload] = strdup("Apply from ADB");
++
++    std::vector<VolumeInfo> volumes;
++    VolumeManager::Instance()->getVolumeInfo(volumes);
++
++    n = item_sideload + 1;
++    for (auto& vitr : volumes) {
++        menu_items[n] = (char*)malloc(256);
++        sprintf(menu_items[n], "Choose from %s", vitr.mLabel.c_str());
++        ++n;
++    }
++    menu_items[n] = nullptr;
++
++    int status = INSTALL_ERROR;
++
++    for (;;) {
++        int chosen = get_menu_selection(headers, menu_items, 0, 0, device);
++        for (i = 0; i < n; ++i) {
++            free(menu_items[i]);
++        }
++        if (chosen == Device::kRefresh) {
++            goto refresh;
++        }
++        if (chosen == Device::kGoBack) {
++            break;
++        }
++        if (chosen == item_sideload) {
++            status = apply_from_adb(wipe_cache, TEMPORARY_INSTALL_FILE);
++        }
++        else {
++            status = apply_from_storage(device, volumes[chosen - 1], wipe_cache);
++        }
++    }
++
+     return status;
+ }
+ 
+@@ -1199,7 +1268,8 @@ static Device::BuiltinAction prompt_and_wait(Device* device, int status) {
+     int chosen_item = get_menu_selection(nullptr, device->GetMenuItems(), false, 0, device);
+     // We are already in the main menu
+     if (chosen_item == Device::kGoBack ||
+-        chosen_item == Device::kGoHome) {
++        chosen_item == Device::kGoHome ||
++        chosen_item == Device::kRefresh) {
+       continue;
+     }
+ 
+@@ -1234,15 +1304,9 @@ static Device::BuiltinAction prompt_and_wait(Device* device, int status) {
+         if (!ui->IsTextVisible()) return Device::NO_ACTION;
+         break;
+ 
+-      case Device::APPLY_ADB_SIDELOAD:
+-      case Device::APPLY_SDCARD:
++      case Device::APPLY_UPDATE:
+         {
+-          bool adb = (chosen_action == Device::APPLY_ADB_SIDELOAD);
+-          if (adb) {
+-            status = apply_from_adb(&should_wipe_cache, TEMPORARY_INSTALL_FILE);
+-          } else {
+-            status = apply_from_sdcard(device, &should_wipe_cache);
+-          }
++          status = show_apply_update_menu(device, &should_wipe_cache);
+ 
+           if (status == INSTALL_SUCCESS && should_wipe_cache) {
+             if (!wipe_cache(false, device)) {
+@@ -1257,7 +1321,7 @@ static Device::BuiltinAction prompt_and_wait(Device* device, int status) {
+           } else if (!ui->IsTextVisible()) {
+             return Device::NO_ACTION;  // reboot if logs aren't visible
+           } else {
+-            ui->Print("\nInstall from %s complete.\n", adb ? "ADB" : "SD card");
++            ui->Print("\nInstall complete.\n");
+           }
+         }
+         break;
+@@ -1680,6 +1744,12 @@ int main(int argc, char **argv) {
+     }
+   }
+ 
++  VolumeClient* volclient = new VolumeClient(device);
++  VolumeManager* volmgr = VolumeManager::Instance();
++  if (!volmgr->start(volclient)) {
++      printf("Failed to start volume manager\n");
++  }
++
+   // Set background string to "installing security update" for security update,
+   // otherwise set it to "installing system update".
+   ui->SetSystemUpdateText(security_update);
+@@ -1845,6 +1915,12 @@ int main(int argc, char **argv) {
+   // Save logs and clean up before rebooting or shutting down.
+   finish_recovery();
+ 
++  volmgr->unmountAll();
++  volmgr->stop();
++  delete volclient;
++
++  sync();
++
+   switch (after) {
+     case Device::SHUTDOWN:
+       ui->Print("Shutting down...\n");
+diff --git a/roots.cpp b/roots.cpp
+index d7f6b1aa..e651e62f 100644
+--- a/roots.cpp
++++ b/roots.cpp
+@@ -19,6 +19,7 @@
+ #include <ctype.h>
+ #include <fcntl.h>
+ #include <stdint.h>
++#include <dirent.h>
+ #include <stdlib.h>
+ #include <string.h>
+ #include <sys/mount.h>
+@@ -35,6 +36,7 @@
+ #include <android-base/properties.h>
+ #include <android-base/stringprintf.h>
+ #include <android-base/unique_fd.h>
++#include <cutils/fs.h>
+ #include <cryptfs.h>
+ #include <ext4_utils/wipe.h>
+ #include <fs_mgr.h>
+@@ -59,6 +61,14 @@ static void write_fstab_entry(const Volume *v, FILE *file)
+   }
+ }
+ 
++int get_num_volumes() {
++  return fstab->num_entries;
++}
++
++Volume* get_device_volumes() {
++  return fstab->recs;
++}
++
+ void load_volume_table() {
+   fstab = fs_mgr_read_fstab_default();
+   if (!fstab) {
+@@ -122,6 +132,17 @@ static Volume* volume_for_path(const char* path) {
+   return nullptr;
+ }
+ 
++Volume* volume_for_label(const char* label) {
++  int i;
++  for (i = 0; i < get_num_volumes(); i++) {
++    Volume* v = get_device_volumes() + i;
++    if (v->label && !strcmp(v->label, label)) {
++      return v;
++    }
++  }
++  return nullptr;
++}
++
+ // Mount the volume specified by path at the given mount_point.
+ int ensure_path_mounted_at(const char* path, const char* mount_point) {
+   Volume* v = volume_for_path(path);
+@@ -143,13 +164,15 @@ int ensure_path_mounted_at(const char* path, const char* mount_point) {
+     mount_point = v->mount_point;
+   }
+ 
+-  const MountedVolume* mv = find_mounted_volume_by_mount_point(mount_point);
+-  if (mv != nullptr) {
+-    // Volume is already mounted.
+-    return 0;
++  if (!fs_mgr_is_voldmanaged(v)) {
++    const MountedVolume* mv = find_mounted_volume_by_mount_point(mount_point);
++    if (mv) {
++      // volume is already mounted
++      return 0;
++    }
+   }
+ 
+-  mkdir(mount_point, 0755);  // in case it doesn't already exist
++  fs_mkdirs(mount_point, 0755);  // in case it doesn't already exist
+ 
+   if (strcmp(v->fs_type, "ext4") == 0 || strcmp(v->fs_type, "squashfs") == 0 ||
+       strcmp(v->fs_type, "vfat") == 0) {
+@@ -165,15 +188,44 @@ int ensure_path_mounted_at(const char* path, const char* mount_point) {
+   return -1;
+ }
+ 
++int ensure_volume_mounted(Volume* v) {
++  if (v == nullptr) {
++    LOG(ERROR) << "cannot mount unknown volume";
++    return -1;
++  }
++  return ensure_path_mounted_at(v->mount_point, nullptr);
++}
++
+ int ensure_path_mounted(const char* path) {
+   // Mount at the default mount point.
+   return ensure_path_mounted_at(path, nullptr);
+ }
+ 
+-int ensure_path_unmounted(const char* path) {
+-  const Volume* v = volume_for_path(path);
++int ensure_path_unmounted(const char* path, bool detach /* = false */) {
++  const Volume* v;
++  if (memcmp(path, "/storage/", 9) == 0) {
++    char label[PATH_MAX];
++    const char* p = path+9;
++    const char* q = strchr(p, '/');
++    memset(label, 0, sizeof(label));
++    if (q) {
++      memcpy(label, p, q-p);
++    }
++    else {
++      strcpy(label, p);
++    }
++    v = volume_for_label(label);
++  }
++  else {
++      v = volume_for_path(path);
++  }
++
++  return ensure_volume_unmounted(v, detach);
++}
++
++int ensure_volume_unmounted(const Volume* v, bool detach /* = false */) {
+   if (v == nullptr) {
+-    LOG(ERROR) << "unknown volume for path [" << path << "]";
++    LOG(ERROR) << "cannot unmount unknown volume";
+     return -1;
+   }
+   if (strcmp(v->fs_type, "ramdisk") == 0) {
+@@ -192,7 +244,9 @@ int ensure_path_unmounted(const char* path) {
+     return 0;
+   }
+ 
+-  return unmount_mounted_volume(mv);
++  return (detach ?
++          unmount_mounted_volume_detach(mv) :
++          unmount_mounted_volume(mv));
+ }
+ 
+ static int exec_cmd(const std::vector<std::string>& args) {
+@@ -295,6 +349,11 @@ int format_volume(const char* volume, const char* directory) {
+     }
+   }
+ 
++  if (fs_mgr_is_voldmanaged(v)) {
++    LOG(ERROR) << "can't format vold volume \"" << volume << "\"";
++    return -1;
++  }
++
+   if (strcmp(v->fs_type, "ext4") == 0) {
+     static constexpr int kBlockSize = 4096;
+     std::vector<std::string> mke2fs_args = {
+@@ -400,7 +459,12 @@ int setup_install_mounts() {
+         return -1;
+       }
+     } else {
+-      if (ensure_path_unmounted(v->mount_point) != 0) {
++      // datam must be unmounted with the detach flag to ensure that FUSE works.
++      bool detach = false;
++      if (strcmp(v->mount_point, "/data") == 0) {
++        detach = true;
++      }
++      if (ensure_volume_unmounted(v, detach) != 0) {
+         LOG(ERROR) << "Failed to unmount " << v->mount_point;
+         return -1;
+       }
+diff --git a/roots.h b/roots.h
+index 46bb77e0..a9b73b20 100644
+--- a/roots.h
++++ b/roots.h
+@@ -29,6 +29,7 @@ Volume* volume_for_mount_point(const std::string& mount_point);
+ 
+ // Make sure that the volume 'path' is on is mounted.  Returns 0 on
+ // success (volume is mounted).
++int ensure_volume_mounted(Volume* v);
+ int ensure_path_mounted(const char* path);
+ 
+ // Similar to ensure_path_mounted, but allows one to specify the mount_point.
+@@ -36,7 +37,8 @@ int ensure_path_mounted_at(const char* path, const char* mount_point);
+ 
+ // Make sure that the volume 'path' is on is unmounted.  Returns 0 on
+ // success (volume is unmounted);
+-int ensure_path_unmounted(const char* path);
++int ensure_volume_unmounted(const Volume *v, bool detach=false);
++int ensure_path_unmounted(const char* path, bool detach=false);
+ 
+ // Reformat the given volume (must be the mount point only, eg
+ // "/cache"), no paths permitted.  Attempts to unmount the volume if
+@@ -53,4 +55,8 @@ int format_volume(const char* volume, const char* directory);
+ // mounted (/tmp and /cache) are mounted.  Returns 0 on success.
+ int setup_install_mounts();
+ 
++int get_num_volumes();
++
++#define MAX_NUM_MANAGED_VOLUMES 10
++
+ #endif  // RECOVERY_ROOTS_H_
+diff --git a/ui.cpp b/ui.cpp
+index 02b781e7..9232229e 100644
+--- a/ui.cpp
++++ b/ui.cpp
+@@ -41,6 +41,8 @@
+ #include <cutils/android_reboot.h>
+ #include <minui/minui.h>
+ 
++#include <volume_manager/VolumeManager.h>
++
+ #include "common.h"
+ #include "roots.h"
+ #include "device.h"
+@@ -74,6 +76,7 @@ RecoveryUI::RecoveryUI()
+       has_touch_screen(false),
+       touch_slot_(0),
+       is_bootreason_recovery_ui_(false),
++      volumes_changed_(false),
+       screensaver_state_(ScreensaverState::DISABLED) {
+   pthread_mutex_init(&key_queue_mutex, nullptr);
+   pthread_cond_init(&key_queue_cond, nullptr);
+@@ -433,6 +436,7 @@ void RecoveryUI::ProcessKey(int key_code, int updown) {
+ 
+       case RecoveryUI::REBOOT:
+         if (reboot_enabled) {
++          android::volmgr::VolumeManager::Instance()->unmountAll();
+           reboot("reboot,");
+           while (true) {
+             pause();
+@@ -490,7 +494,20 @@ int RecoveryUI::WaitKey() {
+ 
+     int rc = 0;
+     while (key_queue_len == 0 && rc != ETIMEDOUT) {
+-      rc = pthread_cond_timedwait(&key_queue_cond, &key_queue_mutex, &timeout);
++      struct timespec key_timeout;
++      gettimeofday(&now, nullptr);
++      key_timeout.tv_sec = now.tv_sec + 1;
++      key_timeout.tv_nsec = now.tv_usec * 1000;
++      rc = pthread_cond_timedwait(&key_queue_cond, &key_queue_mutex, &key_timeout);
++      if (rc == ETIMEDOUT) {
++        if (VolumesChanged()) {
++          pthread_mutex_unlock(&key_queue_mutex);
++          return KEY_REFRESH;
++        }
++        if (key_timeout.tv_sec <= timeout.tv_sec) {
++          rc = 0;
++        }
++      }
+     }
+ 
+     if (screensaver_state_ != ScreensaverState::DISABLED) {
+@@ -637,3 +654,9 @@ void RecoveryUI::SetEnableReboot(bool enabled) {
+   enable_reboot = enabled;
+   pthread_mutex_unlock(&key_queue_mutex);
+ }
++
++bool RecoveryUI::VolumesChanged() {
++    bool ret = volumes_changed_;
++    volumes_changed_ = false;
++    return ret;
++}
+diff --git a/ui.h b/ui.h
+index df769af6..3ec7a0f9 100644
+--- a/ui.h
++++ b/ui.h
+@@ -178,6 +178,9 @@ class RecoveryUI {
+   // Ends menu mode, resetting the text overlay so that ui_print() statements will be displayed.
+   virtual void EndMenu() = 0;
+ 
++  // Notify of volume state change
++  void onVolumeChanged() { volumes_changed_ = 1; }
++
+  protected:
+   void EnqueueKey(int key_code);
+ 
+@@ -218,6 +221,8 @@ class RecoveryUI {
+ 
+   bool IsUsbConnected();
+ 
++  bool VolumesChanged();
++
+   static void* time_key_helper(void* cookie);
+   void time_key(int key_code, int count);
+ 
+@@ -259,6 +264,8 @@ class RecoveryUI {
+ 
+   pthread_t input_thread_;
+ 
++  bool volumes_changed_;
++
+   ScreensaverState screensaver_state_;
+ 
+   // The following two contain the absolute values computed from brightness_normal_ and
+diff --git a/volclient.cpp b/volclient.cpp
+new file mode 100644
+index 00000000..1f13c1b6
+--- /dev/null
++++ b/volclient.cpp
+@@ -0,0 +1,25 @@
++/*
++ * Copyright (C) 2008 The Lineage Android Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#include "volclient.h"
++
++void VolumeClient::handleEvent(int code, const std::vector<std::string>& argv)
++{
++printf("VolumeClient::handleEvent: code=%d, argv=<", code);
++for (auto& arg : argv) { printf("%s,", arg.c_str()); }
++printf(">\n");
++    mDevice->handleVolumeChanged();
++}
+diff --git a/volclient.h b/volclient.h
+new file mode 100644
+index 00000000..1d2efce3
+--- /dev/null
++++ b/volclient.h
+@@ -0,0 +1,33 @@
++/*
++ * Copyright (C) 2008 The Lineage Android Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#ifndef _RECOVERY_VOLCLIENT_H
++#define _RECOVERY_VOLCLIENT_H
++
++#include "device.h"
++#include <volume_manager/VolumeManager.h>
++
++class VolumeClient : public VolumeWatcher {
++public:
++    VolumeClient(Device* device) : mDevice(device) {}
++    virtual ~VolumeClient(void) {}
++    virtual void handleEvent(int code, const std::vector<std::string>& argv);
++
++private:
++    Device*     mDevice;
++};
++
++#endif
+diff --git a/volume_manager/Android.bp b/volume_manager/Android.bp
+new file mode 100644
+index 00000000..863b6452
+--- /dev/null
++++ b/volume_manager/Android.bp
+@@ -0,0 +1,55 @@
++//
++// Copyright (C) 2018 The Lineage Android Project
++//
++// Licensed under the Apache License, Version 2.0 (the "License");
++// you may not use this file except in compliance with the License.
++// You may obtain a copy of the License at
++//
++//      http://www.apache.org/licenses/LICENSE-2.0
++//
++// Unless required by applicable law or agreed to in writing, software
++// distributed under the License is distributed on an "AS IS" BASIS,
++// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++// See the License for the specific language governing permissions and
++// limitations under the License.
++//
++
++cc_library_static {
++    name: "libvolume_manager",
++    srcs: [
++        "Disk.cpp",
++        "DiskPartition.cpp",
++        "EmulatedVolume.cpp",
++        "NetlinkHandler.cpp",
++        "NetlinkManager.cpp",
++        "Process.cpp",
++        "PublicVolume.cpp",
++        "Utils.cpp",
++        "VolumeBase.cpp",
++        "VolumeManager.cpp",
++        "fs/Exfat.cpp",
++        "fs/Ext4.cpp",
++        "fs/F2fs.cpp",
++        "fs/Ntfs.cpp",
++        "fs/Vfat.cpp",
++    ],
++    cflags: [
++        "-Wall",
++        "-Werror",
++    ],
++    include_dirs: [
++        "external/gptfdisk",
++    ],
++    static_libs: [
++        "libbase",
++        "libfs_mgr",
++        "libdiskconfig",
++        "libselinux",
++    ],
++    whole_static_libs: [
++        "libext2_blkid",
++        "libext2_uuid",
++        "libsysutils",
++    ],
++    export_include_dirs: ["include"],
++}
+diff --git a/volume_manager/Disk.cpp b/volume_manager/Disk.cpp
+new file mode 100644
+index 00000000..6a1382b3
+--- /dev/null
++++ b/volume_manager/Disk.cpp
+@@ -0,0 +1,393 @@
++/*
++ * Copyright (C) 2015 The Android Open Source Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#include "Disk.h"
++#include "PublicVolume.h"
++#include "Utils.h"
++#include "VolumeBase.h"
++#include <volume_manager/VolumeManager.h>
++#include "ResponseCode.h"
++
++#include <android-base/file.h>
++#include <android-base/properties.h>
++#include <android-base/stringprintf.h>
++#include <android-base/logging.h>
++#include <diskconfig/diskconfig.h>
++
++#include <sgdisk.h>
++
++#include <vector>
++#include <fcntl.h>
++#include <inttypes.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <sys/types.h>
++#include <sys/stat.h>
++#include <sys/sysmacros.h>
++#include <sys/mount.h>
++
++using android::base::ReadFileToString;
++using android::base::WriteStringToFile;
++using android::base::StringPrintf;
++
++namespace android {
++namespace volmgr {
++
++static const char* kSysfsLoopMaxMinors = "/sys/module/loop/parameters/max_part";
++static const char* kSysfsMmcMaxMinorsDeprecated = "/sys/module/mmcblk/parameters/perdev_minors";
++static const char* kSysfsMmcMaxMinors = "/sys/module/mmc_block/parameters/perdev_minors";
++
++static const unsigned int kMajorBlockLoop = 7;
++static const unsigned int kMajorBlockScsiA = 8;
++static const unsigned int kMajorBlockScsiB = 65;
++static const unsigned int kMajorBlockScsiC = 66;
++static const unsigned int kMajorBlockScsiD = 67;
++static const unsigned int kMajorBlockScsiE = 68;
++static const unsigned int kMajorBlockScsiF = 69;
++static const unsigned int kMajorBlockScsiG = 70;
++static const unsigned int kMajorBlockScsiH = 71;
++static const unsigned int kMajorBlockScsiI = 128;
++static const unsigned int kMajorBlockScsiJ = 129;
++static const unsigned int kMajorBlockScsiK = 130;
++static const unsigned int kMajorBlockScsiL = 131;
++static const unsigned int kMajorBlockScsiM = 132;
++static const unsigned int kMajorBlockScsiN = 133;
++static const unsigned int kMajorBlockScsiO = 134;
++static const unsigned int kMajorBlockScsiP = 135;
++static const unsigned int kMajorBlockMmc = 179;
++static const unsigned int kMajorBlockExperimentalMin = 240;
++static const unsigned int kMajorBlockExperimentalMax = 254;
++
++static const char* kGptBasicData = "EBD0A0A2-B9E5-4433-87C0-68B6B72699C7";
++static const char* kGptLinuxFilesystem = "0FC63DAF-8483-4772-8E79-3D69D8477DE4";
++
++enum class Table {
++    kUnknown,
++    kMbr,
++    kGpt,
++};
++
++static bool isVirtioBlkDevice(unsigned int major) {
++    /*
++     * The new emulator's "ranchu" virtual board no longer includes a goldfish
++     * MMC-based SD card device; instead, it emulates SD cards with virtio-blk,
++     * which has been supported by upstream kernel and QEMU for quite a while.
++     * Unfortunately, the virtio-blk block device driver does not use a fixed
++     * major number, but relies on the kernel to assign one from a specific
++     * range of block majors, which are allocated for "LOCAL/EXPERIMENAL USE"
++     * per Documentation/devices.txt. This is true even for the latest Linux
++     * kernel (4.4; see init() in drivers/block/virtio_blk.c).
++     *
++     * This makes it difficult for vold to detect a virtio-blk based SD card.
++     * The current solution checks two conditions (both must be met):
++     *
++     *  a) If the running environment is the emulator;
++     *  b) If the major number is an experimental block device major number (for
++     *     x86/x86_64 3.10 ranchu kernels, virtio-blk always gets major number
++     *     253, but it is safer to match the range than just one value).
++     *
++     * Other conditions could be used, too, e.g. the hardware name should be
++     * "ranchu", the device's sysfs path should end with "/block/vd[d-z]", etc.
++     * But just having a) and b) is enough for now.
++     */
++    return IsRunningInEmulator() && major >= kMajorBlockExperimentalMin
++            && major <= kMajorBlockExperimentalMax;
++}
++
++Disk::Disk(const std::string& eventPath, dev_t device,
++        const std::string& nickname, int flags) :
++        mDevice(device), mSize(-1), mNickname(nickname), mFlags(flags), mCreated(
++                false), mSkipChange(false) {
++    mId = StringPrintf("disk:%u_%u", major(device), minor(device));
++    mEventPath = eventPath;
++    mSysPath = StringPrintf("/sys/%s", eventPath.c_str());
++    mDevPath = StringPrintf("/dev/block/volmgr/%s", mId.c_str());
++    CreateDeviceNode(mDevPath, mDevice);
++}
++
++Disk::~Disk() {
++    CHECK(!mCreated);
++    DestroyDeviceNode(mDevPath);
++}
++
++void Disk::getVolumeInfo(std::vector<VolumeInfo>& info) {
++    for (auto vol : mVolumes) {
++        info.push_back(VolumeInfo(vol.get()));
++    }
++}
++
++std::shared_ptr<VolumeBase> Disk::findVolume(const std::string& id) {
++    for (auto vol : mVolumes) {
++        if (vol->getId() == id) {
++            return vol;
++        }
++    }
++    return nullptr;
++}
++
++void Disk::listVolumes(VolumeBase::Type type, std::list<std::string>& list) {
++    for (const auto& vol : mVolumes) {
++        if (vol->getType() == type) {
++            list.push_back(vol->getId());
++        }
++        // TODO: consider looking at stacked volumes
++    }
++}
++
++status_t Disk::create() {
++    CHECK(!mCreated);
++    mCreated = true;
++    VolumeManager::Instance()->notifyEvent(ResponseCode::DiskCreated,
++                                           StringPrintf("%d", mFlags));
++    readMetadata();
++    readPartitions();
++    return OK;
++}
++
++status_t Disk::destroy() {
++    CHECK(mCreated);
++    destroyAllVolumes();
++    mCreated = false;
++    VolumeManager::Instance()->notifyEvent(ResponseCode::DiskDestroyed);
++    return OK;
++}
++
++void Disk::createPublicVolume(dev_t device,
++                const std::string& fstype /* = "" */,
++                const std::string& mntopts /* = "" */) {
++    auto vol = std::shared_ptr<VolumeBase>(new PublicVolume(device, mNickname, fstype, mntopts));
++
++    mVolumes.push_back(vol);
++    vol->setDiskId(getId());
++    vol->create();
++}
++
++void Disk::destroyAllVolumes() {
++    for (const auto& vol : mVolumes) {
++        vol->destroy();
++    }
++    mVolumes.clear();
++}
++
++status_t Disk::readMetadata() {
++
++    if (mSkipChange) {
++        return OK;
++    }
++
++    mSize = -1;
++    mLabel.clear();
++
++    int fd = open(mDevPath.c_str(), O_RDONLY | O_CLOEXEC);
++    if (fd != -1) {
++        if (ioctl(fd, BLKGETSIZE64, &mSize)) {
++            mSize = -1;
++        }
++        close(fd);
++    }
++
++    unsigned int majorId = major(mDevice);
++    switch (majorId) {
++    case kMajorBlockLoop: {
++        mLabel = "Virtual";
++        break;
++    }
++    case kMajorBlockScsiA: case kMajorBlockScsiB: case kMajorBlockScsiC: case kMajorBlockScsiD:
++    case kMajorBlockScsiE: case kMajorBlockScsiF: case kMajorBlockScsiG: case kMajorBlockScsiH:
++    case kMajorBlockScsiI: case kMajorBlockScsiJ: case kMajorBlockScsiK: case kMajorBlockScsiL:
++    case kMajorBlockScsiM: case kMajorBlockScsiN: case kMajorBlockScsiO: case kMajorBlockScsiP: {
++        std::string path(mSysPath + "/device/vendor");
++        std::string tmp;
++        if (!ReadFileToString(path, &tmp)) {
++            PLOG(WARNING) << "Failed to read vendor from " << path;
++            return -errno;
++        }
++        mLabel = tmp;
++        break;
++    }
++    case kMajorBlockMmc: {
++        std::string path(mSysPath + "/device/manfid");
++        std::string tmp;
++        if (!ReadFileToString(path, &tmp)) {
++            PLOG(WARNING) << "Failed to read manufacturer from " << path;
++            return -errno;
++        }
++        uint64_t manfid = strtoll(tmp.c_str(), nullptr, 16);
++        // Our goal here is to give the user a meaningful label, ideally
++        // matching whatever is silk-screened on the card.  To reduce
++        // user confusion, this list doesn't contain white-label manfid.
++        switch (manfid) {
++        case 0x000003: mLabel = "SanDisk"; break;
++        case 0x00001b: mLabel = "Samsung"; break;
++        case 0x000028: mLabel = "Lexar"; break;
++        case 0x000074: mLabel = "Transcend"; break;
++        }
++        break;
++    }
++    default: {
++        if (isVirtioBlkDevice(majorId)) {
++            LOG(DEBUG) << "Recognized experimental block major ID " << majorId
++                    << " as virtio-blk (emulator's virtual SD card device)";
++            mLabel = "Virtual";
++            break;
++        }
++        LOG(WARNING) << "Unsupported block major type " << majorId;
++        return -ENOTSUP;
++    }
++    }
++
++    VolumeManager::Instance()->notifyEvent(ResponseCode::DiskSizeChanged,
++                                           StringPrintf("%" PRIu64, mSize));
++    VolumeManager::Instance()->notifyEvent(ResponseCode::DiskLabelChanged,
++                                           mLabel);
++    VolumeManager::Instance()->notifyEvent(ResponseCode::DiskSysPathChanged,
++                                           mSysPath);
++    return OK;
++}
++
++status_t Disk::readPartitions() {
++    int8_t maxMinors = getMaxMinors();
++    if (maxMinors < 0) {
++        return -ENOTSUP;
++    }
++
++    if (mSkipChange) {
++        mSkipChange = false;
++        LOG(INFO) << "Skip first change";
++        return OK;
++    }
++
++    destroyAllVolumes();
++
++    // Parse partition table
++    sgdisk_partition_table ptbl;
++    std::vector<sgdisk_partition> partitions;
++    int res = sgdisk_read(mDevPath.c_str(), ptbl, partitions);
++    if (res != 0) {
++        LOG(WARNING) << "sgdisk failed to scan " << mDevPath;
++        VolumeManager::Instance()->notifyEvent(ResponseCode::DiskScanned);
++        return res;
++    }
++
++    Table table = Table::kUnknown;
++    bool foundParts = false;
++
++    switch (ptbl.type) {
++    case MBR:
++        table = Table::kMbr;
++        break;
++    case GPT:
++        table = Table::kGpt;
++    default:
++        table = Table::kUnknown;
++    }
++
++    foundParts = partitions.size() > 0;
++    for (const auto& part : partitions) {
++        if (part.num <= 0 || part.num > maxMinors) {
++            LOG(WARNING) << mId << " is ignoring partition " << part.num
++                    << " beyond max supported devices";
++            continue;
++        }
++        dev_t partDevice = makedev(major(mDevice), minor(mDevice) + part.num);
++        if (table == Table::kMbr) {
++            switch (strtol(part.type.c_str(), nullptr, 16)) {
++            case 0x06: // FAT16
++            case 0x07: // NTFS/exFAT
++            case 0x0b: // W95 FAT32 (LBA)
++            case 0x0c: // W95 FAT32 (LBA)
++            case 0x0e: // W95 FAT16 (LBA)
++            case 0x83: // Linux EXT4/F2FS/...
++                createPublicVolume(partDevice);
++                break;
++            }
++        }
++        else if (table == Table::kGpt) {
++            if (!strcasecmp(part.guid.c_str(), kGptBasicData)
++                    || !strcasecmp(part.guid.c_str(), kGptLinuxFilesystem)) {
++                createPublicVolume(partDevice);
++            }
++        }
++    }
++
++    // Ugly last ditch effort, treat entire disk as partition
++    if (table == Table::kUnknown || !foundParts) {
++        LOG(WARNING) << mId << " has unknown partition table; trying entire device";
++
++        std::string fsType;
++        std::string unused;
++        if (ReadMetadataUntrusted(mDevPath, fsType, unused, unused) == OK) {
++            createPublicVolume(mDevice);
++        } else {
++            LOG(WARNING) << mId << " failed to identify, giving up";
++        }
++    }
++
++    VolumeManager::Instance()->notifyEvent(ResponseCode::DiskScanned);
++    return OK;
++}
++
++status_t Disk::unmountAll() {
++    for (const auto& vol : mVolumes) {
++        vol->unmount();
++    }
++    return OK;
++}
++
++int Disk::getMaxMinors() {
++    // Figure out maximum partition devices supported
++    unsigned int majorId = major(mDevice);
++    switch (majorId) {
++    case kMajorBlockLoop: {
++        std::string tmp;
++        if (!ReadFileToString(kSysfsLoopMaxMinors, &tmp)) {
++            LOG(ERROR) << "Failed to read max minors";
++            return -errno;
++        }
++        return atoi(tmp.c_str());
++    }
++    case kMajorBlockScsiA: case kMajorBlockScsiB: case kMajorBlockScsiC: case kMajorBlockScsiD:
++    case kMajorBlockScsiE: case kMajorBlockScsiF: case kMajorBlockScsiG: case kMajorBlockScsiH:
++    case kMajorBlockScsiI: case kMajorBlockScsiJ: case kMajorBlockScsiK: case kMajorBlockScsiL:
++    case kMajorBlockScsiM: case kMajorBlockScsiN: case kMajorBlockScsiO: case kMajorBlockScsiP: {
++        // Per Documentation/devices.txt this is static
++        return 15;
++    }
++    case kMajorBlockMmc: {
++        // Per Documentation/devices.txt this is dynamic
++        std::string tmp;
++        if (!ReadFileToString(kSysfsMmcMaxMinors, &tmp) &&
++                !ReadFileToString(kSysfsMmcMaxMinorsDeprecated, &tmp)) {
++            LOG(ERROR) << "Failed to read max minors";
++            return -errno;
++        }
++        return atoi(tmp.c_str());
++    }
++    default: {
++        if (isVirtioBlkDevice(majorId)) {
++            // drivers/block/virtio_blk.c has "#define PART_BITS 4", so max is
++            // 2^4 - 1 = 15
++            return 15;
++        }
++    }
++    }
++
++    LOG(ERROR) << "Unsupported block major type " << majorId;
++    return -ENOTSUP;
++}
++
++}  // namespace volmgr
++}  // namespace android
+diff --git a/volume_manager/Disk.h b/volume_manager/Disk.h
+new file mode 100644
+index 00000000..11e350c6
+--- /dev/null
++++ b/volume_manager/Disk.h
+@@ -0,0 +1,124 @@
++/*
++ * Copyright (C) 2015 The Android Open Source Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#ifndef ANDROID_VOLMGR_DISK_H
++#define ANDROID_VOLMGR_DISK_H
++
++#include "Utils.h"
++#include "VolumeBase.h"
++
++#include <utils/Errors.h>
++
++#include <vector>
++
++#include <volume_manager/VolumeManager.h>
++
++namespace android {
++namespace volmgr {
++
++class VolumeBase;
++
++/*
++ * Representation of detected physical media.
++ *
++ * Knows how to create volumes based on the partition tables found, and also
++ * how to repartition itself.
++ */
++class Disk {
++public:
++    Disk(const std::string& eventPath, dev_t device, const std::string& nickname, int flags);
++    virtual ~Disk();
++
++    enum Flags {
++        /* Flag that disk is adoptable */
++        kAdoptable = 1 << 0,
++        /* Flag that disk is considered primary when the user hasn't
++         * explicitly picked a primary storage location */
++        kDefaultPrimary = 1 << 1,
++        /* Flag that disk is SD card */
++        kSd = 1 << 2,
++        /* Flag that disk is USB disk */
++        kUsb = 1 << 3,
++        /* Flag that disk is EMMC internal */
++        kEmmc = 1 << 4,
++        /* Flag that disk is non-removable */
++        kNonRemovable = 1 << 5,
++    };
++
++    const std::string& getId() { return mId; }
++    const std::string& getEventPath() { return mEventPath; }
++    const std::string& getSysPath() { return mSysPath; }
++    const std::string& getDevPath() { return mDevPath; }
++    dev_t getDevice() { return mDevice; }
++    uint64_t getSize() { return mSize; }
++    const std::string& getLabel() { return mLabel; }
++    int getFlags() { return mFlags; }
++
++    void getVolumeInfo(std::vector<VolumeInfo>& info);
++
++    std::shared_ptr<VolumeBase> findVolume(const std::string& id);
++
++    void listVolumes(VolumeBase::Type type, std::list<std::string>& list);
++
++    virtual status_t create();
++    virtual status_t destroy();
++
++    virtual status_t readMetadata();
++    virtual status_t readPartitions();
++
++    status_t unmountAll();
++
++protected:
++    /* ID that uniquely references this disk */
++    std::string mId;
++    /* Original event path */
++    std::string mEventPath;
++    /* Device path under sysfs */
++    std::string mSysPath;
++    /* Device path under dev */
++    std::string mDevPath;
++    /* Kernel device representing disk */
++    dev_t mDevice;
++    /* Size of disk, in bytes */
++    uint64_t mSize;
++    /* User-visible label, such as manufacturer */
++    std::string mLabel;
++    /* Current partitions on disk */
++    std::vector<std::shared_ptr<VolumeBase>> mVolumes;
++    /* Nickname for this disk */
++    std::string mNickname;
++    /* Flags applicable to this disk */
++    int mFlags;
++    /* Flag indicating object is created */
++    bool mCreated;
++    /* Flag that we need to skip first disk change events after partitioning*/
++    bool mSkipChange;
++
++    void createPublicVolume(dev_t device,
++                    const std::string& fstype = "",
++                    const std::string& mntopts = "");
++
++    void destroyAllVolumes();
++
++    int getMaxMinors();
++
++    DISALLOW_COPY_AND_ASSIGN(Disk);
++};
++
++}  // namespace volmgr
++}  // namespace android
++
++#endif
+diff --git a/volume_manager/DiskPartition.cpp b/volume_manager/DiskPartition.cpp
+new file mode 100644
+index 00000000..20a62b49
+--- /dev/null
++++ b/volume_manager/DiskPartition.cpp
+@@ -0,0 +1,80 @@
++/*
++ * Copyright (C) 2015 Cyanogen, Inc.
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#include "DiskPartition.h"
++#include "PublicVolume.h"
++#include "Utils.h"
++#include "VolumeBase.h"
++#include <volume_manager/VolumeManager.h>
++#include "ResponseCode.h"
++
++#include <android-base/file.h>
++#include <android-base/stringprintf.h>
++#include <android-base/logging.h>
++#include <diskconfig/diskconfig.h>
++
++#include <vector>
++#include <fcntl.h>
++#include <inttypes.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <sys/types.h>
++#include <sys/sysmacros.h>
++#include <sys/stat.h>
++#include <sys/mount.h>
++
++using android::base::ReadFileToString;
++using android::base::WriteStringToFile;
++using android::base::StringPrintf;
++
++namespace android {
++namespace volmgr {
++
++DiskPartition::DiskPartition(const std::string& eventPath, dev_t device,
++            const std::string& nickname, int flags, int partnum,
++            const std::string& fstype /* = "" */, const std::string& mntopts /* = "" */) :
++        Disk(eventPath, device, nickname, flags),
++        mPartNum(partnum),
++        mFsType(fstype),
++        mMntOpts(mntopts) {
++    // Empty
++}
++
++DiskPartition::~DiskPartition() {
++    // Empty
++}
++
++status_t DiskPartition::create() {
++    CHECK(!mCreated);
++    mCreated = true;
++    VolumeManager::Instance()->notifyEvent(ResponseCode::DiskCreated,
++                                           StringPrintf("%d", mFlags));
++    dev_t partDevice = makedev(major(mDevice), minor(mDevice) + mPartNum);
++    createPublicVolume(partDevice, mFsType, mMntOpts);
++    return OK;
++}
++
++status_t DiskPartition::destroy() {
++    CHECK(mCreated);
++    destroyAllVolumes();
++    mCreated = false;
++    VolumeManager::Instance()->notifyEvent(ResponseCode::DiskDestroyed);
++    return OK;
++}
++
++}  // namespace volmgr
++}  // namespace android
++
+diff --git a/volume_manager/DiskPartition.h b/volume_manager/DiskPartition.h
+new file mode 100644
+index 00000000..e0c79f6b
+--- /dev/null
++++ b/volume_manager/DiskPartition.h
+@@ -0,0 +1,54 @@
++/*
++ * Copyright (C) 2015 Cyanogen, Inc.
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#ifndef ANDROID_VOLMGR_DISKPARTITION_H
++#define ANDROID_VOLMGR_DISKPARTITION_H
++
++#include "Disk.h"
++
++namespace android {
++namespace volmgr {
++
++/*
++ * Representation of a single partition on physical media.  Useful for
++ * single media partitions such as "internal" sdcard partitions.
++ */
++
++class DiskPartition : public Disk {
++public:
++    DiskPartition(const std::string& eventPath, dev_t device,
++            const std::string& nickname,
++             int flags, int partnum,
++            const std::string& fstype = "", const std::string& mntopts = "");
++    virtual ~DiskPartition();
++
++    virtual status_t create();
++    virtual status_t destroy();
++
++private:
++    /* Partition number */
++    int mPartNum;
++    /* Filesystem type */
++    std::string mFsType;
++    /* Mount options */
++    std::string mMntOpts;
++};
++
++}  // namespace volmgr
++}  // namespace android
++
++#endif
++
+diff --git a/volume_manager/EmulatedVolume.cpp b/volume_manager/EmulatedVolume.cpp
+new file mode 100644
+index 00000000..c4a5c400
+--- /dev/null
++++ b/volume_manager/EmulatedVolume.cpp
+@@ -0,0 +1,97 @@
++/*
++ * Copyright (C) 2015 The Android Open Source Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#include "Utils.h"
++#include "EmulatedVolume.h"
++#include <volume_manager/VolumeManager.h>
++#include "ResponseCode.h"
++
++#include <android-base/stringprintf.h>
++#include <android-base/logging.h>
++#include <cutils/fs.h>
++#include <private/android_filesystem_config.h>
++
++#include <fcntl.h>
++#include <stdlib.h>
++#include <sys/mount.h>
++#include <sys/stat.h>
++#include <sys/types.h>
++#include <sys/sysmacros.h>
++#include <sys/wait.h>
++
++#include <fs_mgr.h>
++
++using android::base::StringPrintf;
++
++namespace android {
++namespace volmgr {
++
++static const std::string kStagingPath = "/mnt/staging/emulated";
++
++EmulatedVolume::EmulatedVolume(fstab_rec* rec, const std::string& subdir) :
++        VolumeBase(Type::kEmulated),
++        mSubdir(subdir),
++        mDevPath(rec->blk_device),
++        mFsType(rec->fs_type),
++        mFlags(rec->flags),
++        mFsOptions(rec->fs_options) {
++    setId("emulated");
++    setPartLabel("emulated");
++    setPath("/storage/emulated");
++}
++
++EmulatedVolume::~EmulatedVolume() {
++}
++
++status_t EmulatedVolume::doMount() {
++    if (fs_prepare_dir(kStagingPath.c_str(), 0700, AID_ROOT, AID_ROOT)) {
++        PLOG(ERROR) << getId() << " failed to create mount points";
++        return -errno;
++    }
++    if (fs_prepare_dir(getPath().c_str(), 0700, AID_ROOT, AID_ROOT)) {
++        PLOG(ERROR) << getId() << " failed to create mount points";
++        return -errno;
++    }
++
++    std::string bindPath = kStagingPath + "/" + mSubdir;
++
++    if (::mount(mDevPath.c_str(), kStagingPath.c_str(),
++                mFsType.c_str(), mFlags, mFsOptions.c_str()) != 0) {
++        PLOG(ERROR) << getId() << " failed to mount " << mDevPath << " on " << kStagingPath;
++        return -EIO;
++    }
++    if (BindMount(bindPath, getPath()) != OK) {
++        PLOG(ERROR) << getId() << " failed to bind mount " << bindPath << " on " << getPath();
++        ForceUnmount(kStagingPath);
++        return -EIO;
++    }
++
++    return OK;
++}
++
++status_t EmulatedVolume::doUnmount(bool detach /* = false */) {
++
++    ForceUnmount(getPath(), detach);
++    ForceUnmount(kStagingPath, detach);
++
++    rmdir(getPath().c_str());
++    rmdir(kStagingPath.c_str());
++
++    return OK;
++}
++
++}  // namespace volmgr
++}  // namespace android
+diff --git a/volume_manager/EmulatedVolume.h b/volume_manager/EmulatedVolume.h
+new file mode 100644
+index 00000000..86ffec07
+--- /dev/null
++++ b/volume_manager/EmulatedVolume.h
+@@ -0,0 +1,62 @@
++/*
++ * Copyright (C) 2015 The Android Open Source Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#ifndef ANDROID_VOLMGR_EMULATED_VOLUME_H
++#define ANDROID_VOLMGR_EMULATED_VOLUME_H
++
++#include "VolumeBase.h"
++
++#include <cutils/multiuser.h>
++
++struct fstab_rec;
++
++namespace android {
++namespace volmgr {
++
++/*
++ * Shared storage emulated on top of private storage.
++ *
++ * Knows how to spawn a FUSE daemon to synthesize permissions.  ObbVolume
++ * can be stacked above it.
++ *
++ * This volume is always multi-user aware, but is only binds itself to
++ * users when its primary storage.  This volume should never be presented
++ * as secondary storage, since we're strongly encouraging developers to
++ * store data local to their app.
++ */
++class EmulatedVolume : public VolumeBase {
++public:
++    explicit EmulatedVolume(fstab_rec* rec, const std::string& subdir);
++    virtual ~EmulatedVolume();
++
++protected:
++    status_t doMount() override;
++    status_t doUnmount(bool detach = false) override;
++
++private:
++    std::string         mSubdir;
++    std::string         mDevPath;
++    std::string         mFsType;
++    unsigned long       mFlags;
++    std::string         mFsOptions;
++
++    DISALLOW_COPY_AND_ASSIGN(EmulatedVolume);
++};
++
++}  // namespace volmgr
++}  // namespace android
++
++#endif
+diff --git a/volume_manager/NetlinkHandler.cpp b/volume_manager/NetlinkHandler.cpp
+new file mode 100644
+index 00000000..fd08c86e
+--- /dev/null
++++ b/volume_manager/NetlinkHandler.cpp
+@@ -0,0 +1,57 @@
++/*
++ * Copyright (C) 2008 The Android Open Source Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#include <stdio.h>
++#include <stdlib.h>
++#include <errno.h>
++#include <string.h>
++
++#define LOG_TAG "Vold"
++
++#include <cutils/log.h>
++
++#include <sysutils/NetlinkEvent.h>
++#include "NetlinkHandler.h"
++#include <volume_manager/VolumeManager.h>
++
++NetlinkHandler::NetlinkHandler(int listenerSocket) :
++                NetlinkListener(listenerSocket) {
++}
++
++NetlinkHandler::~NetlinkHandler() {
++}
++
++bool NetlinkHandler::start() {
++    return this->startListener() == 0;
++}
++
++void NetlinkHandler::stop() {
++    this->stopListener();
++}
++
++void NetlinkHandler::onEvent(NetlinkEvent *evt) {
++    android::volmgr::VolumeManager *vm = android::volmgr::VolumeManager::Instance();
++    const char *subsys = evt->getSubsystem();
++
++    if (!subsys) {
++        SLOGW("No subsystem found in netlink event");
++        return;
++    }
++
++    if (!strcmp(subsys, "block")) {
++        vm->handleBlockEvent(evt);
++    }
++}
+diff --git a/volume_manager/NetlinkHandler.h b/volume_manager/NetlinkHandler.h
+new file mode 100644
+index 00000000..a4ac197f
+--- /dev/null
++++ b/volume_manager/NetlinkHandler.h
+@@ -0,0 +1,34 @@
++/*
++ * Copyright (C) 2008 The Android Open Source Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#ifndef _NETLINKHANDLER_H
++#define _NETLINKHANDLER_H
++
++#include <sysutils/NetlinkListener.h>
++
++class NetlinkHandler: public NetlinkListener {
++
++public:
++    explicit NetlinkHandler(int listenerSocket);
++    virtual ~NetlinkHandler();
++
++    bool start(void);
++    void stop(void);
++
++protected:
++    virtual void onEvent(NetlinkEvent *evt);
++};
++#endif
+diff --git a/volume_manager/NetlinkManager.cpp b/volume_manager/NetlinkManager.cpp
+new file mode 100644
+index 00000000..c919c755
+--- /dev/null
++++ b/volume_manager/NetlinkManager.cpp
+@@ -0,0 +1,105 @@
++/*
++ * Copyright (C) 2008 The Android Open Source Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#include <stdio.h>
++#include <errno.h>
++#include <string.h>
++
++#include <sys/socket.h>
++#include <sys/select.h>
++#include <sys/time.h>
++#include <sys/types.h>
++#include <sys/un.h>
++
++#include <linux/netlink.h>
++
++#define LOG_TAG "Vold"
++
++#include <cutils/log.h>
++
++#include "NetlinkManager.h"
++#include "NetlinkHandler.h"
++
++NetlinkManager *NetlinkManager::sInstance = NULL;
++
++NetlinkManager *NetlinkManager::Instance() {
++    if (!sInstance)
++        sInstance = new NetlinkManager();
++    return sInstance;
++}
++
++NetlinkManager::NetlinkManager() {
++    // Empty
++}
++
++NetlinkManager::~NetlinkManager() {
++}
++
++bool NetlinkManager::start() {
++    struct sockaddr_nl nladdr;
++    int sz = 64 * 1024;
++    int on = 1;
++
++    memset(&nladdr, 0, sizeof(nladdr));
++    nladdr.nl_family = AF_NETLINK;
++    nladdr.nl_pid = getpid();
++    nladdr.nl_groups = 0xffffffff;
++
++    if ((mSock = socket(PF_NETLINK, SOCK_DGRAM | SOCK_CLOEXEC,
++            NETLINK_KOBJECT_UEVENT)) < 0) {
++        SLOGE("Unable to create uevent socket: %s", strerror(errno));
++        return false;
++    }
++
++    // When running in a net/user namespace, SO_RCVBUFFORCE is not available.
++    // Try using SO_RCVBUF first.
++    if ((setsockopt(mSock, SOL_SOCKET, SO_RCVBUF, &sz, sizeof(sz)) < 0) &&
++        (setsockopt(mSock, SOL_SOCKET, SO_RCVBUFFORCE, &sz, sizeof(sz)) < 0)) {
++        SLOGE("Unable to set uevent socket SO_RCVBUF/SO_RCVBUFFORCE option: %s", strerror(errno));
++        goto out;
++    }
++
++    if (setsockopt(mSock, SOL_SOCKET, SO_PASSCRED, &on, sizeof(on)) < 0) {
++        SLOGE("Unable to set uevent socket SO_PASSCRED option: %s", strerror(errno));
++        goto out;
++    }
++
++    if (bind(mSock, (struct sockaddr *) &nladdr, sizeof(nladdr)) < 0) {
++        SLOGE("Unable to bind uevent socket: %s", strerror(errno));
++        goto out;
++    }
++
++    mHandler = new NetlinkHandler(mSock);
++    if (!mHandler->start()) {
++        SLOGE("Unable to start NetlinkHandler: %s", strerror(errno));
++        goto out;
++    }
++
++    return true;
++
++out:
++    close(mSock);
++    return false;
++}
++
++void NetlinkManager::stop() {
++    mHandler->stop();
++    delete mHandler;
++    mHandler = NULL;
++
++    close(mSock);
++    mSock = -1;
++}
+diff --git a/volume_manager/NetlinkManager.h b/volume_manager/NetlinkManager.h
+new file mode 100644
+index 00000000..9b084e35
+--- /dev/null
++++ b/volume_manager/NetlinkManager.h
+@@ -0,0 +1,44 @@
++/*
++ * Copyright (C) 2008 The Android Open Source Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#ifndef _NETLINKMANAGER_H
++#define _NETLINKMANAGER_H
++
++#include <sysutils/SocketListener.h>
++#include <sysutils/NetlinkListener.h>
++
++class NetlinkHandler;
++
++class NetlinkManager {
++private:
++    static NetlinkManager *sInstance;
++
++private:
++    NetlinkHandler       *mHandler;
++    int                  mSock;
++
++public:
++    virtual ~NetlinkManager();
++
++    bool start();
++    void stop();
++
++    static NetlinkManager *Instance();
++
++private:
++    NetlinkManager();
++};
++#endif
+diff --git a/volume_manager/Process.cpp b/volume_manager/Process.cpp
+new file mode 100644
+index 00000000..debf6f7f
+--- /dev/null
++++ b/volume_manager/Process.cpp
+@@ -0,0 +1,218 @@
++/*
++ * Copyright (C) 2008 The Android Open Source Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#include <stdio.h>
++#include <unistd.h>
++#include <errno.h>
++#include <string.h>
++#include <fcntl.h>
++#include <dirent.h>
++#include <ctype.h>
++#include <pwd.h>
++#include <stdlib.h>
++#include <poll.h>
++#include <sys/stat.h>
++#include <signal.h>
++
++#define LOG_TAG "ProcessKiller"
++
++#include <android-base/file.h>
++#include <android-base/stringprintf.h>
++#include <android-base/logging.h>
++#include <cutils/log.h>
++
++#include "Process.h"
++
++using android::base::ReadFileToString;
++using android::base::StringPrintf;
++
++int Process::readSymLink(const char *path, char *link, size_t max) {
++    struct stat s;
++    int length;
++
++    if (lstat(path, &s) < 0)
++        return 0;
++    if ((s.st_mode & S_IFMT) != S_IFLNK)
++        return 0;
++
++    // we have a symlink
++    length = readlink(path, link, max- 1);
++    if (length <= 0)
++        return 0;
++    link[length] = 0;
++    return 1;
++}
++
++int Process::pathMatchesMountPoint(const char* path, const char* mountPoint) {
++    int length = strlen(mountPoint);
++    if (length > 1 && strncmp(path, mountPoint, length) == 0) {
++        // we need to do extra checking if mountPoint does not end in a '/'
++        if (mountPoint[length - 1] == '/')
++            return 1;
++        // if mountPoint does not have a trailing slash, we need to make sure
++        // there is one in the path to avoid partial matches.
++        return (path[length] == 0 || path[length] == '/');
++    }
++    
++    return 0;
++}
++
++void Process::getProcessName(int pid, std::string& out_name) {
++    if (!ReadFileToString(StringPrintf("/proc/%d/cmdline", pid), &out_name)) {
++        out_name = "???";
++    }
++}
++
++int Process::checkFileDescriptorSymLinks(int pid, const char *mountPoint) {
++    return checkFileDescriptorSymLinks(pid, mountPoint, NULL, 0);
++}
++
++int Process::checkFileDescriptorSymLinks(int pid, const char *mountPoint, char *openFilename, size_t max) {
++
++
++    // compute path to process's directory of open files
++    char    path[PATH_MAX];
++    snprintf(path, sizeof(path), "/proc/%d/fd", pid);
++    DIR *dir = opendir(path);
++    if (!dir)
++        return 0;
++
++    // remember length of the path
++    int parent_length = strlen(path);
++    // append a trailing '/'
++    path[parent_length++] = '/';
++
++    struct dirent* de;
++    while ((de = readdir(dir))) {
++        if (!strcmp(de->d_name, ".") || !strcmp(de->d_name, "..")
++                || strlen(de->d_name) + parent_length + 1 >= PATH_MAX)
++            continue;
++        
++        // append the file name, after truncating to parent directory
++        path[parent_length] = 0;
++        strlcat(path, de->d_name, PATH_MAX);
++
++        char link[PATH_MAX];
++
++        if (readSymLink(path, link, sizeof(link)) && pathMatchesMountPoint(link, mountPoint)) {
++            if (openFilename) {
++                memset(openFilename, 0, max);
++                strlcpy(openFilename, link, max);
++            }
++            closedir(dir);
++            return 1;
++        }
++    }
++
++    closedir(dir);
++    return 0;
++}
++
++int Process::checkFileMaps(int pid, const char *mountPoint) {
++    return checkFileMaps(pid, mountPoint, NULL, 0);
++}
++
++int Process::checkFileMaps(int pid, const char *mountPoint, char *openFilename, size_t max) {
++    FILE *file;
++    char buffer[PATH_MAX + 100];
++
++    snprintf(buffer, sizeof(buffer), "/proc/%d/maps", pid);
++    file = fopen(buffer, "re");
++    if (!file)
++        return 0;
++    
++    while (fgets(buffer, sizeof(buffer), file)) {
++        // skip to the path
++        const char* path = strchr(buffer, '/');
++        if (path && pathMatchesMountPoint(path, mountPoint)) {
++            if (openFilename) {
++                memset(openFilename, 0, max);
++                strlcpy(openFilename, path, max);
++            }
++            fclose(file);
++            return 1;
++        }
++    }
++    
++    fclose(file);
++    return 0;
++}
++
++int Process::checkSymLink(int pid, const char *mountPoint, const char *name) {
++    char    path[PATH_MAX];
++    char    link[PATH_MAX];
++
++    snprintf(path, sizeof(path), "/proc/%d/%s", pid, name);
++    if (readSymLink(path, link, sizeof(link)) && pathMatchesMountPoint(link, mountPoint)) 
++        return 1;
++    return 0;
++}
++
++int Process::getPid(const char *s) {
++    int result = 0;
++    while (*s) {
++        if (!isdigit(*s)) return -1;
++        result = 10 * result + (*s++ - '0');
++    }
++    return result;
++}
++
++/*
++ * Hunt down processes that have files open at the given mount point.
++ */
++int Process::killProcessesWithOpenFiles(const char *path, int signal) {
++    int count = 0;
++    DIR* dir;
++    struct dirent* de;
++
++    if (!(dir = opendir("/proc"))) {
++        SLOGE("opendir failed (%s)", strerror(errno));
++        return count;
++    }
++
++    while ((de = readdir(dir))) {
++        int pid = getPid(de->d_name);
++        if (pid == -1)
++            continue;
++
++        std::string name;
++        getProcessName(pid, name);
++
++        char openfile[PATH_MAX];
++
++        if (checkFileDescriptorSymLinks(pid, path, openfile, sizeof(openfile))) {
++            SLOGE("Process %s (%d) has open file %s", name.c_str(), pid, openfile);
++        } else if (checkFileMaps(pid, path, openfile, sizeof(openfile))) {
++            SLOGE("Process %s (%d) has open filemap for %s", name.c_str(), pid, openfile);
++        } else if (checkSymLink(pid, path, "cwd")) {
++            SLOGE("Process %s (%d) has cwd within %s", name.c_str(), pid, path);
++        } else if (checkSymLink(pid, path, "root")) {
++            SLOGE("Process %s (%d) has chroot within %s", name.c_str(), pid, path);
++        } else if (checkSymLink(pid, path, "exe")) {
++            SLOGE("Process %s (%d) has executable path within %s", name.c_str(), pid, path);
++        } else {
++            continue;
++        }
++
++        if (signal != 0) {
++            SLOGW("Sending %s to process %d", strsignal(signal), pid);
++            kill(pid, signal);
++            count++;
++        }
++    }
++    closedir(dir);
++    return count;
++}
+diff --git a/volume_manager/Process.h b/volume_manager/Process.h
+new file mode 100644
+index 00000000..8084f9a6
+--- /dev/null
++++ b/volume_manager/Process.h
+@@ -0,0 +1,35 @@
++/*
++ * Copyright (C) 2008 The Android Open Source Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#ifndef _PROCESS_H
++#define _PROCESS_H
++
++class Process {
++public:
++    static int killProcessesWithOpenFiles(const char *path, int signal);
++    static int getPid(const char *s);
++    static int checkSymLink(int pid, const char *path, const char *name);
++    static int checkFileMaps(int pid, const char *path);
++    static int checkFileMaps(int pid, const char *path, char *openFilename, size_t max);
++    static int checkFileDescriptorSymLinks(int pid, const char *mountPoint);
++    static int checkFileDescriptorSymLinks(int pid, const char *mountPoint, char *openFilename, size_t max);
++    static void getProcessName(int pid, std::string& out_name);
++private:
++    static int readSymLink(const char *path, char *link, size_t max);
++    static int pathMatchesMountPoint(const char *path, const char *mountPoint);
++};
++
++#endif
+diff --git a/volume_manager/PublicVolume.cpp b/volume_manager/PublicVolume.cpp
+new file mode 100644
+index 00000000..0a29b817
+--- /dev/null
++++ b/volume_manager/PublicVolume.cpp
+@@ -0,0 +1,158 @@
++/*
++ * Copyright (C) 2015 The Android Open Source Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#include "fs/Exfat.h"
++#include "fs/Ext4.h"
++#include "fs/F2fs.h"
++#include "fs/Ntfs.h"
++#include "fs/Vfat.h"
++#include "PublicVolume.h"
++#include "Utils.h"
++#include <volume_manager/VolumeManager.h>
++#include "ResponseCode.h"
++
++#include <android-base/stringprintf.h>
++#include <android-base/logging.h>
++#include <cutils/fs.h>
++#include <private/android_filesystem_config.h>
++
++#include <fcntl.h>
++#include <stdlib.h>
++#include <sys/mount.h>
++#include <sys/stat.h>
++#include <sys/types.h>
++#include <sys/sysmacros.h>
++#include <sys/wait.h>
++
++using android::base::StringPrintf;
++
++namespace android {
++namespace volmgr {
++
++PublicVolume::PublicVolume(dev_t device, const std::string& nickname,
++                const std::string& fstype /* = "" */,
++                const std::string& mntopts /* = "" */) :
++        VolumeBase(Type::kPublic), mDevice(device),
++        mFsType(fstype), mMntOpts(mntopts) {
++    setId(StringPrintf("public:%u_%u", major(device), minor(device)));
++    setPartLabel(nickname);
++    mDevPath = StringPrintf("/dev/block/volmgr/%s", getId().c_str());
++}
++
++PublicVolume::~PublicVolume() {
++}
++
++status_t PublicVolume::readMetadata() {
++    std::string label;
++    status_t res = ReadMetadataUntrusted(mDevPath, mFsType, mFsUuid, label);
++    if (!label.empty()) {
++        setPartLabel(label);
++    }
++    VolumeManager::Instance()->notifyEvent(ResponseCode::VolumeFsTypeChanged,
++                                           mFsType);
++    VolumeManager::Instance()->notifyEvent(ResponseCode::VolumeFsUuidChanged,
++                                           mFsUuid);
++    return res;
++}
++
++status_t PublicVolume::doCreate() {
++    status_t res = CreateDeviceNode(mDevPath, mDevice);
++    if (res != OK) {
++        return res;
++    }
++    readMetadata();
++
++    // Use UUID as stable name, if available
++    std::string stableName = getId();
++    if (!mFsUuid.empty()) {
++        stableName = mFsUuid;
++    }
++    setPath(StringPrintf("/storage/%s", stableName.c_str()));
++
++    return OK;
++}
++
++status_t PublicVolume::doDestroy() {
++    return DestroyDeviceNode(mDevPath);
++}
++
++status_t PublicVolume::doMount() {
++    if (!IsFilesystemSupported(mFsType)) {
++        LOG(ERROR) << getId() << " unsupported filesystem " << mFsType;
++        return -EIO;
++    }
++
++
++    if (fs_prepare_dir(getPath().c_str(), 0700, AID_ROOT, AID_ROOT)) {
++        PLOG(ERROR) << getId() << " failed to create mount points";
++        return -errno;
++    }
++
++    int ret = 0;
++    if (mFsType == "exfat") {
++        ret = exfat::Check(mDevPath);
++    } else
++    if (mFsType == "ext4") {
++        ret = ext4::Check(mDevPath, getPath(), false);
++    } else if (mFsType == "f2fs") {
++        ret = f2fs::Check(mDevPath, false);
++    } else if (mFsType == "ntfs") {
++        ret = ntfs::Check(mDevPath);
++    } else if (mFsType == "vfat") {
++        ret = vfat::Check(mDevPath);
++    } else {
++        LOG(WARNING) << getId() << " unsupported filesystem check, skipping";
++    }
++    if (ret) {
++        LOG(ERROR) << getId() << " failed filesystem check";
++        return -EIO;
++    }
++
++    if (mFsType == "exfat") {
++        ret = exfat::Mount(mDevPath, getPath(),
++                AID_MEDIA_RW, AID_MEDIA_RW, 0007);
++    } else if (mFsType == "ext4") {
++        ret = ext4::Mount(mDevPath, getPath(), false, false, true, mMntOpts,
++                false, true);
++    } else if (mFsType == "f2fs") {
++        ret = f2fs::Mount(mDevPath, getPath(), mMntOpts, false, true);
++    } else if (mFsType == "ntfs") {
++        ret = ntfs::Mount(mDevPath, getPath(), false, false, false,
++                AID_MEDIA_RW, AID_MEDIA_RW, 0007);
++    } else if (mFsType == "vfat") {
++        ret = vfat::Mount(mDevPath, getPath(), false, false, false,
++                AID_MEDIA_RW, AID_MEDIA_RW, 0007, true);
++    } else {
++        ret = ::mount(mDevPath.c_str(), getPath().c_str(), mFsType.c_str(), 0, nullptr);
++    }
++    if (ret) {
++        PLOG(ERROR) << getId() << " failed to mount " << mDevPath;
++        return -EIO;
++    }
++
++    return OK;
++}
++
++status_t PublicVolume::doUnmount(bool detach /* = false */) {
++    ForceUnmount(getPath(), detach);
++
++    rmdir(getPath().c_str());
++
++    return OK;
++}
++
++}  // namespace volmgr
++}  // namespace android
+diff --git a/volume_manager/PublicVolume.h b/volume_manager/PublicVolume.h
+new file mode 100644
+index 00000000..546c8ae3
+--- /dev/null
++++ b/volume_manager/PublicVolume.h
+@@ -0,0 +1,75 @@
++/*
++ * Copyright (C) 2015 The Android Open Source Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#ifndef ANDROID_VOLMGR_PUBLIC_VOLUME_H
++#define ANDROID_VOLMGR_PUBLIC_VOLUME_H
++
++#include "VolumeBase.h"
++
++#include <cutils/multiuser.h>
++
++namespace android {
++namespace volmgr {
++
++
++/*
++ * Shared storage provided by public (vfat) partition.
++ *
++ * Knows how to mount itself and then spawn a FUSE daemon to synthesize
++ * permissions.
++ *
++ * This volume is not inherently multi-user aware, so it has two possible
++ * modes of operation:
++ * 1. If primary storage for the device, it only binds itself to the
++ * owner user.
++ * 2. If secondary storage, it binds itself for all users, but masks
++ * away the Android directory for secondary users.
++ */
++class PublicVolume : public VolumeBase {
++public:
++    PublicVolume(dev_t device, const std::string& nickname,
++                 const std::string& mntopts = "",
++                 const std::string& fstype = "");
++    virtual ~PublicVolume();
++
++protected:
++    status_t doCreate() override;
++    status_t doDestroy() override;
++    status_t doMount() override;
++    status_t doUnmount(bool detach = false) override;
++
++    status_t readMetadata();
++
++private:
++    /* Kernel device representing partition */
++    dev_t mDevice;
++    /* Block device path */
++    std::string mDevPath;
++
++    /* Filesystem type */
++    std::string mFsType;
++    /* Filesystem UUID */
++    std::string mFsUuid;
++    /* Mount options */
++    std::string mMntOpts;
++
++    DISALLOW_COPY_AND_ASSIGN(PublicVolume);
++};
++
++}  // namespace volmgr
++}  // namespace android
++
++#endif
+diff --git a/volume_manager/ResponseCode.cpp b/volume_manager/ResponseCode.cpp
+new file mode 100644
+index 00000000..d7e778d8
+--- /dev/null
++++ b/volume_manager/ResponseCode.cpp
+@@ -0,0 +1,42 @@
++/*
++ * Copyright (C) 2008 The Android Open Source Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#include <stdio.h>
++#include <errno.h>
++#include <string.h>
++
++#define LOG_TAG "Vold"
++
++#include <cutils/log.h>
++
++#include "ResponseCode.h"
++
++int ResponseCode::convertFromErrno() {
++   if (errno == ENODEV) {
++        return(ResponseCode::OpFailedNoMedia);
++    } else if (errno == ENODATA) {
++        return(ResponseCode::OpFailedMediaBlank);
++    } else if (errno == EIO) {
++        return(ResponseCode::OpFailedMediaCorrupt);
++    } else if (errno == EBUSY) {
++        return(ResponseCode::OpFailedStorageBusy);
++    } else if (errno == ENOENT) {
++        return(ResponseCode::OpFailedStorageNotFound);
++    }
++
++    SLOGW("Returning OperationFailed - no handler for errno %d", errno);
++    return(ResponseCode::OperationFailed);
++}
+diff --git a/volume_manager/ResponseCode.h b/volume_manager/ResponseCode.h
+new file mode 100644
+index 00000000..b8c8cdfb
+--- /dev/null
++++ b/volume_manager/ResponseCode.h
+@@ -0,0 +1,90 @@
++/*
++ * Copyright (C) 2008 The Android Open Source Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#ifndef _RESPONSECODE_H
++#define _RESPONSECODE_H
++
++class ResponseCode {
++public:
++    // 100 series - Requestion action was initiated; expect another reply
++    // before proceeding with a new command.
++    static const int ActionInitiated  = 100;
++
++    static const int VolumeListResult         = 110;
++    static const int AsecListResult           = 111;
++    static const int StorageUsersListResult   = 112;
++    static const int CryptfsGetfieldResult    = 113;
++
++    // 200 series - Requested action has been successfully completed
++    static const int CommandOkay              = 200;
++    static const int ShareStatusResult        = 210;
++    static const int AsecPathResult           = 211;
++    static const int ShareEnabledResult       = 212;
++    static const int PasswordTypeResult       = 213;
++
++    // 400 series - The command was accepted but the requested action
++    // did not take place.
++    static const int OperationFailed          = 400;
++    static const int OpFailedNoMedia          = 401;
++    static const int OpFailedMediaBlank       = 402;
++    static const int OpFailedMediaCorrupt     = 403;
++    static const int OpFailedVolNotMounted    = 404;
++    static const int OpFailedStorageBusy      = 405;
++    static const int OpFailedStorageNotFound  = 406;
++
++    // 500 series - The command was not accepted and the requested
++    // action did not take place.
++    static const int CommandSyntaxError = 500;
++    static const int CommandParameterError = 501;
++    static const int CommandNoPermission = 502;
++
++    // 600 series - Unsolicited broadcasts
++    static const int UnsolicitedInformational       = 600;
++    static const int VolumeStateChange              = 605;
++    static const int VolumeMountFailedBlank         = 610;
++    static const int VolumeMountFailedDamaged       = 611;
++    static const int VolumeMountFailedNoMedia       = 612;
++    static const int VolumeUuidChange               = 613;
++    static const int VolumeUserLabelChange          = 614;
++
++    static const int ShareAvailabilityChange        = 620;
++
++    static const int VolumeDiskInserted            = 630;
++    static const int VolumeDiskRemoved             = 631;
++    static const int VolumeBadRemoval              = 632;
++
++    static const int DiskCreated = 640;
++    static const int DiskSizeChanged = 641;
++    static const int DiskLabelChanged = 642;
++    static const int DiskScanned = 643;
++    static const int DiskSysPathChanged = 644;
++    static const int DiskDestroyed = 649;
++
++    static const int VolumeCreated = 650;
++    static const int VolumeStateChanged = 651;
++    static const int VolumeFsTypeChanged = 652;
++    static const int VolumeFsUuidChanged = 653;
++    static const int VolumeFsLabelChanged = 654;
++    static const int VolumePathChanged = 655;
++    static const int VolumeDestroyed = 659;
++
++    static const int MoveStatus = 660;
++    static const int BenchmarkResult = 661;
++    static const int TrimResult = 662;
++
++    static int convertFromErrno();
++};
++#endif
+diff --git a/volume_manager/Utils.cpp b/volume_manager/Utils.cpp
+new file mode 100644
+index 00000000..4d950a90
+--- /dev/null
++++ b/volume_manager/Utils.cpp
+@@ -0,0 +1,336 @@
++/*
++ * Copyright (C) 2015 The Android Open Source Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#include "sehandle.h"
++#include "Utils.h"
++#include "Process.h"
++#include <volume_manager/VolumeManager.h>
++
++#include <android-base/file.h>
++#include <android-base/logging.h>
++#include <android-base/properties.h>
++#include <android-base/stringprintf.h>
++
++#include <cutils/fs.h>
++#include <private/android_filesystem_config.h>
++
++#include <mutex>
++#include <dirent.h>
++#include <fcntl.h>
++#include <linux/fs.h>
++#include <stdlib.h>
++#include <sys/mount.h>
++#include <sys/types.h>
++#include <sys/stat.h>
++#include <sys/sysmacros.h>
++#include <sys/wait.h>
++#include <sys/statvfs.h>
++#include <thread>
++
++#ifndef UMOUNT_NOFOLLOW
++#define UMOUNT_NOFOLLOW    0x00000008  /* Don't follow symlink on umount */
++#endif
++
++using android::base::ReadFileToString;
++using android::base::StringPrintf;
++
++using namespace std::chrono_literals;
++
++namespace android {
++namespace volmgr {
++
++security_context_t sBlkidContext = nullptr;
++security_context_t sBlkidUntrustedContext = nullptr;
++security_context_t sFsckContext = nullptr;
++security_context_t sFsckUntrustedContext = nullptr;
++
++#include <blkid/blkid.h>
++
++static const char* kProcFilesystems = "/proc/filesystems";
++
++status_t CreateDeviceNode(const std::string& path, dev_t dev) {
++    const char* cpath = path.c_str();
++    status_t res = 0;
++
++    char* secontext = nullptr;
++    if (sehandle) {
++        if (!selabel_lookup(sehandle, &secontext, cpath, S_IFBLK)) {
++            setfscreatecon(secontext);
++        }
++    }
++
++    mode_t mode = 0660 | S_IFBLK;
++    if (mknod(cpath, mode, dev) < 0) {
++        if (errno != EEXIST) {
++            PLOG(ERROR) << "Failed to create device node for " << major(dev)
++                    << ":" << minor(dev) << " at " << path;
++            res = -errno;
++        }
++    }
++
++    if (secontext) {
++        setfscreatecon(nullptr);
++        freecon(secontext);
++    }
++
++    return res;
++}
++
++status_t DestroyDeviceNode(const std::string& path) {
++    const char* cpath = path.c_str();
++    if (TEMP_FAILURE_RETRY(unlink(cpath))) {
++        return -errno;
++    } else {
++        return OK;
++    }
++}
++
++status_t PrepareDir(const std::string& path, mode_t mode, uid_t uid, gid_t gid) {
++    const char* cpath = path.c_str();
++
++    char* secontext = nullptr;
++    if (sehandle) {
++        if (!selabel_lookup(sehandle, &secontext, cpath, S_IFDIR)) {
++            setfscreatecon(secontext);
++        }
++    }
++
++    int res = fs_prepare_dir(cpath, mode, uid, gid);
++
++    if (secontext) {
++        setfscreatecon(nullptr);
++        freecon(secontext);
++    }
++
++    if (res == 0) {
++        return OK;
++    } else {
++        return -errno;
++    }
++}
++
++status_t ForceUnmount(const std::string& path, bool detach /* = false */) {
++    const char* cpath = path.c_str();
++    if (detach) {
++        if (!umount2(path.c_str(), UMOUNT_NOFOLLOW | MNT_DETACH) || errno == EINVAL || errno == ENOENT) {
++            return OK;
++        }
++        PLOG(WARNING) << "Failed to unmount " << path;
++        return -errno;
++    }
++    if (!umount2(cpath, UMOUNT_NOFOLLOW) || errno == EINVAL || errno == ENOENT) {
++        return OK;
++    }
++    sleep(1);
++
++    Process::killProcessesWithOpenFiles(cpath, SIGINT);
++    sleep(1);
++    if (!umount2(cpath, UMOUNT_NOFOLLOW) || errno == EINVAL || errno == ENOENT) {
++        return OK;
++    }
++
++    Process::killProcessesWithOpenFiles(cpath, SIGTERM);
++    sleep(1);
++    if (!umount2(cpath, UMOUNT_NOFOLLOW) || errno == EINVAL || errno == ENOENT) {
++        return OK;
++    }
++
++    Process::killProcessesWithOpenFiles(cpath, SIGKILL);
++    sleep(1);
++    if (!umount2(cpath, UMOUNT_NOFOLLOW) || errno == EINVAL || errno == ENOENT) {
++        return OK;
++    }
++
++    return -errno;
++}
++
++status_t KillProcessesUsingPath(const std::string& path) {
++    const char* cpath = path.c_str();
++    if (Process::killProcessesWithOpenFiles(cpath, SIGINT) == 0) {
++        return OK;
++    }
++    sleep(1);
++
++    if (Process::killProcessesWithOpenFiles(cpath, SIGTERM) == 0) {
++        return OK;
++    }
++    sleep(1);
++
++    if (Process::killProcessesWithOpenFiles(cpath, SIGKILL) == 0) {
++        return OK;
++    }
++    sleep(1);
++
++    // Send SIGKILL a second time to determine if we've
++    // actually killed everyone with open files
++    if (Process::killProcessesWithOpenFiles(cpath, SIGKILL) == 0) {
++        return OK;
++    }
++    PLOG(ERROR) << "Failed to kill processes using " << path;
++    return -EBUSY;
++}
++
++status_t BindMount(const std::string& source, const std::string& target) {
++    if (::mount(source.c_str(), target.c_str(), "", MS_BIND, NULL)) {
++        PLOG(ERROR) << "Failed to bind mount " << source << " to " << target;
++        return -errno;
++    }
++    return OK;
++}
++
++static status_t readMetadata(const std::string& path, std::string& fsType,
++        std::string& fsUuid, std::string& fsLabel) {
++    char *val = NULL;
++    val = blkid_get_tag_value(NULL, "TYPE", path.c_str());
++    if (val) {
++        fsType = val;
++    }
++    val = blkid_get_tag_value(NULL, "UUID", path.c_str());
++    if (val) {
++        fsUuid = val;
++    }
++    val = blkid_get_tag_value(NULL, "LABEL", path.c_str());
++    if (val) {
++        fsLabel = val;
++    }
++
++    return OK;
++}
++
++status_t ReadMetadata(const std::string& path, std::string& fsType,
++        std::string& fsUuid, std::string& fsLabel) {
++    return readMetadata(path, fsType, fsUuid, fsLabel);
++}
++
++status_t ReadMetadataUntrusted(const std::string& path, std::string& fsType,
++        std::string& fsUuid, std::string& fsLabel) {
++    return readMetadata(path, fsType, fsUuid, fsLabel);
++}
++
++status_t ForkExecvp(const std::vector<std::string>& args) {
++    return ForkExecvp(args, nullptr);
++}
++
++status_t ForkExecvp(const std::vector<std::string>& args, security_context_t context) {
++    std::vector<std::string> output;
++    size_t argc = args.size();
++    char** argv = (char**) calloc(argc + 1, sizeof(char*));
++    for (size_t i = 0; i < argc; i++) {
++        argv[i] = (char*) args[i].c_str();
++        if (i == 0) {
++            LOG(VERBOSE) << args[i];
++        } else {
++            LOG(VERBOSE) << "    " << args[i];
++        }
++    }
++
++    if (setexeccon(context)) {
++        LOG(ERROR) << "Failed to setexeccon";
++        abort();
++    }
++
++    pid_t pid = fork();
++    int fork_errno = errno;
++    if (pid == 0) {
++        close(STDIN_FILENO);
++        close(STDOUT_FILENO);
++        close(STDERR_FILENO);
++
++        if (execvp(argv[0], argv)) {
++            PLOG(ERROR) << "Failed to exec";
++        }
++
++        _exit(1);
++    }
++
++    if (setexeccon(nullptr)) {
++        LOG(ERROR) << "Failed to setexeccon";
++        abort();
++    }
++
++    if (pid == -1) {
++        PLOG(ERROR) << "Failed to exec";
++        return -fork_errno;
++    }
++
++    waitpid(pid, nullptr, 0);
++
++    free(argv);
++    return OK;
++}
++
++bool IsFilesystemSupported(const std::string& fsType) {
++    std::string supported;
++    if (!ReadFileToString(kProcFilesystems, &supported)) {
++        PLOG(ERROR) << "Failed to read supported filesystems";
++        return false;
++    }
++
++    /* fuse filesystems */
++    supported.append("fuse\tntfs\n");
++
++    return supported.find(fsType + "\n") != std::string::npos;
++}
++
++status_t WipeBlockDevice(const std::string& path) {
++    status_t res = -1;
++    const char* c_path = path.c_str();
++    unsigned long nr_sec = 0;
++    unsigned long long range[2];
++
++    int fd = TEMP_FAILURE_RETRY(open(c_path, O_RDWR | O_CLOEXEC));
++    if (fd == -1) {
++        PLOG(ERROR) << "Failed to open " << path;
++        goto done;
++    }
++
++    if ((ioctl(fd, BLKGETSIZE, &nr_sec)) == -1) {
++        PLOG(ERROR) << "Failed to determine size of " << path;
++        goto done;
++    }
++
++    range[0] = 0;
++    range[1] = (unsigned long long) nr_sec * 512;
++
++    LOG(INFO) << "About to discard " << range[1] << " on " << path;
++    if (ioctl(fd, BLKDISCARD, &range) == 0) {
++        LOG(INFO) << "Discard success on " << path;
++        res = 0;
++    } else {
++        PLOG(ERROR) << "Discard failure on " << path;
++    }
++
++done:
++    close(fd);
++    return res;
++}
++
++dev_t GetDevice(const std::string& path) {
++    struct stat sb;
++    if (stat(path.c_str(), &sb)) {
++        PLOG(WARNING) << "Failed to stat " << path;
++        return 0;
++    } else {
++        return sb.st_dev;
++    }
++}
++
++bool IsRunningInEmulator() {
++    return android::base::GetBoolProperty("ro.kernel.qemu", false);
++}
++
++}  // namespace volmgr
++}  // namespace android
+diff --git a/volume_manager/Utils.h b/volume_manager/Utils.h
+new file mode 100644
+index 00000000..ff4bcfd8
+--- /dev/null
++++ b/volume_manager/Utils.h
+@@ -0,0 +1,87 @@
++/*
++ * Copyright (C) 2015 The Android Open Source Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#ifndef ANDROID_VOLMGR_UTILS_H
++#define ANDROID_VOLMGR_UTILS_H
++
++#include <utils/Errors.h>
++#include <cutils/multiuser.h>
++#include <selinux/selinux.h>
++
++#include <chrono>
++#include <vector>
++#include <string>
++
++// DISALLOW_COPY_AND_ASSIGN disallows the copy and operator= functions. It goes in the private:
++// declarations in a class.
++#if !defined(DISALLOW_COPY_AND_ASSIGN)
++#define DISALLOW_COPY_AND_ASSIGN(TypeName) \
++    TypeName(const TypeName&) = delete;  \
++    void operator=(const TypeName&) = delete
++#endif
++
++struct DIR;
++
++namespace android {
++namespace volmgr {
++
++/* SELinux contexts used depending on the block device type */
++extern security_context_t sBlkidContext;
++extern security_context_t sBlkidUntrustedContext;
++extern security_context_t sFsckContext;
++extern security_context_t sFsckUntrustedContext;
++
++status_t CreateDeviceNode(const std::string& path, dev_t dev);
++status_t DestroyDeviceNode(const std::string& path);
++
++/* fs_prepare_dir wrapper that creates with SELinux context */
++status_t PrepareDir(const std::string& path, mode_t mode, uid_t uid, gid_t gid);
++
++/* Really unmounts the path, killing active processes along the way */
++status_t ForceUnmount(const std::string& path, bool detach = false);
++
++/* Kills any processes using given path */
++status_t KillProcessesUsingPath(const std::string& path);
++
++/* Creates bind mount from source to target */
++status_t BindMount(const std::string& source, const std::string& target);
++
++/* Reads filesystem metadata from device at path */
++status_t ReadMetadata(const std::string& path, std::string& fsType,
++        std::string& fsUuid, std::string& fsLabel);
++
++/* Reads filesystem metadata from untrusted device at path */
++status_t ReadMetadataUntrusted(const std::string& path, std::string& fsType,
++        std::string& fsUuid, std::string& fsLabel);
++
++/* Returns either WEXITSTATUS() status, or a negative errno */
++status_t ForkExecvp(const std::vector<std::string>& args);
++status_t ForkExecvp(const std::vector<std::string>& args, security_context_t context);
++
++bool IsFilesystemSupported(const std::string& fsType);
++
++/* Wipes contents of block device at given path */
++status_t WipeBlockDevice(const std::string& path);
++
++dev_t GetDevice(const std::string& path);
++
++/* Checks if Android is running in QEMU */
++bool IsRunningInEmulator();
++
++}  // namespace volmgr
++}  // namespace android
++
++#endif
+diff --git a/volume_manager/VolumeBase.cpp b/volume_manager/VolumeBase.cpp
+new file mode 100644
+index 00000000..e323a0ca
+--- /dev/null
++++ b/volume_manager/VolumeBase.cpp
+@@ -0,0 +1,193 @@
++/*
++ * Copyright (C) 2015 The Android Open Source Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#include "Utils.h"
++#include "VolumeBase.h"
++#include <volume_manager/VolumeManager.h>
++#include "ResponseCode.h"
++
++#include <android-base/stringprintf.h>
++#include <android-base/logging.h>
++
++#include <fcntl.h>
++#include <stdlib.h>
++#include <sys/mount.h>
++#include <sys/stat.h>
++#include <sys/types.h>
++
++using android::base::StringPrintf;
++
++namespace android {
++namespace volmgr {
++
++VolumeBase::VolumeBase(Type type) :
++        mType(type), mMountFlags(0), mCreated(false), mState(
++                State::kUnmounted), mSilent(false) {
++}
++
++VolumeBase::~VolumeBase() {
++    CHECK(!mCreated);
++}
++
++void VolumeBase::setState(State state) {
++    mState = state;
++    VolumeManager::Instance()->notifyEvent(ResponseCode::VolumeStateChanged,
++                                           StringPrintf("%d", mState));
++}
++
++status_t VolumeBase::setDiskId(const std::string& diskId) {
++    if (mCreated) {
++        LOG(WARNING) << getId() << " diskId change requires destroyed";
++        return -EBUSY;
++    }
++
++    mDiskId = diskId;
++    return OK;
++}
++
++status_t VolumeBase::setPartGuid(const std::string& partGuid) {
++    if (mCreated) {
++        LOG(WARNING) << getId() << " partGuid change requires destroyed";
++        return -EBUSY;
++    }
++
++    mPartGuid = partGuid;
++    return OK;
++}
++
++status_t VolumeBase::setPartLabel(const std::string& partLabel) {
++    if ((mState != State::kUnmounted) && (mState != State::kUnmountable)) {
++        LOG(WARNING) << getId() << " partLabel change requires state unmounted or unmountable";
++        LOG(WARNING) << getId() << " state=" << (int)mState;
++    }
++
++    mPartLabel = partLabel;
++    return OK;
++}
++
++status_t VolumeBase::setMountFlags(int mountFlags) {
++    if ((mState != State::kUnmounted) && (mState != State::kUnmountable)) {
++        LOG(WARNING) << getId() << " flags change requires state unmounted or unmountable";
++        return -EBUSY;
++    }
++
++    mMountFlags = mountFlags;
++    return OK;
++}
++
++status_t VolumeBase::setSilent(bool silent) {
++    if (mCreated) {
++        LOG(WARNING) << getId() << " silence change requires destroyed";
++        return -EBUSY;
++    }
++
++    mSilent = silent;
++    return OK;
++}
++
++status_t VolumeBase::setId(const std::string& id) {
++    if (mCreated) {
++        LOG(WARNING) << getId() << " id change requires not created";
++        return -EBUSY;
++    }
++
++    mId = id;
++    return OK;
++}
++
++status_t VolumeBase::setPath(const std::string& path) {
++    mPath = path;
++    VolumeManager::Instance()->notifyEvent(ResponseCode::VolumePathChanged,
++                                           mPath);
++    return OK;
++}
++
++status_t VolumeBase::create() {
++    if (mCreated) {
++        return BAD_VALUE;
++    }
++
++    mCreated = true;
++    std::vector<std::string> argv;
++    argv.push_back(StringPrintf("%d", mType));
++    argv.push_back(mDiskId);
++    argv.push_back(mPartGuid);
++    status_t res = doCreate();
++    if (res == OK) {
++        VolumeManager::Instance()->notifyEvent(ResponseCode::VolumeCreated,
++                                               argv);
++        if (mPartLabel.size() > 0) {
++            VolumeManager::Instance()->notifyEvent(ResponseCode::VolumeFsLabelChanged,
++                                                   mPartLabel);
++        }
++    }
++    setState(State::kUnmounted);
++    return res;
++}
++
++status_t VolumeBase::doCreate() {
++    return OK;
++}
++
++status_t VolumeBase::destroy() {
++    if (!mCreated) {
++        return NO_INIT;
++    }
++
++    if (mState == State::kMounted) {
++        unmount();
++        setState(State::kBadRemoval);
++    } else {
++        setState(State::kRemoved);
++    }
++
++    VolumeManager::Instance()->notifyEvent(ResponseCode::VolumeDestroyed);
++    status_t res = doDestroy();
++    mCreated = false;
++    return res;
++}
++
++status_t VolumeBase::doDestroy() {
++    return OK;
++}
++
++status_t VolumeBase::mount() {
++    if ((mState != State::kUnmounted) && (mState != State::kUnmountable)) {
++        LOG(WARNING) << getId() << " mount requires state unmounted or unmountable";
++        return -EBUSY;
++    }
++
++    setState(State::kChecking);
++    status_t res = doMount();
++    if (res == OK) {
++        setState(State::kMounted);
++    } else {
++        setState(State::kUnmountable);
++    }
++
++    return res;
++}
++
++status_t VolumeBase::unmount(bool detach /* = false */) {
++    setState(State::kEjecting);
++
++    status_t res = doUnmount(detach);
++    setState(State::kUnmounted);
++    return res;
++}
++
++}  // namespace volmgr
++}  // namespace android
+diff --git a/volume_manager/VolumeBase.h b/volume_manager/VolumeBase.h
+new file mode 100644
+index 00000000..a068daf1
+--- /dev/null
++++ b/volume_manager/VolumeBase.h
+@@ -0,0 +1,137 @@
++/*
++ * Copyright (C) 2008 The Android Open Source Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#ifndef ANDROID_VOLMGR_VOLUMEBASE_H
++#define ANDROID_VOLMGR_VOLUMEBASE_H
++
++#include "Utils.h"
++
++#include <cutils/multiuser.h>
++#include <utils/Errors.h>
++
++#include <sys/types.h>
++#include <list>
++#include <string>
++
++namespace android {
++namespace volmgr {
++
++/*
++ * Representation of a mounted volume ready for presentation.
++ *
++ * Various subclasses handle the different mounting prerequisites, such as
++ * encryption details, etc.  Volumes can also be "stacked" above other
++ * volumes to help communicate dependencies.  For example, an ASEC volume
++ * can be stacked on a vfat volume.
++ *
++ * Mounted volumes can be asked to manage bind mounts to present themselves
++ * to specific users on the device.
++ *
++ * When an unmount is requested, the volume recursively unmounts any stacked
++ * volumes and removes any bind mounts before finally unmounting itself.
++ */
++class VolumeBase {
++public:
++    virtual ~VolumeBase();
++
++    enum class Type {
++        kPublic = 0,
++        kPrivate,
++        kEmulated,
++        kAsec,
++        kObb,
++    };
++
++    enum MountFlags {
++        /* Flag that volume is primary external storage */
++        kPrimary = 1 << 0,
++        /* Flag that volume is visible to normal apps */
++        kVisible = 1 << 1,
++    };
++
++    enum class State {
++        kUnmounted = 0,
++        kChecking,
++        kMounted,
++        kMountedReadOnly,
++        kEjecting,
++        kUnmountable,
++        kRemoved,
++        kBadRemoval,
++    };
++
++    const std::string& getId() const { return mId; }
++    const std::string& getDiskId() const { return mDiskId; }
++    const std::string& getPartGuid() const { return mPartGuid; }
++    const std::string& getPartLabel() const { return mPartLabel; }
++    Type getType() const { return mType; }
++    int getMountFlags() const { return mMountFlags; }
++    State getState() const { return mState; }
++    const std::string& getPath() const { return mPath; }
++
++    status_t setDiskId(const std::string& diskId);
++    status_t setPartGuid(const std::string& partGuid);
++    status_t setPartLabel(const std::string& partLabel);
++    status_t setMountFlags(int mountFlags);
++    status_t setSilent(bool silent);
++
++    status_t create();
++    status_t destroy();
++    status_t mount();
++    status_t unmount(bool detach = false);
++
++protected:
++    explicit VolumeBase(Type type);
++
++    virtual status_t doCreate();
++    virtual status_t doDestroy();
++    virtual status_t doMount() = 0;
++    virtual status_t doUnmount(bool detach = false) = 0;
++
++    status_t setId(const std::string& id);
++    status_t setPath(const std::string& path);
++
++private:
++    /* ID that uniquely references volume while alive */
++    std::string mId;
++    /* ID that uniquely references parent disk while alive */
++    std::string mDiskId;
++    /* Partition GUID of this volume */
++    std::string mPartGuid;
++    /* Partition label of this volume */
++    std::string mPartLabel;
++    /* Volume type */
++    Type mType;
++    /* Flags used when mounting this volume */
++    int mMountFlags;
++    /* Flag indicating object is created */
++    bool mCreated;
++    /* Current state of volume */
++    State mState;
++    /* Path to mounted volume */
++    std::string mPath;
++    /* Flag indicating that volume should emit no events */
++    bool mSilent;
++
++    void setState(State state);
++
++    DISALLOW_COPY_AND_ASSIGN(VolumeBase);
++};
++
++}  // namespace volmgr
++}  // namespace android
++
++#endif
+diff --git a/volume_manager/VolumeManager.cpp b/volume_manager/VolumeManager.cpp
+new file mode 100644
+index 00000000..c357d009
+--- /dev/null
++++ b/volume_manager/VolumeManager.cpp
+@@ -0,0 +1,414 @@
++/*
++ * Copyright (C) 2008 The Lineage Android Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#include <sys/stat.h>
++#include <sys/types.h>
++#include <fcntl.h>
++#include <dirent.h>
++#include <fs_mgr.h>
++#include <sys/sysmacros.h>
++
++#define LOG_TAG "VolumeManager"
++
++#include <android-base/logging.h>
++#include <cutils/properties.h>
++
++#include <sysutils/NetlinkEvent.h>
++
++#include "VolumeBase.h"
++#include "EmulatedVolume.h"
++#include "Disk.h"
++#include "DiskPartition.h"
++#include <volume_manager/VolumeManager.h>
++
++#include "NetlinkManager.h"
++
++static const unsigned int kMajorBlockMmc = 179;
++static const unsigned int kMajorBlockExperimentalMin = 240;
++static const unsigned int kMajorBlockExperimentalMax = 254;
++
++namespace android {
++namespace volmgr {
++
++static void
++do_coldboot(DIR *d, int lvl)
++{
++    struct dirent *de;
++    int dfd, fd;
++
++    dfd = dirfd(d);
++
++    fd = openat(dfd, "uevent", O_WRONLY | O_CLOEXEC);
++    if(fd >= 0) {
++        write(fd, "add\n", 4);
++        close(fd);
++    }
++
++    while((de = readdir(d))) {
++        DIR *d2;
++
++        if (de->d_name[0] == '.')
++            continue;
++
++        if (de->d_type != DT_DIR && lvl > 0)
++            continue;
++
++        fd = openat(dfd, de->d_name, O_RDONLY | O_DIRECTORY | O_CLOEXEC);
++        if(fd < 0)
++            continue;
++
++        d2 = fdopendir(fd);
++        if(d2 == 0)
++            close(fd);
++        else {
++            do_coldboot(d2, lvl + 1);
++            closedir(d2);
++        }
++    }
++}
++
++static void
++coldboot(const char* path)
++{
++    DIR* d = opendir(path);
++    if (d) {
++        do_coldboot(d, 0);
++        closedir(d);
++    }
++}
++
++static int
++process_config(VolumeManager *vm, bool* has_adoptable, bool* has_quota, fstab_rec** data_recp)
++{
++    struct fstab* fstab = fs_mgr_read_fstab_default();
++    if (!fstab) {
++        PLOG(ERROR) << "Failed to open default fstab";
++        return -1;
++    }
++
++    /* Loop through entries looking for ones that vold manages */
++    *has_adoptable = false;
++    *has_quota = false;
++    for (int i = 0; i < fstab->num_entries; i++) {
++        if (fs_mgr_is_quota(&fstab->recs[i])) {
++            *has_quota = true;
++        }
++
++        if (fs_mgr_is_voldmanaged(&fstab->recs[i])) {
++            std::string sysPattern(fstab->recs[i].blk_device);
++            std::string fstype;
++            if (fstab->recs[i].fs_type) {
++                fstype = fstab->recs[i].fs_type;
++            }
++            std::string mntopts;
++            if (fstab->recs[i].fs_options) {
++                mntopts = fstab->recs[i].fs_options;
++            }
++            std::string nickname(fstab->recs[i].label);
++            int partnum = fstab->recs[i].partnum;
++            int flags = 0;
++
++            if (fs_mgr_is_encryptable(&fstab->recs[i])) {
++                flags |= android::volmgr::Disk::Flags::kAdoptable;
++                *has_adoptable = true;
++            }
++            if (fs_mgr_is_noemulatedsd(&fstab->recs[i])
++                    || property_get_bool("vold.debug.default_primary", false)) {
++                flags |= android::volmgr::Disk::Flags::kDefaultPrimary;
++            }
++            if (fs_mgr_is_nonremovable(&fstab->recs[i])) {
++                flags |= android::volmgr::Disk::Flags::kNonRemovable;
++            }
++
++            vm->addDiskSource(new VolumeManager::DiskSource(sysPattern, nickname, partnum, flags,
++                                    fstype, mntopts));
++        }
++        else {
++            if (!*data_recp && !strcmp(fstab->recs[i].mount_point, "/data")) {
++                *data_recp = &fstab->recs[i];
++            }
++        }
++    }
++    return 0;
++}
++
++VolumeInfo::VolumeInfo(const VolumeBase* vol) :
++    mId(vol->getId()),
++    mLabel(vol->getPartLabel()),
++    mPath(vol->getPath())
++{
++    // Empty
++}
++
++VolumeManager* VolumeManager::sInstance = nullptr;
++
++VolumeManager*
++VolumeManager::Instance(void)
++{
++    if (!sInstance) {
++        sInstance = new VolumeManager();
++    }
++    return sInstance;
++}
++
++VolumeManager::VolumeManager(void) :
++    mWatcher(nullptr),
++    mNetlinkManager(NetlinkManager::Instance()),
++    mInternalEmulated(nullptr)
++{
++    // Empty
++}
++
++VolumeManager::~VolumeManager(void)
++{
++    stop();
++    for (auto& disk : mDisks) {
++        delete disk;
++    }
++    for (auto& source : mDiskSources) {
++        delete source;
++    }
++}
++
++bool
++VolumeManager::start(VolumeWatcher* watcher)
++{
++    setenv("BLKID_FILE", "/tmp/vold_blkid.tab", 1);
++
++    mkdir("/dev/block/volmgr", 0755);
++
++    mWatcher = watcher;
++
++    bool has_adoptable = false;
++    bool has_quota = false;
++    fstab_rec* data_rec = nullptr;
++    if (process_config(this, &has_adoptable, &has_quota, &data_rec) != 0) {
++        LOG(ERROR) << "Error reading configuration... continuing anyway";
++    }
++
++    if (data_rec) {
++        mInternalEmulated = new EmulatedVolume(data_rec, "media");
++        mInternalEmulated->create();
++    }
++
++    if (!mNetlinkManager->start()) {
++        LOG(ERROR) << "Unable to start NetlinkManager";
++        return false;
++    }
++
++    property_set("vold.has_adoptable", has_adoptable ? "1" : "0");
++    property_set("vold.has_quota", has_quota ? "1" : "0");
++    coldboot("/sys/block");
++
++    unmountAll();
++
++    LOG(INFO) << "VolumeManager initialized";
++    return true;
++}
++
++void
++VolumeManager::stop(void)
++{
++    mNetlinkManager->stop();
++    mNetlinkManager = nullptr;
++    mWatcher = nullptr;
++}
++
++bool
++VolumeManager::reset(void)
++{
++    return false;
++}
++
++bool
++VolumeManager::unmountAll(void)
++{
++    std::lock_guard<std::mutex> lock(mLock);
++
++    if (mInternalEmulated) {
++        mInternalEmulated->unmount();
++    }
++
++    for (auto& disk : mDisks) {
++        disk->unmountAll();
++    }
++
++    return true;
++}
++
++void
++VolumeManager::getVolumeInfo(std::vector<VolumeInfo>& info)
++{
++    std::lock_guard<std::mutex> lock(mLock);
++
++    info.clear();
++    if (mInternalEmulated) {
++        info.push_back(VolumeInfo(mInternalEmulated));
++    }
++    for (const auto& disk : mDisks) {
++        disk->getVolumeInfo(info);
++    }
++}
++
++VolumeBase*
++VolumeManager::findVolume(const std::string& id)
++{
++    if (mInternalEmulated && mInternalEmulated->getId() == id) {
++        return mInternalEmulated;
++    }
++    for (const auto& disk : mDisks) {
++        auto vol = disk->findVolume(id);
++        if (vol != nullptr) {
++            return vol.get();
++        }
++    }
++    return nullptr;
++}
++
++bool
++VolumeManager::volumeMount(const std::string& id)
++{
++    std::lock_guard<std::mutex> lock(mLock);
++    auto vol = findVolume(id);
++    if (!vol) {
++        return false;
++    }
++    status_t res = vol->mount();
++    return (res == OK);
++}
++
++bool
++VolumeManager::volumeUnmount(const std::string& id, bool detach /* = false */)
++{
++    std::lock_guard<std::mutex> lock(mLock);
++    auto vol = findVolume(id);
++    if (!vol) {
++        return false;
++    }
++    status_t res = vol->unmount(detach);
++    return (res == OK);
++}
++
++void
++VolumeManager::addDiskSource(DiskSource* source)
++{
++    std::lock_guard<std::mutex> lock(mLock);
++
++    mDiskSources.push_back(source);
++}
++
++void
++VolumeManager::handleBlockEvent(NetlinkEvent* evt)
++{
++    std::lock_guard<std::mutex> lock(mLock);
++
++    const char* param;
++    param = evt->findParam("DEVTYPE");
++    std::string devType(param ? param : "");
++    if (devType != "disk") {
++        return;
++    }
++    param = evt->findParam("DEVPATH");
++    std::string eventPath(param ? param : "");
++
++    int major = atoi(evt->findParam("MAJOR"));
++    int minor = atoi(evt->findParam("MINOR"));
++    dev_t device = makedev(major, minor);
++
++    switch (evt->getAction()) {
++    case NetlinkEvent::Action::kAdd: {
++        for (const auto& source : mDiskSources) {
++            if (source->matches(eventPath)) {
++                // For now, assume that MMC, virtio-blk (the latter is
++                // emulator-specific; see Disk.cpp for details) and UFS card
++                // devices are SD, and that everything else is USB
++                int flags = source->getFlags();
++                if (major == kMajorBlockMmc
++                    || (eventPath.find("ufs") != std::string::npos)
++                    || (IsRunningInEmulator()
++                    && major >= (int) kMajorBlockExperimentalMin
++                    && major <= (int) kMajorBlockExperimentalMax)) {
++                    flags |= Disk::Flags::kSd;
++                } else {
++                    flags |= Disk::Flags::kUsb;
++                }
++
++                 Disk* disk = (source->getPartNum() == -1) ?
++                        new Disk(eventPath, device,
++                                source->getNickname(), flags) :
++                        new DiskPartition(eventPath, device,
++                                source->getNickname(), flags,
++                                source->getPartNum(),
++                                source->getFsType(), source->getMntOpts());
++                disk->create();
++                mDisks.push_back(disk);
++                break;
++            }
++        }
++        break;
++    }
++    case NetlinkEvent::Action::kChange: {
++        LOG(DEBUG) << "Disk at " << major << ":" << minor << " changed";
++        for (const auto& disk : mDisks) {
++            if (disk->getDevice() == device) {
++                disk->readMetadata();
++                disk->readPartitions();
++            }
++        }
++        break;
++    }
++    case NetlinkEvent::Action::kRemove: {
++        auto i = mDisks.begin();
++        while (i != mDisks.end()) {
++            if ((*i)->getDevice() == device) {
++                (*i)->destroy();
++                i = mDisks.erase(i);
++            } else {
++                ++i;
++            }
++        }
++        break;
++    }
++    default: {
++        LOG(WARNING) << "Unexpected block event action " << (int) evt->getAction();
++        break;
++    }
++    }
++}
++
++void
++VolumeManager::notifyEvent(int code)
++{
++    std::vector<std::string> argv;
++    notifyEvent(code, argv);
++}
++
++void
++VolumeManager::notifyEvent(int code, const std::string& arg)
++{
++    std::vector<std::string> argv;
++    argv.push_back(arg);
++    notifyEvent(code, argv);
++}
++
++void
++VolumeManager::notifyEvent(int code, const std::vector<std::string>& argv)
++{
++    mWatcher->handleEvent(code, argv);
++}
++
++}  // namespace volmgr
++}  // namespace android
+diff --git a/volume_manager/fs/Exfat.cpp b/volume_manager/fs/Exfat.cpp
+new file mode 100644
+index 00000000..f752f92d
+--- /dev/null
++++ b/volume_manager/fs/Exfat.cpp
+@@ -0,0 +1,79 @@
++/*
++ * Copyright (C) 2015 The Android Open Source Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#include "Exfat.h"
++#include "Utils.h"
++
++#define LOG_TAG "Vold"
++
++#include <android-base/logging.h>
++#include <android-base/stringprintf.h>
++
++#include <cutils/log.h>
++
++#include <logwrap/logwrap.h>
++
++#include <vector>
++#include <string>
++
++#include <sys/mount.h>
++
++//XXX
++#define CONFIG_EXFAT_DRIVER "exfat"
++
++using android::base::StringPrintf;
++
++namespace android {
++namespace volmgr {
++namespace exfat {
++
++static const char* kFsckPath = "/sbin/fsck.exfat";
++
++bool IsSupported() {
++    return access(kFsckPath, X_OK) == 0
++            && IsFilesystemSupported("exfat");
++}
++
++status_t Check(const std::string& source) {
++    std::vector<std::string> cmd;
++    cmd.push_back(kFsckPath);
++    cmd.push_back(source);
++
++    // Exfat devices are currently always untrusted
++    return ForkExecvp(cmd, sFsckUntrustedContext);
++}
++
++status_t Mount(const std::string& source, const std::string& target,
++        int ownerUid, int ownerGid, int permMask) {
++    int mountFlags = MS_NODEV | MS_NOSUID | MS_DIRSYNC | MS_NOATIME | MS_NOEXEC;
++    auto mountData = android::base::StringPrintf("uid=%d,gid=%d,fmask=%o,dmask=%o", ownerUid,
++                                                 ownerGid, permMask, permMask);
++
++    if (mount(source.c_str(), target.c_str(), "exfat", mountFlags, mountData.c_str()) == 0) {
++        return 0;
++    }
++    PLOG(ERROR) << "Mount failed; attempting read-only";
++    mountFlags |= MS_RDONLY;
++    if (mount(source.c_str(), target.c_str(), "exfat", mountFlags, mountData.c_str()) == 0) {
++        return 0;
++    }
++
++    return -1;
++}
++
++}  // namespace exfat
++}  // namespace volmgr
++}  // namespace android
+diff --git a/volume_manager/fs/Exfat.h b/volume_manager/fs/Exfat.h
+new file mode 100644
+index 00000000..ecd8b115
+--- /dev/null
++++ b/volume_manager/fs/Exfat.h
+@@ -0,0 +1,38 @@
++/*
++ * Copyright (C) 2015 The Android Open Source Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#ifndef VOLMGR_EXFAT_H
++#define VOLMGR_EXFAT_H
++
++#include <utils/Errors.h>
++
++#include <string>
++
++namespace android {
++namespace volmgr {
++namespace exfat {
++
++bool IsSupported();
++
++status_t Check(const std::string& source);
++status_t Mount(const std::string& source, const std::string& target,
++        int ownerUid, int ownerGid, int permMask);
++
++}  // namespace exfat
++}  // namespace volmgr
++}  // namespace android
++
++#endif
+diff --git a/volume_manager/fs/Ext4.cpp b/volume_manager/fs/Ext4.cpp
+new file mode 100644
+index 00000000..be33eded
+--- /dev/null
++++ b/volume_manager/fs/Ext4.cpp
+@@ -0,0 +1,170 @@
++/*
++ * Copyright (C) 2012 The Android Open Source Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#include <stdio.h>
++#include <stdlib.h>
++#include <fcntl.h>
++#include <unistd.h>
++#include <errno.h>
++#include <string.h>
++#include <dirent.h>
++#include <errno.h>
++#include <fcntl.h>
++#include <vector>
++#include <string>
++
++#include <sys/types.h>
++#include <sys/stat.h>
++#include <sys/types.h>
++#include <sys/mman.h>
++#include <sys/mount.h>
++#include <sys/wait.h>
++
++#include <linux/kdev_t.h>
++
++#define LOG_TAG "Vold"
++#include <private/android_filesystem_config.h>
++#include <android-base/logging.h>
++#include <android-base/properties.h>
++#include <android-base/stringprintf.h>
++#include <cutils/log.h>
++#include <cutils/properties.h>
++#include <logwrap/logwrap.h>
++#include <selinux/selinux.h>
++
++#include "Ext4.h"
++#include "Utils.h"
++
++using android::base::StringPrintf;
++
++namespace android {
++namespace volmgr {
++namespace ext4 {
++
++static const char* kFsckPath = "/sbin/e2fsck";
++
++bool IsSupported() {
++    return access(kFsckPath, X_OK) == 0
++            && IsFilesystemSupported("ext4");
++}
++
++status_t Check(const std::string& source, const std::string& target, bool trusted) {
++    // The following is shamelessly borrowed from fs_mgr.c, so it should be
++    // kept in sync with any changes over there.
++
++    const char* c_source = source.c_str();
++    const char* c_target = target.c_str();
++
++    int ret;
++    long tmpmnt_flags = MS_NOATIME | MS_NOEXEC | MS_NOSUID;
++    char *tmpmnt_opts = (char*) "nomblk_io_submit,errors=remount-ro";
++
++    /*
++     * First try to mount and unmount the filesystem.  We do this because
++     * the kernel is more efficient than e2fsck in running the journal and
++     * processing orphaned inodes, and on at least one device with a
++     * performance issue in the emmc firmware, it can take e2fsck 2.5 minutes
++     * to do what the kernel does in about a second.
++     *
++     * After mounting and unmounting the filesystem, run e2fsck, and if an
++     * error is recorded in the filesystem superblock, e2fsck will do a full
++     * check.  Otherwise, it does nothing.  If the kernel cannot mount the
++     * filesytsem due to an error, e2fsck is still run to do a full check
++     * fix the filesystem.
++     */
++    ret = mount(c_source, c_target, "ext4", tmpmnt_flags, tmpmnt_opts);
++    if (!ret) {
++        int i;
++        for (i = 0; i < 5; i++) {
++            // Try to umount 5 times before continuing on.
++            // Should we try rebooting if all attempts fail?
++            int result = umount(c_target);
++            if (result == 0) {
++                break;
++            }
++            ALOGW("%s(): umount(%s)=%d: %s\n", __func__, c_target, result, strerror(errno));
++            sleep(1);
++        }
++    }
++
++    /*
++     * Some system images do not have e2fsck for licensing reasons
++     * (e.g. recent SDK system images). Detect these and skip the check.
++     */
++    if (access(kFsckPath, X_OK)) {
++        ALOGD("Not running %s on %s (executable not in system image)\n",
++                kFsckPath, c_source);
++    } else {
++        ALOGD("Running %s on %s\n", kFsckPath, c_source);
++
++        std::vector<std::string> cmd;
++        cmd.push_back(kFsckPath);
++        cmd.push_back("-y");
++        cmd.push_back(c_source);
++
++        return ForkExecvp(cmd, trusted ? sFsckContext : sFsckUntrustedContext);
++    }
++
++    return 0;
++}
++
++status_t Mount(const std::string& source, const std::string& target, bool ro,
++        bool remount, bool executable, const std::string& opts /* = "" */,
++        bool trusted, bool portable) {
++    int rc;
++    unsigned long flags;
++
++    std::string data(opts);
++
++    if (portable) {
++        if (!data.empty()) {
++            data += ",";
++        }
++        data += "context=u:object_r:sdcard_posix:s0";
++    }
++    const char* c_source = source.c_str();
++    const char* c_target = target.c_str();
++    const char* c_data = data.c_str();
++
++    flags = MS_NOATIME | MS_NODEV | MS_NOSUID;
++
++    // Only use MS_DIRSYNC if we're not mounting adopted storage
++    if (!trusted) {
++        flags |= MS_DIRSYNC;
++    }
++
++    flags |= (executable ? 0 : MS_NOEXEC);
++    flags |= (ro ? MS_RDONLY : 0);
++    flags |= (remount ? MS_REMOUNT : 0);
++
++    rc = mount(c_source, c_target, "ext4", flags, c_data);
++    if (portable && rc == 0) {
++        chown(c_target, AID_MEDIA_RW, AID_MEDIA_RW);
++        chmod(c_target, 0775);
++    }
++
++    if (rc && errno == EROFS) {
++        SLOGE("%s appears to be a read only filesystem - retrying mount RO", c_source);
++        flags |= MS_RDONLY;
++        rc = mount(c_source, c_target, "ext4", flags, c_data);
++    }
++
++    return rc;
++}
++
++}  // namespace ext4
++}  // namespace volmgr
++}  // namespace android
+diff --git a/volume_manager/fs/Ext4.h b/volume_manager/fs/Ext4.h
+new file mode 100644
+index 00000000..4093e20f
+--- /dev/null
++++ b/volume_manager/fs/Ext4.h
+@@ -0,0 +1,40 @@
++/*
++ * Copyright (C) 2012 The Android Open Source Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#ifndef VOLMGR_EXT4_H
++#define VOLMGR_EXT4_H
++
++#include <utils/Errors.h>
++
++#include <string>
++
++namespace android {
++namespace volmgr {
++namespace ext4 {
++
++bool IsSupported();
++
++status_t Check(const std::string& source, const std::string& target,
++        bool trusted);
++status_t Mount(const std::string& source, const std::string& target, bool ro,
++        bool remount, bool executable, const std::string& opts = "",
++        bool trusted = false, bool portable = false);
++
++}  // namespace ext4
++}  // namespace volmgr
++}  // namespace android
++
++#endif
+diff --git a/volume_manager/fs/F2fs.cpp b/volume_manager/fs/F2fs.cpp
+new file mode 100644
+index 00000000..c69ecc6f
+--- /dev/null
++++ b/volume_manager/fs/F2fs.cpp
+@@ -0,0 +1,93 @@
++/*
++ * Copyright (C) 2015 The Android Open Source Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#include "F2fs.h"
++#include "Utils.h"
++
++#include <android-base/logging.h>
++#include <android-base/stringprintf.h>
++#include <private/android_filesystem_config.h>
++#include <vector>
++#include <string>
++#include <sys/stat.h>
++#include <sys/mount.h>
++
++using android::base::StringPrintf;
++
++namespace android {
++namespace volmgr {
++namespace f2fs {
++
++static const char* kFsckPath = "/sbin/fsck.f2fs";
++
++bool IsSupported() {
++    return access(kFsckPath, X_OK) == 0
++            && IsFilesystemSupported("f2fs");
++}
++
++status_t Check(const std::string& source, bool trusted) {
++    std::vector<std::string> cmd;
++    cmd.push_back(kFsckPath);
++    cmd.push_back("-a");
++    cmd.push_back(source);
++
++    return ForkExecvp(cmd, trusted ? sFsckContext : sFsckUntrustedContext);
++}
++
++status_t Mount(const std::string& source, const std::string& target,
++        const std::string& opts /* = "" */, bool trusted, bool portable) {
++    std::string data(opts);
++
++    if (portable) {
++        if (!data.empty()) {
++            data += ",";
++        }
++        data += "context=u:object_r:sdcard_posix:s0";
++    }
++
++    const char* c_source = source.c_str();
++    const char* c_target = target.c_str();
++    const char* c_data = data.c_str();
++
++    unsigned long flags = MS_NOATIME | MS_NODEV | MS_NOSUID;
++
++    // Only use MS_DIRSYNC if we're not mounting adopted storage
++    if (!trusted) {
++        flags |= MS_DIRSYNC;
++    }
++
++    int res = mount(c_source, c_target, "f2fs", flags, c_data);
++    if (portable && res == 0) {
++        chown(c_target, AID_MEDIA_RW, AID_MEDIA_RW);
++        chmod(c_target, 0775);
++    }
++
++    if (res != 0) {
++        PLOG(ERROR) << "Failed to mount " << source;
++        if (errno == EROFS) {
++            res = mount(c_source, c_target, "f2fs", flags | MS_RDONLY, c_data);
++            if (res != 0) {
++                PLOG(ERROR) << "Failed to mount read-only " << source;
++            }
++        }
++    }
++
++    return res;
++}
++
++}  // namespace f2fs
++}  // namespace volmgr
++}  // namespace android
+diff --git a/volume_manager/fs/F2fs.h b/volume_manager/fs/F2fs.h
+new file mode 100644
+index 00000000..e52a7875
+--- /dev/null
++++ b/volume_manager/fs/F2fs.h
+@@ -0,0 +1,39 @@
++/*
++ * Copyright (C) 2015 The Android Open Source Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#ifndef VOLMGR_F2FS_H
++#define VOLMGR_F2FS_H
++
++#include <utils/Errors.h>
++
++#include <string>
++
++namespace android {
++namespace volmgr {
++namespace f2fs {
++
++bool IsSupported();
++
++status_t Check(const std::string& source, bool trusted);
++status_t Mount(const std::string& source, const std::string& target,
++        const std::string& opts = "", bool trusted = false,
++        bool portable = false);
++
++}  // namespace f2fs
++}  // namespace volmgr
++}  // namespace android
++
++#endif
+diff --git a/volume_manager/fs/Ntfs.cpp b/volume_manager/fs/Ntfs.cpp
+new file mode 100644
+index 00000000..c121f3d5
+--- /dev/null
++++ b/volume_manager/fs/Ntfs.cpp
+@@ -0,0 +1,84 @@
++/*
++ * Copyright (C) 2015 The Android Open Source Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#include "Ntfs.h"
++#include "Utils.h"
++
++#include <android-base/logging.h>
++#include <android-base/stringprintf.h>
++
++#include <vector>
++#include <string>
++
++#include <sys/mount.h>
++
++using android::base::StringPrintf;
++
++namespace android {
++namespace volmgr {
++namespace ntfs {
++
++static const char* kFsckPath = "/sbin/fsck.ntfs";
++static const char* kMountPath = "/sbin/mount.ntfs";
++
++bool IsSupported() {
++    return access(kFsckPath, X_OK) == 0
++            && access(kMountPath, X_OK) == 0
++            && IsFilesystemSupported("ntfs");
++}
++
++status_t Check(const std::string& source) {
++    std::vector<std::string> cmd;
++    cmd.push_back(kFsckPath);
++    cmd.push_back("-n");
++    cmd.push_back(source);
++
++    // Ntfs devices are currently always untrusted
++    return ForkExecvp(cmd, sFsckUntrustedContext);
++}
++
++status_t Mount(const std::string& source, const std::string& target, bool ro,
++        bool remount, bool executable, int ownerUid, int ownerGid, int permMask) {
++    char mountData[255];
++
++    const char* c_source = source.c_str();
++    const char* c_target = target.c_str();
++
++    sprintf(mountData,
++            "utf8,uid=%d,gid=%d,fmask=%o,dmask=%o,"
++            "shortname=mixed,nodev,nosuid,dirsync",
++            ownerUid, ownerGid, permMask, permMask);
++
++    if (!executable)
++        strlcat(mountData, ",noexec", sizeof(mountData));
++    if (ro)
++        strlcat(mountData, ",ro", sizeof(mountData));
++    if (remount)
++        strlcat(mountData, ",remount", sizeof(mountData));
++
++    std::vector<std::string> cmd;
++    cmd.push_back(kMountPath);
++    cmd.push_back("-o");
++    cmd.push_back(mountData);
++    cmd.push_back(c_source);
++    cmd.push_back(c_target);
++
++    return ForkExecvp(cmd);
++}
++
++}  // namespace ntfs
++}  // namespace vold
++}  // namespace android
+diff --git a/volume_manager/fs/Ntfs.h b/volume_manager/fs/Ntfs.h
+new file mode 100644
+index 00000000..a2bd90ad
+--- /dev/null
++++ b/volume_manager/fs/Ntfs.h
+@@ -0,0 +1,38 @@
++/*
++ * Copyright (C) 2015 The Android Open Source Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#ifndef ANDROID_VOLD_NTFS_H
++#define ANDROID_VOLD_NTFS_H
++
++#include <utils/Errors.h>
++
++#include <string>
++
++namespace android {
++namespace volmgr {
++namespace ntfs {
++
++bool IsSupported();
++
++status_t Check(const std::string& source);
++status_t Mount(const std::string& source, const std::string& target, bool ro,
++        bool remount, bool executable, int ownerUid, int ownerGid, int permMask);
++
++}  // namespace ntfs
++}  // namespace vold
++}  // namespace android
++
++#endif
+diff --git a/volume_manager/fs/Vfat.cpp b/volume_manager/fs/Vfat.cpp
+new file mode 100644
+index 00000000..2cad9dd3
+--- /dev/null
++++ b/volume_manager/fs/Vfat.cpp
+@@ -0,0 +1,171 @@
++/*
++ * Copyright (C) 2008 The Android Open Source Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#include <stdio.h>
++#include <stdlib.h>
++#include <fcntl.h>
++#include <unistd.h>
++#include <errno.h>
++#include <string.h>
++#include <dirent.h>
++#include <errno.h>
++#include <fcntl.h>
++
++#include <sys/types.h>
++#include <sys/stat.h>
++#include <sys/types.h>
++#include <sys/mman.h>
++#include <sys/mount.h>
++#include <sys/wait.h>
++#include <linux/fs.h>
++#include <sys/ioctl.h>
++
++#include <linux/kdev_t.h>
++
++#define LOG_TAG "Vold"
++
++#include <android-base/logging.h>
++#include <android-base/stringprintf.h>
++#include <cutils/log.h>
++#include <cutils/properties.h>
++#include <selinux/selinux.h>
++
++#include <logwrap/logwrap.h>
++
++#include "Vfat.h"
++#include "Utils.h"
++
++using android::base::StringPrintf;
++
++namespace android {
++namespace volmgr {
++namespace vfat {
++
++static const char* kFsckPath = "/sbin/fsck_msdos";
++
++bool IsSupported() {
++    return access(kFsckPath, X_OK) == 0
++            && IsFilesystemSupported("vfat");
++}
++
++status_t Check(const std::string& source) {
++    if (access(kFsckPath, X_OK)) {
++        SLOGW("Skipping fs checks\n");
++        return 0;
++    }
++
++    int pass = 1;
++    int rc = 0;
++    do {
++        std::vector<std::string> cmd;
++        cmd.push_back(kFsckPath);
++        cmd.push_back("-p");
++        cmd.push_back("-f");
++        cmd.push_back(source);
++
++        // Fat devices are currently always untrusted
++        rc = ForkExecvp(cmd, sFsckUntrustedContext);
++
++        if (rc < 0) {
++            SLOGE("Filesystem check failed due to logwrap error");
++            errno = EIO;
++            return -1;
++        }
++
++        switch(rc) {
++        case 0:
++            SLOGI("Filesystem check completed OK");
++            return 0;
++
++        case 2:
++            SLOGE("Filesystem check failed (not a FAT filesystem)");
++            errno = ENODATA;
++            return -1;
++
++        case 4:
++            if (pass++ <= 3) {
++                SLOGW("Filesystem modified - rechecking (pass %d)",
++                        pass);
++                continue;
++            }
++            SLOGE("Failing check after too many rechecks");
++            errno = EIO;
++            return -1;
++
++        case 8:
++            SLOGE("Filesystem check failed (no filesystem)");
++            errno = ENODATA;
++            return -1;
++
++        default:
++            SLOGE("Filesystem check failed (unknown exit code %d)", rc);
++            errno = EIO;
++            return -1;
++        }
++    } while (0);
++
++    return 0;
++}
++
++status_t Mount(const std::string& source, const std::string& target, bool ro,
++        bool remount, bool executable, int ownerUid, int ownerGid, int permMask,
++        bool createLost) {
++    int rc;
++    unsigned long flags;
++    char mountData[255];
++
++    const char* c_source = source.c_str();
++    const char* c_target = target.c_str();
++
++    flags = MS_NODEV | MS_NOSUID | MS_DIRSYNC | MS_NOATIME;
++
++    flags |= (executable ? 0 : MS_NOEXEC);
++    flags |= (ro ? MS_RDONLY : 0);
++    flags |= (remount ? MS_REMOUNT : 0);
++
++    snprintf(mountData, sizeof(mountData),
++            "utf8,uid=%d,gid=%d,fmask=%o,dmask=%o,shortname=mixed",
++            ownerUid, ownerGid, permMask, permMask);
++
++    rc = mount(c_source, c_target, "vfat", flags, mountData);
++
++    if (rc && errno == EROFS) {
++        SLOGE("%s appears to be a read only filesystem - retrying mount RO", c_source);
++        flags |= MS_RDONLY;
++        rc = mount(c_source, c_target, "vfat", flags, mountData);
++    }
++
++    if (rc == 0 && createLost) {
++        char *lost_path;
++        asprintf(&lost_path, "%s/LOST.DIR", c_target);
++        if (access(lost_path, F_OK)) {
++            /*
++             * Create a LOST.DIR in the root so we have somewhere to put
++             * lost cluster chains (fsck_msdos doesn't currently do this)
++             */
++            if (mkdir(lost_path, 0755)) {
++                SLOGE("Unable to create LOST.DIR (%s)", strerror(errno));
++            }
++        }
++        free(lost_path);
++    }
++
++    return rc;
++}
++
++}  // namespace vfat
++}  // namespace volmgr
++}  // namespace android
+diff --git a/volume_manager/fs/Vfat.h b/volume_manager/fs/Vfat.h
+new file mode 100644
+index 00000000..1bdf581e
+--- /dev/null
++++ b/volume_manager/fs/Vfat.h
+@@ -0,0 +1,39 @@
++/*
++ * Copyright (C) 2008 The Android Open Source Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#ifndef VOLMGR_VFAT_H
++#define VOLMGR_VFAT_H
++
++#include <utils/Errors.h>
++
++#include <string>
++
++namespace android {
++namespace volmgr {
++namespace vfat {
++
++bool IsSupported();
++
++status_t Check(const std::string& source);
++status_t Mount(const std::string& source, const std::string& target, bool ro,
++        bool remount, bool executable, int ownerUid, int ownerGid, int permMask,
++        bool createLost);
++
++}  // namespace vfat
++}  // namespace volmgr
++}  // namespace android
++
++#endif
+diff --git a/volume_manager/include/volume_manager/VolumeManager.h b/volume_manager/include/volume_manager/VolumeManager.h
+new file mode 100644
+index 00000000..292e8b3f
+--- /dev/null
++++ b/volume_manager/include/volume_manager/VolumeManager.h
+@@ -0,0 +1,131 @@
++/*
++ * Copyright (C) 2008 The Lineage Android Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#ifndef _VOLMGR_VOLUME_MANAGER_H
++#define _VOLMGR_VOLUME_MANAGER_H
++
++#include <pthread.h>
++#include <fnmatch.h>
++#include <stdlib.h>
++
++#include <list>
++#include <mutex>
++#include <string>
++
++class NetlinkManager;
++class NetlinkEvent;
++
++class VolumeWatcher {
++public:
++    virtual ~VolumeWatcher(void) {}
++    virtual void handleEvent(int code, const std::vector<std::string>& argv) = 0;
++};
++
++namespace android {
++namespace volmgr {
++
++class Disk;
++class VolumeBase;
++
++class VolumeInfo {
++public:
++    explicit VolumeInfo(const VolumeBase* vol);
++
++    std::string     mId;
++    std::string     mLabel;
++    std::string     mPath;
++};
++
++class VolumeManager {
++private:
++    VolumeManager(const VolumeManager&);
++    VolumeManager& operator=(const VolumeManager&);
++
++public:
++    static VolumeManager* Instance(void);
++
++private:
++    static VolumeManager*       sInstance;
++
++public:
++    class DiskSource {
++    public:
++        DiskSource(const std::string& sysPattern, const std::string& nickname,
++                        int partnum, int flags,
++                        const std::string& fstype, const std::string mntopts) :
++                mSysPattern(sysPattern), mNickname(nickname),
++                mPartNum(partnum), mFlags(flags),
++                mFsType(fstype), mMntOpts(mntopts) {
++        }
++
++        bool matches(const std::string& sysPath) {
++            return !fnmatch(mSysPattern.c_str(), sysPath.c_str(), 0);
++        }
++
++        const std::string& getNickname() { return mNickname; }
++        int getPartNum() { return mPartNum; }
++        int getFlags() { return mFlags; }
++        const std::string& getFsType() { return mFsType; }
++        const std::string& getMntOpts() { return mMntOpts; }
++
++    private:
++        std::string mSysPattern;
++        std::string mNickname;
++        int mPartNum;
++        int mFlags;
++        std::string mFsType;
++        std::string mMntOpts;
++    };
++
++public:
++    VolumeManager(void);
++    ~VolumeManager(void);
++
++    bool        start(VolumeWatcher* watcher);
++    void        stop(void);
++
++    bool        reset(void);
++    bool        unmountAll(void);
++
++    void        getVolumeInfo(std::vector<VolumeInfo>& info);
++
++    VolumeBase* findVolume(const std::string& id);
++
++    bool        volumeMount(const std::string& id);
++    bool        volumeUnmount(const std::string& id, bool detach = false);
++    bool        volumeFormat(const std::string& id, const std::string& fsType);
++
++public:
++    void        addDiskSource(DiskSource* source);
++    void        handleBlockEvent(NetlinkEvent* evt);
++
++    void        notifyEvent(int code);
++    void        notifyEvent(int code, const std::string& arg);
++    void        notifyEvent(int code, const std::vector<std::string>& argv);
++
++private:
++    VolumeWatcher*              mWatcher;
++    NetlinkManager*             mNetlinkManager;
++    std::mutex                  mLock;
++    VolumeBase*                 mInternalEmulated;
++    std::list<DiskSource*>      mDiskSources;
++    std::list<Disk*>            mDisks;
++};
++
++}  // namespace volmgr
++}  // namespace android
++
++#endif
+diff --git a/volume_manager/sehandle.h b/volume_manager/sehandle.h
+new file mode 100644
+index 00000000..f59d7eb0
+--- /dev/null
++++ b/volume_manager/sehandle.h
+@@ -0,0 +1,24 @@
++/*
++ * Copyright (C) 2014 The Android Open Source Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#ifndef _SEHANDLE_H
++#define _SEHANDLE_H
++
++#include <selinux/android.h>
++
++extern struct selabel_handle *sehandle;
++
++#endif
+-- 
+2.17.1
+

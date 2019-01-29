@@ -1,0 +1,446 @@
+From f82f7754479dff6edb4464568ca66aa8b10776d0 Mon Sep 17 00:00:00 2001
+From: Steve Kondik <shade@chemlab.org>
+Date: Sat, 19 Oct 2013 19:49:20 -0700
+Subject: [PATCH 01/44] recovery: Get a proper shell environment in recovery
+
+ * ADB support
+ * Toybox applets
+ * mksh
+ * Set time
+
+Change-Id: I80b0e2aa5eb7142eaa9f157709f4e029077d8dfa
+---
+ Android.mk      |  34 +++++++++++
+ common.h        |   3 +
+ etc/init.rc     |  10 +++-
+ etc/mkshrc      |  70 ++++++++++++++++++++++
+ recovery.cpp    | 152 +++++++++++++++++++++++++++++++++++++++++++++++-
+ recovery_cmds.h |  34 +++++++++++
+ 6 files changed, 297 insertions(+), 6 deletions(-)
+ create mode 100644 etc/mkshrc
+ create mode 100644 recovery_cmds.h
+
+diff --git a/Android.mk b/Android.mk
+index 7e0ad122..eeb7adec 100644
+--- a/Android.mk
++++ b/Android.mk
+@@ -1,4 +1,6 @@
+ # Copyright (C) 2007 The Android Open Source Project
++# Copyright (C) 2015 The CyanogenMod Project
++# Copyright (C) 2017 The Lineage Android Project
+ #
+ # Licensed under the Apache License, Version 2.0 (the "License");
+ # you may not use this file except in compliance with the License.
+@@ -161,12 +163,14 @@ LOCAL_STATIC_LIBRARIES := \
+     libbatterymonitor
+ 
+ LOCAL_STATIC_LIBRARIES += \
++    libmksh_driver \
+     librecovery \
+     libverifier \
+     libbootloader_message \
+     libfs_mgr \
+     libext4_utils \
+     libsparse \
++    libreboot \
+     libziparchive \
+     libotautil \
+     libmounts \
+@@ -206,8 +210,38 @@ ifeq ($(BOARD_CACHEIMAGE_PARTITION_SIZE),)
+ LOCAL_REQUIRED_MODULES += recovery-persist recovery-refresh
+ endif
+ 
++LOCAL_REQUIRED_MODULES += \
++    toybox_static \
++    recovery_mkshrc
++
++# Symlinks
++RECOVERY_TOOLS := \
++    reboot \
++    setup_adbd \
++    sh
++LOCAL_POST_INSTALL_CMD := $(hide) $(foreach t,$(RECOVERY_TOOLS),ln -sf ${LOCAL_MODULE} $(LOCAL_MODULE_PATH)/$(t);)
++
+ include $(BUILD_EXECUTABLE)
+ 
++# mkshrc
++include $(CLEAR_VARS)
++LOCAL_MODULE := recovery_mkshrc
++LOCAL_MODULE_TAGS := optional
++LOCAL_MODULE_CLASS := ETC
++LOCAL_MODULE_PATH := $(TARGET_RECOVERY_ROOT_OUT)/etc
++LOCAL_SRC_FILES := etc/mkshrc
++LOCAL_MODULE_STEM := mkshrc
++include $(BUILD_PREBUILT)
++
++# Reboot static library
++include $(CLEAR_VARS)
++LOCAL_MODULE := libreboot
++LOCAL_MODULE_TAGS := optional
++LOCAL_CFLAGS := -Dmain=reboot_main
++LOCAL_SRC_FILES := ../../system/core/reboot/reboot.c
++include $(BUILD_STATIC_LIBRARY)
++
++
+ # recovery-persist (system partition dynamic executable run after /data mounts)
+ # ===============================
+ include $(CLEAR_VARS)
+diff --git a/common.h b/common.h
+index 8b336f80..8966f067 100644
+--- a/common.h
++++ b/common.h
+@@ -26,6 +26,9 @@
+ // device-specific recovery libraries. We static assert the value consistency in recovery.cpp.
+ static constexpr int kRecoveryApiVersion = 3;
+ 
++// Minimum valid seconds since epoch (2017-01-01 00:00:00)
++#define TV_MIN 1483228800
++
+ class RecoveryUI;
+ 
+ extern RecoveryUI* ui;
+diff --git a/etc/init.rc b/etc/init.rc
+index ab26f229..36b8f02a 100644
+--- a/etc/init.rc
++++ b/etc/init.rc
+@@ -87,15 +87,19 @@ service charger /charger -r
+ service recovery /sbin/recovery
+     seclabel u:r:recovery:s0
+ 
++service setup_adbd /sbin/setup_adbd
++    oneshot
++    seclabel u:r:recovery:s0
++    disabled
++
+ service adbd /sbin/adbd --root_seclabel=u:r:su:s0 --device_banner=recovery
+     disabled
+     socket adbd stream 660 system system
+     seclabel u:r:adbd:s0
+ 
+-# Always start adbd on userdebug and eng builds
++# setup_adbd will start adb once it has checked the keys
+ on property:ro.debuggable=1
+-    write /sys/class/android_usb/android0/enable 1
+-    start adbd
++    start setup_adbd
+ 
+ # Restart adbd so it can run as root
+ on property:lineage.service.adb.root=1
+diff --git a/etc/mkshrc b/etc/mkshrc
+new file mode 100644
+index 00000000..b2923c6f
+--- /dev/null
++++ b/etc/mkshrc
+@@ -0,0 +1,70 @@
++# Copyright (c) 2010, 2012, 2013, 2014
++#	Thorsten Glaser <tg@mirbsd.org>
++# This file is provided under the same terms as mksh.
++#-
++# Minimal /system/etc/mkshrc for Android
++#
++# Support: https://launchpad.net/mksh
++
++: ${HOME:=/}
++: ${HOSTNAME:=$(getprop ro.product.device)}
++: ${HOSTNAME:=android}
++: ${MKSH:=/sbin/sh}
++: ${SHELL:=$MKSH}
++: ${TERM:=linux}
++: ${TMPDIR:=/tmp}
++: ${USER:=$(id -un)}
++export HOME HOSTNAME MKSH SHELL TERM TMPDIR USER
++
++if (( USER_ID )); then PS1='$'; else PS1='#'; fi
++PS4='[$EPOCHREALTIME] '; PS1='${|
++	local e=$?
++
++	(( e )) && REPLY+="$e|"
++
++	return $e
++}$USER@$HOSTNAME:${PWD:-?} '"$PS1 "
++
++function hd {
++	local -Uui16 -Z11 pos=0
++	local -Uui16 -Z5 hv=2147483647
++	local dasc line i
++
++	cat "$@" | { set +U; if read -arN -1 line; then
++		typeset -i1 'line[*]'
++		i=0
++		while (( i < ${#line[*]} )); do
++			hv=${line[i++]}
++			if (( (pos & 15) == 0 )); then
++				(( pos )) && print -r -- "$dasc|"
++				print -n "${pos#16#}  "
++				dasc=' |'
++			fi
++			print -n "${hv#16#} "
++			if (( (hv < 32) || (hv > 126) )); then
++				dasc+=.
++			else
++				dasc+=${line[i-1]#1#}
++			fi
++			(( (pos++ & 15) == 7 )) && print -n -- '- '
++		done
++		while (( pos & 15 )); do
++			print -n '   '
++			(( (pos++ & 15) == 7 )) && print -n -- '- '
++		done
++		(( hv == 2147483647 )) || print -r -- "$dasc|"
++	fi; }
++}
++
++function setenv {
++	eval export "\"$1\""'="$2"'
++}
++
++for p in ~/bin; do
++	[[ -d $p/. ]] || continue
++	[[ :$PATH: = *:$p:* ]] || PATH=$p:$PATH
++done
++
++unset p
++
++: place customisations above this line
+diff --git a/recovery.cpp b/recovery.cpp
+index 07ec5cfb..39efb951 100644
+--- a/recovery.cpp
++++ b/recovery.cpp
+@@ -74,6 +74,32 @@
+ #include "stub_ui.h"
+ #include "ui.h"
+ 
++#include "recovery_cmds.h"
++
++struct recovery_cmd {
++  const char *name;
++  int (*main_func)(int argc, char **argv);
++};
++
++static const struct recovery_cmd recovery_cmds[] = {
++  { "reboot",         reboot_main },
++  { "poweroff",       reboot_main },
++  { "sh",             mksh_main },
++  { nullptr, nullptr },
++};
++
++struct recovery_cmd get_command(char* command) {
++  int i;
++
++  for (i = 0; recovery_cmds[i].name; i++) {
++    if (strcmp(command, recovery_cmds[i].name) == 0) {
++      break;
++    }
++  }
++
++  return recovery_cmds[i];
++}
++
+ static const struct option OPTIONS[] = {
+   { "update_package", required_argument, NULL, 'u' },
+   { "retry_count", required_argument, NULL, 'n' },
+@@ -133,6 +159,12 @@ static_assert(kRecoveryApiVersion == RECOVERY_API_VERSION, "Mismatching recovery
+ static std::string locale;
+ static bool has_cache = false;
+ 
++static const char* adb_keys_data = "/data/misc/adb/adb_keys";
++static const char* adb_keys_root = "/adb_keys";
++static const char* time_off_1_data = "/data/time/ats_1";
++static const char* time_off_2_data = "/data/system/time/ats_1";
++static const char* time_off_root = "/ats";
++
+ RecoveryUI* ui = nullptr;
+ bool modified_flash = false;
+ std::string stage;
+@@ -211,6 +243,38 @@ static void check_and_fclose(FILE *fp, const char *name) {
+     fclose(fp);
+ }
+ 
++static bool file_copy(const char* src, const char* dst) {
++  bool ret = false;
++  char tmpdst[PATH_MAX];
++  FILE* sfp;
++  FILE* dfp;
++
++  snprintf(tmpdst, sizeof(tmpdst), "%s.tmp", dst);
++  sfp = fopen(src, "r");
++  dfp = fopen(tmpdst, "w");
++  if (sfp && dfp) {
++    char buf[4096];
++    size_t nr, nw;
++    while ((nr = fread(buf, 1, sizeof(buf), sfp)) != 0) {
++      nw = fwrite(buf, 1, nr, dfp);
++      if (nr != nw)
++        break;
++    }
++    ret = (!ferror(sfp) && !ferror(dfp));
++  }
++  if (dfp) fclose(dfp);
++  if (sfp) fclose(sfp);
++
++  if (ret) {
++    ret = (rename(tmpdst, dst) == 0);
++  }
++  else {
++    unlink(tmpdst);
++  }
++
++  return ret;
++}
++
+ bool is_ro_debuggable() {
+     return android::base::GetBoolProperty("ro.debuggable", false);
+ }
+@@ -1386,6 +1450,59 @@ static void log_failure_code(ErrorCode code, const char *update_package) {
+     LOG(INFO) << log_content;
+ }
+ 
++static void copy_userdata_files() {
++  if (ensure_path_mounted("/data") == 0) {
++    if (access(adb_keys_root, F_OK) != 0) {
++      if (access(adb_keys_data, R_OK) == 0) {
++        file_copy(adb_keys_data, adb_keys_root);
++      }
++    }
++    if (access(time_off_root, F_OK) != 0) {
++      if (access(time_off_1_data, R_OK) == 0) {
++        file_copy(time_off_1_data, time_off_root);
++      }
++      else if (access(time_off_2_data, R_OK) == 0) {
++        file_copy(time_off_2_data, time_off_root);
++      }
++    }
++    ensure_path_unmounted("/data");
++  }
++}
++
++static void set_time() {
++  struct timeval now;
++  FILE* fp;
++
++  gettimeofday(&now, nullptr);
++  if (now.tv_sec <= TV_MIN) {
++    fp = fopen(time_off_root, "r");
++    if (fp) {
++      uint64_t off;
++      if (fread(&off, 1, sizeof(off), fp) == sizeof(off)) {
++        now.tv_sec = off / 1000;
++        now.tv_usec = (off % 1000) * 1000;
++        if (now.tv_sec > TV_MIN) {
++          settimeofday(&now, nullptr);
++        }
++      }
++      fclose(fp);
++    }
++  }
++}
++
++static void setup_adbd() {
++  int tries;
++  for (tries = 0; tries < 5; ++tries) {
++    if (access(adb_keys_root, F_OK) == 0) {
++      break;
++    }
++    sleep(1);
++  }
++
++  // Trigger (re)start of adb daemon
++  property_set("lineage.service.adb.root", "1");
++}
++
+ int main(int argc, char **argv) {
+   // We don't have logcat yet under recovery; so we'll print error on screen and
+   // log to stdout (which is redirected to recovery.log) as we used to do.
+@@ -1412,17 +1529,46 @@ int main(int argc, char **argv) {
+     return 0;
+   }
+ 
+-  time_t start = time(nullptr);
++  // Handle alternative invocations
++  char* command = argv[0];
++  char* stripped = strrchr(argv[0], '/');
++  if (stripped) {
++    command = stripped + 1;
++  }
++
++  if (strcmp(command, "recovery") != 0) {
++    struct recovery_cmd cmd = get_command(command);
++    if (cmd.name) {
++      return cmd.main_func(argc, argv);
++    }
++
++    if (!strcmp(command, "setup_adbd")) {
++      setup_adbd();
++      return 0;
++    }
++    LOG(ERROR) << "Unhandled command " << command;
++    return 1;
++  }
++
++  // Clear umask for packages that copy files out to /tmp and then over
++  // to /system without properly setting all permissions (eg. gapps).
++  umask(0);
+ 
+   // redirect_stdio should be called only in non-sideload mode. Otherwise
+   // we may have two logger instances with different timestamps.
+   redirect_stdio(TEMPORARY_LOG_FILE);
+ 
+-  printf("Starting recovery (pid %d) on %s", getpid(), ctime(&start));
+-
+   load_volume_table();
+   has_cache = volume_for_mount_point(CACHE_ROOT) != nullptr;
+ 
++  copy_userdata_files();
++  set_time();
++  setup_adbd();
++
++  time_t start = time(nullptr);
++
++  printf("Starting recovery (pid %d) on %s", getpid(), ctime(&start));
++
+   std::vector<std::string> args = get_args(argc, argv);
+   std::vector<char*> args_to_parse(args.size());
+   std::transform(args.cbegin(), args.cend(), args_to_parse.begin(),
+diff --git a/recovery_cmds.h b/recovery_cmds.h
+new file mode 100644
+index 00000000..f0e00ca2
+--- /dev/null
++++ b/recovery_cmds.h
+@@ -0,0 +1,34 @@
++/*
++ * Copyright (C) 2013 The CyanogenMod Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#ifndef _RECOVERY_CMDS_H
++#define _RECOVERY_CMDS_H
++
++#ifdef __cplusplus
++extern "C" {
++#endif
++
++int reboot_main(int argc, char **argv);
++int poweroff_main(int argc, char **argv);
++int start_main(int argc, char **argv);
++int stop_main(int argc, char **argv);
++int mksh_main(int argc, char **argv);
++
++#ifdef __cplusplus
++}
++#endif
++
++#endif
+-- 
+2.17.1
+

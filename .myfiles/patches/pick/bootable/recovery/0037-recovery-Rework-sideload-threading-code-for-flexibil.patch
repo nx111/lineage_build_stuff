@@ -1,0 +1,275 @@
+From e55f8633c2ad01f5e2e93e4cff981cb90c00121c Mon Sep 17 00:00:00 2001
+From: Tom Marshall <tdm.code@gmail.com>
+Date: Tue, 6 Mar 2018 22:51:58 +0100
+Subject: [PATCH 37/44] recovery: Rework sideload threading code for
+ flexibility
+
+We will be introducing logic to allow the user to retry installs when
+signature verification fails.  This is much cleaner when the install
+is done in the main thread.
+
+The sideload thread now only waits for FUSE_SIDELOAD_HOST_PATHNAME to
+appear and then exits.  The sideload API is changed to reflect this:
+
+ - sideload_start() starts the sideload adbd process and the sideload
+   thread.
+
+ - sideload_wait() waits for the sideload thread to finish, optionally
+   telling it to cancel.
+
+ - sideload_install() does the actual install.
+
+ - sideload_stop() kills the sideload adbd process.
+
+This also fixes a minor bug in show_apply_update_menu() where it was
+checking for get_menu_selection() to return Device::kNoAction.  This
+was not correct, CancelWaitKey() actually generates Device::kRefresh.
+The bug was never seen because the sideload thread does not check for
+cancellation after calling CancelWaitKey().
+
+Change-Id: I16111683dd69b30b7dde6f4a07d389375b77be09
+---
+ adb_install.cpp | 112 +++++++++++++++++++++++-------------------------
+ adb_install.h   |   7 +--
+ recovery.cpp    |  18 +++++---
+ 3 files changed, 70 insertions(+), 67 deletions(-)
+
+diff --git a/adb_install.cpp b/adb_install.cpp
+index 86d14a55..35fbaf5f 100644
+--- a/adb_install.cpp
++++ b/adb_install.cpp
+@@ -36,8 +36,6 @@
+ #include "install.h"
+ #include "ui.h"
+ 
+-static pthread_t sideload_thread;
+-
+ static void set_usb_driver(bool enabled) {
+   // USB configfs doesn't use /s/c/a/a/enable.
+   if (android::base::GetBoolProperty("sys.usb.configfs", false)) {
+@@ -72,22 +70,12 @@ static void maybe_restart_adbd() {
+   }
+ }
+ 
+-struct sideload_data {
+-    bool*       wipe_cache;
+-    const char* install_file;
+-    bool        cancel;
+-    int         result;
+-};
+-
+-static struct sideload_data sideload_data;
++static pthread_t sideload_thread;
++static pid_t     sideload_adb_pid;
++static bool      sideload_cancelled;
++static bool      sideload_started;
+ 
+ static void *adb_sideload_thread(void*) {
+-  pid_t child;
+-  if ((child = fork()) == 0) {
+-    execl("/sbin/recovery", "recovery", "--adbd", nullptr);
+-    _exit(EXIT_FAILURE);
+-  }
+-
+   time_t start_time = time(nullptr);
+   time_t now = start_time;
+ 
+@@ -96,17 +84,15 @@ static void *adb_sideload_thread(void*) {
+ 
+   // FUSE_SIDELOAD_HOST_PATHNAME will start to exist once the host connects and starts serving a
+   // package. Poll for its appearance. (Note that inotify doesn't work with FUSE.)
+-  int result = INSTALL_NONE;
+   int status = -1;
+   while (now - start_time < ADB_INSTALL_TIMEOUT) {
+     // Exit if either:
+     //  - The adb child process dies, or
+     //  - The ui tells us to cancel
+-    if (kill(child, 0) != 0) {
+-      result = INSTALL_ERROR;
++    if (kill(sideload_adb_pid, 0) != 0) {
+       break;
+     }
+-    if (sideload_data.cancel) {
++    if (sideload_cancelled) {
+       break;
+     }
+ 
+@@ -117,7 +103,6 @@ static void *adb_sideload_thread(void*) {
+     }
+     if (errno != ENOENT && errno != ENOTCONN) {
+       ui->Print("\nError %s waiting for package\n\n", strerror(errno));
+-      result = INSTALL_ERROR;
+       break;
+     }
+ 
+@@ -126,63 +111,74 @@ static void *adb_sideload_thread(void*) {
+   }
+ 
+   if (status == 0) {
+-    // Signal UI thread that we can no longer cancel
++    sideload_started = true;
++    // Signal UI thread that sideload has started
+     ui->CancelWaitKey();
+-
+-    result = install_package(FUSE_SIDELOAD_HOST_PATHNAME,
+-                             sideload_data.wipe_cache,
+-                             sideload_data.install_file,
+-                             false, 0);
+-
+-    sideload_data.result = result;
+-  }
+-
+-  // Ensure adb exits
+-  kill(child, SIGTERM);
+-  waitpid(child, &status, 0);
+-
+-  if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
+-    if (WEXITSTATUS(status) == 3) {
+-      ui->Print("\nYou need adb 1.0.32 or newer to sideload\nto this device.\n\n");
+-    } else if (!WIFSIGNALED(status)) {
+-      ui->Print("\n(adbd status %d)\n", WEXITSTATUS(status));
+-    }
+   }
+ 
+   return nullptr;
+ }
+ 
+-void
+-start_sideload(bool* wipe_cache, const char* install_file) {
+-  modified_flash = true;
+-
++void sideload_start() {
+   stop_adbd();
+   set_usb_driver(true);
+ 
++  if ((sideload_adb_pid = fork()) == 0) {
++    execl("/sbin/recovery", "recovery", "--adbd", nullptr);
++    _exit(EXIT_FAILURE);
++  }
++
+   ui->Print("\n\nNow send the package you want to apply\n"
+             "to the device with \"adb sideload <filename>\"...\n");
+ 
+-  sideload_data.wipe_cache = wipe_cache;
+-  sideload_data.install_file = install_file;
+-  sideload_data.cancel = false;
+-  sideload_data.result = INSTALL_NONE;
++  sideload_cancelled = false;
++  sideload_started = false;
+ 
+   pthread_create(&sideload_thread, nullptr, &adb_sideload_thread, nullptr);
+ }
+ 
+-void stop_sideload() {
+-  sideload_data.cancel = true;
++void sideload_wait(bool cancel) {
++  if (cancel) {
++    sideload_cancelled = true;
++  }
++  pthread_join(sideload_thread, nullptr);
+ }
+ 
+-int wait_sideload() {
+-  set_perf_mode(true);
+-  pthread_join(sideload_thread, nullptr);
++int sideload_install(bool* wipe_cache, const char* install_file) {
++  int result = INSTALL_ERROR;
++  if (sideload_started) {
++    modified_flash = true;
+ 
+-  ui->FlushKeys();
++    set_perf_mode(true);
+ 
+-  maybe_restart_adbd();
++    result = install_package(FUSE_SIDELOAD_HOST_PATHNAME,
++                             wipe_cache,
++                             install_file,
++                             false, 0);
++
++    set_perf_mode(false);
++  }
+ 
+-  set_perf_mode(false);
++  return result;
++}
++
++void sideload_stop() {
++  // Ensure adb exits
++  int status;
++  kill(sideload_adb_pid, SIGTERM);
++  waitpid(sideload_adb_pid, &status, 0);
+ 
+-  return sideload_data.result;
++  sideload_started = false;
++
++  if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
++    if (WEXITSTATUS(status) == 3) {
++      ui->Print("\nYou need adb 1.0.32 or newer to sideload\nto this device.\n\n");
++    } else if (!WIFSIGNALED(status)) {
++      ui->Print("\n(adbd status %d)\n", WEXITSTATUS(status));
++    }
++  }
++
++  ui->FlushKeys();
++
++  maybe_restart_adbd();
+ }
+diff --git a/adb_install.h b/adb_install.h
+index 6c5e6da5..61c34652 100644
+--- a/adb_install.h
++++ b/adb_install.h
+@@ -17,8 +17,9 @@
+ #ifndef _ADB_INSTALL_H
+ #define _ADB_INSTALL_H
+ 
+-void start_sideload(bool* wipe_cache, const char* install_file);
+-void stop_sideload();
+-int  wait_sideload();
++void sideload_start();
++void sideload_wait(bool cancel);
++int  sideload_install(bool* wipe_cache, const char* install_file);
++void sideload_stop();
+ 
+ #endif
+diff --git a/recovery.cpp b/recovery.cpp
+index 9d618f48..2a0b8564 100644
+--- a/recovery.cpp
++++ b/recovery.cpp
+@@ -1280,13 +1280,17 @@ refresh:
+         static const char* s_headers[] = { "ADB Sideload", nullptr };
+         static const MenuItemVector s_items = { MenuItem("Cancel sideload") };
+ 
+-        start_sideload(wipe_cache, TEMPORARY_INSTALL_FILE);
++        sideload_start();
+         int item = get_menu_selection(false, MT_LIST, s_headers, s_items,
+                                       false, 0, device);
+-        if (item != Device::kNoAction) {
+-            stop_sideload();
++        if (item == Device::kRefresh) {
++            sideload_wait(false);
++            status = sideload_install(wipe_cache, TEMPORARY_INSTALL_FILE);
+         }
+-        status = wait_sideload();
++        else {
++            sideload_wait(true);
++        }
++        sideload_stop();
+     }
+     else {
+         status = apply_from_storage(device, volumes[chosen - 1], wipe_cache);
+@@ -1947,8 +1951,10 @@ int main(int argc, char **argv) {
+     if (!sideload_auto_reboot) {
+       ui->ShowText(true);
+     }
+-    start_sideload(&should_wipe_cache, TEMPORARY_INSTALL_FILE);
+-    status = wait_sideload();
++    sideload_start();
++    sideload_wait(false);
++    status = sideload_install(&should_wipe_cache, TEMPORARY_INSTALL_FILE);
++    sideload_stop();
+     if (status == INSTALL_SUCCESS && should_wipe_cache) {
+       if (!wipe_cache(false, device)) {
+         status = INSTALL_ERROR;
+-- 
+2.17.1
+
