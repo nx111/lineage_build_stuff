@@ -1272,7 +1272,6 @@ kpick 239703 # common: Migrate to livedisplay 2.0
 
 # device/qcom/sepolicy
 kpick 228573 # sepolicy: Add libsdm-disp-vndapis and libsdmutils to SP-HALs
-kpick 228578 # sepolicy: rules to allow camera daemon access to app buffer
 kpick 228582 # sepolicy: qti_init_shell needs to read dir too
 
 # device/qcom/sepolicy-legacy
@@ -1573,7 +1572,7 @@ kpick 229312 # Add Dual Channel into Bluetooth Audio Channel Mode developer opti
 kpick 231826 # Update the white list of Data saver
 kpick 232793 # Settings: per-app VPN data restriction
 kpick 237183 # settings: hide appendix of app list for power usage.
-kpick 240083 # Settings: Fix developer settings for devices without oem_lock service
+kpick 240083 # Settings: Add null checks for OemLockService
 kpick 240095 # Settings: Move artwork and visualizer to "Lock screen preferences"
 
 # packages/apps/SettingsIntelligence
@@ -1688,6 +1687,8 @@ kpick 239527 # extract_utils: template: add support for the dependency graph fun
 kpick 237209 # lineage: Set default ringtone for second SIM
 kpick 237352 # qcom: Mark some gralloc bits as valid
 kpick 237830 # soong_config: Add BOOTLOADER_MESSAGE_OFFSET
+kpick 240142 # privapp-permissions: Add new launcher3 permissions
+kpick 240158 # privapp-permissions: Remove org.lineageos.trebuchet permissions
 
 # vendor/qcom/opensource/cryptfs_hw
 
