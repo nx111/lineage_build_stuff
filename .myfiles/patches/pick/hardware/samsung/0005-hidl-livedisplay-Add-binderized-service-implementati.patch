@@ -1,7 +1,7 @@
-From 0ef385946bb15a8286f98b562a71a8d9ef8c5465 Mon Sep 17 00:00:00 2001
+From cc40705d2e40cb5b281683525cf172356bd09a0a Mon Sep 17 00:00:00 2001
 From: Jan Altensen <info@stricted.net>
 Date: Sun, 20 Jan 2019 02:40:07 +0100
-Subject: [PATCH 5/5] hidl: livedisplay: Add binderized service implementation
+Subject: [PATCH 5/6] hidl: livedisplay: Add binderized service implementation
 
 * Change default ::implementation namespace to ::samsung
 * Fill in required methods for used impls
@@ -12,35 +12,37 @@ Subject: [PATCH 5/5] hidl: livedisplay: Add binderized service implementation
 
 Change-Id: I545a7c0ac8bf4fce04da73a0d39d4ac1938496f2
 ---
- .../hidl/livedisplay/AdaptiveBacklight.cpp    |  31 +--
+ .../hidl/livedisplay/AdaptiveBacklight.cpp    |  31 ++-
  .../hidl/livedisplay/AdaptiveBacklight.h      |  12 +-
- lineagehw/hidl/livedisplay/Android.bp         |  24 +--
- lineagehw/hidl/livedisplay/AutoContrast.cpp   |  47 -----
- lineagehw/hidl/livedisplay/ColorBalance.h     |  57 ------
- .../hidl/livedisplay/ColorEnhancement.cpp     |  47 -----
- .../livedisplay/DisplayColorCalibration.cpp   |   8 +-
- .../livedisplay/DisplayColorCalibration.h     |   8 +-
- lineagehw/hidl/livedisplay/DisplayModes.cpp   | 106 +++++++++--
- lineagehw/hidl/livedisplay/DisplayModes.h     |  23 ++-
- .../hidl/livedisplay/PictureAdjustment.cpp    |  77 --------
- .../hidl/livedisplay/PictureAdjustment.h      |  62 ------
- .../hidl/livedisplay/ReadingEnhancement.cpp   |  34 +++-
+ lineagehw/hidl/livedisplay/Android.bp         |  25 +-
+ lineagehw/hidl/livedisplay/AutoContrast.cpp   |  47 ----
+ .../hidl/livedisplay/ColorEnhancement.cpp     |  47 ----
+ .../livedisplay/DisplayColorCalibration.cpp   |  49 ++--
+ .../livedisplay/DisplayColorCalibration.h     |  14 +-
+ .../DisplayColorCalibrationExynos.cpp         |  70 ++++++
+ ...ance.h => DisplayColorCalibrationExynos.h} |  29 +--
+ lineagehw/hidl/livedisplay/DisplayModes.cpp   | 106 +++++++--
+ lineagehw/hidl/livedisplay/DisplayModes.h     |  23 +-
+ .../hidl/livedisplay/PictureAdjustment.cpp    |  77 ------
+ .../hidl/livedisplay/PictureAdjustment.h      |  62 -----
+ .../hidl/livedisplay/ReadingEnhancement.cpp   |  34 ++-
  .../hidl/livedisplay/ReadingEnhancement.h     |  14 +-
- ...lance.cpp => ReadingEnhancementExynos.cpp} |  43 +++--
- ...hancement.h => ReadingEnhancementExynos.h} |  24 +--
- .../hidl/livedisplay/SunlightEnhancement.cpp  |  46 +++--
+ ...lance.cpp => ReadingEnhancementExynos.cpp} |  43 ++--
+ ...hancement.h => ReadingEnhancementExynos.h} |  24 +-
+ .../hidl/livedisplay/SunlightEnhancement.cpp  |  46 +++-
  .../hidl/livedisplay/SunlightEnhancement.h    |  12 +-
- .../livedisplay/SunlightEnhancementExynos.cpp |  59 ++++++
- ...Contrast.h => SunlightEnhancementExynos.h} |  22 +--
- lineagehw/hidl/livedisplay/service.cpp        | 179 ++++++++++++++++++
+ .../livedisplay/SunlightEnhancementExynos.cpp |  59 +++++
+ ...Contrast.h => SunlightEnhancementExynos.h} |  22 +-
+ lineagehw/hidl/livedisplay/service.cpp        | 223 ++++++++++++++++++
  ...lineage.livedisplay@2.0-service.samsung.rc |   4 +
- .../lineageos/hardware/AdaptiveBacklight.java |  59 ------
- .../hardware/DisplayModeControl.java          | 142 --------------
- .../hardware/SunlightEnhancement.java         |  86 ---------
- 25 files changed, 508 insertions(+), 718 deletions(-)
+ .../lineageos/hardware/AdaptiveBacklight.java |  59 -----
+ .../hardware/DisplayModeControl.java          | 142 -----------
+ .../hardware/SunlightEnhancement.java         |  86 -------
+ 26 files changed, 668 insertions(+), 692 deletions(-)
  delete mode 100644 lineagehw/hidl/livedisplay/AutoContrast.cpp
- delete mode 100644 lineagehw/hidl/livedisplay/ColorBalance.h
  delete mode 100644 lineagehw/hidl/livedisplay/ColorEnhancement.cpp
+ create mode 100644 lineagehw/hidl/livedisplay/DisplayColorCalibrationExynos.cpp
+ rename lineagehw/hidl/livedisplay/{ColorBalance.h => DisplayColorCalibrationExynos.h} (60%)
  delete mode 100644 lineagehw/hidl/livedisplay/PictureAdjustment.cpp
  delete mode 100644 lineagehw/hidl/livedisplay/PictureAdjustment.h
  rename lineagehw/hidl/livedisplay/{ColorBalance.cpp => ReadingEnhancementExynos.cpp} (50%)
@@ -147,10 +149,10 @@ index c0e0c4e..35502ba 100644
  }  // namespace livedisplay
  }  // namespace lineage
 diff --git a/lineagehw/hidl/livedisplay/Android.bp b/lineagehw/hidl/livedisplay/Android.bp
-index 276c386..eb355cc 100644
+index 276c386..8de096d 100644
 --- a/lineagehw/hidl/livedisplay/Android.bp
 +++ b/lineagehw/hidl/livedisplay/Android.bp
-@@ -12,33 +12,27 @@
+@@ -12,33 +12,28 @@
  // See the License for the specific language governing permissions and
  // limitations under the License.
  
@@ -179,6 +181,7 @@ index 276c386..eb355cc 100644
 -        "ColorBalance.cpp",
 -        "ColorEnhancement.cpp",
          "DisplayColorCalibration.cpp",
++        "DisplayColorCalibrationExynos.cpp",
          "DisplayModes.cpp",
 -        "PictureAdjustment.cpp",
          "ReadingEnhancement.cpp",
@@ -246,69 +249,6 @@ index af16fc7..0000000
 -}  // namespace livedisplay
 -}  // namespace lineage
 -}  // namespace vendor
-diff --git a/lineagehw/hidl/livedisplay/ColorBalance.h b/lineagehw/hidl/livedisplay/ColorBalance.h
-deleted file mode 100644
-index b760c7c..0000000
---- a/lineagehw/hidl/livedisplay/ColorBalance.h
-+++ /dev/null
-@@ -1,57 +0,0 @@
--/*
-- * Copyright (C) 2019 The LineageOS Project
-- *
-- * Licensed under the Apache License, Version 2.0 (the "License");
-- * you may not use this file except in compliance with the License.
-- * You may obtain a copy of the License at
-- *
-- *      http://www.apache.org/licenses/LICENSE-2.0
-- *
-- * Unless required by applicable law or agreed to in writing, software
-- * distributed under the License is distributed on an "AS IS" BASIS,
-- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-- * See the License for the specific language governing permissions and
-- * limitations under the License.
-- */
--
--#ifndef VENDOR_LINEAGE_LIVEDISPLAY_V2_0_COLORBALANCE_H
--#define VENDOR_LINEAGE_LIVEDISPLAY_V2_0_COLORBALANCE_H
--
--#include <vendor/lineage/livedisplay/2.0/IColorBalance.h>
--#include <hidl/MQDescriptor.h>
--#include <hidl/Status.h>
--
--namespace vendor {
--namespace lineage {
--namespace livedisplay {
--namespace V2_0 {
--namespace implementation {
--
--using ::android::hardware::hidl_array;
--using ::android::hardware::hidl_memory;
--using ::android::hardware::hidl_string;
--using ::android::hardware::hidl_vec;
--using ::android::hardware::Return;
--using ::android::hardware::Void;
--using ::android::sp;
--
--struct ColorBalance : public IColorBalance {
--    // Methods from ::vendor::lineage::livedisplay::V2_0::IColorBalance follow.
--    Return<void> getColorBalanceRange(getColorBalanceRange_cb _hidl_cb) override;
--    Return<int32_t> getColorBalance() override;
--    Return<bool> setColorBalance(int32_t value) override;
--
--    // Methods from ::android::hidl::base::V1_0::IBase follow.
--
--};
--
--// FIXME: most likely delete, this is only for passthrough implementations
--// extern "C" IColorBalance* HIDL_FETCH_IColorBalance(const char* name);
--
--}  // namespace implementation
--}  // namespace V2_0
--}  // namespace livedisplay
--}  // namespace lineage
--}  // namespace vendor
--
--#endif  // VENDOR_LINEAGE_LIVEDISPLAY_V2_0_COLORBALANCE_H
 diff --git a/lineagehw/hidl/livedisplay/ColorEnhancement.cpp b/lineagehw/hidl/livedisplay/ColorEnhancement.cpp
 deleted file mode 100644
 index e87961d..0000000
@@ -363,44 +303,86 @@ index e87961d..0000000
 -}  // namespace lineage
 -}  // namespace vendor
 diff --git a/lineagehw/hidl/livedisplay/DisplayColorCalibration.cpp b/lineagehw/hidl/livedisplay/DisplayColorCalibration.cpp
-index e471f3e..bfcda86 100644
+index e471f3e..9ecace6 100644
 --- a/lineagehw/hidl/livedisplay/DisplayColorCalibration.cpp
 +++ b/lineagehw/hidl/livedisplay/DisplayColorCalibration.cpp
-@@ -20,7 +20,7 @@ namespace vendor {
+@@ -14,43 +14,56 @@
+  * limitations under the License.
+  */
+ 
++#include <fstream>
++
+ #include "DisplayColorCalibration.h"
+ 
+ namespace vendor {
  namespace lineage {
  namespace livedisplay {
  namespace V2_0 {
 -namespace implementation {
 +namespace samsung {
++
++static constexpr const char *kColorPath = "/sys/class/graphics/fb0/rgb";
++
++bool DisplayColorCalibration::isSupported() {
++    std::ofstream file(kColorPath);
++    return file.good();
++}
  
- // Methods from ::vendor::lineage::livedisplay::V2_0::IDisplayColorCalibration follow.
+-// Methods from ::vendor::lineage::livedisplay::V2_0::IDisplayColorCalibration follow.
  Return<int32_t> DisplayColorCalibration::getMaxValue() {
-@@ -33,12 +33,12 @@ Return<int32_t> DisplayColorCalibration::getMinValue() {
-     return int32_t {};
+-    // TODO implement
+-    return int32_t {};
++    return 32768;
+ }
+ 
+ Return<int32_t> DisplayColorCalibration::getMinValue() {
+-    // TODO implement
+-    return int32_t {};
++    return 255;
  }
  
 -Return<void> DisplayColorCalibration::getCalibration(getCalibration_cb _hidl_cb) {
-+Return<void> DisplayColorCalibration::getCalibration(getCalibration_cb) {
-     // TODO implement
+-    // TODO implement
++Return<void> DisplayColorCalibration::getCalibration(getCalibration_cb resultCb) {
++    std::ifstream file(kColorPath);
++    int r, g, b;
++
++    file >> r >> g >> b;
++    if (file.fail()) {
++        resultCb(std::vector<int32_t>());
++    } else {
++        resultCb(std::vector<int32_t>({ r, g, b }));
++    }
++
      return Void();
  }
  
--Return<bool> DisplayColorCalibration::setCalibration(const hidl_vec<int32_t>& rgb) {
-+Return<bool> DisplayColorCalibration::setCalibration(const hidl_vec<int32_t>&) {
-     // TODO implement
-     return bool {};
- }
-@@ -50,7 +50,7 @@ Return<bool> DisplayColorCalibration::setCalibration(const hidl_vec<int32_t>& rg
-     //return new DisplayColorCalibration();
- //}
- //
+ Return<bool> DisplayColorCalibration::setCalibration(const hidl_vec<int32_t>& rgb) {
+-    // TODO implement
+-    return bool {};
+-}
++    std::ofstream file(kColorPath);
++    if (rgb.size() != 3) {
++        return false;
++    }
+ 
++    file << rgb[0] << " " << rgb[1] << " "  << rgb[2];
++    return !file.fail();
++}
+ 
+-// Methods from ::android::hidl::base::V1_0::IBase follow.
+-
+-//IDisplayColorCalibration* HIDL_FETCH_IDisplayColorCalibration(const char* /* name */) {
+-    //return new DisplayColorCalibration();
+-//}
+-//
 -}  // namespace implementation
 +}  // namespace samsung
  }  // namespace V2_0
  }  // namespace livedisplay
  }  // namespace lineage
 diff --git a/lineagehw/hidl/livedisplay/DisplayColorCalibration.h b/lineagehw/hidl/livedisplay/DisplayColorCalibration.h
-index f4df651..8c1f8f8 100644
+index f4df651..131444d 100644
 --- a/lineagehw/hidl/livedisplay/DisplayColorCalibration.h
 +++ b/lineagehw/hidl/livedisplay/DisplayColorCalibration.h
 @@ -25,7 +25,7 @@ namespace vendor {
@@ -412,26 +394,175 @@ index f4df651..8c1f8f8 100644
  
  using ::android::hardware::hidl_array;
  using ::android::hardware::hidl_memory;
-@@ -39,8 +39,8 @@ struct DisplayColorCalibration : public IDisplayColorCalibration {
+@@ -35,21 +35,21 @@ using ::android::hardware::Return;
+ using ::android::hardware::Void;
+ using ::android::sp;
+ 
+-struct DisplayColorCalibration : public IDisplayColorCalibration {
++class DisplayColorCalibration : public IDisplayColorCalibration {
++  public:
++    bool isSupported();
++
      // Methods from ::vendor::lineage::livedisplay::V2_0::IDisplayColorCalibration follow.
      Return<int32_t> getMaxValue() override;
      Return<int32_t> getMinValue() override;
 -    Return<void> getCalibration(getCalibration_cb _hidl_cb) override;
--    Return<bool> setCalibration(const hidl_vec<int32_t>& rgb) override;
-+    Return<void> getCalibration(getCalibration_cb) override;
-+    Return<bool> setCalibration(const hidl_vec<int32_t>&) override;
++    Return<void> getCalibration(getCalibration_cb resultCb) override;
+     Return<bool> setCalibration(const hidl_vec<int32_t>& rgb) override;
  
      // Methods from ::android::hidl::base::V1_0::IBase follow.
  
-@@ -49,7 +49,7 @@ struct DisplayColorCalibration : public IDisplayColorCalibration {
- // FIXME: most likely delete, this is only for passthrough implementations
- // extern "C" IDisplayColorCalibration* HIDL_FETCH_IDisplayColorCalibration(const char* name);
+ };
  
+-// FIXME: most likely delete, this is only for passthrough implementations
+-// extern "C" IDisplayColorCalibration* HIDL_FETCH_IDisplayColorCalibration(const char* name);
+-
 -}  // namespace implementation
 +}  // namespace samsung
  }  // namespace V2_0
  }  // namespace livedisplay
  }  // namespace lineage
+diff --git a/lineagehw/hidl/livedisplay/DisplayColorCalibrationExynos.cpp b/lineagehw/hidl/livedisplay/DisplayColorCalibrationExynos.cpp
+new file mode 100644
+index 0000000..1958ecc
+--- /dev/null
++++ b/lineagehw/hidl/livedisplay/DisplayColorCalibrationExynos.cpp
+@@ -0,0 +1,70 @@
++/*
++ * Copyright (C) 2019 The LineageOS Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#include <fstream>
++
++#include "DisplayColorCalibrationExynos.h"
++
++namespace vendor {
++namespace lineage {
++namespace livedisplay {
++namespace V2_0 {
++namespace samsung {
++
++static constexpr const char *kColorPath = "/sys/class/mdnie/mdnie/sensorRGB";
++
++bool DisplayColorCalibrationExynos::isSupported() {
++    std::ofstream file(kColorPath);
++    return file.good();
++}
++
++Return<int32_t> DisplayColorCalibrationExynos::getMaxValue() {
++    return 255;
++}
++
++Return<int32_t> DisplayColorCalibrationExynos::getMinValue() {
++    return 1;
++}
++
++Return<void> DisplayColorCalibrationExynos::getCalibration(getCalibration_cb resultCb) {
++    std::ifstream file(kColorPath);
++    int r, g, b;
++
++    file >> r >> g >> b;
++    if (file.fail()) {
++        resultCb(std::vector<int32_t>());
++    } else {
++        resultCb(std::vector<int32_t>({ r, g, b }));
++    }
++
++    return Void();
++}
++
++Return<bool> DisplayColorCalibrationExynos::setCalibration(const hidl_vec<int32_t>& rgb) {
++    std::ofstream file(kColorPath);
++    if (rgb.size() != 3) {
++        return false;
++    }
++
++    file << rgb[0] << " " << rgb[1] << " "  << rgb[2];
++    return !file.fail();
++}
++
++}  // namespace samsung
++}  // namespace V2_0
++}  // namespace livedisplay
++}  // namespace lineage
++}  // namespace vendor
+diff --git a/lineagehw/hidl/livedisplay/ColorBalance.h b/lineagehw/hidl/livedisplay/DisplayColorCalibrationExynos.h
+similarity index 60%
+rename from lineagehw/hidl/livedisplay/ColorBalance.h
+rename to lineagehw/hidl/livedisplay/DisplayColorCalibrationExynos.h
+index b760c7c..c00e577 100644
+--- a/lineagehw/hidl/livedisplay/ColorBalance.h
++++ b/lineagehw/hidl/livedisplay/DisplayColorCalibrationExynos.h
+@@ -14,10 +14,10 @@
+  * limitations under the License.
+  */
+ 
+-#ifndef VENDOR_LINEAGE_LIVEDISPLAY_V2_0_COLORBALANCE_H
+-#define VENDOR_LINEAGE_LIVEDISPLAY_V2_0_COLORBALANCE_H
++#ifndef VENDOR_LINEAGE_LIVEDISPLAY_V2_0_DISPLAYCOLORCALIBRATIONEXYNOS_H
++#define VENDOR_LINEAGE_LIVEDISPLAY_V2_0_DISPLAYCOLORCALIBRATIONEXYNOS_H
+ 
+-#include <vendor/lineage/livedisplay/2.0/IColorBalance.h>
++#include <vendor/lineage/livedisplay/2.0/IDisplayColorCalibration.h>
+ #include <hidl/MQDescriptor.h>
+ #include <hidl/Status.h>
+ 
+@@ -25,7 +25,7 @@ namespace vendor {
+ namespace lineage {
+ namespace livedisplay {
+ namespace V2_0 {
+-namespace implementation {
++namespace samsung {
+ 
+ using ::android::hardware::hidl_array;
+ using ::android::hardware::hidl_memory;
+@@ -35,23 +35,24 @@ using ::android::hardware::Return;
+ using ::android::hardware::Void;
+ using ::android::sp;
+ 
+-struct ColorBalance : public IColorBalance {
+-    // Methods from ::vendor::lineage::livedisplay::V2_0::IColorBalance follow.
+-    Return<void> getColorBalanceRange(getColorBalanceRange_cb _hidl_cb) override;
+-    Return<int32_t> getColorBalance() override;
+-    Return<bool> setColorBalance(int32_t value) override;
++class DisplayColorCalibrationExynos : public IDisplayColorCalibration {
++  public:
++    bool isSupported();
++
++    // Methods from ::vendor::lineage::livedisplay::V2_0::IDisplayColorCalibration follow.
++    Return<int32_t> getMaxValue() override;
++    Return<int32_t> getMinValue() override;
++    Return<void> getCalibration(getCalibration_cb resultCb) override;
++    Return<bool> setCalibration(const hidl_vec<int32_t>& rgb) override;
+ 
+     // Methods from ::android::hidl::base::V1_0::IBase follow.
+ 
+ };
+ 
+-// FIXME: most likely delete, this is only for passthrough implementations
+-// extern "C" IColorBalance* HIDL_FETCH_IColorBalance(const char* name);
+-
+-}  // namespace implementation
++}  // namespace samsung
+ }  // namespace V2_0
+ }  // namespace livedisplay
+ }  // namespace lineage
+ }  // namespace vendor
+ 
+-#endif  // VENDOR_LINEAGE_LIVEDISPLAY_V2_0_COLORBALANCE_H
++#endif  // VENDOR_LINEAGE_LIVEDISPLAY_V2_0_DISPLAYCOLORCALIBRATIONEXYNOS_H
 diff --git a/lineagehw/hidl/livedisplay/DisplayModes.cpp b/lineagehw/hidl/livedisplay/DisplayModes.cpp
 index 6fcf88d..0202be6 100644
 --- a/lineagehw/hidl/livedisplay/DisplayModes.cpp
@@ -1240,10 +1371,10 @@ index 44a8be6..5bf9798 100644
 +#endif  // VENDOR_LINEAGE_LIVEDISPLAY_V2_0_SUNLIGHTENHANCEMENTEXYNOS_H
 diff --git a/lineagehw/hidl/livedisplay/service.cpp b/lineagehw/hidl/livedisplay/service.cpp
 new file mode 100644
-index 0000000..13b9c83
+index 0000000..a60b970
 --- /dev/null
 +++ b/lineagehw/hidl/livedisplay/service.cpp
-@@ -0,0 +1,179 @@
+@@ -0,0 +1,223 @@
 +/*
 + * Copyright (C) 2019 The LineageOS Project
 + *
@@ -1267,6 +1398,8 @@ index 0000000..13b9c83
 +#include <hidl/HidlTransportSupport.h>
 +
 +#include "AdaptiveBacklight.h"
++#include "DisplayColorCalibration.h"
++#include "DisplayColorCalibrationExynos.h"
 +#include "DisplayModes.h"
 +#include "ReadingEnhancement.h"
 +#include "ReadingEnhancementExynos.h"
@@ -1280,6 +1413,8 @@ index 0000000..13b9c83
 +using android::OK;
 +
 +using vendor::lineage::livedisplay::V2_0::samsung::AdaptiveBacklight;
++using vendor::lineage::livedisplay::V2_0::samsung::DisplayColorCalibration;
++using vendor::lineage::livedisplay::V2_0::samsung::DisplayColorCalibrationExynos;
 +using vendor::lineage::livedisplay::V2_0::samsung::DisplayModes;
 +using vendor::lineage::livedisplay::V2_0::samsung::ReadingEnhancement;
 +using vendor::lineage::livedisplay::V2_0::samsung::ReadingEnhancementExynos;
@@ -1288,6 +1423,8 @@ index 0000000..13b9c83
 +
 +int main() {
 +    sp<AdaptiveBacklight> adaptiveBacklight;
++    sp<DisplayColorCalibration> displayColorCalibration;
++    sp<DisplayColorCalibrationExynos> displayColorCalibrationExynos;
 +    sp<DisplayModes> displayModes;
 +    sp<ReadingEnhancement> readingEnhancement;
 +    sp<ReadingEnhancementExynos> readingEnhancementExynos;
@@ -1304,6 +1441,24 @@ index 0000000..13b9c83
 +        goto shutdown;
 +    }
 +    if (adaptiveBacklight->isSupported()) {
++        services++;
++    }
++
++    displayColorCalibration = new DisplayColorCalibration();
++    if (displayColorCalibration == nullptr) {
++        LOG(ERROR) << "Can not create an instance of LiveDisplay HAL DisplayColorCalibration Iface, exiting.";
++        goto shutdown;
++    }
++    if (displayColorCalibration->isSupported()) {
++        services++;
++    }
++
++    displayColorCalibrationExynos = new DisplayColorCalibrationExynos();
++    if (displayColorCalibrationExynos == nullptr) {
++        LOG(ERROR) << "Can not create an instance of LiveDisplay HAL DisplayColorCalibration Iface, exiting.";
++        goto shutdown;
++    }
++    if (displayColorCalibrationExynos->isSupported()) {
 +        services++;
 +    }
 +
@@ -1359,6 +1514,26 @@ index 0000000..13b9c83
 +        if (status != OK) {
 +            LOG(ERROR)
 +                << "Could not register service for LiveDisplay HAL AdaptiveBacklight Iface ("
++                << status << ")";
++            goto shutdown;
++        }
++    }
++
++    if (displayColorCalibration->isSupported()) {
++        status = displayColorCalibration->registerAsService();
++        if (status != OK) {
++            LOG(ERROR)
++                << "Could not register service for LiveDisplay HAL DisplayColorCalibration Iface ("
++                << status << ")";
++            goto shutdown;
++        }
++    }
++
++    if (displayColorCalibrationExynos->isSupported()) {
++        status = displayColorCalibrationExynos->registerAsService();
++        if (status != OK) {
++            LOG(ERROR)
++                << "Could not register service for LiveDisplay HAL DisplayColorCalibration Iface ("
 +                << status << ")";
 +            goto shutdown;
 +        }

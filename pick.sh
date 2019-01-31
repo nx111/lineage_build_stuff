@@ -46,11 +46,16 @@ function get_defaul_remote()
 function sort_projects()
 {
     [ $# -lt 1 -o ! -f "$1" ] && return
-    grep "^android$" $1
-    while read $f; do
-        [ "$f" == "android" ] && continue
-        echo $f
-    done < $1
+    local project_list=$1
+    local project
+    local line
+
+    grep "^android," $project_list
+    while read line; do
+        project=$(echo $line | cut -d, -f 1)
+        [ "$project" == "android" ] && continue
+        echo $line
+    done < $project_list
 }
 
 function patch_local()
@@ -1375,7 +1380,7 @@ kpick 235986 # frameworks: Add unlinked ringtone and notification volumes
 kpick 236156 # CaffeineTile: Mimic old custom tile behavior
 kpick 236765 # Sounds: Squashed cleanup of sound files
 kpick 237129 # Merge changes for launching wifidisplay from system settings
-kpick 227142 # Battery: add Battery Moto Mod Support
+#kpick 227142 # Battery: add Battery Moto Mod Support
 kpick 237142 # Battery: update mod support to P
 kpick 237143 # AudioService: Fix Audio mod volume steps
 kpick 237171 # WiFiDisplayController: Defer the P2P Initialization from its constructor.
@@ -1498,6 +1503,7 @@ kpick 238519 # samsung: Add dummy lineagehw HIDL interfaces for vendor.lineage.t
 kpick 238520 # hidl: touch: Add binderized service implementation
 kpick 239597 # samsung: Add dummy lineagehw HIDL interfaces for vendor.lineage.livedisplay
 kpick 239598 # hidl: livedisplay: Add binderized service implementation
+kpick 240348 # audio: Fix WBS sample rate usage
 
 # lineage-sdk
 kpick 230272 # sdk: Remove VOLUME_KEYS_CONTROL_RING_STREAM
@@ -1625,7 +1631,7 @@ kpick 229314 # Allow using alternative (higher) SBC HD bitrates with a property
 kpick -f 227110 # init: I hate safety net
 kpick 231716 # init: Always use libbootloader_message from bootable/recovery namespace
 kpick 234860 # init: add install_keyring for TWRP FBE decrypt
-kpick 237140 # healthd: add Battery Moto Mod Support
+#kpick 237140 # healthd: add Battery Moto Mod Support
 kpick 237141 # core: update battery mod support for P
 kpick 240018 # Fix path for default prop
 

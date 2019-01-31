@@ -1,31 +1,30 @@
-From e51ae3244a308a995bb277a25c5f93cbd303ba4d Mon Sep 17 00:00:00 2001
+From 30354632f2a472dd0067dfbf55531f1ad7d14ced Mon Sep 17 00:00:00 2001
 From: Paul Keith <javelinanddart@gmail.com>
 Date: Wed, 9 Jan 2019 00:11:40 +0100
-Subject: [PATCH 3/5] hidl: touch: Add binderized service implementation
+Subject: [PATCH 3/6] hidl: touch: Add binderized service implementation
 
 * Change default ::implementation namespace to ::samsung
 * Fill in required methods for used impls
 * Cleanup passthrough code for used impls
-* Fix compile of unused impls
 * Add and setup binderized service
 * Remove lineagehw impls
 
 Change-Id: Iadc3b6e385233d103c3349ce31a08d6d040886c7
 ---
- lineagehw/hidl/touch/Android.bp               |  18 ++-
- lineagehw/hidl/touch/GloveMode.cpp            |  43 +++++--
- lineagehw/hidl/touch/GloveMode.h              |  17 +--
+ lineagehw/hidl/touch/Android.bp               |  18 +--
+ lineagehw/hidl/touch/GloveMode.cpp            |  43 ++++--
+ lineagehw/hidl/touch/GloveMode.h              |  17 ++-
  lineagehw/hidl/touch/KeyDisabler.cpp          |  34 +++--
- lineagehw/hidl/touch/KeyDisabler.h            |  17 +--
- lineagehw/hidl/touch/StylusMode.cpp           |  43 +++++--
- lineagehw/hidl/touch/StylusMode.h             |  17 +--
- lineagehw/hidl/touch/TouchscreenGesture.cpp   |  10 +-
- lineagehw/hidl/touch/TouchscreenGesture.h     |   8 +-
- lineagehw/hidl/touch/service.cpp              | 116 ++++++++++++++++++
+ lineagehw/hidl/touch/KeyDisabler.h            |  17 ++-
+ lineagehw/hidl/touch/StylusMode.cpp           |  43 ++++--
+ lineagehw/hidl/touch/StylusMode.h             |  17 ++-
+ lineagehw/hidl/touch/TouchscreenGesture.cpp   |  55 +++++--
+ lineagehw/hidl/touch/TouchscreenGesture.h     |  21 ++-
+ lineagehw/hidl/touch/service.cpp              | 135 ++++++++++++++++++
  ...endor.lineage.touch@1.0-service.samsung.rc |   4 +
- .../hardware/HighTouchSensitivity.java        |  96 ---------------
- .../hardware/TouchscreenHovering.java         |  98 ---------------
- 13 files changed, 253 insertions(+), 268 deletions(-)
+ .../hardware/HighTouchSensitivity.java        |  96 -------------
+ .../hardware/TouchscreenHovering.java         |  98 -------------
+ 13 files changed, 322 insertions(+), 276 deletions(-)
  create mode 100644 lineagehw/hidl/touch/service.cpp
  create mode 100644 lineagehw/hidl/touch/vendor.lineage.touch@1.0-service.samsung.rc
  delete mode 100644 lineagehw/src/org/lineageos/hardware/HighTouchSensitivity.java
@@ -379,42 +378,89 @@ index 4e7401d..2eae6c8 100644
  }  // namespace touch
  }  // namespace lineage
 diff --git a/lineagehw/hidl/touch/TouchscreenGesture.cpp b/lineagehw/hidl/touch/TouchscreenGesture.cpp
-index cadea2b..e7233dc 100644
+index cadea2b..1f47115 100644
 --- a/lineagehw/hidl/touch/TouchscreenGesture.cpp
 +++ b/lineagehw/hidl/touch/TouchscreenGesture.cpp
-@@ -20,17 +20,17 @@ namespace vendor {
+@@ -14,33 +14,66 @@
+  * limitations under the License.
+  */
+ 
++#include <fstream>
++
+ #include "TouchscreenGesture.h"
+ 
+ namespace vendor {
  namespace lineage {
  namespace touch {
  namespace V1_0 {
 -namespace implementation {
 +namespace samsung {
++
++static constexpr const char* kGeasturePath = "/sys/class/sec/sec_epen/epen_gestures";
++
++const std::map<int32_t, TouchscreenGesture::GestureInfo> TouchscreenGesture::kGestureInfoMap = {
++    {0, {0x2f1, "Swipe up stylus"}},
++    {1, {0x2f2, "Swipe down stylus"}},
++    {2, {0x2f3, "Swipe left stylus"}},
++    {3, {0x2f4, "Swipe right stylus"}},
++    {4, {0x2f5, "Long press stylus"}},
++};
++
++
++bool TouchscreenGesture::isSupported() {
++    std::ifstream file(kGeasturePath);
++    return file.good();
++}
  
  // Methods from ::vendor::lineage::touch::V1_0::ITouchscreenGesture follow.
 -Return<void> TouchscreenGesture::getSupportedGestures(getSupportedGestures_cb _hidl_cb) {
-+Return<void> TouchscreenGesture::getSupportedGestures(getSupportedGestures_cb) {
-     // TODO implement
+-    // TODO implement
++Return<void> TouchscreenGesture::getSupportedGestures(getSupportedGestures_cb resultCb) {
++    std::vector<Gesture> gestures;
++
++    for (const auto& entry : kGestureInfoMap) {
++        gestures.push_back({entry.first, entry.second.name, entry.second.keycode});
++    }
++    resultCb(gestures);
++
      return Void();
  }
  
 -Return<void> TouchscreenGesture::setGestureEnabled(const ::vendor::lineage::touch::V1_0::Gesture& gesture, bool enabled) {
-+Return<bool> TouchscreenGesture::setGestureEnabled(const ::vendor::lineage::touch::V1_0::Gesture&, bool) {
-     // TODO implement
+-    // TODO implement
 -    return Void();
-+    return bool {};
++Return<bool> TouchscreenGesture::setGestureEnabled(
++    const ::vendor::lineage::touch::V1_0::Gesture& gesture, bool enabled) {
++    std::fstream file(kGeasturePath);
++    int gestureMode;
++    int mask = 1 << gesture.id;
++    
++    file >> gestureMode;
++
++    if (enabled)
++        gestureMode |= mask;
++    else
++        gestureMode &= ~mask;
++
++    file << gestureMode;
++
++    return !file.fail();
  }
  
  
-@@ -40,7 +40,7 @@ Return<void> TouchscreenGesture::setGestureEnabled(const ::vendor::lineage::touc
-     //return new TouchscreenGesture();
- //}
- //
+ // Methods from ::android::hidl::base::V1_0::IBase follow.
+ 
+-//ITouchscreenGesture* HIDL_FETCH_ITouchscreenGesture(const char* /* name */) {
+-    //return new TouchscreenGesture();
+-//}
+-//
 -}  // namespace implementation
 +}  // namespace samsung
  }  // namespace V1_0
  }  // namespace touch
  }  // namespace lineage
 diff --git a/lineagehw/hidl/touch/TouchscreenGesture.h b/lineagehw/hidl/touch/TouchscreenGesture.h
-index bb2d336..2fb8fd1 100644
+index bb2d336..c1d7c70 100644
 --- a/lineagehw/hidl/touch/TouchscreenGesture.h
 +++ b/lineagehw/hidl/touch/TouchscreenGesture.h
 @@ -25,7 +25,7 @@ namespace vendor {
@@ -426,18 +472,32 @@ index bb2d336..2fb8fd1 100644
  
  using ::android::hardware::hidl_array;
  using ::android::hardware::hidl_memory;
-@@ -37,8 +37,8 @@ using ::android::sp;
+@@ -35,19 +35,28 @@ using ::android::hardware::Return;
+ using ::android::hardware::Void;
+ using ::android::sp;
  
- struct TouchscreenGesture : public ITouchscreenGesture {
+-struct TouchscreenGesture : public ITouchscreenGesture {
++class TouchscreenGesture : public ITouchscreenGesture {
++  public:
++    bool isSupported();
++
      // Methods from ::vendor::lineage::touch::V1_0::ITouchscreenGesture follow.
 -    Return<void> getSupportedGestures(getSupportedGestures_cb _hidl_cb) override;
 -    Return<void> setGestureEnabled(const ::vendor::lineage::touch::V1_0::Gesture& gesture, bool enabled) override;
-+    Return<void> getSupportedGestures(getSupportedGestures_cb) override;
-+    Return<bool> setGestureEnabled(const ::vendor::lineage::touch::V1_0::Gesture&, bool) override;
++    Return<void> getSupportedGestures(getSupportedGestures_cb resultCb) override;
++    Return<bool> setGestureEnabled(const ::vendor::lineage::touch::V1_0::Gesture& gesture,
++                                   bool enabled) override;
  
-     // Methods from ::android::hidl::base::V1_0::IBase follow.
+-    // Methods from ::android::hidl::base::V1_0::IBase follow.
++  private:
++    typedef struct {
++        int32_t keycode;
++        const char* name;
++    } GestureInfo;
++    static const std::map<int32_t, GestureInfo> kGestureInfoMap;  // id -> info
  
-@@ -47,7 +47,7 @@ struct TouchscreenGesture : public ITouchscreenGesture {
+ };
+ 
  // FIXME: most likely delete, this is only for passthrough implementations
  // extern "C" ITouchscreenGesture* HIDL_FETCH_ITouchscreenGesture(const char* name);
  
@@ -448,10 +508,10 @@ index bb2d336..2fb8fd1 100644
  }  // namespace lineage
 diff --git a/lineagehw/hidl/touch/service.cpp b/lineagehw/hidl/touch/service.cpp
 new file mode 100644
-index 0000000..d162c60
+index 0000000..128b522
 --- /dev/null
 +++ b/lineagehw/hidl/touch/service.cpp
-@@ -0,0 +1,116 @@
+@@ -0,0 +1,135 @@
 +/*
 + * Copyright (C) 2019 The LineageOS Project
 + *
@@ -477,6 +537,7 @@ index 0000000..d162c60
 +#include "GloveMode.h"
 +#include "KeyDisabler.h"
 +#include "StylusMode.h"
++#include "TouchscreenGesture.h"
 +
 +using android::hardware::configureRpcThreadpool;
 +using android::hardware::joinRpcThreadpool;
@@ -484,17 +545,16 @@ index 0000000..d162c60
 +using android::status_t;
 +using android::OK;
 +
-+using ::vendor::lineage::touch::V1_0::IGloveMode;
 +using ::vendor::lineage::touch::V1_0::samsung::GloveMode;
-+using ::vendor::lineage::touch::V1_0::IKeyDisabler;
 +using ::vendor::lineage::touch::V1_0::samsung::KeyDisabler;
-+using ::vendor::lineage::touch::V1_0::IStylusMode;
 +using ::vendor::lineage::touch::V1_0::samsung::StylusMode;
++using ::vendor::lineage::touch::V1_0::samsung::TouchscreenGesture;
 +
 +int main() {
 +    sp<GloveMode> gloveMode;
 +    sp<KeyDisabler> keyDisabler;
 +    sp<StylusMode> stylusMode;
++    sp<TouchscreenGesture> touchscreenGesture;
 +    status_t status;
 +    uint8_t services = 0;
 +
@@ -527,6 +587,15 @@ index 0000000..d162c60
 +        services++;
 +    }
 +
++    touchscreenGesture = new TouchscreenGesture();
++    if (touchscreenGesture == nullptr) {
++        LOG(ERROR) << "Can not create an instance of Touch HAL TouchscreenGesture Iface, exiting.";
++        goto shutdown;
++    }
++    if (touchscreenGesture->isSupported()) {
++        services++;
++    }
++
 +    configureRpcThreadpool(services, true /*callerWillJoin*/);
 +
 +    if (gloveMode->isSupported()) {
@@ -554,6 +623,16 @@ index 0000000..d162c60
 +        if (status != OK) {
 +            LOG(ERROR)
 +                << "Could not register service for Touch HAL StylusMode Iface ("
++                << status << ")";
++            goto shutdown;
++        }
++    }
++
++    if (touchscreenGesture->isSupported()) {
++        status = touchscreenGesture->registerAsService();
++        if (status != OK) {
++            LOG(ERROR)
++                << "Could not register service for Touch HAL TouchscreenGesture Iface ("
 +                << status << ")";
 +            goto shutdown;
 +        }
