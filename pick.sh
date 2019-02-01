@@ -1269,11 +1269,13 @@ kpick 226443 # soong: Add additional_deps attribute for libraries and binaries
 
 # device/lineage/sepolicy
 kpick 234544 # sepolicy: Allow Settings to read ro.vendor.build.security_patch
-kpick 238602 # sepolicies: add Trust hal
+#kpick 240325 # lineage: Properly define LiveDisplay as a HAL
+#kpick 240326 # lineage: Rewrite Lineage Power HAL rules
+kpick 238602/2 # sepolicies: add Trust hal
 kpick 239080 # sepolicy: Allow recovery update_engine to setexec backuptool
 kpick 239081 # sepolicy: Label vendor.camera.aux. list properties
-kpick 239138 # common: Add vendor.lineage.touch rules
-kpick 239703 # common: Migrate to livedisplay 2.0
+kpick 239138/7 # common: Add vendor.lineage.touch rules
+kpick 239703/9 # common: Migrate to livedisplay 2.0
 
 # device/qcom/sepolicy
 kpick 228573 # sepolicy: Add libsdm-disp-vndapis and libsdmutils to SP-HALs
