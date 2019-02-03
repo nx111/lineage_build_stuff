@@ -1269,13 +1269,13 @@ kpick 226443 # soong: Add additional_deps attribute for libraries and binaries
 
 # device/lineage/sepolicy
 kpick 234544 # sepolicy: Allow Settings to read ro.vendor.build.security_patch
-#kpick 240325 # lineage: Properly define LiveDisplay as a HAL
-#kpick 240326 # lineage: Rewrite Lineage Power HAL rules
-kpick 238602/2 # sepolicies: add Trust hal
+kpick 240325 # lineage: Properly write rules for Lineage LiveDisplay as a HAL
+kpick 240326 # lineage: Rewrite Lineage Power HAL rules
+kpick 238602 # sepolicies: add Trust hal
 kpick 239080 # sepolicy: Allow recovery update_engine to setexec backuptool
 kpick 239081 # sepolicy: Label vendor.camera.aux. list properties
-kpick 239138/7 # common: Add vendor.lineage.touch rules
-kpick 239703/9 # common: Migrate to livedisplay 2.0
+kpick 239138 # common: Add vendor.lineage.touch rules
+kpick 239703 # common: Migrate to livedisplay 2.0
 
 # device/qcom/sepolicy
 kpick 228573 # sepolicy: Add libsdm-disp-vndapis and libsdmutils to SP-HALs
@@ -1356,6 +1356,7 @@ kpick 238929 # libstagefright_wfd: libmediaplayer2: compilation fixes
 kpick 238931 # stagefright: Fix SurfaceMediaSource getting handle from wrong position issue
 kpick 238932 # stagefright: Fix buffer handle retrieval in signalBufferReturned
 kpick 239642 # libstagefright_wfd: video encoder does not actually release MediaBufferBase when done
+kpick 240483 # Visualizer: fix native crash when visualizer release
 
 # frameworks/base
 kpick 224266 # SystemUI: Add Lineage statusbar item holder
@@ -1392,9 +1393,11 @@ kpick 238601 # base: add Trust usb restrictor
 kpick 238696 # fonts: Build different fonts.xml if EXCLUDE_SERIF_FONTS is true
 kpick 239179 # Camera: Force HAL1 for predefined package list.
 kpick 239520 # Reset all package signatures on boot
-kpick 239928 # audio: Don't play sound effects if stream is muted
 #kpick 240034 # [AlarmManager]Use the correct func interface for send msg args
 kpick 240084 # ServiceRegistry: Don't throw an exception if OEM_LOCK is missing
+kpick 240396 # SystemUI: Add onStatusBarMotionEvent hook
+kpick 240411 # Keyguard: Avoid starting FP authentication right after cancelling
+kpick 240484 # Visualizer: fix native crash when visualizer release
 
 # frameworks/native
 kpick 224530 # Triple the available egl function pointers available to a process for certain Nvidia devices.
@@ -1427,8 +1430,6 @@ kpick 223374 # interfaces: Add 2.0 livedisplay interfaces
 kpick 223410 # interfaces: Add touch HIDL interface definitions
 kpick 238583 # interfaces: Add trust 1.0 HAL
 kpick 238585 # trust: create service
-#kpick 239523 # livedisplay: Move 1.0 impl to 2.0
-#kpick 239524 # livedisplay: Update impl for 2.0 interface
 
 # hardware/lineage/lineagehw
 kpick 239441 # lineagehw: Deprecate some features
@@ -1554,7 +1555,6 @@ kpick 229311 # Assume optional codecs are supported if were supported previously
 # packages/apps/KeyChain
 
 # packages/apps/LineageParts
-kpick 237741 # parts: add dark mode on low battery toggle
 kpick 238603 # parts: add Trust usb restrictor
 
 # packages/apps/ManagedProvisoning
@@ -1598,6 +1598,8 @@ kpick 237244 # Snap: make support for bokeh mode configurable per device
 
 # packages/apps/Trebuchet
 kpick 240080 # Trebuchet: Implement protected apps
+kpick 240409 # Revert "Trebuchet: expand statusbar on swipe down"
+kpick 240397 # Trebuchet: Add reverse engineered Q swipe down gesture
 
 # packages/apps/TvSettings
 
@@ -1655,8 +1657,7 @@ kpick 232794 # NetD : Allow passing in interface names for vpn app restriction
 # system/security
 
 # system/sepolicy
-kpick 230613 # Allow webview_zygote to read /dev/ion
-kpick 237125 # sepolicy: Allow netd to load modules
+kpick 240090 # sepolicy: public: add TCSETSF to the list of unprivileged TTY ioctls
 
 # system/timezone
 
@@ -1695,8 +1696,6 @@ kpick 239527 # extract_utils: template: add support for the dependency graph fun
 kpick 237209 # lineage: Set default ringtone for second SIM
 kpick 237352 # qcom: Mark some gralloc bits as valid
 kpick 237830 # soong_config: Add BOOTLOADER_MESSAGE_OFFSET
-kpick 240142 # privapp-permissions: Add new launcher3 permissions
-kpick 240158 # privapp-permissions: Remove org.lineageos.trebuchet permissions
 
 # vendor/qcom/opensource/cryptfs_hw
 

@@ -1,0 +1,191 @@
+From d453eb8229bdc0198286bf090500cfa4ff0fa08e Mon Sep 17 00:00:00 2001
+From: Luca Stefani <luca.stefani.ge1@gmail.com>
+Date: Fri, 1 Feb 2019 22:03:50 +0100
+Subject: [PATCH 35/43] SystemUI: Add onStatusBarMotionEvent hook
+
+Change-Id: I6217ce8cb64809c7d3a9a8439057e591557cbe49
+---
+ .../shared/recents/ISystemUiProxy.aidl        |  6 +++
+ .../systemui/OverviewProxyService.java        | 44 ++++++++++++++++++-
+ .../systemui/statusbar/phone/StatusBar.java   | 12 +++++
+ .../phone/StatusBarWindowManager.java         | 15 +++++++
+ 4 files changed, 76 insertions(+), 1 deletion(-)
+
+diff --git a/packages/SystemUI/shared/src/com/android/systemui/shared/recents/ISystemUiProxy.aidl b/packages/SystemUI/shared/src/com/android/systemui/shared/recents/ISystemUiProxy.aidl
+index ebfadd881c1..dc4ac41edd6 100644
+--- a/packages/SystemUI/shared/src/com/android/systemui/shared/recents/ISystemUiProxy.aidl
++++ b/packages/SystemUI/shared/src/com/android/systemui/shared/recents/ISystemUiProxy.aidl
+@@ -17,6 +17,7 @@
+ package com.android.systemui.shared.recents;
+ 
+ import android.graphics.Rect;
++import android.view.MotionEvent;
+ import com.android.systemui.shared.system.GraphicBufferCompat;
+ 
+ /**
+@@ -60,4 +61,9 @@ interface ISystemUiProxy {
+      * needed from current value
+      */
+     void setBackButtonAlpha(float alpha, boolean animate) = 8;
++
++    /**
++     * Notifies SystemUI that StatusBar is moving.
++     */
++    void onStatusBarMotionEvent(in MotionEvent event) = 9;
+ }
+diff --git a/packages/SystemUI/src/com/android/systemui/OverviewProxyService.java b/packages/SystemUI/src/com/android/systemui/OverviewProxyService.java
+index 9fc71c813d7..b830a76194a 100644
+--- a/packages/SystemUI/src/com/android/systemui/OverviewProxyService.java
++++ b/packages/SystemUI/src/com/android/systemui/OverviewProxyService.java
+@@ -31,6 +31,7 @@ import android.os.PatternMatcher;
+ import android.os.RemoteException;
+ import android.os.UserHandle;
+ import android.util.Log;
++import android.view.MotionEvent;
+ import android.view.SurfaceControl;
+ 
+ import com.android.systemui.OverviewProxyService.OverviewProxyListener;
+@@ -81,6 +82,7 @@ public class OverviewProxyService implements CallbackController<OverviewProxyLis
+     private int mConnectionBackoffAttempts;
+     private @InteractionType int mInteractionFlags;
+     private boolean mIsEnabled;
++    private MotionEvent mStatusBarGestureDownEvent;
+ 
+     private ISystemUiProxy mSysUiProxy = new ISystemUiProxy.Stub() {
+ 
+@@ -172,6 +174,30 @@ public class OverviewProxyService implements CallbackController<OverviewProxyLis
+                 Binder.restoreCallingIdentity(token);
+             }
+         }
++
++        public void onStatusBarMotionEvent(MotionEvent motionEvent) {
++            long token = Binder.clearCallingIdentity();
++            try {
++                mHandler.post(() -> {
++                    StatusBar statusBar = ((SystemUIApplication) mContext).getComponent(
++                            StatusBar.class);
++                    if (statusBar != null) {
++                        statusBar.dispatchNotificationsPanelTouchEvent(motionEvent);
++                        int actionMasked = motionEvent.getActionMasked();
++                        if (actionMasked == MotionEvent.ACTION_DOWN) {
++                            mStatusBarGestureDownEvent = MotionEvent.obtain(motionEvent);
++                        }
++                        if (actionMasked == MotionEvent.ACTION_UP || actionMasked == MotionEvent.ACTION_CANCEL) {
++                            mStatusBarGestureDownEvent.recycle();
++                            mStatusBarGestureDownEvent = null;
++                        }
++                        motionEvent.recycle();
++                    }
++                });
++            } finally {
++                Binder.restoreCallingIdentity(token);
++            }
++        }
+     };
+ 
+     private final Runnable mDeferredConnectionCallback = () -> {
+@@ -252,7 +278,7 @@ public class OverviewProxyService implements CallbackController<OverviewProxyLis
+ 
+     // This is the death handler for the binder from the launcher service
+     private final IBinder.DeathRecipient mOverviewServiceDeathRcpt
+-            = this::startConnectionToCurrentUser;
++            = this::cleanupAfterDeath;
+ 
+     public OverviewProxyService(Context context) {
+         mContext = context;
+@@ -278,6 +304,22 @@ public class OverviewProxyService implements CallbackController<OverviewProxyLis
+         }
+     }
+ 
++    public void cleanupAfterDeath() {
++        if (mStatusBarGestureDownEvent != null) {
++            mHandler.post(() -> {
++                StatusBar statusBar = ((SystemUIApplication) mContext).getComponent(
++                        StatusBar.class);
++                if (statusBar != null) {
++                    mStatusBarGestureDownEvent.setAction(MotionEvent.ACTION_CANCEL);
++                    statusBar.dispatchNotificationsPanelTouchEvent(mStatusBarGestureDownEvent);
++                    mStatusBarGestureDownEvent.recycle();
++                    mStatusBarGestureDownEvent = null;
++                }
++            });
++        }
++        startConnectionToCurrentUser();
++    }
++
+     public void startConnectionToCurrentUser() {
+         if (mHandler.getLooper() != Looper.myLooper()) {
+             mHandler.post(mConnectionRunnable);
+diff --git a/packages/SystemUI/src/com/android/systemui/statusbar/phone/StatusBar.java b/packages/SystemUI/src/com/android/systemui/statusbar/phone/StatusBar.java
+index 8c2f9fde3d5..19c619e1482 100644
+--- a/packages/SystemUI/src/com/android/systemui/statusbar/phone/StatusBar.java
++++ b/packages/SystemUI/src/com/android/systemui/statusbar/phone/StatusBar.java
+@@ -2471,6 +2471,18 @@ public class StatusBar extends SystemUI implements DemoMode, TunerService.Tunabl
+         mStatusBarKeyguardViewManager.readyForKeyguardDone();
+     }
+ 
++    public void dispatchNotificationsPanelTouchEvent(MotionEvent motionEvent) {
++        if (panelsEnabled()) {
++            mNotificationPanel.dispatchTouchEvent(motionEvent);
++            int action = motionEvent.getAction();
++            if (action == MotionEvent.ACTION_DOWN) {
++                mStatusBarWindowManager.setNotTouchable(true);
++            } else if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
++                mStatusBarWindowManager.setNotTouchable(false);
++            }
++        }
++    }
++
+     @Override
+     public void animateExpandNotificationsPanel() {
+         if (SPEW) Log.d(TAG, "animateExpand: mExpandedVisible=" + mExpandedVisible);
+diff --git a/packages/SystemUI/src/com/android/systemui/statusbar/phone/StatusBarWindowManager.java b/packages/SystemUI/src/com/android/systemui/statusbar/phone/StatusBarWindowManager.java
+index 6ff58a288c1..9ccd9d63838 100644
+--- a/packages/SystemUI/src/com/android/systemui/statusbar/phone/StatusBarWindowManager.java
++++ b/packages/SystemUI/src/com/android/systemui/statusbar/phone/StatusBarWindowManager.java
+@@ -268,6 +268,7 @@ public class StatusBarWindowManager implements RemoteInputController.Callback, D
+         applyBrightness(state);
+         applyHasTopUi(state);
+         applySleepToken(state);
++        applyNotTouchable(state);
+         if (mLp.copyFrom(mLpChanged) != 0) {
+             mWindowManager.updateViewLayout(mStatusBarView, mLp);
+         }
+@@ -311,6 +312,14 @@ public class StatusBarWindowManager implements RemoteInputController.Callback, D
+         mHasTopUiChanged = isExpanded(state);
+     }
+ 
++    private void applyNotTouchable(State state) {
++        if (state.notTouchable) {
++            mLpChanged.flags |= WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE;
++        } else {
++            mLpChanged.flags &= ~WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE;
++        }
++    }
++
+     private void applySleepToken(State state) {
+         if (state.dozing) {
+             mLpChanged.privateFlags |= LayoutParams.PRIVATE_FLAG_ACQUIRES_SLEEP_TOKEN;
+@@ -443,6 +452,11 @@ public class StatusBarWindowManager implements RemoteInputController.Callback, D
+         apply(mCurrentState);
+     }
+ 
++    public void setNotTouchable(boolean notTouchable) {
++        mCurrentState.notTouchable = notTouchable;
++        apply(mCurrentState);
++    }
++
+     public void setStateListener(OtherwisedCollapsedListener listener) {
+         mListener = listener;
+     }
+@@ -473,6 +487,7 @@ public class StatusBarWindowManager implements RemoteInputController.Callback, D
+         boolean forceUserActivity;
+         boolean backdropShowing;
+         boolean wallpaperSupportsAmbientMode;
++        boolean notTouchable;
+ 
+         /**
+          * The {@link StatusBar} state from the status bar.
+-- 
+2.17.1
+

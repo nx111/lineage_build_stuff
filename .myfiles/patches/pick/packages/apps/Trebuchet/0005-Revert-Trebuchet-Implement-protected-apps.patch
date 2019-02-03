@@ -1,0 +1,1230 @@
+From 267ec94fddc9785650d2a30f28a9b4bfa38b1614 Mon Sep 17 00:00:00 2001
+From: nx111 <NX111.AimH@gmail.com>
+Date: Sun, 3 Feb 2019 13:47:05 +0800
+Subject: [PATCH 5/5] Revert "Trebuchet: Implement protected apps"
+
+This reverts commit b9a28a2a4e00e24c0c3a90f7e2db5b15e1b4ceef.
+---
+ AndroidManifest.xml                           |   4 +-
+ proguard.flags                                |   2 +-
+ res/layout/activity_hidden_apps.xml           |   2 +-
+ res/layout/item_hidden_app.xml                |  18 +-
+ res/values/config.xml                         |   2 +-
+ res/xml/launcher_preferences.xml              |   4 +-
+ src/com/android/launcher3/Launcher.java       |  35 ----
+ .../android/launcher3/SettingsActivity.java   |  10 +-
+ .../HiddenAppsActivity.java}                  |  44 ++--
+ .../HiddenAppsAdapter.java}                   |  82 ++------
+ .../{trust => hidden}/HiddenAppsFilter.java   |   8 +-
+ .../LoadHiddenComponentsTask.java}            |  29 ++-
+ .../hidden/UpdateItemVisibilityTask.java      |  62 ++++++
+ .../db/HiddenComponent.java}                  |  37 +---
+ .../hidden/db/HiddenDatabaseHelper.java       | 119 +++++++++++
+ .../lineage/trust/UpdateItemTask.java         |  76 -------
+ .../lineage/trust/db/TrustDatabaseHelper.java | 197 ------------------
+ .../launcher3/touch/ItemClickHandler.java     |  11 +-
+ 18 files changed, 264 insertions(+), 478 deletions(-)
+ rename src/com/android/launcher3/lineage/{trust/TrustAppsActivity.java => hidden/HiddenAppsActivity.java} (74%)
+ rename src/com/android/launcher3/lineage/{trust/TrustAppsAdapter.java => hidden/HiddenAppsAdapter.java} (57%)
+ rename src/com/android/launcher3/lineage/{trust => hidden}/HiddenAppsFilter.java (83%)
+ rename src/com/android/launcher3/lineage/{trust/LoadTrustComponentsTask.java => hidden/LoadHiddenComponentsTask.java} (72%)
+ create mode 100644 src/com/android/launcher3/lineage/hidden/UpdateItemVisibilityTask.java
+ rename src/com/android/launcher3/lineage/{trust/db/TrustComponent.java => hidden/db/HiddenComponent.java} (66%)
+ create mode 100644 src/com/android/launcher3/lineage/hidden/db/HiddenDatabaseHelper.java
+ delete mode 100644 src/com/android/launcher3/lineage/trust/UpdateItemTask.java
+ delete mode 100644 src/com/android/launcher3/lineage/trust/db/TrustDatabaseHelper.java
+
+diff --git a/AndroidManifest.xml b/AndroidManifest.xml
+index c147744d2..5e263fdd1 100644
+--- a/AndroidManifest.xml
++++ b/AndroidManifest.xml
+@@ -105,8 +105,8 @@
+         </activity>
+ 
+         <activity
+-            android:name=".lineage.trust.TrustAppsActivity"
+-            android:label="@string/trust_apps_manager_name"
++            android:name=".lineage.hidden.HiddenAppsActivity"
++            android:label="@string/hidden_apps_manager_name"
+             android:theme="@android:style/Theme.DeviceDefault.Settings"
+             android:autoRemoveFromRecents="true" />
+ 
+diff --git a/proguard.flags b/proguard.flags
+index 465778f5c..7a5f1bb0b 100644
+--- a/proguard.flags
++++ b/proguard.flags
+@@ -145,6 +145,6 @@
+   public <init>(...);
+ }
+ 
+--keep class com.android.launcher3.lineage.trust.** {
++-keep class com.android.launcher3.lineage.hidden.** {
+  *;
+ }
+diff --git a/res/layout/activity_hidden_apps.xml b/res/layout/activity_hidden_apps.xml
+index b1781bf26..be3fc7333 100644
+--- a/res/layout/activity_hidden_apps.xml
++++ b/res/layout/activity_hidden_apps.xml
+@@ -46,7 +46,7 @@
+             android:layout_width="wrap_content"
+             android:layout_height="wrap_content"
+             android:layout_marginTop="16dp"
+-            android:text="@string/trust_apps_loading"
++            android:text="@string/protected_apps_loading"
+             android:textSize="16sp" />
+     </LinearLayout>
+ </LinearLayout>
+\ No newline at end of file
+diff --git a/res/layout/item_hidden_app.xml b/res/layout/item_hidden_app.xml
+index 34fad9831..73c604620 100644
+--- a/res/layout/item_hidden_app.xml
++++ b/res/layout/item_hidden_app.xml
+@@ -24,25 +24,13 @@
+         android:layout_centerVertical="true"
+         android:layout_marginStart="16dp" />
+ 
+-    <ImageView
+-        android:id="@+id/item_protected_app_switch"
+-        android:layout_width="24dp"
+-        android:layout_height="24dp"
+-        android:layout_alignParentEnd="true"
+-        android:layout_centerVertical="true"
+-        android:layout_marginEnd="56dp"
+-        android:clickable="true"
+-        android:focusable="true" />
+-
+     <ImageView
+         android:id="@+id/item_hidden_app_switch"
+         android:layout_width="24dp"
+         android:layout_height="24dp"
+         android:layout_alignParentEnd="true"
+         android:layout_centerVertical="true"
+-        android:layout_marginEnd="16dp"
+-        android:clickable="true"
+-        android:focusable="true" />
++        android:layout_marginEnd="16dp" />
+ 
+     <TextView
+         android:id="@+id/item_hidden_app_title"
+@@ -50,6 +38,6 @@
+         android:layout_height="wrap_content"
+         android:layout_alignEnd="@id/item_hidden_app_switch"
+         android:layout_centerVertical="true"
+-        android:layout_marginStart="88dp"
+-        android:layout_marginEnd="88dp" />
++        android:layout_marginEnd="56dp"
++        android:layout_marginStart="88dp" />
+ </RelativeLayout>
+diff --git a/res/values/config.xml b/res/values/config.xml
+index 3bbd08cd5..2e7592b77 100644
+--- a/res/values/config.xml
++++ b/res/values/config.xml
+@@ -78,7 +78,7 @@
+ 
+     <!-- Name of a subclass of com.android.launcher3.AppFilter used to
+          filter the activities shown in the launcher. Can be empty. -->
+-    <string name="app_filter_class" translatable="false">com.android.launcher3.lineage.trust.HiddenAppsFilter</string>
++    <string name="app_filter_class" translatable="false">com.android.launcher3.lineage.hidden.HiddenAppsFilter</string>
+ 
+     <!-- Name of an icon provider class. -->
+     <string name="icon_provider_class" translatable="false"></string>
+diff --git a/res/xml/launcher_preferences.xml b/res/xml/launcher_preferences.xml
+index b6f0a85ef..e33f48511 100644
+--- a/res/xml/launcher_preferences.xml
++++ b/res/xml/launcher_preferences.xml
+@@ -76,8 +76,8 @@
+             android:persistent="true" />
+ 
+         <Preference
+-            android:key="pref_trust_apps"
+-            android:title="@string/trust_apps_manager_name" />
++            android:key="pref_hidden_apps"
++            android:title="@string/hidden_apps_manager_name" />
+     </PreferenceCategory>
+ 
+     <PreferenceCategory
+diff --git a/src/com/android/launcher3/Launcher.java b/src/com/android/launcher3/Launcher.java
+index 8234c44c5..c3c4f5e5e 100644
+--- a/src/com/android/launcher3/Launcher.java
++++ b/src/com/android/launcher3/Launcher.java
+@@ -33,7 +33,6 @@ import android.animation.ObjectAnimator;
+ import android.animation.ValueAnimator;
+ import android.annotation.TargetApi;
+ import android.app.ActivityOptions;
+-import android.app.KeyguardManager;
+ import android.appwidget.AppWidgetHostView;
+ import android.appwidget.AppWidgetManager;
+ import android.content.ActivityNotFoundException;
+@@ -250,10 +249,6 @@ public class Launcher extends BaseDraggingActivity implements LauncherExterns,
+     private final Handler mHandler = new Handler();
+     private final Runnable mLogOnDelayedResume = this::logOnDelayedResume;
+ 
+-    private static final int REQUEST_AUTH_CODE = 93;
+-    private View mAuthView;
+-    private ItemInfo mAuthInfo;
+-
+     @Override
+     protected void onCreate(Bundle savedInstanceState) {
+         if (DEBUG_STRICT_MODE) {
+@@ -545,13 +540,6 @@ public class Launcher extends BaseDraggingActivity implements LauncherExterns,
+             }
+         };
+ 
+-        if (requestCode == REQUEST_AUTH_CODE) {
+-            if (resultCode == RESULT_OK) {
+-                startActivitySafely(mAuthView, requestArgs.getPendingIntent(), mAuthInfo);
+-            }
+-            return;
+-        }
+-
+         if (requestCode == REQUEST_BIND_APPWIDGET) {
+             // This is called only if the user did not previously have permissions to bind widgets
+             final int appWidgetId = data != null ?
+@@ -832,29 +820,6 @@ public class Launcher extends BaseDraggingActivity implements LauncherExterns,
+         mStateManager.onWindowFocusChanged();
+     }
+ 
+-    public void startActivitySafelyAuth(View v, Intent intent, ItemInfo item) {
+-        KeyguardManager manager = Build.VERSION.SDK_INT >= Build.VERSION_CODES.M ?
+-                getSystemService(KeyguardManager.class) :
+-                (KeyguardManager) getSystemService(Context.KEYGUARD_SERVICE);
+-        if (manager == null) {
+-            throw new NullPointerException("No KeyguardManager found!");
+-        }
+-
+-        String title = getString(R.string.trust_apps_manager_name);
+-        String message = getString(R.string.trust_apps_auth_manager);
+-        Intent kmIntent = manager.createConfirmDeviceCredentialIntent(title, message);
+-
+-        if (kmIntent != null) {
+-            mAuthView = v;
+-            mAuthInfo = item;
+-            setWaitingForResult(PendingRequestArgs.forIntent(REQUEST_AUTH_CODE, intent, item));
+-            startActivityForResult(kmIntent, REQUEST_AUTH_CODE);
+-            return;
+-        }
+-
+-        startActivitySafely(v, intent, item);
+-    }
+-
+     public interface LauncherOverlay {
+ 
+         /**
+diff --git a/src/com/android/launcher3/SettingsActivity.java b/src/com/android/launcher3/SettingsActivity.java
+index 2ea7aa49b..bbb3eeff6 100644
+--- a/src/com/android/launcher3/SettingsActivity.java
++++ b/src/com/android/launcher3/SettingsActivity.java
+@@ -54,7 +54,7 @@ import android.widget.NumberPicker;
+ import com.android.launcher3.graphics.IconShapeOverride;
+ import com.android.launcher3.lineage.LineageLauncherCallbacks;
+ import com.android.launcher3.lineage.LineageUtils;
+-import com.android.launcher3.lineage.trust.TrustAppsActivity;
++import com.android.launcher3.lineage.hidden.HiddenAppsActivity;
+ import com.android.launcher3.notification.NotificationListener;
+ import com.android.launcher3.util.ListViewHighlighter;
+ import com.android.launcher3.util.SettingsObserver;
+@@ -190,10 +190,10 @@ public class SettingsActivity extends Activity {
+                 mGridPref.setSummary(mPrefs.getString(KEY_GRID_SIZE, getDefaultGridSize()));
+             }
+ 
+-            Preference trustApps = drawerGroup.findPreference("pref_trust_apps");
+-            if (trustApps != null) {
+-                trustApps.setOnPreferenceClickListener(preference -> {
+-                    Intent intent = new Intent(getActivity(), TrustAppsActivity.class);
++            Preference hiddenApps = drawerGroup.findPreference("pref_hidden_apps");
++            if (hiddenApps != null) {
++                hiddenApps.setOnPreferenceClickListener(preference -> {
++                    Intent intent = new Intent(getActivity(), HiddenAppsActivity.class);
+                     startActivity(intent);
+                     return true;
+                 });
+diff --git a/src/com/android/launcher3/lineage/trust/TrustAppsActivity.java b/src/com/android/launcher3/lineage/hidden/HiddenAppsActivity.java
+similarity index 74%
+rename from src/com/android/launcher3/lineage/trust/TrustAppsActivity.java
+rename to src/com/android/launcher3/lineage/hidden/HiddenAppsActivity.java
+index 7b0f15749..bd7056417 100644
+--- a/src/com/android/launcher3/lineage/trust/TrustAppsActivity.java
++++ b/src/com/android/launcher3/lineage/hidden/HiddenAppsActivity.java
+@@ -13,7 +13,7 @@
+  * See the License for the specific language governing permissions and
+  * limitations under the License.
+  */
+-package com.android.launcher3.lineage.trust;
++package com.android.launcher3.lineage.hidden;
+ 
+ import android.app.ActionBar;
+ import android.app.Activity;
+@@ -35,26 +35,23 @@ import android.widget.Toast;
+ 
+ import com.android.launcher3.LauncherAppState;
+ import com.android.launcher3.R;
+-import com.android.launcher3.lineage.trust.db.TrustComponent;
+-import com.android.launcher3.lineage.trust.db.TrustDatabaseHelper;
++import com.android.launcher3.lineage.hidden.db.HiddenComponent;
++import com.android.launcher3.lineage.hidden.db.HiddenDatabaseHelper;
+ 
+ import java.util.List;
+ 
+-import static com.android.launcher3.lineage.trust.db.TrustComponent.Kind.HIDDEN;
+-import static com.android.launcher3.lineage.trust.db.TrustComponent.Kind.PROTECTED;
+-
+-public class TrustAppsActivity extends Activity implements
+-        TrustAppsAdapter.Listener,
+-        LoadTrustComponentsTask.Callback,
+-        UpdateItemTask.UpdateCallback {
++public class HiddenAppsActivity extends Activity implements
++        HiddenAppsAdapter.Listener,
++        LoadHiddenComponentsTask.Callback,
++        UpdateItemVisibilityTask.UpdateCallback {
+     private static final int REQUEST_AUTH_CODE = 92;
+ 
+     private RecyclerView mRecyclerView;
+     private LinearLayout mLoadingView;
+     private ProgressBar mProgressBar;
+ 
+-    private TrustDatabaseHelper mDbHelper;
+-    private TrustAppsAdapter mAdapter;
++    private HiddenDatabaseHelper mDbHelper;
++    private HiddenAppsAdapter mAdapter;
+ 
+     @Override
+     protected void onCreate(@Nullable Bundle savedInstance) {
+@@ -70,8 +67,8 @@ public class TrustAppsActivity extends Activity implements
+         mLoadingView = findViewById(R.id.hidden_apps_loading);
+         mProgressBar = findViewById(R.id.hidden_apps_progress_bar);
+ 
+-        mAdapter = new TrustAppsAdapter(this);
+-        mDbHelper = TrustDatabaseHelper.getInstance(this);
++        mAdapter = new HiddenAppsAdapter(this);
++        mDbHelper = HiddenDatabaseHelper.getInstance(this);
+ 
+         mRecyclerView.setLayoutManager(new LinearLayoutManager(this));
+         mRecyclerView.setItemAnimator(new DefaultItemAnimator());
+@@ -104,13 +101,8 @@ public class TrustAppsActivity extends Activity implements
+     }
+ 
+     @Override
+-    public void onHiddenItemChanged(@NonNull TrustComponent component) {
+-        new UpdateItemTask(mDbHelper, this, HIDDEN).execute(component);
+-    }
+-
+-    @Override
+-    public void onProtectedItemChanged(@NonNull TrustComponent component) {
+-        new UpdateItemTask(mDbHelper, this, PROTECTED).execute(component);
++    public void onItemChanged(@NonNull HiddenComponent component) {
++        new UpdateItemVisibilityTask(mDbHelper, this).execute(component);
+     }
+ 
+     @Override
+@@ -127,7 +119,7 @@ public class TrustAppsActivity extends Activity implements
+     }
+ 
+     @Override
+-    public void onLoadCompleted(List<TrustComponent> result) {
++    public void onLoadCompleted(List<HiddenComponent> result) {
+         mLoadingView.setVisibility(View.GONE);
+         mRecyclerView.setVisibility(View.VISIBLE);
+         mAdapter.update(result);
+@@ -141,8 +133,8 @@ public class TrustAppsActivity extends Activity implements
+             throw new NullPointerException("No KeyguardManager found!");
+         }
+ 
+-        String title = getString(R.string.trust_apps_manager_name);
+-        String message = getString(R.string.trust_apps_auth_manager);
++        String title = getString(R.string.hidden_apps_manager_name);
++        String message = getString(R.string.hidden_apps_auth_manager);
+         Intent intent = manager.createConfirmDeviceCredentialIntent(title, message);
+ 
+         if (intent != null) {
+@@ -150,7 +142,7 @@ public class TrustAppsActivity extends Activity implements
+             return;
+         }
+ 
+-        Toast.makeText(this, R.string.trust_apps_no_lock_error,
++        Toast.makeText(this, R.string.hidden_apps_no_lock_error,
+                 Toast.LENGTH_LONG).show();
+         finish();
+     }
+@@ -158,6 +150,6 @@ public class TrustAppsActivity extends Activity implements
+     private void showUi() {
+         mLoadingView.setVisibility(View.VISIBLE);
+ 
+-        new LoadTrustComponentsTask(mDbHelper, getPackageManager(), this).execute();
++        new LoadHiddenComponentsTask(mDbHelper, getPackageManager(), this).execute();
+     }
+ }
+diff --git a/src/com/android/launcher3/lineage/trust/TrustAppsAdapter.java b/src/com/android/launcher3/lineage/hidden/HiddenAppsAdapter.java
+similarity index 57%
+rename from src/com/android/launcher3/lineage/trust/TrustAppsAdapter.java
+rename to src/com/android/launcher3/lineage/hidden/HiddenAppsAdapter.java
+index c86ae5d65..acb07ee90 100644
+--- a/src/com/android/launcher3/lineage/trust/TrustAppsAdapter.java
++++ b/src/com/android/launcher3/lineage/hidden/HiddenAppsAdapter.java
+@@ -13,7 +13,7 @@
+  * See the License for the specific language governing permissions and
+  * limitations under the License.
+  */
+-package com.android.launcher3.lineage.trust;
++package com.android.launcher3.lineage.hidden;
+ 
+ import android.graphics.drawable.Animatable2;
+ import android.graphics.drawable.AnimatedVectorDrawable;
+@@ -29,20 +29,20 @@ import android.widget.ImageView;
+ import android.widget.TextView;
+ 
+ import com.android.launcher3.R;
+-import com.android.launcher3.lineage.trust.db.TrustComponent;
++import com.android.launcher3.lineage.hidden.db.HiddenComponent;
+ 
+ import java.util.ArrayList;
+ import java.util.List;
+ 
+-class TrustAppsAdapter extends RecyclerView.Adapter<TrustAppsAdapter.ViewHolder> {
+-    private List<TrustComponent> mList = new ArrayList<>();
++class HiddenAppsAdapter extends RecyclerView.Adapter<HiddenAppsAdapter.ViewHolder> {
++    private List<HiddenComponent> mList = new ArrayList<>();
+     private Listener mListener;
+ 
+-    TrustAppsAdapter(Listener listener) {
++    HiddenAppsAdapter(Listener listener) {
+         mListener = listener;
+     }
+ 
+-    public void update(List<TrustComponent> list) {
++    public void update(List<HiddenComponent> list) {
+         DiffUtil.DiffResult result = DiffUtil.calculateDiff(new Callback(mList, list));
+         mList = list;
+         result.dispatchUpdatesTo(this);
+@@ -66,102 +66,64 @@ class TrustAppsAdapter extends RecyclerView.Adapter<TrustAppsAdapter.ViewHolder>
+     }
+ 
+     public interface Listener {
+-        void onHiddenItemChanged(@NonNull TrustComponent component);
+-
+-        void onProtectedItemChanged(@NonNull TrustComponent component);
++        void onItemChanged(@NonNull HiddenComponent component);
+     }
+ 
+     class ViewHolder extends RecyclerView.ViewHolder {
+         private ImageView mIconView;
+         private TextView mLabelView;
+-        private ImageView mHiddenView;
+-        private ImageView mProtectedView;
++        private ImageView mLockView;
+ 
+         ViewHolder(@NonNull View itemView) {
+             super(itemView);
+ 
+             mIconView = itemView.findViewById(R.id.item_hidden_app_icon);
+             mLabelView = itemView.findViewById(R.id.item_hidden_app_title);
+-            mHiddenView = itemView.findViewById(R.id.item_hidden_app_switch);
+-            mProtectedView = itemView.findViewById(R.id.item_protected_app_switch);
++            mLockView = itemView.findViewById(R.id.item_hidden_app_switch);
+         }
+ 
+-        void bind(TrustComponent component) {
++        void bind(HiddenComponent component) {
+             mIconView.setImageDrawable(component.getIcon());
+             mLabelView.setText(component.getLabel());
+-
+-            mHiddenView.setImageResource(component.isHidden() ?
+-                    R.drawable.ic_hidden_locked : R.drawable.ic_hidden_unlocked);
+-            mProtectedView.setImageResource(component.isProtected() ?
++            mLockView.setImageResource(component.isHidden() ?
+                     R.drawable.ic_hidden_locked : R.drawable.ic_hidden_unlocked);
+ 
+-            mHiddenView.setOnClickListener(v -> {
++            itemView.setOnClickListener(v -> {
+                 component.invertVisibility();
+ 
+-                mHiddenView.setImageResource(component.isHidden() ?
++                mLockView.setImageResource(component.isHidden() ?
+                         R.drawable.avd_hidden_lock : R.drawable.avd_hidden_unlock);
+-                AnimatedVectorDrawable avd = (AnimatedVectorDrawable) mHiddenView.getDrawable();
++                AnimatedVectorDrawable avd  = (AnimatedVectorDrawable) mLockView.getDrawable();
+ 
+                 int position = getAdapterPosition();
+                 if (Build.VERSION.SDK_INT > Build.VERSION_CODES.M) {
+                     avd.registerAnimationCallback(new Animatable2.AnimationCallback() {
+                         @Override
+                         public void onAnimationEnd(Drawable drawable) {
+-                            updateHiddenList(position, component);
++                            updateList(position, component);
+                         }
+                     });
+                     avd.start();
+                 } else {
+                     avd.start();
+-                    updateHiddenList(position, component);
++                    updateList(position, component);
+                 }
+             });
+-
+-            mProtectedView.setOnClickListener(v -> {
+-                component.invertProtection();
+-
+-                mProtectedView.setImageResource(component.isProtected() ?
+-                        R.drawable.avd_hidden_lock : R.drawable.avd_hidden_unlock);
+-                AnimatedVectorDrawable avd = (AnimatedVectorDrawable) mProtectedView.getDrawable();
+-
+-                int position = getAdapterPosition();
+-                if (Build.VERSION.SDK_INT > Build.VERSION_CODES.M) {
+-                    avd.registerAnimationCallback(new Animatable2.AnimationCallback() {
+-                        @Override
+-                        public void onAnimationEnd(Drawable drawable) {
+-                            updateProtectedList(position, component);
+-                        }
+-                    });
+-                    avd.start();
+-                } else {
+-                    avd.start();
+-                    updateProtectedList(position, component);
+-                }
+-            });
+-        }
+-
+-        private void updateHiddenList(int position, TrustComponent component) {
+-            mListener.onHiddenItemChanged(component);
+-            updateList(position, component);
+-        }
+-
+-        private void updateProtectedList(int position, TrustComponent component) {
+-            mListener.onProtectedItemChanged(component);
+-            updateList(position, component);
+         }
+ 
+-        private void updateList(int position, TrustComponent component) {
++        private void updateList(int position, HiddenComponent component) {
++            mListener.onItemChanged(component);
+             mList.set(position, component);
+             notifyItemChanged(position);
+         }
+     }
+ 
+     private static class Callback extends DiffUtil.Callback {
+-        List<TrustComponent> mOldList;
+-        List<TrustComponent> mNewList;
++        List<HiddenComponent> mOldList;
++        List<HiddenComponent> mNewList;
+ 
+-        public Callback(List<TrustComponent> oldList,
+-                        List<TrustComponent> newList) {
++        public Callback(List<HiddenComponent> oldList,
++                        List<HiddenComponent> newList) {
+             mOldList = oldList;
+             mNewList = newList;
+         }
+diff --git a/src/com/android/launcher3/lineage/trust/HiddenAppsFilter.java b/src/com/android/launcher3/lineage/hidden/HiddenAppsFilter.java
+similarity index 83%
+rename from src/com/android/launcher3/lineage/trust/HiddenAppsFilter.java
+rename to src/com/android/launcher3/lineage/hidden/HiddenAppsFilter.java
+index 942887693..47274f73e 100644
+--- a/src/com/android/launcher3/lineage/trust/HiddenAppsFilter.java
++++ b/src/com/android/launcher3/lineage/hidden/HiddenAppsFilter.java
+@@ -13,24 +13,24 @@
+  * See the License for the specific language governing permissions and
+  * limitations under the License.
+  */
+-package com.android.launcher3.lineage.trust;
++package com.android.launcher3.lineage.hidden;
+ 
+ import android.content.ComponentName;
+ import android.content.Context;
+ 
+ import com.android.launcher3.AppFilter;
+-import com.android.launcher3.lineage.trust.db.TrustDatabaseHelper;
++import com.android.launcher3.lineage.hidden.db.HiddenDatabaseHelper;
+ 
+ @SuppressWarnings("unused")
+ public class HiddenAppsFilter extends AppFilter {
+-    private TrustDatabaseHelper mDbHelper;
++    private HiddenDatabaseHelper mDbHelper;
+ 
+     public HiddenAppsFilter(Context context) {
+         if (context == null) {
+             throw new IllegalArgumentException("Context must not be null!");
+         }
+ 
+-        mDbHelper = TrustDatabaseHelper.getInstance(context);
++        mDbHelper = HiddenDatabaseHelper.getInstance(context);
+     }
+ 
+     @Override
+diff --git a/src/com/android/launcher3/lineage/trust/LoadTrustComponentsTask.java b/src/com/android/launcher3/lineage/hidden/LoadHiddenComponentsTask.java
+similarity index 72%
+rename from src/com/android/launcher3/lineage/trust/LoadTrustComponentsTask.java
+rename to src/com/android/launcher3/lineage/hidden/LoadHiddenComponentsTask.java
+index f7d83a5b5..4636cebd7 100644
+--- a/src/com/android/launcher3/lineage/trust/LoadTrustComponentsTask.java
++++ b/src/com/android/launcher3/lineage/hidden/LoadHiddenComponentsTask.java
+@@ -13,7 +13,7 @@
+  * See the License for the specific language governing permissions and
+  * limitations under the License.
+  */
+-package com.android.launcher3.lineage.trust;
++package com.android.launcher3.lineage.hidden;
+ 
+ import android.content.Intent;
+ import android.content.pm.PackageManager;
+@@ -23,16 +23,16 @@ import android.os.AsyncTask;
+ import android.os.Build;
+ import android.support.annotation.NonNull;
+ 
+-import com.android.launcher3.lineage.trust.db.TrustComponent;
+-import com.android.launcher3.lineage.trust.db.TrustDatabaseHelper;
++import com.android.launcher3.lineage.hidden.db.HiddenComponent;
++import com.android.launcher3.lineage.hidden.db.HiddenDatabaseHelper;
+ 
+ import java.util.ArrayList;
+ import java.util.Collections;
+ import java.util.List;
+ 
+-public class LoadTrustComponentsTask extends AsyncTask<Void, Integer, List<TrustComponent>> {
++public class LoadHiddenComponentsTask extends AsyncTask<Void, Integer, List<HiddenComponent>> {
+     @NonNull
+-    private TrustDatabaseHelper mDbHelper;
++    private HiddenDatabaseHelper mDbHelper;
+ 
+     @NonNull
+     private PackageManager mPackageManager;
+@@ -40,17 +40,17 @@ public class LoadTrustComponentsTask extends AsyncTask<Void, Integer, List<Trust
+     @NonNull
+     private Callback mCallback;
+ 
+-    LoadTrustComponentsTask(@NonNull TrustDatabaseHelper dbHelper,
+-                            @NonNull PackageManager packageManager,
+-                            @NonNull Callback callback) {
++    LoadHiddenComponentsTask(@NonNull HiddenDatabaseHelper dbHelper,
++                             @NonNull PackageManager packageManager,
++                             @NonNull Callback callback) {
+         mDbHelper = dbHelper;
+         mPackageManager = packageManager;
+         mCallback = callback;
+     }
+ 
+     @Override
+-    protected List<TrustComponent> doInBackground(Void... voids) {
+-        List<TrustComponent> list = new ArrayList<>();
++    protected List<HiddenComponent> doInBackground(Void... voids) {
++        List<HiddenComponent> list = new ArrayList<>();
+ 
+         Intent filter = new Intent(Intent.ACTION_MAIN, null);
+         filter.addCategory(Intent.CATEGORY_LAUNCHER);
+@@ -68,9 +68,8 @@ public class LoadTrustComponentsTask extends AsyncTask<Void, Integer, List<Trust
+                                 PackageManager.GET_META_DATA)).toString();
+                 Drawable icon = app.loadIcon(mPackageManager);
+                 boolean isHidden = mDbHelper.isPackageHidden(pkgName);
+-                boolean isProtected = mDbHelper.isPackageProtected(pkgName);
+ 
+-                list.add(new TrustComponent(pkgName, icon, label, isHidden, isProtected));
++                list.add(new HiddenComponent(pkgName, icon, label, isHidden));
+ 
+                 publishProgress(Math.round(i * 100f / numPackages));
+             } catch (PackageManager.NameNotFoundException ignored) {
+@@ -92,12 +91,12 @@ public class LoadTrustComponentsTask extends AsyncTask<Void, Integer, List<Trust
+     }
+ 
+     @Override
+-    protected void onPostExecute(List<TrustComponent> trustComponents) {
+-        mCallback.onLoadCompleted(trustComponents);
++    protected void onPostExecute(List<HiddenComponent> hiddenComponents) {
++        mCallback.onLoadCompleted(hiddenComponents);
+     }
+ 
+     interface Callback {
+         void onLoadListProgress(int progress);
+-        void onLoadCompleted(List<TrustComponent> result);
++        void onLoadCompleted(List<HiddenComponent> result);
+     }
+ }
+diff --git a/src/com/android/launcher3/lineage/hidden/UpdateItemVisibilityTask.java b/src/com/android/launcher3/lineage/hidden/UpdateItemVisibilityTask.java
+new file mode 100644
+index 000000000..b751fdc4f
+--- /dev/null
++++ b/src/com/android/launcher3/lineage/hidden/UpdateItemVisibilityTask.java
+@@ -0,0 +1,62 @@
++/*
++ * Copyright (C) 2019 The LineageOS Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++package com.android.launcher3.lineage.hidden;
++
++import android.os.AsyncTask;
++import android.support.annotation.NonNull;
++
++import com.android.launcher3.lineage.hidden.db.HiddenComponent;
++import com.android.launcher3.lineage.hidden.db.HiddenDatabaseHelper;
++
++public class UpdateItemVisibilityTask extends AsyncTask<HiddenComponent, Void, Boolean> {
++    @NonNull
++    private HiddenDatabaseHelper mDbHelper;
++    @NonNull
++    private UpdateCallback mCallback;
++
++    UpdateItemVisibilityTask(@NonNull HiddenDatabaseHelper dbHelper,
++                             @NonNull UpdateCallback callback) {
++        mDbHelper = dbHelper;
++        mCallback = callback;
++    }
++
++    @Override
++    protected Boolean doInBackground(HiddenComponent... hiddenComponents) {
++        if (hiddenComponents.length < 1) {
++            return false;
++        }
++
++        HiddenComponent component = hiddenComponents[0];
++        String pkgName = component.getPackageName();
++
++        if (component.isHidden()) {
++            mDbHelper.addApp(pkgName);
++        } else {
++            mDbHelper.removeApp(pkgName);
++        }
++
++        return true;
++    }
++
++    @Override
++    protected void onPostExecute(Boolean result) {
++        mCallback.onUpdated(result);
++    }
++
++    interface UpdateCallback {
++        void onUpdated(boolean result);
++    }
++}
+diff --git a/src/com/android/launcher3/lineage/trust/db/TrustComponent.java b/src/com/android/launcher3/lineage/hidden/db/HiddenComponent.java
+similarity index 66%
+rename from src/com/android/launcher3/lineage/trust/db/TrustComponent.java
+rename to src/com/android/launcher3/lineage/hidden/db/HiddenComponent.java
+index ff8976d02..d95d5c823 100644
+--- a/src/com/android/launcher3/lineage/trust/db/TrustComponent.java
++++ b/src/com/android/launcher3/lineage/hidden/db/HiddenComponent.java
+@@ -13,29 +13,23 @@
+  * See the License for the specific language governing permissions and
+  * limitations under the License.
+  */
+-package com.android.launcher3.lineage.trust.db;
++package com.android.launcher3.lineage.hidden.db;
+ 
+ import android.graphics.drawable.Drawable;
+ import android.support.annotation.NonNull;
+ 
+-public class TrustComponent {
+-    @NonNull
+-    private final String mPackageName;
+-    @NonNull
+-    private final Drawable mIcon;
+-    @NonNull
+-    private final String mLabel;
+-
++public class HiddenComponent {
++    @NonNull private final String mPackageName;
++    @NonNull private final Drawable mIcon;
++    @NonNull private final String mLabel;
+     private boolean mIsHidden;
+-    private boolean mIsProtected;
+ 
+-    public TrustComponent(@NonNull String packageName, @NonNull Drawable icon,
+-                          @NonNull String label, boolean isHidden, boolean isProtected) {
++    public HiddenComponent(@NonNull String packageName, @NonNull Drawable icon,
++                    @NonNull String label, boolean isHidden) {
+         mPackageName = packageName;
+         mIcon = icon;
+         mLabel = label;
+         mIsHidden = isHidden;
+-        mIsProtected = isProtected;
+     }
+ 
+     @NonNull
+@@ -57,25 +51,17 @@ public class TrustComponent {
+         return mIsHidden;
+     }
+ 
+-    public boolean isProtected() {
+-        return mIsProtected;
+-    }
+-
+     public void invertVisibility() {
+         mIsHidden = !mIsHidden;
+     }
+ 
+-    public void invertProtection() {
+-        mIsProtected = !mIsProtected;
+-    }
+-
+     @Override
+     public boolean equals(Object other) {
+-        if (!(other instanceof TrustComponent)) {
++        if (!(other instanceof HiddenComponent)) {
+             return false;
+         }
+ 
+-        TrustComponent otherComponent = (TrustComponent) other;
++        HiddenComponent otherComponent = (HiddenComponent) other;
+         return otherComponent.getPackageName().equals(mPackageName) &&
+                 otherComponent.isHidden() == mIsHidden;
+     }
+@@ -84,9 +70,4 @@ public class TrustComponent {
+     public int hashCode() {
+         return mPackageName.hashCode() + (mIsHidden ? 1 : 0);
+     }
+-
+-    public enum Kind {
+-        HIDDEN,
+-        PROTECTED,
+-    }
+ }
+diff --git a/src/com/android/launcher3/lineage/hidden/db/HiddenDatabaseHelper.java b/src/com/android/launcher3/lineage/hidden/db/HiddenDatabaseHelper.java
+new file mode 100644
+index 000000000..bfc4dfa30
+--- /dev/null
++++ b/src/com/android/launcher3/lineage/hidden/db/HiddenDatabaseHelper.java
+@@ -0,0 +1,119 @@
++/*
++ * Copyright (C) 2019 The LineageOS Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++package com.android.launcher3.lineage.hidden.db;
++
++import android.content.ContentValues;
++import android.content.Context;
++import android.database.Cursor;
++import android.database.sqlite.SQLiteDatabase;
++import android.database.sqlite.SQLiteOpenHelper;
++import android.support.annotation.NonNull;
++import android.support.annotation.Nullable;
++
++public class HiddenDatabaseHelper extends SQLiteOpenHelper {
++    private static final int DATABASE_VERSION = 1;
++    private static final String DATABSE_NAME = "hidden_apps_db";
++
++    private static final String TABLE_NAME = "hidden_apps";
++    private static final String KEY_UID = "uid";
++    private static final String KEY_PKGNAME = "pkgname";
++
++    @Nullable
++    private static HiddenDatabaseHelper sSingleton;
++
++    private HiddenDatabaseHelper(@NonNull Context context) {
++        super(context, DATABSE_NAME, null, DATABASE_VERSION);
++    }
++
++    public static synchronized HiddenDatabaseHelper getInstance(@NonNull Context context) {
++        if (sSingleton == null) {
++            sSingleton = new HiddenDatabaseHelper(context);
++        }
++
++        return sSingleton;
++    }
++
++    @Override
++    public void onCreate(SQLiteDatabase db) {
++        String CMD_CREATE_TABLE = "CREATE TABLE " + TABLE_NAME +
++                "(" +
++                    KEY_UID + " INTEGER PRIMARY KEY AUTOINCREMENT," +
++                    KEY_PKGNAME + " TEXT" +
++                ")";
++        db.execSQL(CMD_CREATE_TABLE);
++    }
++
++    @Override
++    public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
++    }
++
++    public void addApp(@NonNull String packageName) {
++        if (isPackageHidden(packageName)) {
++            return;
++        }
++
++        SQLiteDatabase db = getWritableDatabase();
++        db.beginTransaction();
++
++        try {
++            ContentValues values = new ContentValues();
++            values.put(KEY_PKGNAME, packageName);
++
++            db.insertOrThrow(TABLE_NAME, null, values);
++            db.setTransactionSuccessful();
++        } catch (Exception e) {
++            // Ignored
++        } finally {
++            db.endTransaction();
++        }
++    }
++
++    public void removeApp(@NonNull String packageName) {
++        if (!isPackageHidden(packageName)) {
++            return;
++        }
++
++        SQLiteDatabase db = getWritableDatabase();
++        db.beginTransaction();
++
++        try {
++            db.delete(TABLE_NAME, KEY_PKGNAME + "=?", new String[]{packageName});
++            db.setTransactionSuccessful();
++        } catch (Exception e) {
++            // Ignored
++        } finally {
++            db.endTransaction();
++        }
++    }
++
++    public boolean isPackageHidden(@NonNull String packageName) {
++        String query = String.format("SELECT * FROM %s WHERE %s = ?", TABLE_NAME, KEY_PKGNAME);
++        SQLiteDatabase db = getReadableDatabase();
++        Cursor cursor = db.rawQuery(query, new String[]{packageName});
++        boolean result = false;
++        try {
++            result = cursor.getCount() != 0;
++        } catch (Exception e) {
++            // Ignored
++        } finally {
++            if (cursor != null && !cursor.isClosed()) {
++                cursor.close();
++            }
++        }
++
++        return result;
++    }
++}
+diff --git a/src/com/android/launcher3/lineage/trust/UpdateItemTask.java b/src/com/android/launcher3/lineage/trust/UpdateItemTask.java
+deleted file mode 100644
+index e81176206..000000000
+--- a/src/com/android/launcher3/lineage/trust/UpdateItemTask.java
++++ /dev/null
+@@ -1,76 +0,0 @@
+-/*
+- * Copyright (C) 2019 The LineageOS Project
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License");
+- * you may not use this file except in compliance with the License.
+- * You may obtain a copy of the License at
+- *
+- *      http://www.apache.org/licenses/LICENSE-2.0
+- *
+- * Unless required by applicable law or agreed to in writing, software
+- * distributed under the License is distributed on an "AS IS" BASIS,
+- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+- * See the License for the specific language governing permissions and
+- * limitations under the License.
+- */
+-package com.android.launcher3.lineage.trust;
+-
+-import android.os.AsyncTask;
+-import android.support.annotation.NonNull;
+-
+-import com.android.launcher3.lineage.trust.db.TrustComponent;
+-import com.android.launcher3.lineage.trust.db.TrustDatabaseHelper;
+-
+-public class UpdateItemTask extends AsyncTask<TrustComponent, Void, Boolean> {
+-    @NonNull
+-    private TrustDatabaseHelper mDbHelper;
+-    @NonNull
+-    private UpdateCallback mCallback;
+-    @NonNull
+-    private TrustComponent.Kind mKind;
+-
+-    UpdateItemTask(@NonNull TrustDatabaseHelper dbHelper,
+-                   @NonNull UpdateCallback callback,
+-                   @NonNull TrustComponent.Kind kind) {
+-        mDbHelper = dbHelper;
+-        mCallback = callback;
+-        mKind = kind;
+-    }
+-
+-    @Override
+-    protected Boolean doInBackground(TrustComponent... trustComponents) {
+-        if (trustComponents.length < 1) {
+-            return false;
+-        }
+-
+-        TrustComponent component = trustComponents[0];
+-        String pkgName = component.getPackageName();
+-
+-        switch (mKind) {
+-            case HIDDEN:
+-                if (component.isHidden()) {
+-                    mDbHelper.addHiddenApp(pkgName);
+-                } else {
+-                    mDbHelper.removeHiddenApp(pkgName);
+-                }
+-                break;
+-            case PROTECTED:
+-                if (component.isProtected()) {
+-                    mDbHelper.addProtectedApp(pkgName);
+-                } else {
+-                    mDbHelper.removeProtectedApp(pkgName);
+-                }
+-                break;
+-        }
+-        return true;
+-    }
+-
+-    @Override
+-    protected void onPostExecute(Boolean result) {
+-        mCallback.onUpdated(result);
+-    }
+-
+-    interface UpdateCallback {
+-        void onUpdated(boolean result);
+-    }
+-}
+diff --git a/src/com/android/launcher3/lineage/trust/db/TrustDatabaseHelper.java b/src/com/android/launcher3/lineage/trust/db/TrustDatabaseHelper.java
+deleted file mode 100644
+index 64d169561..000000000
+--- a/src/com/android/launcher3/lineage/trust/db/TrustDatabaseHelper.java
++++ /dev/null
+@@ -1,197 +0,0 @@
+-/*
+- * Copyright (C) 2019 The LineageOS Project
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License");
+- * you may not use this file except in compliance with the License.
+- * You may obtain a copy of the License at
+- *
+- *      http://www.apache.org/licenses/LICENSE-2.0
+- *
+- * Unless required by applicable law or agreed to in writing, software
+- * distributed under the License is distributed on an "AS IS" BASIS,
+- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+- * See the License for the specific language governing permissions and
+- * limitations under the License.
+- */
+-package com.android.launcher3.lineage.trust.db;
+-
+-import android.content.ContentValues;
+-import android.content.Context;
+-import android.database.Cursor;
+-import android.database.sqlite.SQLiteDatabase;
+-import android.database.sqlite.SQLiteOpenHelper;
+-import android.support.annotation.NonNull;
+-import android.support.annotation.Nullable;
+-
+-public class TrustDatabaseHelper extends SQLiteOpenHelper {
+-    private static final int DATABASE_VERSION = 1;
+-    private static final String DATABASE_NAME = "trust_apps_db";
+-
+-    private static final String TABLE_NAME = "trust_apps";
+-    private static final String KEY_UID = "uid";
+-    private static final String KEY_PKGNAME = "pkgname";
+-    private static final String KEY_HIDDEN = "hidden";
+-    private static final String KEY_PROTECTED = "protected";
+-
+-    @Nullable
+-    private static TrustDatabaseHelper sSingleton;
+-
+-    private TrustDatabaseHelper(@NonNull Context context) {
+-        super(context, DATABASE_NAME, null, DATABASE_VERSION);
+-    }
+-
+-    public static synchronized TrustDatabaseHelper getInstance(@NonNull Context context) {
+-        if (sSingleton == null) {
+-            sSingleton = new TrustDatabaseHelper(context);
+-        }
+-
+-        return sSingleton;
+-    }
+-
+-    @Override
+-    public void onCreate(SQLiteDatabase db) {
+-        String CMD_CREATE_TABLE = "CREATE TABLE " + TABLE_NAME +
+-                "(" +
+-                KEY_UID + " INTEGER PRIMARY KEY AUTOINCREMENT," +
+-                KEY_PKGNAME + " TEXT," +
+-                KEY_HIDDEN + " INTEGER DEFAULT 0," +
+-                KEY_PROTECTED + " INTEGER DEFAULT 0" +
+-                ")";
+-        db.execSQL(CMD_CREATE_TABLE);
+-    }
+-
+-    @Override
+-    public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
+-    }
+-
+-    public void addHiddenApp(@NonNull String packageName) {
+-        if (isPackageHidden(packageName)) {
+-            return;
+-        }
+-
+-        SQLiteDatabase db = getWritableDatabase();
+-        db.beginTransaction();
+-
+-        try {
+-            ContentValues values = new ContentValues();
+-            values.put(KEY_PKGNAME, packageName);
+-            values.put(KEY_HIDDEN, 1);
+-
+-            int rows = db.update(TABLE_NAME, values, KEY_PKGNAME + " = ?", new String[]{KEY_PKGNAME});
+-            if (rows != 1) {
+-                // Entry doesn't exist, create a new one
+-                db.insertOrThrow(TABLE_NAME, null, values);
+-            }
+-            db.setTransactionSuccessful();
+-        } catch (Exception e) {
+-            // Ignored
+-        } finally {
+-            db.endTransaction();
+-        }
+-    }
+-
+-    public void addProtectedApp(@NonNull String packageName) {
+-        if (isPackageProtected(packageName)) {
+-            return;
+-        }
+-
+-        SQLiteDatabase db = getWritableDatabase();
+-        db.beginTransaction();
+-
+-        try {
+-            ContentValues values = new ContentValues();
+-            values.put(KEY_PKGNAME, packageName);
+-            values.put(KEY_PROTECTED, 1);
+-
+-            int rows = db.update(TABLE_NAME, values, KEY_PKGNAME + " = ?", new String[]{KEY_PKGNAME});
+-            if (rows != 1) {
+-                // Entry doesn't exist, create a new one
+-                db.insertOrThrow(TABLE_NAME, null, values);
+-            }
+-            db.setTransactionSuccessful();
+-        } catch (Exception e) {
+-            // Ignored
+-        } finally {
+-            db.endTransaction();
+-        }
+-    }
+-
+-
+-    public void removeHiddenApp(@NonNull String packageName) {
+-        if (!isPackageHidden(packageName)) {
+-            return;
+-        }
+-
+-        SQLiteDatabase db = getWritableDatabase();
+-        db.beginTransaction();
+-
+-        try {
+-            ContentValues values = new ContentValues();
+-            values.put(KEY_HIDDEN, 0);
+-
+-            db.update(TABLE_NAME, values, KEY_PKGNAME + " = ?", new String[]{packageName});
+-            db.setTransactionSuccessful();
+-        } catch (Exception e) {
+-            // Ignored
+-        } finally {
+-            db.endTransaction();
+-        }
+-    }
+-
+-    public void removeProtectedApp(@NonNull String packageName) {
+-        if (!isPackageProtected(packageName)) {
+-            return;
+-        }
+-
+-        SQLiteDatabase db = getWritableDatabase();
+-        db.beginTransaction();
+-
+-        try {
+-            ContentValues values = new ContentValues();
+-            values.put(KEY_PROTECTED, 0);
+-
+-            db.update(TABLE_NAME, values, KEY_PKGNAME + " = ?", new String[]{packageName});
+-            db.setTransactionSuccessful();
+-        } catch (Exception e) {
+-            // Ignored
+-        } finally {
+-            db.endTransaction();
+-        }
+-    }
+-
+-    public boolean isPackageHidden(@NonNull String packageName) {
+-        String query = String.format("SELECT * FROM %s WHERE %s = ? AND %s = ?", TABLE_NAME, KEY_PKGNAME, KEY_HIDDEN);
+-        SQLiteDatabase db = getReadableDatabase();
+-        Cursor cursor = db.rawQuery(query, new String[]{packageName, String.valueOf(1)});
+-        boolean result = false;
+-        try {
+-            result = cursor.getCount() != 0;
+-        } catch (Exception e) {
+-            // Ignored
+-        } finally {
+-            if (cursor != null && !cursor.isClosed()) {
+-                cursor.close();
+-            }
+-        }
+-
+-        return result;
+-    }
+-
+-    public boolean isPackageProtected(@NonNull String packageName) {
+-        String query = String.format("SELECT * FROM %s WHERE %s = ? AND %s = ?", TABLE_NAME, KEY_PKGNAME, KEY_PROTECTED);
+-        SQLiteDatabase db = getReadableDatabase();
+-        Cursor cursor = db.rawQuery(query, new String[]{packageName, String.valueOf(1)});
+-        boolean result = false;
+-        try {
+-            result = cursor.getCount() != 0;
+-        } catch (Exception e) {
+-            // Ignored
+-        } finally {
+-            if (cursor != null && !cursor.isClosed()) {
+-                cursor.close();
+-            }
+-        }
+-
+-        return result;
+-    }
+-}
+diff --git a/src/com/android/launcher3/touch/ItemClickHandler.java b/src/com/android/launcher3/touch/ItemClickHandler.java
+index fbf10cfe4..f2f5592e5 100644
+--- a/src/com/android/launcher3/touch/ItemClickHandler.java
++++ b/src/com/android/launcher3/touch/ItemClickHandler.java
+@@ -44,7 +44,6 @@ import com.android.launcher3.ShortcutInfo;
+ import com.android.launcher3.compat.AppWidgetManagerCompat;
+ import com.android.launcher3.folder.Folder;
+ import com.android.launcher3.folder.FolderIcon;
+-import com.android.launcher3.lineage.trust.db.TrustDatabaseHelper;
+ import com.android.launcher3.util.PackageManagerHelper;
+ import com.android.launcher3.widget.PendingAppWidgetHostView;
+ import com.android.launcher3.widget.WidgetAddFlowHandler;
+@@ -228,14 +227,6 @@ public class ItemClickHandler {
+                 intent.setPackage(null);
+             }
+         }
+-
+-        TrustDatabaseHelper db = TrustDatabaseHelper.getInstance(launcher);
+-        boolean isProtected = db.isPackageProtected(item.getTargetComponent().getPackageName());
+-
+-        if (isProtected) {
+-            launcher.startActivitySafelyAuth(v, intent, item);
+-        } else {
+-            launcher.startActivitySafely(v, intent, item);
+-        }
++        launcher.startActivitySafely(v, intent, item);
+     }
+ }
+-- 
+2.17.1
+

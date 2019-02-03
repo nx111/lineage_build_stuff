@@ -1,0 +1,202 @@
+From edcae74d97e72d8daf62822a07e1a6d0ccc7524b Mon Sep 17 00:00:00 2001
+From: Luca Stefani <luca.stefani.ge1@gmail.com>
+Date: Sat, 2 Feb 2019 13:09:45 +0100
+Subject: [PATCH 2/5] Revert "Trebuchet: expand statusbar on swipe down"
+
+This reverts commit 038d82514590597c8902a942aa84149572cb4cdb.
+
+Change-Id: Ie4581cf2850a458d1188bda082333f65f092a8df
+---
+ AndroidManifest.xml                           |  1 -
+ quickstep/AndroidManifest.xml                 |  1 -
+ .../uioverrides/SwipeDownListener.java        | 81 -------------------
+ .../launcher3/uioverrides/UiFactory.java      |  9 +--
+ res/values/lineage_strings.xml                | 13 ++-
+ res/xml/launcher_preferences.xml              |  6 --
+ 6 files changed, 8 insertions(+), 103 deletions(-)
+ delete mode 100644 quickstep/src/com/android/launcher3/uioverrides/SwipeDownListener.java
+
+diff --git a/AndroidManifest.xml b/AndroidManifest.xml
+index a34ae425b..c147744d2 100644
+--- a/AndroidManifest.xml
++++ b/AndroidManifest.xml
+@@ -49,7 +49,6 @@
+     <uses-permission android:name="com.android.launcher.permission.WRITE_SETTINGS" />
+     <uses-permission android:name="com.android.launcher3.permission.READ_SETTINGS" />
+     <uses-permission android:name="com.android.launcher3.permission.WRITE_SETTINGS" />
+-    <uses-permission android:name="android.permission.EXPAND_STATUS_BAR" />
+ 
+     <application
+         android:backupAgent="com.android.launcher3.LauncherBackupAgent"
+diff --git a/quickstep/AndroidManifest.xml b/quickstep/AndroidManifest.xml
+index 1dbabbc0a..412ec5a88 100644
+--- a/quickstep/AndroidManifest.xml
++++ b/quickstep/AndroidManifest.xml
+@@ -25,7 +25,6 @@
+     <uses-sdk android:targetSdkVersion="28" android:minSdkVersion="28"/>
+     <uses-permission android:name="android.permission.CONTROL_REMOTE_APP_TRANSITION_ANIMATIONS" />
+     <uses-permission android:name="android.permission.MANAGE_ACTIVITY_STACKS" />
+-    <uses-permission android:name="android.permission.STATUS_BAR" />
+     <application
+         android:backupAgent="com.android.launcher3.LauncherBackupAgent"
+         android:fullBackupOnly="true"
+diff --git a/quickstep/src/com/android/launcher3/uioverrides/SwipeDownListener.java b/quickstep/src/com/android/launcher3/uioverrides/SwipeDownListener.java
+deleted file mode 100644
+index f4dd99caa..000000000
+--- a/quickstep/src/com/android/launcher3/uioverrides/SwipeDownListener.java
++++ /dev/null
+@@ -1,81 +0,0 @@
+-/*
+- * Copyright (C) 2016 The Android Open Source Project
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License");
+- * you may not use this file except in compliance with the License.
+- * You may obtain a copy of the License at
+- *
+- *      http://www.apache.org/licenses/LICENSE-2.0
+- *
+- * Unless required by applicable law or agreed to in writing, software
+- * distributed under the License is distributed on an "AS IS" BASIS,
+- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+- * See the License for the specific language governing permissions and
+- * limitations under the License.
+- */
+-
+-package com.android.launcher3.uioverrides;
+-
+-import static com.android.launcher3.LauncherState.NORMAL;
+-
+-import android.content.Context;
+-import android.content.SharedPreferences;
+-import android.util.Log;
+-import android.view.GestureDetector;
+-import android.view.MotionEvent;
+-
+-import com.android.launcher3.Launcher;
+-import com.android.launcher3.Utilities;
+-import com.android.launcher3.util.TouchController;
+-
+-import java.lang.reflect.InvocationTargetException;
+-import java.lang.reflect.Method;
+-
+-public class SwipeDownListener implements TouchController {
+-    private static final String PREF_STATUSBAR_EXPAND = "pref_expand_statusbar";
+-
+-    private GestureDetector mGestureDetector;
+-    private Launcher mLauncher;
+-
+-    public SwipeDownListener(Launcher launcher) {
+-        SharedPreferences prefs = Utilities.getPrefs(launcher.getApplicationContext());
+-
+-        mLauncher = launcher;
+-        mGestureDetector = new GestureDetector(launcher,
+-                new GestureDetector.SimpleOnGestureListener() {
+-            @Override
+-            public boolean onFling(MotionEvent e1, MotionEvent e2, float vX, float vy) {
+-                if (prefs.getBoolean(PREF_STATUSBAR_EXPAND, true) && e1.getY() < e2.getY()) {
+-                    expandStatusBar(launcher);
+-                }
+-                return true;
+-            }
+-        });
+-    }
+-
+-    @Override
+-    public boolean onControllerInterceptTouchEvent(MotionEvent ev) {
+-        if (mLauncher.isInState(NORMAL)) {
+-            mGestureDetector.onTouchEvent(ev);
+-        }
+-        return false;
+-    }
+-
+-    @Override
+-    public boolean onControllerTouchEvent(MotionEvent ev) {
+-        return false;
+-    }
+-
+-    private void expandStatusBar(Context context) {
+-        try {
+-            Object service = context.getSystemService("statusbar");
+-            Class<?> manager = Class.forName("android.app.StatusBarManager");
+-            Method expand = manager.getMethod("expandNotificationsPanel");
+-            expand.invoke(service);
+-        } catch (ClassNotFoundException | NoSuchMethodException | IllegalAccessException |
+-                InvocationTargetException e) {
+-            Log.w("Reflection",
+-                    "Can't to invoke android.app.StatusBarManager$expandNotificationsPanel");
+-        }
+-    }
+-}
+\ No newline at end of file
+diff --git a/quickstep/src/com/android/launcher3/uioverrides/UiFactory.java b/quickstep/src/com/android/launcher3/uioverrides/UiFactory.java
+index a893dafd0..ac9f8634e 100644
+--- a/quickstep/src/com/android/launcher3/uioverrides/UiFactory.java
++++ b/quickstep/src/com/android/launcher3/uioverrides/UiFactory.java
+@@ -63,22 +63,19 @@ public class UiFactory {
+             return new TouchController[] {
+                     launcher.getDragController(),
+                     new OverviewToAllAppsTouchController(launcher),
+-                    new LauncherTaskViewController(launcher),
+-                    new SwipeDownListener(launcher)};
++                    new LauncherTaskViewController(launcher)};
+         }
+         if (launcher.getDeviceProfile().isVerticalBarLayout()) {
+             return new TouchController[] {
+                     launcher.getDragController(),
+                     new OverviewToAllAppsTouchController(launcher),
+                     new LandscapeEdgeSwipeController(launcher),
+-                    new LauncherTaskViewController(launcher),
+-                    new SwipeDownListener(launcher)};
++                    new LauncherTaskViewController(launcher)};
+         } else {
+             return new TouchController[] {
+                     launcher.getDragController(),
+                     new PortraitStatesTouchController(launcher),
+-                    new LauncherTaskViewController(launcher),
+-                    new SwipeDownListener(launcher)};
++                    new LauncherTaskViewController(launcher)};
+         }
+     }
+ 
+diff --git a/res/values/lineage_strings.xml b/res/values/lineage_strings.xml
+index 90af78b2d..14d6f83bc 100644
+--- a/res/values/lineage_strings.xml
++++ b/res/values/lineage_strings.xml
+@@ -62,12 +62,9 @@
+     <string name="google_title" translatable="false">Google</string>
+     <string name="play_folder_title">Play</string>
+ 
+-    <!-- Expand statusbar -->
+-    <string name="statusbar_expand">Swipe down to show notifications</string>
+-
+-    <!-- Trust apps -->
+-    <string name="trust_apps_manager_name">Hidden &amp; Protected apps</string>
+-    <string name="trust_apps_auth_manager">Unlock to manage the hidden and protected apps</string>
+-    <string name="trust_apps_loading">Loading\u2026</string>
+-    <string name="trust_apps_no_lock_error">Please set up a secure lock screen to restrict app access</string>
++    <!-- Hidden apps -->
++    <string name="hidden_apps_manager_name">Hidden apps</string>
++    <string name="hidden_apps_auth_manager">Unlock to manage the hidden apps</string>
++    <string name="protected_apps_loading">Loading\u2026</string>
++    <string name="hidden_apps_no_lock_error">Please set up a secure lock screen to restrict app access</string>
+ </resources>
+diff --git a/res/xml/launcher_preferences.xml b/res/xml/launcher_preferences.xml
+index b6f0a85ef..1842f5b40 100644
+--- a/res/xml/launcher_preferences.xml
++++ b/res/xml/launcher_preferences.xml
+@@ -57,12 +57,6 @@
+             android:title="@string/desktop_show_labels"
+             android:defaultValue="true"
+             android:persistent="true" />
+-
+-        <SwitchPreference
+-            android:key="pref_expand_statusbar"
+-            android:title="@string/statusbar_expand"
+-            android:defaultValue="true"
+-            android:persistent="true" />
+     </PreferenceCategory>
+ 
+     <PreferenceCategory
+-- 
+2.17.1
+
