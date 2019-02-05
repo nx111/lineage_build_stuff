@@ -124,16 +124,18 @@ function patch_local()
                             rc=$?
                             if [ $rc -ne 0 ]; then
                                  first=0
-                                 echo  "  >> git am conflict, please resolv it, then press ENTER to continue,or press 's' skip it ..."
+                                 echo  "  >> git am conflict, please resolv it, then press ENTER to continue,or press 's' skip it, 'a' to skip and remove it ..."
                                  while ! git -C $topdir/.repo/manifests log -100 | grep "Change-Id: $changeid" >/dev/null 2>/dev/null; do
                                      [ $first -ne 0 ] && echo "conflicts not resolved,please fix it,then press ENTER to continue,or press 's' skip it ..."
                                      first=1
                                      ch=$(sed q </dev/tty)
-                                     if [ "$ch" = "s" ]; then
-                                        echo "skip it ..."
+                                     if [ "$ch" = "s" -o "$ch" = "a" ]; then
+                                        [ "$ch" = "s" ] && echo "skip it ..."
+                                        [ "$ch" = "a" ] && echo "skip and remove it ..."
                                         git -C $topdir/.repo/manifests am --skip
+                                        [ "$ch" = "a" ] && rm $topdir/.myfiles/patches/$f
                                         break
-                                      fi
+                                     fi
                                  done
                            fi
                        fi
@@ -1274,7 +1276,6 @@ kpick 240503 # Make sysinit permissive
 kpick 240504 # Make backuptool permissive only in non user builds
 kpick 240542 # Revert "sepolicy: recovery: Allow (re)mounting system"
 kpick 240544 # Clean-up a bit recovery rules
-kpick 238602 # sepolicies: add Trust hal
 kpick 239081 # sepolicy: Label vendor.camera.aux. list properties
 
 # device/qcom/sepolicy
@@ -1389,7 +1390,6 @@ kpick 237143 # AudioService: Fix Audio mod volume steps
 kpick 237171 # WiFiDisplayController: Defer the P2P Initialization from its constructor.
 kpick 237172 # WifiDisplayController: handle preexisting p2p connection status
 kpick 237743 # systemui: add dark mode on low battery toggle
-kpick 238601 # base: add Trust usb restrictor
 kpick 238696 # fonts: Build different fonts.xml if EXCLUDE_SERIF_FONTS is true
 kpick 239179 # Camera: Force HAL1 for predefined package list.
 kpick 239520 # Reset all package signatures on boot
@@ -1424,12 +1424,15 @@ kpick 225155 # Broadcom BT: Add support fm/bt via v4l2.
 # hardware/interfaces
 
 # hardware/lineage/interfaces
-kpick 238583 # interfaces: Add trust 1.0 HAL
-kpick 238585 # trust: create service
 
 # hardware/lineage/lineagehw
 
 # hardware/lineage/livedisplay
+kpick 240582 # livedisplay: Set binder buffer limit to 8KB for ARM32 devices
+kpick 240572 # livedisplay: Nuke color balance
+kpick 240569 # livedisplay: sdm: Manage QCDM api with a class
+kpick 240571 # livedisplay: sdm: Don't set display mode in constructor
+kpick 240583 # livedisplay: legacymm: Minor code cleanup
 
 # hardware/nxp/nfc
 kpick 239927 # hardware: nxp: Restore pn547 support
@@ -1500,10 +1503,6 @@ kpick 240348 # audio: Fix WBS sample rate usage
 kpick 230272 # sdk: Remove VOLUME_KEYS_CONTROL_RING_STREAM
 kpick 237074 # lineage-sdk: Handle database downgrading
 kpick 237740 # sdk: add dark mode on low battery toggle
-kpick 238604 # sdk: add Trust usb restrictor
-kpick 239278 # PerformanceManager: Allow wait for MPCTL to start on boot
-kpick 239492 # LineageSettingsProvider: Fix migration of FORCE_SHOW_NAVBAR
-kpick 240050 # LiveDisplayService: Catch NPE before LiveDisplayConfig is initialized
 kpick 240568 # sdk: Allow using named services for HIDL features
 
 # packages/apps/Bluetooth
@@ -1544,7 +1543,6 @@ kpick 229311 # Assume optional codecs are supported if were supported previously
 # packages/apps/KeyChain
 
 # packages/apps/LineageParts
-kpick 238603 # parts: add Trust usb restrictor
 
 # packages/apps/ManagedProvisoning
 

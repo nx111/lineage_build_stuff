@@ -1,4 +1,4 @@
-From fc9c63eb2d89ed9d5123afde63f01ed09102b6a9 Mon Sep 17 00:00:00 2001
+From 734e71ce0c50e7b2ff7591f83c18da2b2f30abef Mon Sep 17 00:00:00 2001
 From: Jan Altensen <info@stricted.net>
 Date: Sun, 20 Jan 2019 02:40:07 +0100
 Subject: [PATCH 5/6] hidl: livedisplay: Add binderized service implementation
@@ -12,33 +12,33 @@ Subject: [PATCH 5/6] hidl: livedisplay: Add binderized service implementation
 
 Change-Id: I545a7c0ac8bf4fce04da73a0d39d4ac1938496f2
 ---
- .../hidl/livedisplay/AdaptiveBacklight.cpp    |  31 ++-
+ .../hidl/livedisplay/AdaptiveBacklight.cpp    |  31 +--
  .../hidl/livedisplay/AdaptiveBacklight.h      |  12 +-
- lineagehw/hidl/livedisplay/Android.bp         |  25 +-
- lineagehw/hidl/livedisplay/AutoContrast.cpp   |  47 ----
- .../hidl/livedisplay/ColorEnhancement.cpp     |  47 ----
- .../livedisplay/DisplayColorCalibration.cpp   |  49 ++--
+ lineagehw/hidl/livedisplay/Android.bp         |  25 +--
+ lineagehw/hidl/livedisplay/AutoContrast.cpp   |  47 -----
+ .../hidl/livedisplay/ColorEnhancement.cpp     |  47 -----
+ .../livedisplay/DisplayColorCalibration.cpp   |  49 +++--
  .../livedisplay/DisplayColorCalibration.h     |  14 +-
- .../DisplayColorCalibrationExynos.cpp         |  70 ++++++
+ .../DisplayColorCalibrationExynos.cpp         |  70 +++++++
  ...ance.h => DisplayColorCalibrationExynos.h} |  29 +--
- lineagehw/hidl/livedisplay/DisplayModes.cpp   | 106 +++++++--
+ lineagehw/hidl/livedisplay/DisplayModes.cpp   | 106 ++++++++--
  lineagehw/hidl/livedisplay/DisplayModes.h     |  23 +-
- .../hidl/livedisplay/PictureAdjustment.cpp    |  77 ------
- .../hidl/livedisplay/PictureAdjustment.h      |  62 -----
+ .../hidl/livedisplay/PictureAdjustment.cpp    |  77 -------
+ .../hidl/livedisplay/PictureAdjustment.h      |  62 ------
  .../hidl/livedisplay/ReadingEnhancement.cpp   |  34 ++-
  .../hidl/livedisplay/ReadingEnhancement.h     |  14 +-
  ...lance.cpp => ReadingEnhancementExynos.cpp} |  43 ++--
- ...hancement.h => ReadingEnhancementExynos.h} |  24 +-
- .../hidl/livedisplay/SunlightEnhancement.cpp  |  46 +++-
+ ...hancement.h => ReadingEnhancementExynos.h} |  24 +--
+ .../hidl/livedisplay/SunlightEnhancement.cpp  |  46 ++--
  .../hidl/livedisplay/SunlightEnhancement.h    |  12 +-
- .../livedisplay/SunlightEnhancementExynos.cpp |  59 +++++
+ .../livedisplay/SunlightEnhancementExynos.cpp |  59 ++++++
  ...Contrast.h => SunlightEnhancementExynos.h} |  22 +-
- lineagehw/hidl/livedisplay/service.cpp        | 223 ++++++++++++++++++
+ lineagehw/hidl/livedisplay/service.cpp        | 198 ++++++++++++++++++
  ...lineage.livedisplay@2.0-service.samsung.rc |   4 +
- .../lineageos/hardware/AdaptiveBacklight.java |  59 -----
- .../hardware/DisplayModeControl.java          | 142 -----------
- .../hardware/SunlightEnhancement.java         |  86 -------
- 26 files changed, 668 insertions(+), 692 deletions(-)
+ .../lineageos/hardware/AdaptiveBacklight.java |  59 ------
+ .../hardware/DisplayModeControl.java          | 142 -------------
+ .../hardware/SunlightEnhancement.java         |  86 --------
+ 26 files changed, 643 insertions(+), 692 deletions(-)
  delete mode 100644 lineagehw/hidl/livedisplay/AutoContrast.cpp
  delete mode 100644 lineagehw/hidl/livedisplay/ColorEnhancement.cpp
  create mode 100644 lineagehw/hidl/livedisplay/DisplayColorCalibrationExynos.cpp
@@ -1371,10 +1371,10 @@ index 44a8be6..5bf9798 100644
 +#endif  // VENDOR_LINEAGE_LIVEDISPLAY_V2_0_SUNLIGHTENHANCEMENTEXYNOS_H
 diff --git a/lineagehw/hidl/livedisplay/service.cpp b/lineagehw/hidl/livedisplay/service.cpp
 new file mode 100644
-index 0000000..a60b970
+index 0000000..5ba2646
 --- /dev/null
 +++ b/lineagehw/hidl/livedisplay/service.cpp
-@@ -0,0 +1,223 @@
+@@ -0,0 +1,198 @@
 +/*
 + * Copyright (C) 2019 The LineageOS Project
 + *
@@ -1431,7 +1431,6 @@ index 0000000..a60b970
 +    sp<SunlightEnhancement> sunlightEnhancement;
 +    sp<SunlightEnhancementExynos> sunlightEnhancementExynos;
 +    status_t status;
-+    uint8_t services = 0;
 +
 +    LOG(INFO) << "LiveDisplay HAL service is starting.";
 +
@@ -1440,17 +1439,11 @@ index 0000000..a60b970
 +        LOG(ERROR) << "Can not create an instance of LiveDisplay HAL AdaptiveBacklight Iface, exiting.";
 +        goto shutdown;
 +    }
-+    if (adaptiveBacklight->isSupported()) {
-+        services++;
-+    }
 +
 +    displayColorCalibration = new DisplayColorCalibration();
 +    if (displayColorCalibration == nullptr) {
 +        LOG(ERROR) << "Can not create an instance of LiveDisplay HAL DisplayColorCalibration Iface, exiting.";
 +        goto shutdown;
-+    }
-+    if (displayColorCalibration->isSupported()) {
-+        services++;
 +    }
 +
 +    displayColorCalibrationExynos = new DisplayColorCalibrationExynos();
@@ -1458,17 +1451,11 @@ index 0000000..a60b970
 +        LOG(ERROR) << "Can not create an instance of LiveDisplay HAL DisplayColorCalibration Iface, exiting.";
 +        goto shutdown;
 +    }
-+    if (displayColorCalibrationExynos->isSupported()) {
-+        services++;
-+    }
 +
 +    displayModes = new DisplayModes();
 +    if (displayModes == nullptr) {
 +        LOG(ERROR) << "Can not create an instance of LiveDisplay HAL DisplayModes Iface, exiting.";
 +        goto shutdown;
-+    }
-+    if (displayModes->isSupported()) {
-+        services++;
 +    }
 +
 +    readingEnhancement = new ReadingEnhancement();
@@ -1476,17 +1463,11 @@ index 0000000..a60b970
 +        LOG(ERROR) << "Can not create an instance of LiveDisplay HAL ReadingEnhancement Iface, exiting.";
 +        goto shutdown;
 +    }
-+    if (readingEnhancement->isSupported()) {
-+        services++;
-+    }
 +
 +    readingEnhancementExynos = new ReadingEnhancementExynos();
 +    if (readingEnhancementExynos == nullptr) {
 +        LOG(ERROR) << "Can not create an instance of LiveDisplay HAL ReadingEnhancement Iface, exiting.";
 +        goto shutdown;
-+    }
-+    if (readingEnhancementExynos->isSupported()) {
-+        services++;
 +    }
 +
 +    sunlightEnhancement = new SunlightEnhancement();
@@ -1494,20 +1475,14 @@ index 0000000..a60b970
 +        LOG(ERROR) << "Can not create an instance of LiveDisplay HAL SunlightEnhancement Iface, exiting.";
 +        goto shutdown;
 +    }
-+    if (sunlightEnhancement->isSupported()) {
-+        services++;
-+    }
 +
 +    sunlightEnhancementExynos = new SunlightEnhancementExynos();
 +    if (sunlightEnhancementExynos == nullptr) {
 +        LOG(ERROR) << "Can not create an instance of LiveDisplay HAL SunlightEnhancement Iface, exiting.";
 +        goto shutdown;
 +    }
-+    if (sunlightEnhancementExynos->isSupported()) {
-+        services++;
-+    }
 +
-+    configureRpcThreadpool(services, true /*callerWillJoin*/);
++    configureRpcThreadpool(1, true /*callerWillJoin*/);
 +
 +    if (adaptiveBacklight->isSupported()) {
 +        status = adaptiveBacklight->registerAsService();
