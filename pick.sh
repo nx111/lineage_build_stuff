@@ -1158,7 +1158,6 @@ repo sync android  >/dev/null
 [ $op_keep_manifests -ne 1 ] && reset_project_dir .repo/manifests
 
 kpick 231971 # manifest: sync gcc4.9 from aosp oreo
-kpick 239498 # manifest: Sync hardware/lineage/livedisplay
 
 patch_local local/android
 echo
@@ -1187,7 +1186,7 @@ start_check_classification=1
 
 # device/samsung/klte-common
 kpick 225192 # klte-common: Align ril.h to samsung_msm8974-common P libril changes
-kpick 238522 # klte-common: Add IGloveMode to device manifest
+#kpick 238522 # klte-common: Add IGloveMode to device manifest
 
 # device/samsung/msm8974-common
 kpick 235457 # msm8974-common: sepolicy: Limit execmod to specifically labeled files
@@ -1198,6 +1197,7 @@ kpick 238521 # msm8974-common: Build vendor.lineage.touch HAL from hardware/sams
 kpick 234754 # Add define for O_TMPFILE
 kpick 239737 # crypto: Allow kernel to compile without CONFIG_CRYPTO_FIPS
 kpick 239738 # ARM: configs: Disable CONFIG_CRYPTO_FIPS for hlte devices
+# kpick 240451 # fuse: fix possibly missed wake-up after abort
 
 # =============== END DEVICE STUFF ========================
 
@@ -1268,18 +1268,19 @@ kpick 226443 # soong: Add additional_deps attribute for libraries and binaries
 # dalvik
 
 # device/lineage/sepolicy
-kpick 234544 # sepolicy: Allow Settings to read ro.vendor.build.security_patch
-kpick 240325 # lineage: Properly write rules for Lineage LiveDisplay as a HAL
-kpick 240326 # lineage: Rewrite Lineage Power HAL rules
+kpick 240499 # Remove not allowed rule
+kpick 240500 # Snap and gallery require to run vendor code
+kpick 240503 # Make sysinit permissive
+kpick 240504 # Make backuptool permissive only in non user builds
+kpick 240542 # Revert "sepolicy: recovery: Allow (re)mounting system"
+kpick 240544 # Clean-up a bit recovery rules
 kpick 238602 # sepolicies: add Trust hal
-kpick 239080 # sepolicy: Allow recovery update_engine to setexec backuptool
 kpick 239081 # sepolicy: Label vendor.camera.aux. list properties
-kpick 239138 # common: Add vendor.lineage.touch rules
-kpick 239703 # common: Migrate to livedisplay 2.0
 
 # device/qcom/sepolicy
 kpick 228573 # sepolicy: Add libsdm-disp-vndapis and libsdmutils to SP-HALs
 kpick 228582 # sepolicy: qti_init_shell needs to read dir too
+kpick 240548 # sepolicy: Whitelist vold from reading mnt_vendor_file
 
 # device/qcom/sepolicy-legacy
 kpick 230230 # common: fix sensors denial
@@ -1356,7 +1357,6 @@ kpick 238929 # libstagefright_wfd: libmediaplayer2: compilation fixes
 kpick 238931 # stagefright: Fix SurfaceMediaSource getting handle from wrong position issue
 kpick 238932 # stagefright: Fix buffer handle retrieval in signalBufferReturned
 kpick 239642 # libstagefright_wfd: video encoder does not actually release MediaBufferBase when done
-kpick 240483 # Visualizer: fix native crash when visualizer release
 
 # frameworks/base
 kpick 224266 # SystemUI: Add Lineage statusbar item holder
@@ -1393,11 +1393,9 @@ kpick 238601 # base: add Trust usb restrictor
 kpick 238696 # fonts: Build different fonts.xml if EXCLUDE_SERIF_FONTS is true
 kpick 239179 # Camera: Force HAL1 for predefined package list.
 kpick 239520 # Reset all package signatures on boot
-#kpick 240034 # [AlarmManager]Use the correct func interface for send msg args
 kpick 240084 # ServiceRegistry: Don't throw an exception if OEM_LOCK is missing
-kpick 240396 # SystemUI: Add onStatusBarMotionEvent hook
 kpick 240411 # Keyguard: Avoid starting FP authentication right after cancelling
-kpick 240484 # Visualizer: fix native crash when visualizer release
+kpick 240551 # keylayout: add missing buttons to Razer Serval
 
 # frameworks/native
 kpick 224530 # Triple the available egl function pointers available to a process for certain Nvidia devices.
@@ -1426,23 +1424,12 @@ kpick 225155 # Broadcom BT: Add support fm/bt via v4l2.
 # hardware/interfaces
 
 # hardware/lineage/interfaces
-kpick 223374 # interfaces: Add 2.0 livedisplay interfaces
-kpick 223410 # interfaces: Add touch HIDL interface definitions
 kpick 238583 # interfaces: Add trust 1.0 HAL
 kpick 238585 # trust: create service
 
 # hardware/lineage/lineagehw
-kpick 239441 # lineagehw: Deprecate some features
-kpick 239442 # lineagehw: Remove reference to HIDL stuff
 
 # hardware/lineage/livedisplay
-kpick 239500 # livedisplay: qti: Add LineageOS copyrights
-kpick 239546 # livedisplay: Update for new .hal definitions
-kpick 239547 # livedisplay: Split impls into legacymm and sdm
-kpick 239548 # livedisplay: legacymm: Remove unused HALs
-kpick 239549 # livedisplay: legacymm: Wire it up
-kpick 239607 # livedisplay: sdm: Remove unused HALs
-kpick 239608 # livedisplay: sdm: Wire it up
 
 # hardware/nxp/nfc
 kpick 239927 # hardware: nxp: Restore pn547 support
@@ -1454,6 +1441,7 @@ kpick 239927 # hardware: nxp: Restore pn547 support
 # hardware/qcom/bootctl
 
 # hardware/qcom/bt-caf
+kpick 240345 # qcom/bt: update bt_firmware path
 
 # hardware/qcom/display
 kpick 223341 # display: Always assume kernel source is present
@@ -1514,10 +1502,9 @@ kpick 237074 # lineage-sdk: Handle database downgrading
 kpick 237740 # sdk: add dark mode on low battery toggle
 kpick 238604 # sdk: add Trust usb restrictor
 kpick 239278 # PerformanceManager: Allow wait for MPCTL to start on boot
-kpick 239443 # sdk: Deprecate some unused lineagehw features
-kpick 239449 # sdk: Add HIDL compat in LineageHardwareManager
 kpick 239492 # LineageSettingsProvider: Fix migration of FORCE_SHOW_NAVBAR
 kpick 240050 # LiveDisplayService: Catch NPE before LiveDisplayConfig is initialized
+kpick 240568 # sdk: Allow using named services for HIDL features
 
 # packages/apps/Bluetooth
 kpick 229311 # Assume optional codecs are supported if were supported previously
@@ -1535,6 +1522,8 @@ kpick 229311 # Assume optional codecs are supported if were supported previously
 # packages/apps/DeskClock
 
 # packages/apps/Dialer
+#kpick 240546
+#kpick 240543
 
 # packages/apps/DocumentsUI
 
@@ -1598,8 +1587,6 @@ kpick 237244 # Snap: make support for bokeh mode configurable per device
 
 # packages/apps/Trebuchet
 kpick 240080 # Trebuchet: Implement protected apps
-kpick 240409 # Revert "Trebuchet: expand statusbar on swipe down"
-kpick 240397 # Trebuchet: Add reverse engineered Q swipe down gesture
 
 # packages/apps/TvSettings
 
@@ -1657,7 +1644,7 @@ kpick 232794 # NetD : Allow passing in interface names for vpn app restriction
 # system/security
 
 # system/sepolicy
-kpick 240090 # sepolicy: public: add TCSETSF to the list of unprivileged TTY ioctls
+kpick 240505 # Ignore newly added selinux objects
 
 # system/timezone
 
@@ -1696,6 +1683,7 @@ kpick 239527 # extract_utils: template: add support for the dependency graph fun
 kpick 237209 # lineage: Set default ringtone for second SIM
 kpick 237352 # qcom: Mark some gralloc bits as valid
 kpick 237830 # soong_config: Add BOOTLOADER_MESSAGE_OFFSET
+#kpick 240502 # Don't allow neverallows
 
 # vendor/qcom/opensource/cryptfs_hw
 
