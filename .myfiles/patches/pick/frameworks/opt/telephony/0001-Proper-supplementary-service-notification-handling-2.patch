@@ -1,0 +1,122 @@
+From 3785b4bd68641b422af4854d505f43ed18ae714b Mon Sep 17 00:00:00 2001
+From: Danny Baumann <dannybaumann@web.de>
+Date: Tue, 5 Feb 2019 13:38:15 +0100
+Subject: [PATCH 1/4] Proper supplementary service notification handling (2/5).
+
+Change-Id: I339a395fda5cca7617e7619cfc93312a1282f60e
+---
+ .../internal/telephony/CallTracker.java       |  1 +
+ .../telephony/GsmCdmaCallTracker.java         | 21 +++++++++++++++++++
+ .../internal/telephony/GsmCdmaConnection.java |  5 +++++
+ 3 files changed, 27 insertions(+)
+
+diff --git a/src/java/com/android/internal/telephony/CallTracker.java b/src/java/com/android/internal/telephony/CallTracker.java
+index 23874e265..188f1fa4d 100644
+--- a/src/java/com/android/internal/telephony/CallTracker.java
++++ b/src/java/com/android/internal/telephony/CallTracker.java
+@@ -69,6 +69,7 @@ public abstract class CallTracker extends Handler {
+     protected static final int EVENT_CALL_WAITING_INFO_CDMA        = 15;
+     protected static final int EVENT_THREE_WAY_DIAL_L2_RESULT_CDMA = 16;
+     protected static final int EVENT_THREE_WAY_DIAL_BLANK_FLASH    = 20;
++    protected static final int EVENT_SUPP_SERVICE_NOTIFY           = 30;
+ 
+     protected void pollCallsWhenSafe() {
+         mNeedsPoll = true;
+diff --git a/src/java/com/android/internal/telephony/GsmCdmaCallTracker.java b/src/java/com/android/internal/telephony/GsmCdmaCallTracker.java
+index f4c561c29..ba3214790 100755
+--- a/src/java/com/android/internal/telephony/GsmCdmaCallTracker.java
++++ b/src/java/com/android/internal/telephony/GsmCdmaCallTracker.java
+@@ -42,6 +42,7 @@ import android.util.EventLog;
+ 
+ import com.android.internal.annotations.VisibleForTesting;
+ import com.android.internal.telephony.cdma.CdmaCallWaitingNotification;
++import com.android.internal.telephony.gsm.SuppServiceNotification;
+ import com.android.internal.telephony.metrics.TelephonyMetrics;
+ 
+ import java.io.FileDescriptor;
+@@ -89,6 +90,7 @@ public class GsmCdmaCallTracker extends CallTracker {
+     private GsmCdmaPhone mPhone;
+ 
+     private boolean mDesiredMute = false;    // false = mute off
++    private boolean mNextGsmCallIsForwarded = false;
+ 
+     public PhoneConstants.State mState = PhoneConstants.State.IDLE;
+ 
+@@ -170,6 +172,7 @@ public class GsmCdmaCallTracker extends CallTracker {
+         if (mPhone.isPhoneTypeGsm()) {
+             mConnections = new GsmCdmaConnection[MAX_CONNECTIONS_GSM];
+             mCi.unregisterForCallWaitingInfo(this);
++            mPhone.registerForSuppServiceNotification(this, EVENT_SUPP_SERVICE_NOTIFY, null);
+             // Prior to phone switch to GSM, if CDMA has any emergency call
+             // data will be in disabled state, after switching to GSM enable data.
+             if (mIsInEmergencyCall) {
+@@ -183,6 +186,7 @@ public class GsmCdmaCallTracker extends CallTracker {
+             mIsEcmTimerCanceled = false;
+             m3WayCallFlashDelay = 0;
+             mCi.registerForCallWaitingInfo(this, EVENT_CALL_WAITING_INFO_CDMA, null);
++            mPhone.unregisterForSuppServiceNotification(this);
+         }
+     }
+ 
+@@ -873,6 +877,9 @@ public class GsmCdmaCallTracker extends CallTracker {
+                             } else {
+                                 newUnknownConnectionCdma = mConnections[i];
+                             }
++                        } else {
++                            mConnections[i].mIsForwarded = mNextGsmCallIsForwarded;
++                            mNextGsmCallIsForwarded = false;
+                         }
+                     }
+                 }
+@@ -1120,6 +1127,16 @@ public class GsmCdmaCallTracker extends CallTracker {
+         pollCallsWhenSafe();
+     }
+ 
++    private void handleSuppServiceNotification(AsyncResult asyncResult) {
++        SuppServiceNotification ssn = (SuppServiceNotification) asyncResult.result;
++        if (ssn.notificationType == SuppServiceNotification.NOTIFICATION_TYPE_CODE_2) {
++            if (ssn.code == SuppServiceNotification.CODE_2_FORWARDED_CALL
++                    || ssn.code == SuppServiceNotification.CODE_2_DEFLECTED_CALL) {
++                mNextGsmCallIsForwarded = true;
++            }
++        }
++    }
++
+     private void dumpState() {
+         List l;
+ 
+@@ -1489,6 +1506,10 @@ public class GsmCdmaCallTracker extends CallTracker {
+                 handleRadioNotAvailable();
+             break;
+ 
++            case EVENT_SUPP_SERVICE_NOTIFY:
++                handleSuppServiceNotification((AsyncResult) msg.obj);
++            break;
++
+             case EVENT_EXIT_ECM_RESPONSE_CDMA:
+                 if (!isPhoneTypeGsm()) {
+                     // no matter the result, we still do the same here
+diff --git a/src/java/com/android/internal/telephony/GsmCdmaConnection.java b/src/java/com/android/internal/telephony/GsmCdmaConnection.java
+index c0f67e2d4..59474c91c 100644
+--- a/src/java/com/android/internal/telephony/GsmCdmaConnection.java
++++ b/src/java/com/android/internal/telephony/GsmCdmaConnection.java
+@@ -50,6 +50,7 @@ public class GsmCdmaConnection extends Connection {
+     GsmCdmaCall mParent;
+ 
+     boolean mDisconnected;
++    boolean mIsForwarded;
+ 
+     int mIndex;          // index in GsmCdmaCallTracker.connections[], -1 if unassigned
+                         // The GsmCdma index is 1 + this
+@@ -1152,4 +1153,8 @@ public class GsmCdmaConnection extends Connection {
+ 
+         return false;
+     }
++
++    public boolean isForwarded() {
++        return mIsForwarded;
++    }
+ }
+-- 
+2.17.1
+

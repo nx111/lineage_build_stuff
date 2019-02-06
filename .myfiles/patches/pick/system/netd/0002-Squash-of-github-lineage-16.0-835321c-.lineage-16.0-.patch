@@ -1,0 +1,366 @@
+From 786931388c3b1c79c017824aaa870ae47cb841b7 Mon Sep 17 00:00:00 2001
+From: Luca Stefani <luca.stefani.ge1@gmail.com>
+Date: Tue, 5 Feb 2019 09:45:00 +0100
+Subject: [PATCH 2/2] Squash of
+ github/lineage-16.0(835321c)..lineage-16.0-android-9.0.0_r31(3b01f98) (DO NOT
+ SUBMIT)
+
+Luca Stefani (1):
+ - Merge tag 'android-9.0.0_r31' into lineage-16.0-android-9.0.0_r31
+
+android-build-team Robot (3):
+ - Snap for 5143169 from aa7a47495dd1bfe3b053a3867b9b6fd32cd7d481 to
+   pi-qpr2-release
+ - Snap for 5140444 from 81fb83be41f270d99bd623352d3646aa5a416fdd to
+   pi-qpr2-release
+ - Merge cherrypicks of [5704859, 5705300, 5704034, 5704195, 5705082,
+   5704058, 5704059, 5704932, 5705340, 5705341, 5705342, 5705343,
+   5705344, 5705361, 5705362, 5705363, 5705364, 5704870, 5704196,
+   5705083, 5701785, 5701786, 5701787, 5704035, 5705261, 5705281,
+   5704036, 5704037, 5704038, 5704871, 5704933, 5704872, 5705347,
+   5705262, 5704934] into pi-qpr2-release
+
+junyulai (2):
+ - Sort and group network stats collected from eBPF.
+ - Sort and group network stats collected from eBPF.
+
+Change-Id: Ie89ee2cff8668b4c234de315e1e40307e0baa9be
+
+Change-Id: Ifdf022e8e3749a8a4c99c9cfc909bec422e4c219
+---
+ libbpf/BpfNetworkStats.cpp           |  74 +++++++++++++
+ libbpf/BpfNetworkStatsTest.cpp       | 151 ++++++++++++++++++++++++++-
+ libbpf/include/bpf/BpfNetworkStats.h |  23 +++-
+ 3 files changed, 239 insertions(+), 9 deletions(-)
+
+diff --git a/libbpf/BpfNetworkStats.cpp b/libbpf/BpfNetworkStats.cpp
+index eafbb5e..d75c186 100644
+--- a/libbpf/BpfNetworkStats.cpp
++++ b/libbpf/BpfNetworkStats.cpp
+@@ -161,6 +161,17 @@ int parseBpfNetworkStatsDetailInternal(std::vector<stats_line>* lines,
+               strerror(res.code()));
+         return -res.code();
+     }
++
++    // Since eBPF use hash map to record stats, network stats collected from
++    // eBPF will be out of order. And the performance of findIndexHinted in
++    // NetworkStats will also be impacted.
++    //
++    // Furthermore, since the StatsKey contains iface index, the network stats
++    // reported to framework would create items with the same iface, uid, tag
++    // and set, which causes NetworkStats maps wrong item to subtract.
++    //
++    // Thus, the stats needs to be properly sorted and grouped before reported.
++    groupNetworkStats(lines);
+     return 0;
+ }
+ 
+@@ -226,6 +237,8 @@ int parseBpfNetworkStatsDevInternal(std::vector<stats_line>* lines,
+               strerror(res.code()));
+         return -res.code();
+     }
++
++    groupNetworkStats(lines);
+     return 0;
+ }
+ 
+@@ -252,5 +265,66 @@ uint64_t combineUidTag(const uid_t uid, const uint32_t tag) {
+     return (uint64_t)uid << 32 | tag;
+ }
+ 
++void groupNetworkStats(std::vector<stats_line>* lines) {
++    if (lines->size() <= 1) return;
++    std::sort(lines->begin(), lines->end());
++
++    // Similar to std::unique(), but aggregates the duplicates rather than discarding them.
++    size_t nextOutput = 0;
++    for (size_t i = 1; i < lines->size(); i++) {
++        if (lines->at(nextOutput) == lines->at(i)) {
++            lines->at(nextOutput) += lines->at(i);
++        } else {
++            nextOutput++;
++            if (nextOutput != i) {
++                lines->at(nextOutput) = lines->at(i);
++            }
++        }
++    }
++
++    if (lines->size() != nextOutput + 1) {
++        lines->resize(nextOutput + 1);
++    }
++}
++
++// True if lhs equals to rhs, only compare iface, uid, tag and set.
++bool operator==(const stats_line& lhs, const stats_line& rhs) {
++    return ((lhs.uid == rhs.uid) && (lhs.tag == rhs.tag) && (lhs.set == rhs.set) &&
++            !strncmp(lhs.iface, rhs.iface, sizeof(lhs.iface)));
++}
++
++// True if lhs is smaller then rhs, only compare iface, uid, tag and set.
++bool operator<(const stats_line& lhs, const stats_line& rhs) {
++    int ret = strncmp(lhs.iface, rhs.iface, sizeof(lhs.iface));
++    if (ret != 0) return ret < 0;
++    if (lhs.uid < rhs.uid) return true;
++    if (lhs.uid > rhs.uid) return false;
++    if (lhs.tag < rhs.tag) return true;
++    if (lhs.tag > rhs.tag) return false;
++    if (lhs.set < rhs.set) return true;
++    if (lhs.set > rhs.set) return false;
++    return false;
++}
++
++stats_line& stats_line::operator=(const stats_line& rhs) {
++    strlcpy(iface, rhs.iface, sizeof(iface));
++    uid = rhs.uid;
++    set = rhs.set;
++    tag = rhs.tag;
++    rxPackets = rhs.rxPackets;
++    txPackets = rhs.txPackets;
++    rxBytes = rhs.rxBytes;
++    txBytes = rhs.txBytes;
++    return *this;
++}
++
++stats_line& stats_line::operator+=(const stats_line& rhs) {
++    rxPackets += rhs.rxPackets;
++    txPackets += rhs.txPackets;
++    rxBytes += rhs.rxBytes;
++    txBytes += rhs.txBytes;
++    return *this;
++}
++
+ }  // namespace bpf
+ }  // namespace android
+diff --git a/libbpf/BpfNetworkStatsTest.cpp b/libbpf/BpfNetworkStatsTest.cpp
+index 8fd4943..c7d66fb 100644
+--- a/libbpf/BpfNetworkStatsTest.cpp
++++ b/libbpf/BpfNetworkStatsTest.cpp
+@@ -143,7 +143,7 @@ class BpfNetworkStatsHelperTest : public testing::Test {
+                               int counterSet, uint32_t tag, const stats_line& result) {
+         EXPECT_EQ(0, strcmp(iface, result.iface));
+         EXPECT_EQ(uid, (uint32_t)result.uid);
+-        EXPECT_EQ(counterSet, result.set);
++        EXPECT_EQ((uint32_t) counterSet, result.set);
+         EXPECT_EQ(tag, (uint32_t)result.tag);
+         EXPECT_EQ(target.rxPackets, (uint64_t)result.rxPackets);
+         EXPECT_EQ(target.rxBytes, (uint64_t)result.rxBytes);
+@@ -431,14 +431,157 @@ TEST_F(BpfNetworkStatsHelperTest, TestGetIfaceStatsDetail) {
+     ASSERT_EQ(0,
+               parseBpfNetworkStatsDevInternal(&lines, mFakeIfaceStatsMap, mFakeIfaceIndexNameMap));
+     ASSERT_EQ((unsigned long)4, lines.size());
+-    std::sort(lines.begin(), lines.end(), [](const auto& line1, const auto& line2)-> bool {
+-        return strcmp(line1.iface, line2.iface) < 0;
+-    });
++
+     expectStatsLineEqual(value1, IFACE_NAME1, UID_ALL, SET_ALL, TAG_NONE, lines[0]);
+     expectStatsLineEqual(value1, IFACE_NAME3, UID_ALL, SET_ALL, TAG_NONE, lines[1]);
+     expectStatsLineEqual(value2, IFACE_NAME2, UID_ALL, SET_ALL, TAG_NONE, lines[2]);
+     ASSERT_EQ(0, strcmp(TRUNCATED_IFACE_NAME, lines[3].iface));
+     expectStatsLineEqual(value2, TRUNCATED_IFACE_NAME, UID_ALL, SET_ALL, TAG_NONE, lines[3]);
+ }
++
++TEST_F(BpfNetworkStatsHelperTest, TestGetStatsSortedAndGrouped) {
++    SKIP_IF_BPF_NOT_SUPPORTED;
++
++    // Create iface indexes with duplicate iface name.
++    updateIfaceMap(IFACE_NAME1, IFACE_INDEX1);
++    updateIfaceMap(IFACE_NAME2, IFACE_INDEX2);
++    updateIfaceMap(IFACE_NAME1, IFACE_INDEX3);  // Duplicate!
++
++    StatsValue value1 = {
++            .rxBytes = TEST_BYTES0,
++            .rxPackets = TEST_PACKET0,
++            .txBytes = TEST_BYTES1,
++            .txPackets = TEST_PACKET1,
++    };
++    StatsValue value2 = {
++            .rxBytes = TEST_BYTES1,
++            .rxPackets = TEST_PACKET1,
++            .txBytes = TEST_BYTES0,
++            .txPackets = TEST_PACKET0,
++    };
++    StatsValue value3 = {
++            .rxBytes = TEST_BYTES0 * 2,
++            .rxPackets = TEST_PACKET0 * 2,
++            .txBytes = TEST_BYTES1 * 2,
++            .txPackets = TEST_PACKET1 * 2,
++    };
++
++    std::vector<stats_line> lines;
++    std::vector<std::string> ifaces;
++
++    // Test empty stats.
++    ASSERT_EQ(0, parseBpfNetworkStatsDetailInternal(&lines, ifaces, TAG_ALL, UID_ALL,
++                                                    mFakeTagStatsMap, mFakeIfaceIndexNameMap));
++    ASSERT_EQ((size_t) 0, lines.size());
++    lines.clear();
++
++    // Test 1 line stats.
++    populateFakeStats(TEST_UID1, TEST_TAG, IFACE_INDEX1, TEST_COUNTERSET0, value1,
++                      mFakeTagStatsMap);
++    ASSERT_EQ(0, parseBpfNetworkStatsDetailInternal(&lines, ifaces, TAG_ALL, UID_ALL,
++                                                    mFakeTagStatsMap, mFakeIfaceIndexNameMap));
++    ASSERT_EQ((size_t) 1, lines.size());
++    expectStatsLineEqual(value1, IFACE_NAME1, TEST_UID1, TEST_COUNTERSET0, TEST_TAG, lines[0]);
++    lines.clear();
++
++    // These items should not be grouped.
++    populateFakeStats(TEST_UID1, TEST_TAG, IFACE_INDEX2, TEST_COUNTERSET0, value2,
++                      mFakeTagStatsMap);
++    populateFakeStats(TEST_UID1, TEST_TAG, IFACE_INDEX3, TEST_COUNTERSET1, value2,
++                      mFakeTagStatsMap);
++    populateFakeStats(TEST_UID1, TEST_TAG + 1, IFACE_INDEX1, TEST_COUNTERSET0, value2,
++                      mFakeTagStatsMap);
++    populateFakeStats(TEST_UID2, TEST_TAG, IFACE_INDEX1, TEST_COUNTERSET0, value1,
++                      mFakeTagStatsMap);
++    ASSERT_EQ(0, parseBpfNetworkStatsDetailInternal(&lines, ifaces, TAG_ALL, UID_ALL,
++                                                    mFakeTagStatsMap, mFakeIfaceIndexNameMap));
++    ASSERT_EQ((size_t) 5, lines.size());
++    lines.clear();
++
++    // These items should be grouped.
++    populateFakeStats(TEST_UID1, TEST_TAG, IFACE_INDEX3, TEST_COUNTERSET0, value1,
++                      mFakeTagStatsMap);
++    populateFakeStats(TEST_UID2, TEST_TAG, IFACE_INDEX3, TEST_COUNTERSET0, value1,
++                      mFakeTagStatsMap);
++
++    ASSERT_EQ(0, parseBpfNetworkStatsDetailInternal(&lines, ifaces, TAG_ALL, UID_ALL,
++                                                    mFakeTagStatsMap, mFakeIfaceIndexNameMap));
++    ASSERT_EQ((size_t) 5, lines.size());
++
++    // Verify Sorted & Grouped.
++    expectStatsLineEqual(value3, IFACE_NAME1, TEST_UID1, TEST_COUNTERSET0, TEST_TAG, lines[0]);
++    expectStatsLineEqual(value2, IFACE_NAME1, TEST_UID1, TEST_COUNTERSET1, TEST_TAG, lines[1]);
++    expectStatsLineEqual(value2, IFACE_NAME1, TEST_UID1, TEST_COUNTERSET0, TEST_TAG + 1, lines[2]);
++    expectStatsLineEqual(value3, IFACE_NAME1, TEST_UID2, TEST_COUNTERSET0, TEST_TAG, lines[3]);
++    expectStatsLineEqual(value2, IFACE_NAME2, TEST_UID1, TEST_COUNTERSET0, TEST_TAG, lines[4]);
++    lines.clear();
++
++    // Perform test on IfaceStats.
++    uint32_t ifaceStatsKey = IFACE_INDEX2;
++    EXPECT_TRUE(isOk(mFakeIfaceStatsMap.writeValue(ifaceStatsKey, value2, BPF_ANY)));
++    ifaceStatsKey = IFACE_INDEX1;
++    EXPECT_TRUE(isOk(mFakeIfaceStatsMap.writeValue(ifaceStatsKey, value1, BPF_ANY)));
++
++    // This should be grouped.
++    ifaceStatsKey = IFACE_INDEX3;
++    EXPECT_TRUE(isOk(mFakeIfaceStatsMap.writeValue(ifaceStatsKey, value1, BPF_ANY)));
++
++    ASSERT_EQ(0,
++              parseBpfNetworkStatsDevInternal(&lines, mFakeIfaceStatsMap, mFakeIfaceIndexNameMap));
++    ASSERT_EQ((size_t) 2, lines.size());
++
++    expectStatsLineEqual(value3, IFACE_NAME1, UID_ALL, SET_ALL, TAG_NONE, lines[0]);
++    expectStatsLineEqual(value2, IFACE_NAME2, UID_ALL, SET_ALL, TAG_NONE, lines[1]);
++    lines.clear();
++}
++
++// Test to verify that subtract overflow will not be triggered by the compare function invoked from
++// sorting. See http:/b/119193941.
++TEST_F(BpfNetworkStatsHelperTest, TestGetStatsSortAndOverflow) {
++    updateIfaceMap(IFACE_NAME1, IFACE_INDEX1);
++
++    StatsValue value1 = {
++            .rxBytes = TEST_BYTES0,
++            .rxPackets = TEST_PACKET0,
++            .txBytes = TEST_BYTES1,
++            .txPackets = TEST_PACKET1,
++    };
++
++    // Mutate uid, 0 < TEST_UID1 < INT_MAX < INT_MIN < UINT_MAX.
++    populateFakeStats(0, TEST_TAG, IFACE_INDEX1, TEST_COUNTERSET0, value1, mFakeTagStatsMap);
++    populateFakeStats(UINT_MAX, TEST_TAG, IFACE_INDEX1, TEST_COUNTERSET0, value1, mFakeTagStatsMap);
++    populateFakeStats(INT_MIN, TEST_TAG, IFACE_INDEX1, TEST_COUNTERSET0, value1, mFakeTagStatsMap);
++    populateFakeStats(INT_MAX, TEST_TAG, IFACE_INDEX1, TEST_COUNTERSET0, value1, mFakeTagStatsMap);
++
++    // Mutate tag, 0 < TEST_TAG < INT_MAX < INT_MIN < UINT_MAX.
++    populateFakeStats(TEST_UID1, INT_MAX, IFACE_INDEX1, TEST_COUNTERSET0, value1, mFakeTagStatsMap);
++    populateFakeStats(TEST_UID1, INT_MIN, IFACE_INDEX1, TEST_COUNTERSET0, value1, mFakeTagStatsMap);
++    populateFakeStats(TEST_UID1, 0, IFACE_INDEX1, TEST_COUNTERSET0, value1, mFakeTagStatsMap);
++    populateFakeStats(TEST_UID1, UINT_MAX, IFACE_INDEX1, TEST_COUNTERSET0, value1,
++                      mFakeTagStatsMap);
++
++    // TODO: Mutate counterSet and enlarge TEST_MAP_SIZE if overflow on counterSet is possible.
++
++    std::vector<stats_line> lines;
++    std::vector<std::string> ifaces;
++    ASSERT_EQ(0, parseBpfNetworkStatsDetailInternal(&lines, ifaces, TAG_ALL, UID_ALL,
++                                                    mFakeTagStatsMap, mFakeIfaceIndexNameMap));
++    ASSERT_EQ((size_t) 8, lines.size());
++
++    // Uid 0 first
++    expectStatsLineEqual(value1, IFACE_NAME1, 0, TEST_COUNTERSET0, TEST_TAG, lines[0]);
++
++    // Test uid, mutate tag.
++    expectStatsLineEqual(value1, IFACE_NAME1, TEST_UID1, TEST_COUNTERSET0, 0, lines[1]);
++    expectStatsLineEqual(value1, IFACE_NAME1, TEST_UID1, TEST_COUNTERSET0, INT_MAX, lines[2]);
++    expectStatsLineEqual(value1, IFACE_NAME1, TEST_UID1, TEST_COUNTERSET0, INT_MIN, lines[3]);
++    expectStatsLineEqual(value1, IFACE_NAME1, TEST_UID1, TEST_COUNTERSET0, UINT_MAX, lines[4]);
++
++    // Mutate uid.
++    expectStatsLineEqual(value1, IFACE_NAME1, INT_MAX, TEST_COUNTERSET0, TEST_TAG, lines[5]);
++    expectStatsLineEqual(value1, IFACE_NAME1, INT_MIN, TEST_COUNTERSET0, TEST_TAG, lines[6]);
++    expectStatsLineEqual(value1, IFACE_NAME1, UINT_MAX, TEST_COUNTERSET0, TEST_TAG, lines[7]);
++    lines.clear();
++}
+ }  // namespace bpf
+ }  // namespace android
+diff --git a/libbpf/include/bpf/BpfNetworkStats.h b/libbpf/include/bpf/BpfNetworkStats.h
+index 80dff88..503f090 100644
+--- a/libbpf/include/bpf/BpfNetworkStats.h
++++ b/libbpf/include/bpf/BpfNetworkStats.h
+@@ -14,6 +14,9 @@
+  * limitations under the License.
+  */
+ 
++#ifndef _BPF_NETWORKSTATS_H
++#define _BPF_NETWORKSTATS_H
++
+ #include <bpf/BpfMap.h>
+ 
+ namespace android {
+@@ -31,19 +34,26 @@ constexpr int SET_FOREGROUND = 1;
+ // The limit for stats received by a unknown interface;
+ constexpr const int64_t MAX_UNKNOWN_IFACE_BYTES = 100 * 1000;
+ 
+-// This is a JNI ABI and is used by
+-// framework/base/core/jni/com_android_internal_net_NetworkStatsFactory.cpp
++// This is used by
++// frameworks/base/core/jni/com_android_internal_net_NetworkStatsFactory.cpp
+ // make sure it is consistent with the JNI code before changing this.
+ struct stats_line {
+     char iface[32];
+-    int32_t uid;
+-    int32_t set;
+-    int32_t tag;
++    uint32_t uid;
++    uint32_t set;
++    uint32_t tag;
+     int64_t rxBytes;
+     int64_t rxPackets;
+     int64_t txBytes;
+     int64_t txPackets;
++
++    stats_line& operator=(const stats_line& rhs);
++    stats_line& operator+=(const stats_line& rhs);
+ };
++
++bool operator==(const stats_line& lhs, const stats_line& rhs);
++bool operator<(const stats_line& lhs, const stats_line& rhs);
++
+ // For test only
+ int bpfGetUidStatsInternal(uid_t uid, struct Stats* stats,
+                            const BpfMap<uint32_t, StatsValue>& appUidStatsMap);
+@@ -107,6 +117,9 @@ int parseBpfNetworkStatsDetail(std::vector<stats_line>* lines,
+                                int limitUid);
+ 
+ int parseBpfNetworkStatsDev(std::vector<stats_line>* lines);
++void groupNetworkStats(std::vector<stats_line>* lines);
+ int cleanStatsMap();
+ }  // namespace bpf
+ }  // namespace android
++
++#endif  // _BPF_NETWORKSTATS_H
+-- 
+2.17.1
+

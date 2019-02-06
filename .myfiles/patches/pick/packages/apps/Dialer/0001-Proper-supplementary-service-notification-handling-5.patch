@@ -1,0 +1,584 @@
+From da870bbefdb9ca775076591890c802bc603967f0 Mon Sep 17 00:00:00 2001
+From: Danny Baumann <dannybaumann@web.de>
+Date: Tue, 5 Feb 2019 13:41:28 +0100
+Subject: [PATCH 1/2] Proper supplementary service notification handling (5/5).
+
+Map some pieces of information provided by SSN into the UI.
+
+Change-Id: I6650102a9c464b6c1eb8bfc5a30a12fe68a1cfef
+---
+ .../dialer/app/res/values/cm_strings.xml      |  5 ++
+ .../app/res/xml/display_options_settings.xml  | 12 +++++
+ .../telephony/TelephonyManagerCompat.java     |  9 ++++
+ .../incallui/AnswerScreenPresenter.java       |  3 ++
+ .../android/incallui/CallCardPresenter.java   |  4 ++
+ .../android/incallui/StatusBarNotifier.java   | 11 +++++
+ .../AnswerProximitySensor.java                |  3 ++
+ java/com/android/incallui/call/CallList.java  |  3 ++
+ .../com/android/incallui/call/DialerCall.java | 45 +++++++++++++++++-
+ .../incallui/call/DialerCallListener.java     |  2 +
+ .../android/incallui/contactgrid/TopRow.java  | 10 +++-
+ .../contactgrid/res/values/cm_strings.xml     | 29 ++++++++++++
+ .../disconnectdialog/DefaultErrorDialog.java  |  2 +-
+ .../disconnectdialog/DisconnectDialog.java    |  2 +-
+ .../disconnectdialog/DisconnectMessage.java   |  6 ++-
+ .../EnableWifiCallingPrompt.java              |  2 +-
+ .../RemoteIncomingCallsBarredDialog.java      | 47 +++++++++++++++++++
+ .../UnansweredForwardedDialog.java            | 47 +++++++++++++++++++
+ .../VideoCallNotAvailablePrompt.java          |  2 +-
+ .../incall/protocol/PrimaryCallState.java     |  5 ++
+ .../incallui/multisim/SwapSimWorker.java      |  2 +
+ 21 files changed, 242 insertions(+), 9 deletions(-)
+ create mode 100644 java/com/android/incallui/contactgrid/res/values/cm_strings.xml
+ create mode 100644 java/com/android/incallui/disconnectdialog/RemoteIncomingCallsBarredDialog.java
+ create mode 100644 java/com/android/incallui/disconnectdialog/UnansweredForwardedDialog.java
+
+diff --git a/java/com/android/dialer/app/res/values/cm_strings.xml b/java/com/android/dialer/app/res/values/cm_strings.xml
+index 1dcdb2b81..6247cd96e 100644
+--- a/java/com/android/dialer/app/res/values/cm_strings.xml
++++ b/java/com/android/dialer/app/res/values/cm_strings.xml
+@@ -29,6 +29,11 @@
+     <string name="incall_vibrate_45_title">Vibrate every minute</string>
+     <string name="incall_vibrate_45_summary">Vibrates at the 45 second mark of every minute during outgoing calls</string>
+     <string name="incall_dnd_dialog_message">In order to enable Do Not Disturb, the Phone app needs to be granted the permission to control the Do Not Disturb status.\nPlease allow it.</string>
++
++    <string name="incall_show_ssn_key" translatable="false">incall_show_ssn_key</string>
++    <string name="incall_show_ssn_label">Event notification</string>
++    <string name="incall_show_ssn_summary">Show a notification for various network events related to call handling</string>
++
+     <string name="allow">Allow</string>
+     <string name="deny">Deny</string>
+ 
+diff --git a/java/com/android/dialer/app/res/xml/display_options_settings.xml b/java/com/android/dialer/app/res/xml/display_options_settings.xml
+index 0b4e11d47..e5a3fb92a 100644
+--- a/java/com/android/dialer/app/res/xml/display_options_settings.xml
++++ b/java/com/android/dialer/app/res/xml/display_options_settings.xml
+@@ -28,4 +28,16 @@
+     android:key="displayOrder"
+     android:title="@string/display_options_view_names_as"/>
+ 
++  <PreferenceCategory
++    android:key="@string/incall_category_key"
++    android:title="@string/incall_category_title">
++
++    <SwitchPreference
++      android:key="@string/incall_show_ssn_key"
++      android:title="@string/incall_show_ssn_label"
++      android:defaultValue="false"
++      android:summary="@string/incall_show_ssn_summary" />
++
++  </PreferenceCategory>
++
+ </PreferenceScreen>
+diff --git a/java/com/android/dialer/compat/telephony/TelephonyManagerCompat.java b/java/com/android/dialer/compat/telephony/TelephonyManagerCompat.java
+index 236f77972..ca2e48b1f 100644
+--- a/java/com/android/dialer/compat/telephony/TelephonyManagerCompat.java
++++ b/java/com/android/dialer/compat/telephony/TelephonyManagerCompat.java
+@@ -43,6 +43,12 @@ public class TelephonyManagerCompat {
+       "android.telecom.event.CALL_REMOTELY_UNHELD";
+   public static final String EVENT_MERGE_START = "android.telecom.event.MERGE_START";
+   public static final String EVENT_MERGE_COMPLETE = "android.telecom.event.MERGE_COMPLETE";
++  public static final String EVENT_DIALING_IS_WAITING =
++      "android.telecom.event.DIALING_IS_WAITING";
++  public static final String EVENT_ADDITIONAL_CALL_FORWARDED =
++      "android.telecom.event.ADDITIONAL_CALL_FORWARDED";
++  public static final String EVENT_SUPPLEMENTARY_SERVICE_NOTIFICATION =
++      "android.telephony.event.EVENT_SUPPLEMENTARY_SERVICE_NOTIFICATION";
+ 
+   public static final String EVENT_NOTIFY_INTERNATIONAL_CALL_ON_WFC =
+       "android.telephony.event.EVENT_NOTIFY_INTERNATIONAL_CALL_ON_WFC";
+@@ -60,6 +66,9 @@ public class TelephonyManagerCompat {
+    */
+   public static final String USE_ASSISTED_DIALING = "android.telecom.extra.USE_ASSISTED_DIALING";
+ 
++  public static final String EXTRA_NOTIFICATION_MESSAGE =
++      "android.telephony.extra.NOTIFICATION_MESSAGE";
++
+   // TODO(erfanian): a bug Replace with the platform/telecom API when available.
+   /** Additional information relating to the assisted dialing transformation. */
+   public static final String ASSISTED_DIALING_EXTRAS =
+diff --git a/java/com/android/incallui/AnswerScreenPresenter.java b/java/com/android/incallui/AnswerScreenPresenter.java
+index b9a84ae5d..5144ed1e8 100644
+--- a/java/com/android/incallui/AnswerScreenPresenter.java
++++ b/java/com/android/incallui/AnswerScreenPresenter.java
+@@ -219,6 +219,9 @@ public class AnswerScreenPresenter
+ 
+     @Override
+     public void onEnrichedCallSessionUpdate() {}
++
++    @Override
++    public void onSupplementaryServiceNotification(CharSequence message) {}
+   }
+ 
+   private boolean isSmsResponseAllowed(DialerCall call) {
+diff --git a/java/com/android/incallui/CallCardPresenter.java b/java/com/android/incallui/CallCardPresenter.java
+index 8eb07c579..091ce87f0 100644
+--- a/java/com/android/incallui/CallCardPresenter.java
++++ b/java/com/android/incallui/CallCardPresenter.java
+@@ -400,6 +400,9 @@ public class CallCardPresenter
+     updatePrimaryDisplayInfo();
+   }
+ 
++  @Override
++  public void onSupplementaryServiceNotification(CharSequence message) {}
++
+   /** Handles a change to the child number by refreshing the primary call info. */
+   @Override
+   public void onDialerCallChildNumberChange() {
+@@ -498,6 +501,7 @@ public class CallCardPresenter
+                   .setConnectTimeMillis(primary.getConnectTimeMillis())
+                   .setIsVoiceMailNumber(primary.isVoiceMailNumber())
+                   .setIsRemotelyHeld(primary.isRemotelyHeld())
++                  .setIsDialingWaitingForRemote(primary.isDialingWaitingForRemoteSide())
+                   .setIsBusinessNumber(isBusiness)
+                   .setSupportsCallOnHold(supports2ndCallOnHold())
+                   .setSwapToSecondaryButtonState(getSwapToSecondaryButtonState())
+diff --git a/java/com/android/incallui/StatusBarNotifier.java b/java/com/android/incallui/StatusBarNotifier.java
+index 87f332a1d..0a095273d 100644
+--- a/java/com/android/incallui/StatusBarNotifier.java
++++ b/java/com/android/incallui/StatusBarNotifier.java
+@@ -32,6 +32,7 @@ import android.app.Notification;
+ import android.app.PendingIntent;
+ import android.content.Context;
+ import android.content.Intent;
++import android.content.SharedPreferences;
+ import android.content.res.Resources;
+ import android.graphics.Bitmap;
+ import android.graphics.drawable.BitmapDrawable;
+@@ -42,6 +43,7 @@ import android.net.Uri;
+ import android.os.Build.VERSION;
+ import android.os.Build.VERSION_CODES;
+ import android.os.Trace;
++import android.preference.PreferenceManager;
+ import android.support.annotation.ColorRes;
+ import android.support.annotation.NonNull;
+ import android.support.annotation.Nullable;
+@@ -60,6 +62,7 @@ import android.text.SpannableString;
+ import android.text.TextDirectionHeuristics;
+ import android.text.TextUtils;
+ import android.text.style.ForegroundColorSpan;
++import android.widget.Toast;
+ import com.android.contacts.common.ContactsUtils;
+ import com.android.contacts.common.ContactsUtils.UserType;
+ import com.android.contacts.common.preference.ContactsPreferences;
+@@ -1098,6 +1101,14 @@ public class StatusBarNotifier
+     @Override
+     public void onEnrichedCallSessionUpdate() {}
+ 
++    @Override
++    public void onSupplementaryServiceNotification(CharSequence message) {
++      SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(context);
++      if (prefs.getBoolean(context.getString(R.string.incall_show_ssn_key), false)) {
++        Toast.makeText(context, message, Toast.LENGTH_LONG).show();
++      }
++    }
++
+     /**
+      * Responds to changes in the session modification state for the call by dismissing the status
+      * bar notification as required.
+diff --git a/java/com/android/incallui/answerproximitysensor/AnswerProximitySensor.java b/java/com/android/incallui/answerproximitysensor/AnswerProximitySensor.java
+index adfb4ae8e..2b56d3383 100644
+--- a/java/com/android/incallui/answerproximitysensor/AnswerProximitySensor.java
++++ b/java/com/android/incallui/answerproximitysensor/AnswerProximitySensor.java
+@@ -163,6 +163,9 @@ public class AnswerProximitySensor
+   @Override
+   public void onEnrichedCallSessionUpdate() {}
+ 
++  @Override
++  public void onSupplementaryServiceNotification(CharSequence message) {}
++
+   @Override
+   public void onDialerCallSessionModificationStateChange() {}
+ 
+diff --git a/java/com/android/incallui/call/CallList.java b/java/com/android/incallui/call/CallList.java
+index 412ba17c0..225bb7a83 100644
+--- a/java/com/android/incallui/call/CallList.java
++++ b/java/com/android/incallui/call/CallList.java
+@@ -893,5 +893,8 @@ public class CallList implements DialerCallDelegate {
+         listener.onSessionModificationStateChange(call);
+       }
+     }
++
++    @Override
++    public void onSupplementaryServiceNotification(CharSequence message) {}
+   }
+ }
+diff --git a/java/com/android/incallui/call/DialerCall.java b/java/com/android/incallui/call/DialerCall.java
+index afc97c9eb..e68beda9a 100644
+--- a/java/com/android/incallui/call/DialerCall.java
++++ b/java/com/android/incallui/call/DialerCall.java
+@@ -191,6 +191,16 @@ public class DialerCall implements VideoTechListener, StateChangedListener, Capa
+   /** Indicates whether this call is currently in the process of being merged into a conference. */
+   private boolean isMergeInProcess;
+ 
++  /**
++   * Whether dialing is waiting for the busy remote party
++   */
++  private boolean dialingIsWaiting;
++
++  /**
++   * Whether an additional call was forwarded while this call was active
++   */
++  private boolean additionalCallForwarded;
++
+   /**
+    * Indicates whether the phone account associated with this call supports specifying a call
+    * subject.
+@@ -324,6 +334,25 @@ public class DialerCall implements VideoTechListener, StateChangedListener, Capa
+               LogUtil.i("DialerCall.onConnectionEvent", "merge complete");
+               isMergeInProcess = false;
+               break;
++            case TelephonyManagerCompat.EVENT_SUPPLEMENTARY_SERVICE_NOTIFICATION: {
++              CharSequence message = extras != null
++                  ? extras.getCharSequence(TelephonyManagerCompat.EXTRA_NOTIFICATION_MESSAGE)
++                  : null;
++              if (message != null) {
++                for (DialerCallListener listener : listeners) {
++                  listener.onSupplementaryServiceNotification(message);
++                }
++              }
++              break;
++            }
++            case TelephonyManagerCompat.EVENT_DIALING_IS_WAITING:
++              dialingIsWaiting = true;
++              update();
++              break;
++            case TelephonyManagerCompat.EVENT_ADDITIONAL_CALL_FORWARDED:
++              additionalCallForwarded = true;
++              update();
++              break;
+             case TelephonyManagerCompat.EVENT_CALL_FORWARDED:
+               // Only handle this event for P+ since it's unreliable pre-P.
+               if (BuildCompat.isAtLeastP()) {
+@@ -834,7 +863,7 @@ public class DialerCall implements VideoTechListener, StateChangedListener, Capa
+   }
+ 
+   public boolean isCallForwarded() {
+-    return isCallForwarded;
++    return isCallForwarded || hasProperty(Call.Details.PROPERTY_WAS_FORWARDED);
+   }
+ 
+   /** @return The call subject, or {@code null} if none specified. */
+@@ -909,6 +938,20 @@ public class DialerCall implements VideoTechListener, StateChangedListener, Capa
+     return hasProperty(Call.Details.PROPERTY_CONFERENCE);
+   }
+ 
++  public boolean isDialingWaitingForRemoteSide() {
++    return state == State.DIALING && dialingIsWaiting;
++  }
++
++  public boolean wasUnansweredForwarded() {
++    return getDisconnectCause().getCode() == DisconnectCause.MISSED
++        && additionalCallForwarded;
++  }
++
++  public boolean missedBecauseIncomingCallsBarredRemotely() {
++    return getDisconnectCause().getCode() == DisconnectCause.RESTRICTED
++        && hasProperty(Call.Details.PROPERTY_REMOTE_INCOMING_CALLS_BARRED);
++  }
++
+   @Nullable
+   public GatewayInfo getGatewayInfo() {
+     return telecomCall == null ? null : telecomCall.getDetails().getGatewayInfo();
+diff --git a/java/com/android/incallui/call/DialerCallListener.java b/java/com/android/incallui/call/DialerCallListener.java
+index 5d24a4d4b..2778abc73 100644
+--- a/java/com/android/incallui/call/DialerCallListener.java
++++ b/java/com/android/incallui/call/DialerCallListener.java
+@@ -38,4 +38,6 @@ public interface DialerCallListener {
+   void onInternationalCallOnWifi();
+ 
+   void onEnrichedCallSessionUpdate();
++
++  void onSupplementaryServiceNotification(CharSequence message);
+ }
+diff --git a/java/com/android/incallui/contactgrid/TopRow.java b/java/com/android/incallui/contactgrid/TopRow.java
+index f551092d4..36a8ea12b 100644
+--- a/java/com/android/incallui/contactgrid/TopRow.java
++++ b/java/com/android/incallui/contactgrid/TopRow.java
+@@ -166,7 +166,10 @@ public class TopRow {
+ 
+   private static CharSequence getLabelForDialing(Context context, PrimaryCallState state) {
+     if (!TextUtils.isEmpty(state.connectionLabel()) && !state.isWifi()) {
+-      return context.getString(R.string.incall_calling_via_template, state.connectionLabel());
++      int resId = state.isDialingWaitingForRemote()
++          ? R.string.incall_calling_via_waiting_template
++          : R.string.incall_calling_via_template;
++      return context.getString(resId, state.connectionLabel());
+     } else {
+       if (state.isVideoCall()) {
+         if (state.isWifi()) {
+@@ -185,7 +188,10 @@ public class TopRow {
+             countryCode,
+             state.assistedDialingExtras().userHomeCountryCode());
+       }
+-      return context.getString(R.string.incall_connecting);
++      int resId = state.isDialingWaitingForRemote()
++          ? R.string.incall_connecting_waiting
++          : R.string.incall_connecting;
++      return context.getString(resId);
+     }
+   }
+ 
+diff --git a/java/com/android/incallui/contactgrid/res/values/cm_strings.xml b/java/com/android/incallui/contactgrid/res/values/cm_strings.xml
+new file mode 100644
+index 000000000..7b51aac18
+--- /dev/null
++++ b/java/com/android/incallui/contactgrid/res/values/cm_strings.xml
+@@ -0,0 +1,29 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<!--
++     Copyright (C) 2013-2014 The CyanogenMod Project
++     Copyright (c) 2013, The Linux Foundation. All rights reserved.
++
++     Licensed under the Apache License, Version 2.0 (the "License");
++     you may not use this file except in compliance with the License.
++     You may obtain a copy of the License at
++
++          http://www.apache.org/licenses/LICENSE-2.0
++
++     Unless required by applicable law or agreed to in writing, software
++     distributed under the License is distributed on an "AS IS" BASIS,
++     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++     See the License for the specific language governing permissions and
++     limitations under the License.
++-->
++<resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
++  <!-- In-call screen: call failure reason (call denied because call barring is ON on MT side ) -->
++  <string name="callFailed_incoming_cb_enabled">Party has barred all incoming calls.</string>
++  <!-- In-call screen: status label for an incoming call that is not answered and forwarded  -->
++  <string name="callUnanswered_forwarded">Call unanswered and forwarded</string>
++
++  <!-- In-call screen: status label for a call in the "dialing" state that's waiting for the busy remote side -->
++  <string name="incall_connecting_waiting">Calling (waiting\u2026)</string>
++  <!-- In-call screen: status label for an outgoing call that's routed via a specific
++       provider (e.g. MSIM) and is waiting for the busy remote side -->
++  <string name="incall_calling_via_waiting_template">Calling via <xliff:g id="provider_name">%s</xliff:g> (waiting\u2026)</string>
++</resources>
+diff --git a/java/com/android/incallui/disconnectdialog/DefaultErrorDialog.java b/java/com/android/incallui/disconnectdialog/DefaultErrorDialog.java
+index 2ce238718..2c8ad2573 100644
+--- a/java/com/android/incallui/disconnectdialog/DefaultErrorDialog.java
++++ b/java/com/android/incallui/disconnectdialog/DefaultErrorDialog.java
+@@ -29,7 +29,7 @@ import com.android.incallui.call.DialerCall;
+ public class DefaultErrorDialog implements DisconnectDialog {
+ 
+   @Override
+-  public boolean shouldShow(DisconnectCause disconnectCause) {
++  public boolean shouldShow(DialerCall call, DisconnectCause disconnectCause) {
+     return !TextUtils.isEmpty(disconnectCause.getDescription())
+         && (disconnectCause.getCode() == DisconnectCause.ERROR
+             || disconnectCause.getCode() == DisconnectCause.RESTRICTED);
+diff --git a/java/com/android/incallui/disconnectdialog/DisconnectDialog.java b/java/com/android/incallui/disconnectdialog/DisconnectDialog.java
+index 0b2b8cc8f..d2b4ea38e 100644
+--- a/java/com/android/incallui/disconnectdialog/DisconnectDialog.java
++++ b/java/com/android/incallui/disconnectdialog/DisconnectDialog.java
+@@ -26,7 +26,7 @@ import com.android.incallui.call.DialerCall;
+ /** Interface for disconnect dialog. */
+ public interface DisconnectDialog {
+ 
+-  boolean shouldShow(DisconnectCause disconnectCause);
++  boolean shouldShow(DialerCall call, DisconnectCause disconnectCause);
+ 
+   Pair<Dialog, CharSequence> createDialog(@NonNull Context context, DialerCall call);
+ }
+diff --git a/java/com/android/incallui/disconnectdialog/DisconnectMessage.java b/java/com/android/incallui/disconnectdialog/DisconnectMessage.java
+index 97d58f27c..3dab42cdc 100644
+--- a/java/com/android/incallui/disconnectdialog/DisconnectMessage.java
++++ b/java/com/android/incallui/disconnectdialog/DisconnectMessage.java
+@@ -31,7 +31,9 @@ public class DisconnectMessage {
+   // Disconnect dialog catalog. Default error dialog MUST be last one.
+   private static final DisconnectDialog[] DISCONNECT_DIALOGS =
+       new DisconnectDialog[] {
+-        new EnableWifiCallingPrompt(), new VideoCallNotAvailablePrompt(), new DefaultErrorDialog()
++        new EnableWifiCallingPrompt(), new VideoCallNotAvailablePrompt(),
++        new UnansweredForwardedDialog(), new RemoteIncomingCallsBarredDialog(),
++        new DefaultErrorDialog()
+       };
+ 
+   public final Dialog dialog;
+@@ -42,7 +44,7 @@ public class DisconnectMessage {
+     cause = call.getDisconnectCause();
+ 
+     for (DisconnectDialog disconnectDialog : DISCONNECT_DIALOGS) {
+-      if (disconnectDialog.shouldShow(cause)) {
++      if (disconnectDialog.shouldShow(call, cause)) {
+         Pair<Dialog, CharSequence> pair = disconnectDialog.createDialog(context, call);
+         dialog = pair.first;
+         toastMessage = pair.second;
+diff --git a/java/com/android/incallui/disconnectdialog/EnableWifiCallingPrompt.java b/java/com/android/incallui/disconnectdialog/EnableWifiCallingPrompt.java
+index a0ca8cd04..b470af6a5 100644
+--- a/java/com/android/incallui/disconnectdialog/EnableWifiCallingPrompt.java
++++ b/java/com/android/incallui/disconnectdialog/EnableWifiCallingPrompt.java
+@@ -39,7 +39,7 @@ public class EnableWifiCallingPrompt implements DisconnectDialog {
+   private static final String ANDROID_SETTINGS_PACKAGE = "com.android.settings";
+ 
+   @Override
+-  public boolean shouldShow(DisconnectCause disconnectCause) {
++  public boolean shouldShow(DialerCall call, DisconnectCause disconnectCause) {
+     String reason = disconnectCause.getReason();
+     if (reason != null && reason.startsWith(REASON_WIFI_ON_BUT_WFC_OFF)) {
+       LogUtil.i(
+diff --git a/java/com/android/incallui/disconnectdialog/RemoteIncomingCallsBarredDialog.java b/java/com/android/incallui/disconnectdialog/RemoteIncomingCallsBarredDialog.java
+new file mode 100644
+index 000000000..01aacadf3
+--- /dev/null
++++ b/java/com/android/incallui/disconnectdialog/RemoteIncomingCallsBarredDialog.java
+@@ -0,0 +1,47 @@
++/*
++ * Copyright (C) 2017 The Android Open Source Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License
++ */
++
++package com.android.incallui.disconnectdialog;
++
++import android.app.AlertDialog;
++import android.app.Dialog;
++import android.content.Context;
++import android.content.DialogInterface.OnClickListener;
++import android.content.Intent;
++import android.support.annotation.NonNull;
++import android.telecom.DisconnectCause;
++import android.util.Pair;
++import com.android.dialer.common.Assert;
++import com.android.dialer.common.LogUtil;
++import com.android.incallui.call.DialerCall;
++
++public class RemoteIncomingCallsBarredDialog implements DisconnectDialog {
++  @Override
++  public boolean shouldShow(DialerCall call, DisconnectCause disconnectCause) {
++    return call.missedBecauseIncomingCallsBarredRemotely();
++  }
++
++  @Override
++  public Pair<Dialog, CharSequence> createDialog(final @NonNull Context context, DialerCall call) {
++    CharSequence message = context.getString(R.string.callFailed_incoming_cb_enabled);
++    Dialog dialog =
++        new AlertDialog.Builder(context)
++            .setMessage(message)
++            .setPositiveButton(android.R.string.ok, null)
++            .create();
++    return new Pair<>(dialog, message);
++  }
++}
+diff --git a/java/com/android/incallui/disconnectdialog/UnansweredForwardedDialog.java b/java/com/android/incallui/disconnectdialog/UnansweredForwardedDialog.java
+new file mode 100644
+index 000000000..50140ee15
+--- /dev/null
++++ b/java/com/android/incallui/disconnectdialog/UnansweredForwardedDialog.java
+@@ -0,0 +1,47 @@
++/*
++ * Copyright (C) 2017 The Android Open Source Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License
++ */
++
++package com.android.incallui.disconnectdialog;
++
++import android.app.AlertDialog;
++import android.app.Dialog;
++import android.content.Context;
++import android.content.DialogInterface.OnClickListener;
++import android.content.Intent;
++import android.support.annotation.NonNull;
++import android.telecom.DisconnectCause;
++import android.util.Pair;
++import com.android.dialer.common.Assert;
++import com.android.dialer.common.LogUtil;
++import com.android.incallui.call.DialerCall;
++
++public class UnansweredForwardedDialog implements DisconnectDialog {
++  @Override
++  public boolean shouldShow(DialerCall call, DisconnectCause disconnectCause) {
++    return call.wasUnansweredForwarded();
++  }
++
++  @Override
++  public Pair<Dialog, CharSequence> createDialog(final @NonNull Context context, DialerCall call) {
++    CharSequence message = context.getString(R.string.callUnanswered_forwarded);
++    Dialog dialog =
++        new AlertDialog.Builder(context)
++            .setMessage(message)
++            .setPositiveButton(android.R.string.ok, null)
++            .create();
++    return new Pair<>(dialog, message);
++  }
++}
+diff --git a/java/com/android/incallui/disconnectdialog/VideoCallNotAvailablePrompt.java b/java/com/android/incallui/disconnectdialog/VideoCallNotAvailablePrompt.java
+index 099450ae8..fb4926797 100644
+--- a/java/com/android/incallui/disconnectdialog/VideoCallNotAvailablePrompt.java
++++ b/java/com/android/incallui/disconnectdialog/VideoCallNotAvailablePrompt.java
+@@ -34,7 +34,7 @@ import com.android.incallui.call.DialerCall;
+ public class VideoCallNotAvailablePrompt implements DisconnectDialog {
+ 
+   @Override
+-  public boolean shouldShow(DisconnectCause disconnectCause) {
++  public boolean shouldShow(DialerCall call, DisconnectCause disconnectCause) {
+     if (disconnectCause.getCode() == DisconnectCause.ERROR
+         && TelecomManagerCompat.REASON_IMS_ACCESS_BLOCKED.equals(disconnectCause.getReason())) {
+       LogUtil.i(
+diff --git a/java/com/android/incallui/incall/protocol/PrimaryCallState.java b/java/com/android/incallui/incall/protocol/PrimaryCallState.java
+index 1d536e9b9..74d86217f 100644
+--- a/java/com/android/incallui/incall/protocol/PrimaryCallState.java
++++ b/java/com/android/incallui/incall/protocol/PrimaryCallState.java
+@@ -91,6 +91,8 @@ public abstract class PrimaryCallState {
+ 
+   public abstract boolean isRemotelyHeld();
+ 
++  public abstract boolean isDialingWaitingForRemote();
++
+   public abstract boolean isBusinessNumber();
+ 
+   public abstract boolean supportsCallOnHold();
+@@ -121,6 +123,7 @@ public abstract class PrimaryCallState {
+         .setConnectTimeMillis(0)
+         .setIsVoiceMailNumber(false)
+         .setIsRemotelyHeld(false)
++        .setIsDialingWaitingForRemote(false)
+         .setIsBusinessNumber(false)
+         .setSupportsCallOnHold(true)
+         .setSwapToSecondaryButtonState(ButtonState.NOT_SUPPORT)
+@@ -169,6 +172,8 @@ public abstract class PrimaryCallState {
+ 
+     public abstract Builder setIsRemotelyHeld(boolean isRemotelyHeld);
+ 
++    public abstract Builder setIsDialingWaitingForRemote(boolean dialingWaitingForRemote);
++
+     public abstract Builder setIsBusinessNumber(boolean isBusinessNumber);
+ 
+     public abstract Builder setSupportsCallOnHold(boolean supportsCallOnHold);
+diff --git a/java/com/android/incallui/multisim/SwapSimWorker.java b/java/com/android/incallui/multisim/SwapSimWorker.java
+index 1014d824a..c6972f980 100644
+--- a/java/com/android/incallui/multisim/SwapSimWorker.java
++++ b/java/com/android/incallui/multisim/SwapSimWorker.java
+@@ -184,6 +184,8 @@ public class SwapSimWorker implements Worker<Void, Void>, DialerCallListener, Ca
+   @Override
+   public void onEnrichedCallSessionUpdate() {}
+ 
++  @Override
++  public void onSupplementaryServiceNotification(CharSequence message) {}
+   @Override
+   public void onIncomingCall(DialerCall call) {}
+ 
+-- 
+2.17.1
+

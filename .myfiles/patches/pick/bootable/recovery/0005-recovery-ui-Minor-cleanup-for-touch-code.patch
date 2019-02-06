@@ -1,0 +1,186 @@
+From fe4e16c52de4f83b212efed6a4756d045098ff38 Mon Sep 17 00:00:00 2001
+From: Tom Marshall <tdm.code@gmail.com>
+Date: Thu, 24 Aug 2017 12:57:27 +0000
+Subject: [PATCH 05/44] recovery: ui: Minor cleanup for touch code
+
+ * Better naming for some touch vars and funcs
+
+ * Introduce Point class
+
+Change-Id: Idfcab54ac356face52efd69fdfdc0a6f4633a3f3
+---
+ minui/events.cpp            |  4 ++--
+ minui/include/minui/minui.h |  2 +-
+ ui.cpp                      | 23 ++++++++++---------
+ ui.h                        | 45 ++++++++++++++++++++++++++++++++-----
+ 4 files changed, 55 insertions(+), 19 deletions(-)
+
+diff --git a/minui/events.cpp b/minui/events.cpp
+index 2894c3b6..b992db4d 100644
+--- a/minui/events.cpp
++++ b/minui/events.cpp
+@@ -234,7 +234,7 @@ void ev_iterate_available_keys(const std::function<void(int)>& f) {
+     }
+ }
+ 
+-void ev_iterate_touch_inputs(const std::function<void(int)>& action) {
++void ev_iterate_touch_inputs(const std::function<void(int)>& key_detected) {
+   for (size_t i = 0; i < ev_dev_count; ++i) {
+     // Use unsigned long to match ioctl's parameter type.
+     unsigned long ev_bits[BITS_TO_LONGS(EV_MAX)] = {};  // NOLINT
+@@ -252,7 +252,7 @@ void ev_iterate_touch_inputs(const std::function<void(int)>& action) {
+ 
+     for (int key_code = 0; key_code <= KEY_MAX; ++key_code) {
+       if (test_bit(key_code, key_bits)) {
+-        action(key_code);
++        key_detected(key_code);
+       }
+     }
+   }
+diff --git a/minui/include/minui/minui.h b/minui/include/minui/minui.h
+index f9da1999..55e0d6e0 100644
+--- a/minui/include/minui/minui.h
++++ b/minui/include/minui/minui.h
+@@ -89,7 +89,7 @@ int ev_init(ev_callback input_cb, bool allow_touch_inputs = false);
+ void ev_exit();
+ int ev_add_fd(int fd, ev_callback cb);
+ void ev_iterate_available_keys(const std::function<void(int)>& f);
+-void ev_iterate_touch_inputs(const std::function<void(int)>& action);
++void ev_iterate_touch_inputs(const std::function<void(int)>& key_detected);
+ int ev_sync_key_state(const ev_set_key_callback& set_key_cb);
+ 
+ // 'timeout' has the same semantics as poll(2).
+diff --git a/ui.cpp b/ui.cpp
+index 11a7fba8..f88ba4c2 100644
+--- a/ui.cpp
++++ b/ui.cpp
+@@ -172,18 +172,20 @@ bool RecoveryUI::Init(const std::string& /* locale */) {
+   return true;
+ }
+ 
+-void RecoveryUI::OnTouchDetected(int dx, int dy) {
++void RecoveryUI::OnTouchEvent() {
++  Point delta = touch_pos_ - touch_start_;
+   enum SwipeDirection { UP, DOWN, RIGHT, LEFT } direction;
+ 
+   // We only consider a valid swipe if:
+   // - the delta along one axis is below kTouchLowThreshold;
+   // - and the delta along the other axis is beyond kTouchHighThreshold.
+-  if (abs(dy) < kTouchLowThreshold && abs(dx) > kTouchHighThreshold) {
+-    direction = dx < 0 ? SwipeDirection::LEFT : SwipeDirection::RIGHT;
+-  } else if (abs(dx) < kTouchLowThreshold && abs(dy) > kTouchHighThreshold) {
+-    direction = dy < 0 ? SwipeDirection::UP : SwipeDirection::DOWN;
++  if (abs(delta.y()) < kTouchLowThreshold && abs(delta.x()) > kTouchHighThreshold) {
++    direction = delta.x() < 0 ? SwipeDirection::LEFT : SwipeDirection::RIGHT;
++  } else if (abs(delta.x()) < kTouchLowThreshold && abs(delta.y()) > kTouchHighThreshold) {
++    direction = delta.y() < 0 ? SwipeDirection::UP : SwipeDirection::DOWN;
+   } else {
+-    LOG(DEBUG) << "Ignored " << dx << " " << dy << " (low: " << kTouchLowThreshold
++    LOG(DEBUG) << "Ignored " << delta.x() << " " << delta.y()
++               << " (low: " << kTouchLowThreshold
+                << ", high: " << kTouchHighThreshold << ")";
+     return;
+   }
+@@ -245,12 +247,11 @@ int RecoveryUI::OnInputEvent(int fd, uint32_t epevents) {
+       // There might be multiple SYN_REPORT events. We should only detect a swipe after lifting the
+       // contact.
+       if (touch_finger_down_ && !touch_swiping_) {
+-        touch_start_X_ = touch_X_;
+-        touch_start_Y_ = touch_Y_;
++        touch_start_ = touch_pos_;
+         touch_swiping_ = true;
+       } else if (!touch_finger_down_ && touch_swiping_) {
+         touch_swiping_ = false;
+-        OnTouchDetected(touch_X_ - touch_start_X_, touch_Y_ - touch_start_Y_);
++        OnTouchEvent();
+       }
+     }
+     return 0;
+@@ -286,12 +287,12 @@ int RecoveryUI::OnInputEvent(int fd, uint32_t epevents) {
+ 
+     switch (ev.code) {
+       case ABS_MT_POSITION_X:
+-        touch_X_ = ev.value;
++        touch_pos_.x(ev.value);
+         touch_finger_down_ = true;
+         break;
+ 
+       case ABS_MT_POSITION_Y:
+-        touch_Y_ = ev.value;
++        touch_pos_.y(ev.value);
+         touch_finger_down_ = true;
+         break;
+ 
+diff --git a/ui.h b/ui.h
+index 75e1ec48..5df18695 100644
+--- a/ui.h
++++ b/ui.h
+@@ -23,6 +23,43 @@
+ 
+ #include <string>
+ 
++/*
++ * Simple representation of a (x,y) coordinate with convenience operators
++ */
++class Point {
++ public:
++  Point() : x_(0), y_(0) {}
++  Point(int x, int y) : x_(x), y_(y) {}
++  int x() const { return x_; }
++  int y() const { return y_; }
++  void x(int x) { x_ = x; }
++  void y(int y) { y_ = y; }
++
++  bool operator==(const Point& rhs) const {
++    return (x() == rhs.x() && y() == rhs.y());
++  }
++  bool operator!=(const Point& rhs) const {
++    return !(*this == rhs);
++  }
++
++  Point operator+(const Point& rhs) const {
++    Point tmp;
++    tmp.x_ = x_ + rhs.x_;
++    tmp.y_ = y_ + rhs.y_;
++    return tmp;
++  }
++  Point operator-(const Point& rhs) const {
++    Point tmp;
++    tmp.x_ = x_ - rhs.x_;
++    tmp.y_ = y_ - rhs.y_;
++    return tmp;
++  }
++
++ private:
++  int	x_;
++  int   y_;
++};
++
+ // Abstract class for controlling the user interface during recovery.
+ class RecoveryUI {
+  public:
+@@ -173,7 +210,7 @@ class RecoveryUI {
+   const int kTouchHighThreshold;
+ 
+   void OnKeyDetected(int key_code);
+-  void OnTouchDetected(int dx, int dy);
++  void OnTouchEvent();
+   int OnInputEvent(int fd, uint32_t epevents);
+   void ProcessKey(int key_code, int updown);
+ 
+@@ -205,10 +242,8 @@ class RecoveryUI {
+ 
+   // Touch event related variables. See the comments in RecoveryUI::OnInputEvent().
+   int touch_slot_;
+-  int touch_X_;
+-  int touch_Y_;
+-  int touch_start_X_;
+-  int touch_start_Y_;
++  Point touch_pos_;
++  Point touch_start_;
+   bool touch_finger_down_;
+   bool touch_swiping_;
+   bool is_bootreason_recovery_ui_;
+-- 
+2.17.1
+

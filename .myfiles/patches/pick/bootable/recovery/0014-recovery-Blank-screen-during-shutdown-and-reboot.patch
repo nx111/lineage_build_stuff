@@ -1,0 +1,93 @@
+From 613a5750f54c2114659a734d9f98c65a09aa2d64 Mon Sep 17 00:00:00 2001
+From: Tom Marshall <tdm.code@gmail.com>
+Date: Fri, 8 Sep 2017 19:48:46 +0000
+Subject: [PATCH 14/44] recovery: Blank screen during shutdown and reboot
+
+Some hardware doesn't like having the panel on and still
+active during power cycles, so just turn it off.
+
+(based on Ied1f0802f5a2d45980ee33abf2456a291ba64beb)
+
+Change-Id: Ied6bbc3a32fd1c7cf6ea3ec1b2bee298520651c3
+---
+ recovery.cpp  | 2 ++
+ screen_ui.cpp | 5 +++++
+ screen_ui.h   | 1 +
+ ui.cpp        | 6 ++++++
+ ui.h          | 2 ++
+ 5 files changed, 16 insertions(+)
+
+diff --git a/recovery.cpp b/recovery.cpp
+index c5deed9e..8265b6ce 100644
+--- a/recovery.cpp
++++ b/recovery.cpp
+@@ -1923,6 +1923,8 @@ int main(int argc, char **argv) {
+ 
+   sync();
+ 
++  ui->Stop();
++
+   switch (after) {
+     case Device::SHUTDOWN:
+       ui->Print("Shutting down...\n");
+diff --git a/screen_ui.cpp b/screen_ui.cpp
+index c8fb5aa7..9fe6501f 100644
+--- a/screen_ui.cpp
++++ b/screen_ui.cpp
+@@ -637,6 +637,11 @@ bool ScreenRecoveryUI::Init(const std::string& locale) {
+   return true;
+ }
+ 
++void ScreenRecoveryUI::Stop() {
++  RecoveryUI::Stop();
++  gr_fb_blank(true);
++}
++
+ void ScreenRecoveryUI::LoadAnimation() {
+   std::unique_ptr<DIR, decltype(&closedir)> dir(opendir("/res/images"), closedir);
+   dirent* de;
+diff --git a/screen_ui.h b/screen_ui.h
+index f05761c4..85b2695f 100644
+--- a/screen_ui.h
++++ b/screen_ui.h
+@@ -46,6 +46,7 @@ class ScreenRecoveryUI : public RecoveryUI {
+   ScreenRecoveryUI();
+ 
+   bool Init(const std::string& locale) override;
++  void Stop() override;
+ 
+   // overall recovery state ("background image")
+   void SetBackground(Icon icon) override;
+diff --git a/ui.cpp b/ui.cpp
+index 9232229e..9deffa4b 100644
+--- a/ui.cpp
++++ b/ui.cpp
+@@ -220,6 +220,12 @@ bool RecoveryUI::Init(const std::string& /* locale */) {
+   return true;
+ }
+ 
++void RecoveryUI::Stop() {
++  if (!android::base::WriteStringToFile("0", BRIGHTNESS_FILE)) {
++    PLOG(WARNING) << "Failed to write brightness file";
++  }
++}
++
+ void RecoveryUI::OnTouchEvent() {
+   Point delta = touch_pos_ - touch_start_;
+   enum SwipeDirection { UP, DOWN, RIGHT, LEFT } direction;
+diff --git a/ui.h b/ui.h
+index 3ec7a0f9..1c99709d 100644
+--- a/ui.h
++++ b/ui.h
+@@ -93,6 +93,8 @@ class RecoveryUI {
+   // the given locale. Returns true on success.
+   virtual bool Init(const std::string& locale);
+ 
++  virtual void Stop();
++
+   // Shows a stage indicator. Called immediately after Init().
+   virtual void SetStage(int current, int max) = 0;
+ 
+-- 
+2.17.1
+

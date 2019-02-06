@@ -1,0 +1,58 @@
+From ad4e4d566b63538200867f7ac9a9e179a9f19182 Mon Sep 17 00:00:00 2001
+From: nx111 <NX111.AimH@gmail.com>
+Date: Tue, 6 Nov 2018 14:39:16 +0800
+Subject: [PATCH 05/30] repopick: add support for proxy.
+
+Change-Id: I226ecda5db78db8ee117b851a77eebfc2fbd70bf
+---
+ build/tools/repopick.py | 19 +++++++++++++++++--
+ 1 file changed, 17 insertions(+), 2 deletions(-)
+
+diff --git a/build/tools/repopick.py b/build/tools/repopick.py
+index 1e731e39..63de5361 100755
+--- a/build/tools/repopick.py
++++ b/build/tools/repopick.py
+@@ -32,6 +32,17 @@ import textwrap
+ from functools import cmp_to_key
+ from xml.etree import ElementTree
+ 
++env_proxy = os.getenv('https_proxy')
++if not env_proxy is None:
++   if env_proxy.find('socks4:') == 0:
++       proxyies = {'socks4': env_proxy}
++       protocol = 'socks4'
++   elif env_proxy.find('socks5:') == 0:
++       proxies = { 'socks5' : env_proxy }
++       protocol = 'socks5'
++   proxies={"https" : env_proxy}
++   protocol = 'https'
++
+ try:
+     import requests
+ except ImportError:
+@@ -118,16 +129,20 @@ def fetch_query_via_http(remote_url, query):
+         statusCode = '-1'
+         if auth:
+             url = '{0}/a/changes/?q={1}&o=CURRENT_REVISION&o=ALL_REVISIONS&o=ALL_COMMITS'.format(remote_url, query)
+-            data = requests.get(url, auth=auth)
++            data = requests.get(url, auth=auth, proxies=proxies)
+             statusCode = str(data.status_code)
+         if statusCode != '200':
+             #They didn't get good authorization or data, Let's try the old way
+             url = '{0}/changes/?q={1}&o=CURRENT_REVISION&o=ALL_REVISIONS&o=ALL_COMMITS'.format(remote_url, query)
+-            data = requests.get(url)
++            data = requests.get(url, proxies=proxies)
+         reviews = json.loads(data.text[5:])
+     else:
+         """Given a query, fetch the change numbers via http"""
+         url = '{0}/changes/?q={1}&o=CURRENT_REVISION&o=ALL_REVISIONS&o=ALL_COMMITS'.format(remote_url, query)
++        if not env_proxy is None:
++            proxy_support=urllib.request.ProxyHandler({protocol : env_proxy})
++            opener = urllib.request.build_opener(proxy_support)
++            urllib.request.install_opener(opener)
+         data = urllib.request.urlopen(url).read().decode('utf-8')
+         reviews = json.loads(data[5:])
+ 
+-- 
+2.17.1
+

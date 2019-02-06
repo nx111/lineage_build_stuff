@@ -51,6 +51,7 @@ function sort_projects()
     local line
 
     grep "^android," $project_list
+kpick 240675 # manifest: android-9.0.0_r30 -> android-9.0.0_r31
     while read line; do
         project=$(echo $line | cut -d, -f 1)
         [ "$project" == "android" ] && continue
@@ -108,7 +109,7 @@ function patch_local()
                              first=0
                              echo  "  >> git am conflict, please resolv it, then press ENTER to continue,or press 's' skip it ..."
                              while ! git log -100 | grep "Change-Id: $changeid" >/dev/null 2>/dev/null; do
-                                 [ $first -ne 0 ] && echo "conflicts not resolved,please fix it,then press ENTER to continue,or press 's' skip it, 'd' drop it and delete it ..."
+                                 [ $first -ne 0 ] && echo "conflicts not resolved,please fix it, then press ENTER to continue, or press 's' skip it, 'd' drop it and delete it ..."
                                  first=1
                                  ch=$(sed q </dev/tty)
                                  if [ "$ch" = "s" -o "$ch" = "d" ]; then
@@ -124,16 +125,14 @@ function patch_local()
                             rc=$?
                             if [ $rc -ne 0 ]; then
                                  first=0
-                                 echo  "  >> git am conflict, please resolv it, then press ENTER to continue,or press 's' skip it, 'a' to skip and remove it ..."
+                                 echo  "  >> git am conflict, please resolv it, then press ENTER to continue, or press 's' skip it, 'd' drop it and delete it ..."
                                  while ! git -C $topdir/.repo/manifests log -100 | grep "Change-Id: $changeid" >/dev/null 2>/dev/null; do
-                                     [ $first -ne 0 ] && echo "conflicts not resolved,please fix it,then press ENTER to continue,or press 's' skip it ..."
+                                     [ $first -ne 0 ] && echo "conflicts not resolved,please fix it,then press ENTER to continue,or press 's' skip it, 'd' drop it and delete it ..."
                                      first=1
                                      ch=$(sed q </dev/tty)
                                      if [ "$ch" = "s" -o "$ch" = "a" ]; then
-                                        [ "$ch" = "s" ] && echo "skip it ..."
-                                        [ "$ch" = "a" ] && echo "skip and remove it ..."
                                         git -C $topdir/.repo/manifests am --skip
-                                        [ "$ch" = "a" ] && rm $topdir/.myfiles/patches/$f
+                                        [ "$ch" = "d" ] && rm $topdir/.myfiles/patches/$f
                                         break
                                      fi
                                  done
@@ -640,7 +639,7 @@ function kpick()
                     exit -1
                fi
            fi
-           mLine=$(grep -n "^[[:space:]]*kpick $number" $target_script | head -n 1 |  cut -d: -f1 )
+           mLine=$((mLine + 1))
         fi
     done < $change_number_list
 
@@ -976,11 +975,19 @@ function kpick_action()
            if [ "$last_project" != "$project" -a "${BASH_SOURCE[0]}" = "$runfrom" -a "$start_check_classification" = "1" ]; then
                if [ "$last_project" != "" -a "$last_changeNumber" != "" ]; then
                     [ -f $tmp_picks_info_file ] || touch $tmp_picks_info_file
-                    if ! grep -q $project $tmp_picks_info_file; then
+                    if ! grep -q "$project" $tmp_picks_info_file; then
                         echo "$last_project $last_changeNumber" >>$tmp_picks_info_file
                         last_project=$project
                         last_changeNumber=$changeNumber
-                        eval  "sed -e \"s|^[[:space:]]*kpick[[:space:]]\{1,\}$changeNumber[[:space:]]*.*|kpick $nops \# $subject|g\" -i $target_script"
+                        if grep -iq "^[[:space:]]*#[[:space:]]*$project[[:space:]]*$" $target_script; then
+                            eval "sed \"/^[[:space:]]*kpick[[:space:]]\{1,\}$changeNumber/d\" -i $target_script"
+                            project_offset=$(grep -in "^[[:space:]]*#[[:space:]]*$project[[:space:]]*$" $target_script | cut -d: -f 1 | head -n 1)
+                            eval "sed \"$project_offset akpick $nops \# $subject\" -i $target_script"
+                        else
+                            eval "sed \"/kpick[[:space:]]\\{1,\\}.*$changeNumber/i\\# $project\" -i $target_script"
+                            eval "sed -e \"s|^[[:space:]]*kpick[[:space:]]\{1,\}$changeNumber[[:space:]]*.*|kpick $nops \# $subject|g\" -i $target_script"
+                            eval "sed \"/kpick[[:space:]]\\{1,\\}.*$changeNumber/a\\\\\r\" -i $target_script"
+                        fi
                     else
                         if grep -q "already picked in" $logfile; then
                            if [ $(grep "kpick[[:space:]]*.*$changeNumber" $target_script | wc -l) -ge 2 ]; then
@@ -993,7 +1000,7 @@ function kpick_action()
                            fi
                         else
                             eval "sed \"/kpick[[:space:]]*.*$changeNumber/d\" -i $target_script"
-                            project_lastpick=$(grep  $project $tmp_picks_info_file | cut -d" " -f2)
+                            project_lastpick=$(grep  "$project" $tmp_picks_info_file | cut -d" " -f2)
                             eval "sed \"/kpick[[:space:]]\\{1,\\}.*$project_lastpick/a\\kpick $nops \# $subject\" -i $target_script"
                             eval "sed \"s|$last_project $last_changeNumber|$last_project $changeNumber|g\" -i $tmp_picks_info_file"
                         fi
@@ -1037,6 +1044,7 @@ function merge_from_aosp() {
 function apply_force_changes(){
     [ -z $topdir ] && topdir=$(gettop)
     [ -d "$topdir/.myfiles/patches/local/vendor/lineage"  ] || return 0
+kpick 223773 # Add IPv6 for Oister and 3. The 3.dk and oister.dk carriers now support IPv6 with the APN ”data.tre.dk”.
     find $topdir/.myfiles/patches/local/vendor/lineage/ -type f -name "*-\[ALWAYS\]-*.patch" -o -name "*-\[ALWAYS\]-*.diff" \
       | sort | while read f; do
          cd $topdir/vendor/lineage;
@@ -1204,20 +1212,24 @@ kpick 239738 # ARM: configs: Disable CONFIG_CRYPTO_FIPS for hlte devices
 # =============== END DEVICE STUFF ========================
 
 # art
+kpick 240696 # Squash of github/lineage-16.0(ac96e5bf49)..lineage-16.0-android-9.0.0_r31(4b321e001b) (DO NOT SUBMIT)
 #kpick 233821
 
 # bionic
 kpick 238738 # bionic: Prefer /sbin/sh if it exists
+kpick 240697 # Squash of github/lineage-16.0(024702e11)..lineage-16.0-android-9.0.0_r31(9276cdb83) (DO NOT SUBMIT)
 
-# boot/recovery
-kpick 230746 # recovery: Get a proper shell environment in recovery
+# bootable/recovery
 kpick 238951 # Revert "recovery: Fork a process for fuse when sideloading from SD card."
+kpick 239450 # recovery: Remove HOST_OS guard for f2fs tools
+kpick 230746 # recovery: Get a proper shell environment in recovery
 kpick 238952 # recovery: ui: Default to touch enabled
 kpick 238953 # recovery: ui: Minor cleanup for touch code
 kpick 238954 # recovery: ui: Support hardware virtual keys
 kpick 238955 # recovery: Puke out an /etc/fstab so stuff like busybox/toybox is happy
 kpick 238956 # recovery: Enable gunzip/gzip/unzip/zip commands
 kpick 238957 # recovery: Add fstools
+kpick 239451 # recovery: Add resize2fs, tune2fs to fstools
 kpick 238958 # recovery: Include vendor init trigger
 kpick 238959 # recovery: Allow device-specific recovery modules
 kpick 238960 # recovery: Implement a volume manager
@@ -1252,15 +1264,16 @@ kpick 238990 # recovery: Allow bypassing signature verification on non-release b
 kpick 238991 # recovery: minui: Implement image scaling
 kpick 238992 # recovery: Scale logo image if necessary
 kpick 238993 # recovery: Add runtime checks for A/B vs traditional updates
-kpick 239450 # recovery: Remove HOST_OS guard for f2fs tools
-kpick 239451 # recovery: Add resize2fs, tune2fs to fstools
+
+# build/kati
+kpick 240699 # Squash of github/lineage-16.0(17da287)..lineage-16.0-android-9.0.0_r31(e644222) (DO NOT SUBMIT)
 
 # build/make
 kpick 222742 # build: Use project pathmap for recovery
 kpick 222760 # Add LOCAL_AIDL_FLAGS
-kpick 227111 # releasetools: Store the build.prop file in the OTA zip
 kpick 239212 # Stop using the `files` target for droidcore
 kpick 239296 # build: Remove charger from recovery unless needed
+kpick 240698 # Squash of github/lineage-16.0(7fd7d37ad)..lineage-16.0-android-9.0.0_r31(eceab1f01) (DO NOT SUBMIT)
 
 # build/soong
 kpick 222648 # Allow providing flex and bison binaries
@@ -1282,6 +1295,7 @@ kpick 239081 # sepolicy: Label vendor.camera.aux. list properties
 kpick 228573 # sepolicy: Add libsdm-disp-vndapis and libsdmutils to SP-HALs
 kpick 228582 # sepolicy: qti_init_shell needs to read dir too
 kpick 240548 # sepolicy: Whitelist vold from reading mnt_vendor_file
+kpick 240112 # sepolicy: Label vendor.camera.hal1.packagelist
 
 # device/qcom/sepolicy-legacy
 kpick 230230 # common: fix sensors denial
@@ -1290,6 +1304,7 @@ kpick 239741 # common: permit libqdutils operation (linked by mediaserver) durin
 kpick 240028 # sepolicy: vendor_init: allow vendor_init to read firmware files
 
 # development
+kpick 240700 # Squash of github/lineage-16.0(8e09e639b)..lineage-16.0-android-9.0.0_r31(3fb8017c7) (DO NOT SUBMIT)
 
 # external/ant-wireless/ant_native
 kpick 227260 # Update bt vendor callbacks array in vfs code
@@ -1331,9 +1346,11 @@ kpick 239379 # ntfs-3g: Add static libs for recovery
 kpick 225231 # awk: Add libawk_main for recovery and fixup symbols
 
 # external/perfetto
+kpick 223413 -f # perfetto_cmd: Resolve missing O_CREAT mode
 kpick -f 223413 # perfetto_cmd: Resolve missing O_CREAT mode
 
 # external/skia
+kpick 240702 # Squash of github/lineage-16.0(d6082f6179)..lineage-16.0-android-9.0.0_r31(46c39f1b85) (DO NOT SUBMIT)
 
 # external/tinycompress
 
@@ -1358,6 +1375,7 @@ kpick 238929 # libstagefright_wfd: libmediaplayer2: compilation fixes
 kpick 238931 # stagefright: Fix SurfaceMediaSource getting handle from wrong position issue
 kpick 238932 # stagefright: Fix buffer handle retrieval in signalBufferReturned
 kpick 239642 # libstagefright_wfd: video encoder does not actually release MediaBufferBase when done
+kpick 240703 # Squash of github/lineage-16.0(2cc3062a4)..lineage-16.0-android-9.0.0_r31(f95e9c6d3) (DO NOT SUBMIT)
 
 # frameworks/base
 kpick 224266 # SystemUI: Add Lineage statusbar item holder
@@ -1396,6 +1414,8 @@ kpick 239520 # Reset all package signatures on boot
 kpick 240084 # ServiceRegistry: Don't throw an exception if OEM_LOCK is missing
 kpick 240411 # Keyguard: Avoid starting FP authentication right after cancelling
 kpick 240551 # keylayout: add missing buttons to Razer Serval
+kpick 240704 # Squash of github/lineage-16.0(38919152c0a)..lineage-16.0-android-9.0.0_r31(1d9a71b0c99) (DO NOT SUBMIT)
+kpick 240766 # Proper supplementary service notification handling (1/5).
 
 # frameworks/native
 kpick 224530 # Triple the available egl function pointers available to a process for certain Nvidia devices.
@@ -1403,13 +1423,17 @@ kpick 225544 # input: Adjust priority
 kpick 231828 # Translate pointer motion events for OneHandOperation Display Shrink
 kpick 231980 # HWComposer: HWC2: allow SkipValidate to be force disabled
 kpick 237645 # sf: Add support for multiple displays
+kpick 240705 # Squash of github/lineage-16.0(1e33960e7)..lineage-16.0-android-9.0.0_r31(46642b99b) (DO NOT SUBMIT)
 
 # frameworks/opt/net/wifi
 kpick 237173 # WiFi: Ignore connectivity scans during WFD session
+kpick 240706 # Squash of github/lineage-16.0(abd1297d9)..lineage-16.0-android-9.0.0_r31(721eeaf51) (DO NOT SUBMIT)
 
 # frameworks/opt/telephony
+kpick 240767 # Proper supplementary service notification handling (2/5).
+kpick 240707 # Squash of github/lineage-16.0(76dd4e410)..lineage-16.0-android-9.0.0_r31(82c01bc4c) (DO NOT SUBMIT)
 
-# hardware/boardcom/libbt
+# hardware/broadcom/libbt
 kpick 225155 # Broadcom BT: Add support fm/bt via v4l2.
 #kpick  -f 224264 # debuggerd: Resolve tombstoned missing O_CREAT mode
 
@@ -1422,6 +1446,7 @@ kpick 225155 # Broadcom BT: Add support fm/bt via v4l2.
 # hardware/libhardware_legacy
 
 # hardware/interfaces
+kpick 240708 # Squash of github/lineage-16.0(30a7b181)..lineage-16.0-android-9.0.0_r31(9d6fe3b1) (DO NOT SUBMIT)
 
 # hardware/lineage/interfaces
 
@@ -1436,12 +1461,17 @@ kpick 240583 # livedisplay: legacymm: Minor code cleanup
 
 # hardware/nxp/nfc
 kpick 239927 # hardware: nxp: Restore pn547 support
+kpick 240711 # Squash of github/lineage-16.0(25740c0)..lineage-16.0-android-9.0.0_r31(6d8abc2) (DO NOT SUBMIT)
 
 # hardware/qcom/audio/default
+kpick 240712 # Squash of github/lineage-16.0(dd4e0ad9b)..lineage-16.0-android-9.0.0_r31(fe3a53a41) (DO NOT SUBMIT)
 
 # hardware/qcom/audio-caf/msm8974
 
 # hardware/qcom/bootctl
+# hardware/qcom/bootctrl
+kpick 240713 # Squash of github/lineage-16.0(8afedbb)..lineage-16.0-android-9.0.0_r31(d26dbc9) (DO NOT SUBMIT)
+
 
 # hardware/qcom/bt-caf
 kpick 240345 # qcom/bt: update bt_firmware path
@@ -1455,6 +1485,7 @@ kpick 223341 # display: Always assume kernel source is present
 kpick 236546 # fm_helium: Update FM_HCI_DIR path
 
 # hardware/qcom/gps
+kpick 240714 # Squash of github/lineage-16.0(98d782d)..lineage-16.0-android-9.0.0_r31(0949db8) (DO NOT SUBMIT)
 
 # hardware/qcom/keymaster
 
@@ -1486,49 +1517,64 @@ kpick 231898 # Power: Naming convention change
 # hardware/qcom/wlan-caf
 
 # hardware/ril
+kpick 240717 # Squash of github/lineage-16.0(d08cdd8)..lineage-16.0-android-9.0.0_r31(bf95d97) (DO NOT SUBMIT)
 
 # hardware/ril-caf
 kpick 227614 # Disable IOemHook implemenation in rild.
 
 # hardware/samsung
-#kpick 228524 # power: Convert power HAL to native binderized HAL
 kpick 231194 # power: properly initialize cluster states
-kpick 238519 # samsung: Add dummy lineagehw HIDL interfaces for vendor.lineage.touch
-kpick 238520 # hidl: touch: Add binderized service implementation
-kpick 239597 # samsung: Add dummy lineagehw HIDL interfaces for vendor.lineage.livedisplay
 kpick 239598 # hidl: livedisplay: Add binderized service implementation
-kpick 240348 # audio: Fix WBS sample rate usage
+kpick 239597 # samsung: Add dummy lineagehw HIDL interfaces for vendor.lineage.livedisplay
+kpick 238520 # hidl: touch: Add binderized service implementation
+kpick 238519 # samsung: Add dummy lineagehw HIDL interfaces for vendor.lineage.touch
+#kpick 228524 # power: Convert power HAL to native binderized HAL
 
 # lineage-sdk
 kpick 230272 # sdk: Remove VOLUME_KEYS_CONTROL_RING_STREAM
 kpick 237074 # lineage-sdk: Handle database downgrading
 kpick 237740 # sdk: add dark mode on low battery toggle
 kpick 240568 # sdk: Allow using named services for HIDL features
+kpick 240670 # Add emergency power menu constant
 
 # packages/apps/Bluetooth
 kpick 229311 # Assume optional codecs are supported if were supported previously
+kpick 240718 # Squash of github/lineage-16.0(b1a18186b)..lineage-16.0-android-9.0.0_r31(564103425) (DO NOT SUBMIT)
 
 # packages/apps/Calender
 
 # packages/apps/Camera2
+kpick 224752 # Use mCameraAgentNg for getting camera info when available
+kpick 240719 # Squash of github/lineage-16.0(24216e9b8)..lineage-16.0-android-9.0.0_r31(68cbebc78) (DO NOT SUBMIT)
 
-# packages/apps/Carrierconfig
+# packages/apps/CarrierConfig
+kpick 240720 # Squash of github/lineage-16.0(a8c2da7)..lineage-16.0-android-9.0.0_r31(d11eac8) (DO NOT SUBMIT)
 
-# packages/apps/CellBroadcastReciver
+# packages/apps/CellBroadcastReceiver
+kpick 240721 # Squash of github/lineage-16.0(791f0fcb)..lineage-16.0-android-9.0.0_r31(0ea5bc8d) (DO NOT SUBMIT)
+
+# packages/apps/CertInstaller
+kpick 240722 # Squash of github/lineage-16.0(4ef0a6b)..lineage-16.0-android-9.0.0_r31(0a4a41b) (DO NOT SUBMIT)
 
 # packages/apps/Contacts
+kpick 240723 # Squash of github/lineage-16.0(fbe605c9f)..lineage-16.0-android-9.0.0_r31(2eb597cd5) (DO NOT SUBMIT)
 
 # packages/apps/DeskClock
+kpick 240724 # Squash of github/lineage-16.0(4163d656b)..lineage-16.0-android-9.0.0_r31(7aa3e1b5c) (DO NOT SUBMIT)
 
 # packages/apps/Dialer
-#kpick 240546
-#kpick 240543
+kpick 240770 # Proper supplementary service notification handling (5/5).
 
 # packages/apps/DocumentsUI
+kpick 240725 # Squash of github/lineage-16.0(fa1692d9)..lineage-16.0-android-9.0.0_r31(29414e03) (DO NOT SUBMIT)
 
 # packages/apps/Eleven
 
 # packages/apps/Email
+kpick 240726 # Squash of github/lineage-16.0(a8e85dbfc)..lineage-16.0-android-9.0.0_r31(f98ecbe6e) (DO NOT SUBMIT)
+
+# packages/apps/EmergencyInfo
+kpick 240727 # Squash of github/lineage-16.0(102f8cc)..lineage-16.0-android-9.0.0_r31(3c67885) (DO NOT SUBMIT)
 
 # packages/apps/ExactCalculator
 
@@ -1541,19 +1587,24 @@ kpick 229311 # Assume optional codecs are supported if were supported previously
 # packages/apps/Jelly
 
 # packages/apps/KeyChain
+kpick 240728 # Squash of github/lineage-16.0(94d0c35)..lineage-16.0-android-9.0.0_r31(c7246ab) (DO NOT SUBMIT)
 
 # packages/apps/LineageParts
 
-# packages/apps/ManagedProvisoning
+# packages/apps/ManagedProvisioning
+kpick 240729 # Squash of github/lineage-16.0(f004cafa)..lineage-16.0-android-9.0.0_r31(34fe747e) (DO NOT SUBMIT)
 
 # packages/apps/Messaging
 kpick 239621 # Messaging: improve notification channels
 
 # packages/apps/Nfc
+kpick 240730 # Squash of github/lineage-16.0(91847cf2)..lineage-16.0-android-9.0.0_r31(500faebe) (DO NOT SUBMIT)
 
-# packages/apps/PackagesInstaller
+# packages/apps/PackageInstaller
+kpick 240731 # Squash of github/lineage-16.0(e8e2b0d0)..lineage-16.0-android-9.0.0_r31(8bda1f32) (DO NOT SUBMIT)
 
 # packages/apps/PhoneCommon
+kpick 240732 # Squash of github/lineage-16.0(0ec67f2)..lineage-16.0-android-9.0.0_r31(52ad55b) (DO NOT SUBMIT)
 
 # packages/apps/Recorder
 
@@ -1569,6 +1620,7 @@ kpick 232793 # Settings: per-app VPN data restriction
 kpick 237183 # settings: hide appendix of app list for power usage.
 kpick 240083 # Settings: Add null checks for OemLockService
 kpick 240095 # Settings: Move artwork and visualizer to "Lock screen preferences"
+kpick 240733 # Squash of github/lineage-16.0(8d06a444ba)..lineage-16.0-android-9.0.0_r31(0c43d57734) (DO NOT SUBMIT)
 
 # packages/apps/SettingsIntelligence
 
@@ -1578,53 +1630,80 @@ kpick 240095 # Settings: Move artwork and visualizer to "Lock screen preferences
 kpick 237244 # Snap: make support for bokeh mode configurable per device
 
 # packages/apps/Stk
+kpick 240734 # Squash of github/lineage-16.0(566f231)..lineage-16.0-android-9.0.0_r31(9e6af80) (DO NOT SUBMIT)
 
 # packages/apps/StorageManager
+kpick 240735 # Squash of github/lineage-16.0(a63c7ce)..lineage-16.0-android-9.0.0_r31(edcf0d5) (DO NOT SUBMIT)
 
 # packages/apps/Traceur
+kpick 240736 # Squash of github/lineage-16.0(86719e0)..lineage-16.0-android-9.0.0_r31(c59ebf9) (DO NOT SUBMIT)
 
 # packages/apps/Trebuchet
 kpick 240080 # Trebuchet: Implement protected apps
 
 # packages/apps/TvSettings
+kpick 240737 # Squash of github/lineage-16.0(8bbbe85c)..lineage-16.0-android-9.0.0_r31(419b8472) (DO NOT SUBMIT)
+
+# packages/apps/UnifiedEmail
+kpick 240738 # Squash of github/lineage-16.0(8592bc6ee)..lineage-16.0-android-9.0.0_r31(0bcdcfbec) (DO NOT SUBMIT)
 
 # packages/apps/Updater
 kpick 234612 # Updater: Implement auto update check interval preference
 kpick 239289 # Updater: put identical code to helper method
 
 # packages/inputmethods/LatinIME
+kpick 240739 # Squash of github/lineage-16.0(d756e016f)..lineage-16.0-android-9.0.0_r31(f23f47456) (DO NOT SUBMIT)
 
 # packages/overlays/Lineage
 
 # packages/providers/ContactsProvider
+kpick 240740 # Squash of github/lineage-16.0(d5aca0ab)..lineage-16.0-android-9.0.0_r31(5d21afde) (DO NOT SUBMIT)
 
 # packages/providers/DownloadProvider
+kpick 240741 # Squash of github/lineage-16.0(f41cba92)..lineage-16.0-android-9.0.0_r31(9082f2dc) (DO NOT SUBMIT)
 
 # packages/providers/MediaProvider
+kpick 240742 # Squash of github/lineage-16.0(f69310a)..lineage-16.0-android-9.0.0_r31(9b0f3dd) (DO NOT SUBMIT)
 
 # packages/providers/TelephonyProvider
+kpick 240743 # Squash of github/lineage-16.0(162aee8)..lineage-16.0-android-9.0.0_r31(6609fb2) (DO NOT SUBMIT)
 
-# packages/services/BuiltinPrintService
+# packages/providers/TvProvider
+kpick 240744 # Squash of github/lineage-16.0(c56e3c2)..lineage-16.0-android-9.0.0_r31(7a87aa6) (DO NOT SUBMIT)
+
+# packages/screensavers/PhotoTable
+kpick 240745 # Squash of github/lineage-16.0(a6791e4)..lineage-16.0-android-9.0.0_r31(9f3cdcb) (DO NOT SUBMIT)
+
+# packages/services/BuiltInPrintService
+kpick 240746 # Squash of github/lineage-16.0(ca17c7e)..lineage-16.0-android-9.0.0_r31(ed0cf3d) (DO NOT SUBMIT)
 
 # packages/services/Telecomm
 kpick 233635 # Phone ringtone setting for Multi SIM device
+kpick 240768 # Proper supplementary service notification handling (3/5)
+kpick 240747 # Squash of github/lineage-16.0(87c9c091)..lineage-16.0-android-9.0.0_r31(9c256633) (DO NOT SUBMIT)
 
 # packages/services/Telephony
+kpick 240769 # Proper supplementary service notification handling (4/5).
+kpick 240748 # Squash of github/lineage-16.0(fd69853bc)..lineage-16.0-android-9.0.0_r31(e76e59f26) (DO NOT SUBMIT)
 
 # system/bt
 kpick 239040 # Increase maximum Bluetooth SBC codec bitrate for SBC HD
 kpick 229313 # Explicit SBC Dual Channel (SBC HD) support
 kpick 229314 # Allow using alternative (higher) SBC HD bitrates with a property
+kpick 240749 # Squash of github/lineage-16.0(8f9050344)..lineage-16.0-android-9.0.0_r31(fcb8875a0) (DO NOT SUBMIT)
 
 # system/core
+kpick 227110 -f # init: I hate safety net
 kpick -f 227110 # init: I hate safety net
 kpick 231716 # init: Always use libbootloader_message from bootable/recovery namespace
 kpick 234860 # init: add install_keyring for TWRP FBE decrypt
 #kpick 237140 # healthd: add Battery Moto Mod Support
 kpick 237141 # core: update battery mod support for P
 kpick 240018 # Fix path for default prop
+kpick 240750 # Squash of github/lineage-16.0(833395b9c)..lineage-16.0-android-9.0.0_r31(692d00646) (DO NOT SUBMIT)
 
 # system/extras
+kpick 240751 # Squash of github/lineage-16.0(de1599f6)..lineage-16.0-android-9.0.0_r31(9d970b8a) (DO NOT SUBMIT)
 
 # system/extras/su
 kpick 232428 # su: strlcpy is always a friend
@@ -1636,18 +1715,23 @@ kpick 232438 # su: Initialize windows size
 
 # system/netd
 kpick 232794 # NetD : Allow passing in interface names for vpn app restriction
+kpick 240752 # Squash of github/lineage-16.0(835321c)..lineage-16.0-android-9.0.0_r31(3b01f98) (DO NOT SUBMIT)
 
 # system/qcom
 
 # system/security
+kpick 240753 # Squash of github/lineage-16.0(6e46041)..lineage-16.0-android-9.0.0_r31(d88ade6) (DO NOT SUBMIT)
 
 # system/sepolicy
 kpick 240505 # Ignore newly added selinux objects
+kpick 240754 # Squash of github/lineage-16.0(05ab40a1)..lineage-16.0-android-9.0.0_r31(8e85f29f) (DO NOT SUBMIT)
 
 # system/timezone
 
 # system/tool/aidl
+# system/tools/aidl
 kpick 223133 # AIDL: Add option to generate No-Op methods
+
 
 # system/update/engine
 
@@ -1655,7 +1739,6 @@ kpick 223133 # AIDL: Add option to generate No-Op methods
 kpick 231717 # vold: Always use libbootloader_message from bootable/recovery namespace
 
 # vendor/lineage
-kpick 223773 # Add IPv6 for Oister and 3. The 3.dk and oister.dk carriers now support IPv6 with the APN ”data.tre.dk”.
 kpick 225921 # overlay: Update list of GSF/GMS activities
 kpick 225938 # roomservice: document the hell out of the current behavior of the script
 kpick 225939 # roomservice: non-depsonly: bootstrap first device repo from Hudson
@@ -1679,7 +1762,6 @@ kpick 239359 # extract_utils: template: make --section argument non-positional
 kpick 239360 # extract_utils: template: introduce kang mode
 kpick 239527 # extract_utils: template: add support for the dependency graph function
 kpick 237209 # lineage: Set default ringtone for second SIM
-kpick 237352 # qcom: Mark some gralloc bits as valid
 kpick 237830 # soong_config: Add BOOTLOADER_MESSAGE_OFFSET
 #kpick 240502 # Don't allow neverallows
 
@@ -1691,6 +1773,8 @@ kpick 237830 # soong_config: Add BOOTLOADER_MESSAGE_OFFSET
 
 #-----------------------
 # translations
+
+######## topic ##########
 
 ##################################
 echo

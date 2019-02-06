@@ -1,0 +1,200 @@
+From 1250893a72cad25f679f1ea61bd5a904f1a2b3da Mon Sep 17 00:00:00 2001
+From: Luca Stefani <luca.stefani.ge1@gmail.com>
+Date: Tue, 5 Feb 2019 09:43:28 +0100
+Subject: [PATCH] Squash of
+ github/lineage-16.0(162aee8)..lineage-16.0-android-9.0.0_r31(6609fb2) (DO NOT
+ SUBMIT)
+
+Amit Mahajan (7):
+ - Adding a LocalLog to debug SMS db wipe/recreation.
+ - Broadcast ACTION_SMS_MMS_DB_CREATED when mmssms.db is created.
+ - Revert "Broadcast ACTION_SMS_MMS_DB_CREATED when mmssms.db is
+   created."
+ - Revert "Send a protected intent ACTION_MMSSMS_DATABASE_LOST upon
+   mmssms.db corruption or loss"
+ - Revert "Adding a LocalLog to debug SMS db wipe/recreation."
+ - Broadcast ACTION_SMS_MMS_DB_CREATED when mmssms.db is created.
+ - Send protected intent ACTION_SMS_MMS_DB_LOST on mmssms.db corruption
+   or lost mysteriously
+
+Bill Yi (1):
+ - Import translations. DO NOT MERGE
+
+Jayachandran C (1):
+ - Send a protected intent ACTION_MMSSMS_DATABASE_LOST upon mmssms.db
+   corruption or loss
+
+Jayachandran Chinnakkannu (1):
+ - Merge "Send protected intent ACTION_SMS_MMS_DB_LOST on mmssms.db
+   corruption or lost mysteriously" into pi-dev
+
+Luca Stefani (1):
+ - Merge tag 'android-9.0.0_r31' into lineage-16.0-android-9.0.0_r31
+
+Makoto Onuki (3):
+ - Don't use WAL in TelephonyProvider to work around b/113352727
+ - Revert "Don't use WAL in TelephonyProvider to work around
+   b/113352727"
+ - Merge "Revert "Don't use WAL in TelephonyProvider to work around
+   b/113352727"" into pi-dev
+
+android-build-team Robot (5):
+ - Snap for 5087486 from f51686d50201ef17ee0ee28808af659b8e916151 to
+   pi-qpr2-release
+ - Snap for 5101444 from 6ede52a1c1f4c892384db44b8d9844f22099a90c to
+   pi-qpr2-release
+ - Snap for 5115288 from 8ffe6cafff00a5fa44ae05a341fe805309551cb5 to
+   pi-qpr2-release
+ - Snap for 5117340 from d50eddc7c9347134b9432747d0df1177ece21708 to
+   pi-qpr2-release
+ - Snap for 5130385 from ad6bab2e579b0a52c203d7ad7541c3827945f854 to
+   pi-qpr2-release
+
+Change-Id: Ide2ee2e249c0f2855660820e54964300cdd01167
+
+Change-Id: I8a15eb9795400ee694766e49278768c795c0ba86
+---
+ res/values-ar/strings.xml                     |  2 +-
+ .../telephony/MmsSmsDatabaseHelper.java       | 57 ++++++++++++++++---
+ 2 files changed, 51 insertions(+), 8 deletions(-)
+
+diff --git a/res/values-ar/strings.xml b/res/values-ar/strings.xml
+index 1c53b15..309a57b 100644
+--- a/res/values-ar/strings.xml
++++ b/res/values-ar/strings.xml
+@@ -17,5 +17,5 @@
+ <resources xmlns:android="http://schemas.android.com/apk/res/android"
+     xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+     <string name="app_label" product="tablet" msgid="9194799012395299737">"تهيئة شبكة الجوال"</string>
+-    <string name="app_label" product="default" msgid="8338087656149558019">"سعة تخزينية للهاتف والرسائل"</string>
++    <string name="app_label" product="default" msgid="8338087656149558019">"مساحة تخزين للهاتف والرسائل"</string>
+ </resources>
+diff --git a/src/com/android/providers/telephony/MmsSmsDatabaseHelper.java b/src/com/android/providers/telephony/MmsSmsDatabaseHelper.java
+index 8b93fd0..738963e 100644
+--- a/src/com/android/providers/telephony/MmsSmsDatabaseHelper.java
++++ b/src/com/android/providers/telephony/MmsSmsDatabaseHelper.java
+@@ -23,6 +23,8 @@ import android.content.Intent;
+ import android.content.IntentFilter;
+ import android.content.SharedPreferences;
+ import android.database.Cursor;
++import android.database.DatabaseErrorHandler;
++import android.database.DefaultDatabaseErrorHandler;
+ import android.database.sqlite.SQLiteDatabase;
+ import android.database.sqlite.SQLiteException;
+ import android.database.sqlite.SQLiteOpenHelper;
+@@ -239,6 +241,7 @@ public class MmsSmsDatabaseHelper extends SQLiteOpenHelper {
+ 
+     private static MmsSmsDatabaseHelper sDeInstance = null;
+     private static MmsSmsDatabaseHelper sCeInstance = null;
++    private static MmsSmsDatabaseErrorHandler sDbErrorHandler = null;
+ 
+     private static final String[] BIND_ARGS_NONE = new String[0];
+ 
+@@ -258,8 +261,31 @@ public class MmsSmsDatabaseHelper extends SQLiteOpenHelper {
+     // cache for INITIAL_CREATE_DONE shared pref so access to it can be avoided when possible
+     private static AtomicBoolean sInitialCreateDone = new AtomicBoolean(false);
+ 
+-    private MmsSmsDatabaseHelper(Context context) {
+-        super(context, DATABASE_NAME, null, DATABASE_VERSION);
++    /**
++     * The primary purpose of this DatabaseErrorHandler is to broadcast an intent on corruption and
++     * print a Slog.wtf so database corruption can be caught earlier.
++     */
++    private static class MmsSmsDatabaseErrorHandler implements DatabaseErrorHandler {
++        private DefaultDatabaseErrorHandler mDefaultDatabaseErrorHandler
++                = new DefaultDatabaseErrorHandler();
++        private Context mContext;
++
++        MmsSmsDatabaseErrorHandler(Context context) {
++            mContext = context;
++        }
++
++        @Override
++        public void onCorruption(SQLiteDatabase dbObj) {
++            String logMsg = "Corruption reported by sqlite on database: " + dbObj.getPath();
++            localLogWtf(logMsg);
++            sendDbLostIntent(mContext, true);
++            // Let the default error handler take other actions
++            mDefaultDatabaseErrorHandler.onCorruption(dbObj);
++        }
++    }
++
++    private MmsSmsDatabaseHelper(Context context, MmsSmsDatabaseErrorHandler dbErrorHandler) {
++        super(context, DATABASE_NAME, null, DATABASE_VERSION, dbErrorHandler);
+         mContext = context;
+         // Memory optimization - close idle connections after 30s of inactivity
+         setIdleConnectionTimeout(IDLE_CONNECTION_TIMEOUT_MS);
+@@ -270,12 +296,27 @@ public class MmsSmsDatabaseHelper extends SQLiteOpenHelper {
+         }
+     }
+ 
++    private static synchronized MmsSmsDatabaseErrorHandler getDbErrorHandler(Context context) {
++        if (sDbErrorHandler == null) {
++            sDbErrorHandler = new MmsSmsDatabaseErrorHandler(context);
++        }
++        return sDbErrorHandler;
++    }
++
++    private static void sendDbLostIntent(Context context, boolean isCorrupted) {
++        // Broadcast ACTION_SMS_MMS_DB_LOST
++        Intent intent = new Intent(Sms.Intents.ACTION_SMS_MMS_DB_LOST);
++        intent.putExtra(Sms.Intents.EXTRA_IS_CORRUPTED, isCorrupted);
++        intent.addFlags(Intent.FLAG_RECEIVER_INCLUDE_BACKGROUND);
++        context.sendBroadcast(intent, android.Manifest.permission.READ_PRIVILEGED_PHONE_STATE);
++    }
+     /**
+      * Returns a singleton helper for the combined MMS and SMS database in device encrypted storage.
+      */
+     /* package */ static synchronized MmsSmsDatabaseHelper getInstanceForDe(Context context) {
+         if (sDeInstance == null) {
+-            sDeInstance = new MmsSmsDatabaseHelper(ProviderUtil.getDeviceEncryptedContext(context));
++            Context deContext = ProviderUtil.getDeviceEncryptedContext(context);
++            sDeInstance = new MmsSmsDatabaseHelper(deContext, getDbErrorHandler(deContext));
+         }
+         return sDeInstance;
+     }
+@@ -287,8 +328,8 @@ public class MmsSmsDatabaseHelper extends SQLiteOpenHelper {
+     /* package */ static synchronized MmsSmsDatabaseHelper getInstanceForCe(Context context) {
+         if (sCeInstance == null) {
+             if (StorageManager.isFileEncryptedNativeOrEmulated()) {
+-                sCeInstance = new MmsSmsDatabaseHelper(
+-                    ProviderUtil.getCredentialEncryptedContext(context));
++                Context ceContext = ProviderUtil.getCredentialEncryptedContext(context);
++                sCeInstance = new MmsSmsDatabaseHelper(ceContext, getDbErrorHandler(ceContext));
+             } else {
+                 sCeInstance = getInstanceForDe(context);
+             }
+@@ -493,6 +534,7 @@ public class MmsSmsDatabaseHelper extends SQLiteOpenHelper {
+                 // disappeared mysteriously?
+                 localLogWtf("onCreate: was already called once earlier");
+                 intent.putExtra(Intents.EXTRA_IS_INITIAL_CREATE, false);
++                sendDbLostIntent(mContext, false);
+             } else {
+                 setInitialCreateDone();
+                 intent.putExtra(Intents.EXTRA_IS_INITIAL_CREATE, true);
+@@ -509,12 +551,12 @@ public class MmsSmsDatabaseHelper extends SQLiteOpenHelper {
+         createIndices(db);
+     }
+ 
+-    private void localLog(String logMsg) {
++    private static void localLog(String logMsg) {
+         Log.d(TAG, logMsg);
+         PhoneFactory.localLog(TAG, logMsg);
+     }
+ 
+-    private void localLogWtf(String logMsg) {
++    private static void localLogWtf(String logMsg) {
+         Slog.wtf(TAG, logMsg);
+         PhoneFactory.localLog(TAG, logMsg);
+     }
+@@ -1065,6 +1107,7 @@ public class MmsSmsDatabaseHelper extends SQLiteOpenHelper {
+ 
+         if (threadsOnly)
+             return;
++
+         /**
+          * This table stores the queue of messages to be sent/downloaded.
+          */
+-- 
+2.17.1
+

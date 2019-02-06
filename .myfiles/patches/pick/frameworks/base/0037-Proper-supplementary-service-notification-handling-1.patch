@@ -1,0 +1,150 @@
+From 884a0e88d988f363563b240f672c74e7517c3ba9 Mon Sep 17 00:00:00 2001
+From: Danny Baumann <dannybaumann@web.de>
+Date: Tue, 5 Feb 2019 13:34:53 +0100
+Subject: [PATCH 37/43] Proper supplementary service notification handling
+ (1/5).
+
+Change-Id: I4fa94d4ba68a1570d3f822be569ae124882c0e66
+---
+ telecomm/java/android/telecom/Call.java       | 20 +++++++++-
+ telecomm/java/android/telecom/Conference.java |  4 +-
+ telecomm/java/android/telecom/Connection.java | 38 ++++++++++++++++++-
+ .../android/telecom/ConnectionService.java    |  2 +-
+ 4 files changed, 60 insertions(+), 4 deletions(-)
+
+diff --git a/telecomm/java/android/telecom/Call.java b/telecomm/java/android/telecom/Call.java
+index 1c0e260bef5..0e747a31d58 100644
+--- a/telecomm/java/android/telecom/Call.java
++++ b/telecomm/java/android/telecom/Call.java
+@@ -432,8 +432,20 @@ public final class Call {
+          */
+         public static final int PROPERTY_RTT = 0x00000400;
+ 
++        /**
++         * Whether the call was forwarded from another party (GSM only)
++         * @hide
++         */
++        public static final int PROPERTY_WAS_FORWARDED = 0x00000800;
++
++        /**
++         * Whether incoming calls are barred at the remote side
++         * @hide
++         */
++        public static final int PROPERTY_REMOTE_INCOMING_CALLS_BARRED = 0x0001000;
++
+         //******************************************************************************************
+-        // Next PROPERTY value: 0x00000800
++        // Next PROPERTY value: 0x00002000
+         //******************************************************************************************
+ 
+         private final String mTelecomCallId;
+@@ -599,6 +611,12 @@ public final class Call {
+             if(hasProperty(properties, PROPERTY_ASSISTED_DIALING_USED)) {
+                 builder.append(" PROPERTY_ASSISTED_DIALING_USED");
+             }
++            if (hasProperty(properties, PROPERTY_WAS_FORWARDED)) {
++                builder.append(" PROPERTY_WAS_FORWARDED");
++            }
++            if (hasProperty(properties, PROPERTY_REMOTE_INCOMING_CALLS_BARRED)) {
++                builder.append(" PROPERTY_REMOTE_INCOMING_CALLS_BARRED");
++            }
+             builder.append("]");
+             return builder.toString();
+         }
+diff --git a/telecomm/java/android/telecom/Conference.java b/telecomm/java/android/telecom/Conference.java
+index 024bd303304..a4b78c6d664 100644
+--- a/telecomm/java/android/telecom/Conference.java
++++ b/telecomm/java/android/telecom/Conference.java
+@@ -692,9 +692,11 @@ public abstract class Conference extends Conferenceable {
+     @Override
+     public String toString() {
+         return String.format(Locale.US,
+-                "[State: %s,Capabilites: %s, VideoState: %s, VideoProvider: %s, ThisObject %s]",
++                "[State: %s,Capabilites: %s, Properties: %s, " +
++                "VideoState: %s, VideoProvider: %s, ThisObject %s]",
+                 Connection.stateToString(mState),
+                 Call.Details.capabilitiesToString(mConnectionCapabilities),
++                Call.Details.propertiesToString(mConnectionProperties),
+                 getVideoState(),
+                 getVideoProvider(),
+                 super.toString());
+diff --git a/telecomm/java/android/telecom/Connection.java b/telecomm/java/android/telecom/Connection.java
+index 468c8fa9e30..c5a9c851da6 100644
+--- a/telecomm/java/android/telecom/Connection.java
++++ b/telecomm/java/android/telecom/Connection.java
+@@ -411,8 +411,20 @@ public abstract class Connection extends Conferenceable {
+      */
+     public static final int PROPERTY_ASSISTED_DIALING_USED = 1 << 9;
+ 
++    /**
++     * Whether the call was forwarded from another party (GSM only)
++     * @hide
++     */
++    public static final int PROPERTY_WAS_FORWARDED = 1 << 10;
++
++    /**
++     * Whether incoming calls are barred at the remote side
++     * @hide
++     */
++    public static final int PROPERTY_REMOTE_INCOMING_CALLS_BARRED = 1 << 11;
++
+     //**********************************************************************************************
+-    // Next PROPERTY value: 1<<10
++    // Next PROPERTY value: 1<<12
+     //**********************************************************************************************
+ 
+     /**
+@@ -579,6 +591,22 @@ public abstract class Connection extends Conferenceable {
+     public static final String EVENT_CALL_REMOTELY_UNHELD =
+             "android.telecom.event.CALL_REMOTELY_UNHELD";
+ 
++    /**
++     * Connection event used to inform {@link InCallService} when the dialing state
++     * is waiting for the busy remote side.
++     * @hide
++     */
++    public static final String EVENT_DIALING_IS_WAITING =
++            "android.telecom.event.DIALING_IS_WAITING";
++
++    /**
++     * Connection event used to inform {@link InCallService} Whether an additional call came in
++     * and was forwarded while the call was active.
++     * @hide
++     */
++    public static final String EVENT_ADDITIONAL_CALL_FORWARDED =
++            "android.telecom.event.ADDITIONAL_CALL_FORWARDED";
++
+     /**
+      * Connection event used to inform an {@link InCallService} which initiated a call handover via
+      * {@link Call#EVENT_REQUEST_HANDOVER} that the handover from this {@link Connection} has
+@@ -800,6 +828,14 @@ public abstract class Connection extends Conferenceable {
+             builder.append(isLong ? " PROPERTY_IS_RTT" : " rtt");
+         }
+ 
++        if (can(properties, PROPERTY_WAS_FORWARDED)) {
++            builder.append(isLong ? " PROPERTY_WAS_FORWARDED" : " forw");
++        }
++
++        if (can(properties, PROPERTY_REMOTE_INCOMING_CALLS_BARRED)) {
++            builder.append(isLong ? " PROPERTY_REMOTE_INCOMING_CALLS_BARRED" : " inc_barr");
++        }
++
+         builder.append("]");
+         return builder.toString();
+     }
+diff --git a/telecomm/java/android/telecom/ConnectionService.java b/telecomm/java/android/telecom/ConnectionService.java
+index e39c0032ed3..acdb16d1e24 100644
+--- a/telecomm/java/android/telecom/ConnectionService.java
++++ b/telecomm/java/android/telecom/ConnectionService.java
+@@ -1211,7 +1211,7 @@ public abstract class ConnectionService extends Service {
+                 Conference conference,
+                 int connectionProperties) {
+             String id = mIdByConference.get(conference);
+-            Log.d(this, "call capabilities: conference: %s",
++            Log.d(this, "call properties: conference: %s",
+                     Connection.propertiesToString(connectionProperties));
+             mAdapter.setConnectionProperties(id, connectionProperties);
+         }
+-- 
+2.17.1
+

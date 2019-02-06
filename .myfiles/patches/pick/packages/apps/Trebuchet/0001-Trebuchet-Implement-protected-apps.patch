@@ -1,7 +1,7 @@
-From c9dd10128389c8457d0e574a707d6a512f219f73 Mon Sep 17 00:00:00 2001
+From 13e919f1be9e2204f85a7102581d7d232085c633 Mon Sep 17 00:00:00 2001
 From: Luca Stefani <luca.stefani.ge1@gmail.com>
 Date: Sun, 27 Jan 2019 15:19:27 +0100
-Subject: [PATCH 1/3] Trebuchet: Implement protected apps
+Subject: [PATCH 1/2] Trebuchet: Implement protected apps
 
 Signed-off-by: Luca Stefani <luca.stefani.ge1@gmail.com>
 Change-Id: Ide8f96ce360916fab44305c5f4a7c29ee31c179b
@@ -26,13 +26,13 @@ Change-Id: Ide8f96ce360916fab44305c5f4a7c29ee31c179b
  .../hidden/db/HiddenDatabaseHelper.java       | 119 -----------
  .../{hidden => trust}/HiddenAppsFilter.java   |   8 +-
  .../LoadTrustComponentsTask.java}             |  29 +--
- .../TrustAppsActivity.java}                   |  93 +++++++--
+ .../TrustAppsActivity.java}                   |  84 ++++++--
  .../TrustAppsAdapter.java}                    |  82 ++++++--
  .../lineage/trust/UpdateItemTask.java         |  76 +++++++
  .../db/TrustComponent.java}                   |  37 +++-
  .../lineage/trust/db/TrustDatabaseHelper.java | 197 ++++++++++++++++++
  .../launcher3/touch/ItemClickHandler.java     |  11 +-
- 26 files changed, 794 insertions(+), 273 deletions(-)
+ 26 files changed, 787 insertions(+), 271 deletions(-)
  create mode 100644 res/drawable/avd_protected_lock.xml
  create mode 100644 res/drawable/avd_protected_unlock.xml
  create mode 100644 res/drawable/ic_help.xml
@@ -44,7 +44,7 @@ Change-Id: Ide8f96ce360916fab44305c5f4a7c29ee31c179b
  delete mode 100644 src/com/android/launcher3/lineage/hidden/db/HiddenDatabaseHelper.java
  rename src/com/android/launcher3/lineage/{hidden => trust}/HiddenAppsFilter.java (83%)
  rename src/com/android/launcher3/lineage/{hidden/LoadHiddenComponentsTask.java => trust/LoadTrustComponentsTask.java} (72%)
- rename src/com/android/launcher3/lineage/{hidden/HiddenAppsActivity.java => trust/TrustAppsActivity.java} (56%)
+ rename src/com/android/launcher3/lineage/{hidden/HiddenAppsActivity.java => trust/TrustAppsActivity.java} (59%)
  rename src/com/android/launcher3/lineage/{hidden/HiddenAppsAdapter.java => trust/TrustAppsAdapter.java} (57%)
  create mode 100644 src/com/android/launcher3/lineage/trust/UpdateItemTask.java
  rename src/com/android/launcher3/lineage/{hidden/db/HiddenComponent.java => trust/db/TrustComponent.java} (66%)
@@ -303,7 +303,7 @@ index be3fc7333..b1781bf26 100644
 \ No newline at end of file
 diff --git a/res/layout/dialog_trust_welcome.xml b/res/layout/dialog_trust_welcome.xml
 new file mode 100644
-index 000000000..d3483dc96
+index 000000000..e953d56e0
 --- /dev/null
 +++ b/res/layout/dialog_trust_welcome.xml
 @@ -0,0 +1,61 @@
@@ -324,29 +324,9 @@ index 000000000..d3483dc96
 +-->
 +<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
 +    android:layout_width="match_parent"
-+    android:baselineAligned="false"
 +    android:layout_height="match_parent"
-+    android:orientation="horizontal">
-+
-+    <LinearLayout
-+        android:layout_width="0dp"
-+        android:layout_height="wrap_content"
-+        android:layout_weight="1"
-+        android:gravity="center_horizontal"
-+        android:orientation="vertical">
-+
-+        <ImageView
-+            android:layout_width="64dp"
-+            android:layout_height="64dp"
-+            android:src="@drawable/ic_hidden_locked" />
-+
-+        <TextView
-+            android:layout_width="match_parent"
-+            android:layout_height="wrap_content"
-+            android:layout_margin="8dp"
-+            android:text="@string/trust_apps_info_hidden"
-+            android:textAlignment="center" />
-+    </LinearLayout>
++    android:orientation="horizontal"
++    android:padding="16dp">
 +
 +    <LinearLayout
 +        android:layout_width="0dp"
@@ -365,6 +345,26 @@ index 000000000..d3483dc96
 +            android:layout_height="wrap_content"
 +            android:layout_margin="8dp"
 +            android:text="@string/trust_apps_info_protected"
++            android:textAlignment="center" />
++    </LinearLayout>
++
++    <LinearLayout
++        android:layout_width="0dp"
++        android:layout_height="wrap_content"
++        android:layout_weight="1"
++        android:gravity="center_horizontal"
++        android:orientation="vertical">
++
++        <ImageView
++            android:layout_width="64dp"
++            android:layout_height="64dp"
++            android:src="@drawable/ic_hidden_locked" />
++
++        <TextView
++            android:layout_width="match_parent"
++            android:layout_height="wrap_content"
++            android:layout_margin="8dp"
++            android:text="@string/trust_apps_info_hidden"
 +            android:textAlignment="center" />
 +    </LinearLayout>
 +</LinearLayout>
@@ -900,20 +900,19 @@ index 4636cebd7..f7d83a5b5 100644
      }
  }
 diff --git a/src/com/android/launcher3/lineage/hidden/HiddenAppsActivity.java b/src/com/android/launcher3/lineage/trust/TrustAppsActivity.java
-similarity index 56%
+similarity index 59%
 rename from src/com/android/launcher3/lineage/hidden/HiddenAppsActivity.java
 rename to src/com/android/launcher3/lineage/trust/TrustAppsActivity.java
-index bd7056417..863291d70 100644
+index bd7056417..95836f254 100644
 --- a/src/com/android/launcher3/lineage/hidden/HiddenAppsActivity.java
 +++ b/src/com/android/launcher3/lineage/trust/TrustAppsActivity.java
-@@ -13,20 +13,27 @@
+@@ -13,13 +13,15 @@
   * See the License for the specific language governing permissions and
   * limitations under the License.
   */
 -package com.android.launcher3.lineage.hidden;
 +package com.android.launcher3.lineage.trust;
  
-+import android.annotation.SuppressLint;
  import android.app.ActionBar;
  import android.app.Activity;
 +import android.app.AlertDialog;
@@ -923,19 +922,17 @@ index bd7056417..863291d70 100644
 +import android.content.SharedPreferences;
  import android.os.Build;
  import android.os.Bundle;
-+import android.preference.PreferenceManager;
  import android.support.annotation.NonNull;
- import android.support.annotation.Nullable;
+@@ -27,6 +29,8 @@ import android.support.annotation.Nullable;
  import android.support.v7.widget.DefaultItemAnimator;
  import android.support.v7.widget.LinearLayoutManager;
  import android.support.v7.widget.RecyclerView;
-+import android.view.LayoutInflater;
 +import android.view.Menu;
 +import android.view.MenuInflater;
  import android.view.MenuItem;
  import android.view.View;
  import android.widget.LinearLayout;
-@@ -35,23 +42,28 @@ import android.widget.Toast;
+@@ -35,23 +39,29 @@ import android.widget.Toast;
  
  import com.android.launcher3.LauncherAppState;
  import com.android.launcher3.R;
@@ -958,6 +955,7 @@ index bd7056417..863291d70 100644
 +        TrustAppsAdapter.Listener,
 +        LoadTrustComponentsTask.Callback,
 +        UpdateItemTask.UpdateCallback {
++
      private static final int REQUEST_AUTH_CODE = 92;
 +    private static final String KEY_TRUST_ONBOARDING = "pref_trust_onboarding";
  
@@ -972,7 +970,7 @@ index bd7056417..863291d70 100644
  
      @Override
      protected void onCreate(@Nullable Bundle savedInstance) {
-@@ -67,8 +79,8 @@ public class HiddenAppsActivity extends Activity implements
+@@ -67,8 +77,8 @@ public class HiddenAppsActivity extends Activity implements
          mLoadingView = findViewById(R.id.hidden_apps_loading);
          mProgressBar = findViewById(R.id.hidden_apps_progress_bar);
  
@@ -983,32 +981,29 @@ index bd7056417..863291d70 100644
  
          mRecyclerView.setLayoutManager(new LinearLayoutManager(this));
          mRecyclerView.setItemAnimator(new DefaultItemAnimator());
-@@ -90,19 +102,36 @@ public class HiddenAppsActivity extends Activity implements
+@@ -90,19 +100,35 @@ public class HiddenAppsActivity extends Activity implements
          }
      }
  
 +    @Override
 +    public boolean onCreateOptionsMenu(Menu menu) {
-+        MenuInflater findMenuItems = getMenuInflater();
-+        findMenuItems.inflate(R.menu.menu_trust_apps, menu);
++        MenuInflater menuInflater = getMenuInflater();
++        menuInflater.inflate(R.menu.menu_trust_apps, menu);
 +        return super.onCreateOptionsMenu(menu);
 +    }
-+
 +
      @Override
      public boolean onOptionsItemSelected(MenuItem item) {
 -        if (item.getItemId() == android.R.id.home) {
--            finish();
--            return true;
-+        switch (item.getItemId()) {
-+            case android.R.id.home:
-+                finish();
-+                return true;
-+            case R.id.menu_trust_help:
-+                showOnBoarding(true);
-+                return true;
-+            default:
-+                return super.onOptionsItemSelected(item);
++        int id = item.getItemId();
++        if (id == android.R.id.home) {
+             finish();
+             return true;
++        } else if (id == R.id.menu_trust_help) {
++            showOnBoarding(true);
++            return true;
++        } else {
++            return super.onOptionsItemSelected(item);
          }
 +    }
  
@@ -1026,7 +1021,7 @@ index bd7056417..863291d70 100644
      }
  
      @Override
-@@ -119,7 +148,7 @@ public class HiddenAppsActivity extends Activity implements
+@@ -119,7 +145,7 @@ public class HiddenAppsActivity extends Activity implements
      }
  
      @Override
@@ -1035,7 +1030,7 @@ index bd7056417..863291d70 100644
          mLoadingView.setVisibility(View.GONE);
          mRecyclerView.setVisibility(View.VISIBLE);
          mAdapter.update(result);
-@@ -133,8 +162,8 @@ public class HiddenAppsActivity extends Activity implements
+@@ -133,8 +159,8 @@ public class HiddenAppsActivity extends Activity implements
              throw new NullPointerException("No KeyguardManager found!");
          }
  
@@ -1046,7 +1041,7 @@ index bd7056417..863291d70 100644
          Intent intent = manager.createConfirmDeviceCredentialIntent(title, message);
  
          if (intent != null) {
-@@ -142,7 +171,7 @@ public class HiddenAppsActivity extends Activity implements
+@@ -142,7 +168,7 @@ public class HiddenAppsActivity extends Activity implements
              return;
          }
  
@@ -1055,7 +1050,7 @@ index bd7056417..863291d70 100644
                  Toast.LENGTH_LONG).show();
          finish();
      }
-@@ -150,6 +179,26 @@ public class HiddenAppsActivity extends Activity implements
+@@ -150,6 +176,24 @@ public class HiddenAppsActivity extends Activity implements
      private void showUi() {
          mLoadingView.setVisibility(View.VISIBLE);
  
@@ -1075,10 +1070,8 @@ index bd7056417..863291d70 100644
 +                .putBoolean(KEY_TRUST_ONBOARDING, true)
 +                .apply();
 +
-+        @SuppressLint("InflateParams")
-+        View dialogView = getLayoutInflater().inflate(R.layout.dialog_trust_welcome, null,false);
 +        new AlertDialog.Builder(this)
-+                .setView(dialogView)
++                .setView(R.layout.dialog_trust_welcome)
 +                .setPositiveButton(android.R.string.ok, null)
 +                .show();
      }
