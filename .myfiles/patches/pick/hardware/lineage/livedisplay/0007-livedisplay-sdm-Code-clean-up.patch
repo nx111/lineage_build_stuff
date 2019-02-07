@@ -1,0 +1,443 @@
+From 59fd728bcf5d99315fb542cadbcc77f291eb502c Mon Sep 17 00:00:00 2001
+From: dianlujitao <dianlujitao@lineageos.org>
+Date: Mon, 4 Feb 2019 10:36:39 +0800
+Subject: [PATCH 7/8] livedisplay: sdm: Code clean up
+
+ * Replace defines with enums and constexpr
+ * Move private constants and structs to internal anonymous namespace
+ * Move feature version check to utils class
+ * Avoid unnecessary manual new / delete by declaring on the stack where
+   possible
+ * Remove unused header inclusions
+
+Change-Id: I7777c277d251a4108b61b9b3ad6ea6068c100ac9
+---
+ sdm/AdaptiveBacklight.cpp | 27 ++++++++------------
+ sdm/AdaptiveBacklight.h   |  4 +--
+ sdm/DisplayModes.cpp      | 41 +++++++++++++----------------
+ sdm/PictureAdjustment.cpp | 54 +++++++++++++++++++++++++++++----------
+ sdm/PictureAdjustment.h   |  1 -
+ sdm/Types.h               | 53 +++++++-------------------------------
+ sdm/Utils.cpp             | 29 ++++++++++++++++-----
+ sdm/Utils.h               |  5 +++-
+ 8 files changed, 107 insertions(+), 107 deletions(-)
+
+diff --git a/sdm/AdaptiveBacklight.cpp b/sdm/AdaptiveBacklight.cpp
+index 7d9c8b3..13b47e9 100644
+--- a/sdm/AdaptiveBacklight.cpp
++++ b/sdm/AdaptiveBacklight.cpp
+@@ -14,16 +14,18 @@
+  * limitations under the License.
+  */
+ 
+-#include <stdio.h>
+-#include <string.h>
+-
+ #include <android-base/properties.h>
+ 
+ #include "AdaptiveBacklight.h"
+-#include "Constants.h"
+-#include "Types.h"
+ #include "Utils.h"
+ 
++namespace {
++constexpr const size_t kDppsBufSize = 64;
++constexpr const char kFossOn[] = "foss:on";
++constexpr const char kFossOff[] = "foss:off";
++constexpr const char kFossProperty[] = "ro.vendor.display.foss";
++}  // anonymous namespace
++
+ namespace vendor {
+ namespace lineage {
+ namespace livedisplay {
+@@ -32,12 +34,8 @@ namespace sdm {
+ 
+ using ::android::base::GetBoolProperty;
+ 
+-AdaptiveBacklight::AdaptiveBacklight() {
+-    mEnabled = false;
+-}
+-
+ bool AdaptiveBacklight::isSupported() {
+-    return GetBoolProperty(FOSS_PROPERTY, false);
++    return GetBoolProperty(kFossProperty, false);
+ }
+ 
+ // Methods from ::vendor::lineage::livedisplay::V2_0::IAdaptiveBacklight follow.
+@@ -50,18 +48,15 @@ Return<bool> AdaptiveBacklight::setEnabled(bool enabled) {
+         return true;
+     }
+ 
+-    char* buf = new char[DPPS_BUF_SIZE];
+-
+-    sprintf(buf, "%s", enabled ? FOSS_ON : FOSS_OFF);
+-    if (Utils::sendDPPSCommand(buf, DPPS_BUF_SIZE) == 0) {
++    char buf[kDppsBufSize];
++    sprintf(buf, "%s", enabled ? kFossOn : kFossOff);
++    if (Utils::sendDPPSCommand(buf, kDppsBufSize) == 0) {
+         if (strncmp(buf, "Success", 7) == 0) {
+             mEnabled = enabled;
+-            delete[] buf;
+             return true;
+         }
+     }
+ 
+-    delete[] buf;
+     return false;
+ }
+ 
+diff --git a/sdm/AdaptiveBacklight.h b/sdm/AdaptiveBacklight.h
+index 006cefa..c7ea0f3 100644
+--- a/sdm/AdaptiveBacklight.h
++++ b/sdm/AdaptiveBacklight.h
+@@ -29,8 +29,6 @@ using ::android::hardware::Return;
+ 
+ class AdaptiveBacklight : public IAdaptiveBacklight {
+    public:
+-    AdaptiveBacklight();
+-
+     bool isSupported();
+ 
+     // Methods from ::vendor::lineage::livedisplay::V2_0::IAdaptiveBacklight follow.
+@@ -38,7 +36,7 @@ class AdaptiveBacklight : public IAdaptiveBacklight {
+     Return<bool> setEnabled(bool enabled) override;
+ 
+    private:
+-    bool mEnabled;
++    bool mEnabled = false;
+ };
+ 
+ }  // namespace sdm
+diff --git a/sdm/DisplayModes.cpp b/sdm/DisplayModes.cpp
+index 0b90276..6b83d9d 100644
+--- a/sdm/DisplayModes.cpp
++++ b/sdm/DisplayModes.cpp
+@@ -14,14 +14,25 @@
+  * limitations under the License.
+  */
+ 
+-#include <dlfcn.h>
+-
+ #include <fstream>
+-
+-#include "Constants.h"
+ #include "DisplayModes.h"
+ #include "PictureAdjustment.h"
+-#include "Types.h"
++#include "Utils.h"
++
++namespace {
++struct sdm_disp_mode {
++    int32_t id;
++    int32_t type;
++    int32_t len;
++    char* name;
++    sdm_disp_mode() : id(-1), type(0), len(128) {
++        name = new char[128];
++    }
++    ~sdm_disp_mode() {
++        delete name;
++    }
++};
++}  // anonymous namespace
+ 
+ namespace vendor {
+ namespace lineage {
+@@ -40,7 +51,6 @@ DisplayModes::DisplayModes(std::shared_ptr<SDMController> controller, uint64_t c
+ }
+ 
+ bool DisplayModes::isSupported() {
+-    sdm_feature_version version{};
+     int32_t count = 0;
+     uint32_t flags = 0;
+     static int supported = -1;
+@@ -49,12 +59,7 @@ bool DisplayModes::isSupported() {
+         goto out;
+     }
+ 
+-    if (mController->get_feature_version(mCookie, DISPLAY_MODES_FEATURE, &version, &flags) != 0) {
+-        supported = 0;
+-        goto out;
+-    }
+-
+-    if (version.x <= 0 && version.y <= 0 && version.z <= 0) {
++    if (!Utils::checkFeatureVersion(mController.get(), mCookie, FEATURE_VER_SW_SAVEMODES_API)) {
+         supported = 0;
+         goto out;
+     }
+@@ -78,12 +83,7 @@ std::vector<DisplayMode> DisplayModes::getDisplayModesInternal() {
+         return modes;
+     }
+ 
+-    sdm_disp_mode* tmp = new sdm_disp_mode[count];
+-    for (int i = 0; i < count; i++) {
+-        tmp[i].id = -1;
+-        tmp[i].name = new char[128];
+-        tmp[i].len = 128;
+-    }
++    sdm_disp_mode tmp[count];
+ 
+     if (mController->get_display_modes(mCookie, 0, 0, tmp, count, &flags) == 0) {
+         for (int i = 0; i < count; i++) {
+@@ -91,11 +91,6 @@ std::vector<DisplayMode> DisplayModes::getDisplayModesInternal() {
+         }
+     }
+ 
+-    for (int i = 0; i < count; i++) {
+-        delete[] tmp[i].name;
+-    }
+-    delete[] tmp;
+-
+     return modes;
+ }
+ 
+diff --git a/sdm/PictureAdjustment.cpp b/sdm/PictureAdjustment.cpp
+index b754f50..203ce2e 100644
+--- a/sdm/PictureAdjustment.cpp
++++ b/sdm/PictureAdjustment.cpp
+@@ -14,11 +14,44 @@
+  * limitations under the License.
+  */
+ 
+-#include <dlfcn.h>
+-
+-#include "Constants.h"
+ #include "PictureAdjustment.h"
+-#include "Types.h"
++#include "Utils.h"
++
++namespace {
++struct hsic_data {
++    int32_t hue;
++    float saturation;
++    float intensity;
++    float contrast;
++    float saturationThreshold;
++};
++
++struct hsic_config {
++    uint32_t unused;
++    hsic_data data;
++};
++
++struct hsic_int_range {
++    int32_t max;
++    int32_t min;
++    uint32_t step;
++};
++
++struct hsic_float_range {
++    float max;
++    float min;
++    float step;
++};
++
++struct hsic_ranges {
++    uint32_t unused;
++    struct hsic_int_range hue;
++    struct hsic_float_range saturation;
++    struct hsic_float_range intensity;
++    struct hsic_float_range contrast;
++    struct hsic_float_range saturationThreshold;
++};
++}  // anonymous namespace
+ 
+ namespace vendor {
+ namespace lineage {
+@@ -26,6 +59,8 @@ namespace livedisplay {
+ namespace V2_0 {
+ namespace sdm {
+ 
++using ::android::sp;
++
+ static sp<PictureAdjustment> sInstance;
+ 
+ PictureAdjustment::PictureAdjustment(std::shared_ptr<SDMController> controller, uint64_t cookie)
+@@ -35,22 +70,14 @@ PictureAdjustment::PictureAdjustment(std::shared_ptr<SDMController> controller,
+ }
+ 
+ bool PictureAdjustment::isSupported() {
+-    sdm_feature_version version;
+     hsic_ranges r;
+-    uint32_t flags = 0;
+     static int supported = -1;
+ 
+     if (supported >= 0) {
+         goto out;
+     }
+ 
+-    if (mController->get_feature_version(mCookie, PICTURE_ADJUSTMENT_FEATURE, &version, &flags) !=
+-        0) {
+-        supported = 0;
+-        goto out;
+-    }
+-
+-    if (version.x <= 0 && version.y <= 0 && version.z <= 0) {
++    if (!Utils::checkFeatureVersion(mController.get(), mCookie, FEATURE_VER_SW_PA_API)) {
+         supported = 0;
+         goto out;
+     }
+@@ -63,6 +90,7 @@ bool PictureAdjustment::isSupported() {
+     supported = r.hue.max != 0 && r.hue.min != 0 && r.saturation.max != 0.f &&
+                 r.saturation.min != 0.f && r.intensity.max != 0.f && r.intensity.min != 0.f &&
+                 r.contrast.max != 0.f && r.contrast.min != 0.f;
++
+ out:
+     return supported;
+ }
+diff --git a/sdm/PictureAdjustment.h b/sdm/PictureAdjustment.h
+index c2e4902..3f029c2 100644
+--- a/sdm/PictureAdjustment.h
++++ b/sdm/PictureAdjustment.h
+@@ -27,7 +27,6 @@ namespace livedisplay {
+ namespace V2_0 {
+ namespace sdm {
+ 
+-using ::android::sp;
+ using ::android::hardware::Return;
+ using ::android::hardware::Void;
+ 
+diff --git a/sdm/Types.h b/sdm/Types.h
+index ad37e58..f1619d0 100644
+--- a/sdm/Types.h
++++ b/sdm/Types.h
+@@ -23,50 +23,15 @@ namespace livedisplay {
+ namespace V2_0 {
+ namespace sdm {
+ 
+-struct sdm_feature_version {
+-    uint8_t x, y;
+-    uint16_t z;
+-};
+-
+-struct sdm_disp_mode {
+-    int32_t id;
+-    int32_t type;
+-    int32_t len;
+-    char* name;
+-};
+-
+-struct hsic_data {
+-    int32_t hue;
+-    float saturation;
+-    float intensity;
+-    float contrast;
+-    float saturationThreshold;
+-};
+-
+-struct hsic_config {
+-    uint32_t unused;
+-    hsic_data data;
+-};
+-
+-struct hsic_int_range {
+-    int32_t max;
+-    int32_t min;
+-    uint32_t step;
+-};
+-
+-struct hsic_float_range {
+-    float max;
+-    float min;
+-    float step;
+-};
+-
+-struct hsic_ranges {
+-    uint32_t unused;
+-    struct hsic_int_range hue;
+-    struct hsic_float_range saturation;
+-    struct hsic_float_range intensity;
+-    struct hsic_float_range contrast;
+-    struct hsic_float_range saturationThreshold;
++enum feature_ver_sw {
++    FEATURE_VER_SW_API,
++    FEATURE_VER_SW_PA_API,
++    FEATURE_VER_SW_MEMCOLOR_API,
++    FEATURE_VER_SW_COLORBAL_API,
++    FEATURE_VER_SW_SAVEMODES_API,
++    FEATURE_VER_SW_ADAPT_BACKLIGHT_API,
++    FEATURE_VER_SW_SVI_API,
++    FEATURE_VER_SW_DISP_INFO_API
+ };
+ 
+ }  // namespace sdm
+diff --git a/sdm/Utils.cpp b/sdm/Utils.cpp
+index add3bdf..9e64d2c 100644
+--- a/sdm/Utils.cpp
++++ b/sdm/Utils.cpp
+@@ -15,19 +15,20 @@
+  * limitations under the License.
+  */
+ 
+-#include <errno.h>
+-#include <fcntl.h>
+ #include <poll.h>
+-#include <signal.h>
+-#include <stdio.h>
+-#include <sys/stat.h>
+ #include <unistd.h>
+-#include <string>
+ 
+ #include <cutils/sockets.h>
+ 
+ #include "Utils.h"
+ 
++namespace {
++struct sdm_feature_version {
++    uint8_t x, y;
++    uint16_t z;
++};
++}  // anonymous namespace
++
+ namespace vendor {
+ namespace lineage {
+ namespace livedisplay {
+@@ -66,6 +67,22 @@ int Utils::sendDPPSCommand(char* buf, size_t len) {
+     return rc;
+ }
+ 
++bool Utils::checkFeatureVersion(SDMController* controller, uint64_t cookie,
++                                feature_ver_sw feature) {
++    sdm_feature_version version;
++    uint32_t flags = 0;
++
++    if (controller->get_feature_version(cookie, feature, &version, &flags) != 0) {
++        return false;
++    }
++
++    if (version.x <= 0 && version.y <= 0 && version.z <= 0) {
++        return false;
++    }
++
++    return true;
++}
++
+ }  // namespace sdm
+ }  // namespace V2_0
+ }  // namespace livedisplay
+diff --git a/sdm/Utils.h b/sdm/Utils.h
+index 3624b87..49a4549 100644
+--- a/sdm/Utils.h
++++ b/sdm/Utils.h
+@@ -18,7 +18,8 @@
+ #ifndef VENDOR_LINEAGE_LIVEDISPLAY_V2_0_SDM_UTILS_H
+ #define VENDOR_LINEAGE_LIVEDISPLAY_V2_0_SDM_UTILS_H
+ 
+-#include <stdlib.h>
++#include "SDMController.h"
++#include "Types.h"
+ 
+ namespace vendor {
+ namespace lineage {
+@@ -29,6 +30,8 @@ namespace sdm {
+ class Utils {
+    public:
+     static int sendDPPSCommand(char* buf, size_t len);
++    static bool checkFeatureVersion(SDMController* controller, uint64_t cookie,
++                                    feature_ver_sw feature);
+ };
+ 
+ }  // namespace sdm
+-- 
+2.17.1
+

@@ -1,0 +1,92 @@
+From f1faed702bb0eb38a3a5c228dea2824f9ee62bea Mon Sep 17 00:00:00 2001
+From: Paul Keith <javelinanddart@gmail.com>
+Date: Wed, 6 Feb 2019 20:01:29 -0600
+Subject: [PATCH 2/8] livedisplay: sdm: Fix restoring default mode
+
+* It turns out that storing it in the backend isn't always(?) enough,
+  so store it in a file as we did in livedisplay@1.0 to fix this
+
+Change-Id: Ie2c0e9d496ad850104886cd59d82f78be2510db6
+---
+ sdm/Constants.h      |  8 ++++++++
+ sdm/DisplayModes.cpp | 28 +++++++++++++++++++++++++---
+ 2 files changed, 33 insertions(+), 3 deletions(-)
+
+diff --git a/sdm/Constants.h b/sdm/Constants.h
+index 132bd67..72981d0 100644
+--- a/sdm/Constants.h
++++ b/sdm/Constants.h
+@@ -33,6 +33,14 @@ namespace sdm {
+ #define DISPLAY_MODES_FEATURE 4
+ #define PICTURE_ADJUSTMENT_FEATURE 1
+ 
++#ifdef LIVES_IN_SYSTEM
++#define STORAGE_PATH "/data/display"
++#else
++#define STORAGE_PATH "/data/vendor/display"
++#endif
++
++#define DEFAULT_MODE_FILE "livedisplay_initial_mode"
++
+ }  // namespace sdm
+ }  // namespace V2_0
+ }  // namespace livedisplay
+diff --git a/sdm/DisplayModes.cpp b/sdm/DisplayModes.cpp
+index 632013d..4d68a8c 100644
+--- a/sdm/DisplayModes.cpp
++++ b/sdm/DisplayModes.cpp
+@@ -16,6 +16,8 @@
+ 
+ #include <dlfcn.h>
+ 
++#include <fstream>
++
+ #include "Constants.h"
+ #include "DisplayModes.h"
+ #include "PictureAdjustment.h"
+@@ -153,9 +155,17 @@ DisplayMode DisplayModes::getCurrentDisplayModeInternal() {
+ }
+ 
+ DisplayMode DisplayModes::getDefaultDisplayModeInternal() {
++    std::ifstream ifs(STORAGE_PATH "/" DEFAULT_MODE_FILE);
+     int32_t id = 0;
+     uint32_t flags = 0;
+ 
++    if (ifs.good()) {
++        ifs >> id;
++        if (!ifs.fail() && id >= 0) {
++            return getDisplayModeById(id);
++        }
++    }
++
+     if (disp_api_get_default_display_mode != nullptr) {
+         if (disp_api_get_default_display_mode(mCookie, 0, &id, &flags) == 0 && id >= 0) {
+             return getDisplayModeById(id);
+@@ -198,9 +208,21 @@ Return<bool> DisplayModes::setDisplayMode(int32_t modeID, bool makeDefault) {
+         return false;
+     }
+ 
+-    if (makeDefault && (disp_api_set_default_display_mode == nullptr ||
+-                        disp_api_set_default_display_mode(mCookie, 0, modeID, 0))) {
+-        return false;
++    if (makeDefault) {
++        std::ofstream ofs(STORAGE_PATH "/" DEFAULT_MODE_FILE,
++            std::ofstream::out | std::ofstream::trunc);
++
++        if (ofs.good()) {
++            ofs << modeID << std::endl;
++            if (ofs.fail()) {
++                return false;
++            }
++        }
++
++        if (disp_api_set_default_display_mode == nullptr ||
++            disp_api_set_default_display_mode(mCookie, 0, modeID, 0)) {
++            return false;
++        }
+     }
+ 
+     PictureAdjustment::updateDefaultPictureAdjustment();
+-- 
+2.17.1
+
