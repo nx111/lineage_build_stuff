@@ -1,0 +1,135 @@
+From 1ee994005539c427de777eca33db6d3d816a755c Mon Sep 17 00:00:00 2001
+From: Pavel Salomatov <salomatovpavel@gmail.com>
+Date: Mon, 4 Feb 2019 18:03:41 +0300
+Subject: [PATCH] idegen: Add functionality to set custom ipr file name
+
+The goal is to simplify work with different source sets in Android Studio.
+
+Usage: development/tools/idegen/idegen.sh <ipr_file_name>
+
+Change-Id: If67302e0886ac0bacd6af113f072c927df35d336
+---
+ tools/idegen/README                |  4 ++--
+ tools/idegen/idegen.sh             |  2 +-
+ tools/idegen/src/IntelliJ.java     | 34 ++++++++++++++++++++++++------
+ tools/idegen/src/Main.java         |  6 +++++-
+ tools/idegen/templates/android.ipr |  2 +-
+ 5 files changed, 36 insertions(+), 12 deletions(-)
+
+diff --git a/tools/idegen/README b/tools/idegen/README
+index d9444408e..2d37671f8 100644
+--- a/tools/idegen/README
++++ b/tools/idegen/README
+@@ -22,8 +22,8 @@ If you're using IntelliJ...
+         Repeat these steps after each sync...
+ 
+         1) make (to produce generated .java source)
+-        2) development/tools/idegen/idegen.sh
+-        3) Open android.ipr in IntelliJ. If you already have the project open,
++        2) development/tools/idegen/idegen.sh <ipr_file_name> (optional, android.ipr by default)
++        3) Open <ipr_file_name>.ipr in IntelliJ. If you already have the project open,
+            hit the sync button in IntelliJ, and it will automatically detect the
+            updated configuration.
+ 
+diff --git a/tools/idegen/idegen.sh b/tools/idegen/idegen.sh
+index a24fca58e..986358552 100755
+--- a/tools/idegen/idegen.sh
++++ b/tools/idegen/idegen.sh
+@@ -14,5 +14,5 @@ fi
+ if [ "" = "$idegenjar" ]; then
+     echo "Couldn't find idegen.jar. Please run make first."
+ else
+-    java -cp $idegenjar Main
++    java -cp $idegenjar Main $1
+ fi
+diff --git a/tools/idegen/src/IntelliJ.java b/tools/idegen/src/IntelliJ.java
+index aa051ae3a..ad35a5d49 100644
+--- a/tools/idegen/src/IntelliJ.java
++++ b/tools/idegen/src/IntelliJ.java
+@@ -23,18 +23,38 @@ import java.util.SortedSet;
+  */
+ public class IntelliJ {
+ 
+-    private static final String IDEA_IML = "android.iml";
+-    private static final String IDEA_IPR = "android.ipr";
++    private static final String IML_EXT = ".iml";
++    private static final String IPR_EXT = ".ipr";
++    private static final String DEFAULT_IDEA_IML = "android" + IML_EXT;
++    private static final String DEFAULT_IDEA_IPR = "android" + IPR_EXT;
+ 
+     /**
+      * Generates IntelliJ configuration files from the given configuration.
+      */
+-    public static void generateFrom(Configuration c) throws IOException {
++    public static void generateFrom(Configuration c, String targetName) throws IOException {
+         File templatesDirectory = new File(c.toolDirectory, "templates");
+-        String ipr = Files.toString(new File(templatesDirectory, IDEA_IPR));
+-        Files.toFile(ipr, new File(IDEA_IPR));
++        String ipr = Files.toString(new File(templatesDirectory, DEFAULT_IDEA_IPR));
++        String targetIprName;
++        String targetImlName;
++        if (targetName == null || targetName.length() == 0){
++            targetIprName = DEFAULT_IDEA_IPR;
++            targetImlName = DEFAULT_IDEA_IML;
++        } else {
++            targetIprName = targetName + IPR_EXT;
++            targetImlName = targetName + IML_EXT;
++        }
++
++        StringBuilder projectModulesXml = new StringBuilder();
++        projectModulesXml
++                .append("<module fileurl=\"file://$PROJECT_DIR$/").append(targetImlName)
++                .append("\" filepath=\"$PROJECT_DIR$/").append(targetImlName)
++                .append("\" />");
++
++        ipr = ipr.replace("PROJECT_MODULES", projectModulesXml.toString());
++
++        Files.toFile(ipr, new File(targetIprName));
+ 
+-        String iml = Files.toString(new File(templatesDirectory, IDEA_IML));
++        String iml = Files.toString(new File(templatesDirectory, DEFAULT_IDEA_IML));
+ 
+         StringBuilder sourceRootsXml = new StringBuilder();
+         for (File sourceRoot : c.sourceRoots) {
+@@ -86,7 +106,7 @@ public class IntelliJ {
+                 sourceRootsXml.toString() + excludeXml.toString());
+         iml = iml.replace("JAR_ENTRIES", jarsXml.toString());
+ 
+-        Files.toFile(iml, new File(IDEA_IML));
++        Files.toFile(iml, new File(targetImlName));
+     }
+ 
+     private static boolean isTests(File file) {
+diff --git a/tools/idegen/src/Main.java b/tools/idegen/src/Main.java
+index 294dbee17..142fd6669 100644
+--- a/tools/idegen/src/Main.java
++++ b/tools/idegen/src/Main.java
+@@ -35,7 +35,11 @@ public class Main {
+ 
+     public static void main(String[] args) throws Exception {
+         Configuration configuration = new Configuration();
+-        IntelliJ.generateFrom(configuration);
++        String targetName = null;
++        if (args != null && args.length > 0){
++            targetName = args[0];
++        }
++        IntelliJ.generateFrom(configuration, targetName);
+         Eclipse.generateFrom(configuration);
+     }
+ }
+diff --git a/tools/idegen/templates/android.ipr b/tools/idegen/templates/android.ipr
+index 82841549a..14c19b3e8 100644
+--- a/tools/idegen/templates/android.ipr
++++ b/tools/idegen/templates/android.ipr
+@@ -278,7 +278,7 @@
+   <component name="ProjectFileVersion" converted="true" />
+   <component name="ProjectModuleManager">
+     <modules>
+-      <module fileurl="file://$PROJECT_DIR$/android.iml" filepath="$PROJECT_DIR$/android.iml" />
++      PROJECT_MODULES
+     </modules>
+   </component>
+   <component name="ProjectRootManager" version="2" languageLevel="JDK_1_8" assert-keyword="true" project-jdk-name="1.8 (No Libraries)" project-jdk-type="JavaSDK">
+-- 
+2.17.1
+

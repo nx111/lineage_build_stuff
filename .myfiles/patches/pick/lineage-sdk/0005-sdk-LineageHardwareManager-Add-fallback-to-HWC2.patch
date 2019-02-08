@@ -1,0 +1,671 @@
+From dc096454b1882499c629bec8e2dfd3ce847f6436 Mon Sep 17 00:00:00 2001
+From: Paul Keith <javelinanddart@gmail.com>
+Date: Thu, 7 Feb 2019 12:40:27 -0600
+Subject: [PATCH 5/5] sdk: LineageHardwareManager: Add fallback to HWC2
+
+* We can't talk to DisplayTransformManager in C++, so
+  we must have a fallback in the SDK itself for HWC2
+
+Change-Id: Ic524f7d60ae1585efed3fba676cf3301dcaecd7f
+---
+ .../internal/display/LineageHWC2Service.java  | 168 +++++++++++++++++
+ lineage/res/res/values/config.xml             |   1 +
+ .../app/LineageContextConstants.java          |  20 +++
+ .../hardware/ILineageHWC2Service.aidl         |  30 ++++
+ .../hardware/LineageHardwareManager.java      | 170 ++++++++++++------
+ 5 files changed, 333 insertions(+), 56 deletions(-)
+ create mode 100644 lineage/lib/main/java/org/lineageos/platform/internal/display/LineageHWC2Service.java
+ create mode 100644 sdk/src/java/lineageos/hardware/ILineageHWC2Service.aidl
+
+diff --git a/lineage/lib/main/java/org/lineageos/platform/internal/display/LineageHWC2Service.java b/lineage/lib/main/java/org/lineageos/platform/internal/display/LineageHWC2Service.java
+new file mode 100644
+index 0000000..729adfd
+--- /dev/null
++++ b/lineage/lib/main/java/org/lineageos/platform/internal/display/LineageHWC2Service.java
+@@ -0,0 +1,168 @@
++/*
++ * Copyright (C) 2019 The LineageOS Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++package org.lineageos.platform.internal.display;
++
++import android.content.Context;
++import android.os.IBinder;
++
++import lineageos.app.LineageContextConstants;
++import lineageos.hardware.ILineageHWC2Service;
++import lineageos.hardware.LineageHardwareManager;
++
++import java.util.HashMap;
++
++import com.android.server.LocalServices;
++import com.android.server.display.DisplayTransformManager;
++
++import org.lineageos.platform.internal.LineageSystemService;
++
++import static com.android.server.display.DisplayTransformManager.LEVEL_COLOR_MATRIX_NIGHT_DISPLAY;
++import static com.android.server.display.DisplayTransformManager.LEVEL_COLOR_MATRIX_GRAYSCALE;
++
++import static lineageos.hardware.LineageHardwareManager.FEATURE_DISPLAY_COLOR_CALIBRATION;
++import static lineageos.hardware.LineageHardwareManager.FEATURE_READING_ENHANCEMENT;
++
++/** @hide */
++public class LineageHWC2Service extends LineageSystemService {
++
++    private static final int LEVEL_COLOR_MATRIX_LIVEDISPLAY = LEVEL_COLOR_MATRIX_NIGHT_DISPLAY + 1;
++    private static final int LEVEL_COLOR_MATRIX_READING = LEVEL_COLOR_MATRIX_GRAYSCALE + 1;
++
++    private static final int MIN = 0;
++    private static final int MAX = 255;
++
++    /**
++     * Matrix and offset used for converting color to grayscale.
++     * Copied from com.android.server.accessibility.DisplayAdjustmentUtils.MATRIX_GRAYSCALE
++     */
++    private static final float[] MATRIX_GRAYSCALE = new float[] {
++        .2126f, .2126f, .2126f, 0,
++        .7152f, .7152f, .7152f, 0,
++        .0722f, .0722f, .0722f, 0,
++             0,      0,      0, 1
++    };
++
++    /** Full color matrix and offset */
++    private static final float[] MATRIX_NORMAL = new float[] {
++        1, 0, 0, 0,
++        0, 1, 0, 0,
++        0, 0, 1, 0,
++        0, 0, 0, 1
++    };
++
++    private final int[] mCurColors = new int[] { MAX, MAX, MAX };
++
++    private HashMap<Integer, Boolean> mBooleanFeatureMap;
++
++    private DisplayTransformManager mDTMService;
++
++    private final IBinder mService = new ILineageHWC2Service.Stub() {
++
++        public int getSupportedFeatures() {
++            if (mDTMService == null) {
++                return 0;
++            }
++
++            return FEATURE_DISPLAY_COLOR_CALIBRATION | FEATURE_READING_ENHANCEMENT;
++        }
++
++        public boolean get(int feature) {
++            if (mBooleanFeatureMap.containsKey(feature)) {
++                return mBooleanFeatureMap.get(feature);
++            }
++
++            return false;
++        }
++
++        public boolean set(int feature, boolean enable) {
++            if (feature == (getSupportedFeatures() & feature)) {
++                mBooleanFeatureMap.put(feature, enable);
++            }
++
++            switch (feature) {
++                case FEATURE_READING_ENHANCEMENT:
++                    mDTMService.setColorMatrix(LEVEL_COLOR_MATRIX_READING,
++                            enable ? MATRIX_GRAYSCALE : MATRIX_NORMAL);
++                    return true;
++            }
++
++            return false;
++        }
++
++        public int[] getDisplayColorCalibration() {
++            return mCurColors;
++        }
++
++        public int getDisplayColorCalibrationMin() {
++            return MIN;
++        }
++
++        public int getDisplayColorCalibrationMax() {
++            return MAX;
++        }
++
++        public boolean setDisplayColorCalibration(int[] rgb) {
++            for (int i = 0; i < rgb.length; i++) {
++                mCurColors[i] = rgb[i];
++            }
++
++            mDTMService.setColorMatrix(LEVEL_COLOR_MATRIX_LIVEDISPLAY, toColorMatrix(rgb));
++            return true;
++        }
++
++    };
++
++    private static float[] toColorMatrix(int[] rgb) {
++        float[] mat = new float[16];
++
++        // sanity check
++        for (int i = 0; i < 3; i++) {
++            if (rgb[i] >= MAX) {
++                rgb[i] = MAX;
++            } else if (rgb[i] < MIN) {
++                rgb[i] = MIN;
++            }
++
++            mat[i * 5] = (float)rgb[i] / (float)MAX;
++        }
++
++        mat[15] = 1.0f;
++        return mat;
++    }
++
++    public LineageHWC2Service(Context context) {
++        super(context);
++        mBooleanFeatureMap = new HashMap<Integer, Boolean>();
++        mDTMService = LocalServices.getService(DisplayTransformManager.class);
++        publishBinderService(LineageContextConstants.LINEAGE_HWC2_SERVICE, mService);
++    }
++
++
++    @Override
++    public String getFeatureDeclaration() {
++        return LineageContextConstants.Features.HWC2_HELPER;
++    }
++
++    @Override
++    public void onBootPhase(int phase) {
++    }
++
++    @Override
++    public void onStart() {
++    }
++
++}
+diff --git a/lineage/res/res/values/config.xml b/lineage/res/res/values/config.xml
+index 1bead47..e93bff8 100644
+--- a/lineage/res/res/values/config.xml
++++ b/lineage/res/res/values/config.xml
+@@ -108,6 +108,7 @@
+         <item>org.lineageos.platform.internal.StyleInterfaceService</item>
+         <item>org.lineageos.platform.internal.TrustInterfaceService</item>
+         <item>org.lineageos.platform.internal.LineageSettingsService</item>
++        <item>org.lineageos.platform.internal.display.LineageHWC2Service</item>
+     </string-array>
+ 
+     <!-- The LineageSystemServer class that is invoked from Android's SystemServer -->
+diff --git a/sdk/src/java/lineageos/app/LineageContextConstants.java b/sdk/src/java/lineageos/app/LineageContextConstants.java
+index 8a210cd..e169f0d 100644
+--- a/sdk/src/java/lineageos/app/LineageContextConstants.java
++++ b/sdk/src/java/lineageos/app/LineageContextConstants.java
+@@ -118,6 +118,18 @@ public final class LineageContextConstants {
+      */
+     public static final String LINEAGE_TRUST_INTERFACE = "lineagetrust";
+ 
++    /**
++     * Use with {@link android.content.Context#getSystemService} to retrieve a
++     * {@link lineageos.hardware.LineageHardwareManager} to manage the extended
++     * hardware features of the device.
++     *
++     * @see android.content.Context#getSystemService
++     * @see lineageos.hardware.LineageHardwareManager
++     *
++     * @hide
++     */
++    public static final String LINEAGE_HWC2_SERVICE = "lineagehwc2";
++
+     /**
+      * Features supported by the Lineage SDK.
+      */
+@@ -193,5 +205,13 @@ public final class LineageContextConstants {
+          */
+         @SdkConstant(SdkConstant.SdkConstantType.FEATURE)
+         public static final String SETTINGS = "org.lineageos.settings";
++
++        /**
++         * Feature for {@link PackageManager#getSystemAvailableFeatures} and
++         * {@link PackageManager#hasSystemFeature}: The device includes the hardware abstraction
++         * framework service utilized by the lineage sdk.
++         */
++        @SdkConstant(SdkConstant.SdkConstantType.FEATURE)
++        public static final String HWC2_HELPER = "org.lineageos.hwc2";
+     }
+ }
+diff --git a/sdk/src/java/lineageos/hardware/ILineageHWC2Service.aidl b/sdk/src/java/lineageos/hardware/ILineageHWC2Service.aidl
+new file mode 100644
+index 0000000..9bae7ce
+--- /dev/null
++++ b/sdk/src/java/lineageos/hardware/ILineageHWC2Service.aidl
+@@ -0,0 +1,30 @@
++/*
++ * Copyright (c) 2019 The LineageOS Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *     http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++package lineageos.hardware;
++
++/** @hide */
++interface ILineageHWC2Service {
++    int getSupportedFeatures();
++
++    boolean get(int feature);
++    boolean set(int feature, boolean enable);
++
++    int[] getDisplayColorCalibration();
++    int getDisplayColorCalibrationMin();
++    int getDisplayColorCalibrationMax();
++    boolean setDisplayColorCalibration(in int[] rgb);
++}
+diff --git a/sdk/src/java/lineageos/hardware/LineageHardwareManager.java b/sdk/src/java/lineageos/hardware/LineageHardwareManager.java
+index 33a62cd..8adf940 100644
+--- a/sdk/src/java/lineageos/hardware/LineageHardwareManager.java
++++ b/sdk/src/java/lineageos/hardware/LineageHardwareManager.java
+@@ -169,7 +169,8 @@ public final class LineageHardwareManager {
+         FEATURE_READING_ENHANCEMENT
+     );
+ 
+-    private static ILineageHardwareService sService;
++    private static ILineageHardwareService sHwService;
++    private static ILineageHWC2Service sHWC2Service;
+     private static LineageHardwareManager sLineageHardwareManagerInstance;
+ 
+     private Context mContext;
+@@ -190,15 +191,23 @@ public final class LineageHardwareManager {
+         } else {
+             mContext = context;
+         }
+-        sService = getService();
++        sHwService = getHwService();
++        sHWC2Service = getHWC2Service();
+ 
+         if (context.getPackageManager().hasSystemFeature(
+-                LineageContextConstants.Features.HARDWARE_ABSTRACTION) && !checkService()) {
++                LineageContextConstants.Features.HARDWARE_ABSTRACTION) && !checkHwService()) {
+             Log.wtf(TAG, "Unable to get LineageHardwareService. The service either" +
+                     " crashed, was not started, or the interface has been called to early in" +
+                     " SystemServer init");
+         }
+ 
++        if (context.getPackageManager().hasSystemFeature(
++                LineageContextConstants.Features.HWC2_HELPER) && sHWC2Service == null) {
++            Log.wtf(TAG, "Unable to get LineageHWC2Service. The service either" +
++                    " crashed, was not started, or the interface has been called to early in" +
++                    " SystemServer init");
++        }
++
+         final String[] mappings = mContext.getResources().getStringArray(
+                 org.lineageos.platform.internal.R.array.config_displayModeMappings);
+         if (mappings != null && mappings.length > 0) {
+@@ -226,14 +235,27 @@ public final class LineageHardwareManager {
+     }
+ 
+     /** @hide */
+-    public static ILineageHardwareService getService() {
+-        if (sService != null) {
+-            return sService;
++    public static ILineageHardwareService getHwService() {
++        if (sHwService != null) {
++            return sHwService;
+         }
+         IBinder b = ServiceManager.getService(LineageContextConstants.LINEAGE_HARDWARE_SERVICE);
+         if (b != null) {
+-            sService = ILineageHardwareService.Stub.asInterface(b);
+-            return sService;
++            sHwService = ILineageHardwareService.Stub.asInterface(b);
++            return sHwService;
++        }
++        return null;
++    }
++
++    /** @hide */
++    public static ILineageHWC2Service getHWC2Service() {
++        if (sHWC2Service != null) {
++            return sHWC2Service;
++        }
++        IBinder b = ServiceManager.getService(LineageContextConstants.LINEAGE_HWC2_SERVICE);
++        if (b != null) {
++            sHWC2Service = ILineageHWC2Service.Stub.asInterface(b);
++            return sHWC2Service;
+         }
+         return null;
+     }
+@@ -246,7 +268,7 @@ public final class LineageHardwareManager {
+      * @return true if the feature is supported, false otherwise.
+      */
+     public boolean isSupported(int feature) {
+-        return isSupportedHIDL(feature) || isSupportedLegacy(feature);
++        return isSupportedHIDL(feature) || isSupportedHWC2(feature) || isSupportedLegacy(feature);
+     }
+ 
+     private boolean isSupportedHIDL(int feature) {
+@@ -256,10 +278,26 @@ public final class LineageHardwareManager {
+         return mHIDLMap.get(feature) != null;
+     }
+ 
++    private boolean isSupportedHWC2(int feature) {
++        boolean supportsHWC2 = mContext.getResources().getBoolean(
++                com.android.internal.R.bool.config_setColorTransformAccelerated);
++
++        if (supportsHWC2) {
++            try {
++                if (sHWC2Service != null) {
++                    return feature == (sHWC2Service.getSupportedFeatures() & feature);
++                }
++            } catch (RemoteException e) {
++            }
++        }
++
++        return false;
++    }
++
+     private boolean isSupportedLegacy(int feature) {
+         try {
+-            if (checkService()) {
+-                return feature == (sService.getSupportedFeatures() & feature);
++            if (checkHwService()) {
++                return feature == (sHwService.getSupportedFeatures() & feature);
+             }
+         } catch (RemoteException e) {
+         }
+@@ -364,8 +402,10 @@ public final class LineageHardwareManager {
+                         IReadingEnhancement readingEnhancement = (IReadingEnhancement) obj;
+                         return readingEnhancement.isEnabled();
+                 }
+-            } else if (checkService()) {
+-                return sService.get(feature);
++            } else if (isSupportedHWC2(feature)) {
++                return sHWC2Service.get(feature);
++            } else if (checkHwService()) {
++                return sHwService.get(feature);
+             }
+         } catch (RemoteException e) {
+         }
+@@ -416,8 +456,10 @@ public final class LineageHardwareManager {
+                         IReadingEnhancement readingEnhancement = (IReadingEnhancement) obj;
+                         return readingEnhancement.setEnabled(enable);
+                 }
+-            } else if (checkService()) {
+-                return sService.set(feature, enable);
++            } else if (isSupportedHWC2(feature)) {
++                return sHWC2Service.set(feature, enable);
++            } else if (checkHwService()) {
++                return sHwService.set(feature, enable);
+             }
+         } catch (RemoteException e) {
+         }
+@@ -455,8 +497,8 @@ public final class LineageHardwareManager {
+ 
+     private int[] getVibratorIntensityArray() {
+         try {
+-            if (checkService()) {
+-                return sService.getVibratorIntensity();
++            if (checkHwService()) {
++                return sHwService.getVibratorIntensity();
+             }
+         } catch (RemoteException e) {
+         }
+@@ -508,8 +550,8 @@ public final class LineageHardwareManager {
+      */
+     public boolean setVibratorIntensity(int intensity) {
+         try {
+-            if (checkService()) {
+-                return sService.setVibratorIntensity(intensity);
++            if (checkHwService()) {
++                return sHwService.setVibratorIntensity(intensity);
+             }
+         } catch (RemoteException e) {
+         }
+@@ -543,8 +585,10 @@ public final class LineageHardwareManager {
+                 IDisplayColorCalibration displayColorCalibration = (IDisplayColorCalibration)
+                         mHIDLMap.get(FEATURE_DISPLAY_COLOR_CALIBRATION);
+                 return ArrayUtils.convertToIntArray(displayColorCalibration.getCalibration());
+-            } else if (checkService()) {
+-                return sService.getDisplayColorCalibration();
++            } else if (isSupportedHWC2(FEATURE_DISPLAY_COLOR_CALIBRATION)) {
++                return sHWC2Service.getDisplayColorCalibration();
++            } else if (checkHwService()) {
++                return sHwService.getDisplayColorCalibration();
+             }
+         } catch (RemoteException e) {
+         }
+@@ -574,6 +618,12 @@ public final class LineageHardwareManager {
+             } catch (RemoteException e) {
+                 return 0;
+             }
++        } else if (isSupportedHWC2(FEATURE_DISPLAY_COLOR_CALIBRATION)) {
++            try {
++                return sHWC2Service.getDisplayColorCalibrationMin();
++            } catch (RemoteException e) {
++                return 0;
++            }
+         }
+ 
+         return getArrayValue(getDisplayColorCalibrationArray(), COLOR_CALIBRATION_MIN_INDEX, 0);
+@@ -591,6 +641,12 @@ public final class LineageHardwareManager {
+             } catch (RemoteException e) {
+                 return 0;
+             }
++        } else if (isSupportedHWC2(FEATURE_DISPLAY_COLOR_CALIBRATION)) {
++            try {
++                return sHWC2Service.getDisplayColorCalibrationMax();
++            } catch (RemoteException e) {
++                return 0;
++            }
+         }
+ 
+         return getArrayValue(getDisplayColorCalibrationArray(), COLOR_CALIBRATION_MAX_INDEX, 0);
+@@ -612,8 +668,10 @@ public final class LineageHardwareManager {
+                         mHIDLMap.get(FEATURE_DISPLAY_COLOR_CALIBRATION);
+                 return displayColorCalibration.setCalibration(
+                        new ArrayList<Integer>(Arrays.asList(rgb[0], rgb[1], rgb[2])));
+-            } else if (checkService()) {
+-                return sService.setDisplayColorCalibration(rgb);
++            } else if (isSupportedHWC2(FEATURE_DISPLAY_COLOR_CALIBRATION)) {
++                return sHWC2Service.setDisplayColorCalibration(rgb);
++            } else if (checkHwService()) {
++                return sHwService.setDisplayColorCalibration(rgb);
+             }
+         } catch (RemoteException e) {
+         }
+@@ -630,8 +688,8 @@ public final class LineageHardwareManager {
+         }
+ 
+         try {
+-            if (checkService()) {
+-                return sService.requireAdaptiveBacklightForSunlightEnhancement();
++            if (checkHwService()) {
++                return sHwService.requireAdaptiveBacklightForSunlightEnhancement();
+             }
+         } catch (RemoteException e) {
+         }
+@@ -647,8 +705,8 @@ public final class LineageHardwareManager {
+         }
+ 
+         try {
+-            if (checkService()) {
+-                return sService.isSunlightEnhancementSelfManaged();
++            if (checkHwService()) {
++                return sHwService.isSunlightEnhancementSelfManaged();
+             }
+         } catch (RemoteException e) {
+         }
+@@ -664,8 +722,8 @@ public final class LineageHardwareManager {
+             if (isSupportedHIDL(FEATURE_DISPLAY_MODES)) {
+                 IDisplayModes displayModes = (IDisplayModes) mHIDLMap.get(FEATURE_DISPLAY_MODES);
+                 modes = HIDLHelper.fromHIDLModes(displayModes.getDisplayModes());
+-            } else if (checkService()) {
+-                modes= sService.getDisplayModes();
++            } else if (checkHwService()) {
++                modes= sHwService.getDisplayModes();
+             }
+         } catch (RemoteException e) {
+         } finally {
+@@ -692,8 +750,8 @@ public final class LineageHardwareManager {
+             if (isSupportedHIDL(FEATURE_DISPLAY_MODES)) {
+                 IDisplayModes displayModes = (IDisplayModes) mHIDLMap.get(FEATURE_DISPLAY_MODES);
+                 mode = HIDLHelper.fromHIDLMode(displayModes.getCurrentDisplayMode());
+-            } else if (checkService()) {
+-                mode = sService.getCurrentDisplayMode();
++            } else if (checkHwService()) {
++                mode = sHwService.getCurrentDisplayMode();
+             }
+         } catch (RemoteException e) {
+         } finally {
+@@ -710,8 +768,8 @@ public final class LineageHardwareManager {
+             if (isSupportedHIDL(FEATURE_DISPLAY_MODES)) {
+                 IDisplayModes displayModes = (IDisplayModes) mHIDLMap.get(FEATURE_DISPLAY_MODES);
+                 mode = HIDLHelper.fromHIDLMode(displayModes.getDefaultDisplayMode());
+-            } else if (checkService()) {
+-                mode = sService.getDefaultDisplayMode();
++            } else if (checkHwService()) {
++                mode = sHwService.getDefaultDisplayMode();
+             }
+         } catch (RemoteException e) {
+         } finally {
+@@ -727,8 +785,8 @@ public final class LineageHardwareManager {
+             if (isSupportedHIDL(FEATURE_DISPLAY_MODES)) {
+                 IDisplayModes displayModes = (IDisplayModes) mHIDLMap.get(FEATURE_DISPLAY_MODES);
+                 return displayModes.setDisplayMode(mode.id, makeDefault);
+-            } else if (checkService()) {
+-                return sService.setDisplayMode(mode, makeDefault);
++            } else if (checkHwService()) {
++                return sHwService.setDisplayMode(mode, makeDefault);
+             }
+         } catch (RemoteException e) {
+         }
+@@ -756,10 +814,10 @@ public final class LineageHardwareManager {
+             if (isSupportedHIDL(FEATURE_COLOR_BALANCE)) {
+                 IColorBalance colorBalance = (IColorBalance) mHIDLMap.get(FEATURE_COLOR_BALANCE);
+                 return HIDLHelper.fromHIDLRange(colorBalance.getColorBalanceRange());
+-            } else if (checkService()) {
++            } else if (checkHwService()) {
+                 return new Range<Integer>(
+-                        sService.getColorBalanceMin(),
+-                        sService.getColorBalanceMax());
++                        sHwService.getColorBalanceMin(),
++                        sHwService.getColorBalanceMax());
+             }
+         } catch (RemoteException e) {
+         }
+@@ -774,8 +832,8 @@ public final class LineageHardwareManager {
+             if (isSupportedHIDL(FEATURE_COLOR_BALANCE)) {
+                 IColorBalance colorBalance = (IColorBalance) mHIDLMap.get(FEATURE_COLOR_BALANCE);
+                 return colorBalance.getColorBalance();
+-            } else if (checkService()) {
+-                return sService.getColorBalance();
++            } else if (checkHwService()) {
++                return sHwService.getColorBalance();
+             }
+         } catch (RemoteException e) {
+         }
+@@ -794,8 +852,8 @@ public final class LineageHardwareManager {
+             if (isSupportedHIDL(FEATURE_COLOR_BALANCE)) {
+                 IColorBalance colorBalance = (IColorBalance) mHIDLMap.get(FEATURE_COLOR_BALANCE);
+                 return colorBalance.setColorBalance(value);
+-            } else if (checkService()) {
+-                return sService.setColorBalance(value);
++            } else if (checkHwService()) {
++                return sHwService.setColorBalance(value);
+             }
+         } catch (RemoteException e) {
+         }
+@@ -813,8 +871,8 @@ public final class LineageHardwareManager {
+                 IPictureAdjustment pictureAdjustment = (IPictureAdjustment)
+                         mHIDLMap.get(FEATURE_PICTURE_ADJUSTMENT);
+                 return HIDLHelper.fromHIDLHSIC(pictureAdjustment.getPictureAdjustment());
+-            } else if (checkService()) {
+-                return sService.getPictureAdjustment();
++            } else if (checkHwService()) {
++                return sHwService.getPictureAdjustment();
+             }
+         } catch (RemoteException e) {
+         }
+@@ -832,8 +890,8 @@ public final class LineageHardwareManager {
+                 IPictureAdjustment pictureAdjustment = (IPictureAdjustment)
+                         mHIDLMap.get(FEATURE_PICTURE_ADJUSTMENT);
+                 return HIDLHelper.fromHIDLHSIC(pictureAdjustment.getDefaultPictureAdjustment());
+-            } else if (checkService()) {
+-                return sService.getDefaultPictureAdjustment();
++            } else if (checkHwService()) {
++                return sHwService.getDefaultPictureAdjustment();
+             }
+         } catch (RemoteException e) {
+         }
+@@ -852,8 +910,8 @@ public final class LineageHardwareManager {
+                 IPictureAdjustment pictureAdjustment = (IPictureAdjustment)
+                         mHIDLMap.get(FEATURE_PICTURE_ADJUSTMENT);
+                 return pictureAdjustment.setPictureAdjustment(HIDLHelper.toHIDLHSIC(hsic));
+-            } else if (checkService()) {
+-                return sService.setPictureAdjustment(hsic);
++            } else if (checkHwService()) {
++                return sHwService.setPictureAdjustment(hsic);
+             }
+         } catch (RemoteException e) {
+         }
+@@ -876,8 +934,8 @@ public final class LineageHardwareManager {
+                         HIDLHelper.fromHIDLRange(pictureAdjustment.getIntensityRange()),
+                         HIDLHelper.fromHIDLRange(pictureAdjustment.getContrastRange()),
+                         HIDLHelper.fromHIDLRange(pictureAdjustment.getSaturationThresholdRange()));
+-            } else if (checkService()) {
+-                float[] ranges = sService.getPictureAdjustmentRanges();
++            } else if (checkHwService()) {
++                float[] ranges = sHwService.getPictureAdjustmentRanges();
+                 if (ranges.length > 7) {
+                     return Arrays.asList(new Range<Float>(ranges[0], ranges[1]),
+                             new Range<Float>(ranges[2], ranges[3]),
+@@ -902,8 +960,8 @@ public final class LineageHardwareManager {
+                 ITouchscreenGesture touchscreenGesture = (ITouchscreenGesture)
+                         mHIDLMap.get(FEATURE_TOUCHSCREEN_GESTURES);
+                 return HIDLHelper.fromHIDLGestures(touchscreenGesture.getSupportedGestures());
+-            } else if (checkService()) {
+-                return sService.getTouchscreenGestures();
++            } else if (checkHwService()) {
++                return sHwService.getTouchscreenGestures();
+             }
+         } catch (RemoteException e) {
+         }
+@@ -921,8 +979,8 @@ public final class LineageHardwareManager {
+                         mHIDLMap.get(FEATURE_TOUCHSCREEN_GESTURES);
+                 return touchscreenGesture.setGestureEnabled(
+                         HIDLHelper.toHIDLGesture(gesture), state);
+-            } else if (checkService()) {
+-                return sService.setTouchscreenGestureEnabled(gesture, state);
++            } else if (checkHwService()) {
++                return sHwService.setTouchscreenGestureEnabled(gesture, state);
+             }
+         } catch (RemoteException e) {
+         }
+@@ -932,8 +990,8 @@ public final class LineageHardwareManager {
+     /**
+      * @return true if service is valid
+      */
+-    private boolean checkService() {
+-        if (sService == null) {
++    private boolean checkHwService() {
++        if (sHwService == null) {
+             Log.w(TAG, "not connected to LineageHardwareManagerService");
+             return false;
+         }
+-- 
+2.17.1
+
