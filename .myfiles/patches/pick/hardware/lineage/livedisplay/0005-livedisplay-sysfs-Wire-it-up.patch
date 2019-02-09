@@ -1,16 +1,12 @@
-From 1edc13742d784e949914d5ad1a5709affc323f5c Mon Sep 17 00:00:00 2001
+From a3bf6ebe105137145235d1cd05b60775b737c46a Mon Sep 17 00:00:00 2001
 From: Paul Keith <javelinanddart@gmail.com>
 Date: Thu, 7 Feb 2019 09:57:05 -0600
-Subject: [PATCH 5/5] [WIP] livedisplay: sysfs: Wire it up
-
-* TODO:
- - Test it
- - Move HWC2 fallback into the SDK
+Subject: [PATCH 5/5] livedisplay: sysfs: Wire it up
 
 Change-Id: I8e8e222f94bcf86d4ded3d8dc57cc6c70ee7634a
 ---
  sysfs/AdaptiveBacklight.cpp                   |  43 +++--
- sysfs/AdaptiveBacklight.h                     |  24 +--
+ sysfs/AdaptiveBacklight.h                     |  24 ++-
  sysfs/Android.bp                              |  35 ++--
  sysfs/AutoContrast.cpp                        |  36 ++--
  sysfs/AutoContrast.h                          |  22 +--
@@ -21,17 +17,17 @@ Change-Id: I8e8e222f94bcf86d4ded3d8dc57cc6c70ee7634a
  sysfs/ReadingEnhancement.cpp                  |  36 ++--
  sysfs/ReadingEnhancement.h                    |  22 +--
  sysfs/SunlightEnhancement.cpp                 |  45 +++--
- sysfs/SunlightEnhancement.h                   |  25 +--
- .../lineage.livedisplay@2.0-service-sysfs.rc  |  21 +++
+ sysfs/SunlightEnhancement.h                   |  25 ++-
+ .../lineage.livedisplay@2.0-service-sysfs.rc  |  23 +++
  sysfs/service.cpp                             | 171 ++++++++++++++++++
- ...r.lineage.livedisplay@2.0-service-sysfs.rc |  21 +++
- 16 files changed, 470 insertions(+), 157 deletions(-)
+ ...r.lineage.livedisplay@2.0-service-sysfs.rc |  23 +++
+ 16 files changed, 468 insertions(+), 163 deletions(-)
  create mode 100644 sysfs/lineage.livedisplay@2.0-service-sysfs.rc
  create mode 100644 sysfs/service.cpp
  create mode 100644 sysfs/vendor.lineage.livedisplay@2.0-service-sysfs.rc
 
 diff --git a/sysfs/AdaptiveBacklight.cpp b/sysfs/AdaptiveBacklight.cpp
-index f6804f1..708172a 100644
+index f6804f1..ace9e5e 100644
 --- a/sysfs/AdaptiveBacklight.cpp
 +++ b/sysfs/AdaptiveBacklight.cpp
 @@ -14,32 +14,53 @@
@@ -76,7 +72,7 @@ index f6804f1..708172a 100644
 +    int32_t contents;
 +
 +    if (ReadFileToString(mFile, &tmp)) {
-+        contents = std::atoi(Trim(tmp).c_str());
++        contents = std::stoi(Trim(tmp));
 +        return contents > 0;
 +    }
 +
@@ -100,21 +96,19 @@ index f6804f1..708172a 100644
  }  // namespace V2_0
  }  // namespace livedisplay
 diff --git a/sysfs/AdaptiveBacklight.h b/sysfs/AdaptiveBacklight.h
-index 64af3c7..71292ed 100644
+index 64af3c7..820707e 100644
 --- a/sysfs/AdaptiveBacklight.h
 +++ b/sysfs/AdaptiveBacklight.h
-@@ -17,9 +17,9 @@
- #ifndef VENDOR_LINEAGE_LIVEDISPLAY_V2_0_ADAPTIVEBACKLIGHT_H
+@@ -18,8 +18,6 @@
  #define VENDOR_LINEAGE_LIVEDISPLAY_V2_0_ADAPTIVEBACKLIGHT_H
  
--#include <vendor/lineage/livedisplay/2.0/IAdaptiveBacklight.h>
- #include <hidl/MQDescriptor.h>
- #include <hidl/Status.h>
-+#include <vendor/lineage/livedisplay/2.0/IAdaptiveBacklight.h>
+ #include <vendor/lineage/livedisplay/2.0/IAdaptiveBacklight.h>
+-#include <hidl/MQDescriptor.h>
+-#include <hidl/Status.h>
  
  namespace vendor {
  namespace lineage {
-@@ -27,26 +27,26 @@ namespace livedisplay {
+@@ -27,26 +25,26 @@ namespace livedisplay {
  namespace V2_0 {
  namespace sysfs {
  
@@ -212,7 +206,7 @@ index 8070a02..bd45b3d 100644
 +    proprietary: true,
 +}
 diff --git a/sysfs/AutoContrast.cpp b/sysfs/AutoContrast.cpp
-index 522014c..18c116f 100644
+index 522014c..965488d 100644
 --- a/sysfs/AutoContrast.cpp
 +++ b/sysfs/AutoContrast.cpp
 @@ -14,32 +14,46 @@
@@ -250,7 +244,7 @@ index 522014c..18c116f 100644
 +    int32_t contents;
 +
 +    if (ReadFileToString(FILE_ACO, &tmp)) {
-+        contents = std::atoi(Trim(tmp).c_str());
++        contents = std::stoi(Trim(tmp));
 +        return contents > 0;
 +    }
 +
@@ -274,21 +268,19 @@ index 522014c..18c116f 100644
  }  // namespace V2_0
  }  // namespace livedisplay
 diff --git a/sysfs/AutoContrast.h b/sysfs/AutoContrast.h
-index 3967979..aca3664 100644
+index 3967979..aabb01c 100644
 --- a/sysfs/AutoContrast.h
 +++ b/sysfs/AutoContrast.h
-@@ -17,9 +17,9 @@
- #ifndef VENDOR_LINEAGE_LIVEDISPLAY_V2_0_AUTOCONTRAST_H
+@@ -18,8 +18,6 @@
  #define VENDOR_LINEAGE_LIVEDISPLAY_V2_0_AUTOCONTRAST_H
  
--#include <vendor/lineage/livedisplay/2.0/IAutoContrast.h>
- #include <hidl/MQDescriptor.h>
- #include <hidl/Status.h>
-+#include <vendor/lineage/livedisplay/2.0/IAutoContrast.h>
+ #include <vendor/lineage/livedisplay/2.0/IAutoContrast.h>
+-#include <hidl/MQDescriptor.h>
+-#include <hidl/Status.h>
  
  namespace vendor {
  namespace lineage {
-@@ -27,26 +27,22 @@ namespace livedisplay {
+@@ -27,26 +25,22 @@ namespace livedisplay {
  namespace V2_0 {
  namespace sysfs {
  
@@ -324,7 +316,7 @@ index 3967979..aca3664 100644
  }  // namespace V2_0
  }  // namespace livedisplay
 diff --git a/sysfs/ColorEnhancement.cpp b/sysfs/ColorEnhancement.cpp
-index 364f348..f5af57c 100644
+index 364f348..cbd9262 100644
 --- a/sysfs/ColorEnhancement.cpp
 +++ b/sysfs/ColorEnhancement.cpp
 @@ -14,32 +14,46 @@
@@ -362,7 +354,7 @@ index 364f348..f5af57c 100644
 +    int32_t contents;
 +
 +    if (ReadFileToString(FILE_CE, &tmp)) {
-+        contents = std::atoi(Trim(tmp).c_str());
++        contents = std::stoi(Trim(tmp));
 +        return contents > 0;
 +    }
 +
@@ -386,21 +378,19 @@ index 364f348..f5af57c 100644
  }  // namespace V2_0
  }  // namespace livedisplay
 diff --git a/sysfs/ColorEnhancement.h b/sysfs/ColorEnhancement.h
-index 8b22907..37a94b2 100644
+index 8b22907..1a00f7c 100644
 --- a/sysfs/ColorEnhancement.h
 +++ b/sysfs/ColorEnhancement.h
-@@ -17,9 +17,9 @@
- #ifndef VENDOR_LINEAGE_LIVEDISPLAY_V2_0_COLORENHANCEMENT_H
+@@ -18,8 +18,6 @@
  #define VENDOR_LINEAGE_LIVEDISPLAY_V2_0_COLORENHANCEMENT_H
  
--#include <vendor/lineage/livedisplay/2.0/IColorEnhancement.h>
- #include <hidl/MQDescriptor.h>
- #include <hidl/Status.h>
-+#include <vendor/lineage/livedisplay/2.0/IColorEnhancement.h>
+ #include <vendor/lineage/livedisplay/2.0/IColorEnhancement.h>
+-#include <hidl/MQDescriptor.h>
+-#include <hidl/Status.h>
  
  namespace vendor {
  namespace lineage {
-@@ -27,26 +27,22 @@ namespace livedisplay {
+@@ -27,26 +25,22 @@ namespace livedisplay {
  namespace V2_0 {
  namespace sysfs {
  
@@ -436,7 +426,7 @@ index 8b22907..37a94b2 100644
  }  // namespace V2_0
  }  // namespace livedisplay
 diff --git a/sysfs/DisplayColorCalibration.cpp b/sysfs/DisplayColorCalibration.cpp
-index 3331796..eb36033 100644
+index 3331796..fda697a 100644
 --- a/sysfs/DisplayColorCalibration.cpp
 +++ b/sysfs/DisplayColorCalibration.cpp
 @@ -14,42 +14,63 @@
@@ -487,7 +477,7 @@ index 3331796..eb36033 100644
 +
 +    if (ReadFileToString(FILE_RGB, &tmp)) {
 +        for (const std::string& color : Split(Trim(tmp), " ")) {
-+            rgb.push_back(std::atoi(color.c_str()));
++            rgb.push_back(std::stoi(color));
 +        }
 +    }
 +
@@ -517,21 +507,19 @@ index 3331796..eb36033 100644
  }  // namespace V2_0
  }  // namespace livedisplay
 diff --git a/sysfs/DisplayColorCalibration.h b/sysfs/DisplayColorCalibration.h
-index d31ee08..d1ea722 100644
+index d31ee08..9d6af88 100644
 --- a/sysfs/DisplayColorCalibration.h
 +++ b/sysfs/DisplayColorCalibration.h
-@@ -17,9 +17,9 @@
- #ifndef VENDOR_LINEAGE_LIVEDISPLAY_V2_0_DISPLAYCOLORCALIBRATION_H
+@@ -18,8 +18,6 @@
  #define VENDOR_LINEAGE_LIVEDISPLAY_V2_0_DISPLAYCOLORCALIBRATION_H
  
--#include <vendor/lineage/livedisplay/2.0/IDisplayColorCalibration.h>
- #include <hidl/MQDescriptor.h>
- #include <hidl/Status.h>
-+#include <vendor/lineage/livedisplay/2.0/IDisplayColorCalibration.h>
+ #include <vendor/lineage/livedisplay/2.0/IDisplayColorCalibration.h>
+-#include <hidl/MQDescriptor.h>
+-#include <hidl/Status.h>
  
  namespace vendor {
  namespace lineage {
-@@ -27,28 +27,25 @@ namespace livedisplay {
+@@ -27,28 +25,25 @@ namespace livedisplay {
  namespace V2_0 {
  namespace sysfs {
  
@@ -569,7 +557,7 @@ index d31ee08..d1ea722 100644
  }  // namespace V2_0
  }  // namespace livedisplay
 diff --git a/sysfs/ReadingEnhancement.cpp b/sysfs/ReadingEnhancement.cpp
-index af366da..a3d03b1 100644
+index af366da..9b3e079 100644
 --- a/sysfs/ReadingEnhancement.cpp
 +++ b/sysfs/ReadingEnhancement.cpp
 @@ -14,32 +14,46 @@
@@ -607,7 +595,7 @@ index af366da..a3d03b1 100644
 +    int32_t contents;
 +
 +    if (ReadFileToString(FILE_RE, &tmp)) {
-+        contents = std::atoi(Trim(tmp).c_str());
++        contents = std::stoi(Trim(tmp));
 +        return contents > 0;
 +    }
 +
@@ -631,21 +619,19 @@ index af366da..a3d03b1 100644
  }  // namespace V2_0
  }  // namespace livedisplay
 diff --git a/sysfs/ReadingEnhancement.h b/sysfs/ReadingEnhancement.h
-index 595eb67..ef1767b 100644
+index 595eb67..488e1a6 100644
 --- a/sysfs/ReadingEnhancement.h
 +++ b/sysfs/ReadingEnhancement.h
-@@ -17,9 +17,9 @@
- #ifndef VENDOR_LINEAGE_LIVEDISPLAY_V2_0_READINGENHANCEMENT_H
+@@ -18,8 +18,6 @@
  #define VENDOR_LINEAGE_LIVEDISPLAY_V2_0_READINGENHANCEMENT_H
  
--#include <vendor/lineage/livedisplay/2.0/IReadingEnhancement.h>
- #include <hidl/MQDescriptor.h>
- #include <hidl/Status.h>
-+#include <vendor/lineage/livedisplay/2.0/IReadingEnhancement.h>
+ #include <vendor/lineage/livedisplay/2.0/IReadingEnhancement.h>
+-#include <hidl/MQDescriptor.h>
+-#include <hidl/Status.h>
  
  namespace vendor {
  namespace lineage {
-@@ -27,26 +27,22 @@ namespace livedisplay {
+@@ -27,26 +25,22 @@ namespace livedisplay {
  namespace V2_0 {
  namespace sysfs {
  
@@ -681,7 +667,7 @@ index 595eb67..ef1767b 100644
  }  // namespace V2_0
  }  // namespace livedisplay
 diff --git a/sysfs/SunlightEnhancement.cpp b/sysfs/SunlightEnhancement.cpp
-index 92ba793..77b3cc9 100644
+index 92ba793..dab3b91 100644
 --- a/sysfs/SunlightEnhancement.cpp
 +++ b/sysfs/SunlightEnhancement.cpp
 @@ -14,32 +14,55 @@
@@ -728,7 +714,7 @@ index 92ba793..77b3cc9 100644
 +    int32_t contents;
 +
 +    if (ReadFileToString(mFile, &tmp)) {
-+        contents = std::atoi(Trim(tmp).c_str());
++        contents = std::stoi(Trim(tmp));
 +        return contents > 0;
 +    }
 +
@@ -752,21 +738,19 @@ index 92ba793..77b3cc9 100644
  }  // namespace V2_0
  }  // namespace livedisplay
 diff --git a/sysfs/SunlightEnhancement.h b/sysfs/SunlightEnhancement.h
-index da94126..d0e74de 100644
+index da94126..63d7fc9 100644
 --- a/sysfs/SunlightEnhancement.h
 +++ b/sysfs/SunlightEnhancement.h
-@@ -17,9 +17,9 @@
- #ifndef VENDOR_LINEAGE_LIVEDISPLAY_V2_0_SUNLIGHTENHANCEMENT_H
+@@ -18,8 +18,6 @@
  #define VENDOR_LINEAGE_LIVEDISPLAY_V2_0_SUNLIGHTENHANCEMENT_H
  
--#include <vendor/lineage/livedisplay/2.0/ISunlightEnhancement.h>
- #include <hidl/MQDescriptor.h>
- #include <hidl/Status.h>
-+#include <vendor/lineage/livedisplay/2.0/ISunlightEnhancement.h>
+ #include <vendor/lineage/livedisplay/2.0/ISunlightEnhancement.h>
+-#include <hidl/MQDescriptor.h>
+-#include <hidl/Status.h>
  
  namespace vendor {
  namespace lineage {
-@@ -27,26 +27,27 @@ namespace livedisplay {
+@@ -27,26 +25,27 @@ namespace livedisplay {
  namespace V2_0 {
  namespace sysfs {
  
@@ -807,12 +791,14 @@ index da94126..d0e74de 100644
  }  // namespace livedisplay
 diff --git a/sysfs/lineage.livedisplay@2.0-service-sysfs.rc b/sysfs/lineage.livedisplay@2.0-service-sysfs.rc
 new file mode 100644
-index 0000000..70addea
+index 0000000..b902525
 --- /dev/null
 +++ b/sysfs/lineage.livedisplay@2.0-service-sysfs.rc
-@@ -0,0 +1,21 @@
-+on boot
+@@ -0,0 +1,23 @@
++on init
 +    # LiveDisplay sysfs
++    chown system system /sys/devices/virtual/graphics/fb0/acl
++    chmod 0660 /sys/devices/virtual/graphics/fb0/acl
 +    chown system system /sys/devices/virtual/graphics/fb0/aco
 +    chmod 0660 /sys/devices/virtual/graphics/fb0/aco
 +    chown system system /sys/devices/virtual/graphics/fb0/cabc
@@ -1011,12 +997,14 @@ index 0000000..72e953a
 +}
 diff --git a/sysfs/vendor.lineage.livedisplay@2.0-service-sysfs.rc b/sysfs/vendor.lineage.livedisplay@2.0-service-sysfs.rc
 new file mode 100644
-index 0000000..cc15fcf
+index 0000000..330bddc
 --- /dev/null
 +++ b/sysfs/vendor.lineage.livedisplay@2.0-service-sysfs.rc
-@@ -0,0 +1,21 @@
-+on boot
+@@ -0,0 +1,23 @@
++on init
 +    # LiveDisplay sysfs
++    chown system system /sys/devices/virtual/graphics/fb0/acl
++    chmod 0660 /sys/devices/virtual/graphics/fb0/acl
 +    chown system system /sys/devices/virtual/graphics/fb0/aco
 +    chmod 0660 /sys/devices/virtual/graphics/fb0/aco
 +    chown system system /sys/devices/virtual/graphics/fb0/cabc
