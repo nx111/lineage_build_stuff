@@ -1,0 +1,57 @@
+From 2840189dd8f1e40338b5343f5285946ffa3206ba Mon Sep 17 00:00:00 2001
+From: Michael Bestas <mkbestas@lineageos.org>
+Date: Sun, 10 Feb 2019 22:18:20 +0200
+Subject: [PATCH 36/37] envsetup: Add bolt command
+
+* Similar to eat, but just sideloads the latest compiled zip
+  while you are in recovery
+
+Change-Id: I0b0ede62e2a5b236be495867639b9d9b84da4c81
+---
+ build/envsetup.sh | 30 ++++++++++++++++++++++++++++++
+ 1 file changed, 30 insertions(+)
+
+diff --git a/build/envsetup.sh b/build/envsetup.sh
+index b80b07be..46f77be5 100644
+--- a/build/envsetup.sh
++++ b/build/envsetup.sh
+@@ -142,6 +142,36 @@ EOF
+     fi
+ }
+ 
++function bolt()
++{
++    if [ "$OUT" ] ; then
++        ZIPPATH=`ls -tr "$OUT"/lineage-*.zip | tail -1`
++        if [ ! -f $ZIPPATH ] ; then
++            echo "Nothing to bolt"
++            return 1
++        fi
++        adb start-server # Prevent unexpected starting server message from adb get-state in the next line
++        if [ $(adb get-state) != device -a $(adb shell 'test -e /sbin/recovery 2> /dev/null; echo $?') != 0 ] ; then
++            echo "No device is online. Waiting for one..."
++            echo "Please connect USB and/or enable USB debugging"
++            until [ $(adb get-state) = device -o $(adb shell 'test -e /sbin/recovery 2> /dev/null; echo $?') = 0 ];do
++                sleep 1
++            done
++            echo "Device Found.."
++        fi
++        if (adb shell getprop ro.lineage.device | grep -q "$LINEAGE_BUILD"); then
++            adb wait-for-sideload
++            adb sideload $ZIPPATH
++        else
++            echo "The connected device does not appear to be $LINEAGE_BUILD, run away!"
++        fi
++        return $?
++    else
++        echo "Nothing to bolt"
++        return 1
++    fi
++}
++
+ function omnom()
+ {
+     brunch $*
+-- 
+2.17.1
+

@@ -1,0 +1,42 @@
+From 82c7795e045ce0479cd7faf513ccd24ab5150ce1 Mon Sep 17 00:00:00 2001
+From: Tom Marshall <tdm.code@gmail.com>
+Date: Wed, 16 Jan 2019 14:03:22 -0800
+Subject: [PATCH 3/4] build: Remove charger from recovery unless needed
+
+Most devices do not need charger in recovery -- it does nothing and takes
+up precious space.  So remove the charger service from recovery init.rc,
+the charger binary, and the charger symlink.
+
+Devices that do actually need the charger in recovery may set:
+
+  BOARD_NEEDS_CHARGER_IN_RECOVERY := true
+
+Change-Id: I23e23c79a3151a62c85a3a405723aa4e892e6d31
+---
+ core/Makefile | 10 ++++++++++
+ 1 file changed, 10 insertions(+)
+
+diff --git a/core/Makefile b/core/Makefile
+index c27659a17..1932add39 100644
+--- a/core/Makefile
++++ b/core/Makefile
+@@ -1442,6 +1442,16 @@ define build-recoveryramdisk
+   $(hide) find $(TARGET_RECOVERY_ROOT_OUT) -maxdepth 1 -name 'init*.rc' -type f -not -name "init.recovery.*.rc" | xargs rm -f
+   $(hide) cp -f $(recovery_initrc) $(TARGET_RECOVERY_ROOT_OUT)/
+   $(hide) cp $(TARGET_ROOT_OUT)/init.recovery.*.rc $(TARGET_RECOVERY_ROOT_OUT)/ || true # Ignore error when the src file doesn't exist.
++  # If charger is not needed in recovery, do the following:
++  #   * Remove the charger service from recovery init.rc.
++  #   # Remove the charger binary and root symlink.
++  $(if $(BOARD_NEEDS_CHARGER_IN_RECOVERY),,\
++    $(hide) cat $(TARGET_RECOVERY_ROOT_OUT)/init.rc | \
++              awk '/^service/ { elide=0; } /^service charger/ { elide=1; } { if (elide==0) { print; } }' > \
++              $(TARGET_RECOVERY_ROOT_OUT)/.init.rc.tmp && \
++            mv $(TARGET_RECOVERY_ROOT_OUT)/.init.rc.tmp $(TARGET_RECOVERY_ROOT_OUT)/init.rc
++    $(hide) rm -f $(TARGET_RECOVERY_ROOT_OUT)/sbin/charger
++    $(hide) rm -f $(TARGET_RECOVERY_ROOT_OUT)/charger)
+   $(hide) mkdir -p $(TARGET_RECOVERY_ROOT_OUT)/res
+   $(hide) rm -rf $(TARGET_RECOVERY_ROOT_OUT)/res/*
+   $(hide) cp -rf $(recovery_resources_common)/* $(TARGET_RECOVERY_ROOT_OUT)/res
+-- 
+2.17.1
+

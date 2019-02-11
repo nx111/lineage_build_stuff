@@ -1,0 +1,1021 @@
+From 8d13803c5eaa56097b6b80f2568f198c6bbc5fb1 Mon Sep 17 00:00:00 2001
+From: Paul Keith <javelinanddart@gmail.com>
+Date: Thu, 7 Feb 2019 09:57:05 -0600
+Subject: [PATCH] livedisplay: sysfs: Wire it up
+
+Change-Id: I8e8e222f94bcf86d4ded3d8dc57cc6c70ee7634a
+---
+ sysfs/AdaptiveBacklight.cpp                   |  48 +++--
+ sysfs/AdaptiveBacklight.h                     |  24 ++-
+ sysfs/Android.bp                              |  35 ++--
+ sysfs/AutoContrast.cpp                        |  35 ++--
+ sysfs/AutoContrast.h                          |  20 +-
+ sysfs/ColorEnhancement.cpp                    |  35 ++--
+ sysfs/ColorEnhancement.h                      |  20 +-
+ sysfs/DisplayColorCalibration.cpp             |  48 +++--
+ sysfs/DisplayColorCalibration.h               |  19 +-
+ sysfs/ReadingEnhancement.cpp                  |  35 ++--
+ sysfs/ReadingEnhancement.h                    |  20 +-
+ sysfs/SunlightEnhancement.cpp                 |  44 +++--
+ sysfs/SunlightEnhancement.h                   |  23 +--
+ .../lineage.livedisplay@2.0-service-sysfs.rc  |  23 +++
+ sysfs/service.cpp                             | 171 ++++++++++++++++++
+ ...r.lineage.livedisplay@2.0-service-sysfs.rc |  23 +++
+ 16 files changed, 460 insertions(+), 163 deletions(-)
+ create mode 100644 sysfs/lineage.livedisplay@2.0-service-sysfs.rc
+ create mode 100644 sysfs/service.cpp
+ create mode 100644 sysfs/vendor.lineage.livedisplay@2.0-service-sysfs.rc
+
+diff --git a/sysfs/AdaptiveBacklight.cpp b/sysfs/AdaptiveBacklight.cpp
+index f6804f1..6225e0e 100644
+--- a/sysfs/AdaptiveBacklight.cpp
++++ b/sysfs/AdaptiveBacklight.cpp
+@@ -14,32 +14,58 @@
+  * limitations under the License.
+  */
+ 
++#include <android-base/file.h>
++#include <android-base/properties.h>
++#include <android-base/strings.h>
++
++#include <fstream>
++
+ #include "AdaptiveBacklight.h"
+ 
++using android::base::GetBoolProperty;
++using android::base::ReadFileToString;
++using android::base::Trim;
++using android::base::WriteStringToFile;
++
+ namespace vendor {
+ namespace lineage {
+ namespace livedisplay {
+ namespace V2_0 {
+ namespace sysfs {
+ 
++bool AdaptiveBacklight::isSupported() {
++    if (GetBoolProperty(FOSS_PROPERTY, false)) {
++        return false;
++    }
++
++    std::fstream acl(FILE_ACL, acl.in | acl.out);
++    std::fstream cabc(FILE_CABC, cabc.in | cabc.out);
++
++    if (acl.good()) {
++        mFile = FILE_ACL;
++    } else if (cabc.good()) {
++        mFile = FILE_CABC;
++    }
++
++    return !mFile.empty();
++}
++
+ // Methods from ::vendor::lineage::livedisplay::V2_0::IAdaptiveBacklight follow.
+ Return<bool> AdaptiveBacklight::isEnabled() {
+-    // TODO implement
+-    return bool {};
++    std::string tmp;
++    int32_t contents = 0;
++
++    if (ReadFileToString(mFile, &tmp)) {
++        contents = std::stoi(Trim(tmp));
++    }
++
++    return contents > 0;
+ }
+ 
+ Return<bool> AdaptiveBacklight::setEnabled(bool enabled) {
+-    // TODO implement
+-    return bool {};
++    return WriteStringToFile(enabled ? "1" : "0", mFile, true);
+ }
+ 
+-
+-// Methods from ::android::hidl::base::V1_0::IBase follow.
+-
+-//IAdaptiveBacklight* HIDL_FETCH_IAdaptiveBacklight(const char* /* name */) {
+-    //return new AdaptiveBacklight();
+-//}
+-//
+ }  // namespace sysfs
+ }  // namespace V2_0
+ }  // namespace livedisplay
+diff --git a/sysfs/AdaptiveBacklight.h b/sysfs/AdaptiveBacklight.h
+index 64af3c7..3137ff3 100644
+--- a/sysfs/AdaptiveBacklight.h
++++ b/sysfs/AdaptiveBacklight.h
+@@ -18,8 +18,6 @@
+ #define VENDOR_LINEAGE_LIVEDISPLAY_V2_0_ADAPTIVEBACKLIGHT_H
+ 
+ #include <vendor/lineage/livedisplay/2.0/IAdaptiveBacklight.h>
+-#include <hidl/MQDescriptor.h>
+-#include <hidl/Status.h>
+ 
+ namespace vendor {
+ namespace lineage {
+@@ -27,26 +25,26 @@ namespace livedisplay {
+ namespace V2_0 {
+ namespace sysfs {
+ 
+-using ::android::hardware::hidl_array;
+-using ::android::hardware::hidl_memory;
+-using ::android::hardware::hidl_string;
+-using ::android::hardware::hidl_vec;
+ using ::android::hardware::Return;
+ using ::android::hardware::Void;
+-using ::android::sp;
+ 
+-struct AdaptiveBacklight : public IAdaptiveBacklight {
++#define FOSS_PROPERTY "ro.vendor.display.foss"
++
++#define FILE_ACL "/sys/class/graphics/fb0/acl"
++#define FILE_CABC "/sys/class/graphics/fb0/cabc"
++
++class AdaptiveBacklight : public IAdaptiveBacklight {
++   public:
++    bool isSupported();
++
+     // Methods from ::vendor::lineage::livedisplay::V2_0::IAdaptiveBacklight follow.
+     Return<bool> isEnabled() override;
+     Return<bool> setEnabled(bool enabled) override;
+ 
+-    // Methods from ::android::hidl::base::V1_0::IBase follow.
+-
++   private:
++    std::string mFile;
+ };
+ 
+-// FIXME: most likely delete, this is only for passthrough implementations
+-// extern "C" IAdaptiveBacklight* HIDL_FETCH_IAdaptiveBacklight(const char* name);
+-
+ }  // namespace sysfs
+ }  // namespace V2_0
+ }  // namespace livedisplay
+diff --git a/sysfs/Android.bp b/sysfs/Android.bp
+index 8070a02..fdae48e 100644
+--- a/sysfs/Android.bp
++++ b/sysfs/Android.bp
+@@ -12,21 +12,10 @@
+ // See the License for the specific language governing permissions and
+ // limitations under the License.
+ 
+-cc_library_shared {
+-    // FIXME: this should only be -impl for a passthrough hal.
+-    // In most cases, to convert this to a binderized implementation, you should:
+-    // - change '-impl' to '-service' here and make it a cc_binary instead of a
+-    //   cc_library_shared.
+-    // - add a *.rc file for this module.
+-    // - delete HIDL_FETCH_I* functions.
+-    // - call configureRpcThreadpool and registerAsService on the instance.
+-    // You may also want to append '-impl/-service' with a specific identifier like
+-    // '-vendor' or '-<hardware identifier>' etc to distinguish it.
+-    name: "vendor.lineage.livedisplay@2.0-impl",
++cc_defaults {
++    name: "livedisplay_sysfs_defaults",
++    defaults: ["hidl_defaults"],
+     relative_install_path: "hw",
+-    // FIXME: this should be 'vendor: true' for modules that will eventually be
+-    // on AOSP.
+-    proprietary: true,
+     srcs: [
+         "AdaptiveBacklight.cpp",
+         "AutoContrast.cpp",
+@@ -34,11 +23,29 @@ cc_library_shared {
+         "DisplayColorCalibration.cpp",
+         "ReadingEnhancement.cpp",
+         "SunlightEnhancement.cpp",
++        "service.cpp",
+     ],
+     shared_libs: [
++        "libbase",
++        "libbinder",
++        "libcutils",
+         "libhidlbase",
+         "libhidltransport",
+         "libutils",
+         "vendor.lineage.livedisplay@2.0",
+     ],
+ }
++
++cc_binary {
++    name: "lineage.livedisplay@2.0-service-sysfs",
++    init_rc: ["lineage.livedisplay@2.0-service-sysfs.rc"],
++    defaults: ["livedisplay_sysfs_defaults"],
++    cflags: ["-DLIVES_IN_SYSTEM"],
++}
++
++cc_binary {
++    name: "vendor.lineage.livedisplay@2.0-service-sysfs",
++    init_rc: ["vendor.lineage.livedisplay@2.0-service-sysfs.rc"],
++    defaults: ["livedisplay_sysfs_defaults"],
++    vendor: true,
++}
+diff --git a/sysfs/AutoContrast.cpp b/sysfs/AutoContrast.cpp
+index 522014c..906f6a1 100644
+--- a/sysfs/AutoContrast.cpp
++++ b/sysfs/AutoContrast.cpp
+@@ -14,32 +14,45 @@
+  * limitations under the License.
+  */
+ 
++#include <android-base/file.h>
++#include <android-base/strings.h>
++
++#include <fstream>
++
+ #include "AutoContrast.h"
+ 
++using android::base::ReadFileToString;
++using android::base::Trim;
++using android::base::WriteStringToFile;
++
+ namespace vendor {
+ namespace lineage {
+ namespace livedisplay {
+ namespace V2_0 {
+ namespace sysfs {
+ 
++bool AutoContrast::isSupported() {
++    std::fstream aco(FILE_ACO, aco.in | aco.out);
++
++    return aco.good();
++}
++
+ // Methods from ::vendor::lineage::livedisplay::V2_0::IAutoContrast follow.
+ Return<bool> AutoContrast::isEnabled() {
+-    // TODO implement
+-    return bool {};
++    std::string tmp;
++    int32_t contents = 0;
++
++    if (ReadFileToString(FILE_ACO, &tmp)) {
++        contents = std::stoi(Trim(tmp));
++    }
++
++    return contents > 0;
+ }
+ 
+ Return<bool> AutoContrast::setEnabled(bool enabled) {
+-    // TODO implement
+-    return bool {};
++    return WriteStringToFile(enabled ? "1" : "0", FILE_ACO, true);
+ }
+ 
+-
+-// Methods from ::android::hidl::base::V1_0::IBase follow.
+-
+-//IAutoContrast* HIDL_FETCH_IAutoContrast(const char* /* name */) {
+-    //return new AutoContrast();
+-//}
+-//
+ }  // namespace sysfs
+ }  // namespace V2_0
+ }  // namespace livedisplay
+diff --git a/sysfs/AutoContrast.h b/sysfs/AutoContrast.h
+index 3967979..71ca9b5 100644
+--- a/sysfs/AutoContrast.h
++++ b/sysfs/AutoContrast.h
+@@ -18,8 +18,6 @@
+ #define VENDOR_LINEAGE_LIVEDISPLAY_V2_0_AUTOCONTRAST_H
+ 
+ #include <vendor/lineage/livedisplay/2.0/IAutoContrast.h>
+-#include <hidl/MQDescriptor.h>
+-#include <hidl/Status.h>
+ 
+ namespace vendor {
+ namespace lineage {
+@@ -27,26 +25,20 @@ namespace livedisplay {
+ namespace V2_0 {
+ namespace sysfs {
+ 
+-using ::android::hardware::hidl_array;
+-using ::android::hardware::hidl_memory;
+-using ::android::hardware::hidl_string;
+-using ::android::hardware::hidl_vec;
+ using ::android::hardware::Return;
+ using ::android::hardware::Void;
+-using ::android::sp;
+ 
+-struct AutoContrast : public IAutoContrast {
++#define FILE_ACO "/sys/class/graphics/fb0/aco"
++
++class AutoContrast : public IAutoContrast {
++   public:
++    bool isSupported();
++
+     // Methods from ::vendor::lineage::livedisplay::V2_0::IAutoContrast follow.
+     Return<bool> isEnabled() override;
+     Return<bool> setEnabled(bool enabled) override;
+-
+-    // Methods from ::android::hidl::base::V1_0::IBase follow.
+-
+ };
+ 
+-// FIXME: most likely delete, this is only for passthrough implementations
+-// extern "C" IAutoContrast* HIDL_FETCH_IAutoContrast(const char* name);
+-
+ }  // namespace sysfs
+ }  // namespace V2_0
+ }  // namespace livedisplay
+diff --git a/sysfs/ColorEnhancement.cpp b/sysfs/ColorEnhancement.cpp
+index 364f348..757d257 100644
+--- a/sysfs/ColorEnhancement.cpp
++++ b/sysfs/ColorEnhancement.cpp
+@@ -14,32 +14,45 @@
+  * limitations under the License.
+  */
+ 
++#include <android-base/file.h>
++#include <android-base/strings.h>
++
++#include <fstream>
++
+ #include "ColorEnhancement.h"
+ 
++using android::base::ReadFileToString;
++using android::base::Trim;
++using android::base::WriteStringToFile;
++
+ namespace vendor {
+ namespace lineage {
+ namespace livedisplay {
+ namespace V2_0 {
+ namespace sysfs {
+ 
++bool ColorEnhancement::isSupported() {
++    std::fstream ce(FILE_CE, ce.in | ce.out);
++
++    return ce.good();
++}
++
+ // Methods from ::vendor::lineage::livedisplay::V2_0::IColorEnhancement follow.
+ Return<bool> ColorEnhancement::isEnabled() {
+-    // TODO implement
+-    return bool {};
++    std::string tmp;
++    int32_t contents = 0;
++
++    if (ReadFileToString(FILE_CE, &tmp)) {
++        contents = std::stoi(Trim(tmp));
++    }
++
++    return contents > 0;
+ }
+ 
+ Return<bool> ColorEnhancement::setEnabled(bool enabled) {
+-    // TODO implement
+-    return bool {};
++    return WriteStringToFile(enabled ? "1" : "0", FILE_CE, true);
+ }
+ 
+-
+-// Methods from ::android::hidl::base::V1_0::IBase follow.
+-
+-//IColorEnhancement* HIDL_FETCH_IColorEnhancement(const char* /* name */) {
+-    //return new ColorEnhancement();
+-//}
+-//
+ }  // namespace sysfs
+ }  // namespace V2_0
+ }  // namespace livedisplay
+diff --git a/sysfs/ColorEnhancement.h b/sysfs/ColorEnhancement.h
+index 8b22907..780009f 100644
+--- a/sysfs/ColorEnhancement.h
++++ b/sysfs/ColorEnhancement.h
+@@ -18,8 +18,6 @@
+ #define VENDOR_LINEAGE_LIVEDISPLAY_V2_0_COLORENHANCEMENT_H
+ 
+ #include <vendor/lineage/livedisplay/2.0/IColorEnhancement.h>
+-#include <hidl/MQDescriptor.h>
+-#include <hidl/Status.h>
+ 
+ namespace vendor {
+ namespace lineage {
+@@ -27,26 +25,20 @@ namespace livedisplay {
+ namespace V2_0 {
+ namespace sysfs {
+ 
+-using ::android::hardware::hidl_array;
+-using ::android::hardware::hidl_memory;
+-using ::android::hardware::hidl_string;
+-using ::android::hardware::hidl_vec;
+ using ::android::hardware::Return;
+ using ::android::hardware::Void;
+-using ::android::sp;
+ 
+-struct ColorEnhancement : public IColorEnhancement {
++#define FILE_CE "/sys/class/graphics/fb0/color_enhance"
++
++class ColorEnhancement : public IColorEnhancement {
++   public:
++    bool isSupported();
++
+     // Methods from ::vendor::lineage::livedisplay::V2_0::IColorEnhancement follow.
+     Return<bool> isEnabled() override;
+     Return<bool> setEnabled(bool enabled) override;
+-
+-    // Methods from ::android::hidl::base::V1_0::IBase follow.
+-
+ };
+ 
+-// FIXME: most likely delete, this is only for passthrough implementations
+-// extern "C" IColorEnhancement* HIDL_FETCH_IColorEnhancement(const char* name);
+-
+ }  // namespace sysfs
+ }  // namespace V2_0
+ }  // namespace livedisplay
+diff --git a/sysfs/DisplayColorCalibration.cpp b/sysfs/DisplayColorCalibration.cpp
+index 3331796..1a4802e 100644
+--- a/sysfs/DisplayColorCalibration.cpp
++++ b/sysfs/DisplayColorCalibration.cpp
+@@ -14,42 +14,64 @@
+  * limitations under the License.
+  */
+ 
++#include <android-base/file.h>
++#include <android-base/strings.h>
++
++#include <fstream>
++
+ #include "DisplayColorCalibration.h"
+ 
++using android::base::ReadFileToString;
++using android::base::Split;
++using android::base::Trim;
++using android::base::WriteStringToFile;
++
+ namespace vendor {
+ namespace lineage {
+ namespace livedisplay {
+ namespace V2_0 {
+ namespace sysfs {
+ 
++bool DisplayColorCalibration::isSupported() {
++    std::fstream rgb(FILE_RGB, rgb.in | rgb.out);
++
++    return rgb.good();
++}
++
+ // Methods from ::vendor::lineage::livedisplay::V2_0::IDisplayColorCalibration follow.
+ Return<int32_t> DisplayColorCalibration::getMaxValue() {
+-    // TODO implement
+-    return int32_t {};
++    return 32768;
+ }
+ 
+ Return<int32_t> DisplayColorCalibration::getMinValue() {
+-    // TODO implement
+-    return int32_t {};
++    return 255;
+ }
+ 
+ Return<void> DisplayColorCalibration::getCalibration(getCalibration_cb _hidl_cb) {
+-    // TODO implement
++    std::vector<int32_t> rgb;
++    std::string tmp;
++
++    if (ReadFileToString(FILE_RGB, &tmp)) {
++        std::vector<std::string> colors = Split(Trim(tmp), " ");
++        for (const std::string& color : colors) {
++            rgb.push_back(std::stoi(color));
++        }
++    }
++
++    _hidl_cb(rgb);
+     return Void();
+ }
+ 
+ Return<bool> DisplayColorCalibration::setCalibration(const hidl_vec<int32_t>& rgb) {
+-    // TODO implement
+-    return bool {};
+-}
++    std::string contents;
+ 
++    for (const int32_t& color : rgb) {
++        contents += std::to_string(color) + " ";
++    }
+ 
+-// Methods from ::android::hidl::base::V1_0::IBase follow.
++    return WriteStringToFile(Trim(contents), FILE_RGB, true);
++}
+ 
+-//IDisplayColorCalibration* HIDL_FETCH_IDisplayColorCalibration(const char* /* name */) {
+-    //return new DisplayColorCalibration();
+-//}
+-//
+ }  // namespace sysfs
+ }  // namespace V2_0
+ }  // namespace livedisplay
+diff --git a/sysfs/DisplayColorCalibration.h b/sysfs/DisplayColorCalibration.h
+index d31ee08..f69d8c4 100644
+--- a/sysfs/DisplayColorCalibration.h
++++ b/sysfs/DisplayColorCalibration.h
+@@ -18,8 +18,6 @@
+ #define VENDOR_LINEAGE_LIVEDISPLAY_V2_0_DISPLAYCOLORCALIBRATION_H
+ 
+ #include <vendor/lineage/livedisplay/2.0/IDisplayColorCalibration.h>
+-#include <hidl/MQDescriptor.h>
+-#include <hidl/Status.h>
+ 
+ namespace vendor {
+ namespace lineage {
+@@ -27,28 +25,23 @@ namespace livedisplay {
+ namespace V2_0 {
+ namespace sysfs {
+ 
+-using ::android::hardware::hidl_array;
+-using ::android::hardware::hidl_memory;
+-using ::android::hardware::hidl_string;
+ using ::android::hardware::hidl_vec;
+ using ::android::hardware::Return;
+ using ::android::hardware::Void;
+-using ::android::sp;
+ 
+-struct DisplayColorCalibration : public IDisplayColorCalibration {
++#define FILE_RGB "/sys/class/graphics/fb0/rgb"
++
++class DisplayColorCalibration : public IDisplayColorCalibration {
++   public:
++    bool isSupported();
++
+     // Methods from ::vendor::lineage::livedisplay::V2_0::IDisplayColorCalibration follow.
+     Return<int32_t> getMaxValue() override;
+     Return<int32_t> getMinValue() override;
+     Return<void> getCalibration(getCalibration_cb _hidl_cb) override;
+     Return<bool> setCalibration(const hidl_vec<int32_t>& rgb) override;
+-
+-    // Methods from ::android::hidl::base::V1_0::IBase follow.
+-
+ };
+ 
+-// FIXME: most likely delete, this is only for passthrough implementations
+-// extern "C" IDisplayColorCalibration* HIDL_FETCH_IDisplayColorCalibration(const char* name);
+-
+ }  // namespace sysfs
+ }  // namespace V2_0
+ }  // namespace livedisplay
+diff --git a/sysfs/ReadingEnhancement.cpp b/sysfs/ReadingEnhancement.cpp
+index af366da..0e4b92d 100644
+--- a/sysfs/ReadingEnhancement.cpp
++++ b/sysfs/ReadingEnhancement.cpp
+@@ -14,32 +14,45 @@
+  * limitations under the License.
+  */
+ 
++#include <android-base/file.h>
++#include <android-base/strings.h>
++
++#include <fstream>
++
+ #include "ReadingEnhancement.h"
+ 
++using android::base::ReadFileToString;
++using android::base::Trim;
++using android::base::WriteStringToFile;
++
+ namespace vendor {
+ namespace lineage {
+ namespace livedisplay {
+ namespace V2_0 {
+ namespace sysfs {
+ 
++bool ReadingEnhancement::isSupported() {
++    std::fstream re(FILE_RE, re.in | re.out);
++
++    return re.good();
++}
++
+ // Methods from ::vendor::lineage::livedisplay::V2_0::IReadingEnhancement follow.
+ Return<bool> ReadingEnhancement::isEnabled() {
+-    // TODO implement
+-    return bool {};
++    std::string tmp;
++    int32_t contents = 0;
++
++    if (ReadFileToString(FILE_RE, &tmp)) {
++        contents = std::stoi(Trim(tmp));
++    }
++
++    return contents > 0;
+ }
+ 
+ Return<bool> ReadingEnhancement::setEnabled(bool enabled) {
+-    // TODO implement
+-    return bool {};
++    return WriteStringToFile(enabled ? "1" : "0", FILE_RE, true);
+ }
+ 
+-
+-// Methods from ::android::hidl::base::V1_0::IBase follow.
+-
+-//IReadingEnhancement* HIDL_FETCH_IReadingEnhancement(const char* /* name */) {
+-    //return new ReadingEnhancement();
+-//}
+-//
+ }  // namespace sysfs
+ }  // namespace V2_0
+ }  // namespace livedisplay
+diff --git a/sysfs/ReadingEnhancement.h b/sysfs/ReadingEnhancement.h
+index 595eb67..cf4149e 100644
+--- a/sysfs/ReadingEnhancement.h
++++ b/sysfs/ReadingEnhancement.h
+@@ -18,8 +18,6 @@
+ #define VENDOR_LINEAGE_LIVEDISPLAY_V2_0_READINGENHANCEMENT_H
+ 
+ #include <vendor/lineage/livedisplay/2.0/IReadingEnhancement.h>
+-#include <hidl/MQDescriptor.h>
+-#include <hidl/Status.h>
+ 
+ namespace vendor {
+ namespace lineage {
+@@ -27,26 +25,20 @@ namespace livedisplay {
+ namespace V2_0 {
+ namespace sysfs {
+ 
+-using ::android::hardware::hidl_array;
+-using ::android::hardware::hidl_memory;
+-using ::android::hardware::hidl_string;
+-using ::android::hardware::hidl_vec;
+ using ::android::hardware::Return;
+ using ::android::hardware::Void;
+-using ::android::sp;
+ 
+-struct ReadingEnhancement : public IReadingEnhancement {
++#define FILE_RE "/sys/class/graphics/fb0/reading_mode"
++
++class ReadingEnhancement : public IReadingEnhancement {
++   public:
++    bool isSupported();
++
+     // Methods from ::vendor::lineage::livedisplay::V2_0::IReadingEnhancement follow.
+     Return<bool> isEnabled() override;
+     Return<bool> setEnabled(bool enabled) override;
+-
+-    // Methods from ::android::hidl::base::V1_0::IBase follow.
+-
+ };
+ 
+-// FIXME: most likely delete, this is only for passthrough implementations
+-// extern "C" IReadingEnhancement* HIDL_FETCH_IReadingEnhancement(const char* name);
+-
+ }  // namespace sysfs
+ }  // namespace V2_0
+ }  // namespace livedisplay
+diff --git a/sysfs/SunlightEnhancement.cpp b/sysfs/SunlightEnhancement.cpp
+index 92ba793..be97795 100644
+--- a/sysfs/SunlightEnhancement.cpp
++++ b/sysfs/SunlightEnhancement.cpp
+@@ -14,32 +14,54 @@
+  * limitations under the License.
+  */
+ 
++#include <android-base/file.h>
++#include <android-base/strings.h>
++
++#include <fstream>
++
+ #include "SunlightEnhancement.h"
+ 
++using android::base::ReadFileToString;
++using android::base::Trim;
++using android::base::WriteStringToFile;
++
+ namespace vendor {
+ namespace lineage {
+ namespace livedisplay {
+ namespace V2_0 {
+ namespace sysfs {
+ 
++bool SunlightEnhancement::isSupported() {
++    std::fstream hbm(FILE_HBM, hbm.in | hbm.out);
++    std::fstream sre(FILE_SRE, sre.in | sre.out);
++
++    if (hbm.good()) {
++        mFile = FILE_HBM;
++        mEnabledMode = 1;
++    } else if (sre.good()) {
++        mFile = FILE_SRE;
++        mEnabledMode = 2;
++    }
++
++    return !mFile.empty();
++}
++
+ // Methods from ::vendor::lineage::livedisplay::V2_0::ISunlightEnhancement follow.
+ Return<bool> SunlightEnhancement::isEnabled() {
+-    // TODO implement
+-    return bool {};
++    std::string tmp;
++    int32_t contents = 0;
++
++    if (ReadFileToString(mFile, &tmp)) {
++        contents = std::stoi(Trim(tmp));
++    }
++
++    return contents > 0;
+ }
+ 
+ Return<bool> SunlightEnhancement::setEnabled(bool enabled) {
+-    // TODO implement
+-    return bool {};
++    return WriteStringToFile(enabled ? std::to_string(mEnabledMode) : "0", mFile, true);
+ }
+ 
+-
+-// Methods from ::android::hidl::base::V1_0::IBase follow.
+-
+-//ISunlightEnhancement* HIDL_FETCH_ISunlightEnhancement(const char* /* name */) {
+-    //return new SunlightEnhancement();
+-//}
+-//
+ }  // namespace sysfs
+ }  // namespace V2_0
+ }  // namespace livedisplay
+diff --git a/sysfs/SunlightEnhancement.h b/sysfs/SunlightEnhancement.h
+index da94126..6156e15 100644
+--- a/sysfs/SunlightEnhancement.h
++++ b/sysfs/SunlightEnhancement.h
+@@ -18,8 +18,6 @@
+ #define VENDOR_LINEAGE_LIVEDISPLAY_V2_0_SUNLIGHTENHANCEMENT_H
+ 
+ #include <vendor/lineage/livedisplay/2.0/ISunlightEnhancement.h>
+-#include <hidl/MQDescriptor.h>
+-#include <hidl/Status.h>
+ 
+ namespace vendor {
+ namespace lineage {
+@@ -27,26 +25,25 @@ namespace livedisplay {
+ namespace V2_0 {
+ namespace sysfs {
+ 
+-using ::android::hardware::hidl_array;
+-using ::android::hardware::hidl_memory;
+-using ::android::hardware::hidl_string;
+-using ::android::hardware::hidl_vec;
+ using ::android::hardware::Return;
+ using ::android::hardware::Void;
+-using ::android::sp;
+ 
+-struct SunlightEnhancement : public ISunlightEnhancement {
++#define FILE_HBM "/sys/class/graphics/fb0/hbm"
++#define FILE_SRE "/sys/class/graphics/fb0/sre"
++
++class SunlightEnhancement : public ISunlightEnhancement {
++   public:
++    bool isSupported();
++
+     // Methods from ::vendor::lineage::livedisplay::V2_0::ISunlightEnhancement follow.
+     Return<bool> isEnabled() override;
+     Return<bool> setEnabled(bool enabled) override;
+ 
+-    // Methods from ::android::hidl::base::V1_0::IBase follow.
+-
++   private:
++    std::string mFile;
++    int32_t mEnabledMode;
+ };
+ 
+-// FIXME: most likely delete, this is only for passthrough implementations
+-// extern "C" ISunlightEnhancement* HIDL_FETCH_ISunlightEnhancement(const char* name);
+-
+ }  // namespace sysfs
+ }  // namespace V2_0
+ }  // namespace livedisplay
+diff --git a/sysfs/lineage.livedisplay@2.0-service-sysfs.rc b/sysfs/lineage.livedisplay@2.0-service-sysfs.rc
+new file mode 100644
+index 0000000..b902525
+--- /dev/null
++++ b/sysfs/lineage.livedisplay@2.0-service-sysfs.rc
+@@ -0,0 +1,23 @@
++on init
++    # LiveDisplay sysfs
++    chown system system /sys/devices/virtual/graphics/fb0/acl
++    chmod 0660 /sys/devices/virtual/graphics/fb0/acl
++    chown system system /sys/devices/virtual/graphics/fb0/aco
++    chmod 0660 /sys/devices/virtual/graphics/fb0/aco
++    chown system system /sys/devices/virtual/graphics/fb0/cabc
++    chmod 0660 /sys/devices/virtual/graphics/fb0/cabc
++    chown system system /sys/devices/virtual/graphics/fb0/hbm
++    chmod 0660 /sys/devices/virtual/graphics/fb0/hbm
++    chown system system /sys/devices/virtual/graphics/fb0/rgb
++    chmod 0660 /sys/devices/virtual/graphics/fb0/rgb
++    chown system system /sys/devices/virtual/graphics/fb0/sre
++    chmod 0660 /sys/devices/virtual/graphics/fb0/sre
++    chown system system /sys/devices/virtual/graphics/fb0/color_enhance
++    chmod 0660 /sys/devices/virtual/graphics/fb0/color_enhance
++    chown system system /sys/devices/virtual/graphics/fb0/reading_mode
++    chmod 0660 /sys/devices/virtual/graphics/fb0/reading_mode
++
++service livedisplay-hal-2-0-sysfs /system/bin/hw/lineage.livedisplay@2.0-service-sysfs
++    class hal
++    user system
++    group system
+diff --git a/sysfs/service.cpp b/sysfs/service.cpp
+new file mode 100644
+index 0000000..72e953a
+--- /dev/null
++++ b/sysfs/service.cpp
+@@ -0,0 +1,171 @@
++/*
++ * Copyright (C) 2019 The LineageOS Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#ifdef LIVES_IN_SYSTEM
++#define LOG_TAG "lineage.livedisplay@2.0-service-sysfs"
++#else
++#define LOG_TAG "vendor.lineage.livedisplay@2.0-service-sysfs"
++#endif
++
++#include <android-base/logging.h>
++#include <binder/ProcessState.h>
++#include <hidl/HidlTransportSupport.h>
++
++#include "AdaptiveBacklight.h"
++#include "AutoContrast.h"
++#include "ColorEnhancement.h"
++#include "DisplayColorCalibration.h"
++#include "ReadingEnhancement.h"
++#include "SunlightEnhancement.h"
++
++using android::OK;
++using android::sp;
++using android::status_t;
++using android::hardware::configureRpcThreadpool;
++using android::hardware::joinRpcThreadpool;
++
++using ::vendor::lineage::livedisplay::V2_0::IAdaptiveBacklight;
++using ::vendor::lineage::livedisplay::V2_0::IAutoContrast;
++using ::vendor::lineage::livedisplay::V2_0::IColorEnhancement;
++using ::vendor::lineage::livedisplay::V2_0::IDisplayColorCalibration;
++using ::vendor::lineage::livedisplay::V2_0::IReadingEnhancement;
++using ::vendor::lineage::livedisplay::V2_0::ISunlightEnhancement;
++using ::vendor::lineage::livedisplay::V2_0::sysfs::AdaptiveBacklight;
++using ::vendor::lineage::livedisplay::V2_0::sysfs::AutoContrast;
++using ::vendor::lineage::livedisplay::V2_0::sysfs::ColorEnhancement;
++using ::vendor::lineage::livedisplay::V2_0::sysfs::DisplayColorCalibration;
++using ::vendor::lineage::livedisplay::V2_0::sysfs::ReadingEnhancement;
++using ::vendor::lineage::livedisplay::V2_0::sysfs::SunlightEnhancement;
++
++int main() {
++    // sysfs-based HALs
++    sp<AdaptiveBacklight> ab;
++    sp<AutoContrast> ac;
++    sp<ColorEnhancement> ce;
++    sp<DisplayColorCalibration> dcc;
++    sp<ReadingEnhancement> re;
++    sp<SunlightEnhancement> se;
++
++    status_t status = OK;
++
++    LOG(INFO) << "LiveDisplay HAL service is starting.";
++
++    ab = new AdaptiveBacklight();
++    if (ab == nullptr) {
++        LOG(ERROR)
++            << "Can not create an instance of LiveDisplay HAL AdaptiveBacklight Iface, exiting.";
++        goto shutdown;
++    }
++
++    ac = new AutoContrast();
++    if (ac == nullptr) {
++        LOG(ERROR) << "Can not create an instance of LiveDisplay HAL AutoContrast Iface, exiting.";
++        goto shutdown;
++    }
++
++    ce = new ColorEnhancement();
++    if (ce == nullptr) {
++        LOG(ERROR)
++            << "Can not create an instance of LiveDisplay HAL ColorEnhancement Iface, exiting.";
++        goto shutdown;
++    }
++
++    dcc = new DisplayColorCalibration();
++    if (dcc == nullptr) {
++        LOG(ERROR) << "Can not create an instance of LiveDisplay HAL DisplayColorCalibration Iface,"
++                   << " exiting.";
++        goto shutdown;
++    }
++
++    re = new ReadingEnhancement();
++    if (re == nullptr) {
++        LOG(ERROR)
++            << "Can not create an instance of LiveDisplay HAL ReadingEnhancement Iface, exiting.";
++        goto shutdown;
++    }
++
++    se = new SunlightEnhancement();
++    if (se == nullptr) {
++        LOG(ERROR)
++            << "Can not create an instance of LiveDisplay HAL SunlightEnhancement Iface, exiting.";
++        goto shutdown;
++    }
++
++    configureRpcThreadpool(1, true /*callerWillJoin*/);
++
++    if (ab->isSupported()) {
++        status = ab->registerAsService();
++        if (status != OK) {
++            LOG(ERROR) << "Could not register service for LiveDisplay HAL AdaptiveBacklight Iface ("
++                       << status << ")";
++            goto shutdown;
++        }
++    }
++
++    if (ac->isSupported()) {
++        status = ac->registerAsService();
++        if (status != OK) {
++            LOG(ERROR) << "Could not register service for LiveDisplay HAL AutoContrast Iface ("
++                       << status << ")";
++            goto shutdown;
++        }
++    }
++
++    if (ce->isSupported()) {
++        status = ce->registerAsService();
++        if (status != OK) {
++            LOG(ERROR) << "Could not register service for LiveDisplay HAL ColorEnhancement Iface ("
++                       << status << ")";
++            goto shutdown;
++        }
++    }
++
++    if (dcc->isSupported()) {
++        status = dcc->registerAsService();
++        if (status != OK) {
++            LOG(ERROR) << "Could not register service for LiveDisplay HAL DisplayColorCalibration"
++                       << " Iface (" << status << ")";
++            goto shutdown;
++        }
++    }
++
++    if (re->isSupported()) {
++        status = re->registerAsService();
++        if (status != OK) {
++            LOG(ERROR) << "Could not register service for LiveDisplay HAL ReadingEnhancement Iface"
++                       << " (" << status << ")";
++            goto shutdown;
++        }
++    }
++
++    if (se->isSupported()) {
++        status = se->registerAsService();
++        if (status != OK) {
++            LOG(ERROR) << "Could not register service for LiveDisplay HAL SunlightEnhancement Iface"
++                       << " (" << status << ")";
++            goto shutdown;
++        }
++    }
++
++    LOG(INFO) << "LiveDisplay HAL service is ready.";
++    joinRpcThreadpool();
++    // Should not pass this line
++
++shutdown:
++    // In normal operation, we don't expect the thread pool to shutdown
++    LOG(ERROR) << "LiveDisplay HAL service is shutting down.";
++    return 1;
++}
+diff --git a/sysfs/vendor.lineage.livedisplay@2.0-service-sysfs.rc b/sysfs/vendor.lineage.livedisplay@2.0-service-sysfs.rc
+new file mode 100644
+index 0000000..330bddc
+--- /dev/null
++++ b/sysfs/vendor.lineage.livedisplay@2.0-service-sysfs.rc
+@@ -0,0 +1,23 @@
++on init
++    # LiveDisplay sysfs
++    chown system system /sys/devices/virtual/graphics/fb0/acl
++    chmod 0660 /sys/devices/virtual/graphics/fb0/acl
++    chown system system /sys/devices/virtual/graphics/fb0/aco
++    chmod 0660 /sys/devices/virtual/graphics/fb0/aco
++    chown system system /sys/devices/virtual/graphics/fb0/cabc
++    chmod 0660 /sys/devices/virtual/graphics/fb0/cabc
++    chown system system /sys/devices/virtual/graphics/fb0/hbm
++    chmod 0660 /sys/devices/virtual/graphics/fb0/hbm
++    chown system system /sys/devices/virtual/graphics/fb0/rgb
++    chmod 0660 /sys/devices/virtual/graphics/fb0/rgb
++    chown system system /sys/devices/virtual/graphics/fb0/sre
++    chmod 0660 /sys/devices/virtual/graphics/fb0/sre
++    chown system system /sys/devices/virtual/graphics/fb0/color_enhance
++    chmod 0660 /sys/devices/virtual/graphics/fb0/color_enhance
++    chown system system /sys/devices/virtual/graphics/fb0/reading_mode
++    chmod 0660 /sys/devices/virtual/graphics/fb0/reading_mode
++
++service vendor.livedisplay-hal-2-0-sysfs /vendor/bin/hw/vendor.lineage.livedisplay@2.0-service-sysfs
++    class hal
++    user system
++    group system
+-- 
+2.17.1
+

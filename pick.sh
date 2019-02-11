@@ -997,18 +997,18 @@ function kpick_action()
                         last_project=$project
                         last_changeNumber=$changeNumber
                         if grep -iq "^[[:space:]]*#[[:space:]]*$project[[:space:]]*$" $target_script; then
-                            eval "sed \"/^[[:space:]]*kpick[[:space:]]\{1,\}$changeNumber/d\" -i $target_script"
+                            eval "sed \"/^[[:space:]]*kpick[[:space:]]\\{1,\\}\\(.*[[:space:]]\\{1,\\}\\|\\)$changeNumber/d\" -i $target_script"
                             project_offset=$(grep -in "^[[:space:]]*#[[:space:]]*$project[[:space:]]*$" $target_script | cut -d: -f 1 | head -n 1)
                             eval "sed \"$project_offset akpick $nops \# $subject\" -i $target_script"
                         else
-                            eval "sed \"/kpick[[:space:]]\\{1,\\}.*$changeNumber/i\\# $project\" -i $target_script"
-                            eval "sed -e \"s|^[[:space:]]*kpick[[:space:]]\{1,\}$changeNumber[[:space:]]*.*|kpick $nops \# $subject|g\" -i $target_script"
-                            eval "sed \"/kpick[[:space:]]\\{1,\\}.*$changeNumber/a\\\\\r\" -i $target_script"
+                            eval "sed \"/kpick[[:space:]]\\{1,\\}\\(.*[[:space:]]\\{1,\\}\\|\\)$changeNumber/i\\# $project\" -i $target_script"
+                            eval "sed -e \"s|^[[:space:]]*kpick[[:space:]]\{1,\}\\(.*[[:space:]]\\{1,\\}\\|\\)$changeNumber[[:space:]]*.*|kpick $nops \# $subject|g\" -i $target_script"
+                            eval "sed \"/kpick[[:space:]]\\{1,\\}\\(.*[[:space:]]\\{1,\\}\\|\\)$changeNumber/a\\\\\r\" -i $target_script"
                         fi
                     else
                         if grep -q "already picked in" $logfile; then
-                           if [ $(grep "^[[:space:]]*kpick[[:space:]]*.*$changeNumber[[:space:]]*" $target_script | wc -l) -ge 2 ]; then
-                                local first_find_lineNo=$(grep -n "kpick[[:space:]]*.*$changeNumber" $target_script | cut -d: -f1 | head -n 1)
+                           if [ $(grep "^[[:space:]]*kpick[[:space:]]*\\(.*[[:space:]]\\{1,\\}\\|\\)$changeNumber[[:space:]]*" $target_script | wc -l) -ge 2 ]; then
+                                local first_find_lineNo=$(grep -n "kpick[[:space:]]*\\(.*[[:space:]]\\{1,\\}\\|\\)$changeNumber" $target_script | cut -d: -f1 | head -n 1)
                                 first_find_lineNo=$(( first_find_lineNo + 1 ))
                                 local second_find_lineNo=$(eval "sed -n '$first_find_lineNo,\$p'" $target_script | grep -n "kpick[[:space:]]*.*$changeNumber" | cut -d: -f1 | head -n 1 )
                                 second_find_lineNo=$(( $second_find_lineNo - 1 ))
@@ -1016,19 +1016,19 @@ function kpick_action()
                                 eval "sed \"${second_find_lineNo}d\" -i $target_script"
                            fi
                         else
-                            eval "sed \"/kpick[[:space:]]*.*$changeNumber/d\" -i $target_script"
+                            eval "sed \"/kpick[[:space:]]*\\(.*[[:space:]]\\{1,\\}\\|\\)$changeNumber/d\" -i $target_script"
                             project_lastpick=$(grep  "$project" $tmp_picks_info_file | cut -d" " -f2)
-                            eval "sed \"/kpick[[:space:]]\\{1,\\}.*$project_lastpick/a\\kpick $nops \# $subject\" -i $target_script"
+                            eval "sed \"/kpick[[:space:]]\\{1,\\}\\(.*[[:space:]]\\{1,\\}\\|\\)$project_lastpick/a\\kpick $nops \# $subject\" -i $target_script"
                             eval "sed \"s|$last_project $last_changeNumber|$last_project $changeNumber|g\" -i $tmp_picks_info_file"
                         fi
                     fi
                else
                     [ "$last_project" = "" ] && last_project=$project
                     [ "$last_changeNumber" = "" ] && last_changeNumber=$changeNumber
-                    eval  "sed -e \"s|^[[:space:]]*kpick[[:space:]]\{1,\}$changeNumber[[:space:]]*.*|kpick $nops \# $subject|g\" -i $target_script"
+                    eval  "sed -e \"s|^[[:space:]]*kpick[[:space:]]\{1,\}\\(.*[[:space:]]\\{1,\\}\\|\\)$changeNumber[[:space:]]*.*|kpick $nops \# $subject|g\" -i $target_script"
                fi
            else
-               eval  "sed -e \"s|^[[:space:]]*kpick[[:space:]]\{1,\}$changeNumber[[:space:]]*.*|kpick $nops \# $subject|g\" -i $target_script"
+               eval  "sed -e \"s|^[[:space:]]*kpick[[:space:]]\{1,\}\\(.*[[:space:]]\\{1,\\}\\|\\)$changeNumber[[:space:]]*.*|kpick $nops \# $subject|g\" -i $target_script"
                last_changeNumber=$changeNumber
            fi
     fi
@@ -1201,7 +1201,8 @@ kpick 231971 # manifest: sync gcc4.9 from aosp oreo
 
 fi       # continue pick or not
 
-# ================= DEVICE STUFF =========================
+# ==========================================================
+# ==========================================================
 
 # first pick for repopick
 kpick 234859 # repopick: cmp() is not available in Python 3, define it manually
@@ -1210,9 +1211,11 @@ kpick 234859 # repopick: cmp() is not available in Python 3, define it manually
 rm -f $tmp_picks_info_file
 start_check_classification=1
 
+# ================= DEVICE STUFF =========================
+
 # device/samsung/klte-common
 kpick 225192 # klte-common: Align ril.h to samsung_msm8974-common P libril changes
-#kpick 238522 # klte-common: Add IGloveMode to device manifest
+kpick 238522 # klte-common: Add IGloveMode to device manifest
 
 # device/samsung/msm8974-common
 kpick 235457 # msm8974-common: sepolicy: Limit execmod to specifically labeled files
@@ -1282,21 +1285,18 @@ kpick 238993 # recovery: Add runtime checks for A/B vs traditional updates
 # build/make
 kpick 222742 # build: Use project pathmap for recovery
 kpick 222760 # Add LOCAL_AIDL_FLAGS
-kpick 239212 # Stop using the `files` target for droidcore
 kpick 239296 # build: Remove charger from recovery unless needed
+kpick 241427 # build: Allow build-image-kernel-modules to be called from shell
 
 # build/soong
 kpick 222648 # Allow providing flex and bison binaries
 kpick 224613 # soong: Add LOCAL_AIDL_FLAGS handling
 kpick 226443 # soong: Add additional_deps attribute for libraries and binaries
+kpick 241473
 
 # dalvik
 
 # device/lineage/sepolicy
-kpick 241211 # qcom: Remove power HAL 1.0 label
-kpick 238639 # Revert "common: Add sf_lcd_density_prop type and labelled props"
-kpick 240499 # Remove not allowed rule
-kpick 240500 # Snap and gallery require to run vendor code
 kpick 240503 # Make sysinit permissive
 kpick 240504 # Make backuptool permissive only in non user builds
 kpick 240542 # Revert "sepolicy: recovery: Allow (re)mounting system"
@@ -1307,7 +1307,6 @@ kpick 241001 # common: Label livedisplay 2.0 sysfs service
 # device/qcom/sepolicy
 kpick 228573 # sepolicy: Add libsdm-disp-vndapis and libsdmutils to SP-HALs
 kpick 228582 # sepolicy: qti_init_shell needs to read dir too
-kpick 240548 # sepolicy: Whitelist vold from reading mnt_vendor_file
 kpick 240112 # sepolicy: Label vendor.camera.hal1.packagelist
 kpick 240951 # qcom: label persist files with /(mnt/vendor)/persist instead of /mnt/vendor/persist
 
@@ -1316,7 +1315,6 @@ kpick 230230 # common: fix sensors denial
 kpick 239736 # sepolicy-legacy: Allow vold to open keymaster firmware
 kpick 239741 # common: permit libqdutils operation (linked by mediaserver) during WFD
 kpick 240028 # sepolicy: vendor_init: allow vendor_init to read firmware files
-kpick 241218 # Display: Remove vendor property context for lcd density
 kpick 241219 # legacy: Ignore neverallows
 
 # development
@@ -1363,7 +1361,6 @@ kpick 225231 # awk: Add libawk_main for recovery and fixup symbols
 
 # external/perfetto
 kpick 223413 -f # perfetto_cmd: Resolve missing O_CREAT mode
-kpick -f 223413 # perfetto_cmd: Resolve missing O_CREAT mode
 
 # external/skia
 
@@ -1390,6 +1387,7 @@ kpick 238929 # libstagefright_wfd: libmediaplayer2: compilation fixes
 kpick 238931 # stagefright: Fix SurfaceMediaSource getting handle from wrong position issue
 kpick 238932 # stagefright: Fix buffer handle retrieval in signalBufferReturned
 kpick 239642 # libstagefright_wfd: video encoder does not actually release MediaBufferBase when done
+kpick 241472
 
 # frameworks/base
 kpick 224266 # SystemUI: Add Lineage statusbar item holder
@@ -1420,7 +1418,7 @@ kpick 237142 # Battery: update mod support to P
 kpick 237143 # AudioService: Fix Audio mod volume steps
 kpick 237171 # WiFiDisplayController: Defer the P2P Initialization from its constructor.
 kpick 237172 # WifiDisplayController: handle preexisting p2p connection status
-kpick 237743 # systemui: add dark mode on low battery toggle
+#kpick 237743 # systemui: add dark mode on low battery toggle
 kpick 238696 # fonts: Build different fonts.xml if EXCLUDE_SERIF_FONTS is true
 kpick 239179 # Camera: Force HAL1 for predefined package list.
 kpick 239520 # Reset all package signatures on boot
@@ -1462,11 +1460,6 @@ kpick 225155 # Broadcom BT: Add support fm/bt via v4l2.
 kpick 241005 # lineagehw: Deprecate HWC2 display controls
 
 # hardware/lineage/livedisplay
-kpick 240997 # livedisplay: sysfs: Add autogenerated code
-#kpick 240569 # livedisplay: sdm: Manage QCDM api with a class
-#kpick 240570 # livedisplay: sdm: Code clean up
-kpick 240998 # livedisplay: sysfs: Add LineageOS copyrights
-kpick 240999 # livedisplay: sysfs: Remove unused HALs
 kpick 241000 # livedisplay: sysfs: Wire it up
 
 # hardware/nxp/nfc
@@ -1531,12 +1524,10 @@ kpick 238519 # samsung: Add dummy lineagehw HIDL interfaces for vendor.lineage.t
 kpick 238520 # hidl: touch: Add binderized service implementation
 kpick 239597 # samsung: Add dummy lineagehw HIDL interfaces for vendor.lineage.livedisplay
 kpick 239598 # hidl: livedisplay: Add binderized service implementation
-#kpick 228524 # power: Convert power HAL to native binderized HAL
 
 # lineage-sdk
 kpick 230272 # sdk: Remove VOLUME_KEYS_CONTROL_RING_STREAM
 kpick 237074 # lineage-sdk: Handle database downgrading
-kpick 237740 # sdk: add dark mode on low battery toggle
 kpick 241004 # sdk: LineageHardwareService: Add fallback to HWC2
 
 # packages/apps/Bluetooth
@@ -1601,7 +1592,6 @@ kpick 236184 # Settings: Use correct icon for ring volume
 kpick 233634 # Phone ringtone setting for Multi SIM device
 kpick 227120 # Settings: Check interfaces before enabling ADB over network
 kpick 229312 # Add Dual Channel into Bluetooth Audio Channel Mode developer options menu
-#kpick 229453 # Settings: use LineageHW serial number
 kpick 231826 # Update the white list of Data saver
 kpick 232793 # Settings: per-app VPN data restriction
 kpick 237183 # settings: hide appendix of app list for power usage.
@@ -1620,14 +1610,12 @@ kpick 240083 # Settings: Add null checks for OemLockService
 # packages/apps/Traceur
 
 # packages/apps/Trebuchet
-kpick 240080 # Trebuchet: Implement protected apps
 
 # packages/apps/TvSettings
 
 # packages/apps/UnifiedEmail
 
 # packages/apps/Updater
-kpick 234612 # Updater: Implement auto update check interval preference
 kpick 239289 # Updater: put identical code to helper method
 
 # packages/inputmethods/LatinIME
@@ -1662,7 +1650,6 @@ kpick 229314 # Allow using alternative (higher) SBC HD bitrates with a property
 
 # system/core
 kpick 227110 -f # init: I hate safety net
-kpick -f 227110 # init: I hate safety net
 kpick 231716 # init: Always use libbootloader_message from bootable/recovery namespace
 kpick 234860 # init: add install_keyring for TWRP FBE decrypt
 #kpick 237140 # healthd: add Battery Moto Mod Support
@@ -1687,7 +1674,6 @@ kpick 232794 # NetD : Allow passing in interface names for vpn app restriction
 # system/security
 
 # system/sepolicy
-kpick 240505 # Ignore newly added selinux objects
 
 # system/timezone
 
@@ -1727,6 +1713,13 @@ kpick 239527 # extract_utils: template: add support for the dependency graph fun
 kpick 237209 # lineage: Set default ringtone for second SIM
 kpick 237830 # soong_config: Add BOOTLOADER_MESSAGE_OFFSET
 kpick 241214 # vendor/lineage: Drop obsolete TW_EXCLUDE_SUPERSU flag
+kpick 241422 # kernel: Add more threads to kernel build process
+kpick 241423 # kernel: Move kernel module dir cleanup/creation to module install target
+kpick 241424 # kernel: Detect kernel module usage better
+kpick 241425 # kernel: Use a macro for kernel build targets
+kpick 241426 # kernel: Use build-image-kernel-modules instead of copying it
+kpick 241463
+kpick 241466
 
 # vendor/qcom/opensource/cryptfs_hw
 
