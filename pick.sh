@@ -242,9 +242,9 @@ function projects_snapshot()
               echo "$project, $commit_id, $url" >> $snapshot_file.new
          elif [ "$1" != "" -a "$project" = "$vproject" ]; then
               if [ -f $snapshot_file.new ]; then
-                     eval "sed -e \"s|^$project.*|$project,$commit_id, $url|" -i $snapshot_file.new"
+                     sed -e "s|^${project}.*|${project},${commit_id}, ${url}|" -i $snapshot_file.new
               else
-                     eval "sed -e \"s|^$project.*|$project,$commit_id, $url|" -i $snapshot_file"
+                     sed -e "s|^${project}.*|${project},${commit_id}, ${url}|" -i $snapshot_file
               fi
          fi
 
@@ -481,8 +481,8 @@ function fix_repopick_output()
     fi
     bLineNo=$(grep -n "Applying change number" $logfile | cut -d: -f1 )
     if [ $bLineNo -gt 1 ]; then
-        eval sed -n "'$bLineNo,\$p'" $logfile > $logfile.fix
-        eval sed -n "'1,$(expr $bLineNo - 1)p'" $logfile >> $logfile.fix
+        sed -n "${bLineNo},\$p" $logfile > $logfile.fix
+        sed -n "1,$(expr $bLineNo - 1)p" $logfile >> $logfile.fix
         mv $logfile.fix $logfile
     fi
 }
@@ -610,13 +610,13 @@ function kpick()
     if [ ! -z $target_script -a -f $target_script ] && [ $extract_changeset -eq 1 ]; then
         if [ "$iQuery" != "" ]; then
              mLine=$(grep -n "^[[:space:]]*kpick.*$iQuery" $target_script | cut -d: -f1 )
-             eval "sed -e \"s|\\([[:space:]]*kpick.*$iQuery\\)|#\\1|\" -i $target_script"
+             sed -e "s|\([[:space:]]*kpick.*${iQuery}\)|#\1|" -i $target_script
         elif [ "$iTopic" != "" ]; then
              mLine=$(grep -n "^[[:space:]]*kpick.*$iTopic" $target_script | cut -d: -f1 )
-             eval "sed -e \"s|\\([[:space:]]*kpick.*$iTopic\\)|#\\1|\" -i $target_script"
+             sed -e "s|\([[:space:]]*kpick.*${iTopic}\)|#\1|" -i $target_script
         elif [ "$iRange" != "" ]; then
              mLine=$(grep -n "^[[:space:]]*kpick.*$iRange" $target_script | cut -d: -f1 )
-             eval "sed -e \"s|\\([[:space:]]*kpick.*$iRange\\)|#\\1|\" -i $target_script"
+             sed -e "s|\([[:space:]]*kpick.*${iRange}\\)|#\1|" -i $target_script
         fi
         if [ $? -ne 0 ]; then
             if [ "${BASH_SOURCE[0]}" = "$runfrom" ]; then
@@ -725,7 +725,7 @@ function kpick_action()
           subject="${subject:0:115} ..."
     fi
     subject=$(echo $subject | sed "s/\"/\\\\\"/g" | sed "s/'/\\\\\'/g" | sed "s/\&/\\\&/g")
-    subject=$(echo $subject | sed "s/\`/\\\\\`/g" | sed -e "s/|/\\\|/g")
+    subject=$(echo $subject | sed "s/\`/\\\\\`/g" | sed -e "s/|/\\\|/g" | sed "s:/:\\\/:g")
     fix_repopick_output $logfile
     cat $logfile | sed -e "/ERROR: git command failed/d" | sed "/Force-picking a closed change/d"
     project=$(cat $logfile | grep "Project path" | cut -d: -f2 | sed "s/ //g")
@@ -935,7 +935,7 @@ function kpick_action()
                     target_script=$script_file.new
                fi
                [ ! -z $target_script -a -f $target_script ] && \
-                  eval  "sed \"/[[:space:]]*kpick[[:space:]]\\{1,\\}$changeNumber[[:space:]]*.*/d\" -i $target_script"
+                    sed "/^[[:space:]]*kpick[[:space:]]\{1,\}${changeNumber}[[:space:]]*.*/d" -i $target_script
                finish_doing=1
             elif grep -q -E "Change status is ABANDONED." $logfile; then
                [ ! -f $script_file.tmp -a "${BASH_SOURCE[0]}" = "$runfrom" ] && cp $script_file $script_file.tmp
@@ -945,7 +945,7 @@ function kpick_action()
                     target_script=$script_file.new
                fi
                [ ! -z $target_script -a -f $target_script ] && \
-               eval  "sed  \"/[[:space:]]*kpick[[:space:]]\\{1,\\}$changeNumber[[:space:]]*.*/d\" -i $target_script"
+               sed  "/^[[:space:]]*kpick[[:space:]]\{1,\}${changeNumber}[[:space:]]*.*/d" -i $target_script
                finish_doing=1
             elif grep -q -E "Change $changeNumber not found, skipping" $logfile; then
                [ ! -f $script_file.tmp -a "${BASH_SOURCE[0]}" = "$runfrom" ] && cp $script_file $script_file.tmp
@@ -955,7 +955,7 @@ function kpick_action()
                     target_script=$script_file.new
                fi
                [ ! -z $target_script -a -f $target_script ] && \
-               eval  "sed \"/[[:space:]]*kpick[[:space:]]\\{1,\\}$changeNumber[[:space:]]*.*/d\" -i $target_script"
+               sed "/^[[:space:]]*kpick[[:space:]]\{1,\}${changeNumber}[[:space:]]*.*/d" -i $target_script
                finish_doing=1
             elif [ -f $errfile ] && grep -q "could not determine the project path for" $errfile; then
                [ ! -f $script_file.tmp -a "${BASH_SOURCE[0]}" = "$runfrom" ] && cp $script_file $script_file.tmp
@@ -965,7 +965,7 @@ function kpick_action()
                     target_script=$script_file.new
                fi
                [ ! -z $target_script -a -f $target_script ] && \
-               eval  "sed \"s|^[[:space:]]*\\(kpick[[:space:]]\\{1,\\}$changeNumber[[:space:]]*.*\\)|# \1|\" -i $target_script"
+               sed "s/^[[:space:]]*\(kpick[[:space:]]\{1,\}${changeNumber}[[:space:]]*.*\)/# \1/" -i $target_script
                finish_doing=1
             elif [ $pick_skiped -eq 1 ]; then
                [ ! -f $script_file.tmp -a "${BASH_SOURCE[0]}" = "$runfrom" ] && cp $script_file $script_file.tmp
@@ -975,7 +975,7 @@ function kpick_action()
                     target_script=$script_file.new
                fi
                [ ! -z $target_script -a -f $target_script ] && \
-               eval  "sed \"s|^[[:space:]]*\\(kpick[[:space:]]\\{1,\\}$changeNumber[[:space:]]*.*\\)|# \1|\" -i $target_script"
+              sed "s/^[[:space:]]*\(kpick[[:space:]]\{1,\}${changeNumber}[[:space:]]*.*\)/# \1/" -i $target_script
                finish_doing=1
             fi
          fi
@@ -997,38 +997,40 @@ function kpick_action()
                         last_project=$project
                         last_changeNumber=$changeNumber
                         if grep -iq "^[[:space:]]*#[[:space:]]*$project[[:space:]]*$" $target_script; then
-                            eval "sed \"/^[[:space:]]*kpick[[:space:]]\\{1,\\}\\(.*[[:space:]]\\{1,\\}\\|\\)$changeNumber/d\" -i $target_script"
+                            sed "/^[[:space:]]*kpick[[:space:]]\{1,\}\(.*[[:space:]]\{1,\}\|\)${changeNumber}/d" -i $target_script
                             project_offset=$(grep -in "^[[:space:]]*#[[:space:]]*$project[[:space:]]*$" $target_script | cut -d: -f 1 | head -n 1)
-                            eval "sed \"$project_offset akpick $nops \# $subject\" -i $target_script"
+                            sed "${project_offset} akpick ${nops} \# ${subject}" -i $target_script
                         else
-                            eval "sed \"/kpick[[:space:]]\\{1,\\}\\(.*[[:space:]]\\{1,\\}\\|\\)$changeNumber/i\\# $project\" -i $target_script"
-                            eval "sed -e \"s|^[[:space:]]*kpick[[:space:]]\{1,\}\\(.*[[:space:]]\\{1,\\}\\|\\)$changeNumber[[:space:]]*.*|kpick $nops \# $subject|g\" -i $target_script"
-                            eval "sed \"/kpick[[:space:]]\\{1,\\}\\(.*[[:space:]]\\{1,\\}\\|\\)$changeNumber/a\\\\\r\" -i $target_script"
+                            sed "/kpick[[:space:]]\{1,\}\(.*[[:space:]]\{1,\}\|\)${changeNumber}/i\# ${project}" -i $target_script
+                            sed -e "s/^\([[:space:]]*\)kpick[[:space:]]\{1,\}\(.*[[:space:]]\{1,\}\|\)${changeNumber}[[:space:]]*.*/\1kpick ${nops} # ${subject}/g" -i $target_script
+                            sed "/kpick[[:space:]]\{1,\}\(.*[[:space:]]\{1,\}\|\)${changeNumber}/a\\\r" -i $target_script
                         fi
                     else
                         if grep -q "already picked in" $logfile; then
-                           if [ $(grep "^[[:space:]]*kpick[[:space:]]*\\(.*[[:space:]]\\{1,\\}\\|\\)$changeNumber[[:space:]]*" $target_script | wc -l) -ge 2 ]; then
-                                local first_find_lineNo=$(grep -n "kpick[[:space:]]*\\(.*[[:space:]]\\{1,\\}\\|\\)$changeNumber" $target_script | cut -d: -f1 | head -n 1)
+                           if [ $(grep "^[[:space:]]*kpick[[:space:]]*\(.*[[:space:]]\{1,\}\|\)$changeNumber[[:space:]]*" $target_script | wc -l) -ge 2 ]; then
+                                local first_find_lineNo=$(grep -n "kpick[[:space:]]*\(.*[[:space:]]\{1,\}\|\)$changeNumber" $target_script | cut -d: -f1 | head -n 1)
                                 first_find_lineNo=$(( first_find_lineNo + 1 ))
-                                local second_find_lineNo=$(eval "sed -n '$first_find_lineNo,\$p'" $target_script | grep -n "kpick[[:space:]]*.*$changeNumber" | cut -d: -f1 | head -n 1 )
+                                local second_find_lineNo=$(sed -n "${first_find_lineNo},\$p" $target_script | grep -n "kpick[[:space:]]*.*$changeNumber" | cut -d: -f1 | head -n 1 )
                                 second_find_lineNo=$(( $second_find_lineNo - 1 ))
                                 second_find_lineNo=$(( $first_find_lineNo + $second_find_lineNo ))
-                                eval "sed \"${second_find_lineNo}d\" -i $target_script"
+                                sed "${second_find_lineNo}d" -i $target_script
                            fi
                         else
-                            eval "sed \"/kpick[[:space:]]*\\(.*[[:space:]]\\{1,\\}\\|\\)$changeNumber/d\" -i $target_script"
+                            sed "/kpick[[:space:]]*\(.*[[:space:]]\{1,\}\|\)${changeNumber}/d" -i $target_script
                             project_lastpick=$(grep  "$project" $tmp_picks_info_file | cut -d" " -f2)
-                            eval "sed \"/kpick[[:space:]]\\{1,\\}\\(.*[[:space:]]\\{1,\\}\\|\\)$project_lastpick/a\\kpick $nops \# $subject\" -i $target_script"
-                            eval "sed \"s|$last_project $last_changeNumber|$last_project $changeNumber|g\" -i $tmp_picks_info_file"
+                            sed "/kpick[[:space:]]\{1,\}\(.*[[:space:]]\{1,\}\|\)${project_lastpick}/a\\kpick ${nops} \# ${subject}" -i $target_script
+                            sed "s/${last_project} ${last_changeNumber}/${last_project} ${changeNumber}/g" -i $tmp_picks_info_file
                         fi
                     fi
                else
                     [ "$last_project" = "" ] && last_project=$project
                     [ "$last_changeNumber" = "" ] && last_changeNumber=$changeNumber
-                    eval  "sed -e \"s|^[[:space:]]*kpick[[:space:]]\{1,\}\\(.*[[:space:]]\\{1,\\}\\|\\)$changeNumber[[:space:]]*.*|kpick $nops \# $subject|g\" -i $target_script"
+                    sed -e "s/^\([[:space:]]*\)kpick[[:space:]]\{1,\}${changeNumber}[[:space:]]*.*/\1kpick ${nops} \# ${subject}/g" -i $target_script
+                    sed -e "s/^\([[:space:]]*\)kpick[[:space:]]\{1,\}\(.*[[:space:]]\{1,\}\|\)${changeNumber}[[:space:]]*.*/\1kpick ${nops} # ${subject}/g" -i $target_script
                fi
            else
-               eval  "sed -e \"s|^[[:space:]]*kpick[[:space:]]\{1,\}\\(.*[[:space:]]\\{1,\\}\\|\\)$changeNumber[[:space:]]*.*|kpick $nops \# $subject|g\" -i $target_script"
+               sed -e "s/^\([[:space:]]*\)kpick[[:space:]]\{1,\}\(.*[[:space:]]\{1,\}\|\)${changeNumber}[[:space:]]*.*/\1kpick ${nops} # ${subject}/g" -i $target_script
+               sed -e "s/^\([[:space:]]*\)kpick[[:space:]]\{1,\}\(.*[[:space:]]\{1,\}\|\)${changeNumber}[[:space:]]*.*/\1kpick ${nops} # ${subject}/g" -i $target_script
                last_changeNumber=$changeNumber
            fi
     fi
@@ -1183,7 +1185,7 @@ if [ "${BASH_SOURCE[0]}" = "$runfrom" -a ! -f ${BASH_SOURCE[0]}.tmp -a $op_pick_
     repo sync android  >/dev/null
     [ $op_keep_manifests -ne 1 ] && reset_project_dir .repo/manifests
 
-kpick 231971 # manifest: sync gcc4.9 from aosp oreo
+    kpick 231971 # manifest: sync gcc4.9 from aosp oreo
 
     patch_local local/android
     echo
@@ -1292,7 +1294,7 @@ kpick 241427 # build: Allow build-image-kernel-modules to be called from shell
 kpick 222648 # Allow providing flex and bison binaries
 kpick 224613 # soong: Add LOCAL_AIDL_FLAGS handling
 kpick 226443 # soong: Add additional_deps attribute for libraries and binaries
-kpick 241473
+kpick 241473 # Fix formatting
 
 # dalvik
 
@@ -1387,11 +1389,9 @@ kpick 238929 # libstagefright_wfd: libmediaplayer2: compilation fixes
 kpick 238931 # stagefright: Fix SurfaceMediaSource getting handle from wrong position issue
 kpick 238932 # stagefright: Fix buffer handle retrieval in signalBufferReturned
 kpick 239642 # libstagefright_wfd: video encoder does not actually release MediaBufferBase when done
-kpick 241472
+kpick 241472 # effects: fix volume burst on pause/resume with AudioFX
 
 # frameworks/base
-kpick 224266 # SystemUI: Add Lineage statusbar item holder
-kpick 224267 # SystemUI: Network Traffic [1/3]
 kpick 224513 # SystemUI: Disable config_keyguardUserSwitcher on sw600dp
 kpick 226358 # settings: Allow accessing LineageSettings via settings command
 kpick 229307 # Add CHANNEL_MODE_DUAL_CHANNEL constant
@@ -1419,7 +1419,6 @@ kpick 237143 # AudioService: Fix Audio mod volume steps
 kpick 237171 # WiFiDisplayController: Defer the P2P Initialization from its constructor.
 kpick 237172 # WifiDisplayController: handle preexisting p2p connection status
 #kpick 237743 # systemui: add dark mode on low battery toggle
-kpick 238696 # fonts: Build different fonts.xml if EXCLUDE_SERIF_FONTS is true
 kpick 239179 # Camera: Force HAL1 for predefined package list.
 kpick 239520 # Reset all package signatures on boot
 kpick 240084 # ServiceRegistry: Don't throw an exception if OEM_LOCK is missing
@@ -1572,7 +1571,6 @@ kpick 240770 # Proper supplementary service notification handling (5/5).
 # packages/apps/KeyChain
 
 # packages/apps/LineageParts
-kpick 238702 # StatusBarSettings: Hide network traffic settings if device has a notch
 
 # packages/apps/ManagedProvisioning
 
@@ -1596,6 +1594,7 @@ kpick 231826 # Update the white list of Data saver
 kpick 232793 # Settings: per-app VPN data restriction
 kpick 237183 # settings: hide appendix of app list for power usage.
 kpick 240083 # Settings: Add null checks for OemLockService
+kpick 241529 # Settings: fix eject sdcard icon color
 
 # packages/apps/SettingsIntelligence
 
@@ -1718,8 +1717,8 @@ kpick 241423 # kernel: Move kernel module dir cleanup/creation to module install
 kpick 241424 # kernel: Detect kernel module usage better
 kpick 241425 # kernel: Use a macro for kernel build targets
 kpick 241426 # kernel: Use build-image-kernel-modules instead of copying it
-kpick 241463
-kpick 241466
+kpick 241463 # envsetup: Add bolt command
+kpick 241466 # kernel: Move full kernel build guard flag below all targets
 
 # vendor/qcom/opensource/cryptfs_hw
 
