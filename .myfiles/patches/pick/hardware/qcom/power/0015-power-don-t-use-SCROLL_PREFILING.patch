@@ -1,0 +1,115 @@
+From 298c6606aa9da5cd6d4d0be2bd253fecf70e2a8b Mon Sep 17 00:00:00 2001
+From: tomascus <arbiter1000@gmail.com>
+Date: Wed, 13 Feb 2019 14:42:27 +1100
+Subject: [PATCH 15/15] power: don't use SCROLL_PREFILING
+
+The current use of the SCROLL_PREFILING hint hurts scroll performance
+and results in a lot of dropped frames.
+
+The hint ID corresponding to SCROLL_PREFILING only takes into effect for
+a default timeout value of 80 ms (as found in perfboostsconfig.xml),
+while the duration value in the process_interaction_hint function runs
+for a much longer time, from 1500 ms up to 5000 ms (bounds of
+kMinFlingDuration and kMaxInteractiveDuration). During the period
+of time, when the timeout value has elapsed and current time is less
+than duration, another interaction hint cannot be processed. Therefore,
+if the user decides to scroll during this period, high frame drops can be
+experienced as the CPU freq isn't raised by processing another hint to
+account for this additional scrolling.
+By only using SCROLL_VERTICAL, fluidity can be maintained, improving user
+experience.
+
+Furthmore, kMinInteractiveDuration has been lowered to 400 ms for some
+platforms as it is more than sufficient to maintain fluidity (minimal
+frames dropped) while scrolling.
+
+Change-Id: I42edd07a67c7dca43a10ae2fa1b44b64b7794b43
+---
+ power-660.c  | 9 ++-------
+ power-845.c  | 8 ++------
+ power-8998.c | 9 ++-------
+ 3 files changed, 6 insertions(+), 20 deletions(-)
+
+diff --git a/power-660.c b/power-660.c
+index 2df643f..a866b5b 100644
+--- a/power-660.c
++++ b/power-660.c
+@@ -55,8 +55,7 @@
+ #define MIN_VAL(X,Y) ((X>Y)?(Y):(X))
+ 
+ const int kMaxInteractiveDuration = 5000; /* ms */
+-const int kMinInteractiveDuration = 500; /* ms */
+-const int kMinFlingDuration = 1500; /* ms */
++const int kMinInteractiveDuration = 400; /* ms */
+ 
+ static int video_encode_hint_sent;
+ 
+@@ -283,11 +282,7 @@ static void process_interaction_hint(void *data)
+     s_previous_boost_timespec = cur_boost_timespec;
+     s_previous_duration = duration;
+ 
+-    if (duration >= kMinFlingDuration) {
+-        perf_hint_enable_with_type(VENDOR_HINT_SCROLL_BOOST, -1, SCROLL_PREFILING);
+-    } else {
+-        perf_hint_enable_with_type(VENDOR_HINT_SCROLL_BOOST, duration, SCROLL_VERTICAL);
+-    }
++    perf_hint_enable_with_type(VENDOR_HINT_SCROLL_BOOST, duration, SCROLL_VERTICAL);
+ }
+ 
+ int power_hint_override(power_hint_t hint, void *data)
+diff --git a/power-845.c b/power-845.c
+index 0e6a7c2..8b7fe54 100644
+--- a/power-845.c
++++ b/power-845.c
+@@ -59,7 +59,6 @@
+ 
+ const int kMaxInteractiveDuration = 5000; /* ms */
+ const int kMinInteractiveDuration = 100; /* ms */
+-const int kMinFlingDuration = 1500; /* ms */
+ 
+ static int display_fd;
+ 
+@@ -236,11 +235,8 @@ static int process_interaction_hint(void *data)
+     s_previous_boost_timespec = cur_boost_timespec;
+     s_previous_duration = duration;
+ 
+-    if (duration >= kMinFlingDuration) {
+-        perf_hint_enable_with_type(VENDOR_HINT_SCROLL_BOOST, -1, SCROLL_PREFILING);
+-    } else {
+-        perf_hint_enable_with_type(VENDOR_HINT_SCROLL_BOOST, duration, SCROLL_VERTICAL);
+-    }
++    perf_hint_enable_with_type(VENDOR_HINT_SCROLL_BOOST, duration, SCROLL_VERTICAL);
++
+     return HINT_HANDLED;
+ }
+ 
+diff --git a/power-8998.c b/power-8998.c
+index 20804ab..123c179 100644
+--- a/power-8998.c
++++ b/power-8998.c
+@@ -55,8 +55,7 @@
+ #define NUM_PERF_MODES  3
+ 
+ const int kMaxInteractiveDuration = 5000; /* ms */
+-const int kMinInteractiveDuration = 500; /* ms */
+-const int kMinFlingDuration = 1500; /* ms */
++const int kMinInteractiveDuration = 400; /* ms */
+ 
+ static int current_power_profile = PROFILE_BALANCED;
+ 
+@@ -308,11 +307,7 @@ static int process_interaction_hint(void *data)
+     s_previous_boost_timespec = cur_boost_timespec;
+     s_previous_duration = duration;
+ 
+-    if (duration >= kMinFlingDuration) {
+-        perf_hint_enable_with_type(VENDOR_HINT_SCROLL_BOOST, -1, SCROLL_PREFILING);
+-    } else {
+-        perf_hint_enable_with_type(VENDOR_HINT_SCROLL_BOOST, duration, SCROLL_VERTICAL);
+-    }
++    perf_hint_enable_with_type(VENDOR_HINT_SCROLL_BOOST, duration, SCROLL_VERTICAL);
+ 
+     return HINT_HANDLED;
+ }
+-- 
+2.17.1
+

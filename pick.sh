@@ -1426,6 +1426,7 @@ kpick 241215 # Camera: Simplify code for Aux/Mono white and black lists
 kpick 241326 # SettingsLib: add action callbacks to CustomDialogPreferences
 kpick 241327 # VibratorService: Apply vibrator intensity setting.
 kpick 241555 # SystemUI: Fix an issue where jumping to black after screen turned on
+kpick 241628 # SystemUI: make recents grid view accept more than 8 tasks
 
 # frameworks/native
 kpick 224530 # Triple the available egl function pointers available to a process for certain Nvidia devices.
@@ -1505,6 +1506,7 @@ kpick 231895 # VNDK: Added required libs
 kpick 231896 # power: Turn on/off display in SDM439
 kpick 231897 # power: qcom: powerHal for sdm439 and sdm429
 kpick 231898 # Power: Naming convention change
+kpick 241622 # power: don't use SCROLL_PREFILING
 
 # hardware/qcom/thermal
 
