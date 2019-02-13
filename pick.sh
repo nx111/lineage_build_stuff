@@ -1299,8 +1299,6 @@ kpick 241473 # Fix formatting
 # dalvik
 
 # device/lineage/sepolicy
-kpick 240503 # Make sysinit permissive
-kpick 240504 # Make backuptool permissive only in non user builds
 kpick 240542 # Revert "sepolicy: recovery: Allow (re)mounting system"
 kpick 240544 # Clean-up a bit recovery rules
 # kpick 239081 # sepolicy: Label vendor.camera.aux. list properties
@@ -1389,7 +1387,6 @@ kpick 238929 # libstagefright_wfd: libmediaplayer2: compilation fixes
 kpick 238931 # stagefright: Fix SurfaceMediaSource getting handle from wrong position issue
 kpick 238932 # stagefright: Fix buffer handle retrieval in signalBufferReturned
 kpick 239642 # libstagefright_wfd: video encoder does not actually release MediaBufferBase when done
-kpick 241472 # effects: fix volume burst on pause/resume with AudioFX
 
 # frameworks/base
 kpick 224513 # SystemUI: Disable config_keyguardUserSwitcher on sw600dp
@@ -1426,6 +1423,9 @@ kpick 240411 # Keyguard: Avoid starting FP authentication right after cancelling
 kpick 240551 # keylayout: add missing buttons to Razer Serval
 kpick 240766 # Proper supplementary service notification handling (1/5).
 kpick 241215 # Camera: Simplify code for Aux/Mono white and black lists
+kpick 241326 # SettingsLib: add action callbacks to CustomDialogPreferences
+kpick 241327 # VibratorService: Apply vibrator intensity setting.
+kpick 241555 # SystemUI: Fix an issue where jumping to black after screen turned on
 
 # frameworks/native
 kpick 224530 # Triple the available egl function pointers available to a process for certain Nvidia devices.
@@ -1594,6 +1594,7 @@ kpick 231826 # Update the white list of Data saver
 kpick 232793 # Settings: per-app VPN data restriction
 kpick 237183 # settings: hide appendix of app list for power usage.
 kpick 240083 # Settings: Add null checks for OemLockService
+kpick 241325 # Settings: add vibration intensity preference
 kpick 241529 # Settings: fix eject sdcard icon color
 
 # packages/apps/SettingsIntelligence
@@ -1653,7 +1654,7 @@ kpick 231716 # init: Always use libbootloader_message from bootable/recovery nam
 kpick 234860 # init: add install_keyring for TWRP FBE decrypt
 #kpick 237140 # healthd: add Battery Moto Mod Support
 kpick 237141 # core: update battery mod support for P
-kpick 240018 # Fix path for default prop
+kpick 240018 # Fix path for treble default prop
 
 # system/extras
 
