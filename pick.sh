@@ -1300,9 +1300,18 @@ kpick 241473 # Fix formatting
 
 # device/lineage/sepolicy
 kpick 240542 # Revert "sepolicy: recovery: Allow (re)mounting system"
+kpick 241609 # Label adb.network.port as system_prop
 kpick 240544 # Clean-up a bit recovery rules
-# kpick 239081 # sepolicy: Label vendor.camera.aux. list properties
+kpick 241520 # Move snap/gallery definitions back to private
+kpick 241613 # Remove minivold rules
+kpick 241663 # sepolicy: Move superuser policy to private
+kpick 241664 # sepolicy: Dynamically build trust policy into system/vendor
+kpick 241665 # sepolicy: Move livedisplay hal policy to dynamic
+kpick 241666 # sepolicy: Move touch hal policy to dynamic
+kpick 241667 # sepolicy: Move power hal service label to dynamic
 kpick 241001 # common: Label livedisplay 2.0 sysfs service
+kpick 241676 # sepolicy: qcom: Rename common to vendor to avoid confusion
+#kpick 241677 # sepolicy: Break livedisplay hal policy into impl independent ones
 
 # device/qcom/sepolicy
 kpick 228573 # sepolicy: Add libsdm-disp-vndapis and libsdmutils to SP-HALs
@@ -1316,6 +1325,7 @@ kpick 239736 # sepolicy-legacy: Allow vold to open keymaster firmware
 kpick 239741 # common: permit libqdutils operation (linked by mediaserver) during WFD
 kpick 240028 # sepolicy: vendor_init: allow vendor_init to read firmware files
 kpick 241219 # legacy: Ignore neverallows
+kpick 241634 # legacy: Label /data/misc/display again
 
 # development
 kpick 240579 # idegen: Add functionality to set custom ipr file name
@@ -1427,6 +1437,9 @@ kpick 241326 # SettingsLib: add action callbacks to CustomDialogPreferences
 kpick 241327 # VibratorService: Apply vibrator intensity setting.
 kpick 241555 # SystemUI: Fix an issue where jumping to black after screen turned on
 kpick 241628 # SystemUI: make recents grid view accept more than 8 tasks
+kpick 241640 # Null locale causing the VTS fail.
+kpick 241641 # Fix for CTS testAllowWhileIdleJobInTempwhitelist
+kpick 241642 # Informing app idle listeners on enabled state changes.
 
 # frameworks/native
 kpick 224530 # Triple the available egl function pointers available to a process for certain Nvidia devices.
@@ -1455,12 +1468,14 @@ kpick 225155 # Broadcom BT: Add support fm/bt via v4l2.
 # hardware/interfaces
 
 # hardware/lineage/interfaces
+kpick 241647 # livedisplay: Kill 1.0 HAL
 
 # hardware/lineage/lineagehw
 kpick 241005 # lineagehw: Deprecate HWC2 display controls
 
 # hardware/lineage/livedisplay
 kpick 241000 # livedisplay: sysfs: Wire it up
+kpick 241646 # legacymm: Forcefully restore default display mode
 
 # hardware/nxp/nfc
 kpick 239927 # hardware: nxp: Restore pn547 support
@@ -1644,6 +1659,7 @@ kpick 240768 # Proper supplementary service notification handling (3/5)
 
 # packages/services/Telephony
 kpick 240769 # Proper supplementary service notification handling (4/5).
+kpick 241643 # set config_enabled_lte to true by default
 
 # system/bt
 kpick 239040 # Increase maximum Bluetooth SBC codec bitrate for SBC HD
