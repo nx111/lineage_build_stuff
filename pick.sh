@@ -1416,7 +1416,6 @@ kpick 233633 # Phone ringtone setting for Multi SIM device
 kpick 233717 # [DNM][HACK] Persist user brightness model
 kpick 234649 # keyguard: Check for a null errString
 kpick 234715 # Rotation related corrections
-kpick 235147 # SystemUI: Name Cellular Tile based on carrier
 kpick 235986 # frameworks: Add unlinked ringtone and notification volumes
 kpick 236765 # Sounds: Squashed cleanup of sound files
 kpick 237129 # Merge changes for launching wifidisplay from system settings
@@ -1440,6 +1439,7 @@ kpick 241628 # SystemUI: make recents grid view accept more than 8 tasks
 kpick 241640 # Null locale causing the VTS fail.
 kpick 241641 # Fix for CTS testAllowWhileIdleJobInTempwhitelist
 kpick 241642 # Informing app idle listeners on enabled state changes.
+kpick 241729 # SystemUI: Add Compass tile
 
 # frameworks/native
 kpick 224530 # Triple the available egl function pointers available to a process for certain Nvidia devices.
@@ -1468,7 +1468,7 @@ kpick 225155 # Broadcom BT: Add support fm/bt via v4l2.
 # hardware/interfaces
 
 # hardware/lineage/interfaces
-kpick 241647 # livedisplay: Kill 1.0 HAL
+kpick 241647 # livedisplay: Remove deprecated 1.0 HAL
 
 # hardware/lineage/lineagehw
 kpick 241005 # lineagehw: Deprecate HWC2 display controls
@@ -1488,6 +1488,10 @@ kpick 239927 # hardware: nxp: Restore pn547 support
 
 # hardware/qcom/bt-caf
 kpick 240345 # qcom/bt: update bt_firmware path
+
+# hardware/qcom/data/ipacfg-mgr
+kpick 241715 # Add kernel header dep for ipanat
+
 
 # hardware/qcom/display
 kpick 223341 # display: Always assume kernel source is present
@@ -1543,7 +1547,6 @@ kpick 239598 # hidl: livedisplay: Add binderized service implementation
 
 # lineage-sdk
 kpick 230272 # sdk: Remove VOLUME_KEYS_CONTROL_RING_STREAM
-kpick 237074 # lineage-sdk: Handle database downgrading
 kpick 241004 # sdk: LineageHardwareService: Add fallback to HWC2
 
 # packages/apps/Bluetooth
@@ -1592,6 +1595,8 @@ kpick 240770 # Proper supplementary service notification handling (5/5).
 # packages/apps/ManagedProvisioning
 
 # packages/apps/Messaging
+kpick 241693 # Implement per conversation channels
+kpick 241703 # Don't build with platform certificate
 
 # packages/apps/Nfc
 
@@ -1619,6 +1624,7 @@ kpick 241529 # Settings: fix eject sdcard icon color
 # packages/apps/SetupWizard
 
 # packages/apps/Snap
+kpick 241732 # Snap: Fix shutter button size
 
 # packages/apps/Stk
 
