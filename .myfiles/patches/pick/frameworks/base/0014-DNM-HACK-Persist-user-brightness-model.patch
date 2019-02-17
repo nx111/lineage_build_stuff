@@ -1,0 +1,66 @@
+From 5c3ad5157a76949aa4aeb704bd6b9cfca1bb1865 Mon Sep 17 00:00:00 2001
+From: Sam Mortimer <sam@mortimer.me.uk>
+Date: Mon, 5 Nov 2018 20:15:52 -0800
+Subject: [PATCH 14/38] [DNM][HACK] Persist user brightness model
+
+*) Don't invalidate 30s after screen off.
+
+*) Don't invalidate if ambient lux changes significantly.
+
+*) In fact, for now, just disable any means of resetting the user
+   gleaned lux -> brightness preference curve altogether. (Reverts
+   back to device autobrightness overlays when invalidation occurs.)
+
+*) For experimentation purposes to see if not resetting the user
+   model is viable.  It will reset on reboot because it's not
+   currently persisted to storage.
+
+Change-Id: I3346b67bf8ab5b97341ee30bcd43bd9c83e49564
+---
+ .../server/display/AutomaticBrightnessController.java  | 10 ++++++++++
+ 1 file changed, 10 insertions(+)
+
+diff --git a/services/core/java/com/android/server/display/AutomaticBrightnessController.java b/services/core/java/com/android/server/display/AutomaticBrightnessController.java
+index 1c3342a9af4..f7e7f53d190 100644
+--- a/services/core/java/com/android/server/display/AutomaticBrightnessController.java
++++ b/services/core/java/com/android/server/display/AutomaticBrightnessController.java
+@@ -191,6 +191,9 @@ class AutomaticBrightnessController {
+     private float mShortTermModelAnchor;
+     private float SHORT_TERM_MODEL_THRESHOLD_RATIO = 0.6f;
+ 
++    // Whether to persist the user model indefinitely.
++    private boolean mPersistUserModel = true;
++
+     public AutomaticBrightnessController(Callbacks callbacks, Looper looper,
+             SensorManager sensorManager, BrightnessMappingStrategy mapper,
+             int lightSensorWarmUpTime, int brightnessMin, int brightnessMax, float dozeScaleFactor,
+@@ -321,12 +324,18 @@ class AutomaticBrightnessController {
+     }
+ 
+     public void resetShortTermModel() {
++        if (mPersistUserModel) {
++            return;
++        }
+         mBrightnessMapper.clearUserDataPoints();
+         mShortTermModelValid = true;
+         mShortTermModelAnchor = -1;
+     }
+ 
+     private void invalidateShortTermModel() {
++        if (mPersistUserModel) {
++            return;
++        }
+         if (DEBUG) {
+             Slog.d(TAG, "ShortTermModel: invalidate user data");
+         }
+@@ -355,6 +364,7 @@ class AutomaticBrightnessController {
+         pw.println("  mResetAmbientLuxAfterWarmUpConfig=" + mResetAmbientLuxAfterWarmUpConfig);
+         pw.println("  mAmbientLightHorizon=" + mAmbientLightHorizon);
+         pw.println("  mWeightingIntercept=" + mWeightingIntercept);
++        pw.println("  mPersistUserModel=" + mPersistUserModel);
+ 
+         pw.println();
+         pw.println("Automatic Brightness Controller State:");
+-- 
+2.17.1
+

@@ -1314,7 +1314,6 @@ kpick 241747 # sepolicy: Remove sysfs_vibrator label
 # device/qcom/sepolicy
 kpick 228573 # sepolicy: Add libsdm-disp-vndapis and libsdmutils to SP-HALs
 kpick 228582 # sepolicy: qti_init_shell needs to read dir too
-kpick 240112 # sepolicy: Label vendor.camera.hal1.packagelist
 kpick 240951 # qcom: label persist files with /(mnt/vendor)/persist instead of /mnt/vendor/persist
 
 # device/qcom/sepolicy-legacy
@@ -1322,7 +1321,6 @@ kpick 230230 # common: fix sensors denial
 kpick 239736 # sepolicy-legacy: Allow vold to open keymaster firmware
 kpick 239741 # common: permit libqdutils operation (linked by mediaserver) during WFD
 kpick 240028 # sepolicy: vendor_init: allow vendor_init to read firmware files
-kpick 241219 # legacy: Ignore neverallows
 kpick 241634 # legacy: Label /data/misc/display again
 
 # development
@@ -1395,10 +1393,10 @@ kpick 238929 # libstagefright_wfd: libmediaplayer2: compilation fixes
 kpick 238931 # stagefright: Fix SurfaceMediaSource getting handle from wrong position issue
 kpick 238932 # stagefright: Fix buffer handle retrieval in signalBufferReturned
 kpick 239642 # libstagefright_wfd: video encoder does not actually release MediaBufferBase when done
+kpick 241770 # stagefright: add changes related to high-framerates in CameraSource
 
 # frameworks/base
 kpick 224513 # SystemUI: Disable config_keyguardUserSwitcher on sw600dp
-kpick 226358 # settings: Allow accessing LineageSettings via settings command
 kpick 229307 # Add CHANNEL_MODE_DUAL_CHANNEL constant
 kpick 229308 # Add Dual Channel into Bluetooth Audio Channel Mode developer options menu
 kpick 229309 # Allow SBC as HD audio codec in Bluetooth device configuration
@@ -1413,7 +1411,6 @@ kpick 232796 # NetworkManagement : Add ability to restrict app vpn usage
 kpick 233633 # Phone ringtone setting for Multi SIM device
 kpick 233717 # [DNM][HACK] Persist user brightness model
 kpick 234649 # keyguard: Check for a null errString
-kpick 234715 # Rotation related corrections
 kpick 235986 # frameworks: Add unlinked ringtone and notification volumes
 kpick 236765 # Sounds: Squashed cleanup of sound files
 kpick 237129 # Merge changes for launching wifidisplay from system settings
@@ -1423,20 +1420,14 @@ kpick 237143 # AudioService: Fix Audio mod volume steps
 kpick 237171 # WiFiDisplayController: Defer the P2P Initialization from its constructor.
 kpick 237172 # WifiDisplayController: handle preexisting p2p connection status
 #kpick 237743 # systemui: add dark mode on low battery toggle
-kpick 239179 # Camera: Force HAL1 for predefined package list.
 kpick 239520 # Reset all package signatures on boot
 kpick 240084 # ServiceRegistry: Don't throw an exception if OEM_LOCK is missing
 kpick 240411 # Keyguard: Avoid starting FP authentication right after cancelling
 kpick 240551 # keylayout: add missing buttons to Razer Serval
 kpick 240766 # Proper supplementary service notification handling (1/5).
-kpick 241215 # Camera: Simplify code for Aux/Mono white and black lists
 kpick 241326 # SettingsLib: add action callbacks to CustomDialogPreferences
 kpick 241327 # VibratorService: Apply vibrator intensity setting.
-kpick 241555 # SystemUI: Fix an issue where jumping to black after screen turned on
 kpick 241628 # SystemUI: make recents grid view accept more than 8 tasks
-kpick 241640 # Null locale causing the VTS fail.
-kpick 241641 # Fix for CTS testAllowWhileIdleJobInTempwhitelist
-kpick 241642 # Informing app idle listeners on enabled state changes.
 kpick 241729 # SystemUI: Add Compass tile
 
 # frameworks/native
@@ -1473,7 +1464,6 @@ kpick 241005 # lineagehw: Deprecate HWC2 display controls
 
 # hardware/lineage/livedisplay
 kpick 241000 # livedisplay: sysfs: Wire it up
-kpick 241646 # legacymm: Forcefully restore default display mode
 
 # hardware/nxp/nfc
 kpick 239927 # hardware: nxp: Restore pn547 support
@@ -1543,8 +1533,10 @@ kpick 239597 # samsung: Add dummy lineagehw HIDL interfaces for vendor.lineage.l
 kpick 239598 # hidl: livedisplay: Add binderized service implementation
 
 # lineage-sdk
-kpick 230272 # sdk: Remove VOLUME_KEYS_CONTROL_RING_STREAM
+kpick 241760 # sdk: Transition color temperature linearly
+kpick 241761 # sdk: Cleanup usage of List.toArray(T[] a)
 kpick 241004 # sdk: LineageHardwareService: Add fallback to HWC2
+kpick 230272 # sdk: Remove VOLUME_KEYS_CONTROL_RING_STREAM
 
 # packages/apps/Bluetooth
 kpick 229311 # Assume optional codecs are supported if were supported previously
@@ -1616,10 +1608,13 @@ kpick 240083 # Settings: Add null checks for OemLockService
 kpick 241325 # Settings: add vibration intensity preference
 kpick 241529 # Settings: fix eject sdcard icon color
 kpick 241758 # Settings: Show root options when certain third party root is present
+kpick 241764 # Settings: refresh search index check on build change
 
 # packages/apps/SettingsIntelligence
 
 # packages/apps/SetupWizard
+kpick 241766 # SUW: Update wizard scripts for Pie
+kpick 241767 # SUW: Don't make google suw use material_light
 
 # packages/apps/Snap
 kpick 241732 # Snap: Fix shutter button size
@@ -1663,7 +1658,6 @@ kpick 240768 # Proper supplementary service notification handling (3/5)
 
 # packages/services/Telephony
 kpick 240769 # Proper supplementary service notification handling (4/5).
-kpick 241643 # set config_enabled_lte to true by default
 
 # system/bt
 kpick 239040 # Increase maximum Bluetooth SBC codec bitrate for SBC HD

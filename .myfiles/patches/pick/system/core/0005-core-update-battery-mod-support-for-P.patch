@@ -1,0 +1,101 @@
+From 9be357dee44aac82ce4389c4f04dde912bbb0778 Mon Sep 17 00:00:00 2001
+From: Vachounet <vachounet@live.fr>
+Date: Sat, 8 Dec 2018 12:38:27 +0100
+Subject: [PATCH 5/7] core: update battery mod support for P
+
+Change-Id: I6fa06cdb9f95c50f9d5e994450776472148c05a3
+Signed-off-by: Erfan Abdi <erfangplus@gmail.com>
+---
+ healthd/BatteryMonitor.cpp               | 13 +++++++++++++
+ healthd/include/healthd/BatteryMonitor.h |  1 +
+ init/devices.cpp                         | 19 ++++++++++++++++++-
+ 3 files changed, 32 insertions(+), 1 deletion(-)
+
+diff --git a/healthd/BatteryMonitor.cpp b/healthd/BatteryMonitor.cpp
+index 970a36b7c..cde2f9711 100644
+--- a/healthd/BatteryMonitor.cpp
++++ b/healthd/BatteryMonitor.cpp
+@@ -164,6 +164,7 @@ BatteryMonitor::PowerSupplyType BatteryMonitor::readPowerSupplyType(const String
+             { "USB_PD_DRP", ANDROID_POWER_SUPPLY_TYPE_USB },
+             { "Wireless", ANDROID_POWER_SUPPLY_TYPE_WIRELESS },
+             { "DASH", ANDROID_POWER_SUPPLY_TYPE_AC },
++            { "BMS", ANDROID_POWER_SUPPLY_TYPE_BMS }, //Motorola, drmn68, 05/16/2017, IKSWN-51081
+             { NULL, 0 },
+     };
+ 
+@@ -630,6 +631,18 @@ void BatteryMonitor::init(struct healthd_config *hc) {
+ 
+                 break;
+ 
++            // Begin Motorola, drmn68, 05/16/2017, IKSWN-51081
++            case ANDROID_POWER_SUPPLY_TYPE_BMS:
++                if (mHealthdConfig->batteryFullChargePath.isEmpty()) {
++                    path.clear();
++                    path.appendFormat("%s/%s/charge_full",
++                                      POWER_SUPPLY_SYSFS_PATH, name);
++                    if (access(path, R_OK) == 0) {
++                        mHealthdConfig->batteryFullChargePath = path;
++                    }
++                }
++                break;
++            // End IKSWN-51081
+             case ANDROID_POWER_SUPPLY_TYPE_UNKNOWN:
+                 break;
+             }
+diff --git a/healthd/include/healthd/BatteryMonitor.h b/healthd/include/healthd/BatteryMonitor.h
+index 4d1d53f2c..26a690c40 100644
+--- a/healthd/include/healthd/BatteryMonitor.h
++++ b/healthd/include/healthd/BatteryMonitor.h
+@@ -33,6 +33,7 @@ class BatteryMonitor {
+         ANDROID_POWER_SUPPLY_TYPE_AC,
+         ANDROID_POWER_SUPPLY_TYPE_USB,
+         ANDROID_POWER_SUPPLY_TYPE_WIRELESS,
++        ANDROID_POWER_SUPPLY_TYPE_BMS,
+         ANDROID_POWER_SUPPLY_TYPE_BATTERY
+     };
+ 
+diff --git a/init/devices.cpp b/init/devices.cpp
+index ada1e2870..7b71bc1c3 100644
+--- a/init/devices.cpp
++++ b/init/devices.cpp
+@@ -20,6 +20,8 @@
+ #include <fnmatch.h>
+ #include <sys/sysmacros.h>
+ #include <unistd.h>
++#include <fts.h>
++#include <fcntl.h>
+ 
+ #include <memory>
+ 
+@@ -379,12 +381,27 @@ void DeviceHandler::HandleDeviceEvent(const Uevent& uevent) {
+     }
+ 
+     // if it's not a /dev device, nothing to do
+-    if (uevent.major < 0 || uevent.minor < 0) return;
++    if ((uevent.major < 0 || uevent.minor < 0) &&
++        (uevent.subsystem != "mods_interfaces"))
++            return;
+ 
+     std::string devpath;
+     std::vector<std::string> links;
+     bool block = false;
+ 
++    /* specially handle uevent of "mods_interface" to fix race with ModManager */
++    if (uevent.subsystem == "mods_interfaces" && uevent.action == "online") {
++        std::string uevent_path = StringPrintf("%s/%s/uevent", "/sys", uevent.path.c_str());
++        int fd = open(uevent_path.c_str(), O_WRONLY);
++        if (fd >= 0) {
++            write(fd, "add\n", 4);
++            close(fd);
++            PLOG(INFO) << "sent uevent \"add\" by " << uevent_path;
++        } else
++            PLOG(ERROR) << "failed to open " << uevent_path;
++        return;
++    }
++
+     if (uevent.subsystem == "block") {
+         block = true;
+         devpath = "/dev/block/" + Basename(uevent.path);
+-- 
+2.17.1
+

@@ -1,0 +1,79 @@
+From 4e49cd8f2834e1413e5f14becb2c2ea87b2b96c2 Mon Sep 17 00:00:00 2001
+From: nx111 <NX111.AimH@gmail.com>
+Date: Sun, 17 Feb 2019 20:18:51 +0800
+Subject: [PATCH 37/38] debug more info for sync.
+
+Change-Id: Ibee7ed1573b216999fa6e5b2833b193cf0b46b2c
+---
+ .../com/android/server/content/ContentService.java |  4 ++++
+ .../com/android/server/content/SyncManager.java    | 14 ++++++++++++++
+ 2 files changed, 18 insertions(+)
+
+diff --git a/services/core/java/com/android/server/content/ContentService.java b/services/core/java/com/android/server/content/ContentService.java
+index 2c9a494dbec..6ce5ef5db87 100644
+--- a/services/core/java/com/android/server/content/ContentService.java
++++ b/services/core/java/com/android/server/content/ContentService.java
+@@ -577,6 +577,8 @@ public final class ContentService extends IContentService.Stub {
+             long flextime = request.getSyncFlexTime();
+             long runAtTime = request.getSyncRunTime();
+             if (request.isPeriodic()) {
++                if (Log.isLoggable(TAG, Log.VERBOSE))
++                    Log.d(TAG, "syncAsUser: is periodic.");
+                 mContext.enforceCallingOrSelfPermission(
+                         Manifest.permission.WRITE_SYNC_SETTINGS,
+                         "no permission to write the sync settings");
+@@ -589,6 +591,8 @@ public final class ContentService extends IContentService.Stub {
+                 getSyncManager().updateOrAddPeriodicSync(info, runAtTime,
+                         flextime, extras);
+             } else {
++                if (Log.isLoggable(TAG, Log.VERBOSE))
++                    Log.d(TAG, "syncAsUser: scheduleSync.");
+                 syncManager.scheduleSync(
+                         request.getAccount(), userId, callerUid, request.getProvider(), extras,
+                         SyncStorageEngine.AuthorityInfo.UNDEFINED,
+diff --git a/services/core/java/com/android/server/content/SyncManager.java b/services/core/java/com/android/server/content/SyncManager.java
+index 0a640b8a76c..0b49171f01e 100644
+--- a/services/core/java/com/android/server/content/SyncManager.java
++++ b/services/core/java/com/android/server/content/SyncManager.java
+@@ -1018,6 +1018,9 @@ public class SyncManager {
+                         !checkIfAccountReady);
+ 
+                 if (isSyncable == AuthorityInfo.NOT_SYNCABLE) {
++                    if (isLoggable) {
++                        Slog.v(TAG, "account:" + account.account.name + " authority:" + authority + " Not syncable, skipped.");
++                    }
+                     continue;
+                 }
+ 
+@@ -1025,6 +1028,9 @@ public class SyncManager {
+                         mSyncAdapters.getServiceInfo(SyncAdapterType.newKey(authority,
+                                 account.account.type), account.userId);
+                 if (syncAdapterInfo == null) {
++                    if (isLoggable) {
++                        Slog.v(TAG, "account:" + account.account.name + " authority:" + authority + " skipped, syncAdapterInfo == null.");
++                    }
+                     continue;
+                 }
+ 
+@@ -1040,10 +1046,18 @@ public class SyncManager {
+                     // If the app did not run and has no account access, done
+                     try {
+                         if (!mPackageManagerInternal.wasPackageEverLaunched(packageName, userId)) {
++                            if (isLoggable) {
++                                Slog.v(TAG, "account:" + account.account.name + " authority:" + authority
++                                        + " skipped, " + packageName + " not run (userId=" + userId + ")");
++                            }
+                             continue;
+                         }
+                     } catch (IllegalArgumentException e) {
+                         // Package not found, race with an uninstall
++                        if (isLoggable) {
++                            Slog.v(TAG, "account:" + account.account.name + " authority:" + authority
++                                    + " skipped, " + packageName + " not found or race with an uninstall (userId=" + userId + ")");
++                        }
+                         continue;
+                     }
+                     mAccountManagerInternal.requestAccountAccess(account.account,
+-- 
+2.17.1
+
