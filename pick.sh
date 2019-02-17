@@ -1300,18 +1300,16 @@ kpick 241473 # Fix formatting
 
 # device/lineage/sepolicy
 kpick 240542 # Revert "sepolicy: recovery: Allow (re)mounting system"
-kpick 241609 # Label adb.network.port as system_prop
-kpick 240544 # Clean-up a bit recovery rules
-kpick 241520 # Move snap/gallery definitions back to private
-kpick 241613 # Remove minivold rules
+kpick 241001 # common: Label livedisplay 2.0 sysfs service
+kpick 241675 # common: Mark platform_app as hal_lineage_livedisplay client
 kpick 241663 # sepolicy: Move superuser policy to private
 kpick 241664 # sepolicy: Dynamically build trust policy into system/vendor
 kpick 241665 # sepolicy: Move livedisplay hal policy to dynamic
 kpick 241666 # sepolicy: Move touch hal policy to dynamic
 kpick 241667 # sepolicy: Move power hal service label to dynamic
-kpick 241001 # common: Label livedisplay 2.0 sysfs service
 kpick 241676 # sepolicy: qcom: Rename common to vendor to avoid confusion
-#kpick 241677 # sepolicy: Break livedisplay hal policy into impl independent ones
+kpick 241677 # sepolicy: Break livedisplay hal policy into impl independent ones
+kpick 241747 # sepolicy: Remove sysfs_vibrator label
 
 # device/qcom/sepolicy
 kpick 228573 # sepolicy: Add libsdm-disp-vndapis and libsdmutils to SP-HALs
@@ -1492,7 +1490,6 @@ kpick 240345 # qcom/bt: update bt_firmware path
 # hardware/qcom/data/ipacfg-mgr
 kpick 241715 # Add kernel header dep for ipanat
 
-
 # hardware/qcom/display
 kpick 223341 # display: Always assume kernel source is present
 
@@ -1618,6 +1615,7 @@ kpick 237183 # settings: hide appendix of app list for power usage.
 kpick 240083 # Settings: Add null checks for OemLockService
 kpick 241325 # Settings: add vibration intensity preference
 kpick 241529 # Settings: fix eject sdcard icon color
+kpick 241758 # Settings: Show root options when certain third party root is present
 
 # packages/apps/SettingsIntelligence
 
@@ -1675,10 +1673,12 @@ kpick 229314 # Allow using alternative (higher) SBC HD bitrates with a property
 # system/core
 kpick 227110 -f # init: I hate safety net
 kpick 231716 # init: Always use libbootloader_message from bootable/recovery namespace
+kpick 234584 # adb: Rework adb root
 kpick 234860 # init: add install_keyring for TWRP FBE decrypt
 #kpick 237140 # healthd: add Battery Moto Mod Support
 kpick 237141 # core: update battery mod support for P
 kpick 240018 # Fix path for treble default prop
+kpick 241757 # adb: Allow adb root when certain third party root is present
 
 # system/extras
 
