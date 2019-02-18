@@ -1156,7 +1156,8 @@ rrCache restore # restore rr-cache
 if [ $op_base_pick -eq 1 ]; then
    cd $topdir/.repo/manifests; git reset --hard $(git log -20 --all --decorate | grep commit | grep "m/lineage-" | cut -d' ' -f 2);
    cd $topdir
-   repo sync 
+   repo sync
+   [ $? -ne 0 ] && exit
    apply_force_changes
 
    kpick 209019 # toybox: Use ISO C/clang compatible __typeof__ in minof/maxof macros
@@ -1176,6 +1177,7 @@ if [ "${BASH_SOURCE[0]}" = "$runfrom" -a ! -f ${BASH_SOURCE[0]}.tmp -a $op_pick_
     [ $op_keep_manifests -ne 1 ] && reset_project_dir .repo/manifests
     reset_project_dir vendor/lineage
     repo sync vendor/lineage >/dev/null
+    [ $? -ne 0 ] && exit
     apply_force_changes
     rm -f $tmp_picks_info_file
     reset_overwrite_projects
@@ -1300,7 +1302,6 @@ kpick 241473 # Fix formatting
 
 # device/lineage/sepolicy
 kpick 240542 # Revert "sepolicy: recovery: Allow (re)mounting system"
-kpick 241001 # common: Label livedisplay 2.0 sysfs service
 kpick 241675 # common: Mark platform_app as hal_lineage_livedisplay client
 kpick 241663 # sepolicy: Move superuser policy to private
 kpick 241664 # sepolicy: Dynamically build trust policy into system/vendor
@@ -1460,10 +1461,8 @@ kpick 225155 # Broadcom BT: Add support fm/bt via v4l2.
 kpick 241647 # livedisplay: Remove deprecated 1.0 HAL
 
 # hardware/lineage/lineagehw
-kpick 241005 # lineagehw: Deprecate HWC2 display controls
 
 # hardware/lineage/livedisplay
-kpick 241000 # livedisplay: sysfs: Wire it up
 
 # hardware/nxp/nfc
 kpick 239927 # hardware: nxp: Restore pn547 support
@@ -1533,9 +1532,7 @@ kpick 239597 # samsung: Add dummy lineagehw HIDL interfaces for vendor.lineage.l
 kpick 239598 # hidl: livedisplay: Add binderized service implementation
 
 # lineage-sdk
-kpick 241760 # sdk: Transition color temperature linearly
 kpick 241761 # sdk: Cleanup usage of List.toArray(T[] a)
-kpick 241004 # sdk: LineageHardwareService: Add fallback to HWC2
 kpick 230272 # sdk: Remove VOLUME_KEYS_CONTROL_RING_STREAM
 
 # packages/apps/Bluetooth
