@@ -106,7 +106,7 @@ function patch_local()
                        rc=$?
                        if [ $rc -ne 0 ]; then
                              first=0
-                             echo  "  >> git am conflict, please resolv it, then press ENTER to continue,or press 's' skip it ..."
+                             echo  "  >> git am conflict, please resolv it, then press ENTER to continue,or press 's' skip it, 'd' drop it and delete it ..."
                              while ! git log -100 | grep "Change-Id: $changeid" >/dev/null 2>/dev/null; do
                                  [ $first -ne 0 ] && echo "conflicts not resolved,please fix it, then press ENTER to continue, or press 's' skip it, 'd' drop it and delete it ..."
                                  first=1
@@ -1220,17 +1220,15 @@ start_check_classification=1
 # device/samsung/klte-common
 kpick 225192 # klte-common: Align ril.h to samsung_msm8974-common P libril changes
 kpick 238522 # klte-common: Add IGloveMode to device manifest
+kpick 241913 # klte-common: Move media configs to vendor
+kpick 241914 # Revert "klte-common: Disable Treble OMX by default."
 
 # device/samsung/msm8974-common
 kpick 235457 # msm8974-common: sepolicy: Limit execmod to specifically labeled files
 kpick 234526 # msm8974-common: sepolicy: Resolve mediaserver denials
 kpick 238521 # msm8974-common: Build vendor.lineage.touch HAL from hardware/samsung
-kpick 241852 # msm8974-common: manifest: Add CAS HAL
 kpick 241853 # msm8974-common: manifest: Add health HAL
 kpick 241854 # msm8974-common: manifest: Add OMX media HAL
-kpick 241855 # Revert "msm8974-common: sepolicy: Label sysfs_net, resolve denials"
-kpick 241856 # msm8974-common: Drop custom display flags
-kpick 241857 # msm8974-common: Move media configs to vendor
 kpick 241858 # msm8974-common: Build Samsung LiveDisplay service
 
 # kernel/samsung/msm8974
@@ -1316,8 +1314,9 @@ kpick 241665 # sepolicy: Move livedisplay hal policy to dynamic
 kpick 241666 # sepolicy: Move touch hal policy to dynamic
 kpick 241667 # sepolicy: Move power hal service label to dynamic
 kpick 241676 # sepolicy: qcom: Rename common to vendor to avoid confusion
-# kpick 241677 # sepolicy: Break livedisplay hal policy into impl independent ones
+kpick 241677 # sepolicy: Break livedisplay hal policy into impl independent ones
 kpick 241747 # sepolicy: Remove sysfs_vibrator label
+kpick 241903 # sepolicy: Label all the livedisplay service implementations
 
 # device/qcom/sepolicy
 kpick 228573 # sepolicy: Add libsdm-disp-vndapis and libsdmutils to SP-HALs
