@@ -1,0 +1,69 @@
+From afcfd31ec2c80623e2a33545a738de52c6c575e1 Mon Sep 17 00:00:00 2001
+From: Hamster Tian <haotia@gmail.com>
+Date: Sun, 6 Jan 2019 22:40:09 +0800
+Subject: [PATCH 30/36] SystemUI: Make recents grid view accept more than 8
+ tasks
+
+* SystemUI itself does not limit number of tasks to be shown in grid
+  after fb44d212f267074a305eb34fa064b6d6904aa3ef, and we have to handle
+  more than 8 tasks in the task stack.
+
+* Since the grid layout algorithm is prepared for only 8 tasks, we just
+  drop any task out of this limit, i.e. only tasks with taskIndex =
+  [max(0, taskCount-8), taskCount) will be shown.
+
+Change-Id: I8715666397bfe2067735daaaabf2cae1f2600f43
+---
+ .../views/grid/TaskGridLayoutAlgorithm.java   | 19 +++++++++++++------
+ 1 file changed, 13 insertions(+), 6 deletions(-)
+
+diff --git a/packages/SystemUI/src/com/android/systemui/recents/views/grid/TaskGridLayoutAlgorithm.java b/packages/SystemUI/src/com/android/systemui/recents/views/grid/TaskGridLayoutAlgorithm.java
+index ccda4b5aaf1..b80648d62f9 100644
+--- a/packages/SystemUI/src/com/android/systemui/recents/views/grid/TaskGridLayoutAlgorithm.java
++++ b/packages/SystemUI/src/com/android/systemui/recents/views/grid/TaskGridLayoutAlgorithm.java
+@@ -198,11 +198,21 @@ public class TaskGridLayoutAlgorithm  {
+             return transformOut;
+         }
+ 
++        int indexOverflow = Math.max(taskCount - MAX_LAYOUT_TASK_COUNT, 0);
++        boolean isTaskViewVisible = taskIndex >= indexOverflow;
++        if (!isTaskViewVisible) {
++            transformOut.reset();
++            transformOut.visible = false;
++            return transformOut;
++        }
++
++        taskCount = Math.min(MAX_LAYOUT_TASK_COUNT, taskCount);
++
+         TaskGridRectInfo gridInfo = mTaskGridRectInfoList[taskCount - 1];
+         mTaskGridRect.set(gridInfo.size);
+ 
+-        int x = gridInfo.xOffsets[taskIndex];
+-        int y = gridInfo.yOffsets[taskIndex];
++        int x = gridInfo.xOffsets[taskIndex - indexOverflow];
++        int y = gridInfo.yOffsets[taskIndex - indexOverflow];
+         float z = stackLayout.mMaxTranslationZ;
+ 
+         // We always set the dim alpha to 0, since we don't want grid task views to dim.
+@@ -210,10 +220,6 @@ public class TaskGridLayoutAlgorithm  {
+         // We always set the alpha of the view outline to 1, to make sure the shadow is visible.
+         float viewOutlineAlpha = 1f;
+ 
+-        // We also need to invert the index in order to display the most recent tasks first.
+-        int taskLayoutIndex = taskCount - taskIndex - 1;
+-        boolean isTaskViewVisible = taskLayoutIndex < MAX_LAYOUT_TASK_COUNT;
+-
+         // Fill out the transform
+         transformOut.scale = 1f;
+         transformOut.alpha = isTaskViewVisible ? 1f : 0f;
+@@ -304,6 +310,7 @@ public class TaskGridLayoutAlgorithm  {
+     }
+ 
+     public void updateTaskGridRect(int taskCount) {
++        taskCount = Math.min(MAX_LAYOUT_TASK_COUNT, taskCount);
+         if (taskCount > 0) {
+             TaskGridRectInfo gridInfo = mTaskGridRectInfoList[taskCount - 1];
+             mTaskGridRect.set(gridInfo.size);
+-- 
+2.17.1
+

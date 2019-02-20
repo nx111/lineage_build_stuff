@@ -1,4 +1,4 @@
-From 6c5d2c79abdcdd929d5927da08962304cf11efc8 Mon Sep 17 00:00:00 2001
+From f6250ddc978fd83ac2868d4b76cb01bc9bad3a41 Mon Sep 17 00:00:00 2001
 From: Jan Altensen <info@stricted.net>
 Date: Sun, 20 Jan 2019 02:40:07 +0100
 Subject: [PATCH 5/5] hidl: livedisplay: Add binderized service implementation
@@ -8,7 +8,6 @@ Subject: [PATCH 5/5] hidl: livedisplay: Add binderized service implementation
 * Cleanup passthrough code for used impls
 * Remove unused impls
 * Add and setup binderized service
-* Remove lineagehw impls
 
 Change-Id: I545a7c0ac8bf4fce04da73a0d39d4ac1938496f2
 ---
@@ -39,10 +38,7 @@ Change-Id: I545a7c0ac8bf4fce04da73a0d39d4ac1938496f2
  lineagehw/hidl/livedisplay/serviceExynos.cpp  | 145 ++++++++++++++++++
  ....livedisplay@2.0-service.samsung-exynos.rc |   4 +
  ...ge.livedisplay@2.0-service.samsung-qcom.rc |   4 +
- .../lineageos/hardware/AdaptiveBacklight.java |  59 -------
- .../hardware/DisplayModeControl.java          | 142 -----------------
- .../hardware/SunlightEnhancement.java         |  86 -----------
- 30 files changed, 798 insertions(+), 781 deletions(-)
+ 27 files changed, 798 insertions(+), 494 deletions(-)
  delete mode 100644 lineagehw/hidl/livedisplay/AutoContrast.cpp
  delete mode 100644 lineagehw/hidl/livedisplay/ColorBalance.cpp
  delete mode 100644 lineagehw/hidl/livedisplay/ColorBalance.h
@@ -59,9 +55,6 @@ Change-Id: I545a7c0ac8bf4fce04da73a0d39d4ac1938496f2
  create mode 100644 lineagehw/hidl/livedisplay/serviceExynos.cpp
  create mode 100644 lineagehw/hidl/livedisplay/vendor.lineage.livedisplay@2.0-service.samsung-exynos.rc
  create mode 100644 lineagehw/hidl/livedisplay/vendor.lineage.livedisplay@2.0-service.samsung-qcom.rc
- delete mode 100644 lineagehw/src/org/lineageos/hardware/AdaptiveBacklight.java
- delete mode 100644 lineagehw/src/org/lineageos/hardware/DisplayModeControl.java
- delete mode 100644 lineagehw/src/org/lineageos/hardware/SunlightEnhancement.java
 
 diff --git a/lineagehw/hidl/livedisplay/AdaptiveBacklight.cpp b/lineagehw/hidl/livedisplay/AdaptiveBacklight.cpp
 index 755f7f2..aacfa23 100644
@@ -1479,15 +1472,14 @@ index 0000000..cf26d1c
 \ No newline at end of file
 diff --git a/lineagehw/hidl/livedisplay/lineage.livedisplay@2.0-service.samsung-qcom.rc b/lineagehw/hidl/livedisplay/lineage.livedisplay@2.0-service.samsung-qcom.rc
 new file mode 100644
-index 0000000..c0a5564
+index 0000000..bd3ca6c
 --- /dev/null
 +++ b/lineagehw/hidl/livedisplay/lineage.livedisplay@2.0-service.samsung-qcom.rc
 @@ -0,0 +1,4 @@
 +service livedisplay-hal-2-0-samsung-qcom /system/bin/hw/lineage.livedisplay@2.0-service.samsung-qcom
-+    class hal
++    class late_start
 +    user system
 +    group system
-\ No newline at end of file
 diff --git a/lineagehw/hidl/livedisplay/service.cpp b/lineagehw/hidl/livedisplay/service.cpp
 new file mode 100644
 index 0000000..b59eab1
@@ -1803,320 +1795,14 @@ index 0000000..994fda0
 \ No newline at end of file
 diff --git a/lineagehw/hidl/livedisplay/vendor.lineage.livedisplay@2.0-service.samsung-qcom.rc b/lineagehw/hidl/livedisplay/vendor.lineage.livedisplay@2.0-service.samsung-qcom.rc
 new file mode 100644
-index 0000000..8ef5071
+index 0000000..f662406
 --- /dev/null
 +++ b/lineagehw/hidl/livedisplay/vendor.lineage.livedisplay@2.0-service.samsung-qcom.rc
 @@ -0,0 +1,4 @@
 +service vendor.livedisplay-hal-2-0-samsung-qcom /vendor/bin/hw/vendor.lineage.livedisplay@2.0-service.samsung-qcom
-+    class hal
++    class late_start
 +    user system
 +    group system
-\ No newline at end of file
-diff --git a/lineagehw/src/org/lineageos/hardware/AdaptiveBacklight.java b/lineagehw/src/org/lineageos/hardware/AdaptiveBacklight.java
-deleted file mode 100644
-index dd3f93a..0000000
---- a/lineagehw/src/org/lineageos/hardware/AdaptiveBacklight.java
-+++ /dev/null
-@@ -1,59 +0,0 @@
--/*
-- * Copyright (C) 2013-2016 The CyanogenMod Project
-- *
-- * Licensed under the Apache License, Version 2.0 (the "License");
-- * you may not use this file except in compliance with the License.
-- * You may obtain a copy of the License at
-- *
-- *      http://www.apache.org/licenses/LICENSE-2.0
-- *
-- * Unless required by applicable law or agreed to in writing, software
-- * distributed under the License is distributed on an "AS IS" BASIS,
-- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-- * See the License for the specific language governing permissions and
-- * limitations under the License.
-- */
--
--package org.lineageos.hardware;
--
--import org.lineageos.internal.util.FileUtils;
--
--/**
-- * Adaptive backlight support (this refers to technologies like NVIDIA SmartDimmer,
-- * QCOM CABL or Samsung CABC).
-- */
--public class AdaptiveBacklight {
--
--    private static final String FILE_CABC = "/sys/class/lcd/panel/power_reduce";
--
--    /**
--     * Whether device supports an adaptive backlight technology.
--     *
--     * @return boolean Supported devices must return always true
--     */
--    public static boolean isSupported() {
--        return FileUtils.isFileWritable(FILE_CABC) &&
--                FileUtils.isFileReadable(FILE_CABC);
--    }
--
--    /**
--     * This method return the current activation status of the adaptive backlight technology.
--     *
--     * @return boolean Must be false when adaptive backlight is not supported or not activated, or
--     * the operation failed while reading the status; true in any other case.
--     */
--    public static boolean isEnabled() {
--        return "1".equals(FileUtils.readOneLine(FILE_CABC));
--    }
--
--    /**
--     * This method allows to setup adaptive backlight technology status.
--     *
--     * @param status The new adaptive backlight status
--     * @return boolean Must be false if adaptive backlight is not supported or the operation
--     * failed; true in any other case.
--     */
--    public static boolean setEnabled(boolean status) {
--        return FileUtils.writeLine(FILE_CABC, status ? "1" : "0");
--    }
--}
-diff --git a/lineagehw/src/org/lineageos/hardware/DisplayModeControl.java b/lineagehw/src/org/lineageos/hardware/DisplayModeControl.java
-deleted file mode 100644
-index a03a591..0000000
---- a/lineagehw/src/org/lineageos/hardware/DisplayModeControl.java
-+++ /dev/null
-@@ -1,142 +0,0 @@
--/*
-- * Copyright (C) 2015-2016 The CyanogenMod Project
-- *           (C) 2017 The LineageOS Project
-- *
-- * Licensed under the Apache License, Version 2.0 (the "License");
-- * you may not use this file except in compliance with the License.
-- * You may obtain a copy of the License at
-- *
-- *      http://www.apache.org/licenses/LICENSE-2.0
-- *
-- * Unless required by applicable law or agreed to in writing, software
-- * distributed under the License is distributed on an "AS IS" BASIS,
-- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-- * See the License for the specific language governing permissions and
-- * limitations under the License.
-- */
--
--package org.lineageos.hardware;
--
--import lineageos.hardware.DisplayMode;
--import org.lineageos.internal.util.FileUtils;
--
--import java.util.Arrays;
--
--/*
-- * Display Modes API
-- *
-- * A device may implement a list of preset display modes for different
-- * viewing intents, such as movies, photos, or extra vibrance. These
-- * modes may have multiple components such as gamma correction, white
-- * point adjustment, etc, but are activated by a single control point.
-- *
-- * This API provides support for enumerating and selecting the
-- * modes supported by the hardware.
-- */
--
--public class DisplayModeControl {
--
--    private static final String MODE_PATH = "/sys/class/mdnie/mdnie/mode";
--    private static final String MAX_PATH = "/sys/class/mdnie/mdnie/mode_max";
--    private static final String DEFAULT_PATH = "/data/misc/.displaymodedefault";
--
--    private static final DisplayMode[] DISPLAY_MODES = {
--        new DisplayMode(0, "Dynamic"),
--        new DisplayMode(1, "Standard"),
--        new DisplayMode(2, "Natural"),
--        new DisplayMode(3, "Cinema"),
--        new DisplayMode(4, "Adaptive"),
--        new DisplayMode(5, "Reading"),
--    };
--
--    static {
--        if (FileUtils.isFileReadable(DEFAULT_PATH)) {
--            setMode(getDefaultMode(), false);
--        } else if (FileUtils.isFileReadable(MODE_PATH)) {
--            /* If default mode is not set yet, set current mode as default */
--            setMode(getCurrentMode(), true);
--        }
--    }
--
--    /*
--     * All HAF classes should export this boolean.
--     * Real implementations must, of course, return true
--     */
--    public static boolean isSupported() {
--        return FileUtils.isFileWritable(MODE_PATH) &&
--                FileUtils.isFileReadable(MODE_PATH) &&
--                FileUtils.isFileWritable(DEFAULT_PATH) &&
--                FileUtils.isFileReadable(DEFAULT_PATH);
--    }
--
--    /*
--     * Get the list of available modes. A mode has an integer
--     * identifier and a string name.
--     *
--     * It is the responsibility of the upper layers to
--     * map the name to a human-readable format or perform translation.
--     */
--    public static DisplayMode[] getAvailableModes() {
--        /* node is unreadable */
--        if (!FileUtils.isFileReadable(MAX_PATH)) {
--            return DISPLAY_MODES;
--        }
--
--        int max;
--        try {
--            max = Integer.parseInt(FileUtils.readOneLine(MAX_PATH));
--        } catch (NumberFormatException e) {
--            /* max is not an integer */
--            return DISPLAY_MODES;
--        }
--
--        /* max is invalid */
--        return Arrays.copyOfRange(DISPLAY_MODES, 0,
--                max >= 0 ? max : DISPLAY_MODES.length);
--    }
--
--    /*
--     * Get the name of the currently selected mode. This can return
--     * null if no mode is selected.
--     */
--    public static DisplayMode getCurrentMode() {
--        try {
--            int mode = Integer.parseInt(FileUtils.readOneLine(MODE_PATH));
--            return DISPLAY_MODES[mode];
--        } catch (NumberFormatException | ArrayIndexOutOfBoundsException e) {
--            return null;
--        }
--    }
--
--    /*
--     * Selects a mode from the list of available modes by it's
--     * string identifier. Returns true on success, false for
--     * failure. It is up to the implementation to determine
--     * if this mode is valid.
--     */
--    public static boolean setMode(DisplayMode mode, boolean makeDefault) {
--        if (mode == null) {
--            return false;
--        }
--
--        boolean success = FileUtils.writeLine(MODE_PATH, String.valueOf(mode.id));
--        if (success && makeDefault) {
--            return FileUtils.writeLine(DEFAULT_PATH, String.valueOf(mode.id));
--        }
--
--        return success;
--    }
--
--    /*
--     * Gets the preferred default mode for this device by it's
--     * string identifier. Can return null if there is no default.
--     */
--    public static DisplayMode getDefaultMode() {
--        try {
--            int mode = Integer.parseInt(FileUtils.readOneLine(DEFAULT_PATH));
--            return DISPLAY_MODES[mode];
--        } catch (NumberFormatException | ArrayIndexOutOfBoundsException e) {
--            return null;
--        }
--    }
--}
-diff --git a/lineagehw/src/org/lineageos/hardware/SunlightEnhancement.java b/lineagehw/src/org/lineageos/hardware/SunlightEnhancement.java
-deleted file mode 100644
-index 625403d..0000000
---- a/lineagehw/src/org/lineageos/hardware/SunlightEnhancement.java
-+++ /dev/null
-@@ -1,86 +0,0 @@
--/*
-- * Copyright (C) 2016 The CyanogenMod Project
-- *
-- * Licensed under the Apache License, Version 2.0 (the "License");
-- * you may not use this file except in compliance with the License.
-- * You may obtain a copy of the License at
-- *
-- *      http://www.apache.org/licenses/LICENSE-2.0
-- *
-- * Unless required by applicable law or agreed to in writing, software
-- * distributed under the License is distributed on an "AS IS" BASIS,
-- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-- * See the License for the specific language governing permissions and
-- * limitations under the License.
-- */
--
--package org.lineageos.hardware;
--
--import android.os.SystemProperties;
--
--import org.lineageos.internal.util.FileUtils;
--
--/**
-- * Sunlight Readability Enhancement support, aka Facemelt Mode.
-- *
-- * Brightens up the screen via image processing or other tricks when
-- * under aggressive lighting conditions. Usually depends on CABC
-- * support.
-- */
--public class SunlightEnhancement {
--
--    private static final String FILE_SRE = "/sys/class/mdnie/mdnie/outdoor";
--
--    /**
--     * Whether device supports SRE
--     *
--     * @return boolean Supported devices must return always true
--     */
--    public static boolean isSupported() {
--        return FileUtils.isFileWritable(FILE_SRE) &&
--                FileUtils.isFileReadable(FILE_SRE);
--    }
--
--    /**
--     * This method return the current activation status of SRE
--     *
--     * @return boolean Must be false when SRE is not supported or not activated, or
--     * the operation failed while reading the status; true in any other case.
--     */
--    public static boolean isEnabled() {
--        return "1".equals(FileUtils.readOneLine(FILE_SRE));
--    }
--
--    /**
--     * This method allows to setup SRE.
--     *
--     * @param status The new SRE status
--     * @return boolean Must be false if SRE is not supported or the operation
--     * failed; true in any other case.
--     */
--    public static boolean setEnabled(boolean status) {
--        return FileUtils.writeLine(FILE_SRE, status ? "1" : "0");
--    }
--
--    /**
--     * Whether adaptive backlight (CABL / CABC) is required to be enabled
--     *
--     * @return boolean False if adaptive backlight is not a dependency
--     */
--    public static boolean isAdaptiveBacklightRequired() {
--        return false;
--    }
--
--    /**
--     * Set this to true if the implementation is self-managed and does
--     * it's own ambient sensing. In this case, setEnabled is assumed
--     * to toggle the feature on or off, but not activate it. If set
--     * to false, LiveDisplay will call setEnabled when the ambient lux
--     * threshold is crossed.
--     *
--     * @return true if this enhancement is self-managed
--     */
--    public static boolean isSelfManaged() {
--        return false;
--    }
--}
 -- 
 2.17.1
 

@@ -1,4 +1,4 @@
-From f14222ce6e5324de2e3e0b901a5e552b5166f64c Mon Sep 17 00:00:00 2001
+From ac5f2111f883810528bb09a157c41f509b58e0f9 Mon Sep 17 00:00:00 2001
 From: Paul Keith <javelinanddart@gmail.com>
 Date: Wed, 9 Jan 2019 00:11:40 +0100
 Subject: [PATCH 3/5] hidl: touch: Add binderized service implementation
@@ -7,7 +7,6 @@ Subject: [PATCH 3/5] hidl: touch: Add binderized service implementation
 * Fill in required methods for used impls
 * Cleanup passthrough code for used impls
 * Add and setup binderized service
-* Remove lineagehw impls
 
 Change-Id: Iadc3b6e385233d103c3349ce31a08d6d040886c7
 ---
@@ -22,13 +21,9 @@ Change-Id: Iadc3b6e385233d103c3349ce31a08d6d040886c7
  lineagehw/hidl/touch/TouchscreenGesture.h     |  21 ++-
  lineagehw/hidl/touch/service.cpp              | 122 ++++++++++++++++++
  ...endor.lineage.touch@1.0-service.samsung.rc |   4 +
- .../hardware/HighTouchSensitivity.java        |  96 --------------
- .../hardware/TouchscreenHovering.java         |  98 --------------
- 13 files changed, 309 insertions(+), 276 deletions(-)
+ 11 files changed, 309 insertions(+), 82 deletions(-)
  create mode 100644 lineagehw/hidl/touch/service.cpp
  create mode 100644 lineagehw/hidl/touch/vendor.lineage.touch@1.0-service.samsung.rc
- delete mode 100644 lineagehw/src/org/lineageos/hardware/HighTouchSensitivity.java
- delete mode 100644 lineagehw/src/org/lineageos/hardware/TouchscreenHovering.java
 
 diff --git a/lineagehw/hidl/touch/Android.bp b/lineagehw/hidl/touch/Android.bp
 index 310fb52..0197b6c 100644
@@ -644,212 +639,6 @@ index 0000000..2f0d14f
 +    class hal
 +    user system
 +    group system
-diff --git a/lineagehw/src/org/lineageos/hardware/HighTouchSensitivity.java b/lineagehw/src/org/lineageos/hardware/HighTouchSensitivity.java
-deleted file mode 100644
-index 27d58e3..0000000
---- a/lineagehw/src/org/lineageos/hardware/HighTouchSensitivity.java
-+++ /dev/null
-@@ -1,96 +0,0 @@
--/*
-- * Copyright (C) 2014-2016 The CyanogenMod Project
-- *
-- * Licensed under the Apache License, Version 2.0 (the "License");
-- * you may not use this file except in compliance with the License.
-- * You may obtain a copy of the License at
-- *
-- *      http://www.apache.org/licenses/LICENSE-2.0
-- *
-- * Unless required by applicable law or agreed to in writing, software
-- * distributed under the License is distributed on an "AS IS" BASIS,
-- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-- * See the License for the specific language governing permissions and
-- * limitations under the License.
-- */
--
--package org.lineageos.hardware;
--
--import android.util.Log;
--
--import org.lineageos.internal.util.FileUtils;
--
--import java.io.BufferedReader;
--import java.io.FileReader;
--import java.io.IOException;
--
--/**
-- * Glove mode / high touch sensitivity
-- */
--public class HighTouchSensitivity {
--
--    private static final String TAG = "HighTouchSensitivity";
--
--    private static final String COMMAND_PATH = "/sys/class/sec/tsp/cmd";
--    private static final String COMMAND_LIST_PATH = "/sys/class/sec/tsp/cmd_list";
--    private static final String COMMAND_RESULT_PATH = "/sys/class/sec/tsp/cmd_result";
--    private static final String GLOVE_MODE = "glove_mode";
--    private static final String GLOVE_MODE_ENABLE = "glove_mode,1";
--    private static final String GLOVE_MODE_DISABLE = "glove_mode,0";
--    private static final String STATUS_OK = ":OK";
--
--    /**
--     * Whether device supports high touch sensitivity.
--     *
--     * @return boolean Supported devices must return always true
--     */
--    public static boolean isSupported() {
--        if (!FileUtils.isFileWritable(COMMAND_PATH) ||
--                !FileUtils.isFileReadable(COMMAND_LIST_PATH) ||
--                !FileUtils.isFileReadable(COMMAND_RESULT_PATH)) {
--            return false;
--        }
--
--        BufferedReader reader = null;
--        try {
--            String currentLine;
--            reader = new BufferedReader(new FileReader(COMMAND_LIST_PATH));
--            while ((currentLine = reader.readLine()) != null) {
--                if (GLOVE_MODE.equals(currentLine)) {
--                    return true;
--                }
--            }
--        } catch (IOException e) {
--            Log.e(TAG, "Could not read from file " + COMMAND_LIST_PATH, e);
--        } finally {
--            if (reader != null) {
--                try {
--                    reader.close();
--                } catch (IOException e) {
--                    // Ignore exception, no recovery possible
--                }
--            }
--        }
--        return false;
--    }
--
--    /** This method returns the current activation status of high touch sensitivity
--     *
--     * @return boolean Must be false if high touch sensitivity is not supported or not activated,
--     * or the operation failed while reading the status; true in any other case.
--     */
--    public static boolean isEnabled() {
--        return (GLOVE_MODE_ENABLE + STATUS_OK).equals(FileUtils.readOneLine(COMMAND_RESULT_PATH));
--    }
--
--    /**
--     * This method allows to setup high touch sensitivity status.
--     *
--     * @param status The new high touch sensitivity status
--     * @return boolean Must be false if high touch sensitivity is not supported or the operation
--     * failed; true in any other case.
--     */
--    public static boolean setEnabled(boolean status) {
--        return FileUtils.writeLine(COMMAND_PATH, status ? GLOVE_MODE_ENABLE : GLOVE_MODE_DISABLE);
--    }
--}
-diff --git a/lineagehw/src/org/lineageos/hardware/TouchscreenHovering.java b/lineagehw/src/org/lineageos/hardware/TouchscreenHovering.java
-deleted file mode 100644
-index ff463d5..0000000
---- a/lineagehw/src/org/lineageos/hardware/TouchscreenHovering.java
-+++ /dev/null
-@@ -1,98 +0,0 @@
--/*
-- * Copyright (C) 2015-2016 The CyanogenMod Project
-- *
-- * Licensed under the Apache License, Version 2.0 (the "License");
-- * you may not use this file except in compliance with the License.
-- * You may obtain a copy of the License at
-- *
-- *      http://www.apache.org/licenses/LICENSE-2.0
-- *
-- * Unless required by applicable law or agreed to in writing, software
-- * distributed under the License is distributed on an "AS IS" BASIS,
-- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-- * See the License for the specific language governing permissions and
-- * limitations under the License.
-- */
--
--package org.lineageos.hardware;
--
--import android.util.Log;
--
--import org.lineageos.internal.util.FileUtils;
--
--import java.io.BufferedReader;
--import java.io.FileReader;
--import java.io.IOException;
--
--/**
-- * Touchscreen Hovering
-- */
--public class TouchscreenHovering {
--
--    private static final String TAG = "TouchscreenHovering";
--
--    private static final String COMMAND_PATH = "/sys/class/sec/tsp/cmd";
--    private static final String COMMAND_LIST_PATH = "/sys/class/sec/tsp/cmd_list";
--    private static final String COMMAND_RESULT_PATH = "/sys/class/sec/tsp/cmd_result";
--    private static final String HOVER_MODE = "hover_enable";
--    private static final String HOVER_MODE_ENABLE = "hover_enable,1";
--    private static final String HOVER_MODE_DISABLE = "hover_enable,0";
--    private static final String STATUS_OK = ":OK";
--
--    /**
--     * Whether device supports touchscreen hovering.
--     *
--     * @return boolean Supported devices must return always true
--     */
--    public static boolean isSupported() {
--        if (!FileUtils.isFileWritable(COMMAND_PATH) ||
--                !FileUtils.isFileReadable(COMMAND_LIST_PATH) ||
--                !FileUtils.isFileReadable(COMMAND_RESULT_PATH)) {
--            return false;
--        }
--
--        BufferedReader reader = null;
--        try {
--            String currentLine;
--            reader = new BufferedReader(new FileReader(COMMAND_LIST_PATH));
--            while ((currentLine = reader.readLine()) != null) {
--                if (HOVER_MODE.equals(currentLine)) {
--                    return true;
--                }
--            }
--        } catch (IOException e) {
--            Log.e(TAG, "Could not read from file " + COMMAND_LIST_PATH, e);
--        } finally {
--            if (reader != null) {
--                try {
--                    reader.close();
--                } catch (IOException e) {
--                    // Ignore exception, no recovery possible
--                }
--            }
--        }
--        return false;
--    }
--
--    /** This method returns the current activation status of touchscreen hovering
--     *
--     * @return boolean Must be false if touchscreen hovering is not supported or not activated,
--     * or the operation failed while reading the status; true in any other case.
--     */
--    public static boolean isEnabled() {
--        return (HOVER_MODE_ENABLE + STATUS_OK).equals(
--                FileUtils.readOneLine(COMMAND_RESULT_PATH));
--    }
--
--    /**
--     * This method allows to setup touchscreen hovering status.
--     *
--     * @param status The new touchscreen hovering status
--     * @return boolean Must be false if touchscreen hovering is not supported or the operation
--     * failed; true in any other case.
--     */
--    public static boolean setEnabled(boolean status) {
--        return FileUtils.writeLine(COMMAND_PATH,
--                status ? HOVER_MODE_ENABLE : HOVER_MODE_DISABLE);
--    }
--}
 -- 
 2.17.1
 

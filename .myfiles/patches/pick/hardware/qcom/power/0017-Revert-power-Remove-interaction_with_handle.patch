@@ -1,0 +1,64 @@
+From 05ada6ec57eb7947d88faacc849b0948fbe03bb7 Mon Sep 17 00:00:00 2001
+From: dianlujitao <dianlujitao@lineageos.org>
+Date: Tue, 19 Feb 2019 18:06:41 +0800
+Subject: [PATCH 17/17] Revert "power: Remove interaction_with_handle"
+
+ * Fix compiler warnings by the way
+
+This reverts commit 0a53ddc7f2683b2e2c7725f8d459814b3a01613b.
+
+Change-Id: I21b39bfee79e347aa9375f7120b5a3027b8f4468
+---
+ utils.c | 23 ++++++++++++++++++++++-
+ utils.h |  1 +
+ 2 files changed, 23 insertions(+), 1 deletion(-)
+
+diff --git a/utils.c b/utils.c
+index d86ffd8..6fa40af 100644
+--- a/utils.c
++++ b/utils.c
+@@ -254,7 +254,28 @@ void interaction(int duration, int num_args, int opt_list[])
+ #endif
+ }
+ 
+-//this is interaction using perf_hint instead of
++#ifndef INTERACTION_BOOST
++int interaction_with_handle(int UNUSED(lock_handle), int UNUSED(duration), int UNUSED(num_args), int UNUSED(opt_list[]))
++{
++    return 0;
++#else
++int interaction_with_handle(int lock_handle, int duration, int num_args, int opt_list[])
++{
++    if (duration < 0 || num_args < 1 || opt_list[0] == 0)
++        return 0;
++
++    if (qcopt_handle) {
++        if (perf_lock_acq) {
++            lock_handle = perf_lock_acq(lock_handle, duration, opt_list, num_args);
++            if (lock_handle == -1)
++                ALOGE("Failed to acquire lock.");
++        }
++    }
++    return lock_handle;
++#endif
++}
++
++//this is interaction_with_handle using perf_hint instead of
+ //perf_lock_acq
+ int perf_hint_enable(int hint_id , int duration)
+ {
+diff --git a/utils.h b/utils.h
+index 6975b41..5ec0735 100644
+--- a/utils.h
++++ b/utils.h
+@@ -41,6 +41,7 @@ void undo_hint_action(int hint_id);
+ void undo_initial_hint_action();
+ void release_request(int lock_handle);
+ void interaction(int duration, int num_args, int opt_list[]);
++int interaction_with_handle(int lock_handle, int duration, int num_args, int opt_list[]);
+ int perf_hint_enable(int hint_id, int duration);
+ int perf_hint_enable_with_type(int hint_id, int duration, int type);
+ 
+-- 
+2.17.1
+

@@ -1225,9 +1225,15 @@ kpick 238522 # klte-common: Add IGloveMode to device manifest
 kpick 235457 # msm8974-common: sepolicy: Limit execmod to specifically labeled files
 kpick 234526 # msm8974-common: sepolicy: Resolve mediaserver denials
 kpick 238521 # msm8974-common: Build vendor.lineage.touch HAL from hardware/samsung
+kpick 241852 # msm8974-common: manifest: Add CAS HAL
+kpick 241853 # msm8974-common: manifest: Add health HAL
+kpick 241854 # msm8974-common: manifest: Add OMX media HAL
+kpick 241855 # Revert "msm8974-common: sepolicy: Label sysfs_net, resolve denials"
+kpick 241856 # msm8974-common: Drop custom display flags
+kpick 241857 # msm8974-common: Move media configs to vendor
+kpick 241858 # msm8974-common: Build Samsung LiveDisplay service
 
 # kernel/samsung/msm8974
-kpick 234754 # Add define for O_TMPFILE
 # kpick 240451 # fuse: fix possibly missed wake-up after abort
 
 # =============== END DEVICE STUFF ========================
@@ -1303,19 +1309,21 @@ kpick 241473 # Fix formatting
 # device/lineage/sepolicy
 kpick 240542 # Revert "sepolicy: recovery: Allow (re)mounting system"
 kpick 241675 # common: Mark platform_app as hal_lineage_livedisplay client
+kpick 241895 # common: Restrict HAL permissions to server side
 kpick 241663 # sepolicy: Move superuser policy to private
 kpick 241664 # sepolicy: Dynamically build trust policy into system/vendor
 kpick 241665 # sepolicy: Move livedisplay hal policy to dynamic
 kpick 241666 # sepolicy: Move touch hal policy to dynamic
 kpick 241667 # sepolicy: Move power hal service label to dynamic
 kpick 241676 # sepolicy: qcom: Rename common to vendor to avoid confusion
-kpick 241677 # sepolicy: Break livedisplay hal policy into impl independent ones
+# kpick 241677 # sepolicy: Break livedisplay hal policy into impl independent ones
 kpick 241747 # sepolicy: Remove sysfs_vibrator label
 
 # device/qcom/sepolicy
 kpick 228573 # sepolicy: Add libsdm-disp-vndapis and libsdmutils to SP-HALs
 kpick 228582 # sepolicy: qti_init_shell needs to read dir too
 kpick 240951 # qcom: label persist files with /(mnt/vendor)/persist instead of /mnt/vendor/persist
+kpick 241794 # sepolicy: Add core_data_file_type type to cnd_data_file
 
 # device/qcom/sepolicy-legacy
 kpick 230230 # common: fix sensors denial
@@ -1395,6 +1403,7 @@ kpick 238931 # stagefright: Fix SurfaceMediaSource getting handle from wrong pos
 kpick 238932 # stagefright: Fix buffer handle retrieval in signalBufferReturned
 kpick 239642 # libstagefright_wfd: video encoder does not actually release MediaBufferBase when done
 kpick 241770 # stagefright: add changes related to high-framerates in CameraSource
+kpick 241802 # Revert "effects: fix volume burst on pause/resume with AudioFX"
 
 # frameworks/base
 kpick 224513 # SystemUI: Disable config_keyguardUserSwitcher on sw600dp
@@ -1428,8 +1437,7 @@ kpick 240551 # keylayout: add missing buttons to Razer Serval
 kpick 240766 # Proper supplementary service notification handling (1/5).
 kpick 241326 # SettingsLib: add action callbacks to CustomDialogPreferences
 kpick 241327 # VibratorService: Apply vibrator intensity setting.
-kpick 241628 # SystemUI: make recents grid view accept more than 8 tasks
-kpick 241729 # SystemUI: Add Compass tile
+kpick 241628 # SystemUI: Make recents grid view accept more than 8 tasks
 
 # frameworks/native
 kpick 224530 # Triple the available egl function pointers available to a process for certain Nvidia devices.
@@ -1512,6 +1520,8 @@ kpick 231896 # power: Turn on/off display in SDM439
 kpick 231897 # power: qcom: powerHal for sdm439 and sdm429
 kpick 231898 # Power: Naming convention change
 kpick 241622 # power: don't use SCROLL_PREFILING
+kpick 241814 # power: Release launch boost perflock when launch is completed
+kpick 241818 # Revert "power: Remove interaction_with_handle"
 
 # hardware/qcom/thermal
 
@@ -1532,8 +1542,10 @@ kpick 239597 # samsung: Add dummy lineagehw HIDL interfaces for vendor.lineage.l
 kpick 239598 # hidl: livedisplay: Add binderized service implementation
 
 # lineage-sdk
-kpick 241761 # sdk: Cleanup usage of List.toArray(T[] a)
 kpick 230272 # sdk: Remove VOLUME_KEYS_CONTROL_RING_STREAM
+kpick 241779 # sdk: Change night/day mode transition behavior
+kpick 241803 # Revert "Revert "lineage-sdk: Switch back to AOSP TwilightService""
+kpick 241804 # sdk: Fix issues introduced by AOSP TwilightService
 
 # packages/apps/Bluetooth
 kpick 229311 # Assume optional codecs are supported if were supported previously
@@ -1605,7 +1617,6 @@ kpick 240083 # Settings: Add null checks for OemLockService
 kpick 241325 # Settings: add vibration intensity preference
 kpick 241529 # Settings: fix eject sdcard icon color
 kpick 241758 # Settings: Show root options when certain third party root is present
-kpick 241764 # Settings: refresh search index check on build change
 
 # packages/apps/SettingsIntelligence
 
@@ -1614,7 +1625,6 @@ kpick 241766 # SUW: Update wizard scripts for Pie
 kpick 241767 # SUW: Don't make google suw use material_light
 
 # packages/apps/Snap
-kpick 241732 # Snap: Fix shutter button size
 
 # packages/apps/Stk
 
@@ -1689,6 +1699,7 @@ kpick 232794 # NetD : Allow passing in interface names for vpn app restriction
 # system/security
 
 # system/sepolicy
+kpick 241777 # sepolicy: define sysfs_dt_firmware_android as proc_type
 
 # system/timezone
 
@@ -1735,6 +1746,7 @@ kpick 241425 # kernel: Use a macro for kernel build targets
 kpick 241426 # kernel: Use build-image-kernel-modules instead of copying it
 kpick 241463 # envsetup: Add bolt command
 kpick 241466 # kernel: Move full kernel build guard flag below all targets
+kpick 241783 # envsetup: Fix lineagegerrit push for zsh
 
 # vendor/qcom/opensource/cryptfs_hw
 

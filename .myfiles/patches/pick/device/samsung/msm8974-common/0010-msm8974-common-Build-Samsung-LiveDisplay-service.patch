@@ -1,0 +1,227 @@
+From 3bc53bbe10d79576f114dd49fc51905090ca328e Mon Sep 17 00:00:00 2001
+From: "Kevin F. Haggerty" <haggertk@lineageos.org>
+Date: Tue, 19 Feb 2019 07:40:21 -0700
+Subject: [PATCH 10/14] msm8974-common: Build Samsung LiveDisplay service
+
+Change-Id: I74d38aa0df3179bb00b942135e8ff055aa8a5658
+---
+ BoardConfigCommon.mk                          |  5 +-
+ .../hardware/SunlightEnhancement.java         | 89 -------------------
+ manifest.xml                                  | 25 ++++++
+ msm8974.mk                                    |  6 +-
+ .../common/hal_lineage_livedisplay_default.te |  9 ++
+ sepolicy/common/system_app.te                 |  2 -
+ sepolicy/common/system_server.te              |  2 -
+ 7 files changed, 40 insertions(+), 98 deletions(-)
+ delete mode 100644 lineagehw/org/lineageos/hardware/SunlightEnhancement.java
+ create mode 100644 sepolicy/common/hal_lineage_livedisplay_default.te
+ delete mode 100644 sepolicy/common/system_app.te
+
+diff --git a/BoardConfigCommon.mk b/BoardConfigCommon.mk
+index 71fc86f..e31d603 100644
+--- a/BoardConfigCommon.mk
++++ b/BoardConfigCommon.mk
+@@ -1,5 +1,5 @@
+ # Copyright (C) 2012 The CyanogenMod Project
+-# Copyright (C) 2017-2018 The LineageOS Project
++# Copyright (C) 2017-2019 The LineageOS Project
+ #
+ # Licensed under the Apache License, Version 2.0 (the "License");
+ # you may not use this file except in compliance with the License.
+@@ -47,9 +47,6 @@ BOARD_CHARGING_CMDLINE_NAME := "androidboot.bootchg"
+ BOARD_CHARGING_CMDLINE_VALUE := "true"
+ WITH_LINEAGE_CHARGER := false
+ 
+-# CMHW
+-BOARD_HARDWARE_CLASS += device/samsung/msm8974-common/lineagehw
+-
+ # Dexpreopt
+ ifeq ($(HOST_OS),linux)
+   ifneq ($(TARGET_BUILD_VARIANT),eng)
+diff --git a/lineagehw/org/lineageos/hardware/SunlightEnhancement.java b/lineagehw/org/lineageos/hardware/SunlightEnhancement.java
+deleted file mode 100644
+index 69e97e0..0000000
+--- a/lineagehw/org/lineageos/hardware/SunlightEnhancement.java
++++ /dev/null
+@@ -1,89 +0,0 @@
+-/*
+- * Copyright (C) 2016 The CyanogenMod Project
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License");
+- * you may not use this file except in compliance with the License.
+- * You may obtain a copy of the License at
+- *
+- *      http://www.apache.org/licenses/LICENSE-2.0
+- *
+- * Unless required by applicable law or agreed to in writing, software
+- * distributed under the License is distributed on an "AS IS" BASIS,
+- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+- * See the License for the specific language governing permissions and
+- * limitations under the License.
+- */
+-
+-package org.lineageos.hardware;
+-
+-import org.lineageos.internal.util.FileUtils;
+-
+-/**
+- * Sunlight Readability Enhancement support, aka Facemelt Mode.
+- *
+- * Brightens up the screen via image processing or other tricks when
+- * under aggressive lighting conditions. Usually depends on CABC
+- * support.
+- */
+-public class SunlightEnhancement {
+-
+-    private static final String FILE_SRE = "/sys/class/mdnie/mdnie/outdoor";
+-    private static final String FILE_HBM = "/sys/class/lcd/panel/panel/auto_brightness";
+-
+-    /**
+-     * Whether device supports SRE
+-     *
+-     * @return boolean Supported devices must return always true
+-     */
+-    public static boolean isSupported() {
+-        return FileUtils.isFileWritable(FILE_SRE) &&
+-                FileUtils.isFileReadable(FILE_SRE) &&
+-                FileUtils.isFileWritable(FILE_HBM) &&
+-                FileUtils.isFileReadable(FILE_HBM);
+-    }
+-
+-    /**
+-     * This method return the current activation status of SRE
+-     *
+-     * @return boolean Must be false when SRE is not supported or not activated, or
+-     * the operation failed while reading the status; true in any other case.
+-     */
+-    public static boolean isEnabled() {
+-        return "1".equals(FileUtils.readOneLine(FILE_SRE)) &&
+-                "6".equals(FileUtils.readOneLine(FILE_HBM));
+-    }
+-
+-    /**
+-     * This method allows to setup SRE.
+-     *
+-     * @param status The new SRE status
+-     * @return boolean Must be false if SRE is not supported or the operation
+-     * failed; true in any other case.
+-     */
+-    public static boolean setEnabled(boolean status) {
+-        return FileUtils.writeLine(FILE_SRE, status ? "1" : "0") &&
+-                FileUtils.writeLine(FILE_HBM, status ? "6" : "0");
+-    }
+-
+-    /**
+-     * Whether adaptive backlight (CABL / CABC) is required to be enabled
+-     *
+-     * @return boolean false if adaptive backlight is not a dependency
+-     */
+-    public static boolean isAdaptiveBacklightRequired() {
+-        return false;
+-    }
+-
+-    /**
+-     * Set this to true if the implementation is self-managed and does
+-     * it's own ambient sensing. In this case, setEnabled is assumed
+-     * to toggle the feature on or off, but not activate it. If set
+-     * to false, LiveDisplay will call setEnabled when the ambient lux
+-     * threshold is crossed.
+-     *
+-     * @return true if this enhancement is self-managed
+-     */
+-    public static boolean isSelfManaged() {
+-        return false;
+-    }
+-}
+diff --git a/manifest.xml b/manifest.xml
+index 473bece..03068aa 100644
+--- a/manifest.xml
++++ b/manifest.xml
+@@ -216,4 +216,29 @@
+             <instance>default</instance>
+         </interface>
+     </hal>
++    <hal format="hidl">
++        <name>vendor.lineage.livedisplay</name>
++        <transport>hwbinder</transport>
++        <version>2.0</version>
++        <interface>
++            <name>IAdaptiveBacklight</name>
++            <instance>default</instance>
++        </interface>
++        <interface>
++            <name>IDisplayColorCalibration</name>
++            <instance>default</instance>
++        </interface>
++        <interface>
++            <name>IDisplayModes</name>
++            <instance>default</instance>
++        </interface>
++        <interface>
++            <name>IReadingEnhancement</name>
++            <instance>default</instance>
++        </interface>
++        <interface>
++            <name>ISunlightEnhancement</name>
++            <instance>default</instance>
++        </interface>
++    </hal>
+ </manifest>
+diff --git a/msm8974.mk b/msm8974.mk
+index 60f918f..5434b81 100644
+--- a/msm8974.mk
++++ b/msm8974.mk
+@@ -1,5 +1,5 @@
+ # Copyright (C) 2012 The CyanogenMod Project
+-# Copyright (C) 2017-2018 The LineageOS Project
++# Copyright (C) 2017-2019 The LineageOS Project
+ #
+ # Licensed under the Apache License, Version 2.0 (the "License");
+ # you may not use this file except in compliance with the License.
+@@ -141,6 +141,10 @@ PRODUCT_COPY_FILES += \
+ PRODUCT_PACKAGES += \
+     android.hardware.keymaster@3.0-impl
+ 
++# LiveDisplay
++PRODUCT_PACKAGES += \
++    vendor.lineage.livedisplay@2.0-service.samsung-qcom
++
+ # Media
+ PRODUCT_COPY_FILES += \
+     frameworks/av/media/libstagefright/data/media_codecs_google_audio.xml:$(TARGET_COPY_OUT_VENDOR)/etc/media_codecs_google_audio.xml \
+diff --git a/sepolicy/common/hal_lineage_livedisplay_default.te b/sepolicy/common/hal_lineage_livedisplay_default.te
+new file mode 100644
+index 0000000..33843e4
+--- /dev/null
++++ b/sepolicy/common/hal_lineage_livedisplay_default.te
+@@ -0,0 +1,9 @@
++allow hal_lineage_livedisplay_default {
++    sysfs_graphics
++    sysfs_mdnie
++}:dir search;
++
++allow hal_lineage_livedisplay_default {
++    sysfs_graphics
++    sysfs_mdnie
++}:file rw_file_perms;
+diff --git a/sepolicy/common/system_app.te b/sepolicy/common/system_app.te
+deleted file mode 100644
+index 9aa08bc..0000000
+--- a/sepolicy/common/system_app.te
++++ /dev/null
+@@ -1,2 +0,0 @@
+-allow system_app sysfs_mdnie:dir search;
+-allow system_app sysfs_mdnie:file rw_file_perms;
+diff --git a/sepolicy/common/system_server.te b/sepolicy/common/system_server.te
+index a97d612..73ebc56 100644
+--- a/sepolicy/common/system_server.te
++++ b/sepolicy/common/system_server.te
+@@ -1,5 +1,3 @@
+-allow system_server sysfs_mdnie:file rw_file_perms;
+-
+ allow system_server {
+     efs_file
+     mpctl_data_file
+-- 
+2.17.1
+
