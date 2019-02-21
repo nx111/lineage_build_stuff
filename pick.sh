@@ -1315,7 +1315,6 @@ kpick 241666 # sepolicy: Move touch hal policy to dynamic
 kpick 241667 # sepolicy: Move power hal service label to dynamic
 kpick 241676 # sepolicy: qcom: Rename common to vendor to avoid confusion
 kpick 241677 # sepolicy: Break livedisplay hal policy into impl independent ones
-kpick 241747 # sepolicy: Remove sysfs_vibrator label
 kpick 241903 # sepolicy: Label all the livedisplay service implementations
 
 # device/qcom/sepolicy
@@ -1326,10 +1325,8 @@ kpick 241794 # sepolicy: Add core_data_file_type type to cnd_data_file
 
 # device/qcom/sepolicy-legacy
 kpick 230230 # common: fix sensors denial
-kpick 239736 # sepolicy-legacy: Allow vold to open keymaster firmware
 kpick 239741 # common: permit libqdutils operation (linked by mediaserver) during WFD
 kpick 240028 # sepolicy: vendor_init: allow vendor_init to read firmware files
-kpick 241634 # legacy: Label /data/misc/display again
 
 # development
 kpick 240579 # idegen: Add functionality to set custom ipr file name
@@ -1436,7 +1433,6 @@ kpick 240551 # keylayout: add missing buttons to Razer Serval
 kpick 240766 # Proper supplementary service notification handling (1/5).
 kpick 241326 # SettingsLib: add action callbacks to CustomDialogPreferences
 kpick 241327 # VibratorService: Apply vibrator intensity setting.
-kpick 241628 # SystemUI: Make recents grid view accept more than 8 tasks
 
 # frameworks/native
 kpick 224530 # Triple the available egl function pointers available to a process for certain Nvidia devices.
@@ -1531,7 +1527,6 @@ kpick 241818 # Revert "power: Remove interaction_with_handle"
 # hardware/ril
 
 # hardware/ril-caf
-kpick 227614 # Disable IOemHook implemenation in rild.
 
 # hardware/samsung
 kpick 231194 # power: properly initialize cluster states
@@ -1543,8 +1538,6 @@ kpick 239598 # hidl: livedisplay: Add binderized service implementation
 # lineage-sdk
 kpick 230272 # sdk: Remove VOLUME_KEYS_CONTROL_RING_STREAM
 kpick 241779 # sdk: Change night/day mode transition behavior
-kpick 241803 # Revert "Revert "lineage-sdk: Switch back to AOSP TwilightService""
-kpick 241804 # sdk: Fix issues introduced by AOSP TwilightService
 
 # packages/apps/Bluetooth
 kpick 229311 # Assume optional codecs are supported if were supported previously
@@ -1743,7 +1736,6 @@ kpick 241423 # kernel: Move kernel module dir cleanup/creation to module install
 kpick 241424 # kernel: Detect kernel module usage better
 kpick 241425 # kernel: Use a macro for kernel build targets
 kpick 241426 # kernel: Use build-image-kernel-modules instead of copying it
-kpick 241463 # envsetup: Add bolt command
 kpick 241466 # kernel: Move full kernel build guard flag below all targets
 kpick 241783 # envsetup: Fix lineagegerrit push for zsh
 
