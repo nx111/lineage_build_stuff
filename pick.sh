@@ -1306,8 +1306,6 @@ kpick 241473 # Fix formatting
 
 # device/lineage/sepolicy
 kpick 240542 # Revert "sepolicy: recovery: Allow (re)mounting system"
-kpick 241675 # common: Mark platform_app as hal_lineage_livedisplay client
-kpick 241895 # common: Restrict HAL permissions to server side
 kpick 241663 # sepolicy: Move superuser policy to private
 kpick 241664 # sepolicy: Dynamically build trust policy into system/vendor
 kpick 241665 # sepolicy: Move livedisplay hal policy to dynamic
