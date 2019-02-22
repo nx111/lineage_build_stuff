@@ -101,7 +101,7 @@ function patch_local()
              changeid=$(grep "Change-Id: " $topdir/.myfiles/patches/$f | tail -n 1 | sed -e "s/ \{1,\}/ /g" -e "s/^ //g" | cut -d' ' -f2)
              if [ "$changeid" != "" ]; then
                   if ! git log  -100 | grep "Change-Id: $changeid" >/dev/null 2>/dev/null; then 
-                       echo "    patching: $f ..."
+                       echo "    patching: $(basename $f) ..."
                        git am -3 -q   --keep-cr --committer-date-is-author-date < $topdir/.myfiles/patches/$f
                        rc=$?
                        if [ $rc -ne 0 ]; then
@@ -1325,6 +1325,12 @@ kpick 241794 # sepolicy: Add core_data_file_type type to cnd_data_file
 kpick 230230 # common: fix sensors denial
 kpick 239741 # common: permit libqdutils operation (linked by mediaserver) during WFD
 kpick 240028 # sepolicy: vendor_init: allow vendor_init to read firmware files
+kpick 241875 # Revert "legacy: allow init to read /proc/device-tree"
+kpick 241959 # legacy: Allow vendor_init to create more dirs
+kpick 241962 # sepolicy: Correctly label display.qservice per SoC
+kpick 242047 # legacy: Resolve rome BT denials
+kpick 242048 # sepolicy: Resolve hal_nfc denials
+kpick 242049 # sepolicy: Label vendor.post_boot.parsed
 
 # development
 kpick 240579 # idegen: Add functionality to set custom ipr file name
@@ -1604,7 +1610,7 @@ kpick 231826 # Update the white list of Data saver
 kpick 232793 # Settings: per-app VPN data restriction
 kpick 237183 # settings: hide appendix of app list for power usage.
 kpick 240083 # Settings: Add null checks for OemLockService
-kpick 241325 # Settings: add vibration intensity preference
+#kpick 241325 # Settings: add vibration intensity preference
 kpick 241529 # Settings: fix eject sdcard icon color
 kpick 241758 # Settings: Show root options when certain third party root is present
 
@@ -1690,6 +1696,7 @@ kpick 232794 # NetD : Allow passing in interface names for vpn app restriction
 
 # system/sepolicy
 kpick 241777 # sepolicy: define sysfs_dt_firmware_android as proc_type
+kpick 241874 # sepolicy: Treat proc-based DT fstab the same and sys-based
 
 # system/timezone
 
