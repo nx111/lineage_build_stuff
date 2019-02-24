@@ -268,21 +268,23 @@ function projects_snapshot()
                        if grep -q "Change-Id: $changeid" -r $topdir/.myfiles/patches/pick/$project; then
                            pick_patch=$(grep -H "Change-Id: $changeid" -r $topdir/.myfiles/patches/pick/$project | sed -n 1p | cut -d: -f1)
                            pick_patch_name=$(basename $pick_patch)
-                           if echo $patch_file_name | grep -qE "\[WIP\]|\[SKIP\]|\[ALWAYS\]" ; then
+                           if echo $patch_file_name | grep -qE "\[WIP\]|\[SKIP\]|\[ALWAYS\\|\[KEEP\]" ; then
                                [ "${patch_file_name:5:5}" = "[WIP]" ] && rm -f $patchfile && \
                                       mv $pick_patch $(dirname $patchfile)/${pick_patch_name:0:4}-${patch_file_name:5:5}-${pick_patch_name:5}
                                [ "${patch_file_name:5:6}" = "[SKIP]" ] && rm -f $patchfile && \
                                       mv $pick_patch $(dirname $patchfile)/${pick_patch_name:0:4}-${patch_file_name:5:6}-${pick_patch_name:5}
                                [ "${patch_file_name:5:8}" = "[ALWAYS]" ] && rm -f $patchfile && \
                                       mv $pick_patch $(dirname $patchfile)/${pick_patch_name:0:4}-${patch_file_name:5:8}-${pick_patch_name:5}
-                           elif echo $(dirname $patchfile) | grep -qE "\[WIP\]|\[SKIP\]|\[ALWAYS\]" ; then
+                               [ "${patch_file_name:5:8}" = "[KEEP]" ] && rm -f $patchfile && \
+                                      mv $pick_patch $(dirname $patchfile)/${pick_patch_name:0:4}-${patch_file_name:5:6}-${pick_patch_name:5}
+                           elif echo $(dirname $patchfile) | grep -qE "\[WIP\]|\[SKIP\]|\[ALWAYS\]|\[KEEP\]" ; then
                                rm -f $patchfile
                                mv $pick_patch $(dirname $patchfile)/
                            else
                                rm -f $patchfile
                                mv $pick_patch $topdir/.myfiles/patches/local/$project/
                            fi
-                       elif ! echo $patchfile | grep -qE "\[WIP\]|\[SKIP\]|\[ALWAYS\]"; then
+                       elif ! echo $patchfile | grep -qE "\[WIP\]|\[SKIP\]|\[ALWAYS\]|\[\KEEP]"; then
                            rm -f $patchfile
                        elif echo $patchfile | grep -q "^[[:digit:]]\{4,4\}-"; then
                            prefixNumber=$(echo $number| awk '{printf("%04d\n",$0)}')
@@ -1220,12 +1222,11 @@ start_check_classification=1
 # device/samsung/klte-common
 kpick 225192 # klte-common: Align ril.h to samsung_msm8974-common P libril changes
 kpick 238522 # klte-common: Add IGloveMode to device manifest
-kpick 241913 # klte-common: Move media configs to vendor
-kpick 241914 # Revert "klte-common: Disable Treble OMX by default."
+kpick 242365 # klte-common: Create media_profiles_V1_0.xml
+kpick 242366 # klte-common: Update power profile for Pie
 
 # device/samsung/msm8974-common
 kpick 235457 # msm8974-common: sepolicy: Limit execmod to specifically labeled files
-kpick 234526 # msm8974-common: sepolicy: Resolve mediaserver denials
 kpick 238521 # msm8974-common: Build vendor.lineage.touch HAL from hardware/samsung
 kpick 241853 # msm8974-common: manifest: Add health HAL
 kpick 241854 # msm8974-common: manifest: Add OMX media HAL
@@ -1331,6 +1332,8 @@ kpick 241962 # sepolicy: Correctly label display.qservice per SoC
 kpick 242047 # legacy: Resolve rome BT denials
 kpick 242048 # sepolicy: Resolve hal_nfc denials
 kpick 242049 # sepolicy: Label vendor.post_boot.parsed
+kpick 242101 # legacy: Resolve hal_camera_default denials
+kpick 242102 # sepolicy: Resolve cameraserver denials
 
 # development
 kpick 240579 # idegen: Add functionality to set custom ipr file name
@@ -1463,6 +1466,8 @@ kpick 225155 # Broadcom BT: Add support fm/bt via v4l2.
 # hardware/libhardware_legacy
 
 # hardware/interfaces
+kpick 242058 # wifi: Use stub for add_or_remove_virtual_intf functionality
+kpick 242059 # wifi: Increase kMaxStopCompleteWaitMs to 250 msec.
 
 # hardware/lineage/interfaces
 kpick 241647 # livedisplay: Remove deprecated 1.0 HAL
@@ -1519,8 +1524,9 @@ kpick 231896 # power: Turn on/off display in SDM439
 kpick 231897 # power: qcom: powerHal for sdm439 and sdm429
 kpick 231898 # Power: Naming convention change
 kpick 241622 # power: don't use SCROLL_PREFILING
-kpick 241814 # power: Release launch boost perflock when launch is completed
+kpick 242164 # power: Pass NULL parameter in powerHint if data is zero
 kpick 241818 # Revert "power: Remove interaction_with_handle"
+kpick 241814 # power: Release launch boost perflock when launch is completed
 
 # hardware/qcom/thermal
 
@@ -1550,6 +1556,7 @@ kpick 229311 # Assume optional codecs are supported if were supported previously
 
 # packages/apps/Camera2
 kpick 224752 # Use mCameraAgentNg for getting camera info when available
+kpick 242382 # Calendar: Some fonts display too small in Calendar
 
 # packages/apps/CarrierConfig
 
@@ -1589,8 +1596,6 @@ kpick 240770 # Proper supplementary service notification handling (5/5).
 # packages/apps/ManagedProvisioning
 
 # packages/apps/Messaging
-kpick 241693 # Implement per conversation channels
-kpick 241703 # Don't build with platform certificate
 
 # packages/apps/Nfc
 
@@ -1621,6 +1626,10 @@ kpick 241766 # SUW: Update wizard scripts for Pie
 kpick 241767 # SUW: Don't make google suw use material_light
 
 # packages/apps/Snap
+kpick 242384 # Add video start/stop logs for KPI
+kpick 242385 # Requirement from EIS team
+kpick 242386 # SnapdragonCamera: SunSet and Landscape use HAL-ZSL mode
+kpick 242387 # Change version to 015
 
 # packages/apps/Stk
 
@@ -1676,6 +1685,7 @@ kpick 234860 # init: add install_keyring for TWRP FBE decrypt
 kpick 237141 # core: update battery mod support for P
 kpick 240018 # Fix path for treble default prop
 kpick 241757 # adb: Allow adb root when certain third party root is present
+kpick 242152 # logcat: support tag black list saved in persist.logd.blacklist.
 
 # system/extras
 

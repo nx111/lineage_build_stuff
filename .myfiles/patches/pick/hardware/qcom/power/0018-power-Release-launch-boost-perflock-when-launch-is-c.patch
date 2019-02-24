@@ -1,22 +1,23 @@
-From 0f2507a15a730c42ea4b770e56a6335fbfd51d62 Mon Sep 17 00:00:00 2001
+From 926b46263ec23a6420fae6fb06237d4e9a5e5794 Mon Sep 17 00:00:00 2001
 From: tomascus <arbiter1000@gmail.com>
 Date: Tue, 19 Feb 2019 17:15:58 +1100
-Subject: [PATCH 16/17] power: Release launch boost perflock when launch is
+Subject: [PATCH 18/18] power: Release launch boost perflock when launch is
  completed
 
-Currently on perf HAL platforms, the launch boost perflock is held for
-the fixed duration specified in perfboostsconfig.xml.
+Currently, the launch boost perflock is held for a fixed duration, either
+specified in perfboostsconfig.xml for perf HAL platforms or hardcoded in the
+powerHAL for non-perf HAL platforms.
 
 Using a fixed duration for this perflock has two shortcomings:
 * perflock can be held for too long, causing the CPU freq and other resources
   to be boosted for too long even if the application has finished launching,
   resulting in excessive battery drainage
-* perflock can be held for not long enough if it takes more than the timeout
+* perflock can be held not long enough if it takes more than the timeout
   time to finish launch
 
-The framework sends out a powerhint for when launch starts and when launch
-finishes. The launch finish hint can therefore be used to signal when to
-release the perflock.
+The framework sends out a powerhint for both when launch starts and when
+launch ends. The launch finish hint can be used to signal when to release the
+perflock.
 
 Reference: Wahoo power-libperfmgr
 
@@ -25,22 +26,22 @@ Change-Id: I405cc453c5f58d9fb2583b9c6017f3964a0ce024
 # Conflicts:
 #	power-8953.c
 ---
- power-660.c    | 31 +++++++++++++++++++++++++++----
- power-8084.c   | 35 ++++++++++++++++++++++++++++++-----
- power-845.c    | 28 ++++++++++++++++++++++++----
- power-8916.c   | 33 +++++++++++++++++++++++++++++----
- power-8937.c   | 31 +++++++++++++++++++++++++++----
- power-8953.c   | 32 ++++++++++++++++++++++++++------
- power-8974.c   | 33 +++++++++++++++++++++++++++++----
- power-8992.c   | 33 +++++++++++++++++++++++++++++----
- power-8994.c   | 33 +++++++++++++++++++++++++++++----
- power-8996.c   | 28 ++++++++++++++++++++++++----
- power-8998.c   | 28 ++++++++++++++++++++++++----
+ power-660.c    | 30 ++++++++++++++++++++++++++----
+ power-8084.c   | 34 +++++++++++++++++++++++++++++-----
+ power-845.c    | 27 +++++++++++++++++++++++----
+ power-8916.c   | 32 ++++++++++++++++++++++++++++----
+ power-8937.c   | 30 ++++++++++++++++++++++++++----
+ power-8953.c   | 31 +++++++++++++++++++++++++------
+ power-8974.c   | 32 ++++++++++++++++++++++++++++----
+ power-8992.c   | 32 ++++++++++++++++++++++++++++----
+ power-8994.c   | 32 ++++++++++++++++++++++++++++----
+ power-8996.c   | 27 +++++++++++++++++++++++----
+ power-8998.c   | 27 +++++++++++++++++++++++----
  power-common.h |  1 +
- 12 files changed, 299 insertions(+), 47 deletions(-)
+ 12 files changed, 288 insertions(+), 47 deletions(-)
 
 diff --git a/power-660.c b/power-660.c
-index a866b5b..26c2fd2 100644
+index f82efff..d704705 100644
 --- a/power-660.c
 +++ b/power-660.c
 @@ -54,6 +54,7 @@
@@ -51,7 +52,7 @@ index a866b5b..26c2fd2 100644
  const int kMaxInteractiveDuration = 5000; /* ms */
  const int kMinInteractiveDuration = 400; /* ms */
  
-@@ -250,9 +251,32 @@ static void process_video_encode_hint(void *metadata)
+@@ -251,9 +252,31 @@ static void process_video_encode_hint(void *metadata)
      }
  }
  
@@ -61,10 +62,9 @@ index a866b5b..26c2fd2 100644
 -    perf_hint_enable_with_type(VENDOR_HINT_FIRST_LAUNCH_BOOST, -1, LAUNCH_BOOST_V1);
 +    static int launch_handle = -1;
 +    static int launch_mode = 0;
-+    int state = *((int*)data);
 +
 +    // release lock early if launch has finished
-+    if (!state) {
++    if (!data) {
 +        if (CHECK_HANDLE(launch_handle)) {
 +            release_request(launch_handle);
 +            launch_handle = -1;
@@ -86,7 +86,7 @@ index a866b5b..26c2fd2 100644
  }
  
  static void process_interaction_hint(void *data)
-@@ -309,8 +333,7 @@ int power_hint_override(power_hint_t hint, void *data)
+@@ -310,8 +333,7 @@ int power_hint_override(power_hint_t hint, void *data)
              process_interaction_hint(data);
              return HINT_HANDLED;
          case POWER_HINT_LAUNCH:
@@ -97,10 +97,10 @@ index a866b5b..26c2fd2 100644
              break;
      }
 diff --git a/power-8084.c b/power-8084.c
-index 7d4bbe4..f0ae866 100644
+index 52d80c3..1c3331c 100644
 --- a/power-8084.c
 +++ b/power-8084.c
-@@ -177,7 +177,35 @@ static int resources_launch[] = {
+@@ -178,7 +178,34 @@ static int resources_launch[] = {
  const int DEFAULT_INTERACTIVE_DURATION   =  200; /* ms */
  const int MIN_FLING_DURATION             = 1500; /* ms */
  const int MAX_INTERACTIVE_DURATION       = 5000; /* ms */
@@ -111,10 +111,9 @@ index 7d4bbe4..f0ae866 100644
 +{
 +    static int launch_handle = -1;
 +    static int launch_mode = 0;
-+    int state = *((int*)data);
 +
 +    // release lock early if launch has finished
-+    if (!state) {
++    if (!data) {
 +        if (CHECK_HANDLE(launch_handle)) {
 +            release_request(launch_handle);
 +            launch_handle = -1;
@@ -137,7 +136,7 @@ index 7d4bbe4..f0ae866 100644
  
  int power_hint_override(power_hint_t hint, void *data)
  {
-@@ -229,10 +257,7 @@ int power_hint_override(power_hint_t hint, void *data)
+@@ -230,10 +257,7 @@ int power_hint_override(power_hint_t hint, void *data)
              }
              return HINT_HANDLED;
          case POWER_HINT_LAUNCH:
@@ -150,7 +149,7 @@ index 7d4bbe4..f0ae866 100644
              break;
      }
 diff --git a/power-845.c b/power-845.c
-index 8b7fe54..82133d8 100644
+index 8b7fe54..771dbb6 100644
 --- a/power-845.c
 +++ b/power-845.c
 @@ -52,11 +52,11 @@
@@ -166,7 +165,7 @@ index 8b7fe54..82133d8 100644
  const int kMaxInteractiveDuration = 5000; /* ms */
  const int kMinInteractiveDuration = 100; /* ms */
  
-@@ -193,12 +193,32 @@ static int process_video_encode_hint(void *metadata)
+@@ -193,12 +193,31 @@ static int process_video_encode_hint(void *metadata)
      return HINT_NONE;
  }
  
@@ -175,10 +174,9 @@ index 8b7fe54..82133d8 100644
  {
 +    static int launch_handle = -1;
 +    static int launch_mode = 0;
-+    int state = *((int*)data);
 +
 +    // release lock early if launch has finished
-+    if (!state) {
++    if (!data) {
 +        if (CHECK_HANDLE(launch_handle)) {
 +            release_request(launch_handle);
 +            launch_handle = -1;
@@ -203,10 +201,10 @@ index 8b7fe54..82133d8 100644
      return HINT_HANDLED;
  }
 diff --git a/power-8916.c b/power-8916.c
-index 204d016..1429195 100644
+index c355290..fe003e3 100644
 --- a/power-8916.c
 +++ b/power-8916.c
-@@ -176,6 +176,34 @@ static int resources_launch[] = {
+@@ -177,6 +177,33 @@ static int resources_launch[] = {
      0x4201
  };
  
@@ -214,10 +212,9 @@ index 204d016..1429195 100644
 +{
 +    static int launch_handle = -1;
 +    static int launch_mode = 0;
-+    int state = *((int*)data);
 +
 +    // release lock early if launch has finished
-+    if (!state) {
++    if (!data) {
 +        if (CHECK_HANDLE(launch_handle)) {
 +            release_request(launch_handle);
 +            launch_handle = -1;
@@ -241,7 +238,7 @@ index 204d016..1429195 100644
  int power_hint_override(power_hint_t hint, void *data)
  {
      static struct timespec s_previous_boost_timespec;
-@@ -225,10 +253,7 @@ int power_hint_override(power_hint_t hint, void *data)
+@@ -226,10 +253,7 @@ int power_hint_override(power_hint_t hint, void *data)
              }
              return HINT_HANDLED;
          case POWER_HINT_LAUNCH:
@@ -254,7 +251,7 @@ index 204d016..1429195 100644
              return HINT_HANDLED;
          case POWER_HINT_VIDEO_DECODE: /* Do nothing for decode case */
 diff --git a/power-8937.c b/power-8937.c
-index da3d0e9..e3bc2fd 100644
+index 75b8395..fb4643f 100644
 --- a/power-8937.c
 +++ b/power-8937.c
 @@ -50,6 +50,7 @@
@@ -265,7 +262,7 @@ index da3d0e9..e3bc2fd 100644
  const int kMaxInteractiveDuration = 5000; /* ms */
  const int kMinInteractiveDuration = 500; /* ms */
  
-@@ -195,9 +196,32 @@ static void process_video_encode_hint(void *metadata)
+@@ -196,9 +197,31 @@ static void process_video_encode_hint(void *metadata)
      }
  }
  
@@ -275,10 +272,9 @@ index da3d0e9..e3bc2fd 100644
 -    perf_hint_enable_with_type(VENDOR_HINT_FIRST_LAUNCH_BOOST, -1, LAUNCH_BOOST_V1);
 +    static int launch_handle = -1;
 +    static int launch_mode = 0;
-+    int state = *((int*)data);
 +
 +    // release lock early if launch has finished
-+    if (!state) {
++    if (!data) {
 +        if (CHECK_HANDLE(launch_handle)) {
 +            release_request(launch_handle);
 +            launch_handle = -1;
@@ -300,7 +296,7 @@ index da3d0e9..e3bc2fd 100644
  }
  
  static void process_interaction_hint(void *data)
-@@ -252,8 +276,7 @@ int power_hint_override(power_hint_t hint, void *data)
+@@ -253,8 +276,7 @@ int power_hint_override(power_hint_t hint, void *data)
              process_interaction_hint(data);
              return HINT_HANDLED;
          case POWER_HINT_LAUNCH:
@@ -311,7 +307,7 @@ index da3d0e9..e3bc2fd 100644
              break;
      }
 diff --git a/power-8953.c b/power-8953.c
-index bd9211c..0f10320 100644
+index 873a90b..957eddf 100644
 --- a/power-8953.c
 +++ b/power-8953.c
 @@ -52,12 +52,12 @@
@@ -330,7 +326,7 @@ index bd9211c..0f10320 100644
  const int kMaxInteractiveDuration = 5000; /* ms */
  const int kMinInteractiveDuration = 500; /* ms */
  
-@@ -283,12 +283,32 @@ static int process_video_encode_hint(void *metadata)
+@@ -284,12 +284,31 @@ static int process_video_encode_hint(void *metadata)
      return HINT_NONE;
  }
  
@@ -339,10 +335,9 @@ index bd9211c..0f10320 100644
  {
 +    static int launch_handle = -1;
 +    static int launch_mode = 0;
-+    int state = *((int*)data);
 +
 +    // release lock early if launch has finished
-+    if (!state) {
++    if (!data) {
 +        if (CHECK_HANDLE(launch_handle)) {
 +            release_request(launch_handle);
 +            launch_handle = -1;
@@ -367,10 +362,10 @@ index bd9211c..0f10320 100644
      return HINT_HANDLED;
  }
 diff --git a/power-8974.c b/power-8974.c
-index 94d4125..7f78a31 100644
+index 50df288..5ca7cf3 100644
 --- a/power-8974.c
 +++ b/power-8974.c
-@@ -182,6 +182,34 @@ static int resources_launch[] = {
+@@ -183,6 +183,33 @@ static int resources_launch[] = {
      CPU3_MIN_FREQ_TURBO_MAX
  };
  
@@ -378,10 +373,9 @@ index 94d4125..7f78a31 100644
 +{
 +    static int launch_handle = -1;
 +    static int launch_mode = 0;
-+    int state = *((int*)data);
 +
 +    // release lock early if launch has finished
-+    if (!state) {
++    if (!data) {
 +        if (CHECK_HANDLE(launch_handle)) {
 +            release_request(launch_handle);
 +            launch_handle = -1;
@@ -405,7 +399,7 @@ index 94d4125..7f78a31 100644
  int power_hint_override(power_hint_t hint, void *data)
  {
      static struct timespec s_previous_boost_timespec;
-@@ -231,10 +259,7 @@ int power_hint_override(power_hint_t hint, void *data)
+@@ -232,10 +259,7 @@ int power_hint_override(power_hint_t hint, void *data)
              }
              return HINT_HANDLED;
          case POWER_HINT_LAUNCH:
@@ -418,10 +412,10 @@ index 94d4125..7f78a31 100644
              break;
      }
 diff --git a/power-8992.c b/power-8992.c
-index b6c3413..e82b975 100644
+index c267628..2925ebe 100644
 --- a/power-8992.c
 +++ b/power-8992.c
-@@ -205,6 +205,34 @@ static int resources_launch[] = {
+@@ -206,6 +206,33 @@ static int resources_launch[] = {
      0x20C
  };
  
@@ -429,10 +423,9 @@ index b6c3413..e82b975 100644
 +{
 +    static int launch_handle = -1;
 +    static int launch_mode = 0;
-+    int state = *((int*)data);
 +
 +    // release lock early if launch has finished
-+    if (!state) {
++    if (!data) {
 +        if (CHECK_HANDLE(launch_handle)) {
 +            release_request(launch_handle);
 +            launch_handle = -1;
@@ -456,7 +449,7 @@ index b6c3413..e82b975 100644
  int power_hint_override(power_hint_t hint, void *data)
  {
      static struct timespec s_previous_boost_timespec;
-@@ -254,10 +282,7 @@ int power_hint_override(power_hint_t hint, void *data)
+@@ -255,10 +282,7 @@ int power_hint_override(power_hint_t hint, void *data)
              }
              return HINT_HANDLED;
          case POWER_HINT_LAUNCH:
@@ -469,10 +462,10 @@ index b6c3413..e82b975 100644
              process_video_encode_hint(data);
              return HINT_HANDLED;
 diff --git a/power-8994.c b/power-8994.c
-index f56a873..c2d6eea 100644
+index 96f96f7..6669cda 100644
 --- a/power-8994.c
 +++ b/power-8994.c
-@@ -213,6 +213,34 @@ static int resources_launch[] = {
+@@ -214,6 +214,33 @@ static int resources_launch[] = {
      0x20C
  };
  
@@ -480,10 +473,9 @@ index f56a873..c2d6eea 100644
 +{
 +    static int launch_handle = -1;
 +    static int launch_mode = 0;
-+    int state = *((int*)data);
 +
 +    // release lock early if launch has finished
-+    if (!state) {
++    if (!data) {
 +        if (CHECK_HANDLE(launch_handle)) {
 +            release_request(launch_handle);
 +            launch_handle = -1;
@@ -507,7 +499,7 @@ index f56a873..c2d6eea 100644
  int power_hint_override(power_hint_t hint, void *data)
  {
      static struct timespec s_previous_boost_timespec;
-@@ -262,10 +290,7 @@ int power_hint_override(power_hint_t hint, void *data)
+@@ -263,10 +290,7 @@ int power_hint_override(power_hint_t hint, void *data)
              }
              return HINT_HANDLED;
          case POWER_HINT_LAUNCH:
@@ -520,7 +512,7 @@ index f56a873..c2d6eea 100644
              process_video_encode_hint(data);
              return HINT_HANDLED;
 diff --git a/power-8996.c b/power-8996.c
-index 38ca714..8422bc7 100644
+index 0b33497..3045eb9 100644
 --- a/power-8996.c
 +++ b/power-8996.c
 @@ -50,9 +50,9 @@
@@ -534,7 +526,7 @@ index 38ca714..8422bc7 100644
  const int kMaxInteractiveDuration = 5000; /* ms */
  const int kMinInteractiveDuration = 500; /* ms */
  
-@@ -269,12 +269,32 @@ static int process_video_encode_hint(void *metadata)
+@@ -270,12 +270,31 @@ static int process_video_encode_hint(void *metadata)
      return HINT_NONE;
  }
  
@@ -543,10 +535,9 @@ index 38ca714..8422bc7 100644
  {
 +    static int launch_handle = -1;
 +    static int launch_mode = 0;
-+    int state = *((int*)data);
 +
 +    // release lock early if launch has finished
-+    if (!state) {
++    if (!data) {
 +        if (CHECK_HANDLE(launch_handle)) {
 +            release_request(launch_handle);
 +            launch_handle = -1;
@@ -571,7 +562,7 @@ index 38ca714..8422bc7 100644
      return HINT_HANDLED;
  }
 diff --git a/power-8998.c b/power-8998.c
-index 123c179..cb0fcc5 100644
+index 6fdffff..d25d412 100644
 --- a/power-8998.c
 +++ b/power-8998.c
 @@ -51,9 +51,9 @@
@@ -585,7 +576,7 @@ index 123c179..cb0fcc5 100644
  const int kMaxInteractiveDuration = 5000; /* ms */
  const int kMinInteractiveDuration = 400; /* ms */
  
-@@ -265,12 +265,32 @@ static int process_video_encode_hint(void *metadata)
+@@ -266,12 +266,31 @@ static int process_video_encode_hint(void *metadata)
      return HINT_NONE;
  }
  
@@ -594,10 +585,9 @@ index 123c179..cb0fcc5 100644
  {
 +    static int launch_handle = -1;
 +    static int launch_mode = 0;
-+    int state = *((int*)data);
 +
 +    // release lock early if launch has finished
-+    if (!state) {
++    if (!data) {
 +        if (CHECK_HANDLE(launch_handle)) {
 +            release_request(launch_handle);
 +            launch_handle = -1;
