@@ -65,14 +65,16 @@ function patch_local()
     va_patches_dir=$1
     search_dir=".myfiles/patches"
 
-    if [ ! -z $va_patches_dir -a -d "$topdir/.myfiles/patches/$va_patches_dir" ]; then
-        search_dir=".myfiles/patches/$va_patches_dir"
-    elif [ ! -z $va_patches_dir -a -d "$topdir/.myfiles/patches/pick/$va_patches_dir" -o -d "$topdir/.myfiles/patches/local/$va_patches_dir" ]; then
-        search_dir=".myfiles/patches/local/$va_patches_dir .myfiles/patches/pick/$va_patches_dir"
-    elif  [ ! -z $va_patches_dir ]; then
+    if [ ! -z $va_patches_dir ]; then
+        if [ -d "$topdir/.myfiles/patches/$va_patches_dir" ]; then
+            search_dir=".myfiles/patches/$va_patches_dir"
+        elif [ -d "$topdir/.myfiles/patches/pick/$va_patches_dir" -o -d "$topdir/.myfiles/patches/local/$va_patches_dir" ]; then
+            search_dir=".myfiles/patches/local/$va_patches_dir .myfiles/patches/pick/$va_patches_dir"
+        fi
+    else
         return -1
     fi
-
+    
     find $search_dir -type f -name "*.patch" -o -name "*.diff" | sed -e "s/\.myfiles\/\patches\///" -e "s/\//:/" |sort -t : -k 2 | while read line; do
          f=$(echo $line | sed -e "s/:/\//")
          patchfile=$(basename $f)
@@ -268,7 +270,7 @@ function projects_snapshot()
                        if grep -q "Change-Id: $changeid" -r $topdir/.myfiles/patches/pick/$project; then
                            pick_patch=$(grep -H "Change-Id: $changeid" -r $topdir/.myfiles/patches/pick/$project | sed -n 1p | cut -d: -f1)
                            pick_patch_name=$(basename $pick_patch)
-                           if echo $patch_file_name | grep -qE "\[WIP\]|\[SKIP\]|\[ALWAYS\\|\[KEEP\]" ; then
+                           if echo $patch_file_name | grep -qE "\[WIP\]|\[SKIP\]|\[ALWAYS\]|\[KEEP\]" ; then
                                [ "${patch_file_name:5:5}" = "[WIP]" ] && rm -f $patchfile && \
                                       mv $pick_patch $(dirname $patchfile)/${pick_patch_name:0:4}-${patch_file_name:5:5}-${pick_patch_name:5}
                                [ "${patch_file_name:5:6}" = "[SKIP]" ] && rm -f $patchfile && \
@@ -284,7 +286,7 @@ function projects_snapshot()
                                rm -f $patchfile
                                mv $pick_patch $topdir/.myfiles/patches/local/$project/
                            fi
-                       elif ! echo $patchfile | grep -qE "\[WIP\]|\[SKIP\]|\[ALWAYS\]|\[\KEEP]"; then
+                       elif ! echo $patchfile | grep -qE "\[WIP\]|\[SKIP\]|\[ALWAYS\]|\[KEEP\]"; then
                            rm -f $patchfile
                        elif echo $patchfile | grep -q "^[[:digit:]]\{4,4\}-"; then
                            prefixNumber=$(echo $number| awk '{printf("%04d\n",$0)}')
@@ -1222,14 +1224,12 @@ start_check_classification=1
 # device/samsung/klte-common
 kpick 225192 # klte-common: Align ril.h to samsung_msm8974-common P libril changes
 kpick 238522 # klte-common: Add IGloveMode to device manifest
-kpick 242365 # klte-common: Create media_profiles_V1_0.xml
 kpick 242366 # klte-common: Update power profile for Pie
 
 # device/samsung/msm8974-common
 kpick 235457 # msm8974-common: sepolicy: Limit execmod to specifically labeled files
 kpick 238521 # msm8974-common: Build vendor.lineage.touch HAL from hardware/samsung
-kpick 241853 # msm8974-common: manifest: Add health HAL
-kpick 241854 # msm8974-common: manifest: Add OMX media HAL
+kpick 242394 # msm8974-common: Build Trust HAL
 kpick 241858 # msm8974-common: Build Samsung LiveDisplay service
 
 # kernel/samsung/msm8974
@@ -1296,6 +1296,7 @@ kpick 222742 # build: Use project pathmap for recovery
 kpick 222760 # Add LOCAL_AIDL_FLAGS
 kpick 239296 # build: Remove charger from recovery unless needed
 kpick 241427 # build: Allow build-image-kernel-modules to be called from shell
+kpick 242400 # Remove TARGET_USES_MKE2FS
 
 # build/soong
 kpick 222648 # Allow providing flex and bison binaries
@@ -1326,8 +1327,6 @@ kpick 241794 # sepolicy: Add core_data_file_type type to cnd_data_file
 kpick 230230 # common: fix sensors denial
 kpick 239741 # common: permit libqdutils operation (linked by mediaserver) during WFD
 kpick 240028 # sepolicy: vendor_init: allow vendor_init to read firmware files
-kpick 241875 # Revert "legacy: allow init to read /proc/device-tree"
-kpick 241959 # legacy: Allow vendor_init to create more dirs
 kpick 241962 # sepolicy: Correctly label display.qservice per SoC
 kpick 242047 # legacy: Resolve rome BT denials
 kpick 242048 # sepolicy: Resolve hal_nfc denials
@@ -1407,6 +1406,7 @@ kpick 238932 # stagefright: Fix buffer handle retrieval in signalBufferReturned
 kpick 239642 # libstagefright_wfd: video encoder does not actually release MediaBufferBase when done
 kpick 241770 # stagefright: add changes related to high-framerates in CameraSource
 kpick 241802 # Revert "effects: fix volume burst on pause/resume with AudioFX"
+#kpick 242409 # stagefright: add changes related to high-framerates in CameraSource
 
 # frameworks/base
 kpick 224513 # SystemUI: Disable config_keyguardUserSwitcher on sw600dp
@@ -1436,7 +1436,6 @@ kpick 237172 # WifiDisplayController: handle preexisting p2p connection status
 kpick 239520 # Reset all package signatures on boot
 kpick 240084 # ServiceRegistry: Don't throw an exception if OEM_LOCK is missing
 kpick 240411 # Keyguard: Avoid starting FP authentication right after cancelling
-kpick 240551 # keylayout: add missing buttons to Razer Serval
 kpick 240766 # Proper supplementary service notification handling (1/5).
 kpick 241326 # SettingsLib: add action callbacks to CustomDialogPreferences
 kpick 241327 # VibratorService: Apply vibrator intensity setting.
@@ -1548,6 +1547,7 @@ kpick 239598 # hidl: livedisplay: Add binderized service implementation
 # lineage-sdk
 kpick 230272 # sdk: Remove VOLUME_KEYS_CONTROL_RING_STREAM
 kpick 241779 # sdk: Change night/day mode transition behavior
+kpick 242398 # Trust: Onboarding: Listen for locale changes
 
 # packages/apps/Bluetooth
 kpick 229311 # Assume optional codecs are supported if were supported previously
@@ -1556,7 +1556,9 @@ kpick 229311 # Assume optional codecs are supported if were supported previously
 
 # packages/apps/Camera2
 kpick 224752 # Use mCameraAgentNg for getting camera info when available
+# packages/apps/Calendar
 kpick 242382 # Calendar: Some fonts display too small in Calendar
+
 
 # packages/apps/CarrierConfig
 
@@ -1685,7 +1687,6 @@ kpick 234860 # init: add install_keyring for TWRP FBE decrypt
 kpick 237141 # core: update battery mod support for P
 kpick 240018 # Fix path for treble default prop
 kpick 241757 # adb: Allow adb root when certain third party root is present
-kpick 242152 # logcat: support tag black list saved in persist.logd.blacklist.
 
 # system/extras
 
@@ -1706,7 +1707,6 @@ kpick 232794 # NetD : Allow passing in interface names for vpn app restriction
 
 # system/sepolicy
 kpick 241777 # sepolicy: define sysfs_dt_firmware_android as proc_type
-kpick 241874 # sepolicy: Treat proc-based DT fstab the same and sys-based
 
 # system/timezone
 
@@ -1745,7 +1745,6 @@ kpick 239360 # extract_utils: template: introduce kang mode
 kpick 239527 # extract_utils: template: add support for the dependency graph function
 kpick 237209 # lineage: Set default ringtone for second SIM
 kpick 237830 # soong_config: Add BOOTLOADER_MESSAGE_OFFSET
-kpick 241214 # vendor/lineage: Drop obsolete TW_EXCLUDE_SUPERSU flag
 kpick 241422 # kernel: Add more threads to kernel build process
 kpick 241423 # kernel: Move kernel module dir cleanup/creation to module install target
 kpick 241424 # kernel: Detect kernel module usage better
