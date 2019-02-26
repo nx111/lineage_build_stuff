@@ -1,0 +1,338 @@
+From 303da0b8dc98adac3b3951ed0af744153537e777 Mon Sep 17 00:00:00 2001
+From: Joey <joey@lineageos.org>
+Date: Mon, 30 Jul 2018 11:53:43 +0200
+Subject: [PATCH 10/17] Settings: add vibration intensity preference
+
+* Adapt cmhw code to new simple implementation
+
+Port the related changes from the following cm-14.1 commits:
+35d2546596c13a4de9fcdc18f55ae17b958121b9 Settings: Add CMHW vibrator intensity preference
+
+Port the related changes from the following cm-13.0 commits:
+a284b34f11b3ad22084232950d81fb1bc68f21ce settings: Squashed commit of CMHW features
+d4ebf3a59930db25be8296c88b40c3ee4330768f Settings: Cleanup display settings code
+ba4c43f77699721dff7c2536ee61c0f8c18ea446 Settings: Change to CmHardwareService
+d2d9f45236308fc9f722bf897030d1aacfbc8be8 settings: Move CMHW to CMSDK
+bd3fe676619443b9060ffaa85abfe8e632e4340c Add isSupported() method to VibratorIntensity class
+9c35338443d9d9d84bbfe4c899d82d2da1f85b60 Settings : Add multiuser support for CMHardware
+bac4604893d4e24682e7bc016c362a2793bf1069 Settings: Fix one-time vibration intensity restore
+a3a64ce79d1f7f2bb848cfa7af2260be6360ae0e Settings: Rework vibration intensity slider
+76997a7856c5185c143088268d76bd760cf67a89 Settings: Save vibration intensity on close
+a44bfb5a396056e22825f4989eee47b90b7bbc14 Settings: Move vibrator value restore to onActivityStop
+9176a64ebcf2f59b01f0159ae129c56230b28cb6 Settings: Improve vibrator intensity dialog layout
+
+Change-Id: Iece36085f8f07a171affefd9a1027fb11fed5d93
+Signed-off-by: Joey <joey@lineageos.org>
+---
+ res/layout/vibrator_intensity.xml             |  43 ++++++
+ res/values/cm_strings.xml                     |   6 +-
+ res/xml/sound_settings.xml                    |   9 ++
+ .../settings/notification/SoundSettings.java  |   3 +
+ .../notification/VibratorIntensity.java       | 130 ++++++++++++++++++
+ .../VibratorIntensityController.java          |  51 +++++++
+ 6 files changed, 241 insertions(+), 1 deletion(-)
+ create mode 100644 res/layout/vibrator_intensity.xml
+ create mode 100644 src/com/android/settings/notification/VibratorIntensity.java
+ create mode 100644 src/com/android/settings/notification/VibratorIntensityController.java
+
+diff --git a/res/layout/vibrator_intensity.xml b/res/layout/vibrator_intensity.xml
+new file mode 100644
+index 0000000000..35e9012c84
+--- /dev/null
++++ b/res/layout/vibrator_intensity.xml
+@@ -0,0 +1,43 @@
++<?xml version="1.0" encoding="utf-8"?>
++<!--
++     Copyright (C) 2013-2016 The CyanogenMod Project
++     Copyright (C) 2018-2019 The LineageOS Project
++
++     Licensed under the Apache License, Version 2.0 (the "License");
++     you may not use this file except in compliance with the License.
++     You may obtain a copy of the License at
++
++         http://www.apache.org/licenses/LICENSE-2.0
++
++     Unless required by applicable law or agreed to in writing, software
++     distributed under the License is distributed on an "AS IS" BASIS,
++     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++     See the License for the specific language governing permissions and
++     limitations under the License.
++-->
++<RelativeLayout
++    xmlns:android="http://schemas.android.com/apk/res/android"
++    android:layout_height="match_parent"
++    android:layout_width="match_parent"
++    android:paddingTop="24dp"
++    android:paddingBottom="24dp"
++    android:paddingEnd="24dp">
++
++    <TextView
++        android:id="@+id/value"
++        android:layout_height="wrap_content"
++        android:layout_width="wrap_content"
++        android:layout_alignParentEnd="true"
++        android:layout_marginStart="4dp"
++        android:gravity="center_horizontal"
++        android:minEms="2" />
++
++    <SeekBar
++        android:id="@*android:id/seekbar"
++        android:layout_height="wrap_content"
++        android:layout_width="match_parent"
++        android:layout_alignParentStart="true"
++        android:layout_marginStart="8dp"
++        android:layout_toStartOf="@id/value" />
++
++</RelativeLayout>
+diff --git a/res/values/cm_strings.xml b/res/values/cm_strings.xml
+index 9092889a69..53e0446c74 100644
+--- a/res/values/cm_strings.xml
++++ b/res/values/cm_strings.xml
+@@ -1,7 +1,7 @@
+ <?xml version="1.0" encoding="utf-8"?>
+ <!--
+      Copyright (C) 2012-2016 The CyanogenMod Project
+-     Copyright (C) 2017 The LineageOS Project
++     Copyright (C) 2017-2019 The LineageOS Project
+ 
+      Licensed under the Apache License, Version 2.0 (the "License");
+      you may not use this file except in compliance with the License.
+@@ -374,4 +374,8 @@
+     <!-- Whether the keyguard will directly show the lock entry -->
+     <string name="directly_show_lock">Direct unlock</string>
+     <string name="directly_show_lock_summary">Skip the swipe to unlock screen and immediately begin key entry</string>
++
++    <!-- Vibrator intensity -->
++    <string name="vibrator_intensity_title">Vibrator intensity</string>
++    <string name="vibrator_intensity_dialog_reset">Reset</string>
+ </resources>
+diff --git a/res/xml/sound_settings.xml b/res/xml/sound_settings.xml
+index 9b4600fb98..55d0c34be9 100644
+--- a/res/xml/sound_settings.xml
++++ b/res/xml/sound_settings.xml
+@@ -224,6 +224,15 @@
+           android:summary="%s" />
+     </PreferenceCategory>
+ 
++    <!-- Vibrator intensity -->
++    <com.android.settings.notification.VibratorIntensity
++        android:key="vibrator_intensity"
++        android:title="@string/vibrator_intensity_title"
++        android:dialogTitle="@string/vibrator_intensity_title"
++        android:max="255"
++        android:order="-40"
++        android:persistent="false" />
++
+     <com.android.settings.widget.WorkOnlyCategory
+         android:key="sound_work_settings_section"
+         android:title="@string/sound_work_settings"
+diff --git a/src/com/android/settings/notification/SoundSettings.java b/src/com/android/settings/notification/SoundSettings.java
+index c6b6373009..1e1f5d2d30 100644
+--- a/src/com/android/settings/notification/SoundSettings.java
++++ b/src/com/android/settings/notification/SoundSettings.java
+@@ -318,6 +318,9 @@ public class SoundSettings extends DashboardFragment {
+                         bootSoundPreferenceController,
+                         emergencyTonePreferenceController)));
+ 
++        // === Vibrator intensity Settings ===
++        controllers.add(new VibratorIntensityController(context));
++
+         return controllers;
+     }
+ 
+diff --git a/src/com/android/settings/notification/VibratorIntensity.java b/src/com/android/settings/notification/VibratorIntensity.java
+new file mode 100644
+index 0000000000..ea90590e94
+--- /dev/null
++++ b/src/com/android/settings/notification/VibratorIntensity.java
+@@ -0,0 +1,130 @@
++/*
++ * Copyright (C) 2013-2016 The CyanogenMod Project
++ * Copyright (C) 2018-2019 The LineageOS Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++package com.android.settings.notification;
++
++import android.app.AlertDialog;
++import android.content.Context;
++import android.content.DialogInterface;
++import android.os.Vibrator;
++import android.util.AttributeSet;
++import android.util.Log;
++import android.view.View;
++import android.widget.SeekBar;
++import android.widget.TextView;
++import android.widget.Button;
++
++import com.android.settingslib.CustomDialogPreference;
++import com.android.settings.R;
++
++import lineageos.providers.LineageSettings;
++
++public class VibratorIntensity extends CustomDialogPreference
++        implements SeekBar.OnSeekBarChangeListener {
++
++    private static final String TAG = "VibratorIntensity";
++
++    private static final int MAX_VIBRATION_INTENSITY = 255;
++
++    private int mOriginalValue;
++
++    private SeekBar mSeekBar;
++    private TextView mValueText;
++
++    public VibratorIntensity(final Context context, final AttributeSet attrs) {
++        super(context, attrs);
++
++        setDialogLayoutResource(R.layout.vibrator_intensity);
++    }
++
++    @Override
++    protected void onPrepareDialogBuilder(final AlertDialog.Builder builder,
++            final DialogInterface.OnClickListener listener) {
++        builder.setNeutralButton(R.string.vibrator_intensity_dialog_reset, null);
++        builder.setPositiveButton(android.R.string.ok, null);
++        builder.setNegativeButton(android.R.string.cancel, null);
++    }
++
++    @Override
++    protected void onBindDialogView(final View view) {
++        super.onBindDialogView(view);
++
++        mSeekBar = (SeekBar) view.findViewById(com.android.internal.R.id.seekbar);
++        mValueText = (TextView) view.findViewById(R.id.value);
++
++        mOriginalValue = LineageSettings.Secure.getInt(getContext().getContentResolver(),
++                LineageSettings.Secure.VIBRATOR_INTENSITY, MAX_VIBRATION_INTENSITY);
++        mSeekBar.setOnSeekBarChangeListener(this);
++        mSeekBar.setMax(MAX_VIBRATION_INTENSITY);
++        mSeekBar.setProgress(mOriginalValue);
++    }
++
++    @Override
++    protected boolean onDismissDialog(final DialogInterface dialog, final int which) {
++        // Can't use onPrepareDialogBuilder for this as we want the dialog
++        // to be kept open on click
++        if (which == DialogInterface.BUTTON_NEUTRAL) {
++            mSeekBar.setProgress(MAX_VIBRATION_INTENSITY);
++            testVibratorIntensity(MAX_VIBRATION_INTENSITY);
++            return false;
++        }
++        return true;
++    }
++
++    @Override
++    protected void onDialogClosed(final boolean positiveResult) {
++        super.onDialogClosed(positiveResult);
++
++        if (positiveResult) {
++            final int intensity = mSeekBar.getProgress();
++            LineageSettings.Secure.putInt(getContext().getContentResolver(),
++                    LineageSettings.Secure.VIBRATOR_INTENSITY, intensity);
++        }
++    }
++
++    @Override
++    public void onProgressChanged(
++                final SeekBar seekBar, final int progress, final boolean fromUser) {
++        mValueText.setText(
++                String.format("%d%%", intensityToPercent(progress)));
++    }
++
++    @Override
++    public void onStartTrackingTouch(final SeekBar seekBar) {
++        // Do nothing
++    }
++
++    @Override
++    public void onStopTrackingTouch(final SeekBar seekBar) {
++        testVibratorIntensity(seekBar.getProgress());
++    }
++
++    private void testVibratorIntensity(final int intensity) {
++        final Vibrator vib = (Vibrator) getContext().getSystemService(Context.VIBRATOR_SERVICE);
++        vib.vibrate(200);
++    }
++
++    private static int intensityToPercent(int value) {
++        if (value > MAX_VIBRATION_INTENSITY) {
++            value = MAX_VIBRATION_INTENSITY;
++        } else if (value < 0) {
++            value = 0;
++        }
++
++        return Math.round(value * 100.f / MAX_VIBRATION_INTENSITY);
++    }
++}
+diff --git a/src/com/android/settings/notification/VibratorIntensityController.java b/src/com/android/settings/notification/VibratorIntensityController.java
+new file mode 100644
+index 0000000000..90910b650a
+--- /dev/null
++++ b/src/com/android/settings/notification/VibratorIntensityController.java
+@@ -0,0 +1,51 @@
++/*
++ * Copyright (C) 2018-2019 The LineageOS Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++package com.android.settings.notification;
++
++import android.content.Context;
++import android.os.Vibrator;
++import android.support.v7.preference.Preference;
++
++import com.android.settings.core.PreferenceControllerMixin;
++import com.android.settingslib.core.AbstractPreferenceController;
++
++public class VibratorIntensityController extends AbstractPreferenceController
++        implements PreferenceControllerMixin {
++
++    private static final String KEY_VIBRATOR_INTENSITY = "vibrator_intensity";
++    private final Vibrator mVibrator;
++
++    public VibratorIntensityController(Context context) {
++        super(context);
++        mVibrator = (Vibrator) context.getSystemService(Context.VIBRATOR_SERVICE);
++    }
++
++    @Override
++    public boolean isAvailable() {
++        return mVibrator != null && mVibrator.hasVibrator();
++    }
++
++    @Override
++    public void updateState(Preference preference) {
++        super.updateState(preference);
++    }
++
++    @Override
++    public String getPreferenceKey() {
++        return KEY_VIBRATOR_INTENSITY;
++    }
++}
+-- 
+2.17.1
+

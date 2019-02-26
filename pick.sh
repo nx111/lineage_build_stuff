@@ -1225,20 +1225,19 @@ start_check_classification=1
 kpick 225192 # klte-common: Align ril.h to samsung_msm8974-common P libril changes
 kpick 238522 # klte-common: Add IGloveMode to device manifest
 kpick 242366 # klte-common: Update power profile for Pie
+kpick 242493 # klte-common: Enable memory optimizations
+kpick 242494 # klte-common: Set default hotspot name
 
 # device/samsung/msm8974-common
 kpick 235457 # msm8974-common: sepolicy: Limit execmod to specifically labeled files
 kpick 238521 # msm8974-common: Build vendor.lineage.touch HAL from hardware/samsung
-kpick 242394 # msm8974-common: Build Trust HAL
 kpick 241858 # msm8974-common: Build Samsung LiveDisplay service
+kpick 242492 # msm8974-common: Enable B-services aging propagation
 
 # kernel/samsung/msm8974
 # kpick 240451 # fuse: fix possibly missed wake-up after abort
 
 # =============== END DEVICE STUFF ========================
-
-# art
-#kpick 233821
 
 # bionic
 kpick 238738 # bionic: Prefer /sbin/sh if it exists
@@ -1333,6 +1332,7 @@ kpick 242048 # sepolicy: Resolve hal_nfc denials
 kpick 242049 # sepolicy: Label vendor.post_boot.parsed
 kpick 242101 # legacy: Resolve hal_camera_default denials
 kpick 242102 # sepolicy: Resolve cameraserver denials
+kpick 242048 # sepolicy: Resolve hal_nfc denials
 
 # development
 kpick 240579 # idegen: Add functionality to set custom ipr file name
@@ -1340,6 +1340,9 @@ kpick 240579 # idegen: Add functionality to set custom ipr file name
 # external/ant-wireless/ant_native
 kpick 227260 # Update bt vendor callbacks array in vfs code
 kpick 227261 # Cast BT_VND_OP_ANT_USERIAL_{OPEN,CLOSE} to bt_vendor_opcode_t in vfs code
+
+# external/bash
+#kpick 242465 # bash: Silence all build warnings
 
 # external/e2fsprogs
 kpick 225215 # e2fsprogs: Prepare for adding and using static libs
@@ -1376,8 +1379,17 @@ kpick 239379 # ntfs-3g: Add static libs for recovery
 # external/one-true-awk
 kpick 225231 # awk: Add libawk_main for recovery and fixup symbols
 
+# external/openssh
+#kpick 242461 # openssh: Silence build warnings
+
+# external/p7zip
+kpick 242462 # p7zip: Silence all warnings
+
 # external/perfetto
 kpick 223413 -f # perfetto_cmd: Resolve missing O_CREAT mode
+
+# external/rsync
+#kpick 242466 # rsync: Ignore deprecated-declarations warnings
 
 # external/skia
 
@@ -1386,6 +1398,12 @@ kpick 223413 -f # perfetto_cmd: Resolve missing O_CREAT mode
 # external/toybox
 kpick 225232 # toybox: Use toybox for dd and grep in recovery
 kpick 225233 # toybox: Add install to symlinks
+
+# external/unrar
+kpick 242463 # unrar: Silence more build warnings
+
+# external/zip
+kpick 242464 # zip: Silence build warnings
 
 # external/zlib
 kpick 225237 # minizip: Fix build under Android 6.0 and higher
@@ -1397,16 +1415,13 @@ kpick 230387 # CameraService: Support calling addStates in enumerateProviders
 kpick 230642 # CameraService: Initialize CameraParameters for the cameras and cache them onFirstRef
 kpick 231348 # camera: Allow to use boottime as timestamp reference
 kpick 234010 # libstagefright: omx: Add support for loading prebuilt ddp decoder lib
-kpick 237206 # audiopolicy: support extended feature in audiopolicymanager
 kpick 238927 # Revert "Removed unused class and its test"
 kpick 238928 # Revert "stagefright: remove Miracast sender code"
 kpick 238929 # libstagefright_wfd: libmediaplayer2: compilation fixes
 kpick 238931 # stagefright: Fix SurfaceMediaSource getting handle from wrong position issue
 kpick 238932 # stagefright: Fix buffer handle retrieval in signalBufferReturned
 kpick 239642 # libstagefright_wfd: video encoder does not actually release MediaBufferBase when done
-kpick 241770 # stagefright: add changes related to high-framerates in CameraSource
 kpick 241802 # Revert "effects: fix volume burst on pause/resume with AudioFX"
-#kpick 242409 # stagefright: add changes related to high-framerates in CameraSource
 
 # frameworks/base
 kpick 224513 # SystemUI: Disable config_keyguardUserSwitcher on sw600dp
@@ -1426,12 +1441,9 @@ kpick 233717 # [DNM][HACK] Persist user brightness model
 kpick 234649 # keyguard: Check for a null errString
 kpick 235986 # frameworks: Add unlinked ringtone and notification volumes
 kpick 236765 # Sounds: Squashed cleanup of sound files
-kpick 237129 # Merge changes for launching wifidisplay from system settings
 #kpick 227142 # Battery: add Battery Moto Mod Support
 kpick 237142 # Battery: update mod support to P
 kpick 237143 # AudioService: Fix Audio mod volume steps
-kpick 237171 # WiFiDisplayController: Defer the P2P Initialization from its constructor.
-kpick 237172 # WifiDisplayController: handle preexisting p2p connection status
 #kpick 237743 # systemui: add dark mode on low battery toggle
 kpick 239520 # Reset all package signatures on boot
 kpick 240084 # ServiceRegistry: Don't throw an exception if OEM_LOCK is missing
@@ -1448,7 +1460,6 @@ kpick 231980 # HWComposer: HWC2: allow SkipValidate to be force disabled
 kpick 237645 # sf: Add support for multiple displays
 
 # frameworks/opt/net/wifi
-kpick 237173 # WiFi: Ignore connectivity scans during WFD session
 
 # frameworks/opt/telephony
 kpick 240767 # Proper supplementary service notification handling (2/5).
@@ -1456,20 +1467,11 @@ kpick 240767 # Proper supplementary service notification handling (2/5).
 # hardware/broadcom/libbt
 kpick 225155 # Broadcom BT: Add support fm/bt via v4l2.
 
-# hardware/boardcom/nfc
-
-# hardware/boardcom/wlan
-
-# hardware/libhardware
-
-# hardware/libhardware_legacy
-
 # hardware/interfaces
 kpick 242058 # wifi: Use stub for add_or_remove_virtual_intf functionality
 kpick 242059 # wifi: Increase kMaxStopCompleteWaitMs to 250 msec.
 
 # hardware/lineage/interfaces
-kpick 241647 # livedisplay: Remove deprecated 1.0 HAL
 
 # hardware/lineage/lineagehw
 
@@ -1477,12 +1479,6 @@ kpick 241647 # livedisplay: Remove deprecated 1.0 HAL
 
 # hardware/nxp/nfc
 kpick 239927 # hardware: nxp: Restore pn547 support
-
-# hardware/qcom/audio/default
-
-# hardware/qcom/audio-caf/msm8974
-
-# hardware/qcom/bootctrl
 
 # hardware/qcom/bt-caf
 kpick 240345 # qcom/bt: update bt_firmware path
@@ -1497,12 +1493,6 @@ kpick 223341 # display: Always assume kernel source is present
 
 # hardware/qcom/fm
 kpick 236546 # fm_helium: Update FM_HCI_DIR path
-
-# hardware/qcom/gps
-
-# hardware/qcom/keymaster
-
-# hardware/qcom/media
 
 # hardware/qcom/media-caf/msm8974
 kpick 237154 # Add -Wno-error to compile with global -Werror.
@@ -1526,16 +1516,6 @@ kpick 241622 # power: don't use SCROLL_PREFILING
 kpick 242164 # power: Pass NULL parameter in powerHint if data is zero
 kpick 241818 # Revert "power: Remove interaction_with_handle"
 kpick 241814 # power: Release launch boost perflock when launch is completed
-
-# hardware/qcom/thermal
-
-# hardware/qcom/vr
-
-# hardware/qcom/wlan-caf
-
-# hardware/ril
-
-# hardware/ril-caf
 
 # hardware/samsung
 kpick 231194 # power: properly initialize cluster states
@@ -1579,33 +1559,15 @@ kpick 240770 # Proper supplementary service notification handling (5/5).
 
 # packages/apps/Email
 
-# packages/apps/EmergencyInfo
-
-# packages/apps/ExactCalculator
-
-# packages/apps/FlipFlap
-
-# packages/apps/FMRadio
-
 # packages/apps/Gallery2
 
 # packages/apps/Jelly
 
-# packages/apps/KeyChain
-
 # packages/apps/LineageParts
-
-# packages/apps/ManagedProvisioning
 
 # packages/apps/Messaging
 
 # packages/apps/Nfc
-
-# packages/apps/PackageInstaller
-
-# packages/apps/PhoneCommon
-
-# packages/apps/Recorder
 
 # packages/apps/Settings
 kpick 235978 # Settings: Add switch for linked ring and media notification volumes
@@ -1621,8 +1583,6 @@ kpick 240083 # Settings: Add null checks for OemLockService
 kpick 241529 # Settings: fix eject sdcard icon color
 kpick 241758 # Settings: Show root options when certain third party root is present
 
-# packages/apps/SettingsIntelligence
-
 # packages/apps/SetupWizard
 kpick 241766 # SUW: Update wizard scripts for Pie
 kpick 241767 # SUW: Don't make google suw use material_light
@@ -1632,39 +1592,10 @@ kpick 242384 # Add video start/stop logs for KPI
 kpick 242385 # Requirement from EIS team
 kpick 242386 # SnapdragonCamera: SunSet and Landscape use HAL-ZSL mode
 kpick 242387 # Change version to 015
-
-# packages/apps/Stk
-
-# packages/apps/StorageManager
-
-# packages/apps/Traceur
-
-# packages/apps/Trebuchet
-
-# packages/apps/TvSettings
-
-# packages/apps/UnifiedEmail
+kpick 242496 # Snap: Fix bad grammar "Long shot not support<ed>"
 
 # packages/apps/Updater
 kpick 239289 # Updater: put identical code to helper method
-
-# packages/inputmethods/LatinIME
-
-# packages/overlays/Lineage
-
-# packages/providers/ContactsProvider
-
-# packages/providers/DownloadProvider
-
-# packages/providers/MediaProvider
-
-# packages/providers/TelephonyProvider
-
-# packages/providers/TvProvider
-
-# packages/screensavers/PhotoTable
-
-# packages/services/BuiltInPrintService
 
 # packages/services/Telecomm
 kpick 233635 # Phone ringtone setting for Multi SIM device
@@ -1689,6 +1620,7 @@ kpick 240018 # Fix path for treble default prop
 kpick 241757 # adb: Allow adb root when certain third party root is present
 
 # system/extras
+kpick 242454 # micro_bench: Ignore build warnings
 
 # system/extras/su
 kpick 232428 # su: strlcpy is always a friend
@@ -1696,26 +1628,14 @@ kpick 232431 # su: Enable Clang Tidy
 kpick 232433 # su: Fix a clang tidy warning
 kpick 232438 # su: Initialize windows size
 
-# system/libvintf
-
 # system/netd
 kpick 232794 # NetD : Allow passing in interface names for vpn app restriction
-
-# system/qcom
-
-# system/security
 
 # system/sepolicy
 kpick 241777 # sepolicy: define sysfs_dt_firmware_android as proc_type
 
-# system/timezone
-
-# system/tool/aidl
 # system/tools/aidl
 kpick 223133 # AIDL: Add option to generate No-Op methods
-
-
-# system/update/engine
 
 # system/vold
 kpick 231717 # vold: Always use libbootloader_message from bootable/recovery namespace
@@ -1752,12 +1672,8 @@ kpick 241425 # kernel: Use a macro for kernel build targets
 kpick 241426 # kernel: Use build-image-kernel-modules instead of copying it
 kpick 241466 # kernel: Move full kernel build guard flag below all targets
 kpick 241783 # envsetup: Fix lineagegerrit push for zsh
-
-# vendor/qcom/opensource/cryptfs_hw
-
-# vendor/qcom/opensource/data-ipa-cfg-mgr
-
-# vendor/qcom/opensource/thermal-engine
+kpick 242432 # RIP libhealthd.lineage
+kpick 242433 # Make custom off-mode charging screen great again
 
 #-----------------------
 # translations
