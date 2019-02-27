@@ -1005,9 +1005,9 @@ function kpick_action()
                             project_offset=$(grep -in "^[[:space:]]*#[[:space:]]*$project[[:space:]]*$" $target_script | cut -d: -f 1 | head -n 1)
                             sed "${project_offset} akpick ${nops} \# ${subject}" -i $target_script
                         else
-                            sed "/kpick[[:space:]]\{1,\}\(.*[[:space:]]\{1,\}\|\)${changeNumber}/i\# ${project}" -i $target_script
+                            sed "/^[[:space:]]*kpick[[:space:]]\{1,\}\(.*[[:space:]]\{1,\}\|\)${changeNumber}/i\# ${project}" -i $target_script
                             sed -e "s/^\([[:space:]]*\)kpick[[:space:]]\{1,\}\(.*[[:space:]]\{1,\}\|\)${changeNumber}[[:space:]]*.*/\1kpick ${nops} # ${subject}/g" -i $target_script
-                            sed "/kpick[[:space:]]\{1,\}\(.*[[:space:]]\{1,\}\|\)${changeNumber}/a\\\r" -i $target_script
+                            sed "/^[[:space:]]*kpick[[:space:]]\{1,\}\(.*[[:space:]]\{1,\}\|\)${changeNumber}/a\\\r" -i $target_script
                         fi
                     else
                         if grep -q "already picked in" $logfile; then
@@ -1020,10 +1020,10 @@ function kpick_action()
                                 sed "${second_find_lineNo}d" -i $target_script
                            fi
                         else
-                            sed "/kpick[[:space:]]*\(.*[[:space:]]\{1,\}\|\)${changeNumber}/d" -i $target_script
+                            sed "/^[[:space:]]*kpick[[:space:]]*\(.*[[:space:]]\{1,\}\|\)${changeNumber}/d" -i $target_script
                             project_lastpick=$(grep  "$project" $tmp_picks_info_file | cut -d" " -f2)
-                            sed "/kpick[[:space:]]\{1,\}\(.*[[:space:]]\{1,\}\|\)${project_lastpick}/a\\kpick ${nops} \# ${subject}" -i $target_script
-                            sed "s/${last_project} ${last_changeNumber}/${last_project} ${changeNumber}/g" -i $tmp_picks_info_file
+                            sed "/^[[:space:]]*kpick[[:space:]]\{1,\}\(.*[[:space:]]\{1,\}\|\)${project_lastpick}/a\\kpick ${nops} \# ${subject}" -i $target_script
+                            sed "s:${last_project} .*:${last_project} ${changeNumber}:g" -i $tmp_picks_info_file
                         fi
                     fi
                else
@@ -1225,14 +1225,11 @@ start_check_classification=1
 kpick 225192 # klte-common: Align ril.h to samsung_msm8974-common P libril changes
 kpick 238522 # klte-common: Add IGloveMode to device manifest
 kpick 242366 # klte-common: Update power profile for Pie
-kpick 242493 # klte-common: Enable memory optimizations
-kpick 242494 # klte-common: Set default hotspot name
 
 # device/samsung/msm8974-common
 kpick 235457 # msm8974-common: sepolicy: Limit execmod to specifically labeled files
 kpick 238521 # msm8974-common: Build vendor.lineage.touch HAL from hardware/samsung
 kpick 241858 # msm8974-common: Build Samsung LiveDisplay service
-kpick 242492 # msm8974-common: Enable B-services aging propagation
 
 # kernel/samsung/msm8974
 # kpick 240451 # fuse: fix possibly missed wake-up after abort
@@ -1307,7 +1304,6 @@ kpick 241473 # Fix formatting
 
 # device/lineage/sepolicy
 kpick 240542 # Revert "sepolicy: recovery: Allow (re)mounting system"
-kpick 241663 # sepolicy: Move superuser policy to private
 kpick 241664 # sepolicy: Dynamically build trust policy into system/vendor
 kpick 241665 # sepolicy: Move livedisplay hal policy to dynamic
 kpick 241666 # sepolicy: Move touch hal policy to dynamic
@@ -1326,13 +1322,6 @@ kpick 241794 # sepolicy: Add core_data_file_type type to cnd_data_file
 kpick 230230 # common: fix sensors denial
 kpick 239741 # common: permit libqdutils operation (linked by mediaserver) during WFD
 kpick 240028 # sepolicy: vendor_init: allow vendor_init to read firmware files
-kpick 241962 # sepolicy: Correctly label display.qservice per SoC
-kpick 242047 # legacy: Resolve rome BT denials
-kpick 242048 # sepolicy: Resolve hal_nfc denials
-kpick 242049 # sepolicy: Label vendor.post_boot.parsed
-kpick 242101 # legacy: Resolve hal_camera_default denials
-kpick 242102 # sepolicy: Resolve cameraserver denials
-kpick 242048 # sepolicy: Resolve hal_nfc denials
 
 # development
 kpick 240579 # idegen: Add functionality to set custom ipr file name
@@ -1531,20 +1520,24 @@ kpick 242398 # Trust: Onboarding: Listen for locale changes
 
 # packages/apps/Bluetooth
 kpick 229311 # Assume optional codecs are supported if were supported previously
+kpick 242625 # Bluetooth: Remove unused string resources
+kpick 242626 # Bluetooth: Fix AAPT warning
+kpick 242543 # Automatic translation import
 
-# packages/apps/Calender
+# packages/apps/Calendar
+kpick 242382 # Calendar: Some fonts display too small in Calendar
+kpick 242544 # Automatic translation import
 
 # packages/apps/Camera2
 kpick 224752 # Use mCameraAgentNg for getting camera info when available
-# packages/apps/Calendar
-kpick 242382 # Calendar: Some fonts display too small in Calendar
-
 
 # packages/apps/CarrierConfig
 
 # packages/apps/CellBroadcastReceiver
+kpick 242545 # Automatic translation import
 
 # packages/apps/CertInstaller
+kpick 242546 # Automatic translation import
 
 # packages/apps/Contacts
 
@@ -1554,20 +1547,46 @@ kpick 242382 # Calendar: Some fonts display too small in Calendar
 kpick 240770 # Proper supplementary service notification handling (5/5).
 
 # packages/apps/DocumentsUI
+kpick 242547 # Automatic translation import
 
 # packages/apps/Eleven
 
 # packages/apps/Email
 
+# packages/apps/EmergencyInfo
+kpick 242548 # Automatic translation import
+
+# packages/apps/ExactCalculator
+kpick 242549 # Automatic translation import
+
 # packages/apps/Gallery2
 
 # packages/apps/Jelly
 
+# packages/apps/HTMLViewer
+kpick 242550 # Automatic translation import
+
+# packages/apps/KeyChain
+kpick 242551 # Automatic translation import
+
 # packages/apps/LineageParts
+
+# packages/apps/ManagedProvisioning
+kpick 242552 # Automatic translation import
 
 # packages/apps/Messaging
 
 # packages/apps/Nfc
+kpick 242553 # Automatic translation import
+
+# packages/apps/PackageInstaller
+kpick 242554 # Automatic translation import
+
+# packages/apps/PhoneCommon
+kpick 242555 # Automatic translation import
+
+# packages/apps/SafetyRegulatoryInfo
+kpick 242556 # Automatic translation import
 
 # packages/apps/Settings
 kpick 235978 # Settings: Add switch for linked ring and media notification volumes
@@ -1580,7 +1599,6 @@ kpick 232793 # Settings: per-app VPN data restriction
 kpick 237183 # settings: hide appendix of app list for power usage.
 kpick 240083 # Settings: Add null checks for OemLockService
 #kpick 241325 # Settings: add vibration intensity preference
-kpick 241529 # Settings: fix eject sdcard icon color
 kpick 241758 # Settings: Show root options when certain third party root is present
 
 # packages/apps/SetupWizard
@@ -1591,18 +1609,86 @@ kpick 241767 # SUW: Don't make google suw use material_light
 kpick 242384 # Add video start/stop logs for KPI
 kpick 242385 # Requirement from EIS team
 kpick 242386 # SnapdragonCamera: SunSet and Landscape use HAL-ZSL mode
+kpick 242643 # SnapdragonCamera: Completed the EIS and video HDR function
 kpick 242387 # Change version to 015
+kpick 242644 # SnapdragonCamera: Check for fixed focus
+kpick 242645 # change to BUILD_NUMBER_FROM_FILE
 kpick 242496 # Snap: Fix bad grammar "Long shot not support<ed>"
+
+# packages/apps/Stk
+kpick 242557 # Automatic translation import
+
+# packages/apps/StorageManager
+kpick 242558 # Automatic translation import
+
+# packages/apps/Tag
+kpick 242559 # Automatic translation import
+
+# packages/apps/TvSettings
+kpick 242560 # Automatic translation import
+
+# packages/apps/UnifiedEmail
+kpick 242561 # Automatic translation import
 
 # packages/apps/Updater
 kpick 239289 # Updater: put identical code to helper method
 
+# packages/providers/BlockedNumberProvider
+kpick 242562 # Automatic translation import
+
+# packages/providers/BookmarkProvider
+kpick 242563 # Automatic translation import
+
+# packages/providers/CalendarProvider
+kpick 242564 # Automatic translation import
+
+# packages/providers/CallLogProvider
+kpick 242565 # Automatic translation import
+
+# packages/providers/ContactsProvider
+kpick 242566 # Automatic translation import
+
+# packages/providers/DownloadProvider
+kpick 242540 # Automatic translation import
+
+# packages/providers/MediaProvider
+kpick 242567 # Automatic translation import
+
+# packages/providers/TelephonyProvider
+kpick 242568 # Automatic translation import
+
+# packages/providers/TvProvider
+kpick 242569 # Automatic translation import
+
+# packages/providers/UserDictionaryProvider
+kpick 242570 # Automatic translation import
+
+# packages/providers/WeatherProvider
+kpick 242541 # Automatic translation import
+
+# packages/screensavers/Basic
+kpick 242571 # Automatic translation import
+
+# packages/screensavers/PhotoTable
+kpick 242572 # Automatic translation import
+
+# packages/services/Mms
+kpick 242542 # Automatic translation import
+
+# packages/services/BuiltInPrintService
+kpick 242573 # Automatic translation import
+
 # packages/services/Telecomm
 kpick 233635 # Phone ringtone setting for Multi SIM device
 kpick 240768 # Proper supplementary service notification handling (3/5)
+kpick 242574 # Automatic translation import
 
 # packages/services/Telephony
 kpick 240769 # Proper supplementary service notification handling (4/5).
+kpick 242575 # Automatic translation import
+
+# packages/wallpapers/LivePicker
+kpick 242576 # Automatic translation import
 
 # system/bt
 kpick 239040 # Increase maximum Bluetooth SBC codec bitrate for SBC HD
@@ -1632,7 +1718,6 @@ kpick 232438 # su: Initialize windows size
 kpick 232794 # NetD : Allow passing in interface names for vpn app restriction
 
 # system/sepolicy
-kpick 241777 # sepolicy: define sysfs_dt_firmware_android as proc_type
 
 # system/tools/aidl
 kpick 223133 # AIDL: Add option to generate No-Op methods
@@ -1664,7 +1749,6 @@ kpick 239359 # extract_utils: template: make --section argument non-positional
 kpick 239360 # extract_utils: template: introduce kang mode
 kpick 239527 # extract_utils: template: add support for the dependency graph function
 kpick 237209 # lineage: Set default ringtone for second SIM
-kpick 237830 # soong_config: Add BOOTLOADER_MESSAGE_OFFSET
 kpick 241422 # kernel: Add more threads to kernel build process
 kpick 241423 # kernel: Move kernel module dir cleanup/creation to module install target
 kpick 241424 # kernel: Detect kernel module usage better
@@ -1675,8 +1759,24 @@ kpick 241783 # envsetup: Fix lineagegerrit push for zsh
 kpick 242432 # RIP libhealthd.lineage
 kpick 242433 # Make custom off-mode charging screen great again
 
+# vendor/qcom/opensource/cryptfs_hw
+kpick 242603 # cryptfs: Allow vold to set encryption info
+kpick 242605 # cryptfs_hw: Add a workaround for metadata encryption
+
+# vendor/qcom/opensource/data-ipa-cfg-mgr
+kpick 242610 # ipacm: Fix XLAT mux id issue
+
+# vendor/qcom/opensource/interfaces
+kpick 242636 # display: Add APIs to manage power states, hdr, layer mask and debug properties
+kpick 242637 # display: Use display id in place of display type
+kpick 242639 # wifi: Introduce qti.hardware.wifi@1.0 HAL interface
+
+# vendor/qcom/opensource/thermal-engine
+kpick 242632 # thermal-engine: Add bandwidth level request APIs to thermal client header
+
 #-----------------------
 # translations
+
 
 ######## topic ##########
 

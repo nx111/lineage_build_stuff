@@ -1,0 +1,239 @@
+From 965e5fac6e3ac520b7c497883b8926181d2a2706 Mon Sep 17 00:00:00 2001
+From: dianlujitao <dianlujitao@lineageos.org>
+Date: Thu, 14 Feb 2019 21:29:46 +0800
+Subject: [PATCH 7/9] sepolicy: Break livedisplay hal policy into impl
+ independent ones
+
+ * LiveDisplay has different backends (QDCM, sysfs, etc.). QDCM impl
+   doesn't use sysfs, sysfs impl doesn't use QC display service and
+   vice versa, so don't abuse the "default" policy.
+ * Add policy for the system variant QTI hal while at it.
+
+Change-Id: I87725a091ebe5db5beeb1619ce4daaac9636d808
+---
+ common/dynamic/hal_lineage_livedisplay.te          |  3 ---
+ common/priv_vendor/file_contexts                   |  3 +++
+ .../priv_vendor/hal_lineage_livedisplay_sysfs.te   | 11 +++++++++++
+ common/vendor/file_contexts                        |  4 +---
+ common/vendor/hal_lineage_livedisplay_default.te   |  8 --------
+ common/vendor/hal_lineage_livedisplay_sysfs.te     |  8 ++++++++
+ qcom/dynamic/hal_lineage_livedisplay_qti.te        | 10 ++++++++++
+ qcom/dynamic/hal_lineage_livedisplay_sysfs.te      |  2 ++
+ qcom/priv_vendor/file_contexts                     |  2 ++
+ qcom/priv_vendor/hal_lineage_livedisplay_qti.te    | 12 ++++++++++++
+ qcom/sepolicy.mk                                   |  7 ++++++-
+ qcom/vendor/file_contexts                          |  4 ++++
+ qcom/vendor/hal_lineage_livedisplay_default.te     | 14 --------------
+ qcom/vendor/hal_lineage_livedisplay_qti.te         | 12 ++++++++++++
+ 14 files changed, 71 insertions(+), 29 deletions(-)
+ create mode 100644 common/priv_vendor/hal_lineage_livedisplay_sysfs.te
+ delete mode 100644 common/vendor/hal_lineage_livedisplay_default.te
+ create mode 100644 common/vendor/hal_lineage_livedisplay_sysfs.te
+ create mode 100644 qcom/dynamic/hal_lineage_livedisplay_qti.te
+ create mode 100644 qcom/dynamic/hal_lineage_livedisplay_sysfs.te
+ create mode 100644 qcom/priv_vendor/file_contexts
+ create mode 100644 qcom/priv_vendor/hal_lineage_livedisplay_qti.te
+ delete mode 100644 qcom/vendor/hal_lineage_livedisplay_default.te
+ create mode 100644 qcom/vendor/hal_lineage_livedisplay_qti.te
+
+diff --git a/common/dynamic/hal_lineage_livedisplay.te b/common/dynamic/hal_lineage_livedisplay.te
+index f0e7a07..6a9aac5 100644
+--- a/common/dynamic/hal_lineage_livedisplay.te
++++ b/common/dynamic/hal_lineage_livedisplay.te
+@@ -3,6 +3,3 @@ binder_call(hal_lineage_livedisplay_client, hal_lineage_livedisplay_server)
+ 
+ add_hwservice(hal_lineage_livedisplay_server, hal_lineage_livedisplay_hwservice)
+ allow hal_lineage_livedisplay_client hal_lineage_livedisplay_hwservice:hwservice_manager find;
+-
+-# Grant access over LiveDisplay tuneables
+-allow hal_lineage_livedisplay_server sysfs_livedisplay_tuneable:file rw_file_perms;
+diff --git a/common/priv_vendor/file_contexts b/common/priv_vendor/file_contexts
+index 9fdebb5..e0ae95a 100644
+--- a/common/priv_vendor/file_contexts
++++ b/common/priv_vendor/file_contexts
+@@ -1,2 +1,5 @@
++# LiveDisplay HAL
++/system/bin/hw/lineage\.livedisplay@2\.0-service-sysfs u:object_r:hal_lineage_livedisplay_sysfs_exec:s0
++
+ # Trust HAL
+ /system/bin/hw/lineage\.trust@1\.0-service u:object_r:hal_lineage_trust_default_exec:s0
+diff --git a/common/priv_vendor/hal_lineage_livedisplay_sysfs.te b/common/priv_vendor/hal_lineage_livedisplay_sysfs.te
+new file mode 100644
+index 0000000..2691174
+--- /dev/null
++++ b/common/priv_vendor/hal_lineage_livedisplay_sysfs.te
+@@ -0,0 +1,11 @@
++type hal_lineage_livedisplay_sysfs, coredomain, domain;
++hal_server_domain(hal_lineage_livedisplay_sysfs, hal_lineage_livedisplay)
++
++type hal_lineage_livedisplay_sysfs_exec, exec_type, file_type;
++init_daemon_domain(hal_lineage_livedisplay_sysfs)
++
++# Talk to the binder device node
++allow hal_lineage_touch_default binder_device:chr_file rw_file_perms;
++
++# Grant access over LiveDisplay tuneables
++allow hal_lineage_livedisplay_sysfs sysfs_livedisplay_tuneable:file rw_file_perms;
+diff --git a/common/vendor/file_contexts b/common/vendor/file_contexts
+index 508c63f..f7b8346 100644
+--- a/common/vendor/file_contexts
++++ b/common/vendor/file_contexts
+@@ -5,9 +5,7 @@
+ /(vendor|system/vendor)/bin/hw/android\.hardware\.light@2\.0-service\.aw2013 u:object_r:hal_light_default_exec:s0
+ 
+ # LiveDisplay HAL
+-/(vendor|system/vendor)/bin/hw/vendor\.lineage\.livedisplay@2\.0-service-legacymm u:object_r:hal_lineage_livedisplay_default_exec:s0
+-/(vendor|system/vendor)/bin/hw/vendor\.lineage\.livedisplay@2\.0-service-sdm u:object_r:hal_lineage_livedisplay_default_exec:s0
+-/(vendor|system/vendor)/bin/hw/vendor\.lineage\.livedisplay@2\.0-service-sysfs u:object_r:hal_lineage_livedisplay_default_exec:s0
++/(vendor|system/vendor)/bin/hw/vendor\.lineage\.livedisplay@2\.0-service-sysfs    u:object_r:hal_lineage_livedisplay_sysfs_exec:s0
+ 
+ # Trust HAL
+ /(vendor|system/vendor)/bin/hw/vendor\.lineage\.trust@1\.0-service u:object_r:hal_lineage_trust_default_exec:s0
+diff --git a/common/vendor/hal_lineage_livedisplay_default.te b/common/vendor/hal_lineage_livedisplay_default.te
+deleted file mode 100644
+index 7a85640..0000000
+--- a/common/vendor/hal_lineage_livedisplay_default.te
++++ /dev/null
+@@ -1,8 +0,0 @@
+-type hal_lineage_livedisplay_default, domain;
+-hal_server_domain(hal_lineage_livedisplay_default, hal_lineage_livedisplay)
+-
+-type hal_lineage_livedisplay_default_exec, exec_type, vendor_file_type, file_type;
+-init_daemon_domain(hal_lineage_livedisplay_default)
+-
+-# Allow LiveDisplay HAL's default implementation to use vendor-binder service
+-vndbinder_use(hal_lineage_livedisplay_default)
+diff --git a/common/vendor/hal_lineage_livedisplay_sysfs.te b/common/vendor/hal_lineage_livedisplay_sysfs.te
+new file mode 100644
+index 0000000..0b6783c
+--- /dev/null
++++ b/common/vendor/hal_lineage_livedisplay_sysfs.te
+@@ -0,0 +1,8 @@
++type hal_lineage_livedisplay_sysfs, domain;
++hal_server_domain(hal_lineage_livedisplay_sysfs, hal_lineage_livedisplay)
++
++type hal_lineage_livedisplay_sysfs_exec, exec_type, vendor_file_type, file_type;
++init_daemon_domain(hal_lineage_livedisplay_sysfs)
++
++# Grant access over LiveDisplay tuneables
++allow hal_lineage_livedisplay_sysfs sysfs_livedisplay_tuneable:file rw_file_perms;
+diff --git a/qcom/dynamic/hal_lineage_livedisplay_qti.te b/qcom/dynamic/hal_lineage_livedisplay_qti.te
+new file mode 100644
+index 0000000..c90a058
+--- /dev/null
++++ b/qcom/dynamic/hal_lineage_livedisplay_qti.te
+@@ -0,0 +1,10 @@
++# Do not use add_service() as hal_graphics_composer_default may be the provider as well
++allow hal_lineage_livedisplay_qti qdisplay_service:service_manager find;
++
++binder_call(hal_lineage_livedisplay_qti, hal_graphics_composer_default)
++
++# Allow LiveDisplay to access vendor display property
++get_prop(hal_lineage_livedisplay_qti, vendor_display_prop)
++
++# Allow LiveDisplay to access pps socket
++unix_socket_connect(hal_lineage_livedisplay_qti, pps, mm-pp-daemon)
+diff --git a/qcom/dynamic/hal_lineage_livedisplay_sysfs.te b/qcom/dynamic/hal_lineage_livedisplay_sysfs.te
+new file mode 100644
+index 0000000..7657255
+--- /dev/null
++++ b/qcom/dynamic/hal_lineage_livedisplay_sysfs.te
+@@ -0,0 +1,2 @@
++# Allow LiveDisplay to access vendor display property
++get_prop(hal_lineage_livedisplay_sysfs, vendor_display_prop)
+diff --git a/qcom/priv_vendor/file_contexts b/qcom/priv_vendor/file_contexts
+new file mode 100644
+index 0000000..a11f7d6
+--- /dev/null
++++ b/qcom/priv_vendor/file_contexts
+@@ -0,0 +1,2 @@
++# LiveDisplay HAL
++/system/bin/hw/lineage\.livedisplay@2\.0-service-sdm u:object_r:hal_lineage_livedisplay_qti_exec:s0
+diff --git a/qcom/priv_vendor/hal_lineage_livedisplay_qti.te b/qcom/priv_vendor/hal_lineage_livedisplay_qti.te
+new file mode 100644
+index 0000000..628b2ed
+--- /dev/null
++++ b/qcom/priv_vendor/hal_lineage_livedisplay_qti.te
+@@ -0,0 +1,12 @@
++type hal_lineage_livedisplay_qti, coredomain, domain;
++hal_server_domain(hal_lineage_livedisplay_qti, hal_lineage_livedisplay)
++
++type hal_lineage_livedisplay_qti_exec, exec_type, file_type;
++init_daemon_domain(hal_lineage_livedisplay_qti)
++
++# Talk to the binder device node
++allow hal_lineage_livedisplay_qti binder_device:chr_file rw_file_perms;
++
++# Allow LiveDisplay to store files under /data/display and access them
++allow hal_lineage_livedisplay_qti display_data_file:dir rw_dir_perms;
++allow hal_lineage_livedisplay_qti display_data_file:file create_file_perms;
+diff --git a/qcom/sepolicy.mk b/qcom/sepolicy.mk
+index 2e654f3..f4d88b5 100644
+--- a/qcom/sepolicy.mk
++++ b/qcom/sepolicy.mk
+@@ -6,7 +6,12 @@
+ BOARD_PLAT_PRIVATE_SEPOLICY_DIR += \
+     device/lineage/sepolicy/qcom/private
+ 
+-ifneq ($(TARGET_USES_PREBUILT_VENDOR_SEPOLICY), true)
++ifeq ($(TARGET_USES_PREBUILT_VENDOR_SEPOLICY), true)
++BOARD_PLAT_PRIVATE_SEPOLICY_DIR += \
++    device/lineage/sepolicy/qcom/dynamic \
++    device/lineage/sepolicy/qcom/priv_vendor
++else
+ BOARD_SEPOLICY_DIRS += \
++    device/lineage/sepolicy/qcom/dynamic \
+     device/lineage/sepolicy/qcom/vendor
+ endif
+diff --git a/qcom/vendor/file_contexts b/qcom/vendor/file_contexts
+index 17eba55..bb6338d 100644
+--- a/qcom/vendor/file_contexts
++++ b/qcom/vendor/file_contexts
+@@ -1,2 +1,6 @@
++# LiveDisplay HAL
++/(vendor|system/vendor)/bin/hw/vendor\.lineage\.livedisplay@2\.0-service-legacymm u:object_r:hal_lineage_livedisplay_qti_exec:s0
++/(vendor|system/vendor)/bin/hw/vendor\.lineage\.livedisplay@2\.0-service-sdm      u:object_r:hal_lineage_livedisplay_qti_exec:s0
++
+ # Power
+ /(vendor|system/vendor)/bin/hw/android\.hardware\.power@1\.1-service-qti      u:object_r:hal_power_default_exec:s0
+diff --git a/qcom/vendor/hal_lineage_livedisplay_default.te b/qcom/vendor/hal_lineage_livedisplay_default.te
+deleted file mode 100644
+index 5ca366c..0000000
+--- a/qcom/vendor/hal_lineage_livedisplay_default.te
++++ /dev/null
+@@ -1,14 +0,0 @@
+-# Do not use add_service() as hal_graphics_composer_default may be the provider as well
+-allow hal_lineage_livedisplay_default qdisplay_service:service_manager find;
+-
+-binder_call(hal_lineage_livedisplay_default, hal_graphics_composer_default)
+-
+-# Allow LiveDisplay to store files under /data/vendor/display and access them
+-allow hal_lineage_livedisplay_default display_vendor_data_file:dir rw_dir_perms;
+-allow hal_lineage_livedisplay_default display_vendor_data_file:file create_file_perms;
+-
+-# Allow LiveDisplay to access vendor display property
+-get_prop(hal_lineage_livedisplay_default, vendor_display_prop)
+-
+-# Allow LiveDisplay to access pps socket
+-unix_socket_connect(hal_lineage_livedisplay_default, pps, mm-pp-daemon)
+diff --git a/qcom/vendor/hal_lineage_livedisplay_qti.te b/qcom/vendor/hal_lineage_livedisplay_qti.te
+new file mode 100644
+index 0000000..83cfd26
+--- /dev/null
++++ b/qcom/vendor/hal_lineage_livedisplay_qti.te
+@@ -0,0 +1,12 @@
++type hal_lineage_livedisplay_qti, domain;
++hal_server_domain(hal_lineage_livedisplay_qti, hal_lineage_livedisplay)
++
++type hal_lineage_livedisplay_qti_exec, exec_type, vendor_file_type, file_type;
++init_daemon_domain(hal_lineage_livedisplay_qti)
++
++# Allow LiveDisplay HAL's default implementation to use vendor-binder service
++vndbinder_use(hal_lineage_livedisplay_qti)
++
++# Allow LiveDisplay to store files under /data/vendor/display and access them
++allow hal_lineage_livedisplay_qti display_vendor_data_file:dir rw_dir_perms;
++allow hal_lineage_livedisplay_qti display_vendor_data_file:file create_file_perms;
+-- 
+2.17.1
+
