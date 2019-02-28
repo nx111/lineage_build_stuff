@@ -70,6 +70,8 @@ function patch_local()
             search_dir=".myfiles/patches/$va_patches_dir"
         elif [ -d "$topdir/.myfiles/patches/pick/$va_patches_dir" -o -d "$topdir/.myfiles/patches/local/$va_patches_dir" ]; then
             search_dir=".myfiles/patches/local/$va_patches_dir .myfiles/patches/pick/$va_patches_dir"
+        else
+            return -1
         fi
     else
         return -1
@@ -1411,6 +1413,7 @@ kpick 238931 # stagefright: Fix SurfaceMediaSource getting handle from wrong pos
 kpick 238932 # stagefright: Fix buffer handle retrieval in signalBufferReturned
 kpick 239642 # libstagefright_wfd: video encoder does not actually release MediaBufferBase when done
 kpick 241802 # Revert "effects: fix volume burst on pause/resume with AudioFX"
+kpick 242705 # effects: Initialize volume at -96
 
 # frameworks/base
 kpick 224513 # SystemUI: Disable config_keyguardUserSwitcher on sw600dp
@@ -1440,6 +1443,7 @@ kpick 240411 # Keyguard: Avoid starting FP authentication right after cancelling
 kpick 240766 # Proper supplementary service notification handling (1/5).
 kpick 241326 # SettingsLib: add action callbacks to CustomDialogPreferences
 kpick 241327 # VibratorService: Apply vibrator intensity setting.
+kpick 242684 # SystemUI: Remove unused resources
 
 # frameworks/native
 kpick 224530 # Triple the available egl function pointers available to a process for certain Nvidia devices.
@@ -1522,11 +1526,11 @@ kpick 242398 # Trust: Onboarding: Listen for locale changes
 kpick 229311 # Assume optional codecs are supported if were supported previously
 kpick 242625 # Bluetooth: Remove unused string resources
 kpick 242626 # Bluetooth: Fix AAPT warning
-kpick 242543 # Automatic translation import
 
 # packages/apps/Calendar
 kpick 242382 # Calendar: Some fonts display too small in Calendar
-kpick 242544 # Automatic translation import
+kpick 242676 # Calendar: Fix AAPT warning
+kpick 242700 # Calendar: Fix translatables
 
 # packages/apps/Camera2
 kpick 224752 # Use mCameraAgentNg for getting camera info when available
@@ -1534,12 +1538,12 @@ kpick 224752 # Use mCameraAgentNg for getting camera info when available
 # packages/apps/CarrierConfig
 
 # packages/apps/CellBroadcastReceiver
-kpick 242545 # Automatic translation import
+# kpick 242671
 
 # packages/apps/CertInstaller
-kpick 242546 # Automatic translation import
 
 # packages/apps/Contacts
+kpick 242681 # Contacts: Fix AAPT warning
 
 # packages/apps/DeskClock
 
@@ -1547,46 +1551,39 @@ kpick 242546 # Automatic translation import
 kpick 240770 # Proper supplementary service notification handling (5/5).
 
 # packages/apps/DocumentsUI
-kpick 242547 # Automatic translation import
 
 # packages/apps/Eleven
 
 # packages/apps/Email
+kpick 242677 # Email: Fix AAPT warning
 
 # packages/apps/EmergencyInfo
-kpick 242548 # Automatic translation import
 
 # packages/apps/ExactCalculator
-kpick 242549 # Automatic translation import
 
 # packages/apps/Gallery2
 
 # packages/apps/Jelly
 
 # packages/apps/HTMLViewer
-kpick 242550 # Automatic translation import
 
 # packages/apps/KeyChain
-kpick 242551 # Automatic translation import
 
 # packages/apps/LineageParts
 
 # packages/apps/ManagedProvisioning
-kpick 242552 # Automatic translation import
 
 # packages/apps/Messaging
+kpick 242678 # Messaging: Fix AAPT warnings
 
 # packages/apps/Nfc
-kpick 242553 # Automatic translation import
 
 # packages/apps/PackageInstaller
-kpick 242554 # Automatic translation import
+kpick 242682 # PackageInstaller: Fix AAPT warnings
 
 # packages/apps/PhoneCommon
-kpick 242555 # Automatic translation import
 
 # packages/apps/SafetyRegulatoryInfo
-kpick 242556 # Automatic translation import
 
 # packages/apps/Settings
 kpick 235978 # Settings: Add switch for linked ring and media notification volumes
@@ -1614,81 +1611,62 @@ kpick 242387 # Change version to 015
 kpick 242644 # SnapdragonCamera: Check for fixed focus
 kpick 242645 # change to BUILD_NUMBER_FROM_FILE
 kpick 242496 # Snap: Fix bad grammar "Long shot not support<ed>"
+kpick 242680 # Snap: Remove unused resources
 
 # packages/apps/Stk
-kpick 242557 # Automatic translation import
 
 # packages/apps/StorageManager
-kpick 242558 # Automatic translation import
 
 # packages/apps/Tag
-kpick 242559 # Automatic translation import
 
 # packages/apps/TvSettings
-kpick 242560 # Automatic translation import
 
 # packages/apps/UnifiedEmail
-kpick 242561 # Automatic translation import
 
 # packages/apps/Updater
 kpick 239289 # Updater: put identical code to helper method
 
 # packages/providers/BlockedNumberProvider
-kpick 242562 # Automatic translation import
 
 # packages/providers/BookmarkProvider
-kpick 242563 # Automatic translation import
 
 # packages/providers/CalendarProvider
-kpick 242564 # Automatic translation import
+kpick 242699 # CalendarProvider: Remove unused string resource
 
 # packages/providers/CallLogProvider
-kpick 242565 # Automatic translation import
 
 # packages/providers/ContactsProvider
-kpick 242566 # Automatic translation import
 
 # packages/providers/DownloadProvider
-kpick 242540 # Automatic translation import
 
 # packages/providers/MediaProvider
-kpick 242567 # Automatic translation import
 
 # packages/providers/TelephonyProvider
-kpick 242568 # Automatic translation import
 
 # packages/providers/TvProvider
-kpick 242569 # Automatic translation import
 
 # packages/providers/UserDictionaryProvider
-kpick 242570 # Automatic translation import
 
 # packages/providers/WeatherProvider
-kpick 242541 # Automatic translation import
 
 # packages/screensavers/Basic
-kpick 242571 # Automatic translation import
 
 # packages/screensavers/PhotoTable
-kpick 242572 # Automatic translation import
 
 # packages/services/Mms
-kpick 242542 # Automatic translation import
 
 # packages/services/BuiltInPrintService
-kpick 242573 # Automatic translation import
 
 # packages/services/Telecomm
 kpick 233635 # Phone ringtone setting for Multi SIM device
 kpick 240768 # Proper supplementary service notification handling (3/5)
-kpick 242574 # Automatic translation import
 
 # packages/services/Telephony
 kpick 240769 # Proper supplementary service notification handling (4/5).
-kpick 242575 # Automatic translation import
+kpick 242683 # Telephony: Mark enhanced_4g_lte_mode_title_variant as untranslatable
+kpick 242698 # Telephony: Fix AAPT warnings
 
 # packages/wallpapers/LivePicker
-kpick 242576 # Automatic translation import
 
 # system/bt
 kpick 239040 # Increase maximum Bluetooth SBC codec bitrate for SBC HD
