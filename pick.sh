@@ -1294,7 +1294,6 @@ kpick 222742 # build: Use project pathmap for recovery
 kpick 222760 # Add LOCAL_AIDL_FLAGS
 kpick 239296 # build: Remove charger from recovery unless needed
 kpick 241427 # build: Allow build-image-kernel-modules to be called from shell
-kpick 242400 # Remove TARGET_USES_MKE2FS
 
 # build/soong
 kpick 222648 # Allow providing flex and bison binaries
