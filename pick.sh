@@ -1435,14 +1435,14 @@ kpick 236765 # Sounds: Squashed cleanup of sound files
 #kpick 227142 # Battery: add Battery Moto Mod Support
 kpick 237142 # Battery: update mod support to P
 kpick 237143 # AudioService: Fix Audio mod volume steps
-#kpick 237743 # systemui: add dark mode on low battery toggle
 kpick 239520 # Reset all package signatures on boot
 kpick 240084 # ServiceRegistry: Don't throw an exception if OEM_LOCK is missing
-kpick 240411 # Keyguard: Avoid starting FP authentication right after cancelling
+#kpick 240411 # Keyguard: Avoid starting FP authentication right after cancelling
 kpick 240766 # Proper supplementary service notification handling (1/5).
 kpick 241326 # SettingsLib: add action callbacks to CustomDialogPreferences
 kpick 241327 # VibratorService: Apply vibrator intensity setting.
 kpick 242684 # SystemUI: Remove unused resources
+kpick 242737 # Skip one-shot sensors for WindowOrientationListener
 
 # frameworks/native
 kpick 224530 # Triple the available egl function pointers available to a process for certain Nvidia devices.
@@ -1552,6 +1552,7 @@ kpick 240770 # Proper supplementary service notification handling (5/5).
 # packages/apps/DocumentsUI
 
 # packages/apps/Eleven
+kpick 242736 # Eleven: bump to api26
 
 # packages/apps/Email
 kpick 242677 # Email: Fix AAPT warning
