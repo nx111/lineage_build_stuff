@@ -1193,7 +1193,12 @@ if [ "${BASH_SOURCE[0]}" = "$runfrom" -a ! -f ${BASH_SOURCE[0]}.tmp -a $op_pick_
     repo sync android  >/dev/null
     [ $op_keep_manifests -ne 1 ] && reset_project_dir .repo/manifests
 
+    #=========== pick changes ==========================
+
     kpick 231971 # manifest: sync gcc4.9 from aosp oreo
+    kpick 242799 # Fork external/proguard
+
+    #===================================================
 
     patch_local local/android
     echo
@@ -1212,7 +1217,6 @@ if [ "${BASH_SOURCE[0]}" = "$runfrom" -a ! -f ${BASH_SOURCE[0]}.tmp -a $op_pick_
 fi       # continue pick or not
 
 # ==========================================================
-# ==========================================================
 
 # first pick for repopick
 kpick 234859 # repopick: cmp() is not available in Python 3, define it manually
@@ -1221,7 +1225,11 @@ kpick 234859 # repopick: cmp() is not available in Python 3, define it manually
 rm -f $tmp_picks_info_file
 start_check_classification=1
 
-# ================= DEVICE STUFF =========================
+# *******************************************************
+# **            MAIN PICKS                             **
+# *******************************************************
+
+# ==== DEVICE STUFF ======
 
 # device/samsung/klte-common
 kpick 225192 # klte-common: Align ril.h to samsung_msm8974-common P libril changes
@@ -1236,7 +1244,10 @@ kpick 241858 # msm8974-common: Build Samsung LiveDisplay service
 # kernel/samsung/msm8974
 # kpick 240451 # fuse: fix possibly missed wake-up after abort
 
-# =============== END DEVICE STUFF ========================
+# ====== OTHERS =======
+
+# art
+kpick 242869 # Add an option to disable sse4.2 features
 
 # bionic
 kpick 238738 # bionic: Prefer /sbin/sh if it exists
@@ -1287,21 +1298,19 @@ kpick 238991 # recovery: minui: Implement image scaling
 kpick 238992 # recovery: Scale logo image if necessary
 kpick 238993 # recovery: Add runtime checks for A/B vs traditional updates
 
-# build/kati
-
 # build/make
 kpick 222742 # build: Use project pathmap for recovery
 kpick 222760 # Add LOCAL_AIDL_FLAGS
 kpick 239296 # build: Remove charger from recovery unless needed
 kpick 241427 # build: Allow build-image-kernel-modules to be called from shell
+kpick 242794 # Use flags from Soong for d8, r8, dx and desugar
 
 # build/soong
 kpick 222648 # Allow providing flex and bison binaries
 kpick 224613 # soong: Add LOCAL_AIDL_FLAGS handling
 kpick 226443 # soong: Add additional_deps attribute for libraries and binaries
 kpick 241473 # Fix formatting
-
-# dalvik
+kpick 242793 # Optimize CPU time when running d8, r8, dx and desugar
 
 # device/lineage/sepolicy
 kpick 240542 # Revert "sepolicy: recovery: Allow (re)mounting system"
@@ -1312,6 +1321,7 @@ kpick 241667 # sepolicy: Move power hal service label to dynamic
 kpick 241676 # sepolicy: qcom: Rename common to vendor to avoid confusion
 kpick 241677 # sepolicy: Break livedisplay hal policy into impl independent ones
 kpick 241903 # sepolicy: Label all the livedisplay service implementations
+kpick 242792 # Allow Gallery to access system_app_data_file
 
 # device/qcom/sepolicy
 kpick 228573 # sepolicy: Add libsdm-disp-vndapis and libsdmutils to SP-HALs
@@ -1330,9 +1340,6 @@ kpick 240579 # idegen: Add functionality to set custom ipr file name
 # external/ant-wireless/ant_native
 kpick 227260 # Update bt vendor callbacks array in vfs code
 kpick 227261 # Cast BT_VND_OP_ANT_USERIAL_{OPEN,CLOSE} to bt_vendor_opcode_t in vfs code
-
-# external/bash
-#kpick 242465 # bash: Silence all build warnings
 
 # external/e2fsprogs
 kpick 225215 # e2fsprogs: Prepare for adding and using static libs
@@ -1357,9 +1364,6 @@ kpick 239460 # fsck_msdos: Build static lib for recovery
 kpick 225228 # gptfdisk: Build static lib for recovery fstools
 kpick 239254 # gptfdisk: Provide sgdisk_read for direct reads of the partition table
 
-# external/icu
-# kpick 237955
-
 # external/libtar
 kpick 238626 # libtar: Build fixes
 
@@ -1369,21 +1373,14 @@ kpick 239379 # ntfs-3g: Add static libs for recovery
 # external/one-true-awk
 kpick 225231 # awk: Add libawk_main for recovery and fixup symbols
 
-# external/openssh
-#kpick 242461 # openssh: Silence build warnings
-
 # external/p7zip
 kpick 242462 # p7zip: Silence all warnings
 
 # external/perfetto
 kpick 223413 -f # perfetto_cmd: Resolve missing O_CREAT mode
 
-# external/rsync
-#kpick 242466 # rsync: Ignore deprecated-declarations warnings
-
-# external/skia
-
-# external/tinycompress
+# external/proguard
+kpick 242798 # Allow passing extra java arguments to proguard
 
 # external/toybox
 kpick 225232 # toybox: Use toybox for dd and grep in recovery
@@ -1451,8 +1448,6 @@ kpick 231828 # Translate pointer motion events for OneHandOperation Display Shri
 kpick 231980 # HWComposer: HWC2: allow SkipValidate to be force disabled
 kpick 237645 # sf: Add support for multiple displays
 
-# frameworks/opt/net/wifi
-
 # frameworks/opt/telephony
 kpick 240767 # Proper supplementary service notification handling (2/5).
 
@@ -1460,14 +1455,8 @@ kpick 240767 # Proper supplementary service notification handling (2/5).
 kpick 225155 # Broadcom BT: Add support fm/bt via v4l2.
 
 # hardware/interfaces
-kpick 242058 # wifi: Use stub for add_or_remove_virtual_intf functionality
-kpick 242059 # wifi: Increase kMaxStopCompleteWaitMs to 250 msec.
 
 # hardware/lineage/interfaces
-
-# hardware/lineage/lineagehw
-
-# hardware/lineage/livedisplay
 
 # hardware/nxp/nfc
 kpick 239927 # hardware: nxp: Restore pn547 support
@@ -1480,8 +1469,6 @@ kpick 241715 # Add kernel header dep for ipanat
 
 # hardware/qcom/display
 kpick 223341 # display: Always assume kernel source is present
-
-# hardware/qcom/display-caf/msm8974
 
 # hardware/qcom/fm
 kpick 236546 # fm_helium: Update FM_HCI_DIR path
@@ -1534,22 +1521,11 @@ kpick 242700 # Calendar: Fix translatables
 # packages/apps/Camera2
 kpick 224752 # Use mCameraAgentNg for getting camera info when available
 
-# packages/apps/CarrierConfig
-
-# packages/apps/CellBroadcastReceiver
-# kpick 242671
-
-# packages/apps/CertInstaller
-
 # packages/apps/Contacts
 kpick 242681 # Contacts: Fix AAPT warning
 
-# packages/apps/DeskClock
-
 # packages/apps/Dialer
 kpick 240770 # Proper supplementary service notification handling (5/5).
-
-# packages/apps/DocumentsUI
 
 # packages/apps/Eleven
 kpick 242736 # Eleven: bump to api26
@@ -1557,33 +1533,11 @@ kpick 242736 # Eleven: bump to api26
 # packages/apps/Email
 kpick 242677 # Email: Fix AAPT warning
 
-# packages/apps/EmergencyInfo
-
-# packages/apps/ExactCalculator
-
-# packages/apps/Gallery2
-
-# packages/apps/Jelly
-
-# packages/apps/HTMLViewer
-
-# packages/apps/KeyChain
-
-# packages/apps/LineageParts
-
-# packages/apps/ManagedProvisioning
-
 # packages/apps/Messaging
 kpick 242678 # Messaging: Fix AAPT warnings
 
-# packages/apps/Nfc
-
 # packages/apps/PackageInstaller
 kpick 242682 # PackageInstaller: Fix AAPT warnings
-
-# packages/apps/PhoneCommon
-
-# packages/apps/SafetyRegulatoryInfo
 
 # packages/apps/Settings
 kpick 235978 # Settings: Add switch for linked ring and media notification volumes
@@ -1603,59 +1557,14 @@ kpick 241766 # SUW: Update wizard scripts for Pie
 kpick 241767 # SUW: Don't make google suw use material_light
 
 # packages/apps/Snap
-kpick 242384 # Add video start/stop logs for KPI
-kpick 242385 # Requirement from EIS team
-kpick 242386 # SnapdragonCamera: SunSet and Landscape use HAL-ZSL mode
-kpick 242643 # SnapdragonCamera: Completed the EIS and video HDR function
-kpick 242387 # Change version to 015
-kpick 242644 # SnapdragonCamera: Check for fixed focus
-kpick 242645 # change to BUILD_NUMBER_FROM_FILE
 kpick 242496 # Snap: Fix bad grammar "Long shot not support<ed>"
 kpick 242680 # Snap: Remove unused resources
-
-# packages/apps/Stk
-
-# packages/apps/StorageManager
-
-# packages/apps/Tag
-
-# packages/apps/TvSettings
-
-# packages/apps/UnifiedEmail
 
 # packages/apps/Updater
 kpick 239289 # Updater: put identical code to helper method
 
-# packages/providers/BlockedNumberProvider
-
-# packages/providers/BookmarkProvider
-
 # packages/providers/CalendarProvider
 kpick 242699 # CalendarProvider: Remove unused string resource
-
-# packages/providers/CallLogProvider
-
-# packages/providers/ContactsProvider
-
-# packages/providers/DownloadProvider
-
-# packages/providers/MediaProvider
-
-# packages/providers/TelephonyProvider
-
-# packages/providers/TvProvider
-
-# packages/providers/UserDictionaryProvider
-
-# packages/providers/WeatherProvider
-
-# packages/screensavers/Basic
-
-# packages/screensavers/PhotoTable
-
-# packages/services/Mms
-
-# packages/services/BuiltInPrintService
 
 # packages/services/Telecomm
 kpick 233635 # Phone ringtone setting for Multi SIM device
@@ -1665,8 +1574,9 @@ kpick 240768 # Proper supplementary service notification handling (3/5)
 kpick 240769 # Proper supplementary service notification handling (4/5).
 kpick 242683 # Telephony: Mark enhanced_4g_lte_mode_title_variant as untranslatable
 kpick 242698 # Telephony: Fix AAPT warnings
-
-# packages/wallpapers/LivePicker
+kpick 242884 # Revert "Use proper summary for network select list preference on dsds/dsda/tsts"
+kpick 242885 # Fix an issue wrong network operator name is displayed on MSIM devices
+kpick 242886 # Don't save network selection to prefs
 
 # system/bt
 kpick 239040 # Increase maximum Bluetooth SBC codec bitrate for SBC HD
@@ -1737,24 +1647,8 @@ kpick 241783 # envsetup: Fix lineagegerrit push for zsh
 kpick 242432 # RIP libhealthd.lineage
 kpick 242433 # Make custom off-mode charging screen great again
 
-# vendor/qcom/opensource/cryptfs_hw
-kpick 242603 # cryptfs: Allow vold to set encryption info
-kpick 242605 # cryptfs_hw: Add a workaround for metadata encryption
-
-# vendor/qcom/opensource/data-ipa-cfg-mgr
-kpick 242610 # ipacm: Fix XLAT mux id issue
-
-# vendor/qcom/opensource/interfaces
-kpick 242636 # display: Add APIs to manage power states, hdr, layer mask and debug properties
-kpick 242637 # display: Use display id in place of display type
-kpick 242639 # wifi: Introduce qti.hardware.wifi@1.0 HAL interface
-
-# vendor/qcom/opensource/thermal-engine
-kpick 242632 # thermal-engine: Add bandwidth level request APIs to thermal client header
-
 #-----------------------
 # translations
-
 
 ######## topic ##########
 
