@@ -1247,7 +1247,6 @@ kpick 241858 # msm8974-common: Build Samsung LiveDisplay service
 # ====== OTHERS =======
 
 # art
-kpick 242869 # Add an option to disable sse4.2 features
 
 # bionic
 kpick 238738 # bionic: Prefer /sbin/sh if it exists
@@ -1328,6 +1327,7 @@ kpick 228573 # sepolicy: Add libsdm-disp-vndapis and libsdmutils to SP-HALs
 kpick 228582 # sepolicy: qti_init_shell needs to read dir too
 kpick 240951 # qcom: label persist files with /(mnt/vendor)/persist instead of /mnt/vendor/persist
 kpick 241794 # sepolicy: Add core_data_file_type type to cnd_data_file
+kpick 242976 # sepolicy: Label persist partition for all SoCs
 
 # device/qcom/sepolicy-legacy
 kpick 230230 # common: fix sensors denial
@@ -1340,6 +1340,9 @@ kpick 240579 # idegen: Add functionality to set custom ipr file name
 # external/ant-wireless/ant_native
 kpick 227260 # Update bt vendor callbacks array in vfs code
 kpick 227261 # Cast BT_VND_OP_ANT_USERIAL_{OPEN,CLOSE} to bt_vendor_opcode_t in vfs code
+
+# external/bash
+kpick 242465 # bash: Silence all build warnings
 
 # external/e2fsprogs
 kpick 225215 # e2fsprogs: Prepare for adding and using static libs
@@ -1373,6 +1376,9 @@ kpick 239379 # ntfs-3g: Add static libs for recovery
 # external/one-true-awk
 kpick 225231 # awk: Add libawk_main for recovery and fixup symbols
 
+# external/openssh
+kpick 242461 # openssh: Silence build warnings
+
 # external/p7zip
 kpick 242462 # p7zip: Silence all warnings
 
@@ -1381,6 +1387,9 @@ kpick 223413 -f # perfetto_cmd: Resolve missing O_CREAT mode
 
 # external/proguard
 kpick 242798 # Allow passing extra java arguments to proguard
+
+# external/rsync
+kpick 242466 # rsync: Silence build warnings
 
 # external/toybox
 kpick 225232 # toybox: Use toybox for dd and grep in recovery
@@ -1408,7 +1417,6 @@ kpick 238929 # libstagefright_wfd: libmediaplayer2: compilation fixes
 kpick 238931 # stagefright: Fix SurfaceMediaSource getting handle from wrong position issue
 kpick 238932 # stagefright: Fix buffer handle retrieval in signalBufferReturned
 kpick 239642 # libstagefright_wfd: video encoder does not actually release MediaBufferBase when done
-kpick 241802 # Revert "effects: fix volume burst on pause/resume with AudioFX"
 kpick 242705 # effects: Initialize volume at -96
 
 # frameworks/base
@@ -1440,10 +1448,11 @@ kpick 241326 # SettingsLib: add action callbacks to CustomDialogPreferences
 kpick 241327 # VibratorService: Apply vibrator intensity setting.
 kpick 242684 # SystemUI: Remove unused resources
 kpick 242737 # Skip one-shot sensors for WindowOrientationListener
+kpick 242893 # Add ChargingStarted + InCallNotif to AudioPackage
+kpick 242894 # Include InCallNotification.ogg in AllAudio.mk file
 
 # frameworks/native
 kpick 224530 # Triple the available egl function pointers available to a process for certain Nvidia devices.
-kpick 225544 # input: Adjust priority
 kpick 231828 # Translate pointer motion events for OneHandOperation Display Shrink
 kpick 231980 # HWComposer: HWC2: allow SkipValidate to be force disabled
 kpick 237645 # sf: Add support for multiple displays
@@ -1458,6 +1467,9 @@ kpick 225155 # Broadcom BT: Add support fm/bt via v4l2.
 
 # hardware/lineage/interfaces
 
+# hardware/lineage/livedisplay
+kpick 242994 # livedisplay: sysfs: Simplify setCalibration
+
 # hardware/nxp/nfc
 kpick 239927 # hardware: nxp: Restore pn547 support
 
@@ -1469,6 +1481,9 @@ kpick 241715 # Add kernel header dep for ipanat
 
 # hardware/qcom/display
 kpick 223341 # display: Always assume kernel source is present
+
+# hardware/qcom/display-caf/msm8974
+kpick 242777 # hwc: Remove _vendor from libbfqio
 
 # hardware/qcom/fm
 kpick 236546 # fm_helium: Update FM_HCI_DIR path
@@ -1510,19 +1525,21 @@ kpick 242398 # Trust: Onboarding: Listen for locale changes
 
 # packages/apps/Bluetooth
 kpick 229311 # Assume optional codecs are supported if were supported previously
+kpick 242967 # Fix generating id in android namespace
 kpick 242625 # Bluetooth: Remove unused string resources
-kpick 242626 # Bluetooth: Fix AAPT warning
 
 # packages/apps/Calendar
-kpick 242382 # Calendar: Some fonts display too small in Calendar
-kpick 242676 # Calendar: Fix AAPT warning
 kpick 242700 # Calendar: Fix translatables
 
 # packages/apps/Camera2
 kpick 224752 # Use mCameraAgentNg for getting camera info when available
 
+# packages/apps/CellBroadcastReceiver
+kpick 242969 # Fix resource warnings.
+kpick 242970 # Fix a warning in generating id in android namespace.
+
 # packages/apps/Contacts
-kpick 242681 # Contacts: Fix AAPT warning
+kpick 242681 # Contacts: Remove unused boolean resource
 
 # packages/apps/Dialer
 kpick 240770 # Proper supplementary service notification handling (5/5).
@@ -1531,13 +1548,13 @@ kpick 240770 # Proper supplementary service notification handling (5/5).
 kpick 242736 # Eleven: bump to api26
 
 # packages/apps/Email
-kpick 242677 # Email: Fix AAPT warning
+kpick 242677 # Email: Fix generating id in android namespace
 
 # packages/apps/Messaging
-kpick 242678 # Messaging: Fix AAPT warnings
+kpick 242678 # Messaging: Fix generating id in android namespace
 
 # packages/apps/PackageInstaller
-kpick 242682 # PackageInstaller: Fix AAPT warnings
+kpick 242682 # PackageInstaller: Fix generating id in android namespace
 
 # packages/apps/Settings
 kpick 235978 # Settings: Add switch for linked ring and media notification volumes
@@ -1559,6 +1576,7 @@ kpick 241767 # SUW: Don't make google suw use material_light
 # packages/apps/Snap
 kpick 242496 # Snap: Fix bad grammar "Long shot not support<ed>"
 kpick 242680 # Snap: Remove unused resources
+kpick 242966 # Snap: Add back original-package in manifest
 
 # packages/apps/Updater
 kpick 239289 # Updater: put identical code to helper method
@@ -1573,10 +1591,11 @@ kpick 240768 # Proper supplementary service notification handling (3/5)
 # packages/services/Telephony
 kpick 240769 # Proper supplementary service notification handling (4/5).
 kpick 242683 # Telephony: Mark enhanced_4g_lte_mode_title_variant as untranslatable
-kpick 242698 # Telephony: Fix AAPT warnings
 kpick 242884 # Revert "Use proper summary for network select list preference on dsds/dsda/tsts"
 kpick 242885 # Fix an issue wrong network operator name is displayed on MSIM devices
 kpick 242886 # Don't save network selection to prefs
+kpick 242971 # Fix resource warnings.
+kpick 242972 # Stop generating ids in android namespace.
 
 # system/bt
 kpick 239040 # Increase maximum Bluetooth SBC codec bitrate for SBC HD
@@ -1594,7 +1613,7 @@ kpick 240018 # Fix path for treble default prop
 kpick 241757 # adb: Allow adb root when certain third party root is present
 
 # system/extras
-kpick 242454 # micro_bench: Ignore build warnings
+kpick 242968 # Remove -Wno-error from system/extras
 
 # system/extras/su
 kpick 232428 # su: strlcpy is always a friend
@@ -1606,6 +1625,7 @@ kpick 232438 # su: Initialize windows size
 kpick 232794 # NetD : Allow passing in interface names for vpn app restriction
 
 # system/sepolicy
+kpick 242951 # sepolicy: Allow init to chown sysfs LED files
 
 # system/tools/aidl
 kpick 223133 # AIDL: Add option to generate No-Op methods
@@ -1646,7 +1666,10 @@ kpick 241466 # kernel: Move full kernel build guard flag below all targets
 kpick 241783 # envsetup: Fix lineagegerrit push for zsh
 kpick 242432 # RIP libhealthd.lineage
 kpick 242433 # Make custom off-mode charging screen great again
+kpick 242780 # libbfqio: Remove vendor variant
 
+# vendor/qcom/opensource/cryptfs_hw
+kpick 243032 # cryptfs_hw: Cleanup should_use_keymaster
 #-----------------------
 # translations
 

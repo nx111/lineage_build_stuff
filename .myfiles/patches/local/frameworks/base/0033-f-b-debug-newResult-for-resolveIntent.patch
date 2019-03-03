@@ -1,0 +1,159 @@
+From 392117af69f6ace43bda4d55ba7455b50ef364fb Mon Sep 17 00:00:00 2001
+From: nx111 <NX111.AimH@gmail.com>
+Date: Mon, 11 Feb 2019 23:49:42 +0800
+Subject: [PATCH 33/36] f/b: debug newResult for resolveIntent.
+
+Change-Id: I3b8ec0770351cf911198b7f8b2cb9b633069ec67
+---
+ .../android/content/pm/PackageUserState.java  | 25 ++++++++++++++++--
+ .../server/pm/PackageManagerService.java      | 26 ++++++++++++++++++-
+ .../java/com/android/server/pm/Settings.java  |  7 ++++-
+ 3 files changed, 54 insertions(+), 4 deletions(-)
+
+diff --git a/core/java/android/content/pm/PackageUserState.java b/core/java/android/content/pm/PackageUserState.java
+index f471a1d9b36..57ea95ddfc5 100644
+--- a/core/java/android/content/pm/PackageUserState.java
++++ b/core/java/android/content/pm/PackageUserState.java
+@@ -30,6 +30,8 @@ import static android.content.pm.PackageManager.MATCH_SYSTEM_ONLY;
+ import android.os.BaseBundle;
+ import android.os.PersistableBundle;
+ import android.util.ArraySet;
++import android.util.Slog;
++import android.util.Log;
+ 
+ import com.android.internal.util.ArrayUtils;
+ 
+@@ -41,6 +43,7 @@ import java.util.Objects;
+  * @hide
+  */
+ public class PackageUserState {
++    private static final String TAG = "PackageManager";
+     public long ceDataInode;
+     public boolean installed;
+     public boolean stopped;
+@@ -127,12 +130,27 @@ public class PackageUserState {
+     public boolean isMatch(ComponentInfo componentInfo, int flags) {
+         final boolean isSystemApp = componentInfo.applicationInfo.isSystemApp();
+         final boolean matchUninstalled = (flags & PackageManager.MATCH_KNOWN_PACKAGES) != 0;
++        final boolean  isLoggable = Log.isLoggable(TAG, Log.VERBOSE);
++
+         if (!isAvailable(flags)
+-                && !(isSystemApp && matchUninstalled)) return false;
+-        if (!isEnabled(componentInfo, flags)) return false;
++                && !(isSystemApp && matchUninstalled)) {
++            if ((flags & PackageManager.MATCH_DEBUG_TRIAGED_MISSING) != 0 && isLoggable) {
++                Slog.v(TAG, "isMatch: flags not avilable, " + componentInfo.packageName + " is not uninstalled system app.");
++            }
++            return false;
++        }
++        if (!isEnabled(componentInfo, flags)) {
++            if ((flags & PackageManager.MATCH_DEBUG_TRIAGED_MISSING) != 0 && isLoggable) {
++                Slog.v(TAG, "isMatch: " + componentInfo.packageName + " not enabled.");
++            }
++            return false;
++        }
+ 
+         if ((flags & MATCH_SYSTEM_ONLY) != 0) {
+             if (!isSystemApp) {
++                if ((flags & PackageManager.MATCH_DEBUG_TRIAGED_MISSING) != 0 && isLoggable) {
++                    Slog.v(TAG, "isMatch: match system only, but " + componentInfo.packageName + " not system app.");
++                }
+                 return false;
+             }
+         }
+@@ -141,6 +159,9 @@ public class PackageUserState {
+                 && !componentInfo.directBootAware;
+         final boolean matchesAware = ((flags & MATCH_DIRECT_BOOT_AWARE) != 0)
+                 && componentInfo.directBootAware;
++        if (!(matchesUnaware || matchesAware) && (flags & PackageManager.MATCH_DEBUG_TRIAGED_MISSING) != 0 && isLoggable) {
++            Slog.v(TAG, "isMatch: flag MATCH_DIRECT_BOOT_UNAWARE or MATCH_DIRECT_BOOT_AWARE not matched.");
++        }
+         return matchesUnaware || matchesAware;
+     }
+ 
+diff --git a/services/core/java/com/android/server/pm/PackageManagerService.java b/services/core/java/com/android/server/pm/PackageManagerService.java
+index 3a48cdf3434..71b4370bf53 100644
+--- a/services/core/java/com/android/server/pm/PackageManagerService.java
++++ b/services/core/java/com/android/server/pm/PackageManagerService.java
+@@ -12948,19 +12948,34 @@ public class PackageManagerService extends IPackageManager.Stub
+         @Override
+         protected ResolveInfo newResult(PackageParser.ActivityIntentInfo info,
+                 int match, int userId) {
+-            if (!sUserManager.exists(userId)) return null;
++            final boolean  isLoggable = Log.isLoggable(TAG, Log.VERBOSE);
++            if (!sUserManager.exists(userId)) {
++                if ((mFlags & PackageManager.MATCH_DEBUG_TRIAGED_MISSING) != 0 && isLoggable) {
++                    Slog.v(TAG, "newResult: not exists userId (" + userId +")");
++                }
++                return null;
++            }
+             if (!mSettings.isEnabledAndMatchLPr(info.activity.info, mFlags, userId)) {
++                if ((mFlags & PackageManager.MATCH_DEBUG_TRIAGED_MISSING) != 0 && isLoggable) {
++                    Slog.v(TAG, "newResult: activity was disabled (userId:" + userId + ")");
++                }
+                 return null;
+             }
+             final PackageParser.Activity activity = info.activity;
+             PackageSetting ps = (PackageSetting) activity.owner.mExtras;
+             if (ps == null) {
++                if ((mFlags & PackageManager.MATCH_DEBUG_TRIAGED_MISSING) != 0 && isLoggable) {
++                    Slog.v(TAG, "newResult: PackageSetting(activity.owner.mExtras) is NULL");
++                }
+                 return null;
+             }
+             final PackageUserState userState = ps.readUserState(userId);
+             ActivityInfo ai =
+                     PackageParser.generateActivityInfo(activity, mFlags, userState, userId);
+             if (ai == null) {
++                if ((mFlags & PackageManager.MATCH_DEBUG_TRIAGED_MISSING) != 0 && isLoggable) {
++                    Slog.v(TAG, "newResult: generateActivityInfo return null(userId:" + userId + ")");
++                }
+                 return null;
+             }
+             final boolean matchExplicitlyVisibleOnly =
+@@ -12974,15 +12989,24 @@ public class PackageManagerService extends IPackageManager.Stub
+             final boolean matchInstantApp = (mFlags & PackageManager.MATCH_INSTANT) != 0;
+             // throw out filters that aren't visible to ephemeral apps
+             if (matchVisibleToInstantApp && !(componentVisible || userState.instantApp)) {
++                if ((mFlags & PackageManager.MATCH_DEBUG_TRIAGED_MISSING) != 0 && isLoggable) {
++                    Slog.v(TAG, "newResult: not visible to ephemeral app");
++                }
+                 return null;
+             }
+             // throw out instant app filters if we're not explicitly requesting them
+             if (!matchInstantApp && userState.instantApp) {
++                if ((mFlags & PackageManager.MATCH_DEBUG_TRIAGED_MISSING) != 0 && isLoggable) {
++                    Slog.v(TAG, "newResult: no requesting instant app");
++                }
+                 return null;
+             }
+             // throw out instant app filters if updates are available; will trigger
+             // instant app resolution
+             if (userState.instantApp && ps.isUpdateAvailable()) {
++                if ((mFlags & PackageManager.MATCH_DEBUG_TRIAGED_MISSING) != 0 && isLoggable) {
++                    Slog.v(TAG, "newResult: instant app update avilable");
++                }
+                 return null;
+             }
+             final ResolveInfo res = new ResolveInfo();
+diff --git a/services/core/java/com/android/server/pm/Settings.java b/services/core/java/com/android/server/pm/Settings.java
+index cb2d0b7a986..760f4782391 100644
+--- a/services/core/java/com/android/server/pm/Settings.java
++++ b/services/core/java/com/android/server/pm/Settings.java
+@@ -4269,7 +4269,12 @@ public final class Settings {
+ 
+     boolean isEnabledAndMatchLPr(ComponentInfo componentInfo, int flags, int userId) {
+         final PackageSetting ps = mPackages.get(componentInfo.packageName);
+-        if (ps == null) return false;
++        if (ps == null) {
++            if ((flags & PackageManager.MATCH_DEBUG_TRIAGED_MISSING) != 0 && Log.isLoggable("PackageManager",Log.VERBOSE)) {
++                Slog.v(TAG, "isEnabledAndMatchLPr: get PackageSetting from " + componentInfo.packageName + " return null");
++            }
++            return false;
++        }
+ 
+         final PackageUserState userState = ps.readUserState(userId);
+         return userState.isMatch(componentInfo, flags);
+-- 
+2.17.1
+
