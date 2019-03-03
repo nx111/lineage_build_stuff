@@ -1196,7 +1196,6 @@ if [ "${BASH_SOURCE[0]}" = "$runfrom" -a ! -f ${BASH_SOURCE[0]}.tmp -a $op_pick_
     #=========== pick changes ==========================
 
     kpick 231971 # manifest: sync gcc4.9 from aosp oreo
-    kpick 242799 # Fork external/proguard
 
     #===================================================
 
@@ -1302,14 +1301,12 @@ kpick 222742 # build: Use project pathmap for recovery
 kpick 222760 # Add LOCAL_AIDL_FLAGS
 kpick 239296 # build: Remove charger from recovery unless needed
 kpick 241427 # build: Allow build-image-kernel-modules to be called from shell
-kpick 242794 # Use flags from Soong for d8, r8, dx and desugar
 
 # build/soong
 kpick 222648 # Allow providing flex and bison binaries
 kpick 224613 # soong: Add LOCAL_AIDL_FLAGS handling
 kpick 226443 # soong: Add additional_deps attribute for libraries and binaries
 kpick 241473 # Fix formatting
-kpick 242793 # Optimize CPU time when running d8, r8, dx and desugar
 
 # device/lineage/sepolicy
 kpick 240542 # Revert "sepolicy: recovery: Allow (re)mounting system"
@@ -1342,7 +1339,6 @@ kpick 227260 # Update bt vendor callbacks array in vfs code
 kpick 227261 # Cast BT_VND_OP_ANT_USERIAL_{OPEN,CLOSE} to bt_vendor_opcode_t in vfs code
 
 # external/bash
-kpick 242465 # bash: Silence all build warnings
 
 # external/e2fsprogs
 kpick 225215 # e2fsprogs: Prepare for adding and using static libs
@@ -1377,29 +1373,23 @@ kpick 239379 # ntfs-3g: Add static libs for recovery
 kpick 225231 # awk: Add libawk_main for recovery and fixup symbols
 
 # external/openssh
-kpick 242461 # openssh: Silence build warnings
 
 # external/p7zip
-kpick 242462 # p7zip: Silence all warnings
 
 # external/perfetto
 kpick 223413 -f # perfetto_cmd: Resolve missing O_CREAT mode
 
 # external/proguard
-kpick 242798 # Allow passing extra java arguments to proguard
 
 # external/rsync
-kpick 242466 # rsync: Silence build warnings
 
 # external/toybox
 kpick 225232 # toybox: Use toybox for dd and grep in recovery
 kpick 225233 # toybox: Add install to symlinks
 
 # external/unrar
-kpick 242463 # unrar: Silence more build warnings
 
 # external/zip
-kpick 242464 # zip: Silence build warnings
 
 # external/zlib
 kpick 225237 # minizip: Fix build under Android 6.0 and higher
@@ -1446,10 +1436,7 @@ kpick 240084 # ServiceRegistry: Don't throw an exception if OEM_LOCK is missing
 kpick 240766 # Proper supplementary service notification handling (1/5).
 kpick 241326 # SettingsLib: add action callbacks to CustomDialogPreferences
 kpick 241327 # VibratorService: Apply vibrator intensity setting.
-kpick 242684 # SystemUI: Remove unused resources
 kpick 242737 # Skip one-shot sensors for WindowOrientationListener
-kpick 242893 # Add ChargingStarted + InCallNotif to AudioPackage
-kpick 242894 # Include InCallNotification.ogg in AllAudio.mk file
 
 # frameworks/native
 kpick 224530 # Triple the available egl function pointers available to a process for certain Nvidia devices.
@@ -1483,7 +1470,6 @@ kpick 241715 # Add kernel header dep for ipanat
 kpick 223341 # display: Always assume kernel source is present
 
 # hardware/qcom/display-caf/msm8974
-kpick 242777 # hwc: Remove _vendor from libbfqio
 
 # hardware/qcom/fm
 kpick 236546 # fm_helium: Update FM_HCI_DIR path
@@ -1525,11 +1511,8 @@ kpick 242398 # Trust: Onboarding: Listen for locale changes
 
 # packages/apps/Bluetooth
 kpick 229311 # Assume optional codecs are supported if were supported previously
-kpick 242967 # Fix generating id in android namespace
-kpick 242625 # Bluetooth: Remove unused string resources
 
 # packages/apps/Calendar
-kpick 242700 # Calendar: Fix translatables
 
 # packages/apps/Camera2
 kpick 224752 # Use mCameraAgentNg for getting camera info when available
@@ -1539,7 +1522,6 @@ kpick 242969 # Fix resource warnings.
 kpick 242970 # Fix a warning in generating id in android namespace.
 
 # packages/apps/Contacts
-kpick 242681 # Contacts: Remove unused boolean resource
 
 # packages/apps/Dialer
 kpick 240770 # Proper supplementary service notification handling (5/5).
@@ -1575,14 +1557,12 @@ kpick 241767 # SUW: Don't make google suw use material_light
 
 # packages/apps/Snap
 kpick 242496 # Snap: Fix bad grammar "Long shot not support<ed>"
-kpick 242680 # Snap: Remove unused resources
 kpick 242966 # Snap: Add back original-package in manifest
 
 # packages/apps/Updater
 kpick 239289 # Updater: put identical code to helper method
 
 # packages/providers/CalendarProvider
-kpick 242699 # CalendarProvider: Remove unused string resource
 
 # packages/services/Telecomm
 kpick 233635 # Phone ringtone setting for Multi SIM device
@@ -1590,7 +1570,6 @@ kpick 240768 # Proper supplementary service notification handling (3/5)
 
 # packages/services/Telephony
 kpick 240769 # Proper supplementary service notification handling (4/5).
-kpick 242683 # Telephony: Mark enhanced_4g_lte_mode_title_variant as untranslatable
 kpick 242884 # Revert "Use proper summary for network select list preference on dsds/dsda/tsts"
 kpick 242885 # Fix an issue wrong network operator name is displayed on MSIM devices
 kpick 242886 # Don't save network selection to prefs
@@ -1646,15 +1625,8 @@ kpick 231291 # repopick: add hashtag support
 kpick 231981 # HWComposer: HWC2: allow SkipValidate to be force disabled
 kpick 234011 # lineage: Add media_codecs_ddp for AC3 audio
 # kpick 234859 # repopick: cmp() is not available in Python 3, define it manually **((picked at first))**
-kpick 237117 # extract_utils: drop the "/system/" prefix from prints of blob names
-kpick 239303 # extract_utils: cleanup variable names and arguments passed to extract() function
-kpick 237270 # extract_utils: introduce -k (kang mode) option
 kpick 237118 # extract_utils: introduce support for executing blob fixups
 kpick 239526 # extract_utils: add option to print dependency graph for elf files
-kpick 239477 # extract_utils: make --section match words anywhere in the line
-kpick 239358 # extract_utils: template: use quotation marks and variable curly braces consistently
-kpick 239359 # extract_utils: template: make --section argument non-positional
-kpick 239360 # extract_utils: template: introduce kang mode
 kpick 239527 # extract_utils: template: add support for the dependency graph function
 kpick 237209 # lineage: Set default ringtone for second SIM
 kpick 241422 # kernel: Add more threads to kernel build process
@@ -1666,7 +1638,6 @@ kpick 241466 # kernel: Move full kernel build guard flag below all targets
 kpick 241783 # envsetup: Fix lineagegerrit push for zsh
 kpick 242432 # RIP libhealthd.lineage
 kpick 242433 # Make custom off-mode charging screen great again
-kpick 242780 # libbfqio: Remove vendor variant
 
 # vendor/qcom/opensource/cryptfs_hw
 kpick 243032 # cryptfs_hw: Cleanup should_use_keymaster
