@@ -1325,6 +1325,7 @@ kpick 228582 # sepolicy: qti_init_shell needs to read dir too
 kpick 240951 # qcom: label persist files with /(mnt/vendor)/persist instead of /mnt/vendor/persist
 kpick 241794 # sepolicy: Add core_data_file_type type to cnd_data_file
 kpick 242976 # sepolicy: Label persist partition for all SoCs
+kpick 243254 # sepolicy: Label persist.nfc.hci_network_reset_req
 
 # device/qcom/sepolicy-legacy
 kpick 230230 # common: fix sensors denial
@@ -1437,6 +1438,8 @@ kpick 240766 # Proper supplementary service notification handling (1/5).
 kpick 241326 # SettingsLib: add action callbacks to CustomDialogPreferences
 kpick 241327 # VibratorService: Apply vibrator intensity setting.
 kpick 242737 # Skip one-shot sensors for WindowOrientationListener
+kpick 243244 # Revert "SystemUI: Sort subscriptions in reversed order"
+kpick 243245 # Show mobile icons with left-to-right in order of slot index
 
 # frameworks/native
 kpick 224530 # Triple the available egl function pointers available to a process for certain Nvidia devices.
@@ -1558,6 +1561,7 @@ kpick 241767 # SUW: Don't make google suw use material_light
 # packages/apps/Snap
 kpick 242496 # Snap: Fix bad grammar "Long shot not support<ed>"
 kpick 242966 # Snap: Add back original-package in manifest
+kpick 243071 # Snap: allow to disable image stabilization per device
 
 # packages/apps/Updater
 kpick 239289 # Updater: put identical code to helper method
@@ -1609,6 +1613,9 @@ kpick 242951 # sepolicy: Allow init to chown sysfs LED files
 # system/tools/aidl
 kpick 223133 # AIDL: Add option to generate No-Op methods
 
+# system/update_engine
+kpick 243259 # Move performance mode to top app
+
 # system/vold
 kpick 231717 # vold: Always use libbootloader_message from bootable/recovery namespace
 
@@ -1638,6 +1645,9 @@ kpick 241466 # kernel: Move full kernel build guard flag below all targets
 kpick 241783 # envsetup: Fix lineagegerrit push for zsh
 kpick 242432 # RIP libhealthd.lineage
 kpick 242433 # Make custom off-mode charging screen great again
+
+# vendor/nxp/opensource/halimpl
+kpick 242998 # halimpl: Remove useless makefile
 
 # vendor/qcom/opensource/cryptfs_hw
 kpick 243032 # cryptfs_hw: Cleanup should_use_keymaster

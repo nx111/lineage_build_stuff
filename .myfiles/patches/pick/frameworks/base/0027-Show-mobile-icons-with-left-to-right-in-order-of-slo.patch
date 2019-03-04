@@ -1,0 +1,87 @@
+From 9cea321a41d0578bf86d01901a1abbd0c9bd684a Mon Sep 17 00:00:00 2001
+From: Yong Shi <yong.xa.shi@sony.com>
+Date: Mon, 21 May 2018 15:53:02 +0800
+Subject: [PATCH 27/35] Show mobile icons with left-to-right in order of slot
+ index
+
+Icon list of status bar is displayed as first items go to the right
+of second items. But mobile icon has order of slot index
+and these must be shown with left-to-right([Slot1][Slot2]..).
+Reverse the sort order in icon list beforehand.
+
+Test: manual - Checked that the SIM-slot1 icon is shown on the left
+side of SIM-slot2.
+Test: auto - Passed StatusBarIconListTest.
+Bug: 123931542
+
+Change-Id: I2d9fcd63e9ef05f96ba4a17de78bb834b71729e8
+---
+ .../phone/StatusBarIconControllerImpl.java    |  7 ++++++-
+ .../statusbar/phone/StatusBarIconList.java    | 19 +++++++++++++++++++
+ 2 files changed, 25 insertions(+), 1 deletion(-)
+
+diff --git a/packages/SystemUI/src/com/android/systemui/statusbar/phone/StatusBarIconControllerImpl.java b/packages/SystemUI/src/com/android/systemui/statusbar/phone/StatusBarIconControllerImpl.java
+index 24a58966560..72da591e061 100644
+--- a/packages/SystemUI/src/com/android/systemui/statusbar/phone/StatusBarIconControllerImpl.java
++++ b/packages/SystemUI/src/com/android/systemui/statusbar/phone/StatusBarIconControllerImpl.java
+@@ -43,6 +43,7 @@ import com.android.systemui.tuner.TunerService.Tunable;
+ import java.io.FileDescriptor;
+ import java.io.PrintWriter;
+ import java.util.ArrayList;
++import java.util.Collections;
+ import java.util.List;
+ 
+ import static com.android.systemui.statusbar.phone.StatusBarIconController.TAG_PRIMARY;
+@@ -121,7 +122,7 @@ public class StatusBarIconControllerImpl extends StatusBarIconList implements Tu
+         // Remove all the icons.
+         for (int i = currentSlots.size() - 1; i >= 0; i--) {
+             Slot s = currentSlots.get(i);
+-            slotsToReAdd.put(s, s.getHolderListInViewOrder());
++            slotsToReAdd.put(s, s.getHolderList());
+             removeAllIconsForSlot(s.getName());
+         }
+ 
+@@ -200,6 +201,10 @@ public class StatusBarIconControllerImpl extends StatusBarIconList implements Tu
+         Slot mobileSlot = getSlot(slot);
+         int slotIndex = getSlotIndex(slot);
+ 
++        // Reverse the sort order to show icons with left to right([Slot1][Slot2]..).
++        // StatusBarIconList has UI design that first items go to the right of second items.
++        Collections.reverse(iconStates);
++
+         for (MobileIconState state : iconStates) {
+             StatusBarIconHolder holder = mobileSlot.getHolderForTag(state.subId);
+             if (holder == null) {
+diff --git a/packages/SystemUI/src/com/android/systemui/statusbar/phone/StatusBarIconList.java b/packages/SystemUI/src/com/android/systemui/statusbar/phone/StatusBarIconList.java
+index b7e1cfb0097..fc4122580c2 100644
+--- a/packages/SystemUI/src/com/android/systemui/statusbar/phone/StatusBarIconList.java
++++ b/packages/SystemUI/src/com/android/systemui/statusbar/phone/StatusBarIconList.java
+@@ -249,6 +249,25 @@ public class StatusBarIconList {
+             return holders;
+         }
+ 
++        /**
++         * Build a list of the {@link StatusBarIconHolder}s in the same order.
++         * This provides a safe list that can be iterated and inserted into its group.
++         *
++         * @return all holders contained here
++         */
++        public List<StatusBarIconHolder> getHolderList() {
++            ArrayList<StatusBarIconHolder> holders = new ArrayList<>();
++            if (mHolder != null) {
++                holders.add(mHolder);
++            }
++
++            if (mSubSlots != null) {
++                holders.addAll(mSubSlots);
++            }
++
++            return holders;
++        }
++
+         @Override
+         public String toString() {
+             return String.format("(%s) %s", mName, subSlotsString());
+-- 
+2.17.1
+
