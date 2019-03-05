@@ -1306,7 +1306,6 @@ kpick 241427 # build: Allow build-image-kernel-modules to be called from shell
 kpick 222648 # Allow providing flex and bison binaries
 kpick 224613 # soong: Add LOCAL_AIDL_FLAGS handling
 kpick 226443 # soong: Add additional_deps attribute for libraries and binaries
-kpick 241473 # Fix formatting
 
 # device/lineage/sepolicy
 kpick 240542 # Revert "sepolicy: recovery: Allow (re)mounting system"
@@ -1560,7 +1559,6 @@ kpick 241767 # SUW: Don't make google suw use material_light
 
 # packages/apps/Snap
 kpick 242496 # Snap: Fix bad grammar "Long shot not support<ed>"
-kpick 242966 # Snap: Add back original-package in manifest
 kpick 243071 # Snap: allow to disable image stabilization per device
 
 # packages/apps/Updater
@@ -1576,7 +1574,7 @@ kpick 240768 # Proper supplementary service notification handling (3/5)
 kpick 240769 # Proper supplementary service notification handling (4/5).
 kpick 242884 # Revert "Use proper summary for network select list preference on dsds/dsda/tsts"
 kpick 242885 # Fix an issue wrong network operator name is displayed on MSIM devices
-kpick 242886 # Don't save network selection to prefs
+#kpick 242886 # Don't save network selection to prefs
 kpick 242971 # Fix resource warnings.
 kpick 242972 # Stop generating ids in android namespace.
 
