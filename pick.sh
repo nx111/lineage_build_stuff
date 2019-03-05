@@ -1554,12 +1554,14 @@ kpick 240083 # Settings: Add null checks for OemLockService
 kpick 241758 # Settings: Show root options when certain third party root is present
 
 # packages/apps/SetupWizard
-kpick 241766 # SUW: Update wizard scripts for Pie
 kpick 241767 # SUW: Don't make google suw use material_light
 
 # packages/apps/Snap
 kpick 242496 # Snap: Fix bad grammar "Long shot not support<ed>"
 kpick 243071 # Snap: allow to disable image stabilization per device
+
+# packages/apps/Trebuchet
+kpick 243440 # Lint fix: Invalid vector path in horizontal_ellipsis
 
 # packages/apps/Updater
 kpick 239289 # Updater: put identical code to helper method
@@ -1569,6 +1571,7 @@ kpick 239289 # Updater: put identical code to helper method
 # packages/services/Telecomm
 kpick 233635 # Phone ringtone setting for Multi SIM device
 kpick 240768 # Proper supplementary service notification handling (3/5)
+kpick 243436 # Change UI to be consistency with dialer settings light M2 theme
 
 # packages/services/Telephony
 kpick 240769 # Proper supplementary service notification handling (4/5).
@@ -1577,6 +1580,9 @@ kpick 242885 # Fix an issue wrong network operator name is displayed on MSIM dev
 #kpick 242886 # Don't save network selection to prefs
 kpick 242971 # Fix resource warnings.
 kpick 242972 # Stop generating ids in android namespace.
+kpick 243437 # Fix EmergencyDialer UI when display size change
+kpick 243439 # Disable EmergencyDialer multi window mode
+kpick 243438 # Change UI styles to match dialer settings light M2 theme
 
 # system/bt
 kpick 239040 # Increase maximum Bluetooth SBC codec bitrate for SBC HD
@@ -1645,7 +1651,6 @@ kpick 242432 # RIP libhealthd.lineage
 kpick 242433 # Make custom off-mode charging screen great again
 
 # vendor/nxp/opensource/halimpl
-kpick 242998 # halimpl: Remove useless makefile
 
 # vendor/qcom/opensource/cryptfs_hw
 kpick 243032 # cryptfs_hw: Cleanup should_use_keymaster
