@@ -1448,6 +1448,11 @@ kpick 241326 # SettingsLib: add action callbacks to CustomDialogPreferences
 kpick 241327 # VibratorService: Apply vibrator intensity setting.
 kpick 242737 # Skip one-shot sensors for WindowOrientationListener
 kpick 243428 # [DNM] Squash of lineage-16.0-android-9.0.0_r34
+kpick 243567 # touch response optimizations.
+kpick 243568 # Optimize AbsListView to reduce click operation latency
+kpick 243569 # List View: Obtain next list item in advance
+kpick 243570 # Remove the property of touch optimization check.
+kpick 243572 # add VSYNC scheduled flag and avoid two doFrame calls in one period
 
 # frameworks/native
 kpick 224530 # Triple the available egl function pointers available to a process for certain Nvidia devices.
@@ -1455,6 +1460,7 @@ kpick 231828 # Translate pointer motion events for OneHandOperation Display Shri
 kpick 231980 # HWComposer: HWC2: allow SkipValidate to be force disabled
 kpick 237645 # sf: Add support for multiple displays
 kpick 243429 # [DNM] Squash of lineage-16.0-android-9.0.0_r34
+kpick 243571 # touch response optimizations
 
 # frameworks/opt/telephony
 kpick 240767 # Proper supplementary service notification handling (2/5).
@@ -1617,7 +1623,7 @@ kpick 234860 # init: add install_keyring for TWRP FBE decrypt
 kpick 237141 # core: update battery mod support for P
 kpick 240018 # Fix path for treble default prop
 kpick 241757 # adb: Allow adb root when certain third party root is present
-kpick 234333 # [DNM] Squash of lineage-16.0-android-9.0.0_r34
+kpick 233433 # [DNM] Squash of lineage-16.0-android-9.0.0_r34
 
 # system/extras
 kpick 242968 # Remove -Wno-error from system/extras
@@ -1629,6 +1635,9 @@ kpick 232433 # su: Fix a clang tidy warning
 kpick 232438 # su: Initialize windows size
 kpick 243527 # su: Add back mistakenly removed code
 
+# system/libhidl
+# kpick 243573
+
 # system/netd
 kpick 232794 # NetD : Allow passing in interface names for vpn app restriction
 
@@ -1636,7 +1645,7 @@ kpick 232794 # NetD : Allow passing in interface names for vpn app restriction
 
 # system/tools/aidl
 kpick 223133 # AIDL: Add option to generate No-Op methods
-kpick 234334 # [DNM] Squash of lineage-16.0-android-9.0.0_r34
+kpick 243434 # [DNM] Squash of lineage-16.0-android-9.0.0_r34
 
 # system/update_engine
 kpick 243259 # Move performance mode to top app
@@ -1697,4 +1706,4 @@ fi
 rrCache backup # backup rr-cache
 rm -f $tmp_picks_info_file
 rm -f $topdir/.pick_tmp_* $topdir/.change_number_list_*
-kpick 243425 # [DNM] Squash of lineage-16.0-android-9.0.0_r34
+
