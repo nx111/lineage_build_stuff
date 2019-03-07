@@ -1,0 +1,519 @@
+From 784567e5d2f0dfda131517467db8de0103a6f2a1 Mon Sep 17 00:00:00 2001
+From: Luca Stefani <luca.stefani.ge1@gmail.com>
+Date: Tue, 5 Mar 2019 09:09:30 +0100
+Subject: [PATCH 26/34] [DNM] Squash of lineage-16.0-android-9.0.0_r34
+
+Squashed commit of the following:
+
+commit 988624eda2c566551f75b48231cdeff2b0142d93
+Merge: eb71e821edd 1607141d0d6
+Author: android-build-team Robot <android-build-team-robot@google.com>
+Date:   Wed Jan 16 18:58:01 2019 +0000
+
+    Merge cherrypicks of [6072697, 6072075, 6072758, 6072124, 6072885, 6072886, 6072887, 6072580, 6072581, 6072582, 6072583, 6072584, 6072132, 6072195, 6072133, 6072077, 6072134, 6072078, 6072211, 6072762, 6072763, 6072908, 6072909, 6072910, 6072911, 6072912, 6072913, 6072914, 6072930, 6072212, 6072743] into pi-qpr2-release
+
+    Change-Id: I9f800670c887affef352d47aa6f83fe4e282b91a
+
+commit 1607141d0d6b6b5265c8375cb1af808f2d0a71ab
+Author: Adrian Roos <roosa@google.com>
+Date:   Mon Jan 7 16:57:31 2019 +0100
+
+    DPM: Fix regression from I54376f60ac53451ace22965d331b47cd8c2e614e
+
+    Fixes an issue where setting a password via DPM would never
+    satisfy a QUALITY_COMPLEX password requirement.
+
+    Change-Id: I3fbc952bd44291ac22728c626b128fc0c1aae232
+    Merged-In: I3fbc952bd44291ac22728c626b128fc0c1aae232
+    Fixes: 120915644
+    Bug: 110172241
+    Test: atest 'com.android.cts.devicepolicy.DeviceAdminHostSideTestApi24#testRunDeviceOwnerPasswordTest'
+    Test: Set credential via DPM.resetPassword(), factory reset device to trigger FRP, verify FRP shows.
+    (cherry picked from commit ea8d82c08a9d489a48ef810d7c40a4d20f806aa0)
+    (cherry picked from commit b122ae9660526c83d4a7bf1c1f99107afee23001)
+
+commit 5acf81a1f4df34451b76e76a416b8a262ba7f485
+Author: Abodunrinwa Toki <toki@google.com>
+Date:   Thu Nov 29 13:51:56 2018 +0000
+
+    RESTRICT AUTOMERGE Do not linkify text with RLO/LRO characters.
+
+    Also don't show smart actions for selections in text with unsupported
+    characters.
+
+    Bug: 116321860
+    Test: atest android.view.textclassifier.TextClassificationManagerTest \
+                android.text.util.cts.LinkifyTest \
+    	    android.text.util.LinkifyTest \
+    	    android.widget.TextViewActivityTest
+
+    Change-Id: I01b5e936aa4dfc937a98f50e9fc8171666861a61
+    (cherry picked from commit a69950ce18f85ea8514083a5e175450e17e93565)
+
+commit e385b32862e7022453415dd543d871908d2eafa1
+Author: WyattRiley <wyattriley@google.com>
+Date:   Thu Dec 6 11:43:58 2018 -0800
+
+    Adding SUPL NI Emergency Extension Time
+
+    Configurable by carrier config.xml resource
+
+    Bug: 118839234
+    Bug: 115361555
+    Bug: 112159033
+    Test: On device, see b/115361555#comment14
+    Change-Id: I52e61656cca8b6fa6468d32d2e69bf60f4c83c61
+    (cherry picked from commit a725dd6650846090f70ed9811f1a94f036ab3f29)
+
+commit c0b85f9e76f07e1feae83ff08e2a0bea85a64a29
+Author: Adrian Roos <roosa@google.com>
+Date:   Thu Dec 6 17:50:41 2018 +0100
+
+    FRP: save password quality in DPM.resetPassword
+
+    When setting a password from DPM.resetPassword(), the actual quality of the
+    password was not passed to LockSettingsService (instead, the minimum required
+    quality was passed which is often UNSPECIFIED). As a result, during FRP we
+    would see inconsistent state and skip it.
+
+    Bug: 110172241
+    Test: Set credential via DPM.resetPassword(), factory reset device to trigger FRP, verify FRP shows.
+    Change-Id: I54376f60ac53451ace22965d331b47cd8c2e614e
+    Merged-In: I54376f60ac53451ace22965d331b47cd8c2e614e
+    (cherry picked from commit 7923b3c10cad5059a7d187fa6abc39abdb4173ec)
+
+Change-Id: I39cd5d4b14c53d0ab65710adb8de42bb22e92ec5
+---
+ core/java/android/text/util/Linkify.java      | 37 ++++++++++
+ .../textclassifier/TextClassification.java    |  2 +-
+ .../view/textclassifier/TextLinksParams.java  |  7 ++
+ .../widget/SelectionActionModeHelper.java     |  8 +-
+ .../TextClassificationManagerTest.java        | 12 +++
+ .../android/widget/TextViewActivityTest.java  | 13 ++++
+ .../location/GpsNetInitiatedHandler.java      | 73 ++++++++++++-------
+ .../server/location/GnssLocationProvider.java | 11 +++
+ .../DevicePolicyManagerService.java           | 22 +++---
+ .../devicepolicy/DevicePolicyManagerTest.java |  2 +-
+ 10 files changed, 144 insertions(+), 43 deletions(-)
+
+diff --git a/core/java/android/text/util/Linkify.java b/core/java/android/text/util/Linkify.java
+index c905f49569d..dc68da0310b 100644
+--- a/core/java/android/text/util/Linkify.java
++++ b/core/java/android/text/util/Linkify.java
+@@ -29,6 +29,7 @@ import android.text.Spanned;
+ import android.text.method.LinkMovementMethod;
+ import android.text.method.MovementMethod;
+ import android.text.style.URLSpan;
++import android.util.Log;
+ import android.util.Patterns;
+ import android.view.textclassifier.TextClassifier;
+ import android.view.textclassifier.TextLinks;
+@@ -77,6 +78,9 @@ import java.util.regex.Pattern;
+  */
+ 
+ public class Linkify {
++
++    private static final String LOG_TAG = "Linkify";
++
+     /**
+      *  Bit field indicating that web URLs should be matched in methods that
+      *  take an options mask
+@@ -246,6 +250,11 @@ public class Linkify {
+ 
+     private static boolean addLinks(@NonNull Spannable text, @LinkifyMask int mask,
+             @Nullable Context context) {
++        if (text != null && containsUnsupportedCharacters(text.toString())) {
++            android.util.EventLog.writeEvent(0x534e4554, "116321860", -1, "");
++            return false;
++        }
++
+         if (mask == 0) {
+             return false;
+         }
+@@ -291,6 +300,29 @@ public class Linkify {
+         return true;
+     }
+ 
++    /**
++     * Returns true if the specified text contains at least one unsupported character for applying
++     * links. Also logs the error.
++     *
++     * @param text the text to apply links to
++     * @hide
++     */
++    public static boolean containsUnsupportedCharacters(String text) {
++        if (text.contains("\u202C")) {
++            Log.e(LOG_TAG, "Unsupported character for applying links: u202C");
++            return true;
++        }
++        if (text.contains("\u202D")) {
++            Log.e(LOG_TAG, "Unsupported character for applying links: u202D");
++            return true;
++        }
++        if (text.contains("\u202E")) {
++            Log.e(LOG_TAG, "Unsupported character for applying links: u202E");
++            return true;
++        }
++        return false;
++    }
++
+     /**
+      *  Scans the text of the provided TextView and turns all occurrences of
+      *  the link types indicated in the mask into clickable links.  If matches
+@@ -461,6 +493,11 @@ public class Linkify {
+     public static final boolean addLinks(@NonNull Spannable spannable, @NonNull Pattern pattern,
+             @Nullable  String defaultScheme, @Nullable String[] schemes,
+             @Nullable MatchFilter matchFilter, @Nullable TransformFilter transformFilter) {
++        if (spannable != null && containsUnsupportedCharacters(spannable.toString())) {
++            android.util.EventLog.writeEvent(0x534e4554, "116321860", -1, "");
++            return false;
++        }
++
+         final String[] schemesCopy;
+         if (defaultScheme == null) defaultScheme = "";
+         if (schemes == null || schemes.length < 1) {
+diff --git a/core/java/android/view/textclassifier/TextClassification.java b/core/java/android/view/textclassifier/TextClassification.java
+index 9511a9efb3d..49ca969fa7a 100644
+--- a/core/java/android/view/textclassifier/TextClassification.java
++++ b/core/java/android/view/textclassifier/TextClassification.java
+@@ -104,7 +104,7 @@ public final class TextClassification implements Parcelable {
+     /**
+      * @hide
+      */
+-    static final TextClassification EMPTY = new TextClassification.Builder().build();
++    public static final TextClassification EMPTY = new TextClassification.Builder().build();
+ 
+     private static final String LOG_TAG = "TextClassification";
+     // TODO(toki): investigate a way to derive this based on device properties.
+diff --git a/core/java/android/view/textclassifier/TextLinksParams.java b/core/java/android/view/textclassifier/TextLinksParams.java
+index be4c3bcdff6..c21206ca025 100644
+--- a/core/java/android/view/textclassifier/TextLinksParams.java
++++ b/core/java/android/view/textclassifier/TextLinksParams.java
+@@ -107,6 +107,13 @@ public final class TextLinksParams {
+         Preconditions.checkNotNull(textLinks);
+ 
+         final String textString = text.toString();
++
++        if (Linkify.containsUnsupportedCharacters(textString)) {
++            // Do not apply links to text containing unsupported characters.
++            android.util.EventLog.writeEvent(0x534e4554, "116321860", -1, "");
++            return TextLinks.STATUS_NO_LINKS_APPLIED;
++        }
++
+         if (!textString.startsWith(textLinks.getText())) {
+             return TextLinks.STATUS_DIFFERENT_TEXT;
+         }
+diff --git a/core/java/android/widget/SelectionActionModeHelper.java b/core/java/android/widget/SelectionActionModeHelper.java
+index 6cb0eaa7f47..0d88e6986f1 100644
+--- a/core/java/android/widget/SelectionActionModeHelper.java
++++ b/core/java/android/widget/SelectionActionModeHelper.java
+@@ -31,6 +31,7 @@ import android.text.Layout;
+ import android.text.Selection;
+ import android.text.Spannable;
+ import android.text.TextUtils;
++import android.text.util.Linkify;
+ import android.util.Log;
+ import android.view.ActionMode;
+ import android.view.textclassifier.SelectionEvent;
+@@ -1045,7 +1046,12 @@ public final class SelectionActionModeHelper {
+ 
+                 trimText();
+                 final TextClassification classification;
+-                if (mContext.getApplicationInfo().targetSdkVersion >= Build.VERSION_CODES.P) {
++                if (Linkify.containsUnsupportedCharacters(mText)) {
++                    // Do not show smart actions for text containing unsupported characters.
++                    android.util.EventLog.writeEvent(0x534e4554, "116321860", -1, "");
++                    classification = TextClassification.EMPTY;
++                } else if (mContext.getApplicationInfo().targetSdkVersion
++                        >= Build.VERSION_CODES.P) {
+                     final TextClassification.Request request =
+                             new TextClassification.Request.Builder(
+                                     mTrimmedText, mRelativeStart, mRelativeEnd)
+diff --git a/core/tests/coretests/src/android/view/textclassifier/TextClassificationManagerTest.java b/core/tests/coretests/src/android/view/textclassifier/TextClassificationManagerTest.java
+index c8a53cc8634..9015e92a4f0 100644
+--- a/core/tests/coretests/src/android/view/textclassifier/TextClassificationManagerTest.java
++++ b/core/tests/coretests/src/android/view/textclassifier/TextClassificationManagerTest.java
+@@ -39,6 +39,8 @@ import android.service.textclassifier.TextClassifierService;
+ import android.support.test.InstrumentationRegistry;
+ import android.support.test.filters.SmallTest;
+ import android.support.test.runner.AndroidJUnit4;
++import android.text.Spannable;
++import android.text.SpannableString;
+ 
+ import org.hamcrest.BaseMatcher;
+ import org.hamcrest.Description;
+@@ -306,6 +308,16 @@ public class TextClassificationManagerTest {
+         mClassifier.generateLinks(request);
+     }
+ 
++    @Test
++    public void testApplyLinks_unsupportedCharacter() {
++        if (isTextClassifierDisabled()) return;
++        Spannable url = new SpannableString("\u202Emoc.diordna.com");
++        TextLinks.Request request = new TextLinks.Request.Builder(url).build();
++        assertEquals(
++                TextLinks.STATUS_NO_LINKS_APPLIED,
++                mClassifier.generateLinks(request).apply(url, 0, null));
++    }
++
+     @Test
+     public void testSetTextClassifier() {
+         TextClassifier classifier = mock(TextClassifier.class);
+diff --git a/core/tests/coretests/src/android/widget/TextViewActivityTest.java b/core/tests/coretests/src/android/widget/TextViewActivityTest.java
+index 70dc6189c6c..90758ba7c41 100644
+--- a/core/tests/coretests/src/android/widget/TextViewActivityTest.java
++++ b/core/tests/coretests/src/android/widget/TextViewActivityTest.java
+@@ -982,6 +982,19 @@ public class TextViewActivityTest {
+         assertFloatingToolbarDoesNotContainItem(android.R.id.textAssist);
+     }
+ 
++    @Test
++    public void testNoAssistItemForTextFieldWithUnsupportedCharacters() throws Throwable {
++        useSystemDefaultTextClassifier();
++        final String text = "\u202Emoc.diordna.com";
++        final TextView textView = mActivity.findViewById(R.id.textview);
++        mActivityRule.runOnUiThread(() -> textView.setText(text));
++        mInstrumentation.waitForIdleSync();
++
++        onView(withId(R.id.textview)).perform(longPressOnTextAtIndex(text.indexOf('.')));
++        sleepForFloatingToolbarPopup();
++        assertFloatingToolbarDoesNotContainItem(android.R.id.textAssist);
++    }
++
+     @Test
+     public void testSelectionMetricsLogger_noAbandonAfterCopy() throws Throwable {
+         final List<SelectionEvent> selectionEvents = new ArrayList<>();
+diff --git a/location/java/com/android/internal/location/GpsNetInitiatedHandler.java b/location/java/com/android/internal/location/GpsNetInitiatedHandler.java
+index 9bd59940e37..b5313256e4d 100644
+--- a/location/java/com/android/internal/location/GpsNetInitiatedHandler.java
++++ b/location/java/com/android/internal/location/GpsNetInitiatedHandler.java
+@@ -17,6 +17,7 @@
+ package com.android.internal.location;
+ 
+ import java.io.UnsupportedEncodingException;
++import java.util.concurrent.TimeUnit;
+ 
+ import android.app.Notification;
+ import android.app.NotificationManager;
+@@ -27,19 +28,17 @@ import android.content.Intent;
+ import android.content.IntentFilter;
+ import android.location.LocationManager;
+ import android.location.INetInitiatedListener;
++import android.os.SystemClock;
+ import android.telephony.TelephonyManager;
+ import android.telephony.PhoneNumberUtils;
+ import android.telephony.PhoneStateListener;
+-import android.os.Bundle;
+ import android.os.RemoteException;
+ import android.os.UserHandle;
+-import android.os.SystemProperties;
+ import android.util.Log;
+ 
+ import com.android.internal.notification.SystemNotificationChannels;
+ import com.android.internal.R;
+ import com.android.internal.telephony.GsmAlphabet;
+-import com.android.internal.telephony.TelephonyProperties;
+ 
+ /**
+  * A GPS Network-initiated Handler class used by LocationManager.
+@@ -50,8 +49,7 @@ public class GpsNetInitiatedHandler {
+ 
+     private static final String TAG = "GpsNetInitiatedHandler";
+ 
+-    private static final boolean DEBUG = true;
+-    private static final boolean VERBOSE = false;
++    private static final boolean DEBUG = Log.isLoggable(TAG, Log.DEBUG);
+ 
+     // NI verify activity for bringing up UI (not used yet)
+     public static final String ACTION_NI_VERIFY = "android.intent.action.NETWORK_INITIATED_VERIFY";
+@@ -94,6 +92,9 @@ public class GpsNetInitiatedHandler {
+     public static final int GPS_ENC_SUPL_UCS2 = 3;
+     public static final int GPS_ENC_UNKNOWN = -1;
+ 
++    // Limit on SUPL NI emergency mode time extension after emergency sessions ends
++    private static final int MAX_EMERGENCY_MODE_EXTENSION_SECONDS = 300;  // 5 minute maximum
++
+     private final Context mContext;
+     private final TelephonyManager mTelephonyManager;
+     private final PhoneStateListener mPhoneStateListener;
+@@ -109,7 +110,7 @@ public class GpsNetInitiatedHandler {
+     private volatile boolean mIsSuplEsEnabled;
+ 
+     // Set to true if the phone is having emergency call.
+-    private volatile boolean mIsInEmergency;
++    private volatile boolean mIsInEmergencyCall;
+ 
+     // If Location function is enabled.
+     private volatile boolean mIsLocationEnabled = false;
+@@ -119,6 +120,10 @@ public class GpsNetInitiatedHandler {
+     // Set to true if string from HAL is encoded as Hex, e.g., "3F0039"
+     static private boolean mIsHexInput = true;
+ 
++    // End time of emergency call, and extension, if set
++    private long mCallEndElapsedRealtimeMillis = 0;
++    private long mEmergencyExtensionMillis = 0;
++
+     public static class GpsNiNotification
+     {
+         public int notificationId;
+@@ -146,16 +151,12 @@ public class GpsNetInitiatedHandler {
+             if (action.equals(Intent.ACTION_NEW_OUTGOING_CALL)) {
+                 String phoneNumber = intent.getStringExtra(Intent.EXTRA_PHONE_NUMBER);
+                 /*
+-                   Emergency Mode is when during emergency call or in emergency call back mode.
+-                   For checking if it is during emergency call:
+-                       mIsInEmergency records if the phone is in emergency call or not. It will
++                   Tracks the emergency call:
++                       mIsInEmergencyCall records if the phone is in emergency call or not. It will
+                        be set to true when the phone is having emergency call, and then will
+                        be set to false by mPhoneStateListener when the emergency call ends.
+-                   For checking if it is in emergency call back mode:
+-                       Emergency call back mode will be checked by reading system properties
+-                       when necessary: SystemProperties.get(TelephonyProperties.PROPERTY_INECM_MODE)
+                 */
+-                setInEmergency(PhoneNumberUtils.isEmergencyNumber(phoneNumber));
++                mIsInEmergencyCall = PhoneNumberUtils.isEmergencyNumber(phoneNumber);
+                 if (DEBUG) Log.v(TAG, "ACTION_NEW_OUTGOING_CALL - " + getInEmergency());
+             } else if (action.equals(LocationManager.MODE_CHANGED_ACTION)) {
+                 updateLocationMode();
+@@ -195,7 +196,10 @@ public class GpsNetInitiatedHandler {
+                 if (DEBUG) Log.d(TAG, "onCallStateChanged(): state is "+ state);
+                 // listening for emergency call ends
+                 if (state == TelephonyManager.CALL_STATE_IDLE) {
+-                    setInEmergency(false);
++                    if (mIsInEmergencyCall) {
++                        mCallEndElapsedRealtimeMillis = SystemClock.elapsedRealtime();
++                        mIsInEmergencyCall = false;
++                    }
+                 }
+             }
+         };
+@@ -229,22 +233,35 @@ public class GpsNetInitiatedHandler {
+         return mIsLocationEnabled;
+     }
+ 
+-    // Note: Currently, there are two mechanisms involved to determine if a
+-    // phone is in emergency mode:
+-    // 1. If the user is making an emergency call, this is provided by activly
+-    //    monitoring the outgoing phone number;
+-    // 2. If the device is in a emergency callback state, this is provided by
+-    //    system properties.
+-    // If either one of above exists, the phone is considered in an emergency
+-    // mode. Because of this complexity, we need to be careful about how to set
+-    // and clear the emergency state.
+-    public void setInEmergency(boolean isInEmergency) {
+-        mIsInEmergency = isInEmergency;
+-    }
+-
++    /**
++     * Determines whether device is in user-initiated emergency session based on the following
++     * 1. If the user is making an emergency call, this is provided by actively
++     *    monitoring the outgoing phone number;
++     * 2. If the user has recently ended an emergency call, and the device is in a configured time
++     *    window after the end of that call.
++     * 3. If the device is in a emergency callback state, this is provided by querying
++     *    TelephonyManager.
++     * @return true if is considered in user initiated emergency mode for NI purposes
++     */
+     public boolean getInEmergency() {
++        boolean isInEmergencyExtension =
++                (SystemClock.elapsedRealtime() - mCallEndElapsedRealtimeMillis) <
++                        mEmergencyExtensionMillis;
+         boolean isInEmergencyCallback = mTelephonyManager.getEmergencyCallbackMode();
+-        return mIsInEmergency || isInEmergencyCallback;
++        return mIsInEmergencyCall || isInEmergencyCallback || isInEmergencyExtension;
++    }
++
++    public void setEmergencyExtensionSeconds(int emergencyExtensionSeconds) {
++        if (emergencyExtensionSeconds > MAX_EMERGENCY_MODE_EXTENSION_SECONDS) {
++            Log.w(TAG, "emergencyExtensionSeconds " + emergencyExtensionSeconds
++                    + " too high, reset to " + MAX_EMERGENCY_MODE_EXTENSION_SECONDS);
++            emergencyExtensionSeconds = MAX_EMERGENCY_MODE_EXTENSION_SECONDS;
++        } else if (emergencyExtensionSeconds < 0) {
++            Log.w(TAG, "emergencyExtensionSeconds " + emergencyExtensionSeconds
++                    + " is negative, reset to zero.");
++            emergencyExtensionSeconds = 0;
++        }
++        mEmergencyExtensionMillis = TimeUnit.SECONDS.toMillis(emergencyExtensionSeconds);
+     }
+ 
+ 
+diff --git a/services/core/java/com/android/server/location/GnssLocationProvider.java b/services/core/java/com/android/server/location/GnssLocationProvider.java
+index 0ec1f9ccd37..809a48f2b4a 100644
+--- a/services/core/java/com/android/server/location/GnssLocationProvider.java
++++ b/services/core/java/com/android/server/location/GnssLocationProvider.java
+@@ -723,6 +723,17 @@ public class GnssLocationProvider implements LocationProviderInterface, InjectNt
+                 Log.e(TAG, "unable to parse SUPL_ES: " + suplESProperty);
+             }
+         }
++
++        String emergencyExtensionSecondsString
++                = properties.getProperty("ES_EXTENSION_SEC", "0");
++        try {
++            int emergencyExtensionSeconds =
++                    Integer.parseInt(emergencyExtensionSecondsString);
++            mNIHandler.setEmergencyExtensionSeconds(emergencyExtensionSeconds);
++        } catch (NumberFormatException e) {
++            Log.e(TAG, "unable to parse ES_EXTENSION_SEC: "
++                    + emergencyExtensionSecondsString);
++        }
+     }
+ 
+     private void loadPropertiesFromResource(Context context,
+diff --git a/services/devicepolicy/java/com/android/server/devicepolicy/DevicePolicyManagerService.java b/services/devicepolicy/java/com/android/server/devicepolicy/DevicePolicyManagerService.java
+index d3a4db6469c..9791c3a92af 100644
+--- a/services/devicepolicy/java/com/android/server/devicepolicy/DevicePolicyManagerService.java
++++ b/services/devicepolicy/java/com/android/server/devicepolicy/DevicePolicyManagerService.java
+@@ -4795,18 +4795,16 @@ public class DevicePolicyManagerService extends BaseIDevicePolicyManager {
+                 quality = PASSWORD_QUALITY_UNSPECIFIED;
+             }
+             final PasswordMetrics metrics = PasswordMetrics.computeForPassword(password);
+-            if (quality != PASSWORD_QUALITY_UNSPECIFIED) {
+-                final int realQuality = metrics.quality;
+-                if (realQuality < quality
+-                        && quality != DevicePolicyManager.PASSWORD_QUALITY_COMPLEX) {
+-                    Slog.w(LOG_TAG, "resetPassword: password quality 0x"
+-                            + Integer.toHexString(realQuality)
+-                            + " does not meet required quality 0x"
+-                            + Integer.toHexString(quality));
+-                    return false;
+-                }
+-                quality = Math.max(realQuality, quality);
++            final int realQuality = metrics.quality;
++            if (realQuality < quality
++                    && quality != DevicePolicyManager.PASSWORD_QUALITY_COMPLEX) {
++                Slog.w(LOG_TAG, "resetPassword: password quality 0x"
++                        + Integer.toHexString(realQuality)
++                        + " does not meet required quality 0x"
++                        + Integer.toHexString(quality));
++                return false;
+             }
++            quality = Math.max(realQuality, quality);
+             int length = getPasswordMinimumLength(null, userHandle, /* parent */ false);
+             if (password.length() < length) {
+                 Slog.w(LOG_TAG, "resetPassword: password length " + password.length()
+@@ -4892,7 +4890,7 @@ public class DevicePolicyManagerService extends BaseIDevicePolicyManager {
+                 result = mLockPatternUtils.setLockCredentialWithToken(password,
+                         TextUtils.isEmpty(password) ? LockPatternUtils.CREDENTIAL_TYPE_NONE
+                                 : LockPatternUtils.CREDENTIAL_TYPE_PASSWORD,
+-                                quality, tokenHandle, token, userHandle);
++                        quality, tokenHandle, token, userHandle);
+             }
+             boolean requireEntry = (flags & DevicePolicyManager.RESET_PASSWORD_REQUIRE_ENTRY) != 0;
+             if (requireEntry) {
+diff --git a/services/tests/servicestests/src/com/android/server/devicepolicy/DevicePolicyManagerTest.java b/services/tests/servicestests/src/com/android/server/devicepolicy/DevicePolicyManagerTest.java
+index 1acecfc8cb0..26ce7e4cb77 100644
+--- a/services/tests/servicestests/src/com/android/server/devicepolicy/DevicePolicyManagerTest.java
++++ b/services/tests/servicestests/src/com/android/server/devicepolicy/DevicePolicyManagerTest.java
+@@ -4181,7 +4181,7 @@ public class DevicePolicyManagerTest extends DpmTestBase {
+         // test reset password with token
+         when(getServices().lockPatternUtils.setLockCredentialWithToken(eq(password),
+                 eq(LockPatternUtils.CREDENTIAL_TYPE_PASSWORD),
+-                eq(DevicePolicyManager.PASSWORD_QUALITY_UNSPECIFIED), eq(handle), eq(token),
++                eq(DevicePolicyManager.PASSWORD_QUALITY_ALPHABETIC), eq(handle), eq(token),
+                 eq(UserHandle.USER_SYSTEM)))
+                 .thenReturn(true);
+         assertTrue(dpm.resetPasswordWithToken(admin1, password, token, 0));
+-- 
+2.17.1
+

@@ -1,0 +1,76 @@
+From 9fd6c9c8c1f80664562aca1339c7229224bebb3d Mon Sep 17 00:00:00 2001
+From: Simon Shields <simon@lineageos.org>
+Date: Thu, 16 Feb 2017 09:45:31 +1100
+Subject: [PATCH] NfcNci: make T3T/Nfc-F HCE optional
+
+Some devices (bacon, klte) don't work with T3T HCE, and attempting to
+enable it will instead completely break HCE. Allow these devices to work
+around the issue by disabling NFC-F HCE.
+
+Add ENABLE_NFCF_HCE=0 to libnfc-nci.conf to disable. Default is enabled.
+
+Change-Id: I0ccabe10cc83a01ae6614d69d2bba33731a84fdd
+---
+ nci/jni/RoutingManager.cpp | 10 ++++++++--
+ nci/jni/RoutingManager.h   |  3 +++
+ 2 files changed, 11 insertions(+), 2 deletions(-)
+
+diff --git a/nci/jni/RoutingManager.cpp b/nci/jni/RoutingManager.cpp
+index ba2e3abd..a3db7ece 100755
+--- a/nci/jni/RoutingManager.cpp
++++ b/nci/jni/RoutingManager.cpp
+@@ -92,6 +92,9 @@ RoutingManager::RoutingManager() {
+   mSeTechMask = 0x00;
+   mIsScbrSupported = false;
+ 
++  mNfcFEnabled =
++      (NfcConfig::getUnsigned(NAME_ENABLE_NFCF_HCE, 1) != 0) ? true : false;
++
+   mNfcFOnDhHandle = NFA_HANDLE_INVALID;
+ }
+ 
+@@ -239,7 +242,10 @@ void RoutingManager::enableRoutingToHost() {
+     if (mIsScbrSupported)
+       protoMask = NFA_PROTOCOL_MASK_ISO_DEP;
+     else
+-      protoMask = (NFA_PROTOCOL_MASK_ISO_DEP | NFA_PROTOCOL_MASK_T3T);
++      protoMask = NFA_PROTOCOL_MASK_ISO_DEP;
++      if (mNfcFEnabled) {
++        protoMask |= NFA_PROTOCOL_MASK_T3T;
++      }
+ 
+     nfaStat = NFA_EeSetDefaultProtoRouting(
+         mDefaultEe, protoMask, 0, 0, protoMask, mDefaultEe ? protoMask : 0,
+@@ -284,7 +290,7 @@ void RoutingManager::enableRoutingToHost() {
+             "Fail to set default tech routing for Nfc-F");
+     }
+     // Default routing for T3T protocol
+-    if (!mIsScbrSupported) {
++    if (!mIsScbrSupported && mNfcFEnabled) {
+       protoMask = NFA_PROTOCOL_MASK_T3T;
+       nfaStat =
+           NFA_EeSetDefaultProtoRouting(NFC_DH_ID, protoMask, 0, 0, 0, 0, 0);
+diff --git a/nci/jni/RoutingManager.h b/nci/jni/RoutingManager.h
+index 2d3f3159..0934e282 100755
+--- a/nci/jni/RoutingManager.h
++++ b/nci/jni/RoutingManager.h
+@@ -27,6 +27,8 @@
+ #include "nfa_api.h"
+ #include "nfa_ee_api.h"
+ 
++#define NAME_ENABLE_NFCF_HCE "ENABLE_NFCF_HCE"
++
+ using namespace std;
+ 
+ class RoutingManager {
+@@ -86,6 +88,7 @@ class RoutingManager {
+   int mAidMatchingMode;
+   int mNfcFOnDhHandle;
+   bool mIsScbrSupported;
++  bool mNfcFEnabled;
+   uint16_t mDefaultSysCode;
+   uint16_t mDefaultSysCodeRoute;
+   uint8_t mDefaultSysCodePowerstate;
+-- 
+2.17.1
+

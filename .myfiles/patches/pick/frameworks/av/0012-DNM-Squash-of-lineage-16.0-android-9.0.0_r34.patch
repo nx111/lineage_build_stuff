@@ -1,0 +1,502 @@
+From a1a22a9fa64d3a07951edde20bb9aaed910719e2 Mon Sep 17 00:00:00 2001
+From: Luca Stefani <luca.stefani.ge1@gmail.com>
+Date: Tue, 5 Mar 2019 09:09:20 +0100
+Subject: [PATCH 12/12] [DNM] Squash of lineage-16.0-android-9.0.0_r34
+
+Squashed commit of the following:
+
+commit accfc6586bce6ff5bceea8969fb5c0d5db6e4f04
+Merge: dba05b7c7 49d89e9df
+Author: android-build-team Robot <android-build-team-robot@google.com>
+Date:   Wed Jan 16 18:58:12 2019 +0000
+
+    Merge cherrypicks of [6072697, 6072075, 6072758, 6072124, 6072885, 6072886, 6072887, 6072580, 6072581, 6072582, 6072583, 6072584, 6072132, 6072195, 6072133, 6072077, 6072134, 6072078, 6072211, 6072762, 6072763, 6072908, 6072909, 6072910, 6072911, 6072912, 6072913, 6072914, 6072930, 6072212, 6072743] into pi-qpr2-release
+
+    Change-Id: I389c3d1ac743425ecd737e2c001e862639f3c990
+
+commit 49d89e9df80bbcb9629579086df99c01d75d6851
+Author: Andy Hung <hunga@google.com>
+Date:   Thu Jan 10 13:27:31 2019 -0800
+
+    AudioFlinger: put effect desc lookup under mutex for createEffect
+
+    Test: native poc
+    Bug: 122309228
+    Change-Id: I48333c69f5c1b1bf1b98f57eb813ec39e074f3a7
+    Merged-In: I9d339a7d6d81161065e1adaf427dd2d3430436c2
+    (cherry picked from commit a41770b682117fdfc20236fbc45d975099f9147a)
+
+commit f6a40939fb77aace764df0cde4f354deae6b9883
+Author: Mikhail Naganov <mnaganov@google.com>
+Date:   Fri Dec 14 10:48:17 2018 -0800
+
+    audioserver: Use '_exit' instead of 'exit' in HalDeathHandler
+
+    Using 'exit' from an RPC threadpool thread is not safe, as 'exit'
+    runs atexit handlers that destroy global objects. This can interfere
+    with code still running on other threads.
+
+    '_exit' does not run atexit handlers, just terminates the process.
+
+    Bug: 116665972
+    Test: kill android.hardware.audio@2.0-service, check logcat
+    Change-Id: I5391a659e359e0ca5bba580f1c51dea5df3ea562
+    (cherry picked from commit 5beb4810060cda2afea1c89f98caf5c337763c0a)
+    (cherry picked from commit 06c5d535332898944d627b6e114d1f39ae3e6c86)
+
+commit 7436115ffe6a5387d8fc11780a4f6ce104c7fb1b
+Author: Phil Burk <philburk@google.com>
+Date:   Mon Dec 3 10:10:21 2018 -0800
+
+    RESTRICT AUTOMERGE: aaudio: improve test_atomic_fifo
+
+    Check for the effects of setting a bogus counter.
+    Check for writes to memory surrounding the FIFO.
+    Check for negative array indices.
+
+    Bug: 120789744
+    Test: this is a test
+    Change-Id: Ia30cdef7f9d60f0a98b9af964cb3b3159df37dc9
+    (cherry picked from commit fcdc02782c939aac336da48f8859ba1dccae3806)
+
+commit 8cb1c83742196077a6c58019a08cf83ed9aaf0eb
+Author: Phil Burk <philburk@google.com>
+Date:   Mon Dec 3 14:16:46 2018 -0800
+
+    RESTRICT AUTOMERGE: aaudio: Fix converting negative FIFO counters to index
+
+    The index into the FIFO is calculated by using:
+
+        counter % capacity
+
+    But the counter is signed and when it is negative the
+    modulo can have a negative result. That can cause
+    a negative array index and an access out of bounds.
+
+    This is not normally a problem because the counter
+    is 64 bits and it will not overflow until the audio
+    has run for a few million years. But a hacker might
+    be able to modify this internal counter and force
+    an error.
+
+    The solution involves casting to a uint64_t before doing
+    the modulo.
+
+    Note that there may still be a discontinuity when the
+    counter wraps from -1 to 0. But that will not result
+    in an out-of-bounds access. It may cause a noise but
+    an app could simply create a noise directly. So that is
+    not considered an exploit.
+
+    Bug: 120789744
+    Test: test_atomic_fifo.cpp
+    Change-Id: I6fe57bcb44528d29b5edb817c592e5e9a8aaf8eb
+    (cherry picked from commit f4f81427681d2a736fc9b783dd967bc0661cca73)
+
+Change-Id: I1f1a83c3389b1c0b01f1587cefe388344b30e8d2
+---
+ .../libaaudio/src/fifo/FifoControllerBase.cpp |   4 +-
+ media/libaaudio/tests/test_atomic_fifo.cpp    | 219 +++++++++++++++---
+ media/libaudiohal/HalDeathHandlerHidl.cpp     |   2 +-
+ services/audioflinger/AudioFlinger.cpp        |   4 +
+ 4 files changed, 196 insertions(+), 33 deletions(-)
+
+diff --git a/media/libaaudio/src/fifo/FifoControllerBase.cpp b/media/libaaudio/src/fifo/FifoControllerBase.cpp
+index 14a2be1ca..51a8e3472 100644
+--- a/media/libaaudio/src/fifo/FifoControllerBase.cpp
++++ b/media/libaaudio/src/fifo/FifoControllerBase.cpp
+@@ -38,7 +38,7 @@ fifo_frames_t FifoControllerBase::getFullFramesAvailable() {
+ 
+ fifo_frames_t FifoControllerBase::getReadIndex() {
+     // % works with non-power of two sizes
+-    return (fifo_frames_t) (getReadCounter() % mCapacity);
++    return (fifo_frames_t) ((uint64_t)getReadCounter() % mCapacity);
+ }
+ 
+ void FifoControllerBase::advanceReadIndex(fifo_frames_t numFrames) {
+@@ -51,7 +51,7 @@ fifo_frames_t FifoControllerBase::getEmptyFramesAvailable() {
+ 
+ fifo_frames_t FifoControllerBase::getWriteIndex() {
+     // % works with non-power of two sizes
+-    return (fifo_frames_t) (getWriteCounter() % mCapacity);
++    return (fifo_frames_t) ((uint64_t)getWriteCounter() % mCapacity);
+ }
+ 
+ void FifoControllerBase::advanceWriteIndex(fifo_frames_t numFrames) {
+diff --git a/media/libaaudio/tests/test_atomic_fifo.cpp b/media/libaaudio/tests/test_atomic_fifo.cpp
+index 008521754..0edfebe60 100644
+--- a/media/libaaudio/tests/test_atomic_fifo.cpp
++++ b/media/libaaudio/tests/test_atomic_fifo.cpp
+@@ -23,12 +23,12 @@
+ #include "fifo/FifoController.h"
+ 
+ using android::fifo_frames_t;
++using android::fifo_counter_t;
+ using android::FifoController;
+ using android::FifoBuffer;
+ using android::WrappingBuffer;
+ 
+-//void foo() {
+-TEST(test_fifi_controller, fifo_indices) {
++TEST(test_fifo_controller, fifo_indices) {
+     // Values are arbitrary primes designed to trigger edge cases.
+     constexpr int capacity = 83;
+     constexpr int threshold = 47;
+@@ -73,18 +73,59 @@ TEST(test_fifi_controller, fifo_indices) {
+     ASSERT_EQ(threshold - advance2, fifoController.getEmptyFramesAvailable());
+ }
+ 
++TEST(test_fifo_controller, fifo_wrap_around_zero) {
++    constexpr int capacity = 7; // arbitrary prime
++    constexpr int threshold = capacity;
++    FifoController fifoController(capacity, threshold);
++    ASSERT_EQ(capacity, fifoController.getCapacity());
++    ASSERT_EQ(threshold, fifoController.getThreshold());
++
++    fifoController.setReadCounter(-10); // a bit less than negative capacity
++    for (int i = 0; i < 20; i++) {
++        EXPECT_EQ(i - 10, fifoController.getReadCounter());
++        EXPECT_GE(fifoController.getReadIndex(), 0);
++        EXPECT_LT(fifoController.getReadIndex(), capacity);
++        fifoController.advanceReadIndex(1);
++    }
++
++    fifoController.setWriteCounter(-10);
++    for (int i = 0; i < 20; i++) {
++        EXPECT_EQ(i - 10, fifoController.getWriteCounter());
++        EXPECT_GE(fifoController.getWriteIndex(), 0);
++        EXPECT_LT(fifoController.getWriteIndex(), capacity);
++        fifoController.advanceWriteIndex(1);
++    }
++}
++
++
+ // TODO consider using a template for other data types.
++
++// Create a big array and then use a region in the middle for the  unit tests.
++// Then we can scan the rest of the array to see if it got clobbered.
++static constexpr fifo_frames_t kBigArraySize = 1024;
++static constexpr fifo_frames_t kFifoDataOffset = 128; // starting index of FIFO data
++static constexpr int16_t       kSafeDataValue = 0x7654; // original value of BigArray
++
+ class TestFifoBuffer {
+ public:
+     explicit TestFifoBuffer(fifo_frames_t capacity, fifo_frames_t threshold = 0)
+-        : mFifoBuffer(sizeof(int16_t), capacity) {
++        : mFifoBuffer(sizeof(int16_t), capacity,
++                      &mReadIndex,
++                      &mWriteIndex,
++                      &mVeryBigArray[kFifoDataOffset]) // address of start of FIFO data
++    {
++
++        // Assume a frame is one int16_t.
+         // For reading and writing.
+-        mData = new int16_t[capacity];
+         if (threshold <= 0) {
+             threshold = capacity;
+         }
+         mFifoBuffer.setThreshold(threshold);
+         mThreshold = threshold;
++
++        for (fifo_frames_t i = 0; i < kBigArraySize; i++) {
++            mVeryBigArray[i] = kSafeDataValue;
++        }
+     }
+ 
+     void checkMisc() {
+@@ -92,26 +133,70 @@ public:
+         ASSERT_EQ(mThreshold, mFifoBuffer.getThreshold());
+     }
+ 
++    void verifyAddressInRange(void *p, void *valid, size_t numBytes) {
++        uintptr_t p_int = (uintptr_t) p;
++        uintptr_t valid_int = (uintptr_t) valid;
++        EXPECT_GE(p_int, valid_int);
++        EXPECT_LT(p_int, (valid_int + numBytes));
++    }
++
++    void verifyStorageIntegrity() {
++        for (fifo_frames_t i = 0; i < kFifoDataOffset; i++) {
++            EXPECT_EQ(mVeryBigArray[i], kSafeDataValue);
++        }
++        fifo_frames_t firstFrameAfter = kFifoDataOffset + mFifoBuffer.getBufferCapacityInFrames();
++        for (fifo_frames_t i = firstFrameAfter; i < kBigArraySize; i++) {
++            EXPECT_EQ(mVeryBigArray[i], kSafeDataValue);
++        }
++    }
++
+     // Verify that the available frames in each part add up correctly.
+-    void checkWrappingBuffer() {
++    void verifyWrappingBuffer() {
+         WrappingBuffer wrappingBuffer;
++
++
++        // Does the sum of the two parts match the available value returned?
++        // For EmptyRoom
+         fifo_frames_t framesAvailable =
+                 mFifoBuffer.getFifoControllerBase()->getEmptyFramesAvailable();
+         fifo_frames_t wrapAvailable = mFifoBuffer.getEmptyRoomAvailable(&wrappingBuffer);
+         EXPECT_EQ(framesAvailable, wrapAvailable);
+         fifo_frames_t bothAvailable = wrappingBuffer.numFrames[0] + wrappingBuffer.numFrames[1];
+         EXPECT_EQ(framesAvailable, bothAvailable);
+-
++        // For FullData
+         framesAvailable =
+                 mFifoBuffer.getFifoControllerBase()->getFullFramesAvailable();
+         wrapAvailable = mFifoBuffer.getFullDataAvailable(&wrappingBuffer);
+         EXPECT_EQ(framesAvailable, wrapAvailable);
+         bothAvailable = wrappingBuffer.numFrames[0] + wrappingBuffer.numFrames[1];
+         EXPECT_EQ(framesAvailable, bothAvailable);
++
++        // Are frame counts in legal range?
++        fifo_frames_t capacity = mFifoBuffer.getBufferCapacityInFrames();
++        EXPECT_GE(wrappingBuffer.numFrames[0], 0);
++        EXPECT_LE(wrappingBuffer.numFrames[0], capacity);
++        EXPECT_GE(wrappingBuffer.numFrames[1], 0);
++        EXPECT_LE(wrappingBuffer.numFrames[1], capacity);
++
++        // Are addresses within the FIFO data area?
++        size_t validBytes = capacity * sizeof(int16_t);
++        if (wrappingBuffer.numFrames[0]) {
++            verifyAddressInRange(wrappingBuffer.data[0], mFifoStorage, validBytes);
++            uint8_t *last = ((uint8_t *)wrappingBuffer.data[0])
++                            + mFifoBuffer.convertFramesToBytes(wrappingBuffer.numFrames[0]) - 1;
++            verifyAddressInRange(last, mFifoStorage, validBytes);
++        }
++        if (wrappingBuffer.numFrames[1]) {
++            verifyAddressInRange(wrappingBuffer.data[1], mFifoStorage, validBytes);
++            uint8_t *last = ((uint8_t *)wrappingBuffer.data[1])
++                            + mFifoBuffer.convertFramesToBytes(wrappingBuffer.numFrames[1]) - 1;
++            verifyAddressInRange(last, mFifoStorage, validBytes);
++        }
++
+     }
+ 
+     // Write data but do not overflow.
+-    void writeData(fifo_frames_t numFrames) {
++    void writeMultipleDataFrames(fifo_frames_t numFrames) {
+         fifo_frames_t framesAvailable =
+                 mFifoBuffer.getFifoControllerBase()->getEmptyFramesAvailable();
+         fifo_frames_t framesToWrite = std::min(framesAvailable, numFrames);
+@@ -122,8 +207,8 @@ public:
+         ASSERT_EQ(framesToWrite, actual);
+     }
+ 
+-    // Read data but do not underflow.
+-    void verifyData(fifo_frames_t numFrames) {
++    // Read whatever data is available, Do not underflow.
++    void verifyMultipleDataFrames(fifo_frames_t numFrames) {
+         fifo_frames_t framesAvailable =
+                 mFifoBuffer.getFifoControllerBase()->getFullFramesAvailable();
+         fifo_frames_t framesToRead = std::min(framesAvailable, numFrames);
+@@ -134,20 +219,35 @@ public:
+         }
+     }
+ 
++    // Read specified number of frames
++    void verifyRequestedData(fifo_frames_t numFrames) {
++        fifo_frames_t framesAvailable =
++                mFifoBuffer.getFifoControllerBase()->getFullFramesAvailable();
++        ASSERT_LE(numFrames, framesAvailable);
++        fifo_frames_t framesToRead = std::min(framesAvailable, numFrames);
++        fifo_frames_t actual = mFifoBuffer.read(mData, framesToRead);
++        ASSERT_EQ(actual, numFrames);
++        for (int i = 0; i < actual; i++) {
++            ASSERT_EQ(mNextVerifyIndex++, mData[i]);
++        }
++    }
++
+     // Wrap around the end of the buffer.
+     void checkWrappingWriteRead() {
+         constexpr int frames1 = 43;
+         constexpr int frames2 = 15;
+ 
+-        writeData(frames1);
+-        checkWrappingBuffer();
+-        verifyData(frames1);
+-        checkWrappingBuffer();
++        writeMultipleDataFrames(frames1);
++        verifyWrappingBuffer();
++        verifyRequestedData(frames1);
++        verifyWrappingBuffer();
+ 
+-        writeData(frames2);
+-        checkWrappingBuffer();
+-        verifyData(frames2);
+-        checkWrappingBuffer();
++        writeMultipleDataFrames(frames2);
++        verifyWrappingBuffer();
++        verifyRequestedData(frames2);
++        verifyWrappingBuffer();
++
++        verifyStorageIntegrity();
+     }
+ 
+     // Write and Read a specific amount of data.
+@@ -156,10 +256,12 @@ public:
+         // Wrap around with the smaller region in the second half.
+         const int frames1 = capacity - 4;
+         const int frames2 = 7; // arbitrary, small
+-        writeData(frames1);
+-        verifyData(frames1);
+-        writeData(frames2);
+-        verifyData(frames2);
++        writeMultipleDataFrames(frames1);
++        verifyRequestedData(frames1);
++        writeMultipleDataFrames(frames2);
++        verifyRequestedData(frames2);
++
++        verifyStorageIntegrity();
+     }
+ 
+     // Write and Read a specific amount of data.
+@@ -168,10 +270,12 @@ public:
+         // Wrap around with the larger region in the second half.
+         const int frames1 = capacity - 4;
+         const int frames2 = capacity - 9; // arbitrary, large
+-        writeData(frames1);
+-        verifyData(frames1);
+-        writeData(frames2);
+-        verifyData(frames2);
++        writeMultipleDataFrames(frames1);
++        verifyRequestedData(frames1);
++        writeMultipleDataFrames(frames2);
++        verifyRequestedData(frames2);
++
++        verifyStorageIntegrity();
+     }
+ 
+     // Randomly read or write up to the maximum amount of data.
+@@ -180,30 +284,67 @@ public:
+             fifo_frames_t framesEmpty =
+                     mFifoBuffer.getFifoControllerBase()->getEmptyFramesAvailable();
+             fifo_frames_t numFrames = (fifo_frames_t)(drand48() * framesEmpty);
+-            writeData(numFrames);
++            writeMultipleDataFrames(numFrames);
+ 
+             fifo_frames_t framesFull =
+                     mFifoBuffer.getFifoControllerBase()->getFullFramesAvailable();
+             numFrames = (fifo_frames_t)(drand48() * framesFull);
+-            verifyData(numFrames);
++            verifyMultipleDataFrames(numFrames);
+         }
++
++        verifyStorageIntegrity();
++    }
++
++    // Write and Read a specific amount of data.
++    void checkNegativeCounters() {
++        fifo_counter_t counter = -9876;
++        mFifoBuffer.setWriteCounter(counter);
++        mFifoBuffer.setReadCounter(counter);
++        checkWrappingWriteRead();
++    }
++
++    // Wrap over the boundary at 0x7FFFFFFFFFFFFFFF
++    // Note that the behavior of a signed overflow is technically undefined.
++    void checkHalfWrap() {
++        fifo_counter_t counter = INT64_MAX - 10;
++        mFifoBuffer.setWriteCounter(counter);
++        mFifoBuffer.setReadCounter(counter);
++        ASSERT_GT(mFifoBuffer.getWriteCounter(), 0);
++        checkWrappingWriteRead();
++        ASSERT_LT(mFifoBuffer.getWriteCounter(), 0); // did we wrap past INT64_MAX?
++    }
++
++    // Wrap over the boundary at 0xFFFFFFFFFFFFFFFF
++    void checkFullWrap() {
++        fifo_counter_t counter = -10;
++        mFifoBuffer.setWriteCounter(counter);
++        mFifoBuffer.setReadCounter(counter);
++        ASSERT_LT(mFifoBuffer.getWriteCounter(), 0);
++        writeMultipleDataFrames(20);
++        ASSERT_GT(mFifoBuffer.getWriteCounter(), 0); // did we wrap past zero?
++        verifyStorageIntegrity();
+     }
+ 
+     FifoBuffer     mFifoBuffer;
+-    int16_t       *mData;
+     fifo_frames_t  mNextWriteIndex = 0;
+     fifo_frames_t  mNextVerifyIndex = 0;
+     fifo_frames_t  mThreshold;
++
++    fifo_counter_t mReadIndex = 0;
++    fifo_counter_t mWriteIndex = 0;
++    int16_t        mVeryBigArray[kBigArraySize]; // Use the middle of this array for the FIFO.
++    int16_t       *mFifoStorage = &mVeryBigArray[kFifoDataOffset]; // Start here for storage.
++    int16_t        mData[kBigArraySize]{};
+ };
+ 
+-TEST(test_fifo_buffer, fifo_read_write) {
++TEST(test_fifo_buffer, fifo_write_read) {
+     constexpr int capacity = 51; // arbitrary
+     TestFifoBuffer tester(capacity);
+     tester.checkMisc();
+     tester.checkWriteRead();
+ }
+ 
+-TEST(test_fifo_buffer, fifo_wrapping_read_write) {
++TEST(test_fifo_buffer, fifo_wrapping_write_read) {
+     constexpr int capacity = 59; // arbitrary, a little bigger this time
+     TestFifoBuffer tester(capacity);
+     tester.checkWrappingWriteRead();
+@@ -227,3 +368,21 @@ TEST(test_fifo_buffer, fifo_random_threshold) {
+     TestFifoBuffer tester(capacity, threshold);
+     tester.checkRandomWriteRead();
+ }
++
++TEST(test_fifo_buffer, fifo_negative_counters) {
++    constexpr int capacity = 49; // arbitrary
++    TestFifoBuffer tester(capacity);
++    tester.checkNegativeCounters();
++}
++
++TEST(test_fifo_buffer, fifo_half_wrap) {
++    constexpr int capacity = 57; // arbitrary
++    TestFifoBuffer tester(capacity);
++    tester.checkHalfWrap();
++}
++
++TEST(test_fifo_buffer, fifo_full_wrap) {
++    constexpr int capacity = 57; // arbitrary
++    TestFifoBuffer tester(capacity);
++    tester.checkFullWrap();
++}
+diff --git a/media/libaudiohal/HalDeathHandlerHidl.cpp b/media/libaudiohal/HalDeathHandlerHidl.cpp
+index 1e3ab5846..6e3352309 100644
+--- a/media/libaudiohal/HalDeathHandlerHidl.cpp
++++ b/media/libaudiohal/HalDeathHandlerHidl.cpp
+@@ -54,7 +54,7 @@ void HalDeathHandler::serviceDied(uint64_t /*cookie*/, const wp<IBase>& /*who*/)
+         handler.second();
+     }
+     ALOGE("HAL server crashed, audio server is restarting");
+-    exit(1);
++    _exit(1);  // Avoid calling atexit handlers, as this code runs on a thread from RPC threadpool.
+ }
+ 
+ } // namespace android
+diff --git a/services/audioflinger/AudioFlinger.cpp b/services/audioflinger/AudioFlinger.cpp
+index bdd39c6f6..687b5a65f 100644
+--- a/services/audioflinger/AudioFlinger.cpp
++++ b/services/audioflinger/AudioFlinger.cpp
+@@ -3001,6 +3001,8 @@ sp<IEffect> AudioFlinger::createEffect(
+     }
+ 
+     {
++        Mutex::Autolock _l(mLock);
++
+         if (!EffectsFactoryHalInterface::isNullUuid(&pDesc->uuid)) {
+             // if uuid is specified, request effect descriptor
+             lStatus = mEffectsFactoryHal->getDescriptor(&pDesc->uuid, &desc);
+@@ -3056,6 +3058,8 @@ sp<IEffect> AudioFlinger::createEffect(
+                 desc = d;
+             }
+         }
++    }
++    {
+ 
+         // Do not allow auxiliary effects on a session different from 0 (output mix)
+         if (sessionId != AUDIO_SESSION_OUTPUT_MIX &&
+-- 
+2.17.1
+

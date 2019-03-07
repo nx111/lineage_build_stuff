@@ -1,0 +1,85 @@
+From 4b2d11759d31a6c0ab9d8ca591b7ec176b90330c Mon Sep 17 00:00:00 2001
+From: Luca Stefani <luca.stefani.ge1@gmail.com>
+Date: Tue, 5 Mar 2019 09:10:52 +0100
+Subject: [PATCH 4/4] [DNM] Squash of lineage-16.0-android-9.0.0_r34
+
+Squashed commit of the following:
+
+commit b9dd3863033facdd8608904e4dd59ff3cc52871b
+Merge: 6f2759c64 488aa8bef
+Author: android-build-team Robot <android-build-team-robot@google.com>
+Date:   Wed Jan 16 18:58:11 2019 +0000
+
+    Merge cherrypicks of [6072697, 6072075, 6072758, 6072124, 6072885, 6072886, 6072887, 6072580, 6072581, 6072582, 6072583, 6072584, 6072132, 6072195, 6072133, 6072077, 6072134, 6072078, 6072211, 6072762, 6072763, 6072908, 6072909, 6072910, 6072911, 6072912, 6072913, 6072914, 6072930, 6072212, 6072743] into pi-qpr2-release
+
+    Change-Id: Id793360e2640b37b6708c97596bc27929320e1ff
+
+commit 488aa8befd5bdffed6cfca7a399d2266ffd201fb
+Author: Stanley Tng <stng@google.com>
+Date:   Tue Dec 11 14:45:13 2018 -0800
+
+    DO NOT MERGE A security fix to check buffer length in l2c_lcc_proc_pdu
+
+    Add check to make sure that data buffer is big enough to read the 2
+    bytes for length.
+
+    Also, fix a regression from the previous CL that checks the buffer length
+    before doing a memcpy. The previous check is too strict causing valid
+    sized buffers to be rejected. The length check is incorrect and off by the header size.
+
+    Bug: 120665616
+    Test: Run the SL4A Test for LE CoC, BleCoCTest
+    Merged-In: I30b7a8af11d3a5f974cb39e06b0e3463bebc8e9a
+    Change-Id: I30b7a8af11d3a5f974cb39e06b0e3463bebc8e9a
+    (cherry picked from commit fcb1994de1f6ee34b8dc6804a2b32e20bf138073)
+    (cherry picked from commit 1f1d8b97d80d25023c4c7b04d2aa18d367f4158d)
+    (cherry picked from commit c117a1c951c65033987ed51d53407b359204c187)
+
+Change-Id: Ifc472bb6e43461864ee7fd19793ed30a1620be65
+---
+ stack/l2cap/l2c_fcr.cc | 14 ++++++++++++--
+ 1 file changed, 12 insertions(+), 2 deletions(-)
+
+diff --git a/stack/l2cap/l2c_fcr.cc b/stack/l2cap/l2c_fcr.cc
+index 8326e4d16..88503fbfc 100644
+--- a/stack/l2cap/l2c_fcr.cc
++++ b/stack/l2cap/l2c_fcr.cc
+@@ -833,7 +833,16 @@ void l2c_lcc_proc_pdu(tL2C_CCB* p_ccb, BT_HDR* p_buf) {
+   }
+ 
+   if (p_ccb->is_first_seg) {
++    if (p_buf->len < sizeof(sdu_length)) {
++      L2CAP_TRACE_ERROR("%s: buffer length=%d too small. Need at least 2.",
++                        __func__, p_buf->len);
++      android_errorWriteWithInfoLog(0x534e4554, "120665616", -1, NULL, 0);
++      /* Discard the buffer */
++      osi_free(p_buf);
++      return;
++    }
+     STREAM_TO_UINT16(sdu_length, p);
++
+     /* Check the SDU Length with local MTU size */
+     if (sdu_length > p_ccb->local_conn_cfg.mtu) {
+       /* Discard the buffer */
+@@ -841,6 +850,9 @@ void l2c_lcc_proc_pdu(tL2C_CCB* p_ccb, BT_HDR* p_buf) {
+       return;
+     }
+ 
++    p_buf->len -= sizeof(sdu_length);
++    p_buf->offset += sizeof(sdu_length);
++
+     if (sdu_length < p_buf->len) {
+       L2CAP_TRACE_ERROR("%s: Invalid sdu_length: %d", __func__, sdu_length);
+       android_errorWriteWithInfoLog(0x534e4554, "112321180", -1, NULL, 0);
+@@ -859,8 +871,6 @@ void l2c_lcc_proc_pdu(tL2C_CCB* p_ccb, BT_HDR* p_buf) {
+     p_data->len = 0;
+     p_ccb->ble_sdu_length = sdu_length;
+     L2CAP_TRACE_DEBUG("%s SDU Length = %d", __func__, sdu_length);
+-    p_buf->len -= sizeof(sdu_length);
+-    p_buf->offset += sizeof(sdu_length);
+     p_data->offset = 0;
+ 
+   } else {
+-- 
+2.17.1
+

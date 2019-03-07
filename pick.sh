@@ -612,17 +612,17 @@ function kpick()
          target_script=$script_file.new
     fi
 
-    local mLine=0
+    local mLine=-1
     if [ ! -z $target_script -a -f $target_script ] && [ $extract_changeset -eq 1 ]; then
-        if [ "$iQuery" != "" ]; then
-             mLine=$(grep -n "^[[:space:]]*kpick.*$iQuery" $target_script | cut -d: -f1 )
-             sed -e "s|\([[:space:]]*kpick.*${iQuery}\)|#\1|" -i $target_script
-        elif [ "$iTopic" != "" ]; then
-             mLine=$(grep -n "^[[:space:]]*kpick.*$iTopic" $target_script | cut -d: -f1 )
-             sed -e "s|\([[:space:]]*kpick.*${iTopic}\)|#\1|" -i $target_script
-        elif [ "$iRange" != "" ]; then
-             mLine=$(grep -n "^[[:space:]]*kpick.*$iRange" $target_script | cut -d: -f1 )
-             sed -e "s|\([[:space:]]*kpick.*${iRange}\\)|#\1|" -i $target_script
+        if [ "$iQuery" != "" ] && grep -q "^[[:space:]]*kpick.*$iQuery" $target_script; then
+             mLine=$(grep -n "^[[:space:]#]*kpick.*$iQuery" $target_script | cut -d: -f1 )
+             sed -e "s|\(^[[:space:]#]*kpick.*${iQuery}\)|#\1|" -i $target_script
+        elif [ "$iTopic" != "" ] && grep -q "^[[:space:]]*kpick.*$iTopic" $target_script; then
+             mLine=$(grep -n "^[[:space:]#]*kpick.*$iTopic" $target_script | cut -d: -f1 )
+             sed -e "s|\(^[[:space:]#]*kpick.*${iTopic}\)|#\1|" -i $target_script
+        elif [ "$iRange" != "" ] && grep -q "^[[:space:]]*kpick.*$iRange" $target_script; then
+             mLine=$(grep -n "^[[:space:]#]*kpick.*$iRange" $target_script | cut -d: -f1 )
+             sed -e "s|\(^[[:space:]#]*kpick.*${iRange}\\)|#\1|" -i $target_script
         fi
         if [ $? -ne 0 ]; then
             if [ "${BASH_SOURCE[0]}" = "$runfrom" ]; then
@@ -635,25 +635,31 @@ function kpick()
 
     LANG=en_US repopick --test $query | grep "Testing change number" | cut -d" " -f 4 > $change_number_list || return -1
     [ -f $change_number_list ] || return 0
-    while read line; do
-        number=$(echo $line | sed -e "s/  / /g")
-        if [ ! -z $target_script -a -f $target_script ] && [ $extract_changeset -eq 1 ]; then
-           sed "${mLine}akpick $number" -i  $target_script 
-           if [ $? -ne 0 ]; then
-               if [ "${BASH_SOURCE[0]}" != "$runfrom" ]; then
-                    return $?
+    if [ $mLine -ne -1 ]; then
+        while read line; do
+            number=$(echo $line | sed -e "s/  / /g")
+            if [ ! -z $target_script -a -f $target_script ] && [ $extract_changeset -eq 1 ]; then
+               if ! grep -q "^[[:space:]]*kpick[[:space:]]*$number\([[:space:]]\{1,\}\|$\)" $target_script; then
+                   sed "${mLine}akpick $number" -i  $target_script 
+                   if [ $? -ne 0 ]; then
+                       if [ "${BASH_SOURCE[0]}" != "$runfrom" ]; then
+                           return $?
+                       else
+                           exit -1
+                       fi
+                   fi
                else
-                    exit -1
+                   sed "/$number/d" -i $change_number_list
                fi
-           fi
-           mLine=$((mLine + 1))
-        fi
-    done < $change_number_list
+               mLine=$((mLine + 1))
+            fi
+        done < $change_number_list
 
-    while read line; do
-        number=$(echo $line | cut -d" " -f 3)
-        kpick_action $number $vars
-    done < $change_number_list
+        while read line; do
+            number=$(echo $line | cut -d" " -f 3)
+            kpick_action $number $vars
+        done < $change_number_list
+    fi
     rm -f $logfile $errfile $change_number_list
 }
 
@@ -1195,7 +1201,7 @@ if [ "${BASH_SOURCE[0]}" = "$runfrom" -a ! -f ${BASH_SOURCE[0]}.tmp -a $op_pick_
 
     #=========== pick changes ==========================
 
-    kpick 231971 # manifest: sync gcc4.9 from aosp oreo
+    kpick 243435 # manifest: android-9.0.0_r31 -> android-9.0.0_r34
 
     #===================================================
 
@@ -1249,6 +1255,7 @@ kpick 241858 # msm8974-common: Build Samsung LiveDisplay service
 
 # bionic
 kpick 238738 # bionic: Prefer /sbin/sh if it exists
+kpick 243425 # [DNM] Squash of lineage-16.0-android-9.0.0_r34
 
 # bootable/recovery
 kpick 238951 # Revert "recovery: Fork a process for fuse when sideloading from SD card."
@@ -1301,6 +1308,7 @@ kpick 222742 # build: Use project pathmap for recovery
 kpick 222760 # Add LOCAL_AIDL_FLAGS
 kpick 239296 # build: Remove charger from recovery unless needed
 kpick 241427 # build: Allow build-image-kernel-modules to be called from shell
+kpick 243426 # [DNM] Squash of lineage-16.0-android-9.0.0_r34
 
 # build/soong
 kpick 222648 # Allow providing flex and bison binaries
@@ -1316,13 +1324,11 @@ kpick 241667 # sepolicy: Move power hal service label to dynamic
 kpick 241676 # sepolicy: qcom: Rename common to vendor to avoid confusion
 kpick 241677 # sepolicy: Break livedisplay hal policy into impl independent ones
 kpick 241903 # sepolicy: Label all the livedisplay service implementations
-kpick 242792 # Allow Gallery to access system_app_data_file
 
 # device/qcom/sepolicy
 kpick 228573 # sepolicy: Add libsdm-disp-vndapis and libsdmutils to SP-HALs
 kpick 228582 # sepolicy: qti_init_shell needs to read dir too
 kpick 240951 # qcom: label persist files with /(mnt/vendor)/persist instead of /mnt/vendor/persist
-kpick 241794 # sepolicy: Add core_data_file_type type to cnd_data_file
 kpick 242976 # sepolicy: Label persist partition for all SoCs
 kpick 243254 # sepolicy: Label persist.nfc.hci_network_reset_req
 
@@ -1408,6 +1414,7 @@ kpick 238931 # stagefright: Fix SurfaceMediaSource getting handle from wrong pos
 kpick 238932 # stagefright: Fix buffer handle retrieval in signalBufferReturned
 kpick 239642 # libstagefright_wfd: video encoder does not actually release MediaBufferBase when done
 kpick 242705 # effects: Initialize volume at -96
+kpick 243427 # [DNM] Squash of lineage-16.0-android-9.0.0_r34
 
 # frameworks/base
 kpick 224513 # SystemUI: Disable config_keyguardUserSwitcher on sw600dp
@@ -1437,14 +1444,14 @@ kpick 240766 # Proper supplementary service notification handling (1/5).
 kpick 241326 # SettingsLib: add action callbacks to CustomDialogPreferences
 kpick 241327 # VibratorService: Apply vibrator intensity setting.
 kpick 242737 # Skip one-shot sensors for WindowOrientationListener
-kpick 243244 # Revert "SystemUI: Sort subscriptions in reversed order"
-kpick 243245 # Show mobile icons with left-to-right in order of slot index
+kpick 243428 # [DNM] Squash of lineage-16.0-android-9.0.0_r34
 
 # frameworks/native
 kpick 224530 # Triple the available egl function pointers available to a process for certain Nvidia devices.
 kpick 231828 # Translate pointer motion events for OneHandOperation Display Shrink
 kpick 231980 # HWComposer: HWC2: allow SkipValidate to be force disabled
 kpick 237645 # sf: Add support for multiple displays
+kpick 243429 # [DNM] Squash of lineage-16.0-android-9.0.0_r34
 
 # frameworks/opt/telephony
 kpick 240767 # Proper supplementary service notification handling (2/5).
@@ -1461,6 +1468,7 @@ kpick 242994 # livedisplay: sysfs: Simplify setCalibration
 
 # hardware/nxp/nfc
 kpick 239927 # hardware: nxp: Restore pn547 support
+kpick 243430 # [DNM] Squash of lineage-16.0-android-9.0.0_r34
 
 # hardware/qcom/bt-caf
 kpick 240345 # qcom/bt: update bt_firmware path
@@ -1534,11 +1542,18 @@ kpick 242736 # Eleven: bump to api26
 # packages/apps/Email
 kpick 242677 # Email: Fix generating id in android namespace
 
+# packages/apps/LineageParts
+kpick 243513 # notificationlight: create and use notification channel
+
 # packages/apps/Messaging
 kpick 242678 # Messaging: Fix generating id in android namespace
 
+# packages/apps/Nfc
+kpick 243485 # NfcNci: make T3T/Nfc-F HCE optional
+
 # packages/apps/PackageInstaller
 kpick 242682 # PackageInstaller: Fix generating id in android namespace
+kpick 243431 # [DNM] Squash of lineage-16.0-android-9.0.0_r34
 
 # packages/apps/Settings
 kpick 235978 # Settings: Add switch for linked ring and media notification volumes
@@ -1588,6 +1603,7 @@ kpick 243438 # Change UI styles to match dialer settings light M2 theme
 kpick 239040 # Increase maximum Bluetooth SBC codec bitrate for SBC HD
 kpick 229313 # Explicit SBC Dual Channel (SBC HD) support
 kpick 229314 # Allow using alternative (higher) SBC HD bitrates with a property
+kpick 243432 # [DNM] Squash of lineage-16.0-android-9.0.0_r34
 
 # system/core
 kpick 227110 -f # init: I hate safety net
@@ -1598,6 +1614,7 @@ kpick 234860 # init: add install_keyring for TWRP FBE decrypt
 kpick 237141 # core: update battery mod support for P
 kpick 240018 # Fix path for treble default prop
 kpick 241757 # adb: Allow adb root when certain third party root is present
+kpick 234333 # [DNM] Squash of lineage-16.0-android-9.0.0_r34
 
 # system/extras
 kpick 242968 # Remove -Wno-error from system/extras
@@ -1607,15 +1624,16 @@ kpick 232428 # su: strlcpy is always a friend
 kpick 232431 # su: Enable Clang Tidy
 kpick 232433 # su: Fix a clang tidy warning
 kpick 232438 # su: Initialize windows size
+kpick 243527 # su: Add back mistakenly removed code
 
 # system/netd
 kpick 232794 # NetD : Allow passing in interface names for vpn app restriction
 
 # system/sepolicy
-kpick 242951 # sepolicy: Allow init to chown sysfs LED files
 
 # system/tools/aidl
 kpick 223133 # AIDL: Add option to generate No-Op methods
+kpick 234334 # [DNM] Squash of lineage-16.0-android-9.0.0_r34
 
 # system/update_engine
 kpick 243259 # Move performance mode to top app
@@ -1654,6 +1672,7 @@ kpick 242433 # Make custom off-mode charging screen great again
 
 # vendor/qcom/opensource/cryptfs_hw
 kpick 243032 # cryptfs_hw: Cleanup should_use_keymaster
+
 #-----------------------
 # translations
 
@@ -1675,3 +1694,4 @@ fi
 rrCache backup # backup rr-cache
 rm -f $tmp_picks_info_file
 rm -f $topdir/.pick_tmp_* $topdir/.change_number_list_*
+kpick 243425 # [DNM] Squash of lineage-16.0-android-9.0.0_r34

@@ -1,0 +1,85 @@
+From 3f2e4f8515bf0f5c700ed9cfc894b43929254fa0 Mon Sep 17 00:00:00 2001
+From: Luca Stefani <luca.stefani.ge1@gmail.com>
+Date: Tue, 5 Mar 2019 09:10:20 +0100
+Subject: [PATCH 2/2] [DNM] Squash of lineage-16.0-android-9.0.0_r34
+
+Squashed commit of the following:
+
+commit 2d763bd5d06c08402d32a18260e56fee79c763df
+Merge: ded9a473 6c613fd7
+Author: android-build-team Robot <android-build-team-robot@google.com>
+Date:   Wed Jan 16 18:57:54 2019 +0000
+
+    Merge cherrypicks of [6072697, 6072075, 6072758, 6072124, 6072885, 6072886, 6072887, 6072580, 6072581, 6072582, 6072583, 6072584, 6072132, 6072195, 6072133, 6072077, 6072134, 6072078, 6072211, 6072762, 6072763, 6072908, 6072909, 6072910, 6072911, 6072912, 6072913, 6072914, 6072930, 6072212, 6072743] into pi-qpr2-release
+
+    Change-Id: I84387b1e56f01c89624d23bfe525cb585f7444d7
+
+commit 6c613fd7499363b6b1d47cd8135b431c05ea67ba
+Author: Philip P. Moltmann <moltmann@google.com>
+Date:   Wed Jan 2 16:51:45 2019 -0800
+
+    Ask for PIN when granting permissions in front of lock screen
+
+    Test: - Revoked all permissions from camera
+          - Set lock screen PIN
+          - Opened camera app -> Camera app asks for permissions
+          - Locked screen
+          - Granted permission from in front of lock screen
+    Bug: 68777217, 65337954
+    Merged-In: I8358f1eba436786b25b2c2b0c12ac7dcfd334fec
+    Change-Id: I3f252e2c325bd638ea29d1ce63b12e391e13c8f0
+    (cherry picked from commit b5302e6789b7a0b8f5625e054fbb21d5916652be)
+
+Change-Id: I3c0a4e32f3538525942e51bdbd12337b91023ed6
+---
+ .../ui/GrantPermissionsActivity.java          | 27 +++++++++++++++++++
+ 1 file changed, 27 insertions(+)
+
+diff --git a/src/com/android/packageinstaller/permission/ui/GrantPermissionsActivity.java b/src/com/android/packageinstaller/permission/ui/GrantPermissionsActivity.java
+index 21503573..e182655a 100644
+--- a/src/com/android/packageinstaller/permission/ui/GrantPermissionsActivity.java
++++ b/src/com/android/packageinstaller/permission/ui/GrantPermissionsActivity.java
+@@ -20,6 +20,7 @@ import static android.content.pm.PackageManager.PERMISSION_DENIED;
+ import static android.content.pm.PackageManager.PERMISSION_GRANTED;
+ 
+ import android.app.admin.DevicePolicyManager;
++import android.app.KeyguardManager;
+ import android.content.Intent;
+ import android.content.pm.PackageInfo;
+ import android.content.pm.PackageManager;
+@@ -447,6 +448,32 @@ public class GrantPermissionsActivity extends OverlayTouchActivity
+ 
+     @Override
+     public void onPermissionGrantResult(String name, boolean granted, boolean doNotAskAgain) {
++        KeyguardManager kgm = getSystemService(KeyguardManager.class);
++
++        if (kgm.isDeviceLocked()) {
++            kgm.requestDismissKeyguard(this, new KeyguardManager.KeyguardDismissCallback() {
++                        @Override
++                        public void onDismissError() {
++                            Log.e(LOG_TAG, "Cannot dismiss keyguard perm=" + name + " granted="
++                                   + granted + " doNotAskAgain=" + doNotAskAgain);
++                        }
++
++                        @Override
++                        public void onDismissCancelled() {
++                            // do nothing (i.e. stay at the current permission group)
++                        }
++
++                        @Override
++                        public void onDismissSucceeded() {
++                            // Now the keyguard is dismissed, hence the device is not locked
++                            // anymore
++                            onPermissionGrantResult(name, granted, doNotAskAgain);
++                        }
++                    });
++
++            return;
++        }
++
+         GroupState groupState = mRequestGrantPermissionGroups.get(name);
+         if (groupState != null && groupState.mGroup != null) {
+             if (granted) {
+-- 
+2.17.1
+
