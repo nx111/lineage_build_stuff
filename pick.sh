@@ -639,7 +639,7 @@ function kpick()
         while read line; do
             number=$(echo $line | sed -e "s/  / /g")
             if [ ! -z $target_script -a -f $target_script ] && [ $extract_changeset -eq 1 ]; then
-               if ! grep -q "^[[:space:]]*kpick[[:space:]]*$number\([[:space:]]\{1,\}\|$\)" $target_script; then
+               if ! grep -q "^[[:space:]]*kpick[[:space:]]\{1,\}$number\([[:space:]]\{1,\}\|$\)" $target_script; then
                    sed "${mLine}akpick $number" -i  $target_script 
                    if [ $? -ne 0 ]; then
                        if [ "${BASH_SOURCE[0]}" != "$runfrom" ]; then
@@ -648,10 +648,10 @@ function kpick()
                            exit -1
                        fi
                    fi
+                   mLine=$((mLine + 1))
                else
                    sed "/$number/d" -i $change_number_list
                fi
-               mLine=$((mLine + 1))
             fi
         done < $change_number_list
 
@@ -947,7 +947,7 @@ function kpick_action()
                     target_script=$script_file.new
                fi
                [ ! -z $target_script -a -f $target_script ] && \
-                    sed "/^[[:space:]]*kpick[[:space:]]\{1,\}${changeNumber}[[:space:]]*.*/d" -i $target_script
+                    sed "/^[[:space:]]*kpick[[:space:]]\{1,\}${changeNumber}\([[:space:]]\{1,\}\|$\)/d" -i $target_script
                finish_doing=1
             elif grep -q -E "Change status is ABANDONED." $logfile; then
                [ ! -f $script_file.tmp -a "${BASH_SOURCE[0]}" = "$runfrom" ] && cp $script_file $script_file.tmp
@@ -957,7 +957,7 @@ function kpick_action()
                     target_script=$script_file.new
                fi
                [ ! -z $target_script -a -f $target_script ] && \
-               sed  "/^[[:space:]]*kpick[[:space:]]\{1,\}${changeNumber}[[:space:]]*.*/d" -i $target_script
+               sed  "/^[[:space:]]*kpick[[:space:]]\{1,\}${changeNumber}\([[:space:]]\{1,\}\|$\)/d" -i $target_script
                finish_doing=1
             elif grep -q -E "Change $changeNumber not found, skipping" $logfile; then
                [ ! -f $script_file.tmp -a "${BASH_SOURCE[0]}" = "$runfrom" ] && cp $script_file $script_file.tmp
@@ -967,7 +967,7 @@ function kpick_action()
                     target_script=$script_file.new
                fi
                [ ! -z $target_script -a -f $target_script ] && \
-               sed "/^[[:space:]]*kpick[[:space:]]\{1,\}${changeNumber}[[:space:]]*.*/d" -i $target_script
+               sed "/^[[:space:]]*kpick[[:space:]]\{1,\}${changeNumber}\([[:space:]]\{1,\}\|$\)/d" -i $target_script
                finish_doing=1
             elif [ -f $errfile ] && grep -q "could not determine the project path for" $errfile; then
                [ ! -f $script_file.tmp -a "${BASH_SOURCE[0]}" = "$runfrom" ] && cp $script_file $script_file.tmp
@@ -977,7 +977,7 @@ function kpick_action()
                     target_script=$script_file.new
                fi
                [ ! -z $target_script -a -f $target_script ] && \
-               sed "s/^[[:space:]]*\(kpick[[:space:]]\{1,\}${changeNumber}[[:space:]]*.*\)/# \1/" -i $target_script
+               sed "s/^[[:space:]]*\(kpick[[:space:]]\{1,\}${changeNumber}\([[:space:]]\{1,\}.*\|$\)\)/#\1/" -i $target_script
                finish_doing=1
             elif [ $pick_skiped -eq 1 ]; then
                [ ! -f $script_file.tmp -a "${BASH_SOURCE[0]}" = "$runfrom" ] && cp $script_file $script_file.tmp
@@ -987,7 +987,7 @@ function kpick_action()
                     target_script=$script_file.new
                fi
                [ ! -z $target_script -a -f $target_script ] && \
-              sed "s/^[[:space:]]*\(kpick[[:space:]]\{1,\}${changeNumber}[[:space:]]*.*\)/# \1/" -i $target_script
+              sed "s/^[[:space:]]*\(kpick[[:space:]]\{1,\}${changeNumber}\([[:space:]]\{1,\}.*\|$\)\)/#\1/" -i $target_script
                finish_doing=1
             fi
          fi
@@ -1009,40 +1009,43 @@ function kpick_action()
                         last_project=$project
                         last_changeNumber=$changeNumber
                         if grep -iq "^[[:space:]]*#[[:space:]]*$project[[:space:]]*$" $target_script; then
-                            sed "/^[[:space:]]*kpick[[:space:]]\{1,\}\(.*[[:space:]]\{1,\}\|\)${changeNumber}/d" -i $target_script
+                            sed "/^[[:space:]]*kpick[[:space:]]\{1,\}${changeNumber}\([[:space:]]\{1,\}\|$\)/d" -i $target_script
                             project_offset=$(grep -in "^[[:space:]]*#[[:space:]]*$project[[:space:]]*$" $target_script | cut -d: -f 1 | head -n 1)
                             sed "${project_offset} akpick ${nops} \# ${subject}" -i $target_script
                         else
-                            sed "/^[[:space:]]*kpick[[:space:]]\{1,\}\(.*[[:space:]]\{1,\}\|\)${changeNumber}/i\# ${project}" -i $target_script
-                            sed -e "s/^\([[:space:]]*\)kpick[[:space:]]\{1,\}\(.*[[:space:]]\{1,\}\|\)${changeNumber}[[:space:]]*.*/\1kpick ${nops} # ${subject}/g" -i $target_script
-                            sed "/^[[:space:]]*kpick[[:space:]]\{1,\}\(.*[[:space:]]\{1,\}\|\)${changeNumber}/a\\\r" -i $target_script
+                            sed "/^[[:space:]]*kpick[[:space:]]\{1,\}${changeNumber}\([[:space:]]\{1,\}.*\|$\)/i\# ${project}" -i $target_script
+                            sed -e "s/^\([[:space:]]*\)kpick[[:space:]]\{1,\}${changeNumber}\([[:space:]]\{1,\}.*\|$\)/\1kpick ${nops} # ${subject}/g" -i $target_script
+                            sed "/^[[:space:]]*kpick[[:space:]]\{1,\}${changeNumber}\([[:space:]]\{1,\}.*\|$\)/a\\\r" -i $target_script
                         fi
                     else
                         if grep -q "already picked in" $logfile; then
-                           if [ $(grep "^[[:space:]]*kpick[[:space:]]*\(.*[[:space:]]\{1,\}\|\)$changeNumber[[:space:]]*" $target_script | wc -l) -ge 2 ]; then
-                                local first_find_lineNo=$(grep -n "kpick[[:space:]]*\(.*[[:space:]]\{1,\}\|\)$changeNumber" $target_script | cut -d: -f1 | head -n 1)
-                                first_find_lineNo=$(( first_find_lineNo + 1 ))
-                                local second_find_lineNo=$(sed -n "${first_find_lineNo},\$p" $target_script | grep -n "kpick[[:space:]]*.*$changeNumber" | cut -d: -f1 | head -n 1 )
-                                second_find_lineNo=$(( $second_find_lineNo - 1 ))
-                                second_find_lineNo=$(( $first_find_lineNo + $second_find_lineNo ))
-                                sed "${second_find_lineNo}d" -i $target_script
-                           fi
+                            allSameNumLines=$(dirname ${BASH_SOURCE[0]})/.duplicate_$changeNumber
+                            grep -n "^[[:space:]]kpick[[:space:]]\{1,\}$changeNumber\([[:space:]]\{1,\}\|$\)" $target_script | cut -d: -f1 | head -n 1 > $duplicateLines
+                            local isFirst=true
+                            while read offno; do
+                                if $isFirst; then
+                                    isFirst=false
+                                    continue
+                                fi
+                                sed "${offno}d" -i $target_script
+                            done < $allSameNumLines
+                            rm -f $allSameNumLines
                         else
-                            sed "/^[[:space:]]*kpick[[:space:]]*\(.*[[:space:]]\{1,\}\|\)${changeNumber}/d" -i $target_script
+                            sed "/^[[:space:]]*kpick[[:space:]]\{1,\}${changeNumber}\([[:space:]]\{1,\}\|$\)/d" -i $target_script
                             project_lastpick=$(grep  "$project" $tmp_picks_info_file | cut -d" " -f2)
-                            sed "/^[[:space:]]*kpick[[:space:]]\{1,\}\(.*[[:space:]]\{1,\}\|\)${project_lastpick}/a\\kpick ${nops} \# ${subject}" -i $target_script
+                            sed "/^[[:space:]]*kpick[[:space:]]\{1,\}\([[:space:]]\{1,\}.*\|$\)${project_lastpick}/a\\kpick ${nops} \# ${subject}" -i $target_script
                             sed "s:${last_project} .*:${last_project} ${changeNumber}:g" -i $tmp_picks_info_file
                         fi
                     fi
                else
                     [ "$last_project" = "" ] && last_project=$project
                     [ "$last_changeNumber" = "" ] && last_changeNumber=$changeNumber
-                    sed -e "s/^\([[:space:]]*\)kpick[[:space:]]\{1,\}${changeNumber}[[:space:]]*.*/\1kpick ${nops} \# ${subject}/g" -i $target_script
-                    sed -e "s/^\([[:space:]]*\)kpick[[:space:]]\{1,\}\(.*[[:space:]]\{1,\}\|\)${changeNumber}[[:space:]]*.*/\1kpick ${nops} # ${subject}/g" -i $target_script
+                    sed -e "s/^\([[:space:]]*\)kpick[[:space:]]\{1,\}${changeNumber}\([[:space:]]\{1,\}\|$\)/\1kpick ${nops} \# ${subject}/g" -i $target_script
+                    sed -e "s/^\([[:space:]]*\)kpick[[:space:]]\{1,\}${changeNumber}\([[:space:]]\{1,\}.*\|$\)/\1kpick ${nops} # ${subject}/g" -i $target_script
                fi
            else
-               sed -e "s/^\([[:space:]]*\)kpick[[:space:]]\{1,\}\(.*[[:space:]]\{1,\}\|\)${changeNumber}[[:space:]]*.*/\1kpick ${nops} # ${subject}/g" -i $target_script
-               sed -e "s/^\([[:space:]]*\)kpick[[:space:]]\{1,\}\(.*[[:space:]]\{1,\}\|\)${changeNumber}[[:space:]]*.*/\1kpick ${nops} # ${subject}/g" -i $target_script
+               sed -e "s/^\([[:space:]]*\)kpick[[:space:]]\{1,\}${changeNumber}\([[:space:]]\{1,\}.*\|$\)/\1kpick ${nops} # ${subject}/g" -i $target_script
+               sed -e "s/^\([[:space:]]*\)kpick[[:space:]]\{1,\}${changeNumber}\([[:space:]]\{1,\}.*\|$\)/\1kpick ${nops} # ${subject}/g" -i $target_script
                last_changeNumber=$changeNumber
            fi
     fi
