@@ -1204,7 +1204,6 @@ if [ "${BASH_SOURCE[0]}" = "$runfrom" -a ! -f ${BASH_SOURCE[0]}.tmp -a $op_pick_
 
     #=========== pick changes ==========================
 
-    kpick 243435 # manifest: android-9.0.0_r31 -> android-9.0.0_r34
 
     #===================================================
 
@@ -1258,7 +1257,6 @@ kpick 241858 # msm8974-common: Build Samsung LiveDisplay service
 
 # bionic
 kpick 238738 # bionic: Prefer /sbin/sh if it exists
-kpick 243425 # [DNM] Squash of lineage-16.0-android-9.0.0_r34
 
 # bootable/recovery
 kpick 238951 # Revert "recovery: Fork a process for fuse when sideloading from SD card."
@@ -1311,7 +1309,6 @@ kpick 222742 # build: Use project pathmap for recovery
 kpick 222760 # Add LOCAL_AIDL_FLAGS
 kpick 239296 # build: Remove charger from recovery unless needed
 kpick 241427 # build: Allow build-image-kernel-modules to be called from shell
-kpick 243426 # [DNM] Squash of lineage-16.0-android-9.0.0_r34
 
 # build/soong
 kpick 222648 # Allow providing flex and bison binaries
@@ -1333,12 +1330,11 @@ kpick 228573 # sepolicy: Add libsdm-disp-vndapis and libsdmutils to SP-HALs
 kpick 228582 # sepolicy: qti_init_shell needs to read dir too
 kpick 240951 # qcom: label persist files with /(mnt/vendor)/persist instead of /mnt/vendor/persist
 kpick 242976 # sepolicy: Label persist partition for all SoCs
-kpick 243254 # sepolicy: Label persist.nfc.hci_network_reset_req
+kpick 243674 # common: Add missing CNE rules
+kpick 243673 # common: Add rules for NXP ESE service
 
 # device/qcom/sepolicy-legacy
-kpick 230230 # common: fix sensors denial
-kpick 239741 # common: permit libqdutils operation (linked by mediaserver) during WFD
-kpick 240028 # sepolicy: vendor_init: allow vendor_init to read firmware files
+kpick 243505 # sepolicy: Label persist partition for all SoCs
 
 # development
 kpick 240579 # idegen: Add functionality to set custom ipr file name
@@ -1347,7 +1343,8 @@ kpick 240579 # idegen: Add functionality to set custom ipr file name
 kpick 227260 # Update bt vendor callbacks array in vfs code
 kpick 227261 # Cast BT_VND_OP_ANT_USERIAL_{OPEN,CLOSE} to bt_vendor_opcode_t in vfs code
 
-# external/bash
+# external/chromium-webview
+kpick 243684 # Update arm/arm64 Chromium Webview to 72.0.3626.121
 
 # external/e2fsprogs
 kpick 225215 # e2fsprogs: Prepare for adding and using static libs
@@ -1381,16 +1378,11 @@ kpick 239379 # ntfs-3g: Add static libs for recovery
 # external/one-true-awk
 kpick 225231 # awk: Add libawk_main for recovery and fixup symbols
 
-# external/openssh
-
-# external/p7zip
-
 # external/perfetto
 kpick 223413 -f # perfetto_cmd: Resolve missing O_CREAT mode
 
-# external/proguard
-
-# external/rsync
+# external/skia
+kpick 243694 # Add rect-parameter to makeImageSnapshot and stop using chromium config options.
 
 # external/toybox
 kpick 225232 # toybox: Use toybox for dd and grep in recovery
@@ -1416,8 +1408,8 @@ kpick 238929 # libstagefright_wfd: libmediaplayer2: compilation fixes
 kpick 238931 # stagefright: Fix SurfaceMediaSource getting handle from wrong position issue
 kpick 238932 # stagefright: Fix buffer handle retrieval in signalBufferReturned
 kpick 239642 # libstagefright_wfd: video encoder does not actually release MediaBufferBase when done
-kpick 242705 # effects: Initialize volume at -96
-kpick 243427 # [DNM] Squash of lineage-16.0-android-9.0.0_r34
+kpick 241802 # Revert "effects: fix volume burst on pause/resume with AudioFX"
+kpick 243651 # Request to reset effect buffer in clearInputBuffer
 
 # frameworks/base
 kpick 224513 # SystemUI: Disable config_keyguardUserSwitcher on sw600dp
@@ -1447,19 +1439,22 @@ kpick 240766 # Proper supplementary service notification handling (1/5).
 kpick 241326 # SettingsLib: add action callbacks to CustomDialogPreferences
 kpick 241327 # VibratorService: Apply vibrator intensity setting.
 kpick 242737 # Skip one-shot sensors for WindowOrientationListener
-kpick 243428 # [DNM] Squash of lineage-16.0-android-9.0.0_r34
+kpick 243567 # touch response optimizations.
+kpick 243568 # Optimize AbsListView to reduce click operation latency
+kpick 243569 # List View: Obtain next list item in advance
 kpick 243567 # touch response optimizations.
 kpick 243568 # Optimize AbsListView to reduce click operation latency
 kpick 243569 # List View: Obtain next list item in advance
 kpick 243570 # Remove the property of touch optimization check.
 kpick 243572 # add VSYNC scheduled flag and avoid two doFrame calls in one period
+kpick 243647 # Exclude Emergency Dialer from recent app list.
+kpick 243693 # Improve performance of unclipped save layers.
 
 # frameworks/native
 kpick 224530 # Triple the available egl function pointers available to a process for certain Nvidia devices.
 kpick 231828 # Translate pointer motion events for OneHandOperation Display Shrink
 kpick 231980 # HWComposer: HWC2: allow SkipValidate to be force disabled
 kpick 237645 # sf: Add support for multiple displays
-kpick 243429 # [DNM] Squash of lineage-16.0-android-9.0.0_r34
 kpick 243571 # touch response optimizations
 
 # frameworks/opt/telephony
@@ -1477,7 +1472,6 @@ kpick 242994 # livedisplay: sysfs: Simplify setCalibration
 
 # hardware/nxp/nfc
 kpick 239927 # hardware: nxp: Restore pn547 support
-kpick 243430 # [DNM] Squash of lineage-16.0-android-9.0.0_r34
 
 # hardware/qcom/bt-caf
 kpick 240345 # qcom/bt: update bt_firmware path
@@ -1537,8 +1531,6 @@ kpick 229311 # Assume optional codecs are supported if were supported previously
 kpick 224752 # Use mCameraAgentNg for getting camera info when available
 
 # packages/apps/CellBroadcastReceiver
-kpick 242969 # Fix resource warnings.
-kpick 242970 # Fix a warning in generating id in android namespace.
 
 # packages/apps/Contacts
 
@@ -1549,20 +1541,16 @@ kpick 240770 # Proper supplementary service notification handling (5/5).
 kpick 242736 # Eleven: bump to api26
 
 # packages/apps/Email
-kpick 242677 # Email: Fix generating id in android namespace
 
 # packages/apps/LineageParts
 kpick 243513 # notificationlight: create and use notification channel
 
 # packages/apps/Messaging
-kpick 242678 # Messaging: Fix generating id in android namespace
 
 # packages/apps/Nfc
 kpick 243485 # NfcNci: make T3T/Nfc-F HCE optional
 
 # packages/apps/PackageInstaller
-kpick 242682 # PackageInstaller: Fix generating id in android namespace
-kpick 243431 # [DNM] Squash of lineage-16.0-android-9.0.0_r34
 
 # packages/apps/Settings
 kpick 235978 # Settings: Add switch for linked ring and media notification volumes
@@ -1578,7 +1566,6 @@ kpick 240083 # Settings: Add null checks for OemLockService
 kpick 241758 # Settings: Show root options when certain third party root is present
 
 # packages/apps/SetupWizard
-kpick 241767 # SUW: Don't make google suw use material_light
 
 # packages/apps/Snap
 kpick 242496 # Snap: Fix bad grammar "Long shot not support<ed>"
@@ -1602,17 +1589,15 @@ kpick 240769 # Proper supplementary service notification handling (4/5).
 kpick 242884 # Revert "Use proper summary for network select list preference on dsds/dsda/tsts"
 kpick 242885 # Fix an issue wrong network operator name is displayed on MSIM devices
 #kpick 242886 # Don't save network selection to prefs
-kpick 242971 # Fix resource warnings.
-kpick 242972 # Stop generating ids in android namespace.
 kpick 243437 # Fix EmergencyDialer UI when display size change
 kpick 243439 # Disable EmergencyDialer multi window mode
 kpick 243438 # Change UI styles to match dialer settings light M2 theme
+kpick 243706 # Allow to disable the new scan API for manual network search.
 
 # system/bt
 kpick 239040 # Increase maximum Bluetooth SBC codec bitrate for SBC HD
 kpick 229313 # Explicit SBC Dual Channel (SBC HD) support
 kpick 229314 # Allow using alternative (higher) SBC HD bitrates with a property
-kpick 243432 # [DNM] Squash of lineage-16.0-android-9.0.0_r34
 
 # system/core
 kpick 227110 -f # init: I hate safety net
@@ -1623,29 +1608,23 @@ kpick 234860 # init: add install_keyring for TWRP FBE decrypt
 kpick 237141 # core: update battery mod support for P
 kpick 240018 # Fix path for treble default prop
 kpick 241757 # adb: Allow adb root when certain third party root is present
-kpick 233433 # [DNM] Squash of lineage-16.0-android-9.0.0_r34
 
 # system/extras
-kpick 242968 # Remove -Wno-error from system/extras
 
 # system/extras/su
 kpick 232428 # su: strlcpy is always a friend
 kpick 232431 # su: Enable Clang Tidy
 kpick 232433 # su: Fix a clang tidy warning
 kpick 232438 # su: Initialize windows size
-kpick 243527 # su: Add back mistakenly removed code
-
-# system/libhidl
-# kpick 243573
 
 # system/netd
 kpick 232794 # NetD : Allow passing in interface names for vpn app restriction
 
 # system/sepolicy
+kpick 243819 # sepolicy: Label tee_data_file as core_data_file_type
 
 # system/tools/aidl
 kpick 223133 # AIDL: Add option to generate No-Op methods
-kpick 243434 # [DNM] Squash of lineage-16.0-android-9.0.0_r34
 
 # system/update_engine
 kpick 243259 # Move performance mode to top app
@@ -1666,7 +1645,6 @@ kpick 231291 # repopick: add hashtag support
 kpick 231981 # HWComposer: HWC2: allow SkipValidate to be force disabled
 kpick 234011 # lineage: Add media_codecs_ddp for AC3 audio
 # kpick 234859 # repopick: cmp() is not available in Python 3, define it manually **((picked at first))**
-kpick 237118 # extract_utils: introduce support for executing blob fixups
 kpick 239526 # extract_utils: add option to print dependency graph for elf files
 kpick 239527 # extract_utils: template: add support for the dependency graph function
 kpick 237209 # lineage: Set default ringtone for second SIM
@@ -1679,11 +1657,23 @@ kpick 241466 # kernel: Move full kernel build guard flag below all targets
 kpick 241783 # envsetup: Fix lineagegerrit push for zsh
 kpick 242432 # RIP libhealthd.lineage
 kpick 242433 # Make custom off-mode charging screen great again
+kpick 243809 # soong_config: Add flag for devices use metadata as FDE key
 
 # vendor/nxp/opensource/halimpl
+kpick 243680 # [SQUASH][DNM] Merge tag 'LA.UM.7.3.r1-06900-sdm845.0' into HEAD
+
+# vendor/nxp/opensource/hidlimpl
+kpick 243681 # NFC: Fix syntax errors in *.rc file
+
+# vendor/nxp/opensource/commonsys/external/libnfc-nci
+kpick 243677 # [SQUASH][DNM] Merge tag 'LA.UM.7.3.r1-06900-sdm845.0' into HEAD
+
+# vendor/nxp/opensource/commonsys/packages/apps/Nfc
+kpick 243679 # [SQUASH][DNM] Merge tag 'LA.UM.7.3.r1-06900-sdm845.0' into HEAD
 
 # vendor/qcom/opensource/cryptfs_hw
 kpick 243032 # cryptfs_hw: Cleanup should_use_keymaster
+kpick 243744 # cryptfs_hw: Support devices use metadata as key
 
 #-----------------------
 # translations
