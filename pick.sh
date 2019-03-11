@@ -1526,13 +1526,16 @@ kpick 242398 # Trust: Onboarding: Listen for locale changes
 kpick 229311 # Assume optional codecs are supported if were supported previously
 
 # packages/apps/Calendar
+kpick 244032 # Automatic translation import
 
 # packages/apps/Camera2
 kpick 224752 # Use mCameraAgentNg for getting camera info when available
 
 # packages/apps/CellBroadcastReceiver
+kpick 244033 # Automatic translation import
 
 # packages/apps/Contacts
+kpick 244005 # Automatic translation import
 
 # packages/apps/Dialer
 kpick 240770 # Proper supplementary service notification handling (5/5).
@@ -1541,16 +1544,19 @@ kpick 240770 # Proper supplementary service notification handling (5/5).
 kpick 242736 # Eleven: bump to api26
 
 # packages/apps/Email
+kpick 244009 # Automatic translation import
 
 # packages/apps/LineageParts
 kpick 243513 # notificationlight: create and use notification channel
 
 # packages/apps/Messaging
+kpick 244017 # Automatic translation import
 
 # packages/apps/Nfc
 kpick 243485 # NfcNci: make T3T/Nfc-F HCE optional
 
 # packages/apps/PackageInstaller
+kpick 244042 # Automatic translation import
 
 # packages/apps/Settings
 kpick 235978 # Settings: Add switch for linked ring and media notification volumes
@@ -1566,6 +1572,7 @@ kpick 240083 # Settings: Add null checks for OemLockService
 kpick 241758 # Settings: Show root options when certain third party root is present
 
 # packages/apps/SetupWizard
+kpick 244021 # Automatic translation import
 
 # packages/apps/Snap
 kpick 242496 # Snap: Fix bad grammar "Long shot not support<ed>"
@@ -1578,6 +1585,7 @@ kpick 243440 # Lint fix: Invalid vector path in horizontal_ellipsis
 kpick 239289 # Updater: put identical code to helper method
 
 # packages/providers/CalendarProvider
+kpick 244052 # Automatic translation import
 
 # packages/services/Telecomm
 kpick 233635 # Phone ringtone setting for Multi SIM device
@@ -1672,11 +1680,139 @@ kpick 243677 # [SQUASH][DNM] Merge tag 'LA.UM.7.3.r1-06900-sdm845.0' into HEAD
 kpick 243679 # [SQUASH][DNM] Merge tag 'LA.UM.7.3.r1-06900-sdm845.0' into HEAD
 
 # vendor/qcom/opensource/cryptfs_hw
-kpick 243032 # cryptfs_hw: Cleanup should_use_keymaster
 kpick 243744 # cryptfs_hw: Support devices use metadata as key
 
 #-----------------------
 # translations
+
+#kpick 243999-244064 -x
+kpick 244002
+# packages/apps/AudioFX
+kpick 244003 # Automatic translation import
+
+# packages/apps/DeskClock
+kpick 244006 # Automatic translation import
+
+# packages/apps/Exchange
+kpick 244010 # Automatic translation import
+
+# packages/apps/FMRadio
+kpick 244011 # Automatic translation import
+
+# packages/apps/FlipFlap
+kpick 244012 # Automatic translation import
+
+# packages/apps/Gallery2
+kpick 244013 # Automatic translation import
+
+# packages/apps/Jelly
+kpick 244014 # Automatic translation import
+
+# packages/apps/LockClock
+kpick 244016 # Automatic translation import
+
+# packages/apps/Profiles
+kpick 244018 # Automatic translation import
+
+# packages/apps/Recorder
+kpick 244019 # Automatic translation import
+
+# packages/apps/Terminal
+kpick 244023 # Automatic translation import
+
+# packages/apps/WallpaperPicker
+kpick 244026 # Automatic translation import
+
+# packages/inputmethods/LatinIME
+kpick 244027 # Automatic translation import
+
+# packages/providers/DownloadProvider
+kpick 244028 # Automatic translation import
+
+# packages/providers/WeatherProvider
+kpick 244029 # Automatic translation import
+
+# packages/services/Mms
+kpick 244030 # Automatic translation import
+
+# packages/apps/CertInstaller
+kpick 244034 # Automatic translation import
+
+# packages/apps/DocumentsUI
+kpick 244035 # Automatic translation import
+
+# packages/apps/EmergencyInfo
+kpick 244036 # Automatic translation import
+
+# packages/apps/ExactCalculator
+kpick 244037 # Automatic translation import
+
+# packages/apps/HTMLViewer
+kpick 244038 # Automatic translation import
+
+# packages/apps/KeyChain
+kpick 244039 # Automatic translation import
+
+# packages/apps/ManagedProvisioning
+kpick 244040 # Automatic translation import
+
+# packages/apps/PhoneCommon
+kpick 244043 # Automatic translation import
+
+# packages/apps/SafetyRegulatoryInfo
+kpick 244044 # Automatic translation import
+
+# packages/apps/Stk
+kpick 244045 # Automatic translation import
+
+# packages/apps/StorageManager
+kpick 244046 # Automatic translation import
+
+# packages/apps/Tag
+kpick 244047 # Automatic translation import
+
+# packages/apps/TvSettings
+kpick 244048 # Automatic translation import
+
+# packages/apps/UnifiedEmail
+kpick 244049 # Automatic translation import
+
+# packages/providers/BlockedNumberProvider
+kpick 244050 # Automatic translation import
+
+# packages/providers/BookmarkProvider
+kpick 244051 # Automatic translation import
+
+# packages/providers/CallLogProvider
+kpick 244053 # Automatic translation import
+
+# packages/providers/ContactsProvider
+kpick 244054 # Automatic translation import
+
+# packages/providers/MediaProvider
+kpick 244055 # Automatic translation import
+
+# packages/providers/TelephonyProvider
+kpick 244056 # Automatic translation import
+
+# packages/providers/TvProvider
+kpick 244057 # Automatic translation import
+
+# packages/providers/UserDictionaryProvider
+kpick 244058 # Automatic translation import
+
+# packages/screensavers/Basic
+kpick 244059 # Automatic translation import
+
+# packages/screensavers/PhotoTable
+kpick 244060 # Automatic translation import
+
+# packages/services/BuiltInPrintService
+kpick 244061 # Automatic translation import
+
+# packages/wallpapers/LivePicker
+kpick 244064 # Automatic translation import
+
 
 ######## topic ##########
 
