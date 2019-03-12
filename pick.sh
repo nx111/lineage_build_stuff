@@ -1308,7 +1308,6 @@ kpick 238993 # recovery: Add runtime checks for A/B vs traditional updates
 kpick 222742 # build: Use project pathmap for recovery
 kpick 222760 # Add LOCAL_AIDL_FLAGS
 kpick 239296 # build: Remove charger from recovery unless needed
-kpick 241427 # build: Allow build-image-kernel-modules to be called from shell
 
 # build/soong
 kpick 222648 # Allow providing flex and bison binaries
@@ -1344,7 +1343,6 @@ kpick 227260 # Update bt vendor callbacks array in vfs code
 kpick 227261 # Cast BT_VND_OP_ANT_USERIAL_{OPEN,CLOSE} to bt_vendor_opcode_t in vfs code
 
 # external/chromium-webview
-kpick 243684 # Update arm/arm64 Chromium Webview to 72.0.3626.121
 
 # external/e2fsprogs
 kpick 225215 # e2fsprogs: Prepare for adding and using static libs
@@ -1449,6 +1447,7 @@ kpick 243570 # Remove the property of touch optimization check.
 kpick 243572 # add VSYNC scheduled flag and avoid two doFrame calls in one period
 kpick 243647 # Exclude Emergency Dialer from recent app list.
 kpick 243693 # Improve performance of unclipped save layers.
+kpick 244133 # Add back ACCELEROMETER_ROTATION_ANGLES and update references
 
 # frameworks/native
 kpick 224530 # Triple the available egl function pointers available to a process for certain Nvidia devices.
@@ -1456,6 +1455,9 @@ kpick 231828 # Translate pointer motion events for OneHandOperation Display Shri
 kpick 231980 # HWComposer: HWC2: allow SkipValidate to be force disabled
 kpick 237645 # sf: Add support for multiple displays
 kpick 243571 # touch response optimizations
+
+# frameworks/opt/net/wifi
+kpick 244148 # resurrect mWifiLinkLayerStatsSupported counter
 
 # frameworks/opt/telephony
 kpick 240767 # Proper supplementary service notification handling (2/5).
@@ -1505,10 +1507,6 @@ kpick 231895 # VNDK: Added required libs
 kpick 231896 # power: Turn on/off display in SDM439
 kpick 231897 # power: qcom: powerHal for sdm439 and sdm429
 kpick 231898 # Power: Naming convention change
-kpick 241622 # power: don't use SCROLL_PREFILING
-kpick 242164 # power: Pass NULL parameter in powerHint if data is zero
-kpick 241818 # Revert "power: Remove interaction_with_handle"
-kpick 241814 # power: Release launch boost perflock when launch is completed
 
 # hardware/samsung
 kpick 231194 # power: properly initialize cluster states
@@ -1521,21 +1519,19 @@ kpick 239598 # hidl: livedisplay: Add binderized service implementation
 kpick 230272 # sdk: Remove VOLUME_KEYS_CONTROL_RING_STREAM
 kpick 241779 # sdk: Change night/day mode transition behavior
 kpick 242398 # Trust: Onboarding: Listen for locale changes
+kpick 244132 # Revert "lineage-sdk: Add ACCELEROMETER_ROTATION_ANGLES to system settings"
 
 # packages/apps/Bluetooth
 kpick 229311 # Assume optional codecs are supported if were supported previously
 
 # packages/apps/Calendar
-kpick 244032 # Automatic translation import
 
 # packages/apps/Camera2
 kpick 224752 # Use mCameraAgentNg for getting camera info when available
 
 # packages/apps/CellBroadcastReceiver
-kpick 244033 # Automatic translation import
 
 # packages/apps/Contacts
-kpick 244005 # Automatic translation import
 
 # packages/apps/Dialer
 kpick 240770 # Proper supplementary service notification handling (5/5).
@@ -1544,19 +1540,17 @@ kpick 240770 # Proper supplementary service notification handling (5/5).
 kpick 242736 # Eleven: bump to api26
 
 # packages/apps/Email
-kpick 244009 # Automatic translation import
 
 # packages/apps/LineageParts
 kpick 243513 # notificationlight: create and use notification channel
+kpick 244135 # Move the rotation setting to the "normal" SettingsProvider
 
 # packages/apps/Messaging
-kpick 244017 # Automatic translation import
 
 # packages/apps/Nfc
 kpick 243485 # NfcNci: make T3T/Nfc-F HCE optional
 
 # packages/apps/PackageInstaller
-kpick 244042 # Automatic translation import
 
 # packages/apps/Settings
 kpick 235978 # Settings: Add switch for linked ring and media notification volumes
@@ -1572,7 +1566,6 @@ kpick 240083 # Settings: Add null checks for OemLockService
 kpick 241758 # Settings: Show root options when certain third party root is present
 
 # packages/apps/SetupWizard
-kpick 244021 # Automatic translation import
 
 # packages/apps/Snap
 kpick 242496 # Snap: Fix bad grammar "Long shot not support<ed>"
@@ -1585,7 +1578,6 @@ kpick 243440 # Lint fix: Invalid vector path in horizontal_ellipsis
 kpick 239289 # Updater: put identical code to helper method
 
 # packages/providers/CalendarProvider
-kpick 244052 # Automatic translation import
 
 # packages/services/Telecomm
 kpick 233635 # Phone ringtone setting for Multi SIM device
@@ -1656,12 +1648,6 @@ kpick 234011 # lineage: Add media_codecs_ddp for AC3 audio
 kpick 239526 # extract_utils: add option to print dependency graph for elf files
 kpick 239527 # extract_utils: template: add support for the dependency graph function
 kpick 237209 # lineage: Set default ringtone for second SIM
-kpick 241422 # kernel: Add more threads to kernel build process
-kpick 241423 # kernel: Move kernel module dir cleanup/creation to module install target
-kpick 241424 # kernel: Detect kernel module usage better
-kpick 241425 # kernel: Use a macro for kernel build targets
-kpick 241426 # kernel: Use build-image-kernel-modules instead of copying it
-kpick 241466 # kernel: Move full kernel build guard flag below all targets
 kpick 241783 # envsetup: Fix lineagegerrit push for zsh
 kpick 242432 # RIP libhealthd.lineage
 kpick 242433 # Make custom off-mode charging screen great again
@@ -1684,134 +1670,6 @@ kpick 243744 # cryptfs_hw: Support devices use metadata as key
 
 #-----------------------
 # translations
-
-#kpick 243999-244064 -x
-kpick 244002
-# packages/apps/AudioFX
-kpick 244003 # Automatic translation import
-
-# packages/apps/DeskClock
-kpick 244006 # Automatic translation import
-
-# packages/apps/Exchange
-kpick 244010 # Automatic translation import
-
-# packages/apps/FMRadio
-kpick 244011 # Automatic translation import
-
-# packages/apps/FlipFlap
-kpick 244012 # Automatic translation import
-
-# packages/apps/Gallery2
-kpick 244013 # Automatic translation import
-
-# packages/apps/Jelly
-kpick 244014 # Automatic translation import
-
-# packages/apps/LockClock
-kpick 244016 # Automatic translation import
-
-# packages/apps/Profiles
-kpick 244018 # Automatic translation import
-
-# packages/apps/Recorder
-kpick 244019 # Automatic translation import
-
-# packages/apps/Terminal
-kpick 244023 # Automatic translation import
-
-# packages/apps/WallpaperPicker
-kpick 244026 # Automatic translation import
-
-# packages/inputmethods/LatinIME
-kpick 244027 # Automatic translation import
-
-# packages/providers/DownloadProvider
-kpick 244028 # Automatic translation import
-
-# packages/providers/WeatherProvider
-kpick 244029 # Automatic translation import
-
-# packages/services/Mms
-kpick 244030 # Automatic translation import
-
-# packages/apps/CertInstaller
-kpick 244034 # Automatic translation import
-
-# packages/apps/DocumentsUI
-kpick 244035 # Automatic translation import
-
-# packages/apps/EmergencyInfo
-kpick 244036 # Automatic translation import
-
-# packages/apps/ExactCalculator
-kpick 244037 # Automatic translation import
-
-# packages/apps/HTMLViewer
-kpick 244038 # Automatic translation import
-
-# packages/apps/KeyChain
-kpick 244039 # Automatic translation import
-
-# packages/apps/ManagedProvisioning
-kpick 244040 # Automatic translation import
-
-# packages/apps/PhoneCommon
-kpick 244043 # Automatic translation import
-
-# packages/apps/SafetyRegulatoryInfo
-kpick 244044 # Automatic translation import
-
-# packages/apps/Stk
-kpick 244045 # Automatic translation import
-
-# packages/apps/StorageManager
-kpick 244046 # Automatic translation import
-
-# packages/apps/Tag
-kpick 244047 # Automatic translation import
-
-# packages/apps/TvSettings
-kpick 244048 # Automatic translation import
-
-# packages/apps/UnifiedEmail
-kpick 244049 # Automatic translation import
-
-# packages/providers/BlockedNumberProvider
-kpick 244050 # Automatic translation import
-
-# packages/providers/BookmarkProvider
-kpick 244051 # Automatic translation import
-
-# packages/providers/CallLogProvider
-kpick 244053 # Automatic translation import
-
-# packages/providers/ContactsProvider
-kpick 244054 # Automatic translation import
-
-# packages/providers/MediaProvider
-kpick 244055 # Automatic translation import
-
-# packages/providers/TelephonyProvider
-kpick 244056 # Automatic translation import
-
-# packages/providers/TvProvider
-kpick 244057 # Automatic translation import
-
-# packages/providers/UserDictionaryProvider
-kpick 244058 # Automatic translation import
-
-# packages/screensavers/Basic
-kpick 244059 # Automatic translation import
-
-# packages/screensavers/PhotoTable
-kpick 244060 # Automatic translation import
-
-# packages/services/BuiltInPrintService
-kpick 244061 # Automatic translation import
-
-# packages/wallpapers/LivePicker
-kpick 244064 # Automatic translation import
 
 
 ######## topic ##########

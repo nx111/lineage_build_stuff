@@ -1,0 +1,70 @@
+From 71cf7c6831af9649a7a71d17570e11a282655239 Mon Sep 17 00:00:00 2001
+From: Erfan Abdi <erfangplus@gmail.com>
+Date: Fri, 8 Mar 2019 18:18:12 +0200
+Subject: [PATCH] cryptfs_hw: Support devices use metadata as key
+
+* This fixes FDE devices which uses metadata partition as encryption key.
+Errors:
+> Logcat:
+E Cryptfs_hw: Error::ioctl call to create encryption key for usage 1 failed with ret = -1, errno = 14
+> Dmesg:
+scm_call failed: func id 0x72000504, ret: -2, syscall returns: 0xfffffffffffffffc, 0x0, 0x0
+QSEECOM: __qseecom_set_clear_ce_key: scm call to set QSEOS_PIPE_ENC key failed : -22
+QSEECOM: qseecom_wipe_key: Failed to wipe key: pipe 2, ce 0: -14
+QSEECOM: qseecom_ioctl: failed to wipe encryption key: -14
+
+Test: Boot griffin with encrypted data
+Signed-off-by: Erfan Abdi <erfangplus@gmail.com>
+Change-Id: Id7a6474fe7fe46e0d4e4ebb3b24e1ba940971df4
+---
+ Android.bp   | 3 +++
+ cryptfs_hw.c | 4 ++++
+ 2 files changed, 7 insertions(+)
+
+diff --git a/Android.bp b/Android.bp
+index ea6cbb0..8bddd86 100644
+--- a/Android.bp
++++ b/Android.bp
+@@ -24,6 +24,9 @@ cc_library_shared {
+             supports_legacy_hw_fde: {
+                 cflags: ["-DLEGACY_HW_DISK_ENCRYPTION"],
+             },
++            uses_metadata_as_fde_key: {
++                cflags: ["-DUSE_METADATA_FOR_KEY"],
++            },
+         },
+     },
+ 
+diff --git a/cryptfs_hw.c b/cryptfs_hw.c
+index 2d7b600..d20deff 100644
+--- a/cryptfs_hw.c
++++ b/cryptfs_hw.c
+@@ -79,7 +79,9 @@ static int (*qseecom_wipe_key)(int);
+ 
+ #define CRYPTFS_HW_ALGO_MODE_AES_XTS 			0x3
+ 
++#ifndef USE_METADATA_FOR_KEY
+ #define METADATA_PARTITION_NAME "/dev/block/bootdevice/by-name/metadata"
++#endif
+ 
+ enum cryptfs_hw_key_management_usage_type {
+ 	CRYPTFS_HW_KM_USAGE_DISK_ENCRYPTION		= 0x01,
+@@ -436,6 +438,7 @@ int is_ice_enabled(void)
+   char prop_storage[PATH_MAX];
+   int storage_type = 0;
+ 
++#ifndef USE_METADATA_FOR_KEY
+   /*
+    * Since HW FDE is a compile time flag (due to QSSI requirements),
+    * this API conflicts with Metadata encryption even when ICE is
+@@ -447,6 +450,7 @@ int is_ice_enabled(void)
+     SLOGI("Metadata partition, returning false");
+     return 0;
+   }
++#endif
+ 
+   if (property_get("ro.boot.bootdevice", prop_storage, "")) {
+     if (strstr(prop_storage, "ufs")) {
+-- 
+2.17.1
+
