@@ -1576,8 +1576,7 @@ kpick 243440 # Lint fix: Invalid vector path in horizontal_ellipsis
 
 # packages/apps/Updater
 kpick 239289 # Updater: put identical code to helper method
-
-# packages/providers/CalendarProvider
+kpick 244176
 
 # packages/services/Telecomm
 kpick 233635 # Phone ringtone setting for Multi SIM device
@@ -1652,6 +1651,8 @@ kpick 241783 # envsetup: Fix lineagegerrit push for zsh
 kpick 242432 # RIP libhealthd.lineage
 kpick 242433 # Make custom off-mode charging screen great again
 kpick 243809 # soong_config: Add flag for devices use metadata as FDE key
+kpick 244172
+kpick 244173
 
 # vendor/nxp/opensource/halimpl
 kpick 243680 # [SQUASH][DNM] Merge tag 'LA.UM.7.3.r1-06900-sdm845.0' into HEAD
