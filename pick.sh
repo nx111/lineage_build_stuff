@@ -1522,6 +1522,7 @@ kpick 242398 # Trust: Onboarding: Listen for locale changes
 kpick 244132 # Revert "lineage-sdk: Add ACCELEROMETER_ROTATION_ANGLES to system settings"
 
 # packages/apps/Bluetooth
+kpick 229310 # SBC Dual Channel (SBC HD Audio) support
 kpick 229311 # Assume optional codecs are supported if were supported previously
 
 # packages/apps/Calendar
@@ -1548,7 +1549,6 @@ kpick 244135 # Move the rotation setting to the "normal" SettingsProvider
 # packages/apps/Messaging
 
 # packages/apps/Nfc
-kpick 243485 # NfcNci: make T3T/Nfc-F HCE optional
 
 # packages/apps/PackageInstaller
 
@@ -1576,7 +1576,7 @@ kpick 243440 # Lint fix: Invalid vector path in horizontal_ellipsis
 
 # packages/apps/Updater
 kpick 239289 # Updater: put identical code to helper method
-kpick 244176
+kpick 244176 # Updater: transfer releated to configuration code to onResume to prorerly init time format (12/24)
 
 # packages/services/Telecomm
 kpick 233635 # Phone ringtone setting for Multi SIM device
@@ -1651,20 +1651,16 @@ kpick 241783 # envsetup: Fix lineagegerrit push for zsh
 kpick 242432 # RIP libhealthd.lineage
 kpick 242433 # Make custom off-mode charging screen great again
 kpick 243809 # soong_config: Add flag for devices use metadata as FDE key
-kpick 244172
-kpick 244173
+kpick 244172 # overlay: Move managed profiles overlay to frameworks/base
+kpick 244173 # config: Remove duplicate keyguard.no_require_sim prop
 
 # vendor/nxp/opensource/halimpl
-kpick 243680 # [SQUASH][DNM] Merge tag 'LA.UM.7.3.r1-06900-sdm845.0' into HEAD
 
 # vendor/nxp/opensource/hidlimpl
-kpick 243681 # NFC: Fix syntax errors in *.rc file
 
 # vendor/nxp/opensource/commonsys/external/libnfc-nci
-kpick 243677 # [SQUASH][DNM] Merge tag 'LA.UM.7.3.r1-06900-sdm845.0' into HEAD
 
 # vendor/nxp/opensource/commonsys/packages/apps/Nfc
-kpick 243679 # [SQUASH][DNM] Merge tag 'LA.UM.7.3.r1-06900-sdm845.0' into HEAD
 
 # vendor/qcom/opensource/cryptfs_hw
 kpick 243744 # cryptfs_hw: Support devices use metadata as key
