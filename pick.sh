@@ -1330,7 +1330,6 @@ kpick 228582 # sepolicy: qti_init_shell needs to read dir too
 kpick 240951 # qcom: label persist files with /(mnt/vendor)/persist instead of /mnt/vendor/persist
 kpick 242976 # sepolicy: Label persist partition for all SoCs
 kpick 243674 # common: Add missing CNE rules
-kpick 243673 # common: Add rules for NXP ESE service
 
 # device/qcom/sepolicy-legacy
 kpick 243505 # sepolicy: Label persist partition for all SoCs
@@ -1461,13 +1460,10 @@ kpick 244148 # resurrect mWifiLinkLayerStatsSupported counter
 
 # frameworks/opt/telephony
 kpick 240767 # Proper supplementary service notification handling (2/5).
+kpick 244260 # Improve UiccSlot#promptForRestart dialog
 
 # hardware/broadcom/libbt
 kpick 225155 # Broadcom BT: Add support fm/bt via v4l2.
-
-# hardware/interfaces
-
-# hardware/lineage/interfaces
 
 # hardware/lineage/livedisplay
 kpick 242994 # livedisplay: sysfs: Simplify setCalibration
@@ -1483,8 +1479,6 @@ kpick 241715 # Add kernel header dep for ipanat
 
 # hardware/qcom/display
 kpick 223341 # display: Always assume kernel source is present
-
-# hardware/qcom/display-caf/msm8974
 
 # hardware/qcom/fm
 kpick 236546 # fm_helium: Update FM_HCI_DIR path
@@ -1525,14 +1519,8 @@ kpick 244132 # Revert "lineage-sdk: Add ACCELEROMETER_ROTATION_ANGLES to system 
 kpick 229310 # SBC Dual Channel (SBC HD Audio) support
 kpick 229311 # Assume optional codecs are supported if were supported previously
 
-# packages/apps/Calendar
-
 # packages/apps/Camera2
 kpick 224752 # Use mCameraAgentNg for getting camera info when available
-
-# packages/apps/CellBroadcastReceiver
-
-# packages/apps/Contacts
 
 # packages/apps/Dialer
 kpick 240770 # Proper supplementary service notification handling (5/5).
@@ -1540,17 +1528,12 @@ kpick 240770 # Proper supplementary service notification handling (5/5).
 # packages/apps/Eleven
 kpick 242736 # Eleven: bump to api26
 
-# packages/apps/Email
-
 # packages/apps/LineageParts
 kpick 243513 # notificationlight: create and use notification channel
 kpick 244135 # Move the rotation setting to the "normal" SettingsProvider
+kpick 244234 # StatusBarSettings: Hide NW traffic from search results if not available
 
 # packages/apps/Messaging
-
-# packages/apps/Nfc
-
-# packages/apps/PackageInstaller
 
 # packages/apps/Settings
 kpick 235978 # Settings: Add switch for linked ring and media notification volumes
@@ -1564,8 +1547,6 @@ kpick 237183 # settings: hide appendix of app list for power usage.
 kpick 240083 # Settings: Add null checks for OemLockService
 #kpick 241325 # Settings: add vibration intensity preference
 kpick 241758 # Settings: Show root options when certain third party root is present
-
-# packages/apps/SetupWizard
 
 # packages/apps/Snap
 kpick 242496 # Snap: Fix bad grammar "Long shot not support<ed>"
@@ -1607,8 +1588,7 @@ kpick 234860 # init: add install_keyring for TWRP FBE decrypt
 kpick 237141 # core: update battery mod support for P
 kpick 240018 # Fix path for treble default prop
 kpick 241757 # adb: Allow adb root when certain third party root is present
-
-# system/extras
+kpick 244257 # healthd: make periodic battery status a debug message
 
 # system/extras/su
 kpick 232428 # su: strlcpy is always a friend
@@ -1651,16 +1631,6 @@ kpick 241783 # envsetup: Fix lineagegerrit push for zsh
 kpick 242432 # RIP libhealthd.lineage
 kpick 242433 # Make custom off-mode charging screen great again
 kpick 243809 # soong_config: Add flag for devices use metadata as FDE key
-kpick 244172 # overlay: Move managed profiles overlay to frameworks/base
-kpick 244173 # config: Remove duplicate keyguard.no_require_sim prop
-
-# vendor/nxp/opensource/halimpl
-
-# vendor/nxp/opensource/hidlimpl
-
-# vendor/nxp/opensource/commonsys/external/libnfc-nci
-
-# vendor/nxp/opensource/commonsys/packages/apps/Nfc
 
 # vendor/qcom/opensource/cryptfs_hw
 kpick 243744 # cryptfs_hw: Support devices use metadata as key
