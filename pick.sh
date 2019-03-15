@@ -1249,7 +1249,6 @@ kpick 238521 # msm8974-common: Build vendor.lineage.touch HAL from hardware/sams
 kpick 241858 # msm8974-common: Build Samsung LiveDisplay service
 
 # kernel/samsung/msm8974
-# kpick 240451 # fuse: fix possibly missed wake-up after abort
 
 # ====== OTHERS =======
 
@@ -1378,9 +1377,6 @@ kpick 225231 # awk: Add libawk_main for recovery and fixup symbols
 # external/perfetto
 kpick 223413 -f # perfetto_cmd: Resolve missing O_CREAT mode
 
-# external/skia
-kpick 243694 # Add rect-parameter to makeImageSnapshot and stop using chromium config options.
-
 # external/toybox
 kpick 225232 # toybox: Use toybox for dd and grep in recovery
 kpick 225233 # toybox: Add install to symlinks
@@ -1445,8 +1441,11 @@ kpick 243569 # List View: Obtain next list item in advance
 kpick 243570 # Remove the property of touch optimization check.
 kpick 243572 # add VSYNC scheduled flag and avoid two doFrame calls in one period
 kpick 243647 # Exclude Emergency Dialer from recent app list.
-kpick 243693 # Improve performance of unclipped save layers.
 kpick 244133 # Add back ACCELEROMETER_ROTATION_ANGLES and update references
+kpick 234715 # Rotation related corrections
+kpick 244295 # base: Redo expanded volume panel for 9.x
+kpick 244299 # Add bluetooth icon.
+kpick 244301 # Clean up screenshot if nothing selected
 
 # frameworks/native
 kpick 224530 # Triple the available egl function pointers available to a process for certain Nvidia devices.
@@ -1545,7 +1544,6 @@ kpick 231826 # Update the white list of Data saver
 kpick 232793 # Settings: per-app VPN data restriction
 kpick 237183 # settings: hide appendix of app list for power usage.
 kpick 240083 # Settings: Add null checks for OemLockService
-#kpick 241325 # Settings: add vibration intensity preference
 kpick 241758 # Settings: Show root options when certain third party root is present
 
 # packages/apps/Snap
