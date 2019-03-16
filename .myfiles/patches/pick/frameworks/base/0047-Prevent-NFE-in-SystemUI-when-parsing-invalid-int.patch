@@ -1,0 +1,183 @@
+From 92365ed85adb0e28dfd01a90f407bcfebcc7a5af Mon Sep 17 00:00:00 2001
+From: Luca Stefani <luca.stefani.ge1@gmail.com>
+Date: Fri, 15 Mar 2019 22:14:56 +0100
+Subject: [PATCH 47/48] Prevent NFE in SystemUI when parsing invalid int
+
+* Also for custom lineage keys
+
+Change-Id: Ie0d63e2c3af2c613bb8c9bdf6ff97637e754b7ae
+---
+ .../android/systemui/statusbar/VisualizerView.java   |  2 +-
+ .../systemui/statusbar/phone/ClockController.java    |  5 ++++-
+ .../statusbar/phone/NavigationBarGestureHelper.java  |  2 +-
+ .../statusbar/phone/NavigationBarInflaterView.java   |  2 +-
+ .../systemui/statusbar/phone/NavigationBarView.java  |  2 +-
+ .../statusbar/phone/NotificationPanelView.java       |  7 +++++--
+ .../android/systemui/statusbar/phone/StatusBar.java  | 12 +++++++-----
+ .../statusbar/phone/StatusBarWindowView.java         |  5 ++---
+ .../com/android/systemui/statusbar/policy/Clock.java |  5 ++++-
+ .../com/android/systemui/tuner/ClockPreference.java  |  2 +-
+ 10 files changed, 27 insertions(+), 17 deletions(-)
+
+diff --git a/packages/SystemUI/src/com/android/systemui/statusbar/VisualizerView.java b/packages/SystemUI/src/com/android/systemui/statusbar/VisualizerView.java
+index 79532e3937c..6198d53f6b1 100644
+--- a/packages/SystemUI/src/com/android/systemui/statusbar/VisualizerView.java
++++ b/packages/SystemUI/src/com/android/systemui/statusbar/VisualizerView.java
+@@ -199,7 +199,7 @@ public class VisualizerView extends View
+     @Override
+     public void onTuningChanged(String key, String newValue) {
+         if (LOCKSCREEN_VISUALIZER_ENABLED.equals(key)) {
+-            mVisualizerEnabled = newValue == null || Integer.parseInt(newValue) != 0;
++            mVisualizerEnabled = TunerService.parseIntegerSwitch(newValue, true);
+             checkStateChanged();
+             updateViewVisibility();
+         }
+diff --git a/packages/SystemUI/src/com/android/systemui/statusbar/phone/ClockController.java b/packages/SystemUI/src/com/android/systemui/statusbar/phone/ClockController.java
+index 53616007376..563fad840cd 100644
+--- a/packages/SystemUI/src/com/android/systemui/statusbar/phone/ClockController.java
++++ b/packages/SystemUI/src/com/android/systemui/statusbar/phone/ClockController.java
+@@ -81,7 +81,10 @@ public class ClockController implements TunerService.Tunable {
+         Log.d(TAG, "onTuningChanged key=" + key + " value=" + newValue);
+ 
+         if (CLOCK_POSITION.equals(key)) {
+-            mClockPosition = newValue == null ? CLOCK_POSITION_LEFT : Integer.valueOf(newValue);
++            mClockPosition = CLOCK_POSITION_LEFT;
++            try {
++                mClockPosition = Integer.valueOf(newValue);
++            } catch (NumberFormatException ex) {}
+         } else {
+             mBlackListed = StatusBarIconController.getIconBlacklist(newValue).contains("clock");
+         }
+diff --git a/packages/SystemUI/src/com/android/systemui/statusbar/phone/NavigationBarGestureHelper.java b/packages/SystemUI/src/com/android/systemui/statusbar/phone/NavigationBarGestureHelper.java
+index 18e8775de21..0ccd5be3fc3 100644
+--- a/packages/SystemUI/src/com/android/systemui/statusbar/phone/NavigationBarGestureHelper.java
++++ b/packages/SystemUI/src/com/android/systemui/statusbar/phone/NavigationBarGestureHelper.java
+@@ -293,7 +293,7 @@ public class NavigationBarGestureHelper implements TunerService.Tunable, Gesture
+     public void onTuningChanged(String key, String newValue) {
+         switch (key) {
+             case KEY_DOCK_WINDOW_GESTURE:
+-                mDockWindowEnabled = newValue != null && (Integer.parseInt(newValue) != 0);
++                mDockWindowEnabled = TunerService.parseIntegerSwitch(newValue, false);
+                 break;
+         }
+     }
+diff --git a/packages/SystemUI/src/com/android/systemui/statusbar/phone/NavigationBarInflaterView.java b/packages/SystemUI/src/com/android/systemui/statusbar/phone/NavigationBarInflaterView.java
+index 24b729141cf..84707ed6552 100644
+--- a/packages/SystemUI/src/com/android/systemui/statusbar/phone/NavigationBarInflaterView.java
++++ b/packages/SystemUI/src/com/android/systemui/statusbar/phone/NavigationBarInflaterView.java
+@@ -181,7 +181,7 @@ public class NavigationBarInflaterView extends FrameLayout
+             clearViews();
+             inflateLayout(mCurrentLayout);
+         } else if (NAV_BAR_INVERSE.equals(key)) {
+-            mInverseLayout = newValue != null && Integer.parseInt(newValue) != 0;
++            mInverseLayout = TunerService.parseIntegerSwitch(newValue, false);
+             clearViews();
+             inflateLayout(mCurrentLayout);
+         }
+diff --git a/packages/SystemUI/src/com/android/systemui/statusbar/phone/NavigationBarView.java b/packages/SystemUI/src/com/android/systemui/statusbar/phone/NavigationBarView.java
+index b9c7cd97f8b..41eb9ef4020 100644
+--- a/packages/SystemUI/src/com/android/systemui/statusbar/phone/NavigationBarView.java
++++ b/packages/SystemUI/src/com/android/systemui/statusbar/phone/NavigationBarView.java
+@@ -1176,7 +1176,7 @@ public class NavigationBarView extends FrameLayout implements PluginListener<Nav
+     @Override
+     public void onTuningChanged(String key, String newValue) {
+         if (NAVIGATION_BAR_MENU_ARROW_KEYS.equals(key)) {
+-            mShowDpadArrowKeys = newValue != null && Integer.parseInt(newValue) != 0;
++            mShowDpadArrowKeys = TunerService.parseIntegerSwitch(newValue, false);
+             setNavigationIconHints(mNavigationIconHints);
+         }
+     }
+diff --git a/packages/SystemUI/src/com/android/systemui/statusbar/phone/NotificationPanelView.java b/packages/SystemUI/src/com/android/systemui/statusbar/phone/NotificationPanelView.java
+index f68e5dc43bc..ce4ebb2fa05 100644
+--- a/packages/SystemUI/src/com/android/systemui/statusbar/phone/NotificationPanelView.java
++++ b/packages/SystemUI/src/com/android/systemui/statusbar/phone/NotificationPanelView.java
+@@ -375,9 +375,12 @@ public class NotificationPanelView extends PanelView implements
+     @Override
+     public void onTuningChanged(String key, String newValue) {
+         if (STATUS_BAR_QUICK_QS_PULLDOWN.equals(key)) {
+-            mOneFingerQuickSettingsIntercept = newValue == null ? 1 : Integer.parseInt(newValue);
++            mOneFingerQuickSettingsIntercept = 1;
++            try {
++                mOneFingerQuickSettingsIntercept = Integer.parseInt(newValue);
++            } catch (NumberFormatException ex) {}
+         } else if (DOUBLE_TAP_SLEEP_GESTURE.equals(key)) {
+-            mDoubleTapToSleepEnabled = newValue == null || Integer.parseInt(newValue) == 1;
++            mDoubleTapToSleepEnabled = TunerService.parseIntegerSwitch(newValue, true);
+         }
+     }
+ 
+diff --git a/packages/SystemUI/src/com/android/systemui/statusbar/phone/StatusBar.java b/packages/SystemUI/src/com/android/systemui/statusbar/phone/StatusBar.java
+index e30e2bae1c4..7966bc06535 100644
+--- a/packages/SystemUI/src/com/android/systemui/statusbar/phone/StatusBar.java
++++ b/packages/SystemUI/src/com/android/systemui/statusbar/phone/StatusBar.java
+@@ -5902,14 +5902,16 @@ public class StatusBar extends SystemUI implements DemoMode, TunerService.Tunabl
+     @Override
+     public void onTuningChanged(String key, String newValue) {
+         if (SCREEN_BRIGHTNESS_MODE.equals(key)) {
+-            mAutomaticBrightness = newValue != null && Integer.parseInt(newValue)
+-                    == Settings.System.SCREEN_BRIGHTNESS_MODE_AUTOMATIC;
++            try {
++                mAutomaticBrightness = newValue != null && Integer.parseInt(newValue)
++                        == Settings.System.SCREEN_BRIGHTNESS_MODE_AUTOMATIC;
++            } catch (NumberFormatException ex) {}
+         } else if (STATUS_BAR_BRIGHTNESS_CONTROL.equals(key)) {
+-            mBrightnessControl = newValue != null && Integer.parseInt(newValue) == 1;
++            mBrightnessControl = TunerService.parseIntegerSwitch(newValue, false);
+         } else if (LOCKSCREEN_MEDIA_METADATA.equals(key)) {
+-            mShowMediaMetadata = newValue == null || Integer.parseInt(newValue) != 0;
++            mShowMediaMetadata = TunerService.parseIntegerSwitch(newValue, true);
+         } else if (mWindowManagerService != null && FORCE_SHOW_NAVBAR.equals(key)) {
+-            boolean forcedVisibility = newValue != null && Integer.parseInt(newValue) == 1;
++            boolean forcedVisibility = TunerService.parseIntegerSwitch(newValue, false);
+ 
+             if (forcedVisibility && mNavigationBarView == null) {
+                 createNavigationBar();
+diff --git a/packages/SystemUI/src/com/android/systemui/statusbar/phone/StatusBarWindowView.java b/packages/SystemUI/src/com/android/systemui/statusbar/phone/StatusBarWindowView.java
+index e78420df061..b8f3ab17c47 100644
+--- a/packages/SystemUI/src/com/android/systemui/statusbar/phone/StatusBarWindowView.java
++++ b/packages/SystemUI/src/com/android/systemui/statusbar/phone/StatusBarWindowView.java
+@@ -273,10 +273,9 @@ public class StatusBarWindowView extends FrameLayout implements TunerService.Tun
+ 
+     @Override
+     public void onTuningChanged(String key, String newValue) {
+-        if (!DOUBLE_TAP_SLEEP_GESTURE.equals(key)) {
+-            return;
++        if (DOUBLE_TAP_SLEEP_GESTURE.equals(key)) {
++            mDoubleTapToSleepEnabled = TunerService.parseIntegerSwitch(newValue, true);
+         }
+-        mDoubleTapToSleepEnabled = newValue == null || Integer.parseInt(newValue) == 1;
+     }
+ 
+     @Override
+diff --git a/packages/SystemUI/src/com/android/systemui/statusbar/policy/Clock.java b/packages/SystemUI/src/com/android/systemui/statusbar/policy/Clock.java
+index 0b2e01e0ced..49cd427fed1 100644
+--- a/packages/SystemUI/src/com/android/systemui/statusbar/policy/Clock.java
++++ b/packages/SystemUI/src/com/android/systemui/statusbar/policy/Clock.java
+@@ -277,7 +277,10 @@ public class Clock extends TextView implements DemoMode, Tunable, CommandQueue.C
+             mShowSeconds = TunerService.parseIntegerSwitch(newValue, false);
+             updateShowSeconds();
+         } else if (CLOCK_STYLE.equals(key)) {
+-            mAmPmStyle = newValue == null ? AM_PM_STYLE_GONE : Integer.valueOf(newValue);
++            mAmPmStyle = AM_PM_STYLE_GONE;
++            try {
++                mAmPmStyle = Integer.valueOf(newValue);
++            } catch (NumberFormatException ex) {}
+             mClockFormatString = ""; // force refresh
+             updateClock();
+         }
+diff --git a/packages/SystemUI/src/com/android/systemui/tuner/ClockPreference.java b/packages/SystemUI/src/com/android/systemui/tuner/ClockPreference.java
+index 014ec927939..bfae2b78d15 100644
+--- a/packages/SystemUI/src/com/android/systemui/tuner/ClockPreference.java
++++ b/packages/SystemUI/src/com/android/systemui/tuner/ClockPreference.java
+@@ -64,7 +64,7 @@ public class ClockPreference extends DropDownPreference implements TunerService.
+             mClockEnabled = !mBlacklist.contains(mClock);
+         } else if (Clock.CLOCK_SECONDS.equals(key)) {
+             mReceivedSeconds = true;
+-            mHasSeconds = newValue != null && Integer.parseInt(newValue) != 0;
++            mHasSeconds = TunerService.parseIntegerSwitch(newValue, false);
+         }
+         if (!mHasSetValue && mReceivedClock && mReceivedSeconds) {
+             // Because of the complicated tri-state it can end up looping and setting state back to
+-- 
+2.17.1
+

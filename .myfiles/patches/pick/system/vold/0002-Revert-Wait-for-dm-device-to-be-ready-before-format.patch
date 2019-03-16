@@ -1,0 +1,129 @@
+From ea8820741d5f24446cb949b409414cfff583030a Mon Sep 17 00:00:00 2001
+From: Stefan Assmann <sassmann@kpanic.de>
+Date: Fri, 15 Mar 2019 20:40:51 +0100
+Subject: [PATCH 2/2] Revert "Wait for dm device to be ready before format"
+
+This reverts commit c5e3a52edbe0d8c4a0e13ad6ef7b0cecd54b04f4.
+
+This patch breaks default encryption. If no password is set and a device
+gets encrypted it boots one time after the encryption is successful. But
+when rebooting the system the next time it gets stuck at the encryption
+password dialog.
+
+Trace from logcat.
+01-12 00:25:47.179   355   417 I Cryptfs : cryptfs_check_passwd
+01-12 00:25:47.180   355   417 D Cryptfs : crypt_ftr->fs_size = 24463264
+01-12 00:25:47.180   355   417 I Cryptfs : Using scrypt for cryptfs KDF
+01-12 00:25:47.614   355   417 I Cryptfs : Extra parameters for dm_crypt: 1 allow_discards
+01-12 00:25:47.618   355   366 D vold    : Disk at 253:0 changed
+01-12 00:25:48.627   355   417 W vold    : wait for '/dev/block/dm-0' timed out and took 1008ms
+01-12 00:25:48.627   355   417 E Cryptfs : Error creating decrypted block device
+01-12 00:25:48.627   355   417 E Cryptfs : Password did not match
+01-12 00:25:48.627   355   417 E Cryptfs : Encrypted, default crypt type but can't decrypt
+
+Note: keep chrono include in Utils.h to not break the build.
+
+Change-Id: If5428ceef3e36bb5953fa017f4ed006ff5eeec58
+---
+ Utils.cpp   | 19 -------------------
+ Utils.h     |  2 --
+ cryptfs.cpp |  9 ---------
+ 3 files changed, 30 deletions(-)
+
+diff --git a/Utils.cpp b/Utils.cpp
+index 97df3f3..4a14250 100644
+--- a/Utils.cpp
++++ b/Utils.cpp
+@@ -19,7 +19,6 @@
+ #include "Process.h"
+ #include "sehandle.h"
+ 
+-#include <android-base/chrono_utils.h>
+ #include <android-base/file.h>
+ #include <android-base/logging.h>
+ #include <android-base/properties.h>
+@@ -42,13 +41,10 @@
+ #include <sys/statvfs.h>
+ #include <thread>
+ 
+-#include <thread>
+-
+ #ifndef UMOUNT_NOFOLLOW
+ #define UMOUNT_NOFOLLOW    0x00000008  /* Don't follow symlink on umount */
+ #endif
+ 
+-using namespace std::chrono_literals;
+ using android::base::ReadFileToString;
+ using android::base::StringPrintf;
+ 
+@@ -759,20 +755,5 @@ bool IsRunningInEmulator() {
+     return android::base::GetBoolProperty("ro.kernel.qemu", false);
+ }
+ 
+-// TODO(118708649): fix duplication with init/util.h
+-status_t WaitForFile(const char* filename, std::chrono::nanoseconds timeout) {
+-    android::base::Timer t;
+-    while (t.duration() < timeout) {
+-        struct stat sb;
+-        if (stat(filename, &sb) != -1) {
+-            LOG(INFO) << "wait for '" << filename << "' took " << t;
+-            return 0;
+-        }
+-        std::this_thread::sleep_for(10ms);
+-    }
+-    LOG(WARNING) << "wait for '" << filename << "' timed out and took " << t;
+-    return -1;
+-}
+-
+ }  // namespace vold
+ }  // namespace android
+diff --git a/Utils.h b/Utils.h
+index 97291a7..949f05b 100644
+--- a/Utils.h
++++ b/Utils.h
+@@ -129,8 +129,6 @@ bool WaitForFile(const std::string& filename,
+ /* Checks if Android is running in QEMU */
+ bool IsRunningInEmulator();
+ 
+-status_t WaitForFile(const char* filename, std::chrono::nanoseconds timeout);
+-
+ }  // namespace vold
+ }  // namespace android
+ 
+diff --git a/cryptfs.cpp b/cryptfs.cpp
+index 350898f..c14c1ad 100644
+--- a/cryptfs.cpp
++++ b/cryptfs.cpp
+@@ -54,7 +54,6 @@
+ #include "hardware_legacy/power.h"
+ #include <logwrap/logwrap.h>
+ #include "ScryptParameters.h"
+-#include "Utils.h"
+ #include "VolumeManager.h"
+ #include "VoldUtil.h"
+ #include "Ext4Crypt.h"
+@@ -71,8 +70,6 @@ extern "C" {
+ #include <crypto_scrypt.h>
+ }
+ 
+-using namespace std::chrono_literals;
+-
+ #define UNUSED __attribute__((unused))
+ 
+ #define DM_CRYPT_BUF_SIZE 4096
+@@ -1358,12 +1355,6 @@ static int create_crypto_blk_dev(struct crypt_mnt_ftr* crypt_ftr, const unsigned
+         goto errout;
+     }
+ 
+-    /* Ensure the dm device has been created before returning. */
+-    if (android::vold::WaitForFile(crypto_blk_name, 1s) < 0) {
+-        // WaitForFile generates a suitable log message
+-        goto errout;
+-    }
+-
+     /* We made it here with no errors.  Woot! */
+     retval = 0;
+ 
+-- 
+2.17.1
+

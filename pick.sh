@@ -1329,6 +1329,8 @@ kpick 228582 # sepolicy: qti_init_shell needs to read dir too
 kpick 240951 # qcom: label persist files with /(mnt/vendor)/persist instead of /mnt/vendor/persist
 kpick 242976 # sepolicy: Label persist partition for all SoCs
 kpick 243674 # common: Add missing CNE rules
+kpick 244365 # Revert "sepolicy: Allow perf HAL to set freq props"
+kpick 244366 # sepolicy: Allow perf HAL to set mpctl props
 
 # device/qcom/sepolicy-legacy
 kpick 243505 # sepolicy: Label persist partition for all SoCs
@@ -1446,6 +1448,10 @@ kpick 234715 # Rotation related corrections
 kpick 244295 # base: Redo expanded volume panel for 9.x
 kpick 244299 # Add bluetooth icon.
 kpick 244301 # Clean up screenshot if nothing selected
+kpick 244315 # Prevent NFE in SystemUI when parsing invalid int
+kpick 244316 # revent NFE in SystemUI when parsing invalid int (2)
+kpick 244317 # Prevent NFE in SystemUI when parsing invalid int
+kpick 244318 # KeyguardHostView: Auto face unlock v2
 
 # frameworks/native
 kpick 224530 # Triple the available egl function pointers available to a process for certain Nvidia devices.
@@ -1545,6 +1551,7 @@ kpick 232793 # Settings: per-app VPN data restriction
 kpick 237183 # settings: hide appendix of app list for power usage.
 kpick 240083 # Settings: Add null checks for OemLockService
 kpick 241758 # Settings: Show root options when certain third party root is present
+kpick 244319 # Add toggle for face auto unlock (2/2)
 
 # packages/apps/Snap
 kpick 242496 # Snap: Fix bad grammar "Long shot not support<ed>"
@@ -1608,6 +1615,7 @@ kpick 243259 # Move performance mode to top app
 
 # system/vold
 kpick 231717 # vold: Always use libbootloader_message from bootable/recovery namespace
+kpick 244312 # Revert "Wait for dm device to be ready before format"
 
 # vendor/lineage
 kpick 225921 # overlay: Update list of GSF/GMS activities
