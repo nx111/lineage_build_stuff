@@ -1329,7 +1329,6 @@ kpick 228582 # sepolicy: qti_init_shell needs to read dir too
 kpick 240951 # qcom: label persist files with /(mnt/vendor)/persist instead of /mnt/vendor/persist
 kpick 242976 # sepolicy: Label persist partition for all SoCs
 kpick 243674 # common: Add missing CNE rules
-kpick 244365 # Revert "sepolicy: Allow perf HAL to set freq props"
 kpick 244366 # sepolicy: Allow perf HAL to set mpctl props
 
 # device/qcom/sepolicy-legacy
@@ -1452,6 +1451,7 @@ kpick 244315 # Prevent NFE in SystemUI when parsing invalid int
 kpick 244316 # revent NFE in SystemUI when parsing invalid int (2)
 kpick 244317 # Prevent NFE in SystemUI when parsing invalid int
 kpick 244318 # KeyguardHostView: Auto face unlock v2
+kpick 244383 # IMMS should preserve selected IME upon boot
 
 # frameworks/native
 kpick 224530 # Triple the available egl function pointers available to a process for certain Nvidia devices.
@@ -1523,6 +1523,7 @@ kpick 244132 # Revert "lineage-sdk: Add ACCELEROMETER_ROTATION_ANGLES to system 
 # packages/apps/Bluetooth
 kpick 229310 # SBC Dual Channel (SBC HD Audio) support
 kpick 229311 # Assume optional codecs are supported if were supported previously
+kpick 244300 # Update Bluetooth to use adaptive icon.
 
 # packages/apps/Camera2
 kpick 224752 # Use mCameraAgentNg for getting camera info when available
@@ -1573,7 +1574,7 @@ kpick 243436 # Change UI to be consistency with dialer settings light M2 theme
 kpick 240769 # Proper supplementary service notification handling (4/5).
 kpick 242884 # Revert "Use proper summary for network select list preference on dsds/dsda/tsts"
 kpick 242885 # Fix an issue wrong network operator name is displayed on MSIM devices
-#kpick 242886 # Don't save network selection to prefs
+kpick 243436 # Change UI to be consistency with dialer settings light M2 theme
 kpick 243437 # Fix EmergencyDialer UI when display size change
 kpick 243439 # Disable EmergencyDialer multi window mode
 kpick 243438 # Change UI styles to match dialer settings light M2 theme
@@ -1637,6 +1638,7 @@ kpick 241783 # envsetup: Fix lineagegerrit push for zsh
 kpick 242432 # RIP libhealthd.lineage
 kpick 242433 # Make custom off-mode charging screen great again
 kpick 243809 # soong_config: Add flag for devices use metadata as FDE key
+kpick 244389 # lineage: overlay-tv: Remove TV Setup Complete flag
 
 # vendor/qcom/opensource/cryptfs_hw
 kpick 243744 # cryptfs_hw: Support devices use metadata as key

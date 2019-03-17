@@ -1,0 +1,70 @@
+From a6989210cf149925a153e2adb136002bb50e9972 Mon Sep 17 00:00:00 2001
+From: Yohei Yukawa <yukawa@google.com>
+Date: Thu, 30 Aug 2018 13:41:32 -0700
+Subject: [PATCH 41/49] IMMS should preserve selected IME upon boot
+
+This is another follow up CL to my refactoring CL [1], which
+unintentionally changed the condition to reset default
+enabled/selected IMEs when the device boots up.
+
+My previous attempt [2] actually fixed the unexpected reset of
+the enabled IMEs (Bug 67093433), but did not fix the unexpected reset
+of the selected IME (Bug 113159114).
+
+The culprit was IMMS#resetDefaultImeLocked(), which always resets the
+selected IME when it gets called in a too early boot phase where
+mCurMethodId is still null.  Actually it turns out that we do not need
+to call IMMS#resetDefaultImeLocked() from IMMS#systemRunning() at all,
+because
+
+    buildInputMethodListLocked(!imeSelectedOnBoot /* resetDefaultEnabledIme */)
+
+one line above already takes care of such a case.
+
+Note that this issue is observable only on direct-boot aware devices
+because of the same reason explained in my previous CL [2].
+
+ [1]: I5b37c450db4b25b3e635b6d634293a34eec8b9d4
+      7924782c000733b2d7a180701b74988f0154adee
+ [2]: Id624d577d941245cca944498dc6935eb364865cf
+      1f9a3cbe39a91bd5579e42a0c7a9ae251d955e8e
+
+Fix: 113159114
+Test: Manually verified as follows
+  1. Check out AOSP master
+  2. Build an OS image for a direct-boot aware device then flash it.
+  3. Open
+       development/samples/SoftKeyboard/AndroidManifest.xml
+     then add
+       android:directBootAware="true"
+     to the IME service.
+  4. tapas SoftKeyboard
+  5. make -j
+  6. adb install -r $OUT/system/app/SoftKeyboard/SoftKeyboard.apk
+  7. adb shell ime enable com.example.android.softkeyboard/.SoftKeyboard
+  8. adb shell ime set com.example.android.softkeyboard/.SoftKeyboard
+  9. adb shell locksettings set-password aaaa
+ 10. adb reboot
+ 11. Make sure that
+      * Sample Soft keyboard is shown by default on the unlock screen.
+      * AOSP Keyboard is also enabled.
+Change-Id: Icb782c01c742a9359b5a6684c360f30c5cf9cdc9
+---
+ .../core/java/com/android/server/InputMethodManagerService.java  | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/services/core/java/com/android/server/InputMethodManagerService.java b/services/core/java/com/android/server/InputMethodManagerService.java
+index 8d8ece20739..412b314aefb 100644
+--- a/services/core/java/com/android/server/InputMethodManagerService.java
++++ b/services/core/java/com/android/server/InputMethodManagerService.java
+@@ -1577,7 +1577,6 @@ public class InputMethodManagerService extends IInputMethodManager.Stub
+                 final String defaultImiId = mSettings.getSelectedInputMethod();
+                 final boolean imeSelectedOnBoot = !TextUtils.isEmpty(defaultImiId);
+                 buildInputMethodListLocked(!imeSelectedOnBoot /* resetDefaultEnabledIme */);
+-                resetDefaultImeLocked(mContext);
+                 updateFromSettingsLocked(true);
+                 InputMethodUtils.setNonSelectedSystemImesDisabledUntilUsed(mIPackageManager,
+                         mSettings.getEnabledInputMethodListLocked(), currentUserId,
+-- 
+2.17.1
+
