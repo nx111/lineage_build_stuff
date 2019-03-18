@@ -1404,6 +1404,7 @@ kpick 238932 # stagefright: Fix buffer handle retrieval in signalBufferReturned
 kpick 239642 # libstagefright_wfd: video encoder does not actually release MediaBufferBase when done
 kpick 241802 # Revert "effects: fix volume burst on pause/resume with AudioFX"
 kpick 243651 # Request to reset effect buffer in clearInputBuffer
+kpick 244495 # audioflinger: Fix audio for WifiDisplay Similar to Change-Id: Ifa46d8e77a43027645cad02a04263b58e134c3ad
 
 # frameworks/base
 kpick 224513 # SystemUI: Disable config_keyguardUserSwitcher on sw600dp
@@ -1452,6 +1453,7 @@ kpick 244316 # revent NFE in SystemUI when parsing invalid int (2)
 kpick 244317 # Prevent NFE in SystemUI when parsing invalid int
 kpick 244318 # KeyguardHostView: Auto face unlock v2
 kpick 244383 # IMMS should preserve selected IME upon boot
+#kpick 244440 # SystemUI: Add AlwaysOnDisplay tile
 
 # frameworks/native
 kpick 224530 # Triple the available egl function pointers available to a process for certain Nvidia devices.
@@ -1616,7 +1618,7 @@ kpick 243259 # Move performance mode to top app
 
 # system/vold
 kpick 231717 # vold: Always use libbootloader_message from bootable/recovery namespace
-kpick 244312 # Revert "Wait for dm device to be ready before format"
+kpick 244472 # increase timeout for waiting on block device
 
 # vendor/lineage
 kpick 225921 # overlay: Update list of GSF/GMS activities

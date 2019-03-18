@@ -1,0 +1,53 @@
+From a8cde63962973141e6057967e611cae27b6f77a0 Mon Sep 17 00:00:00 2001
+From: Stefan Assmann <sassmann@kpanic.de>
+Date: Mon, 18 Mar 2019 11:54:54 +0100
+Subject: [PATCH 2/2] increase timeout for waiting on block device
+
+The current timeout of 1s is too short and can cause boot to fail if the
+block device doesn't show up in time. Increase the timeout to 15s to be
+on the safe side.
+
+logcat from failed boot
+01-12 00:25:47.179   355   417 I Cryptfs : cryptfs_check_passwd
+01-12 00:25:47.180   355   417 D Cryptfs : crypt_ftr->fs_size = 24463264
+01-12 00:25:47.180   355   417 I Cryptfs : Using scrypt for cryptfs KDF
+01-12 00:25:47.614   355   417 I Cryptfs : Extra parameters for dm_crypt: 1 allow_discards
+01-12 00:25:47.618   355   366 D vold    : Disk at 253:0 changed
+01-12 00:25:48.627   355   417 W vold    : wait for '/dev/block/dm-0' timed out and took 1008ms
+01-12 00:25:48.627   355   417 E Cryptfs : Error creating decrypted block device
+01-12 00:25:48.627   355   417 E Cryptfs : Password did not match
+01-12 00:25:48.627   355   417 E Cryptfs : Encrypted, default crypt type but can't decrypt
+
+logcat from successful boot with increased timeout
+01-14 21:50:46.465   355   421 I Cryptfs : cryptfs_check_passwd
+01-14 21:50:46.466   355   421 D Cryptfs : crypt_ftr->fs_size = 24463264
+01-14 21:50:46.466   355   421 I Cryptfs : Using scrypt for cryptfs KDF
+01-14 21:50:46.891   355   421 I Cryptfs : Extra parameters for dm_crypt: 1 allow_discards
+01-14 21:50:46.898   355   363 D vold    : Disk at 253:0 changed
+01-14 21:50:49.907   355   421 I vold    : wait for '/dev/block/dm-0' took 4008ms
+01-14 21:50:50.669   355   421 I Cryptfs : Password matches
+
+Test: encrypt device with no password set and reboot after encryption
+      finished. System should come up without the error above.
+
+Change-Id: I3ab44fc708856277864c96d94402abbc8f254280
+---
+ cryptfs.cpp | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/cryptfs.cpp b/cryptfs.cpp
+index 350898f..e14b027 100644
+--- a/cryptfs.cpp
++++ b/cryptfs.cpp
+@@ -1359,7 +1359,7 @@ static int create_crypto_blk_dev(struct crypt_mnt_ftr* crypt_ftr, const unsigned
+     }
+ 
+     /* Ensure the dm device has been created before returning. */
+-    if (android::vold::WaitForFile(crypto_blk_name, 1s) < 0) {
++    if (android::vold::WaitForFile(crypto_blk_name, 15s) < 0) {
+         // WaitForFile generates a suitable log message
+         goto errout;
+     }
+-- 
+2.17.1
+

@@ -1,0 +1,151 @@
+From ee3a89f06b3ce90858f278486b0eda72f9854bb6 Mon Sep 17 00:00:00 2001
+From: Henrik Baard <henrik.baard@sony.com>
+Date: Thu, 14 Mar 2019 12:23:04 +0100
+Subject: [PATCH 36/46] revent NFE in SystemUI when parsing invalid int (2)
+
+A user can change various tunable settings setting via adb.
+
+If the value set is not an integer, SystemUI will end up in an exception
+loop.
+
+Test: No crash when running:
+      adb exec-out settings put secure sysui_qs_move_whole_rows a
+      adb exec-out settings put secure qs_show_brightness a
+      adb exec-out settings put secure clock_seconds a
+      adb exec-out settings put secure sysui_volume_down_silent a
+      adb exec-out settings put secure sysui_volume_up_silent a
+      adb exec-out settings put secure sysui_do_not_disturb a
+Change-Id: If9c565cbdd44db25ba7fce381c98aa0ab735bfc4
+---
+ .../com/android/systemui/qs/QSAnimator.java   |  4 +--
+ .../src/com/android/systemui/qs/QSPanel.java  |  2 +-
+ .../systemui/statusbar/policy/Clock.java      |  2 +-
+ .../android/systemui/tuner/TunerService.java  |  8 +++++
+ .../android/systemui/tuner/TunerSwitch.java   |  2 +-
+ .../volume/VolumeDialogComponent.java         | 31 ++++++++-----------
+ 6 files changed, 26 insertions(+), 23 deletions(-)
+
+diff --git a/packages/SystemUI/src/com/android/systemui/qs/QSAnimator.java b/packages/SystemUI/src/com/android/systemui/qs/QSAnimator.java
+index 2a4bb607673..7148351cef0 100644
+--- a/packages/SystemUI/src/com/android/systemui/qs/QSAnimator.java
++++ b/packages/SystemUI/src/com/android/systemui/qs/QSAnimator.java
+@@ -127,12 +127,12 @@ public class QSAnimator implements Callback, PageListener, Listener, OnLayoutCha
+     @Override
+     public void onTuningChanged(String key, String newValue) {
+         if (ALLOW_FANCY_ANIMATION.equals(key)) {
+-            mAllowFancy = newValue == null || Integer.parseInt(newValue) != 0;
++            mAllowFancy = TunerService.parseIntegerSwitch(newValue, true);
+             if (!mAllowFancy) {
+                 clearAnimationState();
+             }
+         } else if (MOVE_FULL_ROWS.equals(key)) {
+-            mFullRows = newValue == null || Integer.parseInt(newValue) != 0;
++            mFullRows = TunerService.parseIntegerSwitch(newValue, true);
+         } else if (QuickQSPanel.NUM_QUICK_TILES.equals(key)) {
+             mNumQuickTiles = mQuickQsPanel.getNumQuickTiles(mQs.getContext());
+             clearAnimationState();
+diff --git a/packages/SystemUI/src/com/android/systemui/qs/QSPanel.java b/packages/SystemUI/src/com/android/systemui/qs/QSPanel.java
+index d851299c7f8..0d5976c3794 100644
+--- a/packages/SystemUI/src/com/android/systemui/qs/QSPanel.java
++++ b/packages/SystemUI/src/com/android/systemui/qs/QSPanel.java
+@@ -207,7 +207,7 @@ public class QSPanel extends LinearLayout implements Tunable, Callback, Brightne
+     }
+ 
+     private void updateViewVisibilityForTuningValue(View view, @Nullable String newValue) {
+-        view.setVisibility(newValue == null || Integer.parseInt(newValue) != 0 ? VISIBLE : GONE);
++        view.setVisibility(TunerService.parseIntegerSwitch(newValue, true) ? VISIBLE : GONE);
+     }
+ 
+     public void openDetails(String subPanel) {
+diff --git a/packages/SystemUI/src/com/android/systemui/statusbar/policy/Clock.java b/packages/SystemUI/src/com/android/systemui/statusbar/policy/Clock.java
+index 3fd646e8fcf..0b2e01e0ced 100644
+--- a/packages/SystemUI/src/com/android/systemui/statusbar/policy/Clock.java
++++ b/packages/SystemUI/src/com/android/systemui/statusbar/policy/Clock.java
+@@ -274,7 +274,7 @@ public class Clock extends TextView implements DemoMode, Tunable, CommandQueue.C
+     @Override
+     public void onTuningChanged(String key, String newValue) {
+         if (CLOCK_SECONDS.equals(key)) {
+-            mShowSeconds = newValue != null && Integer.parseInt(newValue) != 0;
++            mShowSeconds = TunerService.parseIntegerSwitch(newValue, false);
+             updateShowSeconds();
+         } else if (CLOCK_STYLE.equals(key)) {
+             mAmPmStyle = newValue == null ? AM_PM_STYLE_GONE : Integer.valueOf(newValue);
+diff --git a/packages/SystemUI/src/com/android/systemui/tuner/TunerService.java b/packages/SystemUI/src/com/android/systemui/tuner/TunerService.java
+index 3a9d1c7caeb..35ade2cb583 100644
+--- a/packages/SystemUI/src/com/android/systemui/tuner/TunerService.java
++++ b/packages/SystemUI/src/com/android/systemui/tuner/TunerService.java
+@@ -109,4 +109,12 @@ public abstract class TunerService {
+         });
+         dialog.show();
+     }
++
++    public static boolean parseIntegerSwitch(String value, boolean defaultValue) {
++        try {
++            return value != null ? Integer.parseInt(value) != 0 : defaultValue;
++        } catch (NumberFormatException e) {
++            return defaultValue;
++        }
++    }
+ }
+diff --git a/packages/SystemUI/src/com/android/systemui/tuner/TunerSwitch.java b/packages/SystemUI/src/com/android/systemui/tuner/TunerSwitch.java
+index d5b6ccdeb32..d9a1b8a7430 100644
+--- a/packages/SystemUI/src/com/android/systemui/tuner/TunerSwitch.java
++++ b/packages/SystemUI/src/com/android/systemui/tuner/TunerSwitch.java
+@@ -38,7 +38,7 @@ public class TunerSwitch extends SwitchPreference implements Tunable {
+ 
+     @Override
+     public void onTuningChanged(String key, String newValue) {
+-        setChecked(newValue != null ? Integer.parseInt(newValue) != 0 : mDefault);
++        setChecked(TunerService.parseIntegerSwitch(newValue, mDefault));
+     }
+ 
+     @Override
+diff --git a/packages/SystemUI/src/com/android/systemui/volume/VolumeDialogComponent.java b/packages/SystemUI/src/com/android/systemui/volume/VolumeDialogComponent.java
+index dd552646955..d089b2ff5c5 100644
+--- a/packages/SystemUI/src/com/android/systemui/volume/VolumeDialogComponent.java
++++ b/packages/SystemUI/src/com/android/systemui/volume/VolumeDialogComponent.java
+@@ -108,28 +108,23 @@ public class VolumeDialogComponent implements VolumeComponent, TunerService.Tuna
+ 
+     @Override
+     public void onTuningChanged(String key, String newValue) {
++        boolean volumeDownToEnterSilent = mVolumePolicy.volumeDownToEnterSilent;
++        boolean volumeUpToExitSilent = mVolumePolicy.volumeUpToExitSilent;
++        boolean doNotDisturbWhenSilent = mVolumePolicy.doNotDisturbWhenSilent;
++
+         if (VOLUME_DOWN_SILENT.equals(key)) {
+-            final boolean volumeDownToEnterSilent = newValue != null
+-                    ? Integer.parseInt(newValue) != 0
+-                    : DEFAULT_VOLUME_DOWN_TO_ENTER_SILENT;
+-            setVolumePolicy(volumeDownToEnterSilent,
+-                    mVolumePolicy.volumeUpToExitSilent, mVolumePolicy.doNotDisturbWhenSilent,
+-                    mVolumePolicy.vibrateToSilentDebounce);
++            volumeDownToEnterSilent =
++                TunerService.parseIntegerSwitch(newValue, DEFAULT_VOLUME_DOWN_TO_ENTER_SILENT);
+         } else if (VOLUME_UP_SILENT.equals(key)) {
+-            final boolean volumeUpToExitSilent = newValue != null
+-                    ? Integer.parseInt(newValue) != 0
+-                    : DEFAULT_VOLUME_UP_TO_EXIT_SILENT;
+-            setVolumePolicy(mVolumePolicy.volumeDownToEnterSilent,
+-                    volumeUpToExitSilent, mVolumePolicy.doNotDisturbWhenSilent,
+-                    mVolumePolicy.vibrateToSilentDebounce);
++            volumeUpToExitSilent =
++                TunerService.parseIntegerSwitch(newValue, DEFAULT_VOLUME_UP_TO_EXIT_SILENT);
+         } else if (VOLUME_SILENT_DO_NOT_DISTURB.equals(key)) {
+-            final boolean doNotDisturbWhenSilent = newValue != null
+-                    ? Integer.parseInt(newValue) != 0
+-                    : DEFAULT_DO_NOT_DISTURB_WHEN_SILENT;
+-            setVolumePolicy(mVolumePolicy.volumeDownToEnterSilent,
+-                    mVolumePolicy.volumeUpToExitSilent, doNotDisturbWhenSilent,
+-                    mVolumePolicy.vibrateToSilentDebounce);
++            doNotDisturbWhenSilent =
++                TunerService.parseIntegerSwitch(newValue, DEFAULT_DO_NOT_DISTURB_WHEN_SILENT);
+         }
++
++        setVolumePolicy(volumeDownToEnterSilent, volumeUpToExitSilent, doNotDisturbWhenSilent,
++                mVolumePolicy.vibrateToSilentDebounce);
+     }
+ 
+     private void setVolumePolicy(boolean volumeDownToEnterSilent, boolean volumeUpToExitSilent,
+-- 
+2.17.1
+
