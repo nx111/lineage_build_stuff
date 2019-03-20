@@ -1402,9 +1402,7 @@ kpick 238929 # libstagefright_wfd: libmediaplayer2: compilation fixes
 kpick 238931 # stagefright: Fix SurfaceMediaSource getting handle from wrong position issue
 kpick 238932 # stagefright: Fix buffer handle retrieval in signalBufferReturned
 kpick 239642 # libstagefright_wfd: video encoder does not actually release MediaBufferBase when done
-kpick 241802 # Revert "effects: fix volume burst on pause/resume with AudioFX"
-kpick 243651 # Request to reset effect buffer in clearInputBuffer
-kpick 244495 # audioflinger: Fix audio for WifiDisplay Similar to Change-Id: Ifa46d8e77a43027645cad02a04263b58e134c3ad
+kpick 244495 # audioflinger: Fix audio for WifiDisplay
 
 # frameworks/base
 kpick 224513 # SystemUI: Disable config_keyguardUserSwitcher on sw600dp
@@ -1446,14 +1444,12 @@ kpick 243647 # Exclude Emergency Dialer from recent app list.
 kpick 244133 # Add back ACCELEROMETER_ROTATION_ANGLES and update references
 kpick 234715 # Rotation related corrections
 kpick 244295 # base: Redo expanded volume panel for 9.x
-kpick 244299 # Add bluetooth icon.
-kpick 244301 # Clean up screenshot if nothing selected
 kpick 244315 # Prevent NFE in SystemUI when parsing invalid int
 kpick 244316 # revent NFE in SystemUI when parsing invalid int (2)
 kpick 244317 # Prevent NFE in SystemUI when parsing invalid int
 kpick 244318 # KeyguardHostView: Auto face unlock v2
-kpick 244383 # IMMS should preserve selected IME upon boot
-#kpick 244440 # SystemUI: Add AlwaysOnDisplay tile
+kpick 244499 # SystemUI: Fix FORCE_SHOW_NAVBAR handling on user switch
+kpick 244518 # NotificationManagerService: do not use flashing API for staying always on
 
 # frameworks/native
 kpick 224530 # Triple the available egl function pointers available to a process for certain Nvidia devices.
@@ -1521,11 +1517,11 @@ kpick 230272 # sdk: Remove VOLUME_KEYS_CONTROL_RING_STREAM
 kpick 241779 # sdk: Change night/day mode transition behavior
 kpick 242398 # Trust: Onboarding: Listen for locale changes
 kpick 244132 # Revert "lineage-sdk: Add ACCELEROMETER_ROTATION_ANGLES to system settings"
+kpick 244516 # sdk: notification: allow forcing notification color for preview
 
 # packages/apps/Bluetooth
 kpick 229310 # SBC Dual Channel (SBC HD Audio) support
 kpick 229311 # Assume optional codecs are supported if were supported previously
-kpick 244300 # Update Bluetooth to use adaptive icon.
 
 # packages/apps/Camera2
 kpick 224752 # Use mCameraAgentNg for getting camera info when available
@@ -1535,11 +1531,34 @@ kpick 240770 # Proper supplementary service notification handling (5/5).
 
 # packages/apps/Eleven
 kpick 242736 # Eleven: bump to api26
+#kpick 244528-244646 -x
+kpick 244528 # Eleven: remove junit dependency
+kpick 244529 # Eleven: remove guava dependency
+kpick 244530 # Localization: do not use private ICU APIs
+kpick 244531 # Remove some more private API usages
+kpick 244532 # Popups: use AlertDialog instead of private APIs
+kpick 244533 # Get rid of icu4j dependency
+kpick 244534 # Eleven: add initial gradle support
+kpick 244535 # Add BuildConfig to allow using gradle compile time fields
+kpick 244536 # AndroidManifest: add Foreground Service permission
+kpick 244537 # Correct some lint warnings
+kpick 244538 # Remove hardcoded package name references
+kpick 244539 # VisualizerView: pull in updates from system implementation
+kpick 244540 # DiskLruCache: update from upstream
+kpick 244541 # ImageCache: add missing close call and cleanup
+kpick 244542 # MusicUtils: handle exceptions and clean up
+kpick 244543 # PlaylistArtworkStore: use try-with-resources and cleanup
+kpick 244544 # Playlists: sort ignoring case
+kpick 244545 # no_results: also tint image drawable
+kpick 244546 # MusicPlaybackService: catch IllegalStateException for duration and position
+#kpick 244547
 
 # packages/apps/LineageParts
-kpick 243513 # notificationlight: create and use notification channel
+kpick 243513 # LightSettingsDialog: create and use notification channel
 kpick 244135 # Move the rotation setting to the "normal" SettingsProvider
 kpick 244234 # StatusBarSettings: Hide NW traffic from search results if not available
+kpick 244511 # LightSettingsDialog: remove unused OnColorChangedListener
+kpick 244512 # LightSettingsDialog: add bundle extras for preview color and duration
 
 # packages/apps/Messaging
 
@@ -1594,7 +1613,6 @@ kpick 234584 # adb: Rework adb root
 kpick 234860 # init: add install_keyring for TWRP FBE decrypt
 #kpick 237140 # healthd: add Battery Moto Mod Support
 kpick 237141 # core: update battery mod support for P
-kpick 240018 # Fix path for treble default prop
 kpick 241757 # adb: Allow adb root when certain third party root is present
 kpick 244257 # healthd: make periodic battery status a debug message
 
@@ -1614,7 +1632,6 @@ kpick 243819 # sepolicy: Label tee_data_file as core_data_file_type
 kpick 223133 # AIDL: Add option to generate No-Op methods
 
 # system/update_engine
-kpick 243259 # Move performance mode to top app
 
 # system/vold
 kpick 231717 # vold: Always use libbootloader_message from bootable/recovery namespace

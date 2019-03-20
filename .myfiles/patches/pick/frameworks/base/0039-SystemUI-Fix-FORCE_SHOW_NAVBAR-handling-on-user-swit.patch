@@ -1,0 +1,77 @@
+From cfeacaa3d6e493350c22d458ac64636044af6430 Mon Sep 17 00:00:00 2001
+From: LuK1337 <priv.luk@gmail.com>
+Date: Tue, 19 Mar 2019 16:13:16 +0100
+Subject: [PATCH 39/48] SystemUI: Fix FORCE_SHOW_NAVBAR handling on user switch
+
+* This addresses the issue where navbar gets destroyed
+  after user switch on devices where navigation bar
+  should be always visible.
+* https://gitlab.com/LineageOS/issues/android/issues/307
+
+Change-Id: If5d350ab4393826039f9c9e598735163fc1d4509
+---
+ .../systemui/statusbar/phone/StatusBar.java   | 33 ++++++++++++++-----
+ 1 file changed, 24 insertions(+), 9 deletions(-)
+
+diff --git a/packages/SystemUI/src/com/android/systemui/statusbar/phone/StatusBar.java b/packages/SystemUI/src/com/android/systemui/statusbar/phone/StatusBar.java
+index 7966bc06535..3f2a9053dd5 100644
+--- a/packages/SystemUI/src/com/android/systemui/statusbar/phone/StatusBar.java
++++ b/packages/SystemUI/src/com/android/systemui/statusbar/phone/StatusBar.java
+@@ -677,6 +677,7 @@ public class StatusBar extends SystemUI implements DemoMode, TunerService.Tunabl
+ 
+     private NavigationBarFragment mNavigationBar;
+     private View mNavigationBarView;
++    private boolean mNeedsNavigationBar;
+     protected ActivityLaunchAnimator mActivityLaunchAnimator;
+     private HeadsUpAppearanceController mHeadsUpAppearanceController;
+     private boolean mVibrateOnOpening;
+@@ -733,6 +734,16 @@ public class StatusBar extends SystemUI implements DemoMode, TunerService.Tunabl
+         mVibratorHelper = Dependency.get(VibratorHelper.class);
+         mScrimSrcModeEnabled = res.getBoolean(R.bool.config_status_bar_scrim_behind_use_src);
+         mClearAllEnabled = res.getBoolean(R.bool.config_enableNotificationsClearAll);
++        mNeedsNavigationBar = res.getBoolean(com.android.internal.R.bool.config_showNavigationBar);
++
++        // Allow a system property to override this. Used by the emulator.
++        // See also hasNavigationBar().
++        String navBarOverride = SystemProperties.get("qemu.hw.mainkeys");
++        if ("1".equals(navBarOverride)) {
++            mNeedsNavigationBar = false;
++        } else if ("0".equals(navBarOverride)) {
++            mNeedsNavigationBar = true;
++        }
+ 
+         DateTimeView.setReceiverHandler(Dependency.get(Dependency.TIME_TICK_HANDLER));
+         putComponent(StatusBar.class, this);
+@@ -5911,16 +5922,20 @@ public class StatusBar extends SystemUI implements DemoMode, TunerService.Tunabl
+         } else if (LOCKSCREEN_MEDIA_METADATA.equals(key)) {
+             mShowMediaMetadata = TunerService.parseIntegerSwitch(newValue, true);
+         } else if (mWindowManagerService != null && FORCE_SHOW_NAVBAR.equals(key)) {
+-            boolean forcedVisibility = TunerService.parseIntegerSwitch(newValue, false);
++            boolean forcedVisibility =  mNeedsNavigationBar || TunerService.parseIntegerSwitch(newValue, false);
+ 
+-            if (forcedVisibility && mNavigationBarView == null) {
+-                createNavigationBar();
+-            } else if (mNavigationBarView != null) {
+-                FragmentHostManager fm = FragmentHostManager.get(mNavigationBarView);
+-                mWindowManager.removeViewImmediate(mNavigationBarView);
+-                mNavigationBarView = null;
+-                fm.getFragmentManager().beginTransaction().remove(mNavigationBar).commit();
+-                mNavigationBar = null;
++            if (forcedVisibility) {
++                if (mNavigationBarView == null) {
++                    createNavigationBar();
++                }
++            } else {
++                if (mNavigationBarView != null) {
++                    FragmentHostManager fm = FragmentHostManager.get(mNavigationBarView);
++                    mWindowManager.removeViewImmediate(mNavigationBarView);
++                    mNavigationBarView = null;
++                    fm.getFragmentManager().beginTransaction().remove(mNavigationBar).commit();
++                    mNavigationBar = null;
++                }
+             }
+         } else if (BERRY_GLOBAL_STYLE.equals(key)) {
+             updateTheme();
+-- 
+2.17.1
+

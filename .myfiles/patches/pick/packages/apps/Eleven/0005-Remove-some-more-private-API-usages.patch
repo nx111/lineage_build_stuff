@@ -1,0 +1,126 @@
+From bd28449896a0477645f913e98489fa6e635a01a7 Mon Sep 17 00:00:00 2001
+From: Alexander Martinz <amartinz@shiftphones.com>
+Date: Wed, 30 Jan 2019 23:25:12 +0100
+Subject: [PATCH 05/20] Remove some more private API usages
+
+Change-Id: I4132779250fe955a7d0753167bb3921fa751c8aa
+Signed-off-by: Alexander Martinz <amartinz@shiftphones.com>
+---
+ src/org/lineageos/eleven/MusicPlaybackService.java |  2 +-
+ .../lineageos/eleven/cache/PlaylistWorkerTask.java |  1 -
+ .../slidinguppanel/SlidingUpPanelLayout.java       |  2 +-
+ .../eleven/ui/activities/SearchActivity.java       | 14 +++++++++-----
+ .../eleven/widgets/LoadingEmptyContainer.java      |  6 +++---
+ 5 files changed, 14 insertions(+), 11 deletions(-)
+
+diff --git a/src/org/lineageos/eleven/MusicPlaybackService.java b/src/org/lineageos/eleven/MusicPlaybackService.java
+index 9b8d77a..dd18897 100644
+--- a/src/org/lineageos/eleven/MusicPlaybackService.java
++++ b/src/org/lineageos/eleven/MusicPlaybackService.java
+@@ -14,7 +14,6 @@
+ package org.lineageos.eleven;
+ 
+ import android.Manifest.permission;
+-import android.annotation.NonNull;
+ import android.annotation.SuppressLint;
+ import android.app.AlarmManager;
+ import android.app.Notification;
+@@ -57,6 +56,7 @@ import android.os.SystemClock;
+ import android.provider.MediaStore;
+ import android.provider.MediaStore.Audio.AlbumColumns;
+ import android.provider.MediaStore.Audio.AudioColumns;
++import android.support.annotation.NonNull;
+ import android.support.v4.os.BuildCompat;
+ import android.text.TextUtils;
+ import android.util.Log;
+diff --git a/src/org/lineageos/eleven/cache/PlaylistWorkerTask.java b/src/org/lineageos/eleven/cache/PlaylistWorkerTask.java
+index 7abedb3..c4bf87e 100644
+--- a/src/org/lineageos/eleven/cache/PlaylistWorkerTask.java
++++ b/src/org/lineageos/eleven/cache/PlaylistWorkerTask.java
+@@ -345,7 +345,6 @@ public class PlaylistWorkerTask extends BitmapWorkerTask<Void, Void, TransitionD
+                 combinedCanvas.drawBitmap(loadedBitmaps.get(3), null,
+                         new Rect(width / 2, height / 2, width, height), null);
+ 
+-                combinedCanvas.release();
+                 combinedCanvas = null;
+                 bitmap = combinedBitmap;
+             }
+diff --git a/src/org/lineageos/eleven/slidinguppanel/SlidingUpPanelLayout.java b/src/org/lineageos/eleven/slidinguppanel/SlidingUpPanelLayout.java
+index ce23c2a..d2b48df 100644
+--- a/src/org/lineageos/eleven/slidinguppanel/SlidingUpPanelLayout.java
++++ b/src/org/lineageos/eleven/slidinguppanel/SlidingUpPanelLayout.java
+@@ -1043,7 +1043,7 @@ public class SlidingUpPanelLayout extends ViewGroup {
+     @Override
+     protected boolean drawChild(Canvas canvas, View child, long drawingTime) {
+         boolean result;
+-        final int save = canvas.save(Canvas.CLIP_SAVE_FLAG);
++        final int save = canvas.save();
+ 
+         if (isSlidingEnabled() && mMainView == child) {
+             // Clip against the slider; no sense drawing what will immediately be covered,
+diff --git a/src/org/lineageos/eleven/ui/activities/SearchActivity.java b/src/org/lineageos/eleven/ui/activities/SearchActivity.java
+index 94dd78f..f705a3b 100644
+--- a/src/org/lineageos/eleven/ui/activities/SearchActivity.java
++++ b/src/org/lineageos/eleven/ui/activities/SearchActivity.java
+@@ -89,6 +89,11 @@ public class SearchActivity extends FragmentActivity implements
+         LoaderCallbacks<SectionListContainer<SearchResult>>,
+         OnScrollListener, OnQueryTextListener, OnItemClickListener, ServiceConnection,
+         OnTouchListener {
++    /**
++     * Intent extra for identifying the search type to filter for
++     */
++    public static String EXTRA_SEARCH_MODE = "search_mode";
++
+     /**
+      * Loading delay of 500ms so we don't flash the screen too much when loading new searches
+      */
+@@ -308,7 +313,7 @@ public class SearchActivity extends FragmentActivity implements
+             mTopLevelSearch = false;
+ 
+             // get the search type to filter by
+-            int type = getIntent().getIntExtra(SearchManager.SEARCH_MODE, -1);
++            int type = getIntent().getIntExtra(SearchActivity.EXTRA_SEARCH_MODE, -1);
+             if (type >= 0 && type < ResultType.values().length) {
+                 mSearchType = ResultType.values()[type];
+             }
+@@ -554,9 +559,8 @@ public class SearchActivity extends FragmentActivity implements
+      */
+     public void setLoading() {
+         if (mCurrentState != VisibleState.Loading) {
+-            if (!mHandler.hasCallbacks(mLoadingRunnable)) {
+-                mHandler.postDelayed(mLoadingRunnable, LOADING_DELAY);
+-            }
++            mHandler.removeCallbacks(mLoadingRunnable);
++            mHandler.postDelayed(mLoadingRunnable, LOADING_DELAY);
+         }
+     }
+ 
+@@ -646,7 +650,7 @@ public class SearchActivity extends FragmentActivity implements
+             SearchResult item = mAdapter.getTItem(position - 1);
+             Intent intent = new Intent(this, SearchActivity.class);
+             intent.putExtra(SearchManager.QUERY, mFilterString);
+-            intent.putExtra(SearchManager.SEARCH_MODE, item.mType.ordinal());
++            intent.putExtra(SearchActivity.EXTRA_SEARCH_MODE, item.mType.ordinal());
+             startActivity(intent);
+         } else {
+             SearchResult item = mAdapter.getTItem(position);
+diff --git a/src/org/lineageos/eleven/widgets/LoadingEmptyContainer.java b/src/org/lineageos/eleven/widgets/LoadingEmptyContainer.java
+index 445887f..b1165b0 100644
+--- a/src/org/lineageos/eleven/widgets/LoadingEmptyContainer.java
++++ b/src/org/lineageos/eleven/widgets/LoadingEmptyContainer.java
+@@ -63,9 +63,9 @@ public class LoadingEmptyContainer extends FrameLayout {
+     public void showLoading() {
+         hideAll();
+ 
+-        if (!mHandler.hasCallbacks(mShowLoadingRunnable)) {
+-            mHandler.postDelayed(mShowLoadingRunnable, LOADING_DELAY);
+-        }
++        mHandler.removeCallbacks(mShowLoadingRunnable);
++
++        mHandler.postDelayed(mShowLoadingRunnable, LOADING_DELAY);
+     }
+ 
+     public void showNoResults() {
+-- 
+2.17.1
+
