@@ -1,0 +1,72 @@
+From 3b25910f7664e89c43b9ae405db5d94990565ff6 Mon Sep 17 00:00:00 2001
+From: Chia-I Wu <olv@google.com>
+Date: Tue, 28 Aug 2018 12:57:23 -0700
+Subject: [PATCH 13/20] surfaceflinger: clean up captureScreen
+
+dispScissor is never empty.  Remove the check and update the
+comments so that the intention is clear.
+
+It also becomes obvious that reqWidth/reqHeight is never zero when
+we reach "// get screen geometry".  All code following the comment
+is actually dead, which means we probably broke it since commit
+06a58e22.
+
+Bug: 113041375
+Test: take screenshot, rotate screen, screencap
+Change-Id: Ida1430383ce62271365d9ef64ad9b055638e1eac
+Merged-In: Ida1430383ce62271365d9ef64ad9b055638e1eac
+---
+ services/surfaceflinger/SurfaceFlinger.cpp | 34 ++++++----------------
+ 1 file changed, 9 insertions(+), 25 deletions(-)
+
+diff --git a/services/surfaceflinger/SurfaceFlinger.cpp b/services/surfaceflinger/SurfaceFlinger.cpp
+index 059e333d0..62b10c306 100644
+--- a/services/surfaceflinger/SurfaceFlinger.cpp
++++ b/services/surfaceflinger/SurfaceFlinger.cpp
+@@ -4887,34 +4887,18 @@ status_t SurfaceFlinger::captureScreen(const sp<IBinder>& display, sp<GraphicBuf
+         device = getDisplayDeviceLocked(display);
+         if (!device) return BAD_VALUE;
+ 
+-        const Rect& dispScissor = device->getScissor();
+-        if (!dispScissor.isEmpty()) {
+-            sourceCrop.set(dispScissor);
+-            // adb shell screencap will default reqWidth and reqHeight to zeros.
+-            if (reqWidth == 0 || reqHeight == 0) {
+-                reqWidth = uint32_t(device->getViewport().width());
+-                reqHeight = uint32_t(device->getViewport().height());
+-            }
+-        }
++        // set the source crop to the (projected) logical display viewport
++        // unconditionally until the framework is fixed
++        sourceCrop.set(device->getScissor());
+ 
+-        // get screen geometry
+-        uint32_t width = device->getWidth();
+-        uint32_t height = device->getHeight();
+-
+-        if (renderAreaRotation & Transform::ROT_90) {
+-            std::swap(width, height);
++        // set the requested width/height to the logical display viewport size
++        // by default
++        if (reqWidth == 0 || reqHeight == 0) {
++            reqWidth = uint32_t(device->getViewport().width());
++            reqHeight = uint32_t(device->getViewport().height());
+         }
+ 
+-        if (mPrimaryDisplayOrientation & DisplayState::eOrientationSwapMask) {
+-            std::swap(width, height);
+-        }
+-
+-        if (reqWidth == 0) {
+-            reqWidth = width;
+-        }
+-        if (reqHeight == 0) {
+-            reqHeight = height;
+-        }
++        // XXX mPrimaryDisplayOrientation is ignored
+     }
+ 
+     DisplayRenderArea renderArea(device, sourceCrop, reqWidth, reqHeight, renderAreaRotation);
+-- 
+2.17.1
+

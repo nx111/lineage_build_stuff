@@ -1322,6 +1322,8 @@ kpick 241667 # sepolicy: Move power hal service label to dynamic
 kpick 241676 # sepolicy: qcom: Rename common to vendor to avoid confusion
 kpick 241677 # sepolicy: Break livedisplay hal policy into impl independent ones
 kpick 241903 # sepolicy: Label all the livedisplay service implementations
+kpick 244586 # common: recovery: fix reboot
+kpick 244587 # common: recovery: allow reading and setting time
 
 # device/qcom/sepolicy
 kpick 228573 # sepolicy: Add libsdm-disp-vndapis and libsdmutils to SP-HALs
@@ -1448,7 +1450,6 @@ kpick 244315 # Prevent NFE in SystemUI when parsing invalid int
 kpick 244316 # revent NFE in SystemUI when parsing invalid int (2)
 kpick 244317 # Prevent NFE in SystemUI when parsing invalid int
 kpick 244318 # KeyguardHostView: Auto face unlock v2
-kpick 244499 # SystemUI: Fix FORCE_SHOW_NAVBAR handling on user switch
 kpick 244518 # NotificationManagerService: do not use flashing API for staying always on
 
 # frameworks/native
@@ -1457,6 +1458,22 @@ kpick 231828 # Translate pointer motion events for OneHandOperation Display Shri
 kpick 231980 # HWComposer: HWC2: allow SkipValidate to be force disabled
 kpick 237645 # sf: Add support for multiple displays
 kpick 243571 # touch response optimizations
+#kpick 244603-244617 -x
+kpick 244603 # Revert "APP may display abnormally in landscape LCM"
+kpick 244604 # Revert "Revert screenshot changes to exclude black cutout"
+kpick 244605 # surfaceflinger: documents RenderArea
+kpick 244606 # surfaceflinger: reorder width and height in RenderArea ctor
+kpick 244607 # surfaceflinger: remove ISurfaceComposer.h from RenderArea
+kpick 244608 # surfaceflinger: fix race conditions in captureScreen
+kpick 244609 # surfaceflinger: silence some RenderArea errors
+kpick 244610 # surfaceflinger: clean up captureScreen
+kpick 244611 # surfaceflinger: make mPrimaryDisplayOrientation static
+kpick 244612 # surfaceflinger: add install orientation to DisplayDevice
+kpick 244613 # surfaceflinger: respect install orientation in DisplayRenderArea
+kpick 244614 # surfaceflinger: improve RenderArea needsFiltering
+kpick 244615 # surfaceflinger: fix captureScreen for landscape LCM
+kpick 244616 # libgui: add docs to geometry states and captureScreen
+kpick 244617 # Respect source crop when capturing layers.
 
 # frameworks/opt/net/wifi
 kpick 244148 # resurrect mWifiLinkLayerStatsSupported counter
@@ -1580,7 +1597,6 @@ kpick 242496 # Snap: Fix bad grammar "Long shot not support<ed>"
 kpick 243071 # Snap: allow to disable image stabilization per device
 
 # packages/apps/Trebuchet
-kpick 243440 # Lint fix: Invalid vector path in horizontal_ellipsis
 
 # packages/apps/Updater
 kpick 239289 # Updater: put identical code to helper method
@@ -1593,8 +1609,6 @@ kpick 243436 # Change UI to be consistency with dialer settings light M2 theme
 
 # packages/services/Telephony
 kpick 240769 # Proper supplementary service notification handling (4/5).
-kpick 242884 # Revert "Use proper summary for network select list preference on dsds/dsda/tsts"
-kpick 242885 # Fix an issue wrong network operator name is displayed on MSIM devices
 kpick 243436 # Change UI to be consistency with dialer settings light M2 theme
 kpick 243437 # Fix EmergencyDialer UI when display size change
 kpick 243439 # Disable EmergencyDialer multi window mode

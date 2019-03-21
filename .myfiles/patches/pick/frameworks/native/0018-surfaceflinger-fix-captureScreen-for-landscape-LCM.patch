@@ -1,0 +1,95 @@
+From 72eb7a7fa7163f8883b031b01818cee877749908 Mon Sep 17 00:00:00 2001
+From: Chia-I Wu <olv@google.com>
+Date: Wed, 29 Aug 2018 09:25:59 -0700
+Subject: [PATCH 18/20] surfaceflinger: fix captureScreen for landscape LCM
+
+Make DisplayRenderArea::getSourceCrop return the display scissor
+when the source crop is empty.  Force the source crop to be empty in
+captureScreen.  This makes sure the install orientation is applied
+on the source crop once, not twice.
+
+Bug: 113041375
+Test: force primaryDisplayOrientation, rotate screen, and switch
+      apps
+Change-Id: I15006f867ff2d4a92ebccb1334ce59ab32abe69a
+Merged-In: I15006f867ff2d4a92ebccb1334ce59ab32abe69a
+---
+ services/surfaceflinger/DisplayDevice.h    | 12 ++++++++++++
+ services/surfaceflinger/SurfaceFlinger.cpp |  8 +++-----
+ 2 files changed, 15 insertions(+), 5 deletions(-)
+
+diff --git a/services/surfaceflinger/DisplayDevice.h b/services/surfaceflinger/DisplayDevice.h
+index 548cabc7e..3cf06bcea 100644
+--- a/services/surfaceflinger/DisplayDevice.h
++++ b/services/surfaceflinger/DisplayDevice.h
+@@ -357,10 +357,14 @@ public:
+     bool isSecure() const override { return mDevice->isSecure(); }
+ 
+     bool needsFiltering() const override {
++        // check if the projection from the logical display to the physical
++        // display needs filtering
+         if (mDevice->needsFiltering()) {
+             return true;
+         }
+ 
++        // check if the projection from the logical render area (i.e., the
++        // physical display) to the physical render area requires filtering
+         const Rect sourceCrop = getSourceCrop();
+         int width = sourceCrop.width();
+         int height = sourceCrop.height();
+@@ -371,11 +375,17 @@ public:
+     }
+ 
+     Rect getSourceCrop() const override {
++        // use the (projected) logical display viewport by default
++        if (mSourceCrop.isEmpty()) {
++            return mDevice->getScissor();
++        }
++
+         const int orientation = mDevice->getInstallOrientation();
+         if (orientation == DisplayState::eOrientationDefault) {
+             return mSourceCrop;
+         }
+ 
++        // Install orientation is transparent to the callers.  Apply it now.
+         uint32_t flags = 0x00;
+         switch (orientation) {
+             case DisplayState::eOrientation90:
+@@ -394,6 +404,8 @@ public:
+     }
+ 
+ private:
++    // Install orientation is transparent to the callers.  We need to cancel
++    // it out by modifying rotation flags.
+     static Transform::orientation_flags getDisplayRotation(
+             Transform::orientation_flags rotation, int orientation) {
+         if (orientation == DisplayState::eOrientationDefault) {
+diff --git a/services/surfaceflinger/SurfaceFlinger.cpp b/services/surfaceflinger/SurfaceFlinger.cpp
+index 501d91d39..fcc4dfe0b 100644
+--- a/services/surfaceflinger/SurfaceFlinger.cpp
++++ b/services/surfaceflinger/SurfaceFlinger.cpp
+@@ -4890,9 +4890,9 @@ status_t SurfaceFlinger::captureScreen(const sp<IBinder>& display, sp<GraphicBuf
+         device = getDisplayDeviceLocked(display);
+         if (!device) return BAD_VALUE;
+ 
+-        // set the source crop to the (projected) logical display viewport
+-        // unconditionally until the framework is fixed
+-        sourceCrop.set(device->getScissor());
++        // ignore sourceCrop (i.e., use the projected logical display
++        // viewport) until the framework is fixed
++        sourceCrop.clear();
+ 
+         // set the requested width/height to the logical display viewport size
+         // by default
+@@ -4900,8 +4900,6 @@ status_t SurfaceFlinger::captureScreen(const sp<IBinder>& display, sp<GraphicBuf
+             reqWidth = uint32_t(device->getViewport().width());
+             reqHeight = uint32_t(device->getViewport().height());
+         }
+-
+-        // XXX display->getInstallOrientation() is ignored
+     }
+ 
+     DisplayRenderArea renderArea(device, sourceCrop, reqWidth, reqHeight, renderAreaRotation);
+-- 
+2.17.1
+

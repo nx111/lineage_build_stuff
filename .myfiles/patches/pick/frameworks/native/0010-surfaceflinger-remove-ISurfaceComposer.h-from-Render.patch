@@ -1,0 +1,147 @@
+From c1d0369926fa94518314625a40bab55dc3cf985b Mon Sep 17 00:00:00 2001
+From: Chia-I Wu <olv@google.com>
+Date: Fri, 24 Aug 2018 15:34:02 -0700
+Subject: [PATCH 10/20] surfaceflinger: remove ISurfaceComposer.h from
+ RenderArea
+
+RenderArea can be made more generic by removing ISurfaceComposer.h
+dependency.  The caller also prefers to work with
+ui::Transform::orientation_flags than ISurfaceComposer::Rotation (we
+want to move updateDimensions to the caller).
+
+Bug: 113041375
+Test: take screenshot, rotate screen, screencap
+Change-Id: I16e1392d5c92c2f423f98307e867918415404d26
+Merged-In: I16e1392d5c92c2f423f98307e867918415404d26
+---
+ services/surfaceflinger/DisplayDevice.h    |  5 ++---
+ services/surfaceflinger/RenderArea.h       | 15 ++++++-------
+ services/surfaceflinger/SurfaceFlinger.cpp | 26 +++++++++++++++++++++-
+ 3 files changed, 34 insertions(+), 12 deletions(-)
+
+diff --git a/services/surfaceflinger/DisplayDevice.h b/services/surfaceflinger/DisplayDevice.h
+index f73654c48..6e0ab578c 100644
+--- a/services/surfaceflinger/DisplayDevice.h
++++ b/services/surfaceflinger/DisplayDevice.h
+@@ -25,7 +25,6 @@
+ #include <math/mat4.h>
+ 
+ #include <binder/IBinder.h>
+-#include <gui/ISurfaceComposer.h>
+ #include <hardware/hwcomposer_defs.h>
+ #include <ui/GraphicTypes.h>
+ #include <ui/HdrCapabilities.h>
+@@ -337,11 +336,11 @@ struct DisplayDeviceState {
+ class DisplayRenderArea : public RenderArea {
+ public:
+     DisplayRenderArea(const sp<const DisplayDevice> device,
+-                      ISurfaceComposer::Rotation rotation = ISurfaceComposer::eRotateNone)
++                      Transform::orientation_flags rotation = Transform::ROT_0)
+           : DisplayRenderArea(device, device->getBounds(), device->getWidth(), device->getHeight(),
+                               rotation) {}
+     DisplayRenderArea(const sp<const DisplayDevice> device, Rect sourceCrop, uint32_t reqWidth,
+-                      uint32_t reqHeight, ISurfaceComposer::Rotation rotation)
++                      uint32_t reqHeight, Transform::orientation_flags rotation)
+           : RenderArea(reqWidth, reqHeight, CaptureFill::OPAQUE, rotation), mDevice(device),
+                               mSourceCrop(sourceCrop) {}
+ 
+diff --git a/services/surfaceflinger/RenderArea.h b/services/surfaceflinger/RenderArea.h
+index 38f4cbc63..c34384612 100644
+--- a/services/surfaceflinger/RenderArea.h
++++ b/services/surfaceflinger/RenderArea.h
+@@ -1,7 +1,5 @@
+ #pragma once
+ 
+-#include <ui/GraphicTypes.h>
+-
+ #include "Transform.h"
+ 
+ #include <functional>
+@@ -21,10 +19,11 @@ public:
+     static float getCaptureFillValue(CaptureFill captureFill);
+ 
+     RenderArea(uint32_t reqWidth, uint32_t reqHeight, CaptureFill captureFill,
+-               ISurfaceComposer::Rotation rotation = ISurfaceComposer::eRotateNone)
+-          : mReqWidth(reqWidth), mReqHeight(reqHeight), mCaptureFill(captureFill) {
+-        mRotationFlags = Transform::fromRotation(rotation);
+-    }
++               Transform::orientation_flags rotation = Transform::ROT_0)
++          : mReqWidth(reqWidth),
++            mReqHeight(reqHeight),
++            mCaptureFill(captureFill),
++            mRotationFlags(rotation) {}
+ 
+     virtual ~RenderArea() = default;
+ 
+@@ -76,8 +75,8 @@ public:
+ private:
+     uint32_t mReqWidth;
+     uint32_t mReqHeight;
+-    Transform::orientation_flags mRotationFlags;
+-    CaptureFill mCaptureFill;
++    const CaptureFill mCaptureFill;
++    const Transform::orientation_flags mRotationFlags;
+ };
+ 
+ } // namespace android
+diff --git a/services/surfaceflinger/SurfaceFlinger.cpp b/services/surfaceflinger/SurfaceFlinger.cpp
+index 87834da7f..8e5384c4f 100644
+--- a/services/surfaceflinger/SurfaceFlinger.cpp
++++ b/services/surfaceflinger/SurfaceFlinger.cpp
+@@ -76,6 +76,7 @@
+ #include "LayerVector.h"
+ #include "MonitoredProducer.h"
+ #include "SurfaceFlinger.h"
++#include "Transform.h"
+ #include "clz.h"
+ 
+ #include "DisplayHardware/ComposerHal.h"
+@@ -113,6 +114,27 @@ using ui::Hdr;
+ using ui::RenderIntent;
+ 
+ namespace {
++
++#pragma clang diagnostic push
++#pragma clang diagnostic error "-Wswitch-enum"
++
++Transform::orientation_flags fromSurfaceComposerRotation(ISurfaceComposer::Rotation rotation) {
++    switch (rotation) {
++        case ISurfaceComposer::eRotateNone:
++            return Transform::ROT_0;
++        case ISurfaceComposer::eRotate90:
++            return Transform::ROT_90;
++        case ISurfaceComposer::eRotate180:
++            return Transform::ROT_180;
++        case ISurfaceComposer::eRotate270:
++            return Transform::ROT_270;
++    }
++    ALOGE("Invalid rotation passed to captureScreen(): %d\n", rotation);
++    return Transform::ROT_0;
++}
++
++#pragma clang diagnostic pop
++
+ class ConditionalLock {
+ public:
+     ConditionalLock(Mutex& mutex, bool lock) : mMutex(mutex), mLocked(lock) {
+@@ -4856,6 +4878,8 @@ status_t SurfaceFlinger::captureScreen(const sp<IBinder>& display, sp<GraphicBuf
+ 
+     if (CC_UNLIKELY(display == 0)) return BAD_VALUE;
+ 
++    auto renderAreaRotation = fromSurfaceComposerRotation(rotation);
++
+     const sp<const DisplayDevice> device(getDisplayDeviceLocked(display));
+     if (CC_UNLIKELY(device == 0)) return BAD_VALUE;
+ 
+@@ -4869,7 +4893,7 @@ status_t SurfaceFlinger::captureScreen(const sp<IBinder>& display, sp<GraphicBuf
+         }
+     }
+ 
+-    DisplayRenderArea renderArea(device, sourceCrop, reqWidth, reqHeight, rotation);
++    DisplayRenderArea renderArea(device, sourceCrop, reqWidth, reqHeight, renderAreaRotation);
+ 
+     auto traverseLayers = std::bind(std::mem_fn(&SurfaceFlinger::traverseLayersInDisplay), this,
+                                     device, minLayerZ, maxLayerZ, std::placeholders::_1);
+-- 
+2.17.1
+
