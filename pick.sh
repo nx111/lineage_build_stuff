@@ -1402,7 +1402,7 @@ kpick 238929 # libstagefright_wfd: libmediaplayer2: compilation fixes
 kpick 238931 # stagefright: Fix SurfaceMediaSource getting handle from wrong position issue
 kpick 238932 # stagefright: Fix buffer handle retrieval in signalBufferReturned
 kpick 239642 # libstagefright_wfd: video encoder does not actually release MediaBufferBase when done
-kpick 244495 # audioflinger: Fix audio for WifiDisplay
+kpick 244574 # audioflinger: Fix audio for WifiDisplay
 
 # frameworks/base
 kpick 224513 # SystemUI: Disable config_keyguardUserSwitcher on sw600dp
@@ -1635,7 +1635,6 @@ kpick 223133 # AIDL: Add option to generate No-Op methods
 
 # system/vold
 kpick 231717 # vold: Always use libbootloader_message from bootable/recovery namespace
-kpick 244472 # increase timeout for waiting on block device
 
 # vendor/lineage
 kpick 225921 # overlay: Update list of GSF/GMS activities
