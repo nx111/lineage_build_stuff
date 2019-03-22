@@ -1,0 +1,80 @@
+From 9d0c84e38b740151e3fe07f74ba504ae43ba308c Mon Sep 17 00:00:00 2001
+From: Alessandro Astone <ales.astone@gmail.com>
+Date: Thu, 21 Mar 2019 19:18:53 +0100
+Subject: [PATCH 09/10] Revert "fs_mgr_fstab: removing
+ fs_mgr_get_entry_for_mount_point_after()"
+
+This reverts commit c55f188207215bea0980027e47cbc6325a3a1f38.
+
+but keeps the change to fs_mgr_get_entry_for_mount_point args:
+    fs_mgr_get_entry_for_mount_point(struct fstab* fstab, const char* path);
+==> fs_mgr_get_entry_for_mount_point(struct fstab* fstab, const std::string& path);
+
+Change-Id: I19ef4539c5d5be8e1ec83642448814d2c3711c0a
+---
+ fs_mgr/fs_mgr_fstab.cpp | 34 ++++++++++++++++++++++++++++++----
+ 1 file changed, 30 insertions(+), 4 deletions(-)
+
+diff --git a/fs_mgr/fs_mgr_fstab.cpp b/fs_mgr/fs_mgr_fstab.cpp
+index c9fb7aa57..b77974396 100644
+--- a/fs_mgr/fs_mgr_fstab.cpp
++++ b/fs_mgr/fs_mgr_fstab.cpp
+@@ -879,18 +879,34 @@ int fs_mgr_add_entry(struct fstab *fstab,
+ }
+ 
+ /*
+- * Returns the fstab_rec* whose mount_point is path.
+- * Returns nullptr if not found.
++ * Returns the 1st matching fstab_rec that follows the start_rec.
++ * start_rec is the result of a previous search or NULL.
+  */
+-struct fstab_rec* fs_mgr_get_entry_for_mount_point(struct fstab* fstab, const std::string& path) {
++struct fstab_rec* fs_mgr_get_entry_for_mount_point_after(struct fstab_rec* start_rec,
++                                                         struct fstab* fstab,
++                                                         const std::string& path) {
++    int i;
+     if (!fstab) {
+         return nullptr;
+     }
+-    for (int i = 0; i < fstab->num_entries; i++) {
++
++    if (start_rec) {
++        for (i = 0; i < fstab->num_entries; i++) {
++            if (&fstab->recs[i] == start_rec) {
++                i++;
++                break;
++            }
++        }
++    } else {
++        i = 0;
++    }
++
++    for (; i < fstab->num_entries; i++) {
+         if (fstab->recs[i].mount_point && path == fstab->recs[i].mount_point) {
+             return &fstab->recs[i];
+         }
+     }
++
+     return nullptr;
+ }
+ 
+@@ -911,6 +927,16 @@ std::set<std::string> fs_mgr_get_boot_devices() {
+     return {};
+ }
+ 
++/*
++ * Returns the 1st matching mount point.
++ * There might be more. To look for others, use fs_mgr_get_entry_for_mount_point_after()
++ * and give the fstab_rec from the previous search.
++ */
++struct fstab_rec *fs_mgr_get_entry_for_mount_point(struct fstab* fstab, const std::string& path)
++{
++    return fs_mgr_get_entry_for_mount_point_after(NULL, fstab, path);
++}
++
+ int fs_mgr_is_voldmanaged(const struct fstab_rec *fstab)
+ {
+     return fstab->fs_mgr_flags & MF_VOLDMANAGED;
+-- 
+2.17.1
+

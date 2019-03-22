@@ -96,7 +96,7 @@ function patch_local()
                   #rm -rf .git/rebase-apply
              fi
              if echo $f | grep -qE "\[WIP\]|\[SKIP\]"; then
-                 echo "    skipping: $f"
+                 echo "    skipping: $(basename $f)"
                  continue
              fi
 
@@ -142,7 +142,7 @@ function patch_local()
                            fi
                        fi
                   else
-                       echo "    skipping: $f ...(applied always)"
+                       echo "    skipping: $(basename $f) ...(applied always)"
                   fi
              fi
          fi
@@ -362,7 +362,7 @@ function restore_snapshot()
              grep -q -E "^$fdir$" ${tmp_skip_dirs} && continue
              patchfile=$(basename $f)
              if [ "${patchfile:5:5}" = "[WIP]" -o "${patchfile:5:6}" = "[SKIP]" ]; then
-                  echo "         skipping: $f"
+                  echo "         skipping: $(basename $f)"
                   continue
              fi
              changeid=$(grep "Change-Id: " $topdir/.myfiles/patches/$f | tail -n 1 | sed -e "s/ \{1,\}/ /g" -e "s/^ //g" | cut -d' ' -f2)
@@ -416,7 +416,7 @@ function restore_snapshot()
                       fi
 
                   else
-                      echo "         skipping: $f ...(applied always)"
+                      echo "         skipping: $(basename $f) ...(applied always)"
                   fi
               fi
          done
@@ -1332,9 +1332,12 @@ kpick 240951 # qcom: label persist files with /(mnt/vendor)/persist instead of /
 kpick 242976 # sepolicy: Label persist partition for all SoCs
 kpick 243674 # common: Add missing CNE rules
 kpick 244366 # sepolicy: Allow perf HAL to set mpctl props
+kpick 244642 # sepolicy: Whitelist recovery from reading mnt_vendor_file
+kpick 244722 # sepolicy: Allow recovery read time
 
 # device/qcom/sepolicy-legacy
 kpick 243505 # sepolicy: Label persist partition for all SoCs
+kpick 244723 # sepolicy: Allow recovery read time
 
 # development
 kpick 240579 # idegen: Add functionality to set custom ipr file name
@@ -1446,11 +1449,9 @@ kpick 243647 # Exclude Emergency Dialer from recent app list.
 kpick 244133 # Add back ACCELEROMETER_ROTATION_ANGLES and update references
 kpick 234715 # Rotation related corrections
 kpick 244295 # base: Redo expanded volume panel for 9.x
-kpick 244315 # Prevent NFE in SystemUI when parsing invalid int
-kpick 244316 # revent NFE in SystemUI when parsing invalid int (2)
-kpick 244317 # Prevent NFE in SystemUI when parsing invalid int
 kpick 244318 # KeyguardHostView: Auto face unlock v2
 kpick 244518 # NotificationManagerService: do not use flashing API for staying always on
+kpick 244664 # SystemUI: Bring back lockscreen tuner (1/2)
 
 # frameworks/native
 kpick 224530 # Triple the available egl function pointers available to a process for certain Nvidia devices.
@@ -1459,21 +1460,6 @@ kpick 231980 # HWComposer: HWC2: allow SkipValidate to be force disabled
 kpick 237645 # sf: Add support for multiple displays
 kpick 243571 # touch response optimizations
 #kpick 244603-244617 -x
-kpick 244603 # Revert "APP may display abnormally in landscape LCM"
-kpick 244604 # Revert "Revert screenshot changes to exclude black cutout"
-kpick 244605 # surfaceflinger: documents RenderArea
-kpick 244606 # surfaceflinger: reorder width and height in RenderArea ctor
-kpick 244607 # surfaceflinger: remove ISurfaceComposer.h from RenderArea
-kpick 244608 # surfaceflinger: fix race conditions in captureScreen
-kpick 244609 # surfaceflinger: silence some RenderArea errors
-kpick 244610 # surfaceflinger: clean up captureScreen
-kpick 244611 # surfaceflinger: make mPrimaryDisplayOrientation static
-kpick 244612 # surfaceflinger: add install orientation to DisplayDevice
-kpick 244613 # surfaceflinger: respect install orientation in DisplayRenderArea
-kpick 244614 # surfaceflinger: improve RenderArea needsFiltering
-kpick 244615 # surfaceflinger: fix captureScreen for landscape LCM
-kpick 244616 # libgui: add docs to geometry states and captureScreen
-kpick 244617 # Respect source crop when capturing layers.
 
 # frameworks/opt/net/wifi
 kpick 244148 # resurrect mWifiLinkLayerStatsSupported counter
@@ -1591,6 +1577,7 @@ kpick 237183 # settings: hide appendix of app list for power usage.
 kpick 240083 # Settings: Add null checks for OemLockService
 kpick 241758 # Settings: Show root options when certain third party root is present
 kpick 244319 # Add toggle for face auto unlock (2/2)
+kpick 244663 # SystemUI: Bring back lockscreen tuner (2/2)
 
 # packages/apps/Snap
 kpick 242496 # Snap: Fix bad grammar "Long shot not support<ed>"
@@ -1629,6 +1616,8 @@ kpick 234860 # init: add install_keyring for TWRP FBE decrypt
 kpick 237141 # core: update battery mod support for P
 kpick 241757 # adb: Allow adb root when certain third party root is present
 kpick 244257 # healthd: make periodic battery status a debug message
+kpick 244720 # Revert "fs_mgr_fstab: removing fs_mgr_get_entry_for_mount_point_after()"
+kpick 244721 # fs_mgr: Skip filesystem check unless fs_type matches
 
 # system/extras/su
 kpick 232428 # su: strlcpy is always a friend
@@ -1649,6 +1638,7 @@ kpick 223133 # AIDL: Add option to generate No-Op methods
 
 # system/vold
 kpick 231717 # vold: Always use libbootloader_message from bootable/recovery namespace
+kpick 244733 # vold: Add linkage for fs_mgr changes
 
 # vendor/lineage
 kpick 225921 # overlay: Update list of GSF/GMS activities
@@ -1671,6 +1661,7 @@ kpick 242432 # RIP libhealthd.lineage
 kpick 242433 # Make custom off-mode charging screen great again
 kpick 243809 # soong_config: Add flag for devices use metadata as FDE key
 kpick 244389 # lineage: overlay-tv: Remove TV Setup Complete flag
+kpick 244672 # common: Add getcap/setcap to PRODUCT_PACKAGES
 
 # vendor/qcom/opensource/cryptfs_hw
 kpick 243744 # cryptfs_hw: Support devices use metadata as key

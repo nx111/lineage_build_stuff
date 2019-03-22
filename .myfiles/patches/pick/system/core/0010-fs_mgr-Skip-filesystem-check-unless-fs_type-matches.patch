@@ -1,0 +1,122 @@
+From 3eab90b5ebe41fa37023c10328d70c05bc5897fe Mon Sep 17 00:00:00 2001
+From: Dan Pasanen <dan.pasanen@gmail.com>
+Date: Wed, 28 Jan 2015 16:41:29 -0800
+Subject: [PATCH 10/10] fs_mgr: Skip filesystem check unless fs_type matches
+
+* Prevent accidentally destroying a partition of the wrong type.
+* Don't skip iterations of the internal mount_all loop, otherwise
+  encryptability may not be properly handled.
+
+Change-Id: I8f3ddc396a5fb85f4ae0a0a11dd61fb4d6462d6d
+---
+ fs_mgr/Android.bp |  6 +++++-
+ fs_mgr/fs_mgr.cpp | 27 ++++++++++++++++++++++++---
+ init/Android.mk   |  2 ++
+ 3 files changed, 31 insertions(+), 4 deletions(-)
+
+diff --git a/fs_mgr/Android.bp b/fs_mgr/Android.bp
+index f23150d1c..e1eefcaac 100644
+--- a/fs_mgr/Android.bp
++++ b/fs_mgr/Android.bp
+@@ -34,7 +34,10 @@ cc_library_static {
+     name: "libfs_mgr",
+     defaults: ["fs_mgr_defaults"],
+     export_include_dirs: ["include"],
+-    include_dirs: ["system/vold"],
++    include_dirs: [
++        "system/vold",
++        "external/e2fsprogs/lib",
++    ],
+     srcs: [
+         "fs_mgr.cpp",
+         "fs_mgr_dm_ioctl.cpp",
+@@ -54,6 +57,7 @@ cc_library_static {
+         "libselinux",
+         "libavb",
+         "libfstab",
++        "libext2_blkid",
+     ],
+     export_static_lib_headers: [
+         "libfstab",
+diff --git a/fs_mgr/fs_mgr.cpp b/fs_mgr/fs_mgr.cpp
+index 9aab0bac4..5b108e614 100644
+--- a/fs_mgr/fs_mgr.cpp
++++ b/fs_mgr/fs_mgr.cpp
+@@ -55,6 +55,7 @@
+ #include <linux/magic.h>
+ #include <log/log_properties.h>
+ #include <logwrap/logwrap.h>
++#include <blkid/blkid.h>
+ 
+ #include "fs_mgr.h"
+ #include "fs_mgr_avb.h"
+@@ -417,6 +418,8 @@ static void tune_encrypt(const char* blk_device, const struct fstab_rec* rec,
+ //
+ static int prepare_fs_for_mount(const char* blk_device, const struct fstab_rec* rec) {
+     int fs_stat = 0;
++    int cmp_len;
++    char *detected_fs_type;
+ 
+     if (is_extfs(rec->fs_type)) {
+         struct ext4_super_block sb;
+@@ -439,7 +442,15 @@ static int prepare_fs_for_mount(const char* blk_device, const struct fstab_rec*
+ 
+     if ((rec->fs_mgr_flags & MF_CHECK) ||
+         (fs_stat & (FS_STAT_UNCLEAN_SHUTDOWN | FS_STAT_QUOTA_ENABLED))) {
+-        check_fs(blk_device, rec->fs_type, rec->mount_point, &fs_stat);
++        /* Skip file system check unless we are sure we are the right type */
++        detected_fs_type = blkid_get_tag_value(NULL, "TYPE", blk_device);
++        if (detected_fs_type) {
++            cmp_len = (!strncmp(detected_fs_type, "ext", 3) &&
++                    strlen(detected_fs_type) == 4) ? 3 : strlen(detected_fs_type);
++            if (!strncmp(rec->fs_type, detected_fs_type, cmp_len)) {
++                check_fs(blk_device, rec->fs_type, rec->mount_point, &fs_stat);
++            }
++        }
+     }
+ 
+     if (is_extfs(rec->fs_type) && (rec->fs_mgr_flags & (MF_RESERVEDSIZE | MF_FILEENCRYPTION))) {
+@@ -564,6 +575,8 @@ static int mount_with_alternatives(struct fstab *fstab, int start_idx, int *end_
+     int i;
+     int mount_errno = 0;
+     int mounted = 0;
++    int cmp_len;
++    char *detected_fs_type;
+ 
+     if (!end_idx || !attempted_idx || start_idx >= fstab->num_entries) {
+       errno = EINVAL;
+@@ -623,8 +636,16 @@ static int mount_with_alternatives(struct fstab *fstab, int start_idx, int *end_
+                         mount_errno = errno;
+                     }
+                     // retry after fsck
+-                    check_fs(fstab->recs[i].blk_device, fstab->recs[i].fs_type,
+-                             fstab->recs[i].mount_point, &fs_stat);
++                    /* Skip file system check unless we are sure we are the right type */
++                    detected_fs_type = blkid_get_tag_value(NULL, "TYPE", fstab->recs[i].blk_device);
++                    if (detected_fs_type) {
++                        cmp_len = (!strncmp(detected_fs_type, "ext", 3) &&
++                                strlen(detected_fs_type) == 4) ? 3 : strlen(detected_fs_type);
++                        if (!strncmp(fstab->recs[i].fs_type, detected_fs_type, cmp_len)) {
++                            check_fs(fstab->recs[i].blk_device, fstab->recs[i].fs_type,
++                                     fstab->recs[i].mount_point, &fs_stat);
++                        }
++                    }
+                 }
+             }
+             log_fs_stat(fstab->recs[i].blk_device, fs_stat);
+diff --git a/init/Android.mk b/init/Android.mk
+index c89bacc99..2295bd719 100644
+--- a/init/Android.mk
++++ b/init/Android.mk
+@@ -67,6 +67,8 @@ LOCAL_STATIC_LIBRARIES := \
+     liblog \
+     libcrypto_utils \
+     libcrypto \
++    libext2_blkid \
++    libext2_uuid \
+     libc++_static \
+     libdl \
+     libsparse \
+-- 
+2.17.1
+
