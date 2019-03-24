@@ -1,7 +1,7 @@
-From 15ca8bfbb07d91046ee0d1132bb7887ed8e5cfe5 Mon Sep 17 00:00:00 2001
+From 61c39333319bfebf99bff136f815fd696ff74bd7 Mon Sep 17 00:00:00 2001
 From: Tom Marshall <tdm.code@gmail.com>
 Date: Thu, 1 Mar 2018 23:51:51 +0100
-Subject: [PATCH 35/44] recovery: Fix redraws, flickering, and animation
+Subject: [PATCH 35/49] recovery: Fix redraws, flickering, and animation
 
 Rewrite screen drawing code to behave as follows:
 
@@ -32,10 +32,10 @@ Change-Id: I598bb11d5eef28275a6501cd44d514afe9939885
  7 files changed, 119 insertions(+), 97 deletions(-)
 
 diff --git a/recovery.cpp b/recovery.cpp
-index bf517664..855e9466 100644
+index 6dc83bbe..b847de05 100644
 --- a/recovery.cpp
 +++ b/recovery.cpp
-@@ -1166,36 +1166,31 @@ static int choose_recovery_file(Device* device) {
+@@ -1163,36 +1163,31 @@ static int choose_recovery_file(Device* device) {
  }
  
  static void run_graphics_test() {
@@ -80,7 +80,7 @@ index bf517664..855e9466 100644
    ui->SetProgressType(RecoveryUI::DETERMINATE);
    ui->ShowProgress(1.0, 10.0);
    float fraction = 0.0;
-@@ -1204,8 +1199,6 @@ static void run_graphics_test() {
+@@ -1201,8 +1196,6 @@ static void run_graphics_test() {
      ui->SetProgress(fraction);
      usleep(100000);
    }
@@ -89,7 +89,7 @@ index bf517664..855e9466 100644
  }
  
  static int apply_from_storage(Device* device, VolumeInfo& vi, bool* wipe_cache) {
-@@ -1383,9 +1376,13 @@ static Device::BuiltinAction prompt_and_wait(Device* device, int status) {
+@@ -1380,9 +1373,13 @@ static Device::BuiltinAction prompt_and_wait(Device* device, int status) {
              }
  
              if (status != INSTALL_SUCCESS) {
@@ -103,7 +103,7 @@ index bf517664..855e9466 100644
              } else if (!ui->IsTextVisible()) {
                return Device::NO_ACTION;  // reboot if logs aren't visible
              } else {
-@@ -1962,6 +1959,7 @@ int main(int argc, char **argv) {
+@@ -1927,6 +1924,7 @@ int main(int argc, char **argv) {
    if (status == INSTALL_ERROR || status == INSTALL_CORRUPT) {
      ui->SetBackground(RecoveryUI::ERROR);
      if (!ui->IsTextVisible()) {
@@ -112,7 +112,7 @@ index bf517664..855e9466 100644
      }
    }
 diff --git a/screen_ui.cpp b/screen_ui.cpp
-index 35ce6eaf..e24dafb7 100644
+index 62074f11..68a84eb0 100644
 --- a/screen_ui.cpp
 +++ b/screen_ui.cpp
 @@ -159,7 +159,7 @@ GRSurface* ScreenRecoveryUI::GetCurrentFrame() const {
@@ -270,7 +270,7 @@ index 35ce6eaf..e24dafb7 100644
      }
    }
  }
-@@ -691,12 +705,7 @@ void ScreenRecoveryUI::draw_grid_menu_locked(int& y) {
+@@ -673,12 +687,7 @@ void ScreenRecoveryUI::draw_grid_menu_locked(int& y) {
  // Redraws everything on the screen. Does not flip pages. Should only be called with updateMutex
  // locked.
  void ScreenRecoveryUI::draw_screen_locked() {
@@ -284,7 +284,7 @@ index 35ce6eaf..e24dafb7 100644
    gr_color(0, 0, 0, 255);
    gr_clear();
  
-@@ -726,16 +735,21 @@ void ScreenRecoveryUI::draw_screen_locked() {
+@@ -708,16 +717,21 @@ void ScreenRecoveryUI::draw_screen_locked() {
      }
    }
    else {
@@ -316,7 +316,7 @@ index 35ce6eaf..e24dafb7 100644
      }
    }
  }
-@@ -750,7 +764,14 @@ void ScreenRecoveryUI::update_screen_locked() {
+@@ -732,7 +746,14 @@ void ScreenRecoveryUI::update_screen_locked() {
  // Updates only the progress bar, if possible, otherwise redraws the screen.
  // Should only be called with updateMutex locked.
  void ScreenRecoveryUI::update_progress_locked() {
@@ -332,7 +332,7 @@ index 35ce6eaf..e24dafb7 100644
    gr_flip();
  }
  
-@@ -846,7 +867,6 @@ void ScreenRecoveryUI::SetSystemUpdateText(bool security_update) {
+@@ -828,7 +849,6 @@ void ScreenRecoveryUI::SetSystemUpdateText(bool security_update) {
    } else {
      LoadLocalizedBitmap("installing_text", &installing_text);
    }
@@ -340,7 +340,7 @@ index 35ce6eaf..e24dafb7 100644
  }
  
  bool ScreenRecoveryUI::InitTextParams() {
-@@ -953,7 +973,6 @@ void ScreenRecoveryUI::SetBackground(Icon icon) {
+@@ -935,7 +955,6 @@ void ScreenRecoveryUI::SetBackground(Icon icon) {
  
    if (icon != currentIcon) {
      currentIcon = icon;
@@ -348,7 +348,7 @@ index 35ce6eaf..e24dafb7 100644
    }
  
    pthread_mutex_unlock(&updateMutex);
-@@ -963,14 +982,14 @@ void ScreenRecoveryUI::SetProgressType(ProgressType type) {
+@@ -945,14 +964,14 @@ void ScreenRecoveryUI::SetProgressType(ProgressType type) {
    pthread_mutex_lock(&updateMutex);
    if (progressBarType != type) {
      progressBarType = type;
@@ -367,7 +367,7 @@ index 35ce6eaf..e24dafb7 100644
    pthread_mutex_unlock(&updateMutex);
  }
  
-@@ -1028,7 +1047,6 @@ void ScreenRecoveryUI::PrintV(const char* fmt, bool copy_to_stdout, va_list ap)
+@@ -1010,7 +1029,6 @@ void ScreenRecoveryUI::PrintV(const char* fmt, bool copy_to_stdout, va_list ap)
        if (*ptr != '\n') text_[text_row_][text_col_++] = *ptr;
      }
      text_[text_row_][text_col_] = '\0';
@@ -375,7 +375,7 @@ index 35ce6eaf..e24dafb7 100644
    }
    pthread_mutex_unlock(&updateMutex);
  }
-@@ -1131,6 +1149,9 @@ int ScreenRecoveryUI::ShowFile(const char* filename) {
+@@ -1113,6 +1131,9 @@ int ScreenRecoveryUI::ShowFile(const char* filename) {
      return -1;
    }
  
@@ -385,7 +385,7 @@ index 35ce6eaf..e24dafb7 100644
    char** old_text = text_;
    size_t old_text_col = text_col_;
    size_t old_text_row = text_row_;
-@@ -1145,6 +1166,7 @@ int ScreenRecoveryUI::ShowFile(const char* filename) {
+@@ -1127,6 +1148,7 @@ int ScreenRecoveryUI::ShowFile(const char* filename) {
    text_ = old_text;
    text_col_ = old_text_col;
    text_row_ = old_text_row;
@@ -393,7 +393,7 @@ index 35ce6eaf..e24dafb7 100644
    return key;
  }
  
-@@ -1273,7 +1295,6 @@ void ScreenRecoveryUI::ShowText(bool visible) {
+@@ -1255,7 +1277,6 @@ void ScreenRecoveryUI::ShowText(bool visible) {
    pthread_mutex_lock(&updateMutex);
    show_text = visible;
    if (show_text) show_text_ever = true;

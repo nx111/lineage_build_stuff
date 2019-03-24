@@ -857,14 +857,16 @@ function kpick_action()
                     cd $topdir
                     break
               fi
+              rc=0
               if [ "$pick_mode" = "fetch" ]; then
                     cd $topdir/$project
                     rchid=$(git log FETCH_HEAD -n 1 | grep Change-Id | cut -d: -f2 | sed -e "s/ //g")
                     recent_changeid_tmp=/tmp/$(echo $project | sed -e "s:/:_:g")_recent_ids_$(basename $(mktemp) | cut -d. -f2).txt
                     git log -n 50 | grep Change-Id | cut -d: -f2 | sed -e "s/ //g" > $recent_changeid_tmp
-                    grep -q $rchid $recent_changeid_tmp || \
+                    if ! grep -q $rchid $recent_changeid_tmp; then
                        LANG=en_US git cherry-pick -m $m_parent FETCH_HEAD >$logfile 2>$errfile
-                    rc=$?
+                       rc=$?
+                    fi
                     cd $topdir
               else
                     cd $topdir
@@ -1302,6 +1304,11 @@ kpick 238990 # recovery: Allow bypassing signature verification on non-release b
 kpick 238991 # recovery: minui: Implement image scaling
 kpick 238992 # recovery: Scale logo image if necessary
 kpick 238993 # recovery: Add runtime checks for A/B vs traditional updates
+kpick 244741 # recovery: autodetect filesystem type
+kpick 244760 # minui: Fix the wrong move of the callback.
+kpick 244761 # minui: Support input device hotplug in recovery mode.
+kpick 244762 # recovery: Support configfs usb configuration
+kpick 244763 # recovery: Blank screen on init
 
 # build/make
 kpick 222742 # build: Use project pathmap for recovery
@@ -1322,8 +1329,14 @@ kpick 241667 # sepolicy: Move power hal service label to dynamic
 kpick 241676 # sepolicy: qcom: Rename common to vendor to avoid confusion
 kpick 241677 # sepolicy: Break livedisplay hal policy into impl independent ones
 kpick 241903 # sepolicy: Label all the livedisplay service implementations
-kpick 244586 # common: recovery: fix reboot
-kpick 244587 # common: recovery: allow reading and setting time
+kpick 244586 # common: recovery: Add policy for volume manager
+kpick 244587 # common: recovery: allow setting time
+kpick 244768 # sepolicy: recovery: Allow reading proc_filesystems
+kpick 244769 # sepolicy: recovery: Fix the volume manager blkid.tab denial
+kpick 244770 # sepolicy: recovery: Add policy for /dev/block/volmgr
+kpick 244771 # sepolicy: recovery: Allow volume manager write to /sys/*/uevent
+kpick 244772 # sepolicy: recovery: Allow setting sys.usb.config
+kpick 244801 # common: fix OTA auto-flashing with encrypted f2fs.
 
 # device/qcom/sepolicy
 kpick 228573 # sepolicy: Add libsdm-disp-vndapis and libsdmutils to SP-HALs
@@ -1459,7 +1472,6 @@ kpick 231828 # Translate pointer motion events for OneHandOperation Display Shri
 kpick 231980 # HWComposer: HWC2: allow SkipValidate to be force disabled
 kpick 237645 # sf: Add support for multiple displays
 kpick 243571 # touch response optimizations
-#kpick 244603-244617 -x
 
 # frameworks/opt/net/wifi
 kpick 244148 # resurrect mWifiLinkLayerStatsSupported counter
@@ -1618,6 +1630,7 @@ kpick 241757 # adb: Allow adb root when certain third party root is present
 kpick 244257 # healthd: make periodic battery status a debug message
 kpick 244720 # Revert "fs_mgr_fstab: removing fs_mgr_get_entry_for_mount_point_after()"
 kpick 244721 # fs_mgr: Skip filesystem check unless fs_type matches
+kpick 244773 # Revert "sdcard: Allow building as a static library"
 
 # system/extras/su
 kpick 232428 # su: strlcpy is always a friend

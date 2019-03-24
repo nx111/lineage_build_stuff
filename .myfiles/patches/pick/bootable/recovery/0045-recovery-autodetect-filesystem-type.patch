@@ -1,0 +1,221 @@
+From 4024e3277d5e6c176a5b5360f1a78eb05c00dfe8 Mon Sep 17 00:00:00 2001
+From: Dan Pasanen <dan.pasanen@gmail.com>
+Date: Tue, 13 Jan 2015 21:25:26 -0600
+Subject: [PATCH 45/49] recovery: autodetect filesystem type
+
+* Multiple fstab lines (supported in android) cause recovery to fail
+  to mount partitions if the fs type is not the same as the first
+  fstab entry. So when we attempt to find an fstab entry that matches
+  a path for an f2fs, ext4 or vfat type, check it against blkid's
+  determination of what filesystem type it is. If there is a discrepancy,
+  query fs_mgr for the next possible entry that matches that path until
+  either we find one that is good, or run out of fstab entries.
+
+* Also attempt to autodetect the filesystem type for mounting from
+  update.zips.
+
+Change-Id: Ib6f4535dd88ef714ae1ca6fb0ffae1c7dac0f7ce
+---
+ Android.mk                       |  8 +++++++-
+ roots.cpp                        | 35 +++++++++++++++++++++++++++++++-
+ tests/component/updater_test.cpp |  5 +++++
+ updater/Android.mk               |  8 ++++++++
+ updater/install.cpp              | 16 ++++++++++++++-
+ updater/updater.cpp              |  5 +++++
+ 6 files changed, 74 insertions(+), 3 deletions(-)
+
+diff --git a/Android.mk b/Android.mk
+index a0f8818e..2b62b441 100644
+--- a/Android.mk
++++ b/Android.mk
+@@ -160,6 +160,7 @@ endif
+ 
+ LOCAL_C_INCLUDES += \
+     system/vold \
++    external/e2fsprogs/lib
+ 
+ # Health HAL dependency
+ LOCAL_STATIC_LIBRARIES := \
+@@ -181,6 +182,8 @@ LOCAL_STATIC_LIBRARIES += \
+     libbootloader_message \
+     libfs_mgr \
+     libext4_utils \
++    libext2_blkid \
++    libext2_uuid \
+     libsparse \
+     libreboot \
+     libziparchive \
+@@ -339,6 +342,8 @@ LOCAL_CFLAGS += -DMINIVOLD
+ LOCAL_CFLAGS += -Wno-unused-parameter
+ LOCAL_STATIC_LIBRARIES += \
+     libext4_utils \
++    libext2_blkid \
++    libext2_uuid \
+     libsparse \
+     libmounts \
+     libz \
+@@ -365,7 +370,8 @@ LOCAL_C_INCLUDES += \
+     external/libtar/listhash \
+     external/openssl/include \
+     external/zlib \
+-    bionic/libc/bionic
++    bionic/libc/bionic \
++    external/e2fsprogs/lib
+ 
+ include $(BUILD_EXECUTABLE)
+ 
+diff --git a/roots.cpp b/roots.cpp
+index e651e62f..d721d58b 100644
+--- a/roots.cpp
++++ b/roots.cpp
+@@ -43,6 +43,11 @@
+ 
+ #include "mounts.h"
+ 
++#ifdef __bitwise
++#undef __bitwise
++#endif
++#include <blkid/blkid.h>
++
+ static struct fstab* fstab = nullptr;
+ 
+ extern struct selabel_handle* sehandle;
+@@ -109,6 +114,34 @@ Volume* volume_for_mount_point(const std::string& mount_point) {
+   return fs_mgr_get_entry_for_mount_point(fstab, mount_point);
+ }
+ 
++Volume* get_entry_for_mount_point_detect_fs(const std::string& path) {
++  Volume *rec = fs_mgr_get_entry_for_mount_point(fstab, path);
++
++  if (rec == nullptr) {
++    return rec;
++  }
++
++  if (strcmp(rec->fs_type, "ext4") == 0 || strcmp(rec->fs_type, "f2fs") == 0 ||
++      strcmp(rec->fs_type, "vfat") == 0) {
++    char *detected_fs_type = blkid_get_tag_value(nullptr, "TYPE", rec->blk_device);
++
++    if (detected_fs_type == nullptr) {
++      return rec;
++    }
++
++    Volume *fetched_rec = rec;
++    while (rec != nullptr && strcmp(rec->fs_type, detected_fs_type) != 0) {
++      rec = fs_mgr_get_entry_for_mount_point_after(rec, fstab, path);
++    }
++
++    if (rec == nullptr) {
++      return fetched_rec;
++    }
++  }
++
++  return rec;
++}
++
+ // Finds the volume specified by the given path. fs_mgr_get_entry_for_mount_point() does exact match
+ // only, so it attempts the prefixes recursively (e.g. "/cache/recovery/last_log",
+ // "/cache/recovery", "/cache", "/" for a given path of "/cache/recovery/last_log") and returns the
+@@ -117,7 +150,7 @@ static Volume* volume_for_path(const char* path) {
+   if (path == nullptr || path[0] == '\0') return nullptr;
+   std::string str(path);
+   while (true) {
+-    Volume* result = fs_mgr_get_entry_for_mount_point(fstab, str);
++    Volume* result = get_entry_for_mount_point_detect_fs(str);
+     if (result != nullptr || str == "/") {
+       return result;
+     }
+diff --git a/tests/component/updater_test.cpp b/tests/component/updater_test.cpp
+index 50e0a634..daf0c8c2 100644
+--- a/tests/component/updater_test.cpp
++++ b/tests/component/updater_test.cpp
+@@ -48,6 +48,11 @@
+ #include "updater/install.h"
+ #include "updater/updater.h"
+ 
++// For e2fsprogs
++extern "C" {
++const char* program_name = "updater";
++}
++
+ struct selabel_handle *sehandle = nullptr;
+ 
+ static void expect(const char* expected, const char* expr_str, CauseCode cause_code,
+diff --git a/updater/Android.mk b/updater/Android.mk
+index 0528e6cc..7d90ca38 100644
+--- a/updater/Android.mk
++++ b/updater/Android.mk
+@@ -101,6 +101,14 @@ LOCAL_STATIC_LIBRARIES := \
+     $(TARGET_RECOVERY_UPDATER_EXTRA_LIBS) \
+     $(updater_common_static_libraries)
+ 
++# XXX: this does not seem to work, why?
++# LOCAL_HEADER_LIBRARIES := libext2-headers
++
++LOCAL_C_INCLUDES += \
++    bootable/recovery/otafault \
++    external/e2fsprogs/lib
++LOCAL_STATIC_LIBRARIES += libext2_blkid libext2_uuid
++
+ # Each library in TARGET_RECOVERY_UPDATER_LIBS should have a function
+ # named "Register_<libname>()".  Here we emit a little C function that
+ # gets #included by updater.c.  It calls all those registration
+diff --git a/updater/install.cpp b/updater/install.cpp
+index b91498a7..ab26576c 100644
+--- a/updater/install.cpp
++++ b/updater/install.cpp
+@@ -34,6 +34,7 @@
+ #include <time.h>
+ #include <unistd.h>
+ #include <utime.h>
++#include <blkid/blkid.h>
+ 
+ #include <memory>
+ #include <string>
+@@ -406,7 +407,7 @@ Value* MountFn(const char* name, State* state, const std::vector<std::unique_ptr
+   if (!ReadArgs(state, argv, &args)) {
+     return ErrorAbort(state, kArgsParsingFailure, "%s() Failed to parse the argument(s)", name);
+   }
+-  const std::string& fs_type = args[0];
++  std::string& fs_type = args[0];
+   const std::string& partition_type = args[1];
+   const std::string& location = args[2];
+   const std::string& mount_point = args[3];
+@@ -447,6 +448,19 @@ Value* MountFn(const char* name, State* state, const std::vector<std::unique_ptr
+     }
+   }
+ 
++  std::string detected_fs_type;
++  char *val = blkid_get_tag_value(NULL, "TYPE", location.c_str());
++  if (val) {
++    detected_fs_type = val;
++  }
++  if (!detected_fs_type.empty()) {
++    uiPrintf(state, "detected filesystem %s for %s\n", detected_fs_type.c_str(), location.c_str());
++    fs_type = detected_fs_type;
++  } else {
++    uiPrintf(state, "could not detect filesystem for %s, assuming %s\n",
++             location.c_str(), fs_type.c_str());
++  }
++
+   if (mount(location.c_str(), mount_point.c_str(), fs_type.c_str(),
+             MS_NOATIME | MS_NODEV | MS_NODIRATIME, mount_options.c_str()) < 0) {
+     uiPrintf(state, "%s: Failed to mount %s at %s: %s", name, location.c_str(), mount_point.c_str(),
+diff --git a/updater/updater.cpp b/updater/updater.cpp
+index 1d6b172b..5cad6ba1 100644
+--- a/updater/updater.cpp
++++ b/updater/updater.cpp
+@@ -44,6 +44,11 @@
+ // registration functions for device-specific extensions.
+ #include "register.inc"
+ 
++// For e2fsprogs
++extern "C" {
++const char* program_name = "updater";
++}
++
+ // Where in the package we expect to find the edify script to execute.
+ // (Note it's "updateR-script", not the older "update-script".)
+ static constexpr const char* SCRIPT_NAME = "META-INF/com/google/android/updater-script";
+-- 
+2.17.1
+

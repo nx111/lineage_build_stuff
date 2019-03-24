@@ -1,4 +1,4 @@
-From 27144991f83312bdc64b0aaa3df7ac07e9af16f0 Mon Sep 17 00:00:00 2001
+From 8e19811a13f568a4631bf730448904fb5d718fd8 Mon Sep 17 00:00:00 2001
 From: =?UTF-8?q?eray=20or=C3=A7unus?= <erayorcunus@gmail.com>
 Date: Fri, 22 Mar 2019 01:15:45 +0300
 Subject: [PATCH 37/45] SystemUI: Bring back lockscreen tuner (1/2)
@@ -8,14 +8,20 @@ Content-Transfer-Encoding: 8bit
 
 * Enables us to change lockscreen shortcuts, but they will be disabled as default.
   (Leaving SystemUI/config.xml as it is makes this possible.)
+* Adds Voice Assist and Camera shortcuts to tuner and replaces "None" shortcut
+  with real "None". Until now, "None" was either "None" or default shortcut, depending
+  on "config_keyguardShowBlablaAffordance".
 * It will be located under Settings > Security & Location > Lock screen preferences
 
 Change-Id: Ibb107e550ff492219fb6fedd63f8fc8ee89753a9
 Signed-off-by: eray orçunus <erayorcunus@gmail.com>
 ---
- packages/SystemUI/LineageManifest.xml              | 14 ++++++++++++++
- .../com/android/systemui/tuner/TunerActivity.java  |  2 ++
- 2 files changed, 16 insertions(+)
+ packages/SystemUI/LineageManifest.xml         | 14 +++++
+ .../phone/KeyguardBottomAreaView.java         | 47 +++++++++++++--
+ .../systemui/tuner/LockscreenFragment.java    | 34 +++++++++++
+ .../systemui/tuner/ShortcutPicker.java        | 59 ++++++++++++++++++-
+ .../android/systemui/tuner/TunerActivity.java |  2 +
+ 5 files changed, 147 insertions(+), 9 deletions(-)
 
 diff --git a/packages/SystemUI/LineageManifest.xml b/packages/SystemUI/LineageManifest.xml
 index ce7adbfd808..2eb679c34c0 100644
@@ -42,6 +48,264 @@ index ce7adbfd808..2eb679c34c0 100644
          <activity-alias
              android:name=".tuner.TunerActivity"
              android:targetActivity=".tuner.TunerActivity"
+diff --git a/packages/SystemUI/src/com/android/systemui/statusbar/phone/KeyguardBottomAreaView.java b/packages/SystemUI/src/com/android/systemui/statusbar/phone/KeyguardBottomAreaView.java
+index 60d62d52995..0b3bbeae4c9 100644
+--- a/packages/SystemUI/src/com/android/systemui/statusbar/phone/KeyguardBottomAreaView.java
++++ b/packages/SystemUI/src/com/android/systemui/statusbar/phone/KeyguardBottomAreaView.java
+@@ -804,15 +804,28 @@ public class KeyguardBottomAreaView extends FrameLayout implements View.OnClickL
+         inflateCameraPreview();
+     }
+ 
++    private IntentButton translateTunerButton(IntentButton button) {
++        IconState buttonIcon = button.getIcon();
++
++        if (!buttonIcon.isVisible) {
++            if (buttonIcon.contentDescription.equals("ca")) {
++                return new DefaultRightButton(true);
++            } else if (buttonIcon.contentDescription.equals("vo")) {
++                return new DefaultLeftButton(true);
++            }
++        }
++        return button;
++    }
++
+     private void setRightButton(IntentButton button) {
+-        mRightButton = button;
++        mRightButton = translateTunerButton(button);
+         updateRightAffordanceIcon();
+         updateCameraVisibility();
+         inflateCameraPreview();
+     }
+ 
+     private void setLeftButton(IntentButton button) {
+-        mLeftButton = button;
++        mLeftButton = translateTunerButton(button);
+         if (!(mLeftButton instanceof DefaultLeftButton)) {
+             mLeftIsVoiceAssist = false;
+         }
+@@ -857,12 +870,22 @@ public class KeyguardBottomAreaView extends FrameLayout implements View.OnClickL
+     private class DefaultLeftButton implements IntentButton {
+ 
+         private IconState mIconState = new IconState();
++        private boolean mForceVisibility;
++
++        public DefaultLeftButton(boolean forceVisibility) {
++            mForceVisibility = forceVisibility;
++        }
++
++        public DefaultLeftButton() {
++            this(false);
++        }
+ 
+         @Override
+         public IconState getIcon() {
+             mLeftIsVoiceAssist = canLaunchVoiceAssist();
+             final boolean showAffordance =
+-                    getResources().getBoolean(R.bool.config_keyguardShowLeftAffordance);
++                    getResources().getBoolean(R.bool.config_keyguardShowLeftAffordance)
++                    || mForceVisibility;
+             if (mLeftIsVoiceAssist) {
+                 mIconState.isVisible = mUserSetupComplete && showAffordance;
+                 if (mLeftAssistIcon == null) {
+@@ -890,14 +913,26 @@ public class KeyguardBottomAreaView extends FrameLayout implements View.OnClickL
+     private class DefaultRightButton implements IntentButton {
+ 
+         private IconState mIconState = new IconState();
++        private boolean mForceVisibility;
++
++        public DefaultRightButton(boolean forceVisibility) {
++            mForceVisibility = forceVisibility;
++        }
++
++        public DefaultRightButton() {
++            this(false);
++        }
+ 
+         @Override
+         public IconState getIcon() {
+             ResolveInfo resolved = resolveCameraIntent();
+-            boolean isCameraDisabled = (mStatusBar != null) && !mStatusBar.isCameraAllowedByAdmin();
++            boolean isCameraDisabled =
++                    (mStatusBar != null) && !mStatusBar.isCameraAllowedByAdmin();
++            final boolean showAffordance =
++                    getResources().getBoolean(R.bool.config_keyguardShowCameraAffordance)
++                    || mForceVisibility;
+             mIconState.isVisible = !isCameraDisabled && resolved != null
+-                    && getResources().getBoolean(R.bool.config_keyguardShowCameraAffordance)
+-                    && mUserSetupComplete;
++                    && showAffordance && mUserSetupComplete;
+             mIconState.drawable = mContext.getDrawable(R.drawable.ic_camera_alt_24dp);
+             mIconState.contentDescription =
+                     mContext.getString(R.string.accessibility_camera_button);
+diff --git a/packages/SystemUI/src/com/android/systemui/tuner/LockscreenFragment.java b/packages/SystemUI/src/com/android/systemui/tuner/LockscreenFragment.java
+index 2df1793acb4..b81093a8ea1 100644
+--- a/packages/SystemUI/src/com/android/systemui/tuner/LockscreenFragment.java
++++ b/packages/SystemUI/src/com/android/systemui/tuner/LockscreenFragment.java
+@@ -27,6 +27,7 @@ import android.content.pm.PackageManager.NameNotFoundException;
+ import android.content.pm.ShortcutInfo;
+ import android.graphics.drawable.Drawable;
+ import android.graphics.drawable.ScaleDrawable;
++import android.graphics.drawable.ColorDrawable;
+ import android.os.Bundle;
+ import android.os.Handler;
+ import android.os.Process;
+@@ -129,6 +130,10 @@ public class LockscreenFragment extends PreferenceFragment {
+             ActivityInfo info = getActivityinfo(getContext(), value);
+             shortcut.setSummary(info != null ? info.loadLabel(getContext().getPackageManager())
+                     : null);
++        } else if (value.equals("vo")) {
++            shortcut.setSummary(R.string.accessibility_voice_assist_button);
++        } else if (value.equals("ca")) {
++            shortcut.setSummary(R.string.accessibility_camera_button);
+         } else {
+             shortcut.setSummary(R.string.lockscreen_none);
+         }
+@@ -344,12 +349,41 @@ public class LockscreenFragment extends PreferenceFragment {
+                     if (info != null) {
+                         return new ActivityButton(mContext, info);
+                     }
++                // Voice Assist or Camera shortcut
++                } else if (buttonStr.equals("ca") || buttonStr.equals("vo")) {
++                    return new FakeButton(buttonStr);
++                // Remove shortcut
++                } else if (buttonStr.equals("em")) {
++                    return new FakeButton("");
+                 }
+             }
+             return null;
+         }
+     }
+ 
++    private static class FakeButton implements IntentButton {
++        private final IconState mIconState;
++
++        public FakeButton(String description) {
++            mIconState = new IconState();
++            mIconState.contentDescription = description;
++            mIconState.isVisible = false;
++            mIconState.drawable = new ColorDrawable(0);
++            mIconState.tint = false;
++        }
++
++        @Override
++        public IconState getIcon() {
++            return mIconState;
++        }
++
++        @Override
++        public Intent getIntent() {
++            // Just a placeholder
++            return new Intent(Intent.ACTION_DIAL);
++        }
++    }
++
+     private static class ShortcutButton implements IntentButton {
+         private final Shortcut mShortcut;
+         private final IconState mIconState;
+diff --git a/packages/SystemUI/src/com/android/systemui/tuner/ShortcutPicker.java b/packages/SystemUI/src/com/android/systemui/tuner/ShortcutPicker.java
+index 533388a1a5d..d023438e544 100644
+--- a/packages/SystemUI/src/com/android/systemui/tuner/ShortcutPicker.java
++++ b/packages/SystemUI/src/com/android/systemui/tuner/ShortcutPicker.java
+@@ -33,6 +33,7 @@ import com.android.systemui.Dependency;
+ import com.android.systemui.R;
+ import com.android.systemui.tuner.ShortcutParser.Shortcut;
+ import com.android.systemui.tuner.TunerService.Tunable;
++import com.android.systemui.assist.AssistManager;
+ 
+ import java.util.ArrayList;
+ import java.util.List;
+@@ -41,7 +42,8 @@ public class ShortcutPicker extends PreferenceFragment implements Tunable {
+ 
+     private final ArrayList<SelectablePreference> mSelectablePreferences = new ArrayList<>();
+     private String mKey;
+-    private SelectablePreference mNonePreference;
++    private CustomPreference mNonePreference;
++    private CustomPreference mDefaultPreference;
+     private TunerService mTunerService;
+ 
+     @Override
+@@ -52,11 +54,44 @@ public class ShortcutPicker extends PreferenceFragment implements Tunable {
+         PreferenceCategory otherApps = new PreferenceCategory(context);
+         otherApps.setTitle(R.string.tuner_other_apps);
+ 
+-        mNonePreference = new SelectablePreference(context);
++        // Starting with Pie, this code relies on
++        // config_keyguardShowLeftAffordance and config_keyguardShowCameraAffordance
++        // and there is no true "none" or "default" preference,
++        // this is why there is so much code written in this file.
++/*      mNonePreference = new SelectablePreference(context);
+         mSelectablePreferences.add(mNonePreference);
+         mNonePreference.setTitle(R.string.lockscreen_none);
+         mNonePreference.setIcon(R.drawable.ic_remove_circle);
+         screen.addPreference(mNonePreference);
++*/
++
++        // True "none" preference
++        mNonePreference = new CustomPreference(context, "em");
++        mSelectablePreferences.add(mNonePreference);
++        mNonePreference.setTitle(R.string.lockscreen_none);
++        mNonePreference.setIcon(R.drawable.ic_remove_circle);
++        screen.addPreference(mNonePreference);
++
++        // Default shortcuts (voice assist and camera)
++        mKey = getArguments().getString(ARG_PREFERENCE_ROOT);
++        if (LOCKSCREEN_LEFT_BUTTON.equals(mKey)) {
++            mDefaultPreference = new CustomPreference(context, "vo");
++            mSelectablePreferences.add(mDefaultPreference);
++            if (canLaunchVoiceAssist()) {
++                mDefaultPreference.setTitle(R.string.accessibility_voice_assist_button);
++                mDefaultPreference.setIcon(R.drawable.ic_mic_26dp);
++            } else {
++                mDefaultPreference.setTitle(R.string.accessibility_phone_button);
++                mDefaultPreference.setIcon(R.drawable.ic_phone_24dp);
++            }
++            screen.addPreference(mDefaultPreference);
++        } else {
++            mDefaultPreference = new CustomPreference(context, "ca");
++            mSelectablePreferences.add(mDefaultPreference);
++            mDefaultPreference.setTitle(R.string.accessibility_camera_button);
++            mDefaultPreference.setIcon(R.drawable.ic_camera_alt_24dp);
++            screen.addPreference(mDefaultPreference);
++        }
+ 
+         LauncherApps apps = getContext().getSystemService(LauncherApps.class);
+         List<LauncherActivityInfo> activities = apps.getActivityList(null,
+@@ -97,11 +132,15 @@ public class ShortcutPicker extends PreferenceFragment implements Tunable {
+         //screen.addPreference(otherApps);
+ 
+         setPreferenceScreen(screen);
+-        mKey = getArguments().getString(ARG_PREFERENCE_ROOT);
+         mTunerService = Dependency.get(TunerService.class);
+         mTunerService.addTunable(this, mKey);
+     }
+ 
++    private boolean canLaunchVoiceAssist() {
++        AssistManager mAssistManager = Dependency.get(AssistManager.class);
++        return mAssistManager.canVoiceAssistBeLaunchedFromKeyguard();
++    }
++
+     @Override
+     public boolean onPreferenceTreeClick(Preference preference) {
+         mTunerService.setValue(mKey, preference.toString());
+@@ -197,4 +236,18 @@ public class ShortcutPicker extends PreferenceFragment implements Tunable {
+             return mShortcut.toString();
+         }
+     }
++
++    private static class CustomPreference extends SelectablePreference {
++        private String mIdentifier;
++
++        public CustomPreference(Context context, String id) {
++            super(context);
++            mIdentifier = id;
++        }
++
++        @Override
++        public String toString() {
++            return mIdentifier;
++        }
++    }
+ }
 diff --git a/packages/SystemUI/src/com/android/systemui/tuner/TunerActivity.java b/packages/SystemUI/src/com/android/systemui/tuner/TunerActivity.java
 index de7caa24d3f..77f5d384bfe 100644
 --- a/packages/SystemUI/src/com/android/systemui/tuner/TunerActivity.java

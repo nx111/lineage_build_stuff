@@ -1,13 +1,13 @@
-From ba86388e8c319442c72f3f862c1c46d0b94c8f21 Mon Sep 17 00:00:00 2001
+From 323e8f5a809b8daf4288d1dd6b323888a22a016e Mon Sep 17 00:00:00 2001
 From: Tom Marshall <tdm.code@gmail.com>
 Date: Mon, 14 Jan 2019 14:28:55 -0800
-Subject: [PATCH 31/44] recovery: Graphical UI
+Subject: [PATCH 31/49] recovery: Graphical UI
 
 Design and images from Asher Simonds <dayanhammer@gmail.com>
 
 Change-Id: I89c963e75bbc40f4bb7204211773fbfb28a5206b
 ---
- device.cpp                                    | 142 ++++-
+ device.cpp                                    | 142 +++--
  device.h                                      |  45 +-
  minui/graphics.cpp                            |  11 +
  minui/include/minui/minui.h                   |   1 +
@@ -72,14 +72,14 @@ Change-Id: I89c963e75bbc40f4bb7204211773fbfb28a5206b
  res-xxxhdpi/images/ic_system_update.png       | Bin 0 -> 653 bytes
  res-xxxhdpi/images/ic_system_update_sel.png   | Bin 0 -> 660 bytes
  res-xxxhdpi/images/logo_image.png             | Bin 0 -> 48239 bytes
- screen_ui.cpp                                 | 517 +++++++++++++++---
+ screen_ui.cpp                                 | 499 +++++++++++++++---
  screen_ui.h                                   |  62 ++-
  stub_ui.h                                     |  15 +-
  ui.cpp                                        | 233 ++++----
  ui.h                                          | 104 +++-
  wear_ui.cpp                                   |  36 +-
  wear_ui.h                                     |   6 +-
- 72 files changed, 1005 insertions(+), 329 deletions(-)
+ 72 files changed, 987 insertions(+), 329 deletions(-)
  create mode 100644 res-hdpi/images/font_menu.png
  create mode 100644 res-hdpi/images/ic_back.png
  create mode 100644 res-hdpi/images/ic_back_sel.png
@@ -442,10 +442,10 @@ index f4a94245..2c753067 100644
  void gr_text(const GRFont* font, int x, int y, const char* s, bool bold);
  int gr_measure(const GRFont* font, const char* s);
 diff --git a/recovery.cpp b/recovery.cpp
-index aab77426..286dee5b 100644
+index 52c309a1..ec22a6fb 100644
 --- a/recovery.cpp
 +++ b/recovery.cpp
-@@ -728,18 +728,22 @@ static bool erase_volume(const char* volume) {
+@@ -725,18 +725,22 @@ static bool erase_volume(const char* volume) {
  // return a positive number beyond the given range. Caller sets 'menu_only' to true to ensure only
  // a menu item gets selected. 'initial_selection' controls the initial cursor location. Returns the
  // (non-negative) chosen item number, or -1 if timed out waiting for input.
@@ -472,7 +472,7 @@ index aab77426..286dee5b 100644
        if (ui->WasTextEverVisible()) {
          continue;
        } else {
-@@ -749,8 +753,21 @@ int get_menu_selection(const char* const* headers, const char* const* items, boo
+@@ -746,8 +750,21 @@ int get_menu_selection(const char* const* headers, const char* const* items, boo
        }
      }
  
@@ -496,7 +496,7 @@ index aab77426..286dee5b 100644
  
      if (action < 0) {
        switch (action) {
-@@ -762,6 +779,9 @@ int get_menu_selection(const char* const* headers, const char* const* items, boo
+@@ -759,6 +776,9 @@ int get_menu_selection(const char* const* headers, const char* const* items, boo
            break;
          case Device::kInvokeItem:
            chosen_item = selected;
@@ -506,7 +506,7 @@ index aab77426..286dee5b 100644
            break;
          case Device::kNoAction:
            break;
-@@ -786,6 +806,9 @@ int get_menu_selection(const char* const* headers, const char* const* items, boo
+@@ -783,6 +803,9 @@ int get_menu_selection(const char* const* headers, const char* const* items, boo
    }
  
    ui->EndMenu();
@@ -516,7 +516,7 @@ index aab77426..286dee5b 100644
    return chosen_item;
  }
  
-@@ -819,17 +842,17 @@ static std::string browse_directory(const std::string& path, Device* device) {
+@@ -816,17 +839,17 @@ static std::string browse_directory(const std::string& path, Device* device) {
    // Append dirs to the zips list.
    zips.insert(zips.end(), dirs.begin(), dirs.end());
  
@@ -538,7 +538,7 @@ index aab77426..286dee5b 100644
      if (chosen_item == Device::kGoHome) {
        return "@";
      }
-@@ -860,10 +883,14 @@ static std::string browse_directory(const std::string& path, Device* device) {
+@@ -857,10 +880,14 @@ static std::string browse_directory(const std::string& path, Device* device) {
  
  static bool yes_no(Device* device, const char* question1, const char* question2) {
      const char* headers[] = { question1, question2, NULL };
@@ -555,7 +555,7 @@ index aab77426..286dee5b 100644
      }
      while (chosen_item == Device::kRefresh);
      return (chosen_item == 1);
-@@ -904,13 +931,14 @@ static bool prompt_and_wipe_data(Device* device) {
+@@ -901,13 +928,14 @@ static bool prompt_and_wipe_data(Device* device) {
      "stored on this device.",
      nullptr
    };
@@ -575,7 +575,7 @@ index aab77426..286dee5b 100644
      if (chosen_item != 1) {
        return true;  // Just reboot, no wipe; not a failure, user asked for it
      }
-@@ -1082,8 +1110,11 @@ static bool wipe_ab_device(size_t wipe_package_size) {
+@@ -1079,8 +1107,11 @@ static bool wipe_ab_device(size_t wipe_package_size) {
      return true;
  }
  
@@ -588,7 +588,7 @@ index aab77426..286dee5b 100644
    if (has_cache) {
      for (int i = 0; i < KEEP_LOG_COUNT; i++) {
        auto add_to_entries = [&](const char* filename) {
-@@ -1103,34 +1134,34 @@ static void choose_recovery_file(Device* device) {
+@@ -1100,34 +1131,34 @@ static void choose_recovery_file(Device* device) {
        // Add LAST_KMSG_FILE + LAST_KMSG_FILE.x
        add_to_entries(LAST_KMSG_FILE);
      }
@@ -639,7 +639,7 @@ index aab77426..286dee5b 100644
  }
  
  static void run_graphics_test() {
-@@ -1219,44 +1250,38 @@ static int apply_from_storage(Device* device, VolumeInfo& vi, bool* wipe_cache)
+@@ -1216,44 +1247,38 @@ static int apply_from_storage(Device* device, VolumeInfo& vi, bool* wipe_cache)
  
  static int
  show_apply_update_menu(Device* device, bool* wipe_cache) {
@@ -698,7 +698,7 @@ index aab77426..286dee5b 100644
          if (item != Device::kNoAction) {
              stop_sideload();
          }
-@@ -1287,11 +1312,17 @@ static Device::BuiltinAction prompt_and_wait(Device* device, int status) {
+@@ -1284,11 +1309,17 @@ static Device::BuiltinAction prompt_and_wait(Device* device, int status) {
      }
      ui->SetProgressType(RecoveryUI::EMPTY);
  
@@ -720,7 +720,7 @@ index aab77426..286dee5b 100644
        continue;
      }
  
-@@ -1303,6 +1334,8 @@ static Device::BuiltinAction prompt_and_wait(Device* device, int status) {
+@@ -1300,6 +1331,8 @@ static Device::BuiltinAction prompt_and_wait(Device* device, int status) {
      bool should_wipe_cache = false;
      switch (chosen_action) {
        case Device::NO_ACTION:
@@ -729,7 +729,7 @@ index aab77426..286dee5b 100644
          break;
  
        case Device::REBOOT:
-@@ -1341,13 +1374,13 @@ static Device::BuiltinAction prompt_and_wait(Device* device, int status) {
+@@ -1338,13 +1371,13 @@ static Device::BuiltinAction prompt_and_wait(Device* device, int status) {
          {
            status = show_apply_update_menu(device, &should_wipe_cache);
  
@@ -748,7 +748,7 @@ index aab77426..286dee5b 100644
              if (status != INSTALL_SUCCESS) {
                ui->SetBackground(RecoveryUI::ERROR);
                ui->Print("Installation aborted.\n");
-@@ -1363,6 +1396,9 @@ static Device::BuiltinAction prompt_and_wait(Device* device, int status) {
+@@ -1360,6 +1393,9 @@ static Device::BuiltinAction prompt_and_wait(Device* device, int status) {
  
        case Device::VIEW_RECOVERY_LOGS:
          choose_recovery_file(device);
@@ -8277,7 +8277,7 @@ literal 0
 HcmV?d00001
 
 diff --git a/screen_ui.cpp b/screen_ui.cpp
-index ad2ee294..7b6c75c9 100644
+index ad2ee294..ce78afcb 100644
 --- a/screen_ui.cpp
 +++ b/screen_ui.cpp
 @@ -42,6 +42,8 @@
@@ -8433,7 +8433,7 @@ index ad2ee294..7b6c75c9 100644
        selected = (selected == locales_entries.size() - 1) ? 0 : selected + 1;
        SelectAndShowBackgroundText(locales_entries, selected);
      }
-@@ -401,22 +477,216 @@ int ScreenRecoveryUI::DrawWrappedTextLines(int x, int y, const char* const* line
+@@ -401,22 +477,198 @@ int ScreenRecoveryUI::DrawWrappedTextLines(int x, int y, const char* const* line
            next_start += last_space + 1;
          }
        }
@@ -8455,22 +8455,6 @@ index ad2ee294..7b6c75c9 100644
 +
 +  int icon_x, icon_y, icon_h, icon_w;
 +
-+  // Local time
-+  char localtm_str[] = "--:--";
-+  time_t now;
-+  struct tm localtm;
-+  time(&now);
-+  if (now > TV_MIN) {
-+    localtime_r(&now, &localtm);
-+    snprintf(localtm_str, sizeof(localtm_str), "%02d:%02d",
-+             localtm.tm_hour, localtm.tm_min);
-+  }
- 
--static const char* LONG_PRESS_HELP[] = {
--  "Any button cycles highlight.",
--  "Long-press activates.",
--  NULL
--};
 +  // Battery status
 +  bool batt_charged;
 +  int batt_capacity;
@@ -8480,15 +8464,8 @@ index ad2ee294..7b6c75c9 100644
 +
 +  // Draw status bar from right to left
 +
-+  // Time
-+  SetColor(STATUSBAR);
-+  x = gr_fb_width();
-+  x -= 5 * char_width_;
-+  gr_text(gr_sys_font(), x, y, localtm_str, false);
-+
-+  x -= char_width_; // Separator
-+
 +  // Battery icon
++  x = gr_fb_width();
 +  x -= 1 * char_width_;
 +  SetColor((batt_capacity < 20) ? HEADER : STATUSBAR);
 +
@@ -8516,7 +8493,12 @@ index ad2ee294..7b6c75c9 100644
 +  gr_color(0, 0, 0, 255);
 +  gr_fill(icon_x, icon_y, icon_x + icon_w, icon_y + icon_h - cap_h);
 +  SetColor(STATUSBAR);
-+
+ 
+-static const char* LONG_PRESS_HELP[] = {
+-  "Any button cycles highlight.",
+-  "Long-press activates.",
+-  NULL
+-};
 +  x -= char_width_; // Separator
 +
 +  // Battery text
@@ -8660,7 +8642,7 @@ index ad2ee294..7b6c75c9 100644
  
  // Redraws everything on the screen. Does not flip pages. Should only be called with updateMutex
  // locked.
-@@ -432,50 +702,41 @@ void ScreenRecoveryUI::draw_screen_locked() {
+@@ -432,50 +684,41 @@ void ScreenRecoveryUI::draw_screen_locked() {
  
    int y = kMarginHeight;
    if (show_menu) {
@@ -8742,7 +8724,7 @@ index ad2ee294..7b6c75c9 100644
    }
  }
  
-@@ -558,6 +819,10 @@ void ScreenRecoveryUI::LoadBitmap(const char* filename, GRSurface** surface) {
+@@ -558,6 +801,10 @@ void ScreenRecoveryUI::LoadBitmap(const char* filename, GRSurface** surface) {
    }
  }
  
@@ -8753,7 +8735,7 @@ index ad2ee294..7b6c75c9 100644
  void ScreenRecoveryUI::LoadLocalizedBitmap(const char* filename, GRSurface** surface) {
    int result = res_create_localized_alpha_surface(filename, locale_.c_str(), surface);
    if (result < 0) {
-@@ -590,6 +855,7 @@ bool ScreenRecoveryUI::InitTextParams() {
+@@ -590,6 +837,7 @@ bool ScreenRecoveryUI::InitTextParams() {
    }
  
    gr_font_size(gr_sys_font(), &char_width_, &char_height_);
@@ -8761,7 +8743,7 @@ index ad2ee294..7b6c75c9 100644
    text_rows_ = (ScreenHeight() - kMarginHeight * 2) / char_height_;
    text_cols_ = (ScreenWidth() - kMarginWidth * 2) / char_width_;
    return true;
-@@ -615,6 +881,10 @@ bool ScreenRecoveryUI::Init(const std::string& locale) {
+@@ -615,6 +863,10 @@ bool ScreenRecoveryUI::Init(const std::string& locale) {
    // Set up the locale info.
    SetLocale(locale);
  
@@ -8772,7 +8754,7 @@ index ad2ee294..7b6c75c9 100644
    LoadBitmap("icon_error", &error_icon);
  
    LoadBitmap("progress_empty", &progressBarEmpty);
-@@ -681,8 +951,10 @@ void ScreenRecoveryUI::LoadAnimation() {
+@@ -681,8 +933,10 @@ void ScreenRecoveryUI::LoadAnimation() {
  void ScreenRecoveryUI::SetBackground(Icon icon) {
    pthread_mutex_lock(&updateMutex);
  
@@ -8785,7 +8767,7 @@ index ad2ee294..7b6c75c9 100644
  
    pthread_mutex_unlock(&updateMutex);
  }
-@@ -795,7 +1067,7 @@ void ScreenRecoveryUI::ClearText() {
+@@ -795,7 +1049,7 @@ void ScreenRecoveryUI::ClearText() {
    pthread_mutex_unlock(&updateMutex);
  }
  
@@ -8794,7 +8776,7 @@ index ad2ee294..7b6c75c9 100644
    std::vector<off_t> offsets;
    offsets.push_back(ftello(fp));
    ClearText();
-@@ -812,10 +1084,16 @@ void ScreenRecoveryUI::ShowFile(FILE* fp) {
+@@ -812,10 +1066,16 @@ void ScreenRecoveryUI::ShowFile(FILE* fp) {
        Redraw();
        while (show_prompt) {
          show_prompt = false;
@@ -8815,7 +8797,7 @@ index ad2ee294..7b6c75c9 100644
            if (offsets.size() <= 1) {
              show_prompt = true;
            } else {
-@@ -824,7 +1102,7 @@ void ScreenRecoveryUI::ShowFile(FILE* fp) {
+@@ -824,7 +1084,7 @@ void ScreenRecoveryUI::ShowFile(FILE* fp) {
            }
          } else {
            if (feof(fp)) {
@@ -8824,7 +8806,7 @@ index ad2ee294..7b6c75c9 100644
            }
            offsets.push_back(ftello(fp));
          }
-@@ -843,13 +1121,14 @@ void ScreenRecoveryUI::ShowFile(FILE* fp) {
+@@ -843,13 +1103,14 @@ void ScreenRecoveryUI::ShowFile(FILE* fp) {
        }
      }
    }
@@ -8841,7 +8823,7 @@ index ad2ee294..7b6c75c9 100644
    }
  
    char** old_text = text_;
-@@ -860,43 +1139,106 @@ void ScreenRecoveryUI::ShowFile(const char* filename) {
+@@ -860,43 +1121,106 @@ void ScreenRecoveryUI::ShowFile(const char* filename) {
    text_ = file_viewer_text_;
    ClearText();
  
@@ -8966,7 +8948,7 @@ index ad2ee294..7b6c75c9 100644
    }
    pthread_mutex_unlock(&updateMutex);
    return sel;
-@@ -907,6 +1249,9 @@ void ScreenRecoveryUI::EndMenu() {
+@@ -907,6 +1231,9 @@ void ScreenRecoveryUI::EndMenu() {
    if (show_menu && text_rows_ > 0 && text_cols_ > 0) {
      show_menu = false;
    }
