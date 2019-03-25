@@ -1,0 +1,258 @@
+From f8567fb4f0bdbad66df4587f06072e9ecec26032 Mon Sep 17 00:00:00 2001
+From: Luca Stefani <luca.stefani.ge1@gmail.com>
+Date: Tue, 10 Jul 2018 19:54:20 +0200
+Subject: [PATCH 3/3] Updater: Allow to suspend A/B updates
+
+Change-Id: I0387fd491a07a2214e4331a2cfe25988e0016a61
+---
+ res/values/strings.xml                        |  2 +
+ .../updater/controller/ABUpdateInstaller.java | 72 +++++++++++++++++--
+ .../updater/controller/UpdaterService.java    | 55 ++++++++++++++
+ .../lineageos/updater/model/UpdateStatus.java |  3 +-
+ 4 files changed, 127 insertions(+), 5 deletions(-)
+
+diff --git a/res/values/strings.xml b/res/values/strings.xml
+index b3ce44e..6ce20bb 100644
+--- a/res/values/strings.xml
++++ b/res/values/strings.xml
+@@ -42,6 +42,7 @@
+     <string name="download_completed_notification">Download completed</string>
+     <string name="download_starting_notification">Starting download</string>
+     <string name="update_failed_notification">Update failed</string>
++    <string name="installation_suspended_notification">Installation suspended</string>
+ 
+     <string name="new_updates_found_title">New updates</string>
+ 
+@@ -49,6 +50,7 @@
+ 
+     <string name="pause_button">Pause</string>
+     <string name="resume_button">Resume</string>
++    <string name="suspend_button">Suspend</string>
+ 
+     <string name="installing_update">Installing update package</string>
+     <string name="installing_update_error">Install error</string>
+diff --git a/src/org/lineageos/updater/controller/ABUpdateInstaller.java b/src/org/lineageos/updater/controller/ABUpdateInstaller.java
+index 0e3e80a..b0be201 100644
+--- a/src/org/lineageos/updater/controller/ABUpdateInstaller.java
++++ b/src/org/lineageos/updater/controller/ABUpdateInstaller.java
+@@ -43,6 +43,7 @@ class ABUpdateInstaller {
+     private static final String TAG = "ABUpdateInstaller";
+ 
+     private static final String PREF_INSTALLING_AB_ID = "installing_ab_id";
++    private static final String PREF_INSTALLING_SUSPENDED_AB_ID = "installing_suspended_ab_id";
+ 
+     private static ABUpdateInstaller sInstance = null;
+ 
+@@ -53,6 +54,9 @@ class ABUpdateInstaller {
+     private UpdateEngine mUpdateEngine;
+     private boolean mBound;
+ 
++    private boolean mFinalizing;
++    private int mProgress;
++
+     private final UpdateEngineCallback mUpdateEngineCallback = new UpdateEngineCallback() {
+ 
+         @Override
+@@ -71,10 +75,10 @@ class ABUpdateInstaller {
+                         update.setStatus(UpdateStatus.INSTALLING);
+                         mUpdaterController.notifyUpdateChange(mDownloadId);
+                     }
+-                    int progress = Math.round(percent * 100);
+-                    mUpdaterController.getActualUpdate(mDownloadId).setInstallProgress(progress);
+-                    boolean finalizing = status == UpdateEngine.UpdateStatusConstants.FINALIZING;
+-                    mUpdaterController.getActualUpdate(mDownloadId).setFinalizing(finalizing);
++                    mProgress = Math.round(percent * 100);
++                    mUpdaterController.getActualUpdate(mDownloadId).setInstallProgress(mProgress);
++                    mFinalizing = status == UpdateEngine.UpdateStatusConstants.FINALIZING;
++                    mUpdaterController.getActualUpdate(mDownloadId).setFinalizing(mFinalizing);
+                     mUpdaterController.notifyInstallProgress(mDownloadId);
+                 }
+                 break;
+@@ -127,6 +131,16 @@ class ABUpdateInstaller {
+                 TextUtils.equals(pref.getString(Constants.PREF_NEEDS_REBOOT_ID, null), downloadId);
+     }
+ 
++    static synchronized boolean isInstallingUpdateSuspended(Context context) {
++        SharedPreferences pref = PreferenceManager.getDefaultSharedPreferences(context);
++        return pref.getString(ABUpdateInstaller.PREF_INSTALLING_SUSPENDED_AB_ID, null) != null;
++    }
++
++    static synchronized boolean isInstallingUpdateSuspended(Context context, String downloadId) {
++        SharedPreferences pref = PreferenceManager.getDefaultSharedPreferences(context);
++        return downloadId.equals(pref.getString(ABUpdateInstaller.PREF_INSTALLING_SUSPENDED_AB_ID, null));
++    }
++
+     static synchronized boolean isWaitingForReboot(Context context, String downloadId) {
+         String waitingId = PreferenceManager.getDefaultSharedPreferences(context)
+                 .getString(Constants.PREF_NEEDS_REBOOT_ID, null);
+@@ -273,4 +287,54 @@ class ABUpdateInstaller {
+     public void setPerformanceMode(boolean enable) {
+         mUpdateEngine.setPerformanceMode(enable);
+     }
++
++    public boolean suspend() {
++        if (!isInstallingUpdate(mContext)) {
++            Log.e(TAG, "cancel: Not installing any update");
++            return false;
++        }
++
++        if (!mBound) {
++            Log.e(TAG, "Not connected to update engine");
++            return false;
++        }
++
++        mUpdateEngine.suspend();
++
++        mUpdaterController.getActualUpdate(mDownloadId)
++                .setStatus(UpdateStatus.INSTALLATION_SUSPENDED);
++        mUpdaterController.notifyUpdateChange(mDownloadId);
++
++        PreferenceManager.getDefaultSharedPreferences(mContext).edit()
++                .putString(PREF_INSTALLING_SUSPENDED_AB_ID, mDownloadId)
++                .apply();
++
++        return true;
++    }
++
++    public boolean resume() {
++        if (!isInstallingUpdateSuspended(mContext)) {
++            Log.e(TAG, "cancel: No update is suspended");
++            return false;
++        }
++
++        if (!mBound) {
++            Log.e(TAG, "Not connected to update engine");
++            return false;
++        }
++
++        mUpdateEngine.resume();
++
++        mUpdaterController.getActualUpdate(mDownloadId).setStatus(UpdateStatus.INSTALLING);
++        mUpdaterController.notifyUpdateChange(mDownloadId);
++        mUpdaterController.getActualUpdate(mDownloadId).setInstallProgress(mProgress);
++        mUpdaterController.getActualUpdate(mDownloadId).setFinalizing(mFinalizing);
++        mUpdaterController.notifyInstallProgress(mDownloadId);
++
++        PreferenceManager.getDefaultSharedPreferences(mContext).edit()
++                .remove(PREF_INSTALLING_SUSPENDED_AB_ID)
++                .apply();
++
++        return true;
++    }
+ }
+diff --git a/src/org/lineageos/updater/controller/UpdaterService.java b/src/org/lineageos/updater/controller/UpdaterService.java
+index 3cb4ada..8b8289e 100644
+--- a/src/org/lineageos/updater/controller/UpdaterService.java
++++ b/src/org/lineageos/updater/controller/UpdaterService.java
+@@ -54,6 +54,9 @@ public class UpdaterService extends Service {
+     public static final String ACTION_INSTALL_UPDATE = "action_install_update";
+     public static final String ACTION_INSTALL_STOP = "action_install_stop";
+ 
++    public static final String ACTION_INSTALL_SUSPEND = "action_install_suspend";
++    public static final String ACTION_INSTALL_RESUME = "action_install_resume";
++
+     private static final String ONGOING_NOTIFICATION_CHANNEL =
+             "ongoing_notification_channel";
+ 
+@@ -212,6 +215,20 @@ public class UpdaterService extends Service {
+                 installer.reconnect();
+                 installer.cancel();
+             }
++        } else if (ACTION_INSTALL_SUSPEND.equals(intent.getAction())) {
++            if (ABUpdateInstaller.isInstallingUpdate(this)) {
++                ABUpdateInstaller installer = ABUpdateInstaller.getInstance(this,
++                        mUpdaterController);
++                installer.reconnect();
++                installer.suspend();
++            }
++        } else if (ACTION_INSTALL_RESUME.equals(intent.getAction())) {
++            if (ABUpdateInstaller.isInstallingUpdateSuspended(this)) {
++                ABUpdateInstaller installer = ABUpdateInstaller.getInstance(this,
++                        mUpdaterController);
++                installer.reconnect();
++                installer.resume();
++            }
+         }
+         return ABUpdateInstaller.isInstallingUpdate(this) ? START_STICKY : START_NOT_STICKY;
+     }
+@@ -355,6 +372,11 @@ public class UpdaterService extends Service {
+                         getString(R.string.dialog_prepare_zip_message) :
+                         getString(R.string.installing_update);
+                 mNotificationStyle.bigText(text);
++                if (ABUpdateInstaller.isInstallingUpdate(this)) {
++                    mNotificationBuilder.addAction(android.R.drawable.ic_media_pause,
++                            getString(R.string.suspend_button),
++                            getSuspendInstallationPendingIntent());
++                }
+                 mNotificationBuilder.setTicker(text);
+                 mNotificationBuilder.setOngoing(true);
+                 mNotificationBuilder.setAutoCancel(false);
+@@ -364,6 +386,7 @@ public class UpdaterService extends Service {
+             }
+             case INSTALLED: {
+                 stopForeground(STOP_FOREGROUND_DETACH);
++                mNotificationBuilder.mActions.clear();
+                 mNotificationBuilder.setStyle(null);
+                 mNotificationBuilder.setSmallIcon(R.drawable.ic_system_update);
+                 mNotificationBuilder.setProgress(0, 0, false);
+@@ -398,6 +421,25 @@ public class UpdaterService extends Service {
+                 tryStopSelf();
+                 break;
+             }
++            case INSTALLATION_SUSPENDED: {
++                stopForeground(STOP_FOREGROUND_DETACH);
++                // In case we pause before the first progress update
++                mNotificationBuilder.setProgress(100, update.getProgress(), false);
++                mNotificationBuilder.mActions.clear();
++                String text = getString(R.string.installation_suspended_notification);
++                mNotificationStyle.bigText(text);
++                mNotificationBuilder.setStyle(mNotificationStyle);
++                mNotificationBuilder.setSmallIcon(R.drawable.ic_pause);
++                mNotificationBuilder.addAction(android.R.drawable.ic_media_play,
++                        getString(R.string.resume_button),
++                        getResumeInstallationPendingIntent());
++                mNotificationBuilder.setTicker(text);
++                mNotificationBuilder.setOngoing(true);
++                mNotificationBuilder.setAutoCancel(false);
++                mNotificationManager.notify(NOTIFICATION_ID, mNotificationBuilder.build());
++                tryStopSelf();
++                break;
++            }
+         }
+     }
+ 
+@@ -463,4 +505,17 @@ public class UpdaterService extends Service {
+         return PendingIntent.getBroadcast(this, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT);
+     }
+ 
++    private PendingIntent getSuspendInstallationPendingIntent() {
++        final Intent intent = new Intent(this, UpdaterService.class);
++        intent.setAction(ACTION_INSTALL_SUSPEND);
++        return PendingIntent.getService(this, 0, intent,
++                PendingIntent.FLAG_UPDATE_CURRENT);
++    }
++
++    private PendingIntent getResumeInstallationPendingIntent() {
++        final Intent intent = new Intent(this, UpdaterService.class);
++        intent.setAction(ACTION_INSTALL_RESUME);
++        return PendingIntent.getService(this, 0, intent,
++                PendingIntent.FLAG_UPDATE_CURRENT);
++    }
+ }
+diff --git a/src/org/lineageos/updater/model/UpdateStatus.java b/src/org/lineageos/updater/model/UpdateStatus.java
+index d1ec67d..1de988e 100644
+--- a/src/org/lineageos/updater/model/UpdateStatus.java
++++ b/src/org/lineageos/updater/model/UpdateStatus.java
+@@ -29,7 +29,8 @@ public enum UpdateStatus {
+     INSTALLING,
+     INSTALLED,
+     INSTALLATION_FAILED,
+-    INSTALLATION_CANCELLED;
++    INSTALLATION_CANCELLED,
++    INSTALLATION_SUSPENDED;
+ 
+     public static final class Persistent {
+         public static final int UNKNOWN = 0;
+-- 
+2.17.1
+

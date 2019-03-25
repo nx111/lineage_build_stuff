@@ -1309,6 +1309,7 @@ kpick 244760 # minui: Fix the wrong move of the callback.
 kpick 244761 # minui: Support input device hotplug in recovery mode.
 kpick 244762 # recovery: Support configfs usb configuration
 kpick 244763 # recovery: Blank screen on init
+kpick 244861 # recovery: add reboot to recovery option
 
 # build/make
 kpick 222742 # build: Use project pathmap for recovery
@@ -1347,6 +1348,7 @@ kpick 243674 # common: Add missing CNE rules
 kpick 244366 # sepolicy: Allow perf HAL to set mpctl props
 kpick 244642 # sepolicy: Whitelist recovery from reading mnt_vendor_file
 kpick 244722 # sepolicy: Allow recovery read time
+kpick 244862 # sepolicy: Allow the QCOM Boot Control HAL needed permissions
 
 # device/qcom/sepolicy-legacy
 kpick 243505 # sepolicy: Label persist partition for all SoCs
@@ -1566,7 +1568,6 @@ kpick 244543 # PlaylistArtworkStore: use try-with-resources and cleanup
 kpick 244544 # Playlists: sort ignoring case
 kpick 244545 # no_results: also tint image drawable
 kpick 244546 # MusicPlaybackService: catch IllegalStateException for duration and position
-#kpick 244547
 
 # packages/apps/LineageParts
 kpick 243513 # LightSettingsDialog: create and use notification channel
@@ -1590,6 +1591,7 @@ kpick 240083 # Settings: Add null checks for OemLockService
 kpick 241758 # Settings: Show root options when certain third party root is present
 kpick 244319 # Add toggle for face auto unlock (2/2)
 kpick 244663 # SystemUI: Bring back lockscreen tuner (2/2)
+kpick 244843 # Settings: Add battery saving mode for location
 
 # packages/apps/Snap
 kpick 242496 # Snap: Fix bad grammar "Long shot not support<ed>"
@@ -1600,6 +1602,7 @@ kpick 243071 # Snap: allow to disable image stabilization per device
 # packages/apps/Updater
 kpick 239289 # Updater: put identical code to helper method
 kpick 244176 # Updater: transfer releated to configuration code to onResume to prorerly init time format (12/24)
+kpick 244871 # Updater: Allow to suspend A/B updates
 
 # packages/services/Telecomm
 kpick 233635 # Phone ringtone setting for Multi SIM device
