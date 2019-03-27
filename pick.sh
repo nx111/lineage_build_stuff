@@ -1310,6 +1310,8 @@ kpick 244761 # minui: Support input device hotplug in recovery mode.
 kpick 244762 # recovery: Support configfs usb configuration
 kpick 244763 # recovery: Blank screen on init
 kpick 244861 # recovery: add reboot to recovery option
+kpick 245036 # recovery: Fix mounting f2fs partitions
+kpick 245037 # recovery: VolumeManager: support for multiple /data fs entries
 
 # build/make
 kpick 222742 # build: Use project pathmap for recovery
@@ -1344,15 +1346,14 @@ kpick 228573 # sepolicy: Add libsdm-disp-vndapis and libsdmutils to SP-HALs
 kpick 228582 # sepolicy: qti_init_shell needs to read dir too
 kpick 240951 # qcom: label persist files with /(mnt/vendor)/persist instead of /mnt/vendor/persist
 kpick 242976 # sepolicy: Label persist partition for all SoCs
-kpick 243674 # common: Add missing CNE rules
 kpick 244366 # sepolicy: Allow perf HAL to set mpctl props
 kpick 244642 # sepolicy: Whitelist recovery from reading mnt_vendor_file
 kpick 244722 # sepolicy: Allow recovery read time
-kpick 244862 # sepolicy: Allow the QCOM Boot Control HAL needed permissions
 
 # device/qcom/sepolicy-legacy
 kpick 243505 # sepolicy: Label persist partition for all SoCs
 kpick 244723 # sepolicy: Allow recovery read time
+kpick 245040 # sepolicy-legacy: allow recovery to read battery info
 
 # development
 kpick 240579 # idegen: Add functionality to set custom ipr file name
@@ -1548,7 +1549,6 @@ kpick 240770 # Proper supplementary service notification handling (5/5).
 
 # packages/apps/Eleven
 kpick 242736 # Eleven: bump to api26
-#kpick 244528-244646 -x
 kpick 244528 # Eleven: remove junit dependency
 kpick 244529 # Eleven: remove guava dependency
 kpick 244530 # Localization: do not use private ICU APIs
@@ -1572,7 +1572,6 @@ kpick 244546 # MusicPlaybackService: catch IllegalStateException for duration an
 # packages/apps/LineageParts
 kpick 243513 # LightSettingsDialog: create and use notification channel
 kpick 244135 # Move the rotation setting to the "normal" SettingsProvider
-kpick 244234 # StatusBarSettings: Hide NW traffic from search results if not available
 kpick 244511 # LightSettingsDialog: remove unused OnColorChangedListener
 kpick 244512 # LightSettingsDialog: add bundle extras for preview color and duration
 
@@ -1592,6 +1591,8 @@ kpick 241758 # Settings: Show root options when certain third party root is pres
 kpick 244319 # Add toggle for face auto unlock (2/2)
 kpick 244663 # SystemUI: Bring back lockscreen tuner (2/2)
 kpick 244843 # Settings: Add battery saving mode for location
+kpick 244993 # DisplaySettings: Hide high touch sensitivity from search if needed
+kpick 244994 # LanguageAndInputSettings: Hide touch hovering from search if needed
 
 # packages/apps/Snap
 kpick 242496 # Snap: Fix bad grammar "Long shot not support<ed>"
