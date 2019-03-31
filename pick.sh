@@ -1312,6 +1312,15 @@ kpick 244763 # recovery: Blank screen on init
 kpick 244861 # recovery: add reboot to recovery option
 kpick 245036 # recovery: Fix mounting f2fs partitions
 kpick 245037 # recovery: VolumeManager: support for multiple /data fs entries
+kpick 245247 # recovery: account for scrolling when selecting item with touch
+kpick 245248 # recovery: always begin showing menu from the start
+kpick 245257 # recovery: prevent drawing the last item of a menu offscreen
+kpick 245249 # recovery: implement natural touch scrolling
+kpick 245250 # recovery: setup a threshold to ignore touch release events after a swipe
+kpick 245258 # recovery: only show tests in eng build
+kpick 245266 # recovery: ignore refresh events while on browsing menus
+kpick 245274 # recovery: Default to /storage/emulated/0 for emulated install choice
+kpick 245305 # OMGRainbows
 
 # build/make
 kpick 222742 # build: Use project pathmap for recovery
@@ -1332,7 +1341,7 @@ kpick 241667 # sepolicy: Move power hal service label to dynamic
 kpick 241676 # sepolicy: qcom: Rename common to vendor to avoid confusion
 kpick 241677 # sepolicy: Break livedisplay hal policy into impl independent ones
 kpick 241903 # sepolicy: Label all the livedisplay service implementations
-kpick 244586 # common: recovery: Add policy for volume manager
+kpick 244586 # sepolicy: recovery: Add policy for volume manager
 kpick 244587 # common: recovery: allow setting time
 kpick 244768 # sepolicy: recovery: Allow reading proc_filesystems
 kpick 244769 # sepolicy: recovery: Fix the volume manager blkid.tab denial
@@ -1340,6 +1349,9 @@ kpick 244770 # sepolicy: recovery: Add policy for /dev/block/volmgr
 kpick 244771 # sepolicy: recovery: Allow volume manager write to /sys/*/uevent
 kpick 244772 # sepolicy: recovery: Allow setting sys.usb.config
 kpick 244801 # common: fix OTA auto-flashing with encrypted f2fs.
+kpick 245217 # sepolicy: recovery: allow recovery to read battery info
+kpick 245259 # sepolicy: recovery: allow mounting of usb storage
+kpick 245273 # sepolicy: recovery: allow reading fbe key version
 
 # device/qcom/sepolicy
 kpick 228573 # sepolicy: Add libsdm-disp-vndapis and libsdmutils to SP-HALs
@@ -1353,7 +1365,6 @@ kpick 244722 # sepolicy: Allow recovery read time
 # device/qcom/sepolicy-legacy
 kpick 243505 # sepolicy: Label persist partition for all SoCs
 kpick 244723 # sepolicy: Allow recovery read time
-kpick 245040 # sepolicy-legacy: allow recovery to read battery info
 
 # development
 kpick 240579 # idegen: Add functionality to set custom ipr file name
@@ -1363,6 +1374,7 @@ kpick 227260 # Update bt vendor callbacks array in vfs code
 kpick 227261 # Cast BT_VND_OP_ANT_USERIAL_{OPEN,CLOSE} to bt_vendor_opcode_t in vfs code
 
 # external/chromium-webview
+kpick 245252 # Update Chromium Webview to 73.0.3683.90
 
 # external/e2fsprogs
 kpick 225215 # e2fsprogs: Prepare for adding and using static libs
@@ -1400,7 +1412,7 @@ kpick 225231 # awk: Add libawk_main for recovery and fixup symbols
 kpick 223413 -f # perfetto_cmd: Resolve missing O_CREAT mode
 
 # external/toybox
-kpick 225232 # toybox: Use toybox for dd and grep in recovery
+kpick 225232 # toybox: Use toybox for dd, getprop and grep in recovery
 kpick 225233 # toybox: Add install to symlinks
 
 # external/unrar
@@ -1543,6 +1555,7 @@ kpick 229311 # Assume optional codecs are supported if were supported previously
 
 # packages/apps/Camera2
 kpick 224752 # Use mCameraAgentNg for getting camera info when available
+kpick 245234 # Camera2: also check for and request WRITE_EXTERNAL_STORAGE permission
 
 # packages/apps/Dialer
 kpick 240770 # Proper supplementary service notification handling (5/5).
@@ -1591,8 +1604,6 @@ kpick 241758 # Settings: Show root options when certain third party root is pres
 kpick 244319 # Add toggle for face auto unlock (2/2)
 kpick 244663 # SystemUI: Bring back lockscreen tuner (2/2)
 kpick 244843 # Settings: Add battery saving mode for location
-kpick 244993 # DisplaySettings: Hide high touch sensitivity from search if needed
-kpick 244994 # LanguageAndInputSettings: Hide touch hovering from search if needed
 
 # packages/apps/Snap
 kpick 242496 # Snap: Fix bad grammar "Long shot not support<ed>"
@@ -1647,6 +1658,7 @@ kpick 232794 # NetD : Allow passing in interface names for vpn app restriction
 
 # system/sepolicy
 kpick 243819 # sepolicy: Label tee_data_file as core_data_file_type
+kpick 245267 # sepolicy: whitelist recovery from node creation neverallow
 
 # system/tools/aidl
 kpick 223133 # AIDL: Add option to generate No-Op methods
@@ -1679,6 +1691,9 @@ kpick 242433 # Make custom off-mode charging screen great again
 kpick 243809 # soong_config: Add flag for devices use metadata as FDE key
 kpick 244389 # lineage: overlay-tv: Remove TV Setup Complete flag
 kpick 244672 # common: Add getcap/setcap to PRODUCT_PACKAGES
+kpick 245278 # extract_utils: Add functions to extract vendor blobs from vendor.img
+kpick 245279 # kernel: Allow devices to specify kernel toolchain root
+kpick 245280 # gms: Include turbo on arm64 targets
 
 # vendor/qcom/opensource/cryptfs_hw
 kpick 243744 # cryptfs_hw: Support devices use metadata as key

@@ -1,0 +1,99 @@
+From f35a3d71104ad30d03c853d3b293bbd0ebf0a9a4 Mon Sep 17 00:00:00 2001
+From: Nolen Johnson <johnsonnolen@gmail.com>
+Date: Fri, 29 Mar 2019 22:45:56 +0000
+Subject: [PATCH 60/61] recovery: Default to /storage/emulated/0 for emulated
+ install choice
+
+Change-Id: Ib1928acfb598803b4dbc676d9f6d666b0f7e2881
+---
+ volume_manager/EmulatedVolume.cpp | 26 ++++++++++++++++++++------
+ volume_manager/EmulatedVolume.h   |  1 +
+ volume_manager/VolumeManager.cpp  |  2 +-
+ 3 files changed, 22 insertions(+), 7 deletions(-)
+
+diff --git a/volume_manager/EmulatedVolume.cpp b/volume_manager/EmulatedVolume.cpp
+index c4a5c400..3c30a3f0 100644
+--- a/volume_manager/EmulatedVolume.cpp
++++ b/volume_manager/EmulatedVolume.cpp
+@@ -39,7 +39,7 @@ using android::base::StringPrintf;
+ namespace android {
+ namespace volmgr {
+ 
+-static const std::string kStagingPath = "/mnt/staging/emulated";
++static const std::string kStagingPath = "/mnt/staging/emulated/0";
+ 
+ EmulatedVolume::EmulatedVolume(fstab_rec* rec, const std::string& subdir) :
+         VolumeBase(Type::kEmulated),
+@@ -50,19 +50,17 @@ EmulatedVolume::EmulatedVolume(fstab_rec* rec, const std::string& subdir) :
+         mFsOptions(rec->fs_options) {
+     setId("emulated");
+     setPartLabel("emulated");
+-    setPath("/storage/emulated");
++    setPath("/storage/emulated/0");
+ }
+ 
+ EmulatedVolume::~EmulatedVolume() {
+ }
+ 
+ status_t EmulatedVolume::doMount() {
+-    if (fs_prepare_dir(kStagingPath.c_str(), 0700, AID_ROOT, AID_ROOT)) {
+-        PLOG(ERROR) << getId() << " failed to create mount points";
++    if (createMountPointRecursive(kStagingPath, 0700, AID_ROOT, AID_ROOT)) {
+         return -errno;
+     }
+-    if (fs_prepare_dir(getPath().c_str(), 0700, AID_ROOT, AID_ROOT)) {
+-        PLOG(ERROR) << getId() << " failed to create mount points";
++    if (createMountPointRecursive(getPath(), 0700, AID_ROOT, AID_ROOT)) {
+         return -errno;
+     }
+ 
+@@ -93,5 +91,21 @@ status_t EmulatedVolume::doUnmount(bool detach /* = false */) {
+     return OK;
+ }
+ 
++int EmulatedVolume::createMountPointRecursive(const std::string& path, mode_t mode, uid_t uid, gid_t gid) {
++    auto pos = path.find("/", 1);
++    while (pos != std::string::npos) {
++        std::string tmp = path.substr(0, pos);
++        mkdir(tmp.c_str(), mode);
++        pos = path.find("/", pos + 1);
++    }
++
++    if (fs_prepare_dir(path.c_str(), mode, uid, gid)) {
++        PLOG(ERROR) << getId() << " failed to create mount point " << path.c_str();
++        return -1;
++    }
++
++    return 0;
++}
++
+ }  // namespace volmgr
+ }  // namespace android
+diff --git a/volume_manager/EmulatedVolume.h b/volume_manager/EmulatedVolume.h
+index 86ffec07..ef4efc50 100644
+--- a/volume_manager/EmulatedVolume.h
++++ b/volume_manager/EmulatedVolume.h
+@@ -45,6 +45,7 @@ public:
+ protected:
+     status_t doMount() override;
+     status_t doUnmount(bool detach = false) override;
++    int createMountPointRecursive(const std::string&, mode_t, uid_t, gid_t);
+ 
+ private:
+     std::string         mSubdir;
+diff --git a/volume_manager/VolumeManager.cpp b/volume_manager/VolumeManager.cpp
+index 11dc5495..a1ce47ec 100644
+--- a/volume_manager/VolumeManager.cpp
++++ b/volume_manager/VolumeManager.cpp
+@@ -195,7 +195,7 @@ VolumeManager::start(VolumeWatcher* watcher)
+     }
+ 
+     if (data_rec) {
+-        mInternalEmulated = new EmulatedVolume(data_rec, "media");
++        mInternalEmulated = new EmulatedVolume(data_rec, "media/0");
+         mInternalEmulated->create();
+     }
+ 
+-- 
+2.17.1
+
