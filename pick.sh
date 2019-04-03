@@ -62,7 +62,15 @@ function patch_local()
 {
     cd $(gettop)
     topdir=$(gettop)
-    va_patches_dir=$1
+    local va_patches_dir
+    local basemode=0
+    for va in $*; do
+        if [ "${va:0:1}" != "-" -a "$va_patches_dir" = "" ]; then
+           va_patches_dir=$va
+        elif [ "$va" == "-base" ]; then
+            basemode=1
+        fi
+    done
     search_dir=".myfiles/patches"
 
     if [ ! -z $va_patches_dir ]; then
@@ -81,6 +89,9 @@ function patch_local()
          f=$(echo $line | sed -e "s/:/\//")
          patchfile=$(basename $f)
          project=$(echo $f |  sed -e "s/^pick\///" -e "s/^local\///"  | sed "s/\/[^\/]*$//")
+         if [ $basemode -eq 1 ] && echo $patchfile | grep -vq "\[ALWAYS\]"; then
+            continue
+         fi 
          if [ ! -d "$topdir/$project" ]; then
             if [ -d "$topdir/$(dirname $project)" ]; then
                project=$(dirname $project)
@@ -289,7 +300,7 @@ function projects_snapshot()
                                mv $pick_patch $topdir/.myfiles/patches/local/$project/
                            fi
                        elif ! echo $patchfile | grep -qE "\[WIP\]|\[SKIP\]|\[ALWAYS\]|\[KEEP\]"; then
-                           rm -f $patchfile
+                           [ -f $topdir/.pick_base ] || rm -f $patchfile
                        elif echo $patchfile | grep -q "^[[:digit:]]\{4,4\}-"; then
                            prefixNumber=$(echo $number| awk '{printf("%04d\n",$0)}')
                            mv $patchfile $prefixNumber-${patchfile:5}
@@ -1175,13 +1186,12 @@ if [ $op_base_pick -eq 1 ]; then
    cd $topdir
    repo sync
    [ $? -ne 0 ] && exit
-   apply_force_changes
-
-   kpick 209019 # toybox: Use ISO C/clang compatible __typeof__ in minof/maxof macros
 
    echo 
    echo "Apply I hate the safty net..."
    privpick system/core refs/changes/19/206119/2 # init: I hate safety net
+   echo
+   patch_local -base local
    touch $topdir/.pick_base
    exit 0
 fi
@@ -1321,6 +1331,7 @@ kpick 245258 # recovery: only show tests in eng build
 kpick 245266 # recovery: ignore refresh events while on browsing menus
 kpick 245274 # recovery: Default to /storage/emulated/0 for emulated install choice
 kpick 245305 # OMGRainbows
+kpick 245350 # recovery: show text during install
 
 # build/make
 kpick 222742 # build: Use project pathmap for recovery
@@ -1588,6 +1599,9 @@ kpick 244135 # Move the rotation setting to the "normal" SettingsProvider
 kpick 244511 # LightSettingsDialog: remove unused OnColorChangedListener
 kpick 244512 # LightSettingsDialog: add bundle extras for preview color and duration
 
+# packages/apps/Jelly
+kpick 245307 # Jelly: menu should say window
+
 # packages/apps/Messaging
 
 # packages/apps/Settings
@@ -1646,6 +1660,7 @@ kpick 244257 # healthd: make periodic battery status a debug message
 kpick 244720 # Revert "fs_mgr_fstab: removing fs_mgr_get_entry_for_mount_point_after()"
 kpick 244721 # fs_mgr: Skip filesystem check unless fs_type matches
 kpick 244773 # Revert "sdcard: Allow building as a static library"
+kpick 245342 # adb: Always allow recovery use adb root in userdebug builds
 
 # system/extras/su
 kpick 232428 # su: strlcpy is always a friend
