@@ -64,11 +64,14 @@ function patch_local()
     topdir=$(gettop)
     local va_patches_dir
     local basemode=0
+    local alwaysmode=0
     for va in $*; do
         if [ "${va:0:1}" != "-" -a "$va_patches_dir" = "" ]; then
            va_patches_dir=$va
-        elif [ "$va" == "-base" ]; then
+        elif [ "$va" = "-base" ]; then
             basemode=1
+        elif [ "$va" = "-always" ]; then
+            alwaysmode=1
         fi
     done
     search_dir=".myfiles/patches"
@@ -89,9 +92,11 @@ function patch_local()
          f=$(echo $line | sed -e "s/:/\//")
          patchfile=$(basename $f)
          project=$(echo $f |  sed -e "s/^pick\///" -e "s/^local\///"  | sed "s/\/[^\/]*$//")
-         if [ $basemode -eq 1 ] && echo $patchfile | grep -vq "\[ALWAYS\]"; then
+         if [ $basemode -eq 1 ] && echo $patchfile | grep -vq "\[ALWAYS\]|\[ALL\]"; then
             continue
-         fi 
+         elif [ $alwaysmode -eq 1 ] && echo $patchfile | grep -vq "\[ALWAYS\]"; then
+            continue
+         fi
          if [ ! -d "$topdir/$project" ]; then
             if [ -d "$topdir/$(dirname $project)" ]; then
                project=$(dirname $project)
@@ -102,12 +107,14 @@ function patch_local()
          if [ "$f" != "$project" ]; then
              if [ `pwd` != "$topdir/$project" ]; then
                   cd $topdir/$project
-                  echo ""
-                  echo ">>> Applying patches to $project: "
+                  if [ $alwaysmode -eq 0 ]; then
+                      echo "";
+                      echo ">>> Applying patches to $project: "
+                  fi
                   #rm -rf .git/rebase-apply
              fi
              if echo $f | grep -qE "\[WIP\]|\[SKIP\]"; then
-                 echo "    skipping: $(basename $f)"
+                 [ $alwaysmode -eq 0 ] && echo "    skipping: $(basename $f)"
                  continue
              fi
 
@@ -116,7 +123,7 @@ function patch_local()
              changeid=$(grep "Change-Id: " $topdir/.myfiles/patches/$f | tail -n 1 | sed -e "s/ \{1,\}/ /g" -e "s/^ //g" | cut -d' ' -f2)
              if [ "$changeid" != "" ]; then
                   if ! git log  -100 | grep "Change-Id: $changeid" >/dev/null 2>/dev/null; then 
-                       echo "    patching: $(basename $f) ..."
+                       [ $alwaysmode -eq 0 ] && echo "    patching: $(basename $f) ..."
                        git am -3 -q   --keep-cr --committer-date-is-author-date < $topdir/.myfiles/patches/$f
                        rc=$?
                        if [ $rc -ne 0 ]; then
@@ -153,7 +160,7 @@ function patch_local()
                            fi
                        fi
                   else
-                       echo "    skipping: $(basename $f) ...(applied always)"
+                       [ $alwaysmode -eq 0 ] && echo "    skipping: $(basename $f) ...(applied always)"
                   fi
              fi
          fi
@@ -283,7 +290,7 @@ function projects_snapshot()
                        if grep -q "Change-Id: $changeid" -r $topdir/.myfiles/patches/pick/$project; then
                            pick_patch=$(grep -H "Change-Id: $changeid" -r $topdir/.myfiles/patches/pick/$project | sed -n 1p | cut -d: -f1)
                            pick_patch_name=$(basename $pick_patch)
-                           if echo $patch_file_name | grep -qE "\[WIP\]|\[SKIP\]|\[ALWAYS\]|\[KEEP\]" ; then
+                           if echo $patch_file_name | grep -qE "\[WIP\]|\[SKIP\]|\[ALWAYS\]|\[KEEP\]|\[ALL\]" ; then
                                [ "${patch_file_name:5:5}" = "[WIP]" ] && rm -f $patchfile && \
                                       mv $pick_patch $(dirname $patchfile)/${pick_patch_name:0:4}-${patch_file_name:5:5}-${pick_patch_name:5}
                                [ "${patch_file_name:5:6}" = "[SKIP]" ] && rm -f $patchfile && \
@@ -292,14 +299,16 @@ function projects_snapshot()
                                       mv $pick_patch $(dirname $patchfile)/${pick_patch_name:0:4}-${patch_file_name:5:8}-${pick_patch_name:5}
                                [ "${patch_file_name:5:8}" = "[KEEP]" ] && rm -f $patchfile && \
                                       mv $pick_patch $(dirname $patchfile)/${pick_patch_name:0:4}-${patch_file_name:5:6}-${pick_patch_name:5}
-                           elif echo $(dirname $patchfile) | grep -qE "\[WIP\]|\[SKIP\]|\[ALWAYS\]|\[KEEP\]" ; then
+                               [ "${patch_file_name:5:5}" = "[ALL]" ] && rm -f $patchfile && \
+                                      mv $pick_patch $(dirname $patchfile)/${pick_patch_name:0:4}-${patch_file_name:5:5}-${pick_patch_name:5}
+                           elif echo $(dirname $patchfile) | grep -qE "\[WIP\]|\[SKIP\]|\[ALWAYS\]|\[KEEP\]|\[ALL\]" ; then
                                rm -f $patchfile
                                mv $pick_patch $(dirname $patchfile)/
                            else
                                rm -f $patchfile
                                mv $pick_patch $topdir/.myfiles/patches/local/$project/
                            fi
-                       elif ! echo $patchfile | grep -qE "\[WIP\]|\[SKIP\]|\[ALWAYS\]|\[KEEP\]"; then
+                       elif ! echo $patchfile | grep -qE "\[WIP\]|\[SKIP\]|\[ALWAYS\]|\[KEEP\]|\[ALL\]"; then
                            [ -f $topdir/.pick_base ] || rm -f $patchfile
                        elif echo $patchfile | grep -q "^[[:digit:]]\{4,4\}-"; then
                            prefixNumber=$(echo $number| awk '{printf("%04d\n",$0)}')
@@ -1088,25 +1097,6 @@ function merge_from_aosp() {
      return $?
 }
 
-function apply_force_changes(){
-    [ -z $topdir ] && topdir=$(gettop)
-    [ -d "$topdir/.myfiles/patches/local/vendor/lineage"  ] || return 0
-    find $topdir/.myfiles/patches/local/vendor/lineage/ -type f -name "*-\[ALWAYS\]-*.patch" -o -name "*-\[ALWAYS\]-*.diff" \
-      | sort | while read f; do
-         cd $topdir/vendor/lineage;
-         if ! git am -3 -q   --keep-cr --committer-date-is-author-date < $f; then
-             if [ "${BASH_SOURCE[0]}" = "$runfrom" ]; then
-                 echo  "  >> please resolv it, then press ENTER to continue, or press 's' skip it ..."
-                 ch=$(sed q </dev/tty)
-                 if [ "$ch" = "s" ]; then
-                     git am --skip
-                 fi
-             else
-                 return -1
-             fi
-         fi
-    done
-}
 ########## main ###################
 
 get_defaul_remote
@@ -1205,7 +1195,7 @@ if [ "${BASH_SOURCE[0]}" = "$runfrom" -a ! -f ${BASH_SOURCE[0]}.tmp -a $op_pick_
     reset_project_dir vendor/lineage
     repo sync vendor/lineage >/dev/null
     [ $? -ne 0 ] && exit
-    apply_force_changes
+    patch_local -always local
     rm -f $tmp_picks_info_file
     reset_overwrite_projects
 
@@ -1229,7 +1219,7 @@ if [ "${BASH_SOURCE[0]}" = "$runfrom" -a ! -f ${BASH_SOURCE[0]}.tmp -a $op_pick_
     fi
     cd android;git reset --hard $android_head >/dev/null;cd $topdir
 
-    apply_force_changes
+    patch_local -always local
 
     [ $op_keep_manifests -ne 1 -a $rc_sync -ne 0 ] && exit -1
 
@@ -1491,6 +1481,7 @@ kpick 244295 # base: Redo expanded volume panel for 9.x
 kpick 244318 # KeyguardHostView: Auto face unlock v2
 kpick 244518 # NotificationManagerService: do not use flashing API for staying always on
 kpick 244664 # SystemUI: Bring back lockscreen tuner (1/2)
+kpick 245394
 
 # frameworks/native
 kpick 224530 # Triple the available egl function pointers available to a process for certain Nvidia devices.
@@ -1505,6 +1496,7 @@ kpick 244148 # resurrect mWifiLinkLayerStatsSupported counter
 # frameworks/opt/telephony
 kpick 240767 # Proper supplementary service notification handling (2/5).
 kpick 244260 # Improve UiccSlot#promptForRestart dialog
+kpick 245383
 
 # hardware/broadcom/libbt
 kpick 225155 # Broadcom BT: Add support fm/bt via v4l2.
