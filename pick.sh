@@ -62,18 +62,7 @@ function patch_local()
 {
     cd $(gettop)
     topdir=$(gettop)
-    local va_patches_dir
-    local basemode=0
-    local alwaysmode=0
-    for va in $*; do
-        if [ "${va:0:1}" != "-" -a "$va_patches_dir" = "" ]; then
-           va_patches_dir=$va
-        elif [ "$va" = "-base" ]; then
-            basemode=1
-        elif [ "$va" = "-always" ]; then
-            alwaysmode=1
-        fi
-    done
+    va_patches_dir=$1
     search_dir=".myfiles/patches"
 
     if [ ! -z $va_patches_dir ]; then
@@ -92,11 +81,6 @@ function patch_local()
          f=$(echo $line | sed -e "s/:/\//")
          patchfile=$(basename $f)
          project=$(echo $f |  sed -e "s/^pick\///" -e "s/^local\///"  | sed "s/\/[^\/]*$//")
-         if [ $basemode -eq 1 ] && echo $patchfile | grep -vq "\[ALWAYS\]|\[ALL\]"; then
-            continue
-         elif [ $alwaysmode -eq 1 ] && echo $patchfile | grep -vq "\[ALWAYS\]"; then
-            continue
-         fi
          if [ ! -d "$topdir/$project" ]; then
             if [ -d "$topdir/$(dirname $project)" ]; then
                project=$(dirname $project)
@@ -107,14 +91,12 @@ function patch_local()
          if [ "$f" != "$project" ]; then
              if [ `pwd` != "$topdir/$project" ]; then
                   cd $topdir/$project
-                  if [ $alwaysmode -eq 0 ]; then
-                      echo "";
-                      echo ">>> Applying patches to $project: "
-                  fi
+                  echo ""
+                  echo ">>> Applying patches to $project: "
                   #rm -rf .git/rebase-apply
              fi
              if echo $f | grep -qE "\[WIP\]|\[SKIP\]"; then
-                 [ $alwaysmode -eq 0 ] && echo "    skipping: $(basename $f)"
+                 echo "    skipping: $(basename $f)"
                  continue
              fi
 
@@ -123,7 +105,7 @@ function patch_local()
              changeid=$(grep "Change-Id: " $topdir/.myfiles/patches/$f | tail -n 1 | sed -e "s/ \{1,\}/ /g" -e "s/^ //g" | cut -d' ' -f2)
              if [ "$changeid" != "" ]; then
                   if ! git log  -100 | grep "Change-Id: $changeid" >/dev/null 2>/dev/null; then 
-                       [ $alwaysmode -eq 0 ] && echo "    patching: $(basename $f) ..."
+                       echo "    patching: $(basename $f) ..."
                        git am -3 -q   --keep-cr --committer-date-is-author-date < $topdir/.myfiles/patches/$f
                        rc=$?
                        if [ $rc -ne 0 ]; then
@@ -160,7 +142,7 @@ function patch_local()
                            fi
                        fi
                   else
-                       [ $alwaysmode -eq 0 ] && echo "    skipping: $(basename $f) ...(applied always)"
+                       echo "    skipping: $(basename $f) ...(applied always)"
                   fi
              fi
          fi
@@ -291,16 +273,18 @@ function projects_snapshot()
                            pick_patch=$(grep -H "Change-Id: $changeid" -r $topdir/.myfiles/patches/pick/$project | sed -n 1p | cut -d: -f1)
                            pick_patch_name=$(basename $pick_patch)
                            if echo $patch_file_name | grep -qE "\[WIP\]|\[SKIP\]|\[ALWAYS\]|\[KEEP\]|\[ALL\]" ; then
+                               local prefix_number=${pick_patch_name:0:4}
+                                [ -f $topdir/.pick_base ] && prefix_number=${patch_file_name:0:4}
                                [ "${patch_file_name:5:5}" = "[WIP]" ] && rm -f $patchfile && \
-                                      mv $pick_patch $(dirname $patchfile)/${pick_patch_name:0:4}-${patch_file_name:5:5}-${pick_patch_name:5}
+                                      mv $pick_patch $(dirname $patchfile)/$prefix_number-${patch_file_name:5:5}-${pick_patch_name:5}
                                [ "${patch_file_name:5:6}" = "[SKIP]" ] && rm -f $patchfile && \
-                                      mv $pick_patch $(dirname $patchfile)/${pick_patch_name:0:4}-${patch_file_name:5:6}-${pick_patch_name:5}
-                               [ "${patch_file_name:5:8}" = "[ALWAYS]" ] && rm -f $patchfile && \
-                                      mv $pick_patch $(dirname $patchfile)/${pick_patch_name:0:4}-${patch_file_name:5:8}-${pick_patch_name:5}
-                               [ "${patch_file_name:5:8}" = "[KEEP]" ] && rm -f $patchfile && \
-                                      mv $pick_patch $(dirname $patchfile)/${pick_patch_name:0:4}-${patch_file_name:5:6}-${pick_patch_name:5}
+                                      mv $pick_patch $(dirname $patchfile)/$prefix_number-${patch_file_name:5:6}-${pick_patch_name:5}
                                [ "${patch_file_name:5:5}" = "[ALL]" ] && rm -f $patchfile && \
-                                      mv $pick_patch $(dirname $patchfile)/${pick_patch_name:0:4}-${patch_file_name:5:5}-${pick_patch_name:5}
+                                      mv $pick_patch $(dirname $patchfile)/$prefix_number-${patch_file_name:5:5}-${pick_patch_name:5}
+                               [ "${patch_file_name:5:8}" = "[ALWAYS]" ] && rm -f $patchfile && \
+                                      mv $pick_patch $(dirname $patchfile)/$prefix_number-${patch_file_name:5:8}-${pick_patch_name:5}
+                               [ "${patch_file_name:5:8}" = "[KEEP]" ] && rm -f $patchfile && \
+                                      mv $pick_patch $(dirname $patchfile)/$prefix_number-${patch_file_name:5:6}-${pick_patch_name:5}
                            elif echo $(dirname $patchfile) | grep -qE "\[WIP\]|\[SKIP\]|\[ALWAYS\]|\[KEEP\]|\[ALL\]" ; then
                                rm -f $patchfile
                                mv $pick_patch $(dirname $patchfile)/
@@ -1097,6 +1081,25 @@ function merge_from_aosp() {
      return $?
 }
 
+function apply_force_changes(){
+    [ -z $topdir ] && topdir=$(gettop)
+    [ -d "$topdir/.myfiles/patches/local/vendor/lineage"  ] || return 0
+    find $topdir/.myfiles/patches/local/vendor/lineage/ -type f -name "*-\[ALWAYS\]-*.patch" -o -name "*-\[ALWAYS\]-*.diff" \
+      | sort | while read f; do
+         cd $topdir/vendor/lineage;
+         if ! git am -3 -q   --keep-cr --committer-date-is-author-date < $f; then
+             if [ "${BASH_SOURCE[0]}" = "$runfrom" ]; then
+                 echo  "  >> please resolv it, then press ENTER to continue, or press 's' skip it ..."
+                 ch=$(sed q </dev/tty)
+                 if [ "$ch" = "s" ]; then
+                     git am --skip
+                 fi
+             else
+                 return -1
+             fi
+         fi
+    done
+}
 ########## main ###################
 
 get_defaul_remote
@@ -1176,12 +1179,13 @@ if [ $op_base_pick -eq 1 ]; then
    cd $topdir
    repo sync
    [ $? -ne 0 ] && exit
+   apply_force_changes
+
+#kpick 209019 # toybox: Use ISO C/clang compatible __typeof__ in minof/maxof macros
 
    echo 
    echo "Apply I hate the safty net..."
    privpick system/core refs/changes/19/206119/2 # init: I hate safety net
-   echo
-   patch_local -base local
    touch $topdir/.pick_base
    exit 0
 fi
@@ -1195,7 +1199,7 @@ if [ "${BASH_SOURCE[0]}" = "$runfrom" -a ! -f ${BASH_SOURCE[0]}.tmp -a $op_pick_
     reset_project_dir vendor/lineage
     repo sync vendor/lineage >/dev/null
     [ $? -ne 0 ] && exit
-    patch_local -always local
+    apply_force_changes
     rm -f $tmp_picks_info_file
     reset_overwrite_projects
 
@@ -1219,7 +1223,7 @@ if [ "${BASH_SOURCE[0]}" = "$runfrom" -a ! -f ${BASH_SOURCE[0]}.tmp -a $op_pick_
     fi
     cd android;git reset --hard $android_head >/dev/null;cd $topdir
 
-    patch_local -always local
+    apply_force_changes
 
     [ $op_keep_manifests -ne 1 -a $rc_sync -ne 0 ] && exit -1
 
@@ -1257,76 +1261,16 @@ kpick 241858 # msm8974-common: Build Samsung LiveDisplay service
 # art
 
 # bionic
-kpick 238738 # bionic: Prefer /sbin/sh if it exists
 
 # bootable/recovery
-kpick 238951 # Revert "recovery: Fork a process for fuse when sideloading from SD card."
-kpick 239450 # recovery: Remove HOST_OS guard for f2fs tools
-kpick 230746 # recovery: Get a proper shell environment in recovery
-kpick 238952 # recovery: ui: Default to touch enabled
-kpick 238953 # recovery: ui: Minor cleanup for touch code
-kpick 238954 # recovery: ui: Support hardware virtual keys
-kpick 238955 # recovery: Puke out an /etc/fstab so stuff like busybox/toybox is happy
-kpick 238956 # recovery: Enable gunzip/gzip/unzip/zip commands
-kpick 238957 # recovery: Add fstools
-kpick 239451 # recovery: Add resize2fs, tune2fs to fstools
-kpick 238958 # recovery: Include vendor init trigger
-kpick 238959 # recovery: Allow device-specific recovery modules
-kpick 238960 # recovery: Implement a volume manager
-kpick 238961 # recovery: Blank screen during shutdown and reboot
-kpick 238962 # recovery: Provide sideload cancellation
-kpick 238963 # recovery: bu: Implement backup/restore
-kpick 238964 # recovery: Provide caching for sideload files
-kpick 238965 # recovery: Add wipe system partition option
-kpick 238966 # recovery: Return to main menu after selection
-kpick 238967 # recovery: Fix the progress bar
-kpick 238968 # recovery: Dejank the menus, fix colors
-kpick 238969 # recovery: updater: Fix multi-stage docs
-kpick 238970 # recovery: Allow devices to reboot to download mode
-kpick 238971 # minui: support to pan display (FBIOPAN_DISPLAY)
-kpick 238973 # recovery: Remove "Supported API" message
-kpick 238974 # recovery: Enable the menu for User builds
-kpick 238975 # minui: accept RGBA and treat it as RGBX
-kpick 238976 # recovery: init: mount pstore fs
-kpick 238977 # recovery: Add performance control
-kpick 238978 # minui: Skip EV_REL input devices.
-kpick 238979 # recovery: Graphical UI
-kpick 238980 # recovery: New install/progress animation
-kpick 238981 # recovery: Respect margins in background and foreground screens
-kpick 238982 # recovery: Add awk lib and driver
-kpick 238983 # recovery: Fix redraws, flickering, and animation
-kpick 238985 # recovery: Do not show emulated when data is encrypted
-kpick 238986 # recovery: Add statusbar margin for panels with rounded corners
-kpick 238987 # recovery: Allow device specific backlight path
-kpick 238988 # recovery: Rework sideload threading code for flexibility
-kpick 238989 # recovery: Allow detecting user/release build at compile time
-kpick 238990 # recovery: Allow bypassing signature verification on non-release builds
-kpick 238991 # recovery: minui: Implement image scaling
-kpick 238992 # recovery: Scale logo image if necessary
-kpick 238993 # recovery: Add runtime checks for A/B vs traditional updates
-kpick 244741 # recovery: autodetect filesystem type
-kpick 244760 # minui: Fix the wrong move of the callback.
-kpick 244761 # minui: Support input device hotplug in recovery mode.
-kpick 244762 # recovery: Support configfs usb configuration
 kpick 244763 # recovery: Blank screen on init
-kpick 244861 # recovery: add reboot to recovery option
-kpick 245036 # recovery: Fix mounting f2fs partitions
-kpick 245037 # recovery: VolumeManager: support for multiple /data fs entries
-kpick 245247 # recovery: account for scrolling when selecting item with touch
-kpick 245248 # recovery: always begin showing menu from the start
-kpick 245257 # recovery: prevent drawing the last item of a menu offscreen
-kpick 245249 # recovery: implement natural touch scrolling
-kpick 245250 # recovery: setup a threshold to ignore touch release events after a swipe
-kpick 245258 # recovery: only show tests in eng build
-kpick 245266 # recovery: ignore refresh events while on browsing menus
-kpick 245274 # recovery: Default to /storage/emulated/0 for emulated install choice
 kpick 245305 # OMGRainbows
 kpick 245350 # recovery: show text during install
 
 # build/make
 kpick 222742 # build: Use project pathmap for recovery
 kpick 222760 # Add LOCAL_AIDL_FLAGS
-kpick 239296 # build: Remove charger from recovery unless needed
+kpick 245474 # [SQUASH][DNM] Merge tag 'android-9.0.0_r35' into staging/lineage-16.0_merge-android-9.0.0_r35
 
 # build/soong
 kpick 222648 # Allow providing flex and bison binaries
@@ -1334,37 +1278,26 @@ kpick 224613 # soong: Add LOCAL_AIDL_FLAGS handling
 kpick 226443 # soong: Add additional_deps attribute for libraries and binaries
 
 # device/lineage/sepolicy
-kpick 240542 # Revert "sepolicy: recovery: Allow (re)mounting system"
 kpick 241664 # sepolicy: Dynamically build trust policy into system/vendor
+#kpick 240542 # Revert "sepolicy: recovery: Allow (re)mounting system"
 kpick 241665 # sepolicy: Move livedisplay hal policy to dynamic
 kpick 241666 # sepolicy: Move touch hal policy to dynamic
 kpick 241667 # sepolicy: Move power hal service label to dynamic
 kpick 241676 # sepolicy: qcom: Rename common to vendor to avoid confusion
 kpick 241677 # sepolicy: Break livedisplay hal policy into impl independent ones
 kpick 241903 # sepolicy: Label all the livedisplay service implementations
-kpick 244586 # sepolicy: recovery: Add policy for volume manager
 kpick 244587 # common: recovery: allow setting time
-kpick 244768 # sepolicy: recovery: Allow reading proc_filesystems
-kpick 244769 # sepolicy: recovery: Fix the volume manager blkid.tab denial
-kpick 244770 # sepolicy: recovery: Add policy for /dev/block/volmgr
-kpick 244771 # sepolicy: recovery: Allow volume manager write to /sys/*/uevent
-kpick 244772 # sepolicy: recovery: Allow setting sys.usb.config
 kpick 244801 # common: fix OTA auto-flashing with encrypted f2fs.
-kpick 245217 # sepolicy: recovery: allow recovery to read battery info
-kpick 245259 # sepolicy: recovery: allow mounting of usb storage
-kpick 245273 # sepolicy: recovery: allow reading fbe key version
 
 # device/qcom/sepolicy
 kpick 228573 # sepolicy: Add libsdm-disp-vndapis and libsdmutils to SP-HALs
 kpick 228582 # sepolicy: qti_init_shell needs to read dir too
 kpick 240951 # qcom: label persist files with /(mnt/vendor)/persist instead of /mnt/vendor/persist
-kpick 242976 # sepolicy: Label persist partition for all SoCs
 kpick 244366 # sepolicy: Allow perf HAL to set mpctl props
 kpick 244642 # sepolicy: Whitelist recovery from reading mnt_vendor_file
 kpick 244722 # sepolicy: Allow recovery read time
 
 # device/qcom/sepolicy-legacy
-kpick 243505 # sepolicy: Label persist partition for all SoCs
 kpick 244723 # sepolicy: Allow recovery read time
 
 # development
@@ -1378,52 +1311,31 @@ kpick 227261 # Cast BT_VND_OP_ANT_USERIAL_{OPEN,CLOSE} to bt_vendor_opcode_t in 
 kpick 245252 # Update Chromium Webview to 73.0.3683.90
 
 # external/e2fsprogs
-kpick 225215 # e2fsprogs: Prepare for adding and using static libs
-kpick 225216 # e2fsprogs: Build static libs for recovery
-kpick 225217 # e2fsprogs: Build libresize2fs for recovery
-kpick 239459 # e2fsprogs: Fix resize2fs_static build
 
 # external/exfat
-kpick 239376 # exfat: Add static libs for recovery
-kpick 239377 # exfat: Rename utf conversion symbols
 
 # external/f2fs-tools
-kpick 225225 # f2fs-tools: Add static libs for recovery
-kpick 225226 # f2fs-tools: Rename quota symbols
-kpick 225227 # f2fs-tools: Rename utf conversion symbols
-kpick 239378 # f2fs-tools: Add sload.f2fs support to libf2fs_fsck
 
 # external/fsck_msdos
-kpick 239460 # fsck_msdos: Build static lib for recovery
 
 # external/gptfdisk
-kpick 225228 # gptfdisk: Build static lib for recovery fstools
-kpick 239254 # gptfdisk: Provide sgdisk_read for direct reads of the partition table
 
 # external/libtar
-kpick 238626 # libtar: Build fixes
 
 # external/ntfs-3g
-kpick 239379 # ntfs-3g: Add static libs for recovery
 
 # external/one-true-awk
-kpick 225231 # awk: Add libawk_main for recovery and fixup symbols
 
 # external/perfetto
 kpick 223413 -f # perfetto_cmd: Resolve missing O_CREAT mode
 
 # external/toybox
-kpick 225232 # toybox: Use toybox for dd, getprop and grep in recovery
-kpick 225233 # toybox: Add install to symlinks
 
 # external/unrar
 
 # external/zip
 
 # external/zlib
-kpick 225237 # minizip: Fix build under Android 6.0 and higher
-kpick 225238 # minizip: Clean up the code
-kpick 238630 # minizip: More build fixes
 
 # frameworks/av
 kpick 230387 # CameraService: Support calling addStates in enumerateProviders
@@ -1481,7 +1393,7 @@ kpick 244295 # base: Redo expanded volume panel for 9.x
 kpick 244318 # KeyguardHostView: Auto face unlock v2
 kpick 244518 # NotificationManagerService: do not use flashing API for staying always on
 kpick 244664 # SystemUI: Bring back lockscreen tuner (1/2)
-kpick 245394
+kpick 245475 # [SQUASH][DNM] Merge tag 'android-9.0.0_r35' into staging/lineage-16.0_merge-android-9.0.0_r35
 
 # frameworks/native
 kpick 224530 # Triple the available egl function pointers available to a process for certain Nvidia devices.
@@ -1496,7 +1408,6 @@ kpick 244148 # resurrect mWifiLinkLayerStatsSupported counter
 # frameworks/opt/telephony
 kpick 240767 # Proper supplementary service notification handling (2/5).
 kpick 244260 # Improve UiccSlot#promptForRestart dialog
-kpick 245383
 
 # hardware/broadcom/libbt
 kpick 225155 # Broadcom BT: Add support fm/bt via v4l2.
@@ -1555,6 +1466,7 @@ kpick 244516 # sdk: notification: allow forcing notification color for preview
 # packages/apps/Bluetooth
 kpick 229310 # SBC Dual Channel (SBC HD Audio) support
 kpick 229311 # Assume optional codecs are supported if were supported previously
+kpick 245476 # [SQUASH][DNM] Merge tag 'android-9.0.0_r35' into staging/lineage-16.0_merge-android-9.0.0_r35
 
 # packages/apps/Camera2
 kpick 224752 # Use mCameraAgentNg for getting camera info when available
@@ -1564,26 +1476,6 @@ kpick 245234 # Camera2: also check for and request WRITE_EXTERNAL_STORAGE permis
 kpick 240770 # Proper supplementary service notification handling (5/5).
 
 # packages/apps/Eleven
-kpick 242736 # Eleven: bump to api26
-kpick 244528 # Eleven: remove junit dependency
-kpick 244529 # Eleven: remove guava dependency
-kpick 244530 # Localization: do not use private ICU APIs
-kpick 244531 # Remove some more private API usages
-kpick 244532 # Popups: use AlertDialog instead of private APIs
-kpick 244533 # Get rid of icu4j dependency
-kpick 244534 # Eleven: add initial gradle support
-kpick 244535 # Add BuildConfig to allow using gradle compile time fields
-kpick 244536 # AndroidManifest: add Foreground Service permission
-kpick 244537 # Correct some lint warnings
-kpick 244538 # Remove hardcoded package name references
-kpick 244539 # VisualizerView: pull in updates from system implementation
-kpick 244540 # DiskLruCache: update from upstream
-kpick 244541 # ImageCache: add missing close call and cleanup
-kpick 244542 # MusicUtils: handle exceptions and clean up
-kpick 244543 # PlaylistArtworkStore: use try-with-resources and cleanup
-kpick 244544 # Playlists: sort ignoring case
-kpick 244545 # no_results: also tint image drawable
-kpick 244546 # MusicPlaybackService: catch IllegalStateException for duration and position
 
 # packages/apps/LineageParts
 kpick 243513 # LightSettingsDialog: create and use notification channel
@@ -1639,9 +1531,9 @@ kpick 243706 # Allow to disable the new scan API for manual network search.
 kpick 239040 # Increase maximum Bluetooth SBC codec bitrate for SBC HD
 kpick 229313 # Explicit SBC Dual Channel (SBC HD) support
 kpick 229314 # Allow using alternative (higher) SBC HD bitrates with a property
+kpick 245477 # [SQUASH][DNM] Merge tag 'android-9.0.0_r35' into staging/lineage-16.0_merge-android-9.0.0_r35
 
 # system/core
-kpick 227110 -f # init: I hate safety net
 kpick 231716 # init: Always use libbootloader_message from bootable/recovery namespace
 kpick 234584 # adb: Rework adb root
 kpick 234860 # init: add install_keyring for TWRP FBE decrypt
@@ -1649,9 +1541,6 @@ kpick 234860 # init: add install_keyring for TWRP FBE decrypt
 kpick 237141 # core: update battery mod support for P
 kpick 241757 # adb: Allow adb root when certain third party root is present
 kpick 244257 # healthd: make periodic battery status a debug message
-kpick 244720 # Revert "fs_mgr_fstab: removing fs_mgr_get_entry_for_mount_point_after()"
-kpick 244721 # fs_mgr: Skip filesystem check unless fs_type matches
-kpick 244773 # Revert "sdcard: Allow building as a static library"
 kpick 245342 # adb: Always allow recovery use adb root in userdebug builds
 
 # system/extras/su
@@ -1662,10 +1551,10 @@ kpick 232438 # su: Initialize windows size
 
 # system/netd
 kpick 232794 # NetD : Allow passing in interface names for vpn app restriction
+kpick 245478 # [SQUASH][DNM] Merge tag 'android-9.0.0_r35' into staging/lineage-16.0_merge-android-9.0.0_r35
 
 # system/sepolicy
 kpick 243819 # sepolicy: Label tee_data_file as core_data_file_type
-kpick 245267 # sepolicy: whitelist recovery from node creation neverallow
 
 # system/tools/aidl
 kpick 223133 # AIDL: Add option to generate No-Op methods
@@ -1673,8 +1562,7 @@ kpick 223133 # AIDL: Add option to generate No-Op methods
 # system/update_engine
 
 # system/vold
-kpick 231717 # vold: Always use libbootloader_message from bootable/recovery namespace
-kpick 244733 # vold: Add linkage for fs_mgr changes
+#kpick 231717 # vold: Always use libbootloader_message from bootable/recovery namespace
 
 # vendor/lineage
 kpick 225921 # overlay: Update list of GSF/GMS activities
