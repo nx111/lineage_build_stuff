@@ -62,7 +62,18 @@ function patch_local()
 {
     cd $(gettop)
     topdir=$(gettop)
-    va_patches_dir=$1
+    local va_patches_dir
+    local basemode=0
+    local alwaysmode=0
+    for va in $*; do
+        if [ "${va:0:1}" != "-" -a "$va_patches_dir" = "" ]; then
+           va_patches_dir=$va
+        elif [ "$va" = "-base" ]; then
+            basemode=1
+        elif [ "$va" = "-always" ]; then
+            alwaysmode=1
+        fi
+    done
     search_dir=".myfiles/patches"
 
     if [ ! -z $va_patches_dir ]; then
@@ -81,6 +92,11 @@ function patch_local()
          f=$(echo $line | sed -e "s/:/\//")
          patchfile=$(basename $f)
          project=$(echo $f |  sed -e "s/^pick\///" -e "s/^local\///"  | sed "s/\/[^\/]*$//")
+         if [ $basemode -eq 1 ] && echo $patchfile | grep -vq "\[ALWAYS\]|\[ALL\]"; then
+            continue
+         elif [ $alwaysmode -eq 1 ] && echo $patchfile | grep -vq "\[ALWAYS\]"; then
+            continue
+         fi
          if [ ! -d "$topdir/$project" ]; then
             if [ -d "$topdir/$(dirname $project)" ]; then
                project=$(dirname $project)
@@ -91,12 +107,14 @@ function patch_local()
          if [ "$f" != "$project" ]; then
              if [ `pwd` != "$topdir/$project" ]; then
                   cd $topdir/$project
-                  echo ""
-                  echo ">>> Applying patches to $project: "
+                  if [ $alwaysmode -eq 0 ]; then
+                      echo "";
+                      echo ">>> Applying patches to $project: "
+                  fi
                   #rm -rf .git/rebase-apply
              fi
              if echo $f | grep -qE "\[WIP\]|\[SKIP\]"; then
-                 echo "    skipping: $(basename $f)"
+                 [ $alwaysmode -eq 0 ] && echo "    skipping: $(basename $f)"
                  continue
              fi
 
@@ -105,7 +123,7 @@ function patch_local()
              changeid=$(grep "Change-Id: " $topdir/.myfiles/patches/$f | tail -n 1 | sed -e "s/ \{1,\}/ /g" -e "s/^ //g" | cut -d' ' -f2)
              if [ "$changeid" != "" ]; then
                   if ! git log  -100 | grep "Change-Id: $changeid" >/dev/null 2>/dev/null; then 
-                       echo "    patching: $(basename $f) ..."
+                       [ $alwaysmode -eq 0 ] && echo "    patching: $(basename $f) ..."
                        git am -3 -q   --keep-cr --committer-date-is-author-date < $topdir/.myfiles/patches/$f
                        rc=$?
                        if [ $rc -ne 0 ]; then
@@ -142,7 +160,7 @@ function patch_local()
                            fi
                        fi
                   else
-                       echo "    skipping: $(basename $f) ...(applied always)"
+                       [ $alwaysmode -eq 0 ] && echo "    skipping: $(basename $f) ...(applied always)"
                   fi
              fi
          fi
@@ -1081,25 +1099,6 @@ function merge_from_aosp() {
      return $?
 }
 
-function apply_force_changes(){
-    [ -z $topdir ] && topdir=$(gettop)
-    [ -d "$topdir/.myfiles/patches/local/vendor/lineage"  ] || return 0
-    find $topdir/.myfiles/patches/local/vendor/lineage/ -type f -name "*-\[ALWAYS\]-*.patch" -o -name "*-\[ALWAYS\]-*.diff" \
-      | sort | while read f; do
-         cd $topdir/vendor/lineage;
-         if ! git am -3 -q   --keep-cr --committer-date-is-author-date < $f; then
-             if [ "${BASH_SOURCE[0]}" = "$runfrom" ]; then
-                 echo  "  >> please resolv it, then press ENTER to continue, or press 's' skip it ..."
-                 ch=$(sed q </dev/tty)
-                 if [ "$ch" = "s" ]; then
-                     git am --skip
-                 fi
-             else
-                 return -1
-             fi
-         fi
-    done
-}
 ########## main ###################
 
 get_defaul_remote
@@ -1179,13 +1178,12 @@ if [ $op_base_pick -eq 1 ]; then
    cd $topdir
    repo sync
    [ $? -ne 0 ] && exit
-   apply_force_changes
-
-#kpick 209019 # toybox: Use ISO C/clang compatible __typeof__ in minof/maxof macros
 
    echo 
    echo "Apply I hate the safty net..."
    privpick system/core refs/changes/19/206119/2 # init: I hate safety net
+   echo
+   patch_local -base local
    touch $topdir/.pick_base
    exit 0
 fi
@@ -1199,7 +1197,7 @@ if [ "${BASH_SOURCE[0]}" = "$runfrom" -a ! -f ${BASH_SOURCE[0]}.tmp -a $op_pick_
     reset_project_dir vendor/lineage
     repo sync vendor/lineage >/dev/null
     [ $? -ne 0 ] && exit
-    apply_force_changes
+    patch_local -always local
     rm -f $tmp_picks_info_file
     reset_overwrite_projects
 
@@ -1210,6 +1208,7 @@ if [ "${BASH_SOURCE[0]}" = "$runfrom" -a ! -f ${BASH_SOURCE[0]}.tmp -a $op_pick_
 
     #=========== pick changes ==========================
 
+    kpick 245479 # manifest: android-9.0.0_r34 -> android-9.0.0_r35
 
     #===================================================
 
@@ -1223,7 +1222,7 @@ if [ "${BASH_SOURCE[0]}" = "$runfrom" -a ! -f ${BASH_SOURCE[0]}.tmp -a $op_pick_
     fi
     cd android;git reset --hard $android_head >/dev/null;cd $topdir
 
-    apply_force_changes
+    patch_local -always local
 
     [ $op_keep_manifests -ne 1 -a $rc_sync -ne 0 ] && exit -1
 
@@ -1266,6 +1265,7 @@ kpick 241858 # msm8974-common: Build Samsung LiveDisplay service
 kpick 244763 # recovery: Blank screen on init
 kpick 245305 # OMGRainbows
 kpick 245350 # recovery: show text during install
+kpick 245268 # recovery: Set SELinux status to Permissive for recovery images
 
 # build/make
 kpick 222742 # build: Use project pathmap for recovery
@@ -1299,6 +1299,7 @@ kpick 244722 # sepolicy: Allow recovery read time
 
 # device/qcom/sepolicy-legacy
 kpick 244723 # sepolicy: Allow recovery read time
+kpick 245595 # sepolicy: added clearkey hal permissions
 
 # development
 kpick 240579 # idegen: Add functionality to set custom ipr file name
@@ -1403,7 +1404,6 @@ kpick 237645 # sf: Add support for multiple displays
 kpick 243571 # touch response optimizations
 
 # frameworks/opt/net/wifi
-kpick 244148 # resurrect mWifiLinkLayerStatsSupported counter
 
 # frameworks/opt/telephony
 kpick 240767 # Proper supplementary service notification handling (2/5).
@@ -1584,7 +1584,7 @@ kpick 241783 # envsetup: Fix lineagegerrit push for zsh
 kpick 242432 # RIP libhealthd.lineage
 kpick 242433 # Make custom off-mode charging screen great again
 kpick 243809 # soong_config: Add flag for devices use metadata as FDE key
-kpick 244389 # lineage: overlay-tv: Remove TV Setup Complete flag
+kpick 244389 # [DNM] lineage: overlay-tv: Remove TV Setup Complete flag
 kpick 244672 # common: Add getcap/setcap to PRODUCT_PACKAGES
 kpick 245278 # extract_utils: Add functions to extract vendor blobs from vendor.img
 kpick 245279 # kernel: Allow devices to specify kernel toolchain root
