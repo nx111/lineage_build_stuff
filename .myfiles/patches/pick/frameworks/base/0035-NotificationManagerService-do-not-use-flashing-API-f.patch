@@ -1,0 +1,45 @@
+From 84ba44b691466fd0da8384c1e6368007e64ea04d Mon Sep 17 00:00:00 2001
+From: Alexander Martinz <amartinz@shiftphones.com>
+Date: Tue, 19 Mar 2019 19:06:11 +0100
+Subject: [PATCH 35/44] NotificationManagerService: do not use flashing API for
+ staying always on
+
+We allow to let the user set, that the notification light should stay
+always on instead of flashing.
+
+For that we are setting on duration to 1 and off duration to 0.
+This can confuse some light HALs and/or kernel drivers.
+
+Instead of using setFlashing, use setColor if duration is 1:0, like
+we are already using for battery lights.
+
+Change-Id: I4953592c72e0d095178757211dce2e206d8adb3c
+Signed-off-by: Alexander Martinz <amartinz@shiftphones.com>
+---
+ .../notification/NotificationManagerService.java       | 10 ++++++++--
+ 1 file changed, 8 insertions(+), 2 deletions(-)
+
+diff --git a/services/core/java/com/android/server/notification/NotificationManagerService.java b/services/core/java/com/android/server/notification/NotificationManagerService.java
+index 1f5636988d7..b13a3102793 100644
+--- a/services/core/java/com/android/server/notification/NotificationManagerService.java
++++ b/services/core/java/com/android/server/notification/NotificationManagerService.java
+@@ -6028,8 +6028,14 @@ public class NotificationManagerService extends SystemService {
+             mNotificationLight.turnOff();
+         } else {
+             mNotificationLight.setModes(ledValues.getBrightness());
+-            mNotificationLight.setFlashing(ledValues.getColor(), Light.LIGHT_FLASH_TIMED,
+-                    ledValues.getOnMs(), ledValues.getOffMs());
++
++            // we are using 1:0 to indicate LED should stay always on
++            if (ledValues.getOnMs() == 1 && ledValues.getOffMs() == 0) {
++                mNotificationLight.setColor(ledValues.getColor());
++            } else {
++                mNotificationLight.setFlashing(ledValues.getColor(), Light.LIGHT_FLASH_TIMED,
++                        ledValues.getOnMs(), ledValues.getOffMs());
++            }
+         }
+     }
+ 
+-- 
+2.17.1
+

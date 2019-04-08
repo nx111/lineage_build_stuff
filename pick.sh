@@ -1208,7 +1208,6 @@ if [ "${BASH_SOURCE[0]}" = "$runfrom" -a ! -f ${BASH_SOURCE[0]}.tmp -a $op_pick_
 
     #=========== pick changes ==========================
 
-    kpick 245479 # manifest: android-9.0.0_r34 -> android-9.0.0_r35
 
     #===================================================
 
@@ -1270,7 +1269,6 @@ kpick 245268 # recovery: Set SELinux status to Permissive for recovery images
 # build/make
 kpick 222742 # build: Use project pathmap for recovery
 kpick 222760 # Add LOCAL_AIDL_FLAGS
-kpick 245474 # [SQUASH][DNM] Merge tag 'android-9.0.0_r35' into staging/lineage-16.0_merge-android-9.0.0_r35
 
 # build/soong
 kpick 222648 # Allow providing flex and bison binaries
@@ -1286,7 +1284,6 @@ kpick 241667 # sepolicy: Move power hal service label to dynamic
 kpick 241676 # sepolicy: qcom: Rename common to vendor to avoid confusion
 kpick 241677 # sepolicy: Break livedisplay hal policy into impl independent ones
 kpick 241903 # sepolicy: Label all the livedisplay service implementations
-kpick 244587 # common: recovery: allow setting time
 kpick 244801 # common: fix OTA auto-flashing with encrypted f2fs.
 
 # device/qcom/sepolicy
@@ -1294,11 +1291,8 @@ kpick 228573 # sepolicy: Add libsdm-disp-vndapis and libsdmutils to SP-HALs
 kpick 228582 # sepolicy: qti_init_shell needs to read dir too
 kpick 240951 # qcom: label persist files with /(mnt/vendor)/persist instead of /mnt/vendor/persist
 kpick 244366 # sepolicy: Allow perf HAL to set mpctl props
-kpick 244642 # sepolicy: Whitelist recovery from reading mnt_vendor_file
-kpick 244722 # sepolicy: Allow recovery read time
 
 # device/qcom/sepolicy-legacy
-kpick 244723 # sepolicy: Allow recovery read time
 kpick 245595 # sepolicy: added clearkey hal permissions
 
 # development
@@ -1368,6 +1362,7 @@ kpick 233633 # Phone ringtone setting for Multi SIM device
 kpick 233717 # [DNM][HACK] Persist user brightness model
 kpick 234649 # keyguard: Check for a null errString
 kpick 235986 # frameworks: Add unlinked ringtone and notification volumes
+kpick 245621 # Audio assets: add NFC sounds
 kpick 236765 # Sounds: Squashed cleanup of sound files
 #kpick 227142 # Battery: add Battery Moto Mod Support
 kpick 237142 # Battery: update mod support to P
@@ -1388,13 +1383,10 @@ kpick 243569 # List View: Obtain next list item in advance
 kpick 243570 # Remove the property of touch optimization check.
 kpick 243572 # add VSYNC scheduled flag and avoid two doFrame calls in one period
 kpick 243647 # Exclude Emergency Dialer from recent app list.
-kpick 244133 # Add back ACCELEROMETER_ROTATION_ANGLES and update references
-kpick 234715 # Rotation related corrections
 kpick 244295 # base: Redo expanded volume panel for 9.x
 kpick 244318 # KeyguardHostView: Auto face unlock v2
 kpick 244518 # NotificationManagerService: do not use flashing API for staying always on
 kpick 244664 # SystemUI: Bring back lockscreen tuner (1/2)
-kpick 245475 # [SQUASH][DNM] Merge tag 'android-9.0.0_r35' into staging/lineage-16.0_merge-android-9.0.0_r35
 
 # frameworks/native
 kpick 224530 # Triple the available egl function pointers available to a process for certain Nvidia devices.
@@ -1460,13 +1452,12 @@ kpick 239598 # hidl: livedisplay: Add binderized service implementation
 kpick 230272 # sdk: Remove VOLUME_KEYS_CONTROL_RING_STREAM
 kpick 241779 # sdk: Change night/day mode transition behavior
 kpick 242398 # Trust: Onboarding: Listen for locale changes
-kpick 244132 # Revert "lineage-sdk: Add ACCELEROMETER_ROTATION_ANGLES to system settings"
 kpick 244516 # sdk: notification: allow forcing notification color for preview
 
 # packages/apps/Bluetooth
 kpick 229310 # SBC Dual Channel (SBC HD Audio) support
 kpick 229311 # Assume optional codecs are supported if were supported previously
-kpick 245476 # [SQUASH][DNM] Merge tag 'android-9.0.0_r35' into staging/lineage-16.0_merge-android-9.0.0_r35
+#kpick 245614 # Add sendNvCustomCommandNative to fix licensed builds
 
 # packages/apps/Camera2
 kpick 224752 # Use mCameraAgentNg for getting camera info when available
@@ -1479,7 +1470,6 @@ kpick 240770 # Proper supplementary service notification handling (5/5).
 
 # packages/apps/LineageParts
 kpick 243513 # LightSettingsDialog: create and use notification channel
-kpick 244135 # Move the rotation setting to the "normal" SettingsProvider
 kpick 244511 # LightSettingsDialog: remove unused OnColorChangedListener
 kpick 244512 # LightSettingsDialog: add bundle extras for preview color and duration
 
@@ -1531,7 +1521,6 @@ kpick 243706 # Allow to disable the new scan API for manual network search.
 kpick 239040 # Increase maximum Bluetooth SBC codec bitrate for SBC HD
 kpick 229313 # Explicit SBC Dual Channel (SBC HD) support
 kpick 229314 # Allow using alternative (higher) SBC HD bitrates with a property
-kpick 245477 # [SQUASH][DNM] Merge tag 'android-9.0.0_r35' into staging/lineage-16.0_merge-android-9.0.0_r35
 
 # system/core
 kpick 231716 # init: Always use libbootloader_message from bootable/recovery namespace
@@ -1540,7 +1529,6 @@ kpick 234860 # init: add install_keyring for TWRP FBE decrypt
 #kpick 237140 # healthd: add Battery Moto Mod Support
 kpick 237141 # core: update battery mod support for P
 kpick 241757 # adb: Allow adb root when certain third party root is present
-kpick 244257 # healthd: make periodic battery status a debug message
 kpick 245342 # adb: Always allow recovery use adb root in userdebug builds
 
 # system/extras/su
@@ -1551,7 +1539,6 @@ kpick 232438 # su: Initialize windows size
 
 # system/netd
 kpick 232794 # NetD : Allow passing in interface names for vpn app restriction
-kpick 245478 # [SQUASH][DNM] Merge tag 'android-9.0.0_r35' into staging/lineage-16.0_merge-android-9.0.0_r35
 
 # system/sepolicy
 kpick 243819 # sepolicy: Label tee_data_file as core_data_file_type

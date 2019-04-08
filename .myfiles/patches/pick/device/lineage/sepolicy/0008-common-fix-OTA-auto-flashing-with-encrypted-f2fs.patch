@@ -1,0 +1,45 @@
+From 91c3b1fb63cdd8bd2f8b1e41f4ac33258c9ec509 Mon Sep 17 00:00:00 2001
+From: Nvertigo <nvertigo67@gmail.com>
+Date: Sat, 23 Mar 2019 15:54:21 +0100
+Subject: [PATCH 8/9] common: fix OTA auto-flashing with encrypted f2fs.
+
+  If userdata is on f2fs and encrypted (OOS stock config for userdata),
+  neither /cache/recovery/block.map, nor /cache/recovery/uncrypt_file
+  are created due to theses denials:
+
+  03-12 11:14:40.568  1290  1290 W Thread-26: type=1400 audit(0.0:176): avc: denied { getattr } for path="/data/lineageos_updates" dev="dm-0" ino=25753 scontext=u:r:system_server:s0 tcontext=u:object_r:ota_package_file:s0 tclass=dir permissive=0
+  03-12 11:14:41.575  6803  6803 W uncrypt : type=1400 audit(0.0:178): avc: denied { fowner } for capability=3 scontext=u:r:uncrypt:s0 tcontext=u:r:uncrypt:s0 tclass=capability permissive=0
+
+  Without block.map and uncrypt_file the automatic flashing of the OTA
+  without user interaction fails, and the user needs to manually mount
+  data, and flash the OTA manually.
+
+Change-Id: I6ecb84e8b730d4c641a8bd8769043dfbfb817b83
+---
+ common/private/system_server.te | 3 +++
+ common/private/uncrypt.te       | 2 ++
+ 2 files changed, 5 insertions(+)
+ create mode 100644 common/private/uncrypt.te
+
+diff --git a/common/private/system_server.te b/common/private/system_server.te
+index 8284a82..1dbfd8b 100644
+--- a/common/private/system_server.te
++++ b/common/private/system_server.te
+@@ -4,3 +4,6 @@ allow system_server storage_stub_file:dir getattr;
+ hal_client_domain(system_server, hal_lineage_livedisplay)
+ hal_client_domain(system_server, hal_lineage_touch)
+ hal_client_domain(system_server, hal_lineage_trust)
++
++# OTA with encrypted f2fs
++allow system_server ota_package_file:dir getattr;
+diff --git a/common/private/uncrypt.te b/common/private/uncrypt.te
+new file mode 100644
+index 0000000..3ad9604
+--- /dev/null
++++ b/common/private/uncrypt.te
+@@ -0,0 +1,2 @@
++# OTA with encrypted f2fs
++allow uncrypt self:capability fowner;
+-- 
+2.17.1
+
