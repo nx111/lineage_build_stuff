@@ -1501,6 +1501,7 @@ kpick 241758 # Settings: Show root options when certain third party root is pres
 kpick 244319 # Add toggle for face auto unlock (2/2)
 kpick 244663 # SystemUI: Bring back lockscreen tuner (2/2)
 kpick 244843 # Settings: Add battery saving mode for location
+kpick 245659 # Automatic translation import
 
 # packages/apps/Snap
 kpick 242496 # Snap: Fix bad grammar "Long shot not support<ed>"
