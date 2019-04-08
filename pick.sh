@@ -17,6 +17,7 @@ runfrom=$0
 conflict_resolved=0
 maxCount=500
 minCount=20
+syncRetryCount=5
 tmp_picks_info_file=$(dirname $script_file)/.tmp_picks_info_file
 start_check_classification=0
 
@@ -496,6 +497,19 @@ function reset_project_dir()
          git reset --hard origin/$default_branch >/dev/null 2>/dev/null
     fi
     cd $topdir
+}
+
+function proxy_Setup()
+{
+   [ "$https_proxy" = "" ] || return
+   LANG=en_US wget -d -T 5 -t 1 https://gerrit.googlesource.com/git-repo/ -O /tmp/gfwtest.html >/tmp/.check_gfw.log 2>/tmp/.check_gfw.log
+   if grep -q "Network is unreachable" /tmp/.check_gfw.log; then
+       if systemctl status privoxy | grep -q "Active: active (running)"; then
+           proxy_value=$(grep "^[[:space:]]*listen-address" /etc/privoxy/config | grep -v "\[" | sed "s/ \{1,\}/ /g" | cut -d' ' -f 2)
+           export https_proxy=$proxy_value
+       fi
+   fi
+   rm -f /tmp/.check_gfw.log
 }
 
 ##################################
@@ -1100,7 +1114,7 @@ function merge_from_aosp() {
 }
 
 ########## main ###################
-
+proxy_Setup
 get_defaul_remote
 
 for op in $*; do
@@ -1176,8 +1190,14 @@ rrCache restore # restore rr-cache
 if [ $op_base_pick -eq 1 ]; then
    cd $topdir/.repo/manifests; git reset --hard $(git log -20 --all --decorate | grep commit | grep "m/lineage-" | cut -d' ' -f 2);
    cd $topdir
-   repo sync
-   [ $? -ne 0 ] && exit
+   nSyncRetries=$syncRetryCount
+   rc_sync=1
+   while [ $nSyncRetries -gt 0 -a $rc_sync -ne 0 ]; do
+       repo sync --force-sync
+       rc_sync=$?
+       nSyncRetries=$((nSyncRetries - 1))
+   done
+   [ $rc_sync -ne 0 ] && exit
 
    echo 
    echo "Apply I hate the safty net..."
@@ -1216,8 +1236,13 @@ if [ "${BASH_SOURCE[0]}" = "$runfrom" -a ! -f ${BASH_SOURCE[0]}.tmp -a $op_pick_
 
     android_head=$(cd android;git log -n 1 | sed -n 1p | cut -d' ' -f2;cd $topdir)
     if [ $op_keep_manifests -ne 1 ]; then
-       repo sync --force-sync
-       rc_sync=$?
+       nSyncRetries=$syncRetryCount
+       rc_sync=1
+       while [ $nSyncRetries -gt 0 -a $rc_sync -ne 0 ]; do
+           repo sync --force-sync
+           rc_sync=$?
+           nSyncRetries=$((nSyncRetries - 1))
+       done
     fi
     cd android;git reset --hard $android_head >/dev/null;cd $topdir
 
@@ -1305,32 +1330,12 @@ kpick 227261 # Cast BT_VND_OP_ANT_USERIAL_{OPEN,CLOSE} to bt_vendor_opcode_t in 
 # external/chromium-webview
 kpick 245252 # Update Chromium Webview to 73.0.3683.90
 
-# external/e2fsprogs
-
-# external/exfat
-
-# external/f2fs-tools
-
-# external/fsck_msdos
-
-# external/gptfdisk
-
-# external/libtar
-
-# external/ntfs-3g
-
-# external/one-true-awk
+# external/icu
+kpick 245617 # DO NOT MERGE: Apply upstream fix to use rearguard data
+kpick 245618 # DO NOT MERGE: Apply 2019a tzdb updates
 
 # external/perfetto
 kpick 223413 -f # perfetto_cmd: Resolve missing O_CREAT mode
-
-# external/toybox
-
-# external/unrar
-
-# external/zip
-
-# external/zlib
 
 # frameworks/av
 kpick 230387 # CameraService: Support calling addStates in enumerateProviders
@@ -1418,6 +1423,8 @@ kpick 241715 # Add kernel header dep for ipanat
 
 # hardware/qcom/display
 kpick 223341 # display: Always assume kernel source is present
+kpick 245598 # display: msm8974: Use generated kernel headers
+kpick 245699 # display: msm8974: Add -Wno-error to compile with global -Werror.
 
 # hardware/qcom/fm
 kpick 236546 # fm_helium: Update FM_HCI_DIR path
@@ -1467,6 +1474,7 @@ kpick 245234 # Camera2: also check for and request WRITE_EXTERNAL_STORAGE permis
 kpick 240770 # Proper supplementary service notification handling (5/5).
 
 # packages/apps/Eleven
+kpick 245647 # Automatic translation import
 
 # packages/apps/LineageParts
 kpick 243513 # LightSettingsDialog: create and use notification channel
@@ -1477,6 +1485,7 @@ kpick 244512 # LightSettingsDialog: add bundle extras for preview color and dura
 kpick 245307 # Jelly: menu should say window
 
 # packages/apps/Messaging
+kpick 245656 # Automatic translation import
 
 # packages/apps/Settings
 kpick 235978 # Settings: Add switch for linked ring and media notification volumes
@@ -1498,6 +1507,7 @@ kpick 242496 # Snap: Fix bad grammar "Long shot not support<ed>"
 kpick 243071 # Snap: allow to disable image stabilization per device
 
 # packages/apps/Trebuchet
+kpick 245663 # Automatic translation import
 
 # packages/apps/Updater
 kpick 239289 # Updater: put identical code to helper method
@@ -1543,6 +1553,10 @@ kpick 232794 # NetD : Allow passing in interface names for vpn app restriction
 # system/sepolicy
 kpick 243819 # sepolicy: Label tee_data_file as core_data_file_type
 
+# system/timezone
+kpick 245619 # DO NOT MERGE: Track changes in external/icu for rearguard data
+kpick 245620 # DO NOT MERGE: Changes associated with the tzdb 2019a update
+
 # system/tools/aidl
 kpick 223133 # AIDL: Add option to generate No-Op methods
 
@@ -1582,6 +1596,99 @@ kpick 243744 # cryptfs_hw: Support devices use metadata as key
 
 #-----------------------
 # translations
+
+# lineage-sdk/samples/weatherproviderservice/OpenWeatherMapProvider
+kpick 245642 # Automatic translation import
+
+# packages/apps/AudioFX
+kpick 245643 # Automatic translation import
+
+# packages/apps/Contacts
+kpick 245644 # Automatic translation import
+
+# packages/apps/DeskClock
+kpick 245645 # Automatic translation import
+
+# packages/apps/Email
+kpick 245648 # Automatic translation import
+
+# packages/apps/Exchange
+kpick 245649 # Automatic translation import
+
+# packages/apps/FMRadio
+kpick 245650 # Automatic translation import
+
+# packages/apps/FlipFlap
+kpick 245651 # Automatic translation import
+
+# packages/apps/Gallery2
+kpick 245652 # Automatic translation import
+
+# packages/apps/LockClock
+kpick 245655 # Automatic translation import
+
+# packages/apps/Profiles
+kpick 245657 # Automatic translation import
+
+# packages/apps/Recorder
+kpick 245658 # Automatic translation import
+
+# packages/apps/SetupWizard
+kpick 245660 # Automatic translation import
+
+# packages/apps/Terminal
+kpick 245662 # Automatic translation import
+
+# packages/apps/WallpaperPicker
+kpick 245665 # Automatic translation import
+
+# packages/providers/DownloadProvider
+kpick 245666 # Automatic translation import
+
+# packages/providers/WeatherProvider
+kpick 245667 # Automatic translation import
+
+# packages/resources/devicesettings
+kpick 245668 # Automatic translation import
+
+# packages/apps/Calendar
+kpick 245670 # Automatic translation import
+
+# packages/apps/CellBroadcastReceiver
+kpick 245671 # Automatic translation import
+
+# packages/apps/CertInstaller
+kpick 245672 # Automatic translation import
+
+# packages/apps/DocumentsUI
+kpick 245673 # Automatic translation import
+
+# packages/apps/EmergencyInfo
+kpick 245674 # Automatic translation import
+
+# packages/apps/ManagedProvisioning
+kpick 245675 # Automatic translation import
+
+# packages/apps/Nfc
+kpick 245676 # Automatic translation import
+
+# packages/apps/PackageInstaller
+kpick 245677 # Automatic translation import
+
+# packages/apps/PhoneCommon
+kpick 245678 # Automatic translation import
+
+# packages/apps/Stk
+kpick 245679 # Automatic translation import
+
+# packages/apps/Tag
+kpick 245680 # Automatic translation import
+
+# packages/apps/TvSettings
+kpick 245681 # Automatic translation import
+
+# packages/services/BuiltInPrintService
+kpick 245682 # Automatic translation import
 
 
 ######## topic ##########
