@@ -1474,7 +1474,6 @@ kpick 245234 # Camera2: also check for and request WRITE_EXTERNAL_STORAGE permis
 kpick 240770 # Proper supplementary service notification handling (5/5).
 
 # packages/apps/Eleven
-kpick 245647 # Automatic translation import
 
 # packages/apps/LineageParts
 kpick 243513 # LightSettingsDialog: create and use notification channel
@@ -1485,7 +1484,6 @@ kpick 244512 # LightSettingsDialog: add bundle extras for preview color and dura
 kpick 245307 # Jelly: menu should say window
 
 # packages/apps/Messaging
-kpick 245656 # Automatic translation import
 
 # packages/apps/Settings
 kpick 235978 # Settings: Add switch for linked ring and media notification volumes
@@ -1501,14 +1499,12 @@ kpick 241758 # Settings: Show root options when certain third party root is pres
 kpick 244319 # Add toggle for face auto unlock (2/2)
 kpick 244663 # SystemUI: Bring back lockscreen tuner (2/2)
 kpick 244843 # Settings: Add battery saving mode for location
-kpick 245659 # Automatic translation import
 
 # packages/apps/Snap
 kpick 242496 # Snap: Fix bad grammar "Long shot not support<ed>"
 kpick 243071 # Snap: allow to disable image stabilization per device
 
 # packages/apps/Trebuchet
-kpick 245663 # Automatic translation import
 
 # packages/apps/Updater
 kpick 239289 # Updater: put identical code to helper method
@@ -1561,11 +1557,6 @@ kpick 245620 # DO NOT MERGE: Changes associated with the tzdb 2019a update
 # system/tools/aidl
 kpick 223133 # AIDL: Add option to generate No-Op methods
 
-# system/update_engine
-
-# system/vold
-#kpick 231717 # vold: Always use libbootloader_message from bootable/recovery namespace
-
 # vendor/lineage
 kpick 225921 # overlay: Update list of GSF/GMS activities
 kpick 225938 # roomservice: document the hell out of the current behavior of the script
@@ -1597,100 +1588,6 @@ kpick 243744 # cryptfs_hw: Support devices use metadata as key
 
 #-----------------------
 # translations
-
-# lineage-sdk/samples/weatherproviderservice/OpenWeatherMapProvider
-kpick 245642 # Automatic translation import
-
-# packages/apps/AudioFX
-kpick 245643 # Automatic translation import
-
-# packages/apps/Contacts
-kpick 245644 # Automatic translation import
-
-# packages/apps/DeskClock
-kpick 245645 # Automatic translation import
-
-# packages/apps/Email
-kpick 245648 # Automatic translation import
-
-# packages/apps/Exchange
-kpick 245649 # Automatic translation import
-
-# packages/apps/FMRadio
-kpick 245650 # Automatic translation import
-
-# packages/apps/FlipFlap
-kpick 245651 # Automatic translation import
-
-# packages/apps/Gallery2
-kpick 245652 # Automatic translation import
-
-# packages/apps/LockClock
-kpick 245655 # Automatic translation import
-
-# packages/apps/Profiles
-kpick 245657 # Automatic translation import
-
-# packages/apps/Recorder
-kpick 245658 # Automatic translation import
-
-# packages/apps/SetupWizard
-kpick 245660 # Automatic translation import
-
-# packages/apps/Terminal
-kpick 245662 # Automatic translation import
-
-# packages/apps/WallpaperPicker
-kpick 245665 # Automatic translation import
-
-# packages/providers/DownloadProvider
-kpick 245666 # Automatic translation import
-
-# packages/providers/WeatherProvider
-kpick 245667 # Automatic translation import
-
-# packages/resources/devicesettings
-kpick 245668 # Automatic translation import
-
-# packages/apps/Calendar
-kpick 245670 # Automatic translation import
-
-# packages/apps/CellBroadcastReceiver
-kpick 245671 # Automatic translation import
-
-# packages/apps/CertInstaller
-kpick 245672 # Automatic translation import
-
-# packages/apps/DocumentsUI
-kpick 245673 # Automatic translation import
-
-# packages/apps/EmergencyInfo
-kpick 245674 # Automatic translation import
-
-# packages/apps/ManagedProvisioning
-kpick 245675 # Automatic translation import
-
-# packages/apps/Nfc
-kpick 245676 # Automatic translation import
-
-# packages/apps/PackageInstaller
-kpick 245677 # Automatic translation import
-
-# packages/apps/PhoneCommon
-kpick 245678 # Automatic translation import
-
-# packages/apps/Stk
-kpick 245679 # Automatic translation import
-
-# packages/apps/Tag
-kpick 245680 # Automatic translation import
-
-# packages/apps/TvSettings
-kpick 245681 # Automatic translation import
-
-# packages/services/BuiltInPrintService
-kpick 245682 # Automatic translation import
-
 
 ######## topic ##########
 
