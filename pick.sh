@@ -1232,7 +1232,6 @@ if [ "${BASH_SOURCE[0]}" = "$runfrom" -a ! -f ${BASH_SOURCE[0]}.tmp -a $op_pick_
     #===================================================
 
     patch_local local/android
-    echo
 
     android_head=$(cd android;git log -n 1 | sed -n 1p | cut -d' ' -f2;cd $topdir)
     if [ $op_keep_manifests -ne 1 ]; then
@@ -1290,6 +1289,7 @@ kpick 244763 # recovery: Blank screen on init
 kpick 245305 # OMGRainbows
 kpick 245350 # recovery: show text during install
 kpick 245268 # recovery: Set SELinux status to Permissive for recovery images
+kpick 245878 # recovery: always create emulated volume if we fail to detect fs
 
 # build/make
 kpick 222742 # build: Use project pathmap for recovery
@@ -1577,11 +1577,11 @@ kpick 241783 # envsetup: Fix lineagegerrit push for zsh
 kpick 242432 # RIP libhealthd.lineage
 kpick 242433 # Make custom off-mode charging screen great again
 kpick 243809 # soong_config: Add flag for devices use metadata as FDE key
-kpick 244389 # [DNM] lineage: overlay-tv: Remove TV Setup Complete flag
 kpick 244672 # common: Add getcap/setcap to PRODUCT_PACKAGES
 kpick 245278 # extract_utils: Add functions to extract vendor blobs from vendor.img
 kpick 245279 # kernel: Allow devices to specify kernel toolchain root
 kpick 245280 # gms: Include turbo on arm64 targets
+kpick 245798 # images: Add 420dpi symlink
 
 # vendor/qcom/opensource/cryptfs_hw
 kpick 243744 # cryptfs_hw: Support devices use metadata as key
