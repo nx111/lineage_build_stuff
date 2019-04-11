@@ -1146,7 +1146,7 @@ for op in $*; do
          op_snap_project=$op
     elif [ "$op" = "-nop" ]; then
           return 0
-    elif [ "$op" = "-base" ]; then
+    elif [ "$op" = "-base" -o "$op" = "--base" ]; then
          op_base_pick=1
     elif [ "$op" = "--keep-manifests" ]; then
          op_keep_manifests=1
@@ -1268,12 +1268,10 @@ start_check_classification=1
 
 # device/samsung/klte-common
 kpick 225192 # klte-common: Align ril.h to samsung_msm8974-common P libril changes
-kpick 238522 # klte-common: Add IGloveMode to device manifest
 kpick 242366 # klte-common: Update power profile for Pie
 
 # device/samsung/msm8974-common
 kpick 235457 # msm8974-common: sepolicy: Limit execmod to specifically labeled files
-kpick 238521 # msm8974-common: Build vendor.lineage.touch HAL from hardware/samsung
 kpick 241858 # msm8974-common: Build Samsung LiveDisplay service
 
 # kernel/samsung/msm8974
@@ -1287,9 +1285,7 @@ kpick 241858 # msm8974-common: Build Samsung LiveDisplay service
 # bootable/recovery
 kpick 244763 # recovery: Blank screen on init
 kpick 245305 # OMGRainbows
-kpick 245350 # recovery: show text during install
 kpick 245268 # recovery: Set SELinux status to Permissive for recovery images
-kpick 245878 # recovery: always create emulated volume if we fail to detect fs
 
 # build/make
 kpick 222742 # build: Use project pathmap for recovery
@@ -1387,10 +1383,8 @@ kpick 243568 # Optimize AbsListView to reduce click operation latency
 kpick 243569 # List View: Obtain next list item in advance
 kpick 243570 # Remove the property of touch optimization check.
 kpick 243572 # add VSYNC scheduled flag and avoid two doFrame calls in one period
-kpick 243647 # Exclude Emergency Dialer from recent app list.
 kpick 244295 # base: Redo expanded volume panel for 9.x
 kpick 244318 # KeyguardHostView: Auto face unlock v2
-kpick 244518 # NotificationManagerService: do not use flashing API for staying always on
 kpick 244664 # SystemUI: Bring back lockscreen tuner (1/2)
 
 # frameworks/native
@@ -1450,8 +1444,6 @@ kpick 231898 # Power: Naming convention change
 
 # hardware/samsung
 kpick 231194 # power: properly initialize cluster states
-kpick 238519 # samsung: Add dummy lineagehw HIDL interfaces for vendor.lineage.touch
-kpick 238520 # hidl: touch: Add binderized service implementation
 kpick 239597 # samsung: Add dummy lineagehw HIDL interfaces for vendor.lineage.livedisplay
 kpick 239598 # hidl: livedisplay: Add binderized service implementation
 
@@ -1509,7 +1501,6 @@ kpick 243071 # Snap: allow to disable image stabilization per device
 # packages/apps/Updater
 kpick 239289 # Updater: put identical code to helper method
 kpick 244176 # Updater: transfer releated to configuration code to onResume to prorerly init time format (12/24)
-kpick 244871 # Updater: Allow to suspend A/B updates
 
 # packages/services/Telecomm
 kpick 233635 # Phone ringtone setting for Multi SIM device
@@ -1590,6 +1581,7 @@ kpick 243744 # cryptfs_hw: Support devices use metadata as key
 # translations
 
 ######## topic ##########
+#kpick -t shield-blake-p -x
 
 ##################################
 echo
