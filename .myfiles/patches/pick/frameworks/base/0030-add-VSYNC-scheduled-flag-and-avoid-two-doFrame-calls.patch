@@ -1,0 +1,126 @@
+From 768fc68ae55c42bad606cd646a05569c96de77a4 Mon Sep 17 00:00:00 2001
+From: binzhang <binzhang@codeaurora.org>
+Date: Thu, 22 Nov 2018 11:12:45 +0800
+Subject: [PATCH 30/41] add VSYNC scheduled flag and avoid two doFrame calls in
+ one period
+
+This flag can make sure touch response optimizaion only
+takes effect when there is no Vsync requesut from previous
+frame. It will not block animation.
+
+It can also make sure there will be only one doFrame call
+in one Vsync period.
+
+Change-Id: I5ce0ab7ba87ba8a88dbba942a28137be91928638
+CRs-Fixed: 2346476
+---
+ core/java/android/view/Choreographer.java | 72 +++++++++++++----------
+ 1 file changed, 40 insertions(+), 32 deletions(-)
+
+diff --git a/core/java/android/view/Choreographer.java b/core/java/android/view/Choreographer.java
+index 0ff08226636..c94fb21c282 100644
+--- a/core/java/android/view/Choreographer.java
++++ b/core/java/android/view/Choreographer.java
+@@ -181,6 +181,7 @@ public final class Choreographer {
+     private int mMotionEventType = -1;
+     private boolean mConsumedMove = false;
+     private boolean mConsumedDown = false;
++    private boolean mIsVsyncScheduled = false;
+     /**
+      * Contains information about the current frame for jank-tracking,
+      * mainly timings of key events along with a bit of metadata about
+@@ -613,38 +614,43 @@ public final class Choreographer {
+         if (!mFrameScheduled) {
+             mFrameScheduled = true;
+             if (OPTS_INPUT) {
+-                Trace.traceBegin(Trace.TRACE_TAG_VIEW, "scheduleFrameLocked-mMotionEventType:" + mMotionEventType + " mTouchMoveNum:" + mTouchMoveNum
+-                                    + " mConsumedDown:" + mConsumedDown + " mConsumedMove:" + mConsumedMove);
+-                Trace.traceEnd(Trace.TRACE_TAG_VIEW);
+-                synchronized(this) {
+-                    switch(mMotionEventType) {
+-                        case MOTION_EVENT_ACTION_DOWN:
+-                            mConsumedMove = false;
+-                            if (!mConsumedDown) {
+-                                Message msg = mHandler.obtainMessage(MSG_DO_FRAME);
+-                                msg.setAsynchronous(true);
+-                                mHandler.sendMessageAtFrontOfQueue(msg);
+-                                mConsumedDown = true;
+-                                return;
+-                            }
+-                            break;
+-                        case MOTION_EVENT_ACTION_MOVE:
+-                            mConsumedDown = false;
+-                            if ((mTouchMoveNum == 1) && !mConsumedMove) {
+-                                Message msg = mHandler.obtainMessage(MSG_DO_FRAME);
+-                                msg.setAsynchronous(true);
+-                                mHandler.sendMessageAtFrontOfQueue(msg);
+-                                mConsumedMove = true;
+-                                return;
+-                            }
+-                            break;
+-                        case MOTION_EVENT_ACTION_UP:
+-                        case MOTION_EVENT_ACTION_CANCEL:
+-                            mConsumedMove = false;
+-                            mConsumedDown = false;
+-                            break;
+-                        default:
+-                            break;
++                if ((!mIsVsyncScheduled) &&
++                    ((System.nanoTime() - mLastFrameTimeNanos) > mFrameIntervalNanos)) {
++                    Trace.traceBegin(Trace.TRACE_TAG_VIEW, "scheduleFrameLocked-mMotionEventType:"
++                                     + mMotionEventType + " mTouchMoveNum:" + mTouchMoveNum
++                                     + " mConsumedDown:" + mConsumedDown + " mConsumedMove:"
++                                     + mConsumedMove);
++                    Trace.traceEnd(Trace.TRACE_TAG_VIEW);
++                    synchronized(this) {
++                        switch(mMotionEventType) {
++                            case MOTION_EVENT_ACTION_DOWN:
++                                mConsumedMove = false;
++                                if (!mConsumedDown) {
++                                    Message msg = mHandler.obtainMessage(MSG_DO_FRAME);
++                                    msg.setAsynchronous(true);
++                                    mHandler.sendMessageAtFrontOfQueue(msg);
++                                    mConsumedDown = true;
++                                    return;
++                                }
++                                break;
++                            case MOTION_EVENT_ACTION_MOVE:
++                                mConsumedDown = false;
++                                if ((mTouchMoveNum == 1) && !mConsumedMove) {
++                                    Message msg = mHandler.obtainMessage(MSG_DO_FRAME);
++                                    msg.setAsynchronous(true);
++                                    mHandler.sendMessageAtFrontOfQueue(msg);
++                                    mConsumedMove = true;
++                                    return;
++                                }
++                                break;
++                            case MOTION_EVENT_ACTION_UP:
++                            case MOTION_EVENT_ACTION_CANCEL:
++                                mConsumedMove = false;
++                                mConsumedDown = false;
++                                break;
++                            default:
++                                break;
++                        }
+                     }
+                 }
+             }
+@@ -685,6 +691,7 @@ public final class Choreographer {
+     void doFrame(long frameTimeNanos, int frame) {
+         final long startNanos;
+         synchronized (mLock) {
++            mIsVsyncScheduled = false;
+             if (!mFrameScheduled) {
+                 return; // no work to do
+             }
+@@ -849,6 +856,7 @@ public final class Choreographer {
+ 
+     private void scheduleVsyncLocked() {
+         mDisplayEventReceiver.scheduleVsync();
++        mIsVsyncScheduled = true;
+     }
+ 
+     private boolean isRunningOnLooperThreadLocked() {
+-- 
+2.17.1
+

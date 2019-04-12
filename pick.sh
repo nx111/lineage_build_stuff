@@ -93,9 +93,11 @@ function patch_local()
          f=$(echo $line | sed -e "s/:/\//")
          patchfile=$(basename $f)
          project=$(echo $f |  sed -e "s/^pick\///" -e "s/^local\///"  | sed "s/\/[^\/]*$//")
-         if [ $basemode -eq 1 ] && echo $patchfile | grep -vq "\[ALWAYS\]|\[ALL\]"; then
-            continue
-         elif [ $alwaysmode -eq 1 ] && echo $patchfile | grep -vq "\[ALWAYS\]"; then
+         if [ $basemode -eq 1 ] && echo $patchfile | grep -vEq "\[ALWAYS\]|\[ALL\]|\[BASE\]"; then
+             continue
+         elif [ $basemode -eq 0 ] && echo $patchfile | grep -Eq "\[BASE\]"; then
+             continue
+         elif [ $alwaysmode -eq 1 ] && echo $patchfile | grep -vEq "\[ALWAYS\]"; then
             continue
          fi
          if [ ! -d "$topdir/$project" ]; then
@@ -291,12 +293,15 @@ function projects_snapshot()
                        if grep -q "Change-Id: $changeid" -r $topdir/.myfiles/patches/pick/$project; then
                            pick_patch=$(grep -H "Change-Id: $changeid" -r $topdir/.myfiles/patches/pick/$project | sed -n 1p | cut -d: -f1)
                            pick_patch_name=$(basename $pick_patch)
-                           if echo $patch_file_name | grep -qE "\[WIP\]|\[SKIP\]|\[ALWAYS\]|\[KEEP\]|\[ALL\]" ; then
+                           if echo $patch_file_name | grep -qE "\[WIP\]|\[SKIP\]|\[ALWAYS\]|\[KEEP\]|\[ALL\]|\[BASE\]" ; then
                                local prefix_number=${pick_patch_name:0:4}
                                 [ -f $topdir/.pick_base ] && prefix_number=${patch_file_name:0:4}
                                [ "${patch_file_name:5:5}" = "[WIP]" ] && rm -f $patchfile && \
                                       mv $pick_patch $(dirname $patchfile)/$prefix_number-${patch_file_name:5:5}-${pick_patch_name:5}
                                [ "${patch_file_name:5:6}" = "[SKIP]" ] && rm -f $patchfile && \
+                                      mv $pick_patch $(dirname $patchfile)/$prefix_number-${patch_file_name:5:6}-${pick_patch_name:
+5}
+                               [ "${patch_file_name:5:6}" = "[BASE]" ] && rm -f $patchfile && \
                                       mv $pick_patch $(dirname $patchfile)/$prefix_number-${patch_file_name:5:6}-${pick_patch_name:5}
                                [ "${patch_file_name:5:5}" = "[ALL]" ] && rm -f $patchfile && \
                                       mv $pick_patch $(dirname $patchfile)/$prefix_number-${patch_file_name:5:5}-${pick_patch_name:5}
@@ -304,14 +309,14 @@ function projects_snapshot()
                                       mv $pick_patch $(dirname $patchfile)/$prefix_number-${patch_file_name:5:8}-${pick_patch_name:5}
                                [ "${patch_file_name:5:8}" = "[KEEP]" ] && rm -f $patchfile && \
                                       mv $pick_patch $(dirname $patchfile)/$prefix_number-${patch_file_name:5:6}-${pick_patch_name:5}
-                           elif echo $(dirname $patchfile) | grep -qE "\[WIP\]|\[SKIP\]|\[ALWAYS\]|\[KEEP\]|\[ALL\]" ; then
+                           elif echo $(dirname $patchfile) | grep -qE "\[WIP\]|\[SKIP\]|\[ALWAYS\]|\[KEEP\]|\[ALL\]|\[BASE\]" ; then
                                rm -f $patchfile
                                mv $pick_patch $(dirname $patchfile)/
                            else
                                rm -f $patchfile
                                mv $pick_patch $topdir/.myfiles/patches/local/$project/
                            fi
-                       elif ! echo $patchfile | grep -qE "\[WIP\]|\[SKIP\]|\[ALWAYS\]|\[KEEP\]|\[ALL\]"; then
+                       elif ! echo $patchfile | grep -qE "\[WIP\]|\[SKIP\]|\[ALWAYS\]|\[KEEP\]|\[ALL\]|\[BASE\]"; then
                            [ -f $topdir/.pick_base ] || rm -f $patchfile
                        elif echo $patchfile | grep -q "^[[:digit:]]\{4,4\}-"; then
                            prefixNumber=$(echo $number| awk '{printf("%04d\n",$0)}')
@@ -1122,7 +1127,7 @@ for op in $*; do
          op_patch_local=1
     elif [ "$op" = "--reset" -o "$op" = "-r" ]; then
          op_reset_projects=1
-    elif [ "$op" = "--snap" -o "$op" = "-s" ] && [ ! -f $topdir/.pick_base ]; then
+    elif [ "$op" = "--snap" -o "$op" = "-s" ]; then
          op_project_snapshot=1
     elif [ "$op" = "--restore" -o "$op" = "--restore-snap" ]; then
          op_restore_snapshot=1
@@ -1188,8 +1193,8 @@ rrCache restore # restore rr-cache
 ###################################
 #---------base pick --------------#
 if [ $op_base_pick -eq 1 ]; then
-   cd $topdir/.repo/manifests; git reset --hard $(git log -20 --all --decorate | grep commit | grep "m/lineage-" | cut -d' ' -f 2);
    cd $topdir
+   reset_project_dir .repo/manifests
    nSyncRetries=$syncRetryCount
    rc_sync=1
    while [ $nSyncRetries -gt 0 -a $rc_sync -ne 0 ]; do
@@ -1290,6 +1295,7 @@ kpick 245268 # recovery: Set SELinux status to Permissive for recovery images
 # build/make
 kpick 222742 # build: Use project pathmap for recovery
 kpick 222760 # Add LOCAL_AIDL_FLAGS
+kpick 246042 # build: Include AudioPackage14.mk instead of AllAudio.mk
 
 # build/soong
 kpick 222648 # Allow providing flex and bison binaries
@@ -1364,7 +1370,6 @@ kpick 233717 # [DNM][HACK] Persist user brightness model
 kpick 234649 # keyguard: Check for a null errString
 kpick 235986 # frameworks: Add unlinked ringtone and notification volumes
 kpick 245621 # Audio assets: add NFC sounds
-kpick 236765 # Sounds: Squashed cleanup of sound files
 #kpick 227142 # Battery: add Battery Moto Mod Support
 kpick 237142 # Battery: update mod support to P
 kpick 237143 # AudioService: Fix Audio mod volume steps
@@ -1451,7 +1456,6 @@ kpick 239598 # hidl: livedisplay: Add binderized service implementation
 kpick 230272 # sdk: Remove VOLUME_KEYS_CONTROL_RING_STREAM
 kpick 241779 # sdk: Change night/day mode transition behavior
 kpick 242398 # Trust: Onboarding: Listen for locale changes
-kpick 244516 # sdk: notification: allow forcing notification color for preview
 
 # packages/apps/Bluetooth
 kpick 229310 # SBC Dual Channel (SBC HD Audio) support
@@ -1468,9 +1472,6 @@ kpick 240770 # Proper supplementary service notification handling (5/5).
 # packages/apps/Eleven
 
 # packages/apps/LineageParts
-kpick 243513 # LightSettingsDialog: create and use notification channel
-kpick 244511 # LightSettingsDialog: remove unused OnColorChangedListener
-kpick 244512 # LightSettingsDialog: add bundle extras for preview color and duration
 
 # packages/apps/Jelly
 kpick 245307 # Jelly: menu should say window
@@ -1572,7 +1573,7 @@ kpick 244672 # common: Add getcap/setcap to PRODUCT_PACKAGES
 kpick 245278 # extract_utils: Add functions to extract vendor blobs from vendor.img
 kpick 245279 # kernel: Allow devices to specify kernel toolchain root
 kpick 245280 # gms: Include turbo on arm64 targets
-kpick 245798 # images: Add 420dpi symlink
+kpick 246043 # config: Include old AOSP alarms/notifications/ringtones
 
 # vendor/qcom/opensource/cryptfs_hw
 kpick 243744 # cryptfs_hw: Support devices use metadata as key
