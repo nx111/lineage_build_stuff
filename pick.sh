@@ -1295,7 +1295,6 @@ kpick 245268 # recovery: Set SELinux status to Permissive for recovery images
 # build/make
 kpick 222742 # build: Use project pathmap for recovery
 kpick 222760 # Add LOCAL_AIDL_FLAGS
-kpick 246042 # build: Include AudioPackage14.mk instead of AllAudio.mk
 
 # build/soong
 kpick 222648 # Allow providing flex and bison binaries
@@ -1369,7 +1368,6 @@ kpick 233633 # Phone ringtone setting for Multi SIM device
 kpick 233717 # [DNM][HACK] Persist user brightness model
 kpick 234649 # keyguard: Check for a null errString
 kpick 235986 # frameworks: Add unlinked ringtone and notification volumes
-kpick 245621 # Audio assets: add NFC sounds
 #kpick 227142 # Battery: add Battery Moto Mod Support
 kpick 237142 # Battery: update mod support to P
 kpick 237143 # AudioService: Fix Audio mod volume steps
@@ -1453,7 +1451,6 @@ kpick 239597 # samsung: Add dummy lineagehw HIDL interfaces for vendor.lineage.l
 kpick 239598 # hidl: livedisplay: Add binderized service implementation
 
 # lineage-sdk
-kpick 230272 # sdk: Remove VOLUME_KEYS_CONTROL_RING_STREAM
 kpick 241779 # sdk: Change night/day mode transition behavior
 kpick 242398 # Trust: Onboarding: Listen for locale changes
 
@@ -1498,6 +1495,7 @@ kpick 242496 # Snap: Fix bad grammar "Long shot not support<ed>"
 kpick 243071 # Snap: allow to disable image stabilization per device
 
 # packages/apps/Trebuchet
+kpick 246140 # Status bar swipe disalow for widgets sheet
 
 # packages/apps/Updater
 kpick 239289 # Updater: put identical code to helper method
@@ -1506,14 +1504,9 @@ kpick 244176 # Updater: transfer releated to configuration code to onResume to p
 # packages/services/Telecomm
 kpick 233635 # Phone ringtone setting for Multi SIM device
 kpick 240768 # Proper supplementary service notification handling (3/5)
-kpick 243436 # Change UI to be consistency with dialer settings light M2 theme
 
 # packages/services/Telephony
 kpick 240769 # Proper supplementary service notification handling (4/5).
-kpick 243436 # Change UI to be consistency with dialer settings light M2 theme
-kpick 243437 # Fix EmergencyDialer UI when display size change
-kpick 243439 # Disable EmergencyDialer multi window mode
-kpick 243438 # Change UI styles to match dialer settings light M2 theme
 kpick 243706 # Allow to disable the new scan API for manual network search.
 
 # system/bt
@@ -1573,7 +1566,6 @@ kpick 244672 # common: Add getcap/setcap to PRODUCT_PACKAGES
 kpick 245278 # extract_utils: Add functions to extract vendor blobs from vendor.img
 kpick 245279 # kernel: Allow devices to specify kernel toolchain root
 kpick 245280 # gms: Include turbo on arm64 targets
-kpick 246043 # config: Include old AOSP alarms/notifications/ringtones
 
 # vendor/qcom/opensource/cryptfs_hw
 kpick 243744 # cryptfs_hw: Support devices use metadata as key
