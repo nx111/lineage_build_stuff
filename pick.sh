@@ -1332,8 +1332,6 @@ kpick 227261 # Cast BT_VND_OP_ANT_USERIAL_{OPEN,CLOSE} to bt_vendor_opcode_t in 
 kpick 245252 # Update Chromium Webview to 73.0.3683.90
 
 # external/icu
-kpick 245617 # DO NOT MERGE: Apply upstream fix to use rearguard data
-kpick 245618 # DO NOT MERGE: Apply 2019a tzdb updates
 
 # external/perfetto
 kpick 223413 -f # perfetto_cmd: Resolve missing O_CREAT mode
@@ -1536,8 +1534,6 @@ kpick 232794 # NetD : Allow passing in interface names for vpn app restriction
 kpick 243819 # sepolicy: Label tee_data_file as core_data_file_type
 
 # system/timezone
-kpick 245619 # DO NOT MERGE: Track changes in external/icu for rearguard data
-kpick 245620 # DO NOT MERGE: Changes associated with the tzdb 2019a update
 
 # system/tools/aidl
 kpick 223133 # AIDL: Add option to generate No-Op methods
