@@ -1,4 +1,4 @@
-From c179c3608c23b6aa40b8b726e593a9a5361ff33c Mon Sep 17 00:00:00 2001
+From cf3852688d9ab0004a83878211da51dbe2b838e3 Mon Sep 17 00:00:00 2001
 From: =?UTF-8?q?eray=20or=C3=A7unus?= <erayorcunus@gmail.com>
 Date: Fri, 22 Mar 2019 01:15:45 +0300
 Subject: [PATCH 32/40] SystemUI: Bring back lockscreen tuner (1/2)
@@ -19,11 +19,14 @@ Change-Id: Ibb107e550ff492219fb6fedd63f8fc8ee89753a9
 Signed-off-by: eray orçunus <erayorcunus@gmail.com>
 ---
  packages/SystemUI/LineageManifest.xml         | 14 +++++
- .../phone/KeyguardBottomAreaView.java         | 49 +++++++++++++++---
- .../systemui/tuner/LockscreenFragment.java    | 40 ++++++++++++++-
- .../systemui/tuner/ShortcutPicker.java        | 51 +++++++++++++++++--
+ packages/SystemUI/res/values/cm_strings.xml   |  3 +
+ .../phone/KeyguardBottomAreaView.java         | 61 +++++++++++++++++--
+ .../phone/NotificationPanelView.java          | 14 ++++-
+ .../systemui/statusbar/phone/StatusBar.java   | 15 +++--
+ .../systemui/tuner/LockscreenFragment.java    | 40 +++++++++++-
+ .../systemui/tuner/ShortcutPicker.java        | 51 +++++++++++++++-
  .../android/systemui/tuner/TunerActivity.java |  2 +
- 5 files changed, 146 insertions(+), 10 deletions(-)
+ 8 files changed, 181 insertions(+), 19 deletions(-)
 
 diff --git a/packages/SystemUI/LineageManifest.xml b/packages/SystemUI/LineageManifest.xml
 index ce7adbfd808..2eb679c34c0 100644
@@ -50,8 +53,20 @@ index ce7adbfd808..2eb679c34c0 100644
          <activity-alias
              android:name=".tuner.TunerActivity"
              android:targetActivity=".tuner.TunerActivity"
+diff --git a/packages/SystemUI/res/values/cm_strings.xml b/packages/SystemUI/res/values/cm_strings.xml
+index 72efa4a640e..22ddc837645 100644
+--- a/packages/SystemUI/res/values/cm_strings.xml
++++ b/packages/SystemUI/res/values/cm_strings.xml
+@@ -95,4 +95,7 @@
+ 
+     <!-- Button that controls inversion of layout of navigation bar -->
+     <string name="nav_bar_layout_inverse">Invert layout</string>
++
++    <!-- Hint for custom lockscreen shortcuts -->
++    <string name="custom_swipe_hint">Swipe from icon for <xliff:g name="target">%s</xliff:g></string>
+ </resources>
 diff --git a/packages/SystemUI/src/com/android/systemui/statusbar/phone/KeyguardBottomAreaView.java b/packages/SystemUI/src/com/android/systemui/statusbar/phone/KeyguardBottomAreaView.java
-index 60d62d52995..a0cd198e1df 100644
+index 60d62d52995..a20c02fa729 100644
 --- a/packages/SystemUI/src/com/android/systemui/statusbar/phone/KeyguardBottomAreaView.java
 +++ b/packages/SystemUI/src/com/android/systemui/statusbar/phone/KeyguardBottomAreaView.java
 @@ -23,6 +23,8 @@ import static com.android.systemui.tuner.LockscreenFragment.LOCKSCREEN_LEFT_BUTT
@@ -63,10 +78,46 @@ index 60d62d52995..a0cd198e1df 100644
  
  import android.app.ActivityManager;
  import android.app.ActivityOptions;
-@@ -804,15 +806,28 @@ public class KeyguardBottomAreaView extends FrameLayout implements View.OnClickL
+@@ -162,9 +164,11 @@ public class KeyguardBottomAreaView extends FrameLayout implements View.OnClickL
+ 
+     private IntentButton mRightButton = new DefaultRightButton();
+     private Extension<IntentButton> mRightExtension;
++    private CharSequence mRightButtonTarget;
+     private String mRightButtonStr;
+     private IntentButton mLeftButton = new DefaultLeftButton();
+     private Extension<IntentButton> mLeftExtension;
++    private CharSequence mLeftButtonTarget;
+     private String mLeftButtonStr;
+     private LockscreenGestureLogger mLockscreenGestureLogger = new LockscreenGestureLogger();
+     private boolean mDozing;
+@@ -358,6 +362,7 @@ public class KeyguardBottomAreaView extends FrameLayout implements View.OnClickL
+ 
+     private void updateRightAffordanceIcon() {
+         IconState state = mRightButton.getIcon();
++        mRightButtonTarget = state.contentDescription;
+         mRightAffordanceView.setVisibility(!mDozing && state.isVisible ? View.VISIBLE : View.GONE);
+         mRightAffordanceView.setImageDrawable(state.drawable, state.tint);
+         mRightAffordanceView.setContentDescription(state.contentDescription);
+@@ -410,6 +415,7 @@ public class KeyguardBottomAreaView extends FrameLayout implements View.OnClickL
+ 
+     private void updateLeftAffordanceIcon() {
+         IconState state = mLeftButton.getIcon();
++        mLeftButtonTarget = state.contentDescription;
+         mLeftAffordanceView.setVisibility(!mDozing && state.isVisible ? View.VISIBLE : View.GONE);
+         mLeftAffordanceView.setImageDrawable(state.drawable, state.tint);
+         mLeftAffordanceView.setContentDescription(state.contentDescription);
+@@ -804,15 +810,36 @@ public class KeyguardBottomAreaView extends FrameLayout implements View.OnClickL
          inflateCameraPreview();
      }
  
++    public CharSequence getShortcutTargetName(boolean rightIcon){
++        if (rightIcon) {
++            return mRightButtonTarget;
++        } else {
++            return mLeftButtonTarget;
++        }
++    }
++
 +    private IntentButton translateTunerButton(IntentButton button) {
 +        IconState buttonIcon = button.getIcon();
 +
@@ -94,7 +145,7 @@ index 60d62d52995..a0cd198e1df 100644
          if (!(mLeftButton instanceof DefaultLeftButton)) {
              mLeftIsVoiceAssist = false;
          }
-@@ -857,12 +872,22 @@ public class KeyguardBottomAreaView extends FrameLayout implements View.OnClickL
+@@ -857,12 +884,22 @@ public class KeyguardBottomAreaView extends FrameLayout implements View.OnClickL
      private class DefaultLeftButton implements IntentButton {
  
          private IconState mIconState = new IconState();
@@ -118,7 +169,7 @@ index 60d62d52995..a0cd198e1df 100644
              if (mLeftIsVoiceAssist) {
                  mIconState.isVisible = mUserSetupComplete && showAffordance;
                  if (mLeftAssistIcon == null) {
-@@ -890,14 +915,26 @@ public class KeyguardBottomAreaView extends FrameLayout implements View.OnClickL
+@@ -890,14 +927,26 @@ public class KeyguardBottomAreaView extends FrameLayout implements View.OnClickL
      private class DefaultRightButton implements IntentButton {
  
          private IconState mIconState = new IconState();
@@ -148,8 +199,77 @@ index 60d62d52995..a0cd198e1df 100644
              mIconState.drawable = mContext.getDrawable(R.drawable.ic_camera_alt_24dp);
              mIconState.contentDescription =
                      mContext.getString(R.string.accessibility_camera_button);
+diff --git a/packages/SystemUI/src/com/android/systemui/statusbar/phone/NotificationPanelView.java b/packages/SystemUI/src/com/android/systemui/statusbar/phone/NotificationPanelView.java
+index ce4ebb2fa05..ffbd86588ed 100644
+--- a/packages/SystemUI/src/com/android/systemui/statusbar/phone/NotificationPanelView.java
++++ b/packages/SystemUI/src/com/android/systemui/statusbar/phone/NotificationPanelView.java
+@@ -36,6 +36,7 @@ import android.graphics.PorterDuff;
+ import android.graphics.PorterDuffXfermode;
+ import android.graphics.Rect;
+ import android.os.PowerManager;
++import android.text.TextUtils;
+ import android.util.AttributeSet;
+ import android.util.FloatProperty;
+ import android.util.Log;
+@@ -2186,13 +2187,20 @@ public class NotificationPanelView extends PanelView implements
+             }
+         });
+         rightIcon = getLayoutDirection() == LAYOUT_DIRECTION_RTL ? !rightIcon : rightIcon;
++
++        // Create swipe hint with app name. If it's empty, event calls below will use default hints
++        CharSequence hint = mKeyguardBottomArea.getShortcutTargetName(rightIcon);
++        if (!TextUtils.isEmpty(hint)) {
++            hint = mContext.getString(R.string.custom_swipe_hint, hint);
++        }
++
+         if (rightIcon) {
+-            mStatusBar.onCameraHintStarted();
++            mStatusBar.onCameraHintStarted(hint);
+         } else {
+             if (mKeyguardBottomArea.isLeftVoiceAssist()) {
+-                mStatusBar.onVoiceAssistHintStarted();
++                mStatusBar.onVoiceAssistHintStarted(hint);
+             } else {
+-                mStatusBar.onPhoneHintStarted();
++                mStatusBar.onPhoneHintStarted(hint);
+             }
+         }
+     }
+diff --git a/packages/SystemUI/src/com/android/systemui/statusbar/phone/StatusBar.java b/packages/SystemUI/src/com/android/systemui/statusbar/phone/StatusBar.java
+index 45ac8c2fec4..b71e54dfa7a 100644
+--- a/packages/SystemUI/src/com/android/systemui/statusbar/phone/StatusBar.java
++++ b/packages/SystemUI/src/com/android/systemui/statusbar/phone/StatusBar.java
+@@ -4416,19 +4416,22 @@ public class StatusBar extends SystemUI implements DemoMode, TunerService.Tunabl
+         mKeyguardIndicationController.hideTransientIndicationDelayed(HINT_RESET_DELAY_MS);
+     }
+ 
+-    public void onCameraHintStarted() {
++    public void onCameraHintStarted(CharSequence hint) {
+         mFalsingManager.onCameraHintStarted();
+-        mKeyguardIndicationController.showTransientIndication(R.string.camera_hint);
++        hint = (TextUtils.isEmpty(hint) ? mContext.getString(R.string.camera_hint) : hint);
++        mKeyguardIndicationController.showTransientIndication(hint);
+     }
+ 
+-    public void onVoiceAssistHintStarted() {
++    public void onVoiceAssistHintStarted(CharSequence hint) {
+         mFalsingManager.onLeftAffordanceHintStarted();
+-        mKeyguardIndicationController.showTransientIndication(R.string.voice_hint);
++        hint = (TextUtils.isEmpty(hint) ? mContext.getString(R.string.voice_hint) : hint);
++        mKeyguardIndicationController.showTransientIndication(hint);
+     }
+ 
+-    public void onPhoneHintStarted() {
++    public void onPhoneHintStarted(CharSequence hint) {
+         mFalsingManager.onLeftAffordanceHintStarted();
+-        mKeyguardIndicationController.showTransientIndication(R.string.phone_hint);
++        hint = (TextUtils.isEmpty(hint) ? mContext.getString(R.string.phone_hint) : hint);
++        mKeyguardIndicationController.showTransientIndication(hint);
+     }
+ 
+     public void onTrackingStopped(boolean expand) {
 diff --git a/packages/SystemUI/src/com/android/systemui/tuner/LockscreenFragment.java b/packages/SystemUI/src/com/android/systemui/tuner/LockscreenFragment.java
-index 2df1793acb4..f241cc681db 100644
+index 2df1793acb4..3f8057bcc34 100644
 --- a/packages/SystemUI/src/com/android/systemui/tuner/LockscreenFragment.java
 +++ b/packages/SystemUI/src/com/android/systemui/tuner/LockscreenFragment.java
 @@ -25,6 +25,7 @@ import android.content.pm.LauncherApps;
@@ -175,7 +295,7 @@ index 2df1793acb4..f241cc681db 100644
          SwitchPreference unlock = (SwitchPreference) findPreference(unlockKey);
          addTunable((k, v) -> {
 -            boolean visible = !TextUtils.isEmpty(v);
-+            boolean visible = (!TextUtils.isEmpty(v)) && (v.contains("/") || v.contains("::"));
++            boolean visible = v.contains("/") || v.contains("::");
              unlock.setVisible(visible);
              setSummary(shortcut, v);
          }, buttonSetting);
