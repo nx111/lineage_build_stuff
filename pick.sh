@@ -949,6 +949,7 @@ function kpick_action()
 
     [ -z $recent_changeid_tmp ] ||  rm -f $recent_changeid_tmp
 
+    local finish_doing=0
     if [ $breakout -lt 0 ]; then
         [ -f $errfile ] && cat $errfile
         if [ "${BASH_SOURCE[0]}" != "$runfrom" ]; then
@@ -980,7 +981,6 @@ function kpick_action()
              rm -f /tmp/change_$changeNumber.patch /tmp/change_$changeNumber.err /tmp/manifest_changeids.txt
              cd $topdir
         fi
-        local finish_doing=0
         if [ ! -z $changeNumber ]; then
             if grep -q -E "Change status is MERGED.|nothing to commit|git command resulted with an empty commit" $logfile; then
                [ ! -f $script_file.tmp -a "${BASH_SOURCE[0]}" = "$runfrom" ] && cp $script_file $script_file.tmp
@@ -1493,7 +1493,7 @@ kpick 242496 # Snap: Fix bad grammar "Long shot not support<ed>"
 kpick 243071 # Snap: allow to disable image stabilization per device
 
 # packages/apps/Trebuchet
-kpick 246140 # Status bar swipe disalow for widgets sheet
+kpick 246140 # Trebuchet: Disallow status bar swipe on widgets sheet
 
 # packages/apps/Updater
 kpick 239289 # Updater: put identical code to helper method
