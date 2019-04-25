@@ -1295,6 +1295,8 @@ kpick 245268 # recovery: Set SELinux status to Permissive for recovery images
 # build/make
 kpick 222742 # build: Use project pathmap for recovery
 kpick 222760 # Add LOCAL_AIDL_FLAGS
+kpick 237233 # build: Mount A-only system-as-root image at proper mount point
+kpick 246893 # releasetools: Correctly assert for A-only system-as-root
 
 # build/soong
 kpick 222648 # Allow providing flex and bison binaries
@@ -1311,6 +1313,7 @@ kpick 241676 # sepolicy: qcom: Rename common to vendor to avoid confusion
 kpick 241677 # sepolicy: Break livedisplay hal policy into impl independent ones
 kpick 241903 # sepolicy: Label all the livedisplay service implementations
 kpick 244801 # common: fix OTA auto-flashing with encrypted f2fs.
+kpick 246848 # Silence sysinit log spam
 
 # device/qcom/sepolicy
 kpick 228573 # sepolicy: Add libsdm-disp-vndapis and libsdmutils to SP-HALs
@@ -1386,7 +1389,7 @@ kpick 243570 # Remove the property of touch optimization check.
 kpick 243572 # add VSYNC scheduled flag and avoid two doFrame calls in one period
 kpick 244295 # base: Redo expanded volume panel for 9.x
 kpick 244318 # KeyguardHostView: Auto face unlock v2
-kpick 244664 # SystemUI: Bring back lockscreen tuner (1/2)
+kpick 246850 # SystemUI: Enable and fix QS detail view, adapt layout to Pie
 
 # frameworks/native
 kpick 224530 # Triple the available egl function pointers available to a process for certain Nvidia devices.
@@ -1418,8 +1421,6 @@ kpick 241715 # Add kernel header dep for ipanat
 
 # hardware/qcom/display
 kpick 223341 # display: Always assume kernel source is present
-kpick 245598 # display: msm8974: Use generated kernel headers
-kpick 245699 # display: msm8974: Add -Wno-error to compile with global -Werror.
 
 # hardware/qcom/fm
 kpick 236546 # fm_helium: Update FM_HCI_DIR path
@@ -1485,7 +1486,6 @@ kpick 237183 # settings: hide appendix of app list for power usage.
 kpick 240083 # Settings: Add null checks for OemLockService
 kpick 241758 # Settings: Show root options when certain third party root is present
 kpick 244319 # Add toggle for face auto unlock (2/2)
-kpick 244663 # SystemUI: Bring back lockscreen tuner (2/2)
 kpick 244843 # Settings: Add battery saving mode for location
 
 # packages/apps/Snap
