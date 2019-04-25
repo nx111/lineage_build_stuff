@@ -1296,7 +1296,6 @@ kpick 245268 # recovery: Set SELinux status to Permissive for recovery images
 kpick 222742 # build: Use project pathmap for recovery
 kpick 222760 # Add LOCAL_AIDL_FLAGS
 kpick 237233 # build: Mount A-only system-as-root image at proper mount point
-kpick 246893 # releasetools: Correctly assert for A-only system-as-root
 
 # build/soong
 kpick 222648 # Allow providing flex and bison binaries
