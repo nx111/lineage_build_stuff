@@ -1295,7 +1295,8 @@ kpick 245268 # recovery: Set SELinux status to Permissive for recovery images
 # build/make
 kpick 222742 # build: Use project pathmap for recovery
 kpick 222760 # Add LOCAL_AIDL_FLAGS
-kpick 237233 # build: Mount A-only system-as-root image at proper mount point
+#kpick 237233 # build: Mount A-only system-as-root image at proper mount point
+kpick 247066 # build: Allow mounting system properly for A-only system-as-root devices
 
 # build/soong
 kpick 222648 # Allow providing flex and bison binaries
@@ -1389,6 +1390,7 @@ kpick 243572 # add VSYNC scheduled flag and avoid two doFrame calls in one perio
 kpick 244295 # base: Redo expanded volume panel for 9.x
 kpick 244318 # KeyguardHostView: Auto face unlock v2
 kpick 246850 # SystemUI: Enable and fix QS detail view, adapt layout to Pie
+kpick 247054 # SystemUI: Fix double-tap to cam. opens right lockscreen shortcut
 
 # frameworks/native
 kpick 224530 # Triple the available egl function pointers available to a process for certain Nvidia devices.
@@ -1553,6 +1555,7 @@ kpick 234011 # lineage: Add media_codecs_ddp for AC3 audio
 kpick 239526 # extract_utils: add option to print dependency graph for elf files
 kpick 239527 # extract_utils: template: add support for the dependency graph function
 kpick 237209 # lineage: Set default ringtone for second SIM
+#kpick 237638 # Revert "lineage: Support system-as-root A-only backuptool"
 kpick 241783 # envsetup: Fix lineagegerrit push for zsh
 kpick 242432 # RIP libhealthd.lineage
 kpick 242433 # Make custom off-mode charging screen great again
