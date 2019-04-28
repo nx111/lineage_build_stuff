@@ -1,0 +1,189 @@
+From 93f2ce2620f1b10d7f65d483c81acdff52d440ef Mon Sep 17 00:00:00 2001
+From: codeworkx <daniel.hillenbrand@codeworkx.de>
+Date: Sun, 28 Apr 2019 17:35:37 +0200
+Subject: [PATCH 3/4] Snap: add basic support for setting lens shading mode
+
+Change-Id: Ifce0f4030219a9e88e720c304e9a856f0f692887
+---
+ assets/dependency.json                      |  3 ++-
+ res/values/camera2arrays.xml                | 12 ++++++++++++
+ res/values/qcomstrings.xml                  |  6 ++++++
+ res/xml/capture_preferences.xml             |  7 +++++++
+ res/xml/setting_menu_preferences.xml        |  9 +++++++++
+ src/com/android/camera/CaptureModule.java   |  9 +++++++++
+ src/com/android/camera/SettingsManager.java | 19 +++++++++++++++++++
+ 7 files changed, 64 insertions(+), 1 deletion(-)
+
+diff --git a/assets/dependency.json b/assets/dependency.json
+index 3ded5afb5..5f1f522db 100644
+--- a/assets/dependency.json
++++ b/assets/dependency.json
+@@ -37,7 +37,8 @@
+       "pref_camera2_clearsight_key":"off",
+       "pref_camera2_mono_preview_key":"off",
+       "pref_camera2_mpo_key":"off",
+-      "pref_camera2_longshot_key":"off"}
++      "pref_camera2_longshot_key":"off",
++      "pref_camera2_lensshading_mode_key":"0"}
+     ,
+     "0":
+       {"pref_camera2_clearsight_key":"off",
+diff --git a/res/values/camera2arrays.xml b/res/values/camera2arrays.xml
+index 24a4571bd..484b0b7e3 100755
+--- a/res/values/camera2arrays.xml
++++ b/res/values/camera2arrays.xml
+@@ -907,6 +907,18 @@ for time lapse recording -->
+         <item>@string/pref_camera2_anti_banding_level_entry_auto</item>
+     </string-array>
+ 
++    <string-array name="pref_camera2_lensshading_mode_entryvalues" translatable="false">
++        <item>0</item>
++        <item>1</item>
++        <item>2</item>
++    </string-array>
++
++    <string-array name="pref_camera2_lensshading_mode_entries" translatable="true">
++        <item>@string/pref_camera2_lensshading_mode_entry_off</item>
++        <item>@string/pref_camera2_lensshading_mode_entry_fast</item>
++        <item>@string/pref_camera2_lensshading_mode_entry_highquality</item>
++    </string-array>
++
+     <string-array name="pref_camera2_saturation_level_entryvalues" translatable="false">
+         <item>0</item>
+         <item>1</item>
+diff --git a/res/values/qcomstrings.xml b/res/values/qcomstrings.xml
+index 8e02293b0..65165cfa2 100755
+--- a/res/values/qcomstrings.xml
++++ b/res/values/qcomstrings.xml
+@@ -1068,6 +1068,12 @@
+     <string name="pref_camera2_anti_banding_level_entry_60hz">60 Hz (USA)</string>
+     <string name="pref_camera2_anti_banding_level_entry_auto">Auto</string>
+ 
++    <string name="pref_camera2_lensshading_mode_title">Lens Shading</string>
++    <string name="pref_camera2_lensshading_mode_default" translatable="false">0</string>
++    <string name="pref_camera2_lensshading_mode_entry_off">Off</string>
++    <string name="pref_camera2_lensshading_mode_entry_fast">Fast</string>
++    <string name="pref_camera2_lensshading_mode_entry_highquality">High Quality</string>
++
+     <string name="pref_camera2_histogram_title">Histogram</string>
+     <string name="pref_camera2_histogram_default" translatable="false">disable</string>
+     <string name="pref_camera2_histogram_entry_enable">Enable</string>
+diff --git a/res/xml/capture_preferences.xml b/res/xml/capture_preferences.xml
+index 62347c3f2..fcb08c45e 100755
+--- a/res/xml/capture_preferences.xml
++++ b/res/xml/capture_preferences.xml
+@@ -314,6 +314,13 @@
+         camera:key="pref_camera2_anti_banding_level_key"
+         camera:title="@string/pref_camera2_anti_banding_level_title" />
+ 
++    <ListPreference
++        camera:defaultValue="@string/pref_camera2_lensshading_mode_default"
++        camera:entries="@array/pref_camera2_lensshading_mode_entries"
++        camera:entryValues="@array/pref_camera2_lensshading_mode_entryvalues"
++        camera:key="pref_camera2_lensshading_mode_key"
++        camera:title="@string/pref_camera2_lensshading_mode_title" />
++
+     <ListPreference
+         camera:defaultValue="@string/pref_camera2_auto_hdr_default"
+         camera:entries="@array/pref_camera2_auto_hdr_entries"
+diff --git a/res/xml/setting_menu_preferences.xml b/res/xml/setting_menu_preferences.xml
+index e52a41166..92b8f989a 100755
+--- a/res/xml/setting_menu_preferences.xml
++++ b/res/xml/setting_menu_preferences.xml
+@@ -125,6 +125,15 @@
+             android:summary="%s"
+             android:title="@string/pref_camera_whitebalance_title" />
+ 
++        <ListPreference
++            android:defaultValue="@string/pref_camera2_lensshading_mode_default"
++            android:entries="@array/pref_camera2_lensshading_mode_entries"
++            android:entryValues="@array/pref_camera2_lensshading_mode_entryvalues"
++            android:key="pref_camera2_lensshading_mode_key"
++            android:layout="@layout/preference"
++            android:summary="%s"
++            android:title="@string/pref_camera2_lensshading_mode_title" />
++
+         <SwitchPreference
+             android:defaultValue="false"
+             android:icon="@drawable/selfie_flash"
+diff --git a/src/com/android/camera/CaptureModule.java b/src/com/android/camera/CaptureModule.java
+index e1d26f96e..7cf236f7e 100755
+--- a/src/com/android/camera/CaptureModule.java
++++ b/src/com/android/camera/CaptureModule.java
+@@ -2831,6 +2831,7 @@ public class CaptureModule implements CameraModule, PhotoController,
+         applyInstantAEC(builder);
+         applySaturationLevel(builder);
+         applyAntiBandingLevel(builder);
++        applyLensShadingMode(builder);
+         applySharpnessControlModes(builder);
+         applyExposureMeteringModes(builder);
+         applyHistogram(builder);
+@@ -5291,6 +5292,14 @@ public class CaptureModule implements CameraModule, PhotoController,
+         }
+     }
+ 
++    private void applyLensShadingMode(CaptureRequest.Builder request) {
++        String value = mSettingsManager.getValue(SettingsManager.KEY_LENSSHADING_MODE);
++        if (value != null) {
++            int intValue = Integer.parseInt(value);
++            request.set(CaptureRequest.SHADING_MODE, intValue);
++        }
++    }
++
+     private void applySharpnessControlModes(CaptureRequest.Builder request) {
+         String value = mSettingsManager.getValue(SettingsManager.KEY_SHARPNESS_CONTROL_MODE);
+         if (value != null) {
+diff --git a/src/com/android/camera/SettingsManager.java b/src/com/android/camera/SettingsManager.java
+index 2da2137c8..8d7458f16 100755
+--- a/src/com/android/camera/SettingsManager.java
++++ b/src/com/android/camera/SettingsManager.java
+@@ -149,6 +149,7 @@ public class SettingsManager implements ListMenu.SettingsListener {
+     public static final String KEY_INSTANT_AEC = "pref_camera2_instant_aec_key";
+     public static final String KEY_SATURATION_LEVEL = "pref_camera2_saturation_level_key";
+     public static final String KEY_ANTI_BANDING_LEVEL = "pref_camera2_anti_banding_level_key";
++    public static final String KEY_LENSSHADING_MODE = "pref_camera2_lensshading_mode_key";
+     public static final String KEY_AUTO_HDR = "pref_camera2_auto_hdr_key";
+     public static final String KEY_HDR = "pref_camera2_hdr_key";
+     public static final String KEY_VIDEO_HDR_VALUE = "pref_camera2_video_hdr_key";
+@@ -722,6 +723,7 @@ public class SettingsManager implements ListMenu.SettingsListener {
+         ListPreference instantAec = mPreferenceGroup.findPreference(KEY_INSTANT_AEC);
+         ListPreference saturationLevel = mPreferenceGroup.findPreference(KEY_SATURATION_LEVEL);
+         ListPreference antiBandingLevel = mPreferenceGroup.findPreference(KEY_ANTI_BANDING_LEVEL);
++        ListPreference lensShadingMode = mPreferenceGroup.findPreference(KEY_LENSSHADING_MODE);
+         ListPreference stats_visualizer = mPreferenceGroup.findPreference(KEY_STATS_VISUALIZER_VALUE);
+         ListPreference hdr = mPreferenceGroup.findPreference(KEY_HDR);
+         ListPreference zoom = mPreferenceGroup.findPreference(KEY_ZOOM);
+@@ -775,6 +777,13 @@ public class SettingsManager implements ListMenu.SettingsListener {
+             }
+         }
+ 
++        if (lensShadingMode != null) {
++            if (filterUnsupportedOptions(lensShadingMode,
++                    getSupportedLensShadingAvailableModes(cameraId))) {
++                mFilteredKeys.add(lensShadingMode.getKey());
++            }
++        }
++
+         if (stats_visualizer != null) {
+             if (filterUnsupportedOptions(stats_visualizer,
+                     getSupportedStatsVisualizerAvailableModes(cameraId))) {
+@@ -1726,6 +1735,16 @@ public class SettingsManager implements ListMenu.SettingsListener {
+         return  modes;
+     }
+ 
++    public List<String> getSupportedLensShadingAvailableModes(int cameraId) {
++        int[] lensShadingAvailableModes = mCharacteristics.get(cameraId).get(
++                CameraCharacteristics.SHADING_AVAILABLE_MODES);
++        List<String> modes = new ArrayList<>();
++        for (int i : lensShadingAvailableModes) {
++            modes.add(""+i);
++        }
++        return modes;
++    }
++
+     public List<String> getSupportedStatsVisualizerAvailableModes(int cameraId) {
+         int[] statsVisualizerAvailableModes = {0, 1, 2, 3};
+         /*
+-- 
+2.17.1
+

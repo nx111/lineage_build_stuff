@@ -1492,13 +1492,16 @@ kpick 244843 # Settings: Add battery saving mode for location
 # packages/apps/Snap
 kpick 242496 # Snap: Fix bad grammar "Long shot not support<ed>"
 kpick 243071 # Snap: allow to disable image stabilization per device
+kpick 247120 # Snap: add basic support for setting lens shading mode
 
 # packages/apps/Trebuchet
 kpick 246140 # Trebuchet: Disallow status bar swipe on widgets sheet
+kpick 246890 # Trebuchet: use new wallpaper app
 
 # packages/apps/Updater
 kpick 239289 # Updater: put identical code to helper method
 kpick 244176 # Updater: transfer releated to configuration code to onResume to prorerly init time format (12/24)
+kpick 247100 # Updater: Make upgrade-url device specific
 
 # packages/services/Telecomm
 kpick 233635 # Phone ringtone setting for Multi SIM device
