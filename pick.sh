@@ -1290,7 +1290,6 @@ kpick 241858 # msm8974-common: Build Samsung LiveDisplay service
 # bootable/recovery
 kpick 244763 # recovery: Blank screen on init
 kpick 245305 # OMGRainbows
-kpick 245268 # recovery: Set SELinux status to Permissive for recovery images
 
 # build/make
 kpick 222742 # build: Use project pathmap for recovery
@@ -1332,7 +1331,7 @@ kpick 227260 # Update bt vendor callbacks array in vfs code
 kpick 227261 # Cast BT_VND_OP_ANT_USERIAL_{OPEN,CLOSE} to bt_vendor_opcode_t in vfs code
 
 # external/chromium-webview
-kpick 245252 # Update Chromium Webview to 73.0.3683.90
+kpick 245252 # Update Chromium Webview to 74.0.3729.112
 
 # external/icu
 
@@ -1414,6 +1413,11 @@ kpick 242994 # livedisplay: sysfs: Simplify setCalibration
 # hardware/nxp/nfc
 kpick 239927 # hardware: nxp: Restore pn547 support
 
+# hardware/qcom/audio-caf/msm8974
+kpick 247073 # Convert GNU old-style field designator to C99 syntax
+kpick 247076 # Include stdlib.h to get explicit declaration of free()
+kpick 247079 # Remove redefinition of typedef
+
 # hardware/qcom/bt-caf
 kpick 240345 # qcom/bt: update bt_firmware path
 
@@ -1423,11 +1427,17 @@ kpick 241715 # Add kernel header dep for ipanat
 # hardware/qcom/display
 kpick 223341 # display: Always assume kernel source is present
 
+# hardware/qcom/display-caf/msm8974
+kpick 247080 # display-caf: msm8974: Mark unused variables with __attribute__((unused))
+
 # hardware/qcom/fm
 kpick 236546 # fm_helium: Update FM_HCI_DIR path
 
 # hardware/qcom/media-caf/msm8974
 kpick 237154 # Add -Wno-error to compile with global -Werror.
+kpick 247074 # Functions qc_omx_component_tunnel_request...
+kpick 247075 # Cast SIZE_OF_CORE to int inside if-comparison to get rid of compiler warning.
+kpick 247081 # media-caf: msm8974: Adjust format specifiers to actual variable types
 
 # hardware/qcom/power
 kpick 231884 # sdm670:power: Turn on/off display
@@ -1471,7 +1481,6 @@ kpick 240770 # Proper supplementary service notification handling (5/5).
 # packages/apps/LineageParts
 
 # packages/apps/Jelly
-kpick 245307 # Jelly: menu should say window
 
 # packages/apps/Messaging
 
@@ -1495,13 +1504,11 @@ kpick 243071 # Snap: allow to disable image stabilization per device
 kpick 247120 # Snap: add basic support for setting lens shading mode
 
 # packages/apps/Trebuchet
-kpick 246140 # Trebuchet: Disallow status bar swipe on widgets sheet
 kpick 246890 # Trebuchet: use new wallpaper app
 
 # packages/apps/Updater
 kpick 239289 # Updater: put identical code to helper method
 kpick 244176 # Updater: transfer releated to configuration code to onResume to prorerly init time format (12/24)
-kpick 247100 # Updater: Make upgrade-url device specific
 
 # packages/services/Telecomm
 kpick 233635 # Phone ringtone setting for Multi SIM device
