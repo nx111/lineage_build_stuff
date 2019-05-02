@@ -1294,7 +1294,6 @@ kpick 245305 # OMGRainbows
 # build/make
 kpick 222742 # build: Use project pathmap for recovery
 kpick 222760 # Add LOCAL_AIDL_FLAGS
-#kpick 237233 # build: Mount A-only system-as-root image at proper mount point
 kpick 247066 # build: Allow mounting system properly for A-only system-as-root devices
 
 # build/soong
@@ -1510,6 +1509,9 @@ kpick 246890 # Trebuchet: use new wallpaper app
 kpick 239289 # Updater: put identical code to helper method
 kpick 244176 # Updater: transfer releated to configuration code to onResume to prorerly init time format (12/24)
 
+# packages/overlays/Lineage
+kpick 247243 # overlays/lineage: Remove colorControlNormal from black theme
+
 # packages/services/Telecomm
 kpick 233635 # Phone ringtone setting for Multi SIM device
 kpick 240768 # Proper supplementary service notification handling (3/5)
@@ -1574,6 +1576,7 @@ kpick 244672 # common: Add getcap/setcap to PRODUCT_PACKAGES
 kpick 245278 # extract_utils: Add functions to extract vendor blobs from vendor.img
 kpick 245279 # kernel: Allow devices to specify kernel toolchain root
 kpick 245280 # gms: Include turbo on arm64 targets
+kpick 247293 # kernel: Fix modules path generated in modules.dep
 
 # vendor/qcom/opensource/cryptfs_hw
 kpick 243744 # cryptfs_hw: Support devices use metadata as key
