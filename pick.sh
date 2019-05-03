@@ -1388,7 +1388,6 @@ kpick 243572 # add VSYNC scheduled flag and avoid two doFrame calls in one perio
 kpick 244295 # base: Redo expanded volume panel for 9.x
 kpick 244318 # KeyguardHostView: Auto face unlock v2
 kpick 246850 # SystemUI: Enable and fix QS detail view, adapt layout to Pie
-kpick 247054 # SystemUI: Fix double-tap to cam. opens right lockscreen shortcut
 
 # frameworks/native
 kpick 224530 # Triple the available egl function pointers available to a process for certain Nvidia devices.
@@ -1434,7 +1433,7 @@ kpick 236546 # fm_helium: Update FM_HCI_DIR path
 
 # hardware/qcom/media-caf/msm8974
 kpick 237154 # Add -Wno-error to compile with global -Werror.
-kpick 247074 # Functions qc_omx_component_tunnel_request...
+kpick 247074 # Functions qc_omx_component_tunnel_request, OMX_SetupTunnel and OMX_SetupTunnel exist as interface but do not implem ...
 kpick 247075 # Cast SIZE_OF_CORE to int inside if-comparison to get rid of compiler warning.
 kpick 247081 # media-caf: msm8974: Adjust format specifiers to actual variable types
 
