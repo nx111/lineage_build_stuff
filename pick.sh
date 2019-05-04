@@ -1156,7 +1156,7 @@ for op in $*; do
     elif [ "$op" = "--keep-manifests" ]; then
          op_keep_manifests=1
     else
-         echo "kpick $op"
+         #echo "kpick $op"
          kpick $op
          exit $?
     fi
@@ -1388,6 +1388,7 @@ kpick 243572 # add VSYNC scheduled flag and avoid two doFrame calls in one perio
 kpick 244295 # base: Redo expanded volume panel for 9.x
 kpick 244318 # KeyguardHostView: Auto face unlock v2
 kpick 246850 # SystemUI: Enable and fix QS detail view, adapt layout to Pie
+kpick 247302 # RotationPolicy: Don't crash if configstore 1.1 isn't available
 
 # frameworks/native
 kpick 224530 # Triple the available egl function pointers available to a process for certain Nvidia devices.
