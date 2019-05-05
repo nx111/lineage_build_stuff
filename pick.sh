@@ -1290,6 +1290,7 @@ kpick 241858 # msm8974-common: Build Samsung LiveDisplay service
 # bootable/recovery
 kpick 244763 # recovery: Blank screen on init
 kpick 245305 # OMGRainbows
+kpick 247476 # recovery: always wipe bootloader message from index 0
 
 # build/make
 kpick 222742 # build: Use project pathmap for recovery
@@ -1310,8 +1311,8 @@ kpick 241667 # sepolicy: Move power hal service label to dynamic
 kpick 241676 # sepolicy: qcom: Rename common to vendor to avoid confusion
 kpick 241677 # sepolicy: Break livedisplay hal policy into impl independent ones
 kpick 241903 # sepolicy: Label all the livedisplay service implementations
-kpick 244801 # common: fix OTA auto-flashing with encrypted f2fs.
 kpick 246848 # Silence sysinit log spam
+kpick 247477 # sepolicy: allow recovery to setenforce
 
 # device/qcom/sepolicy
 kpick 228573 # sepolicy: Add libsdm-disp-vndapis and libsdmutils to SP-HALs
@@ -1576,7 +1577,6 @@ kpick 244672 # common: Add getcap/setcap to PRODUCT_PACKAGES
 kpick 245278 # extract_utils: Add functions to extract vendor blobs from vendor.img
 kpick 245279 # kernel: Allow devices to specify kernel toolchain root
 kpick 245280 # gms: Include turbo on arm64 targets
-kpick 247293 # kernel: Fix modules path generated in modules.dep
 
 # vendor/qcom/opensource/cryptfs_hw
 kpick 243744 # cryptfs_hw: Support devices use metadata as key
