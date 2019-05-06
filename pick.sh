@@ -1428,16 +1428,16 @@ kpick 241715 # Add kernel header dep for ipanat
 kpick 223341 # display: Always assume kernel source is present
 
 # hardware/qcom/display-caf/msm8974
-kpick 247080 # display-caf: msm8974: Mark unused variables with __attribute__((unused))
+kpick 247080 # Mark unused variables with __attribute__((unused))
 
 # hardware/qcom/fm
 kpick 236546 # fm_helium: Update FM_HCI_DIR path
 
 # hardware/qcom/media-caf/msm8974
 kpick 237154 # Add -Wno-error to compile with global -Werror.
-kpick 247074 # Functions qc_omx_component_tunnel_request, OMX_SetupTunnel and OMX_SetupTunnel exist as interface but do not implem ...
+kpick 247074 # Mark unused function arguments with __attribute__((unused))
 kpick 247075 # Cast SIZE_OF_CORE to int inside if-comparison to get rid of compiler warning.
-kpick 247081 # media-caf: msm8974: Adjust format specifiers to actual variable types
+kpick 247081 # Adjust format specifiers to actual variable types
 
 # hardware/qcom/power
 kpick 231884 # sdm670:power: Turn on/off display
@@ -1558,15 +1558,12 @@ kpick 225938 # roomservice: document the hell out of the current behavior of the
 kpick 225939 # roomservice: non-depsonly: bootstrap first device repo from Hudson
 kpick 225981 # roomservice: depsonly: do not look up device repo by name in the manifest
 kpick 225982 # roomservice: Strip cm.{mk,dependencies} support
-kpick 231249 # roomservice: adapt to lineage-16.0 realities
 kpick 229589 # lineage: Automatically set soong namespace when setting project pathmap
 kpick 229590 # lineage: Move qcom pathmap setting into "BoardConfig"
 kpick 231291 # repopick: add hashtag support
 kpick 231981 # HWComposer: HWC2: allow SkipValidate to be force disabled
 kpick 234011 # lineage: Add media_codecs_ddp for AC3 audio
 # kpick 234859 # repopick: cmp() is not available in Python 3, define it manually **((picked at first))**
-kpick 239526 # extract_utils: add option to print dependency graph for elf files
-kpick 239527 # extract_utils: template: add support for the dependency graph function
 kpick 237209 # lineage: Set default ringtone for second SIM
 #kpick 237638 # Revert "lineage: Support system-as-root A-only backuptool"
 kpick 241783 # envsetup: Fix lineagegerrit push for zsh
