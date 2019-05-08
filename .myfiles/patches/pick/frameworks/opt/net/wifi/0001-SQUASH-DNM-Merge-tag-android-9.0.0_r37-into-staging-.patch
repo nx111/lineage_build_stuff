@@ -1,0 +1,498 @@
+From 78b8c13a30d0ed1b9fb4dba5899c52527df46caa Mon Sep 17 00:00:00 2001
+From: "Kevin F. Haggerty" <haggertk@lineageos.org>
+Date: Mon, 6 May 2019 21:22:08 -0600
+Subject: [PATCH] [SQUASH][DNM] Merge tag 'android-9.0.0_r37' into
+ staging/lineage-16.0_merge-android-9.0.0_r37
+
+Android 9.0.0 Release 37 (PQ3A.190505.002)
+
+* tag 'android-9.0.0_r37':
+  Revert "DO NOT MERGE Add data integrity checking for wifi passwords"
+  DO NOT MERGE Add data integrity checking for wifi passwords
+  Support SAR for OTT VOWifi Apps
+  WifiBackupRestore: Ignore configKey mismatch in backup data
+  [Carrier Wi-Fi] Reset config identity on reboot or SIM in/out
+
+https://github.com/haggertk/android_frameworks_opt_net_wifi/tree/lineage-16.0_merge-android-9.0.0_r37
+
+Change-Id: I9553758f01a9bdf919f91530f7b8f8b2b377fb0b
+---
+ .../java/com/android/server/wifi/SarInfo.java |   8 +-
+ .../com/android/server/wifi/SarManager.java   | 144 ++++++++++++++++++
+ .../server/wifi/WifiBackupDataV1Parser.java   |  29 ++--
+ .../android/server/wifi/WifiStateMachine.java |   2 +
+ .../android/server/wifi/WifiVendorHal.java    |  10 +-
+ .../com/android/server/wifi/SarInfoTest.java  |  15 ++
+ .../server/wifi/WifiVendorHalTest.java        |  29 ++++
+ 7 files changed, 213 insertions(+), 24 deletions(-)
+
+diff --git a/service/java/com/android/server/wifi/SarInfo.java b/service/java/com/android/server/wifi/SarInfo.java
+index a62307e13..7d580656b 100644
+--- a/service/java/com/android/server/wifi/SarInfo.java
++++ b/service/java/com/android/server/wifi/SarInfo.java
+@@ -74,6 +74,7 @@ public class SarInfo {
+     public boolean isWifiSapEnabled = false;
+     public boolean isWifiScanOnlyEnabled = false;
+     public boolean isVoiceCall = false;
++    public boolean isEarPieceActive = false;
+     public int attemptedSarScenario = RESET_SAR_SCENARIO;
+ 
+     private boolean mAllWifiDisabled = true;
+@@ -82,6 +83,7 @@ public class SarInfo {
+     private int mLastReportedSensorState = SAR_SENSOR_FREE_SPACE;
+     private boolean mLastReportedIsWifiSapEnabled = false;
+     private boolean mLastReportedIsVoiceCall = false;
++    private boolean mLastReportedIsEarPieceActive = false;
+     private int mLastReportedScenario = INITIAL_SAR_SCENARIO;
+     private long mLastReportedScenarioTs = 0;
+ 
+@@ -113,7 +115,8 @@ public class SarInfo {
+         /* Check if some change happened since last successful reporting */
+         if ((sensorState != mLastReportedSensorState)
+                 || (isWifiSapEnabled != mLastReportedIsWifiSapEnabled)
+-                || (isVoiceCall != mLastReportedIsVoiceCall)) {
++                || (isVoiceCall != mLastReportedIsVoiceCall)
++                || (isEarPieceActive != mLastReportedIsEarPieceActive)) {
+             return true;
+         } else {
+             return false;
+@@ -129,6 +132,7 @@ public class SarInfo {
+         mLastReportedSensorState = sensorState;
+         mLastReportedIsWifiSapEnabled = isWifiSapEnabled;
+         mLastReportedIsVoiceCall = isVoiceCall;
++        mLastReportedIsEarPieceActive = isEarPieceActive;
+         mLastReportedScenario = attemptedSarScenario;
+         mLastReportedScenarioTs = System.currentTimeMillis();
+ 
+@@ -169,10 +173,12 @@ public class SarInfo {
+         pw.println("    Wifi Client state is: " + isWifiClientEnabled);
+         pw.println("    Wifi Soft AP state is: " + isWifiSapEnabled);
+         pw.println("    Wifi ScanOnly state is: " + isWifiScanOnlyEnabled);
++        pw.println("    Earpiece state is : " + isEarPieceActive);
+         pw.println("Last reported values:");
+         pw.println("    Sensor state is: " + sensorStateToString(mLastReportedSensorState));
+         pw.println("    Soft AP state is: " + mLastReportedIsWifiSapEnabled);
+         pw.println("    Voice Call state is: " + mLastReportedIsVoiceCall);
++        pw.println("    Earpiece state is: " + mLastReportedIsEarPieceActive);
+         pw.println("Last reported scenario: " + mLastReportedScenario);
+         pw.println("Reported " +  (System.currentTimeMillis() - mLastReportedScenarioTs) / 1000
+                 + " seconds ago");
+diff --git a/service/java/com/android/server/wifi/SarManager.java b/service/java/com/android/server/wifi/SarManager.java
+index 598e5c964..f0319fb6b 100644
+--- a/service/java/com/android/server/wifi/SarManager.java
++++ b/service/java/com/android/server/wifi/SarManager.java
+@@ -20,12 +20,18 @@ import static android.telephony.TelephonyManager.CALL_STATE_IDLE;
+ import static android.telephony.TelephonyManager.CALL_STATE_OFFHOOK;
+ import static android.telephony.TelephonyManager.CALL_STATE_RINGING;
+ 
++import android.content.BroadcastReceiver;
+ import android.content.Context;
++import android.content.Intent;
++import android.content.IntentFilter;
+ import android.hardware.Sensor;
+ import android.hardware.SensorEvent;
+ import android.hardware.SensorEventListener;
+ import android.hardware.SensorManager;
++import android.media.AudioManager;
++import android.media.AudioSystem;
+ import android.net.wifi.WifiManager;
++import android.os.Handler;
+ import android.os.Looper;
+ import android.telephony.PhoneStateListener;
+ import android.telephony.TelephonyManager;
+@@ -33,6 +39,7 @@ import android.text.TextUtils;
+ import android.util.Log;
+ 
+ import com.android.internal.R;
++import com.android.server.wifi.util.WifiHandler;
+ 
+ import java.io.FileDescriptor;
+ import java.io.PrintWriter;
+@@ -49,6 +56,8 @@ import java.util.List;
+  * - It constructs the sar info and send it towards the HAL
+  */
+ public class SarManager {
++    // Period for checking on voice steam active (in ms)
++    private static final int CHECK_VOICE_STREAM_INTERVAL_MS = 5000;
+     /* For Logging */
+     private static final String TAG = "WifiSarManager";
+     private boolean mVerboseLoggingEnabled = true;
+@@ -66,6 +75,10 @@ public class SarManager {
+     private int mSarSensorEventNearHand;
+     private int mSarSensorEventNearHead;
+ 
++    // Device starts with screen on
++    private boolean mScreenOn = false;
++    private boolean mIsVoiceStreamCheckEnabled = false;
++
+     /**
+      * Other parameters passed in or created in the constructor.
+      */
+@@ -75,6 +88,7 @@ public class SarManager {
+     private final WifiNative mWifiNative;
+     private final SarSensorEventListener mSensorListener;
+     private final SensorManager mSensorManager;
++    private final Handler mHandler;
+     private final Looper mLooper;
+ 
+     /**
+@@ -89,6 +103,7 @@ public class SarManager {
+         mTelephonyManager = telephonyManager;
+         mWifiNative = wifiNative;
+         mLooper = looper;
++        mHandler = new WifiHandler(TAG, looper);
+         mSensorManager = sensorManager;
+         mPhoneStateListener = new WifiPhoneStateListener(looper);
+         mSensorListener = new SarSensorEventListener();
+@@ -101,6 +116,80 @@ public class SarManager {
+         }
+     }
+ 
++    /**
++     * Notify SarManager of screen status change
++     */
++    public void handleScreenStateChanged(boolean screenOn) {
++        if (!mSupportSarVoiceCall) {
++            return;
++        }
++
++        if (mScreenOn == screenOn) {
++            return;
++        }
++
++        if (mVerboseLoggingEnabled) {
++            Log.d(TAG, "handleScreenStateChanged: screenOn = " + screenOn);
++        }
++
++        mScreenOn = screenOn;
++
++        // Only schedule a voice stream check if screen is turning on, and it is currently not
++        // scheduled
++        if (mScreenOn && !mIsVoiceStreamCheckEnabled) {
++            mHandler.post(() -> {
++                checkAudioDevice();
++            });
++
++            mIsVoiceStreamCheckEnabled = true;
++        }
++    }
++
++    private boolean isVoiceCallOnEarpiece() {
++        AudioManager audioManager = (AudioManager) mContext.getSystemService(Context.AUDIO_SERVICE);
++
++        return (audioManager.getDevicesForStream(AudioManager.STREAM_VOICE_CALL)
++                == AudioManager.DEVICE_OUT_EARPIECE);
++    }
++
++    private boolean isVoiceCallStreamActive() {
++        return AudioSystem.isStreamActive(AudioManager.STREAM_VOICE_CALL, 0);
++    }
++
++    private void checkAudioDevice() {
++        // First Check if audio stream is on
++        boolean voiceStreamActive = isVoiceCallStreamActive();
++        boolean earPieceActive;
++
++        if (voiceStreamActive) {
++            // Check on the audio route
++            earPieceActive = isVoiceCallOnEarpiece();
++
++            if (mVerboseLoggingEnabled) {
++                Log.d(TAG, "EarPiece active = " + earPieceActive);
++            }
++        } else {
++            earPieceActive = false;
++        }
++
++        // If audio route has changed, update SAR
++        if (earPieceActive != mSarInfo.isEarPieceActive) {
++            mSarInfo.isEarPieceActive = earPieceActive;
++            updateSarScenario();
++        }
++
++        // Now should we proceed with the checks
++        if (!mScreenOn && !voiceStreamActive) {
++            // No need to continue checking
++            mIsVoiceStreamCheckEnabled = false;
++        } else {
++            // Schedule another check
++            mHandler.postDelayed(() -> {
++                checkAudioDevice();
++            }, CHECK_VOICE_STREAM_INTERVAL_MS);
++        }
++    }
++
+     private void readSarConfigs() {
+         mSupportSarTxPowerLimit = mContext.getResources().getBoolean(
+                 R.bool.config_wifi_framework_enable_sar_tx_power_limit);
+@@ -145,6 +234,7 @@ public class SarManager {
+         if (mSupportSarVoiceCall) {
+             /* Listen for Phone State changes */
+             registerPhoneStateListener();
++            registerVoiceStreamListener();
+         }
+ 
+         /* Only listen for SAR sensor if supported */
+@@ -159,6 +249,56 @@ public class SarManager {
+         }
+     }
+ 
++    private void registerVoiceStreamListener() {
++        Log.i(TAG, "Registering for voice stream status");
++
++        // Register for listening to transitions of change of voice stream devices
++        IntentFilter filter = new IntentFilter();
++        filter.addAction(AudioManager.STREAM_DEVICES_CHANGED_ACTION);
++
++        mContext.registerReceiver(
++                new BroadcastReceiver() {
++                    @Override
++                    public void onReceive(Context context, Intent intent) {
++                        boolean voiceStreamActive = isVoiceCallStreamActive();
++                        if (!voiceStreamActive) {
++                            // No need to proceed, there is no voice call ongoing
++                            return;
++                        }
++
++                        String action = intent.getAction();
++                        int streamType =
++                                intent.getIntExtra(AudioManager.EXTRA_VOLUME_STREAM_TYPE, -1);
++                        int device = intent.getIntExtra(
++                                AudioManager.EXTRA_VOLUME_STREAM_DEVICES, -1);
++                        int oldDevice = intent.getIntExtra(
++                                AudioManager.EXTRA_PREV_VOLUME_STREAM_DEVICES, -1);
++
++                        if (streamType == AudioManager.STREAM_VOICE_CALL) {
++                            boolean earPieceActive = mSarInfo.isEarPieceActive;
++                            if (device == AudioManager.DEVICE_OUT_EARPIECE) {
++                                if (mVerboseLoggingEnabled) {
++                                    Log.d(TAG, "Switching to earpiece : HEAD ON");
++                                    Log.d(TAG, "Old device = " + oldDevice);
++                                }
++                                earPieceActive = true;
++                            } else if (oldDevice == AudioManager.DEVICE_OUT_EARPIECE) {
++                                if (mVerboseLoggingEnabled) {
++                                    Log.d(TAG, "Switching from earpiece : HEAD OFF");
++                                    Log.d(TAG, "New device = " + device);
++                                }
++                                earPieceActive = false;
++                            }
++
++                            if (earPieceActive != mSarInfo.isEarPieceActive) {
++                                mSarInfo.isEarPieceActive = earPieceActive;
++                                updateSarScenario();
++                            }
++                        }
++                    }
++                }, filter, null, mHandler);
++    }
++
+     /**
+      * Register the phone state listener.
+      */
+@@ -277,6 +417,10 @@ public class SarManager {
+         /* Report change to HAL if needed */
+         if (mSarInfo.isVoiceCall != newIsVoiceCall) {
+             mSarInfo.isVoiceCall = newIsVoiceCall;
++
++            if (mVerboseLoggingEnabled) {
++                Log.d(TAG, "Voice Call = " + newIsVoiceCall);
++            }
+             updateSarScenario();
+         }
+     }
+diff --git a/service/java/com/android/server/wifi/WifiBackupDataV1Parser.java b/service/java/com/android/server/wifi/WifiBackupDataV1Parser.java
+index 9a6cf36db..9b27cf434 100644
+--- a/service/java/com/android/server/wifi/WifiBackupDataV1Parser.java
++++ b/service/java/com/android/server/wifi/WifiBackupDataV1Parser.java
+@@ -167,8 +167,7 @@ class WifiBackupDataV1Parser implements WifiBackupDataParser {
+                 in, WifiBackupRestore.XML_TAG_SECTION_HEADER_WIFI_CONFIGURATION,
+                 networkTagDepth);
+         int configTagDepth = networkTagDepth + 1;
+-        configuration = parseWifiConfigurationFromXmlAndValidateConfigKey(in, configTagDepth,
+-                minorVersion);
++        configuration = parseWifiConfigurationFromXml(in, configTagDepth, minorVersion);
+         if (configuration == null) {
+             return null;
+         }
+@@ -182,12 +181,12 @@ class WifiBackupDataV1Parser implements WifiBackupDataParser {
+     }
+ 
+     /**
+-     * Helper method to parse the WifiConfiguration object and validate the configKey parsed.
++     * Helper method to parse the WifiConfiguration object.
+      */
+-    private WifiConfiguration parseWifiConfigurationFromXmlAndValidateConfigKey(XmlPullParser in,
++    private WifiConfiguration parseWifiConfigurationFromXml(XmlPullParser in,
+             int outerTagDepth, int minorVersion) throws XmlPullParserException, IOException {
+         Pair<String, WifiConfiguration> parsedConfig =
+-                parseWifiConfigurationFromXml(in, outerTagDepth, minorVersion);
++                parseWifiConfigurationFromXmlInternal(in, outerTagDepth, minorVersion);
+         if (parsedConfig == null || parsedConfig.first == null || parsedConfig.second == null) {
+             return null;
+         }
+@@ -195,17 +194,10 @@ class WifiBackupDataV1Parser implements WifiBackupDataParser {
+         WifiConfiguration configuration = parsedConfig.second;
+         String configKeyCalculated = configuration.configKey();
+         if (!configKeyParsed.equals(configKeyCalculated)) {
+-            String configKeyMismatchLog =
+-                    "Configuration key does not match. Retrieved: " + configKeyParsed
+-                            + ", Calculated: " + configKeyCalculated;
+-            if (configuration.shared) {
+-                Log.e(TAG, configKeyMismatchLog);
+-                return null;
+-            } else {
+-                // ConfigKey mismatches are expected for private networks because the
+-                // UID is not preserved across backup/restore.
+-                Log.w(TAG, configKeyMismatchLog);
+-            }
++            // configKey is not part of the SDK. So, we can't expect this to be the same
++            // across OEM's. Just log a warning & continue.
++            Log.w(TAG, "Configuration key does not match. Retrieved: " + configKeyParsed
++                    + ", Calculated: " + configKeyCalculated);
+         }
+         return configuration;
+     }
+@@ -269,8 +261,9 @@ class WifiBackupDataV1Parser implements WifiBackupDataParser {
+      * @param minorVersion  minor version number parsed from incoming data.
+      * @return Pair<Config key, WifiConfiguration object> if parsing is successful, null otherwise.
+      */
+-    private static Pair<String, WifiConfiguration> parseWifiConfigurationFromXml(XmlPullParser in,
+-            int outerTagDepth, int minorVersion) throws XmlPullParserException, IOException {
++    private static Pair<String, WifiConfiguration> parseWifiConfigurationFromXmlInternal(
++            XmlPullParser in, int outerTagDepth, int minorVersion)
++            throws XmlPullParserException, IOException {
+         WifiConfiguration configuration = new WifiConfiguration();
+         String configKeyInData = null;
+         Set<String> supportedTags = getSupportedWifiConfigurationTags(minorVersion);
+diff --git a/service/java/com/android/server/wifi/WifiStateMachine.java b/service/java/com/android/server/wifi/WifiStateMachine.java
+index 2c42cd277..c0f8f2266 100644
+--- a/service/java/com/android/server/wifi/WifiStateMachine.java
++++ b/service/java/com/android/server/wifi/WifiStateMachine.java
+@@ -2399,6 +2399,8 @@ public class WifiStateMachine extends StateMachine {
+             mWifiConnectivityManager.handleScreenStateChanged(screenOn);
+         }
+ 
++        mSarManager.handleScreenStateChanged(screenOn);
++
+         if (mVerboseLoggingEnabled) log("handleScreenStateChanged Exit: " + screenOn);
+     }
+ 
+diff --git a/service/java/com/android/server/wifi/WifiVendorHal.java b/service/java/com/android/server/wifi/WifiVendorHal.java
+index fad90d140..cff9a91e7 100644
+--- a/service/java/com/android/server/wifi/WifiVendorHal.java
++++ b/service/java/com/android/server/wifi/WifiVendorHal.java
+@@ -2664,7 +2664,7 @@ public class WifiVendorHal {
+         /* As long as no voice call is active (in case voice call is supported),
+          * no backoff is needed */
+         if (sarInfo.sarVoiceCallSupported) {
+-            return sarInfo.isVoiceCall;
++            return (sarInfo.isVoiceCall || sarInfo.isEarPieceActive);
+         } else {
+             return false;
+         }
+@@ -2679,7 +2679,7 @@ public class WifiVendorHal {
+      * Otherwise, an exception is thrown.
+      */
+     private int frameworkToHalTxPowerScenario_1_1(SarInfo sarInfo) {
+-        if (sarInfo.sarVoiceCallSupported && sarInfo.isVoiceCall) {
++        if (sarInfo.sarVoiceCallSupported && (sarInfo.isVoiceCall || sarInfo.isEarPieceActive)) {
+             return android.hardware.wifi.V1_1.IWifiChip.TxPowerScenario.VOICE_CALL;
+         } else {
+             throw new IllegalArgumentException("bad scenario: voice call not active/supported");
+@@ -2703,7 +2703,7 @@ public class WifiVendorHal {
+         if (sarInfo.sarSapSupported && sarInfo.isWifiSapEnabled) {
+             return true;
+         }
+-        if (sarInfo.sarVoiceCallSupported && sarInfo.isVoiceCall) {
++        if (sarInfo.sarVoiceCallSupported && (sarInfo.isVoiceCall || sarInfo.isEarPieceActive)) {
+             return true;
+         }
+         return false;
+@@ -2752,7 +2752,7 @@ public class WifiVendorHal {
+                     throw new IllegalArgumentException("bad scenario: Invalid sensor state");
+             }
+         } else if (sarInfo.sarSapSupported && sarInfo.sarVoiceCallSupported) {
+-            if (sarInfo.isVoiceCall) {
++            if (sarInfo.isVoiceCall || sarInfo.isEarPieceActive) {
+                 return android.hardware.wifi.V1_2.IWifiChip
+                         .TxPowerScenario.ON_HEAD_CELL_ON;
+             } else if (sarInfo.isWifiSapEnabled) {
+@@ -2763,7 +2763,7 @@ public class WifiVendorHal {
+             }
+         } else if (sarInfo.sarVoiceCallSupported) {
+             /* SAR Sensors and SoftAP not supported, act like V1_1 */
+-            if (sarInfo.isVoiceCall) {
++            if (sarInfo.isVoiceCall || sarInfo.isEarPieceActive) {
+                 return android.hardware.wifi.V1_1.IWifiChip.TxPowerScenario.VOICE_CALL;
+             } else {
+                 throw new IllegalArgumentException("bad scenario: voice call not active");
+diff --git a/tests/wifitests/src/com/android/server/wifi/SarInfoTest.java b/tests/wifitests/src/com/android/server/wifi/SarInfoTest.java
+index 2bf1f3ee4..50aec5917 100644
+--- a/tests/wifitests/src/com/android/server/wifi/SarInfoTest.java
++++ b/tests/wifitests/src/com/android/server/wifi/SarInfoTest.java
+@@ -230,6 +230,21 @@ public class SarInfoTest {
+         assertTrue(mSarInfo.shouldReport());
+     }
+ 
++    /**
++     * Test a change in earpiece status, shouldReport should return true
++     * Note: will need to report once before making the change to remove
++     * the effect of sensor state change.
++     */
++    @Test
++    public void testSarInfo_earpiece_wifi_enabled() throws Exception {
++        mSarInfo.isWifiClientEnabled = true;
++        assertTrue(mSarInfo.shouldReport());
++        mSarInfo.reportingSuccessful();
++
++        mSarInfo.isEarPieceActive = true;
++        assertTrue(mSarInfo.shouldReport());
++    }
++
+     /**
+      * Test starting SAP, shouldReport should return true
+      * Note: will need to report once before starting SAP to remove
+diff --git a/tests/wifitests/src/com/android/server/wifi/WifiVendorHalTest.java b/tests/wifitests/src/com/android/server/wifi/WifiVendorHalTest.java
+index f089ebbe7..ebeecbd28 100644
+--- a/tests/wifitests/src/com/android/server/wifi/WifiVendorHalTest.java
++++ b/tests/wifitests/src/com/android/server/wifi/WifiVendorHalTest.java
+@@ -2258,6 +2258,35 @@ public class WifiVendorHalTest {
+         mWifiVendorHal.stopVendorHal();
+     }
+ 
++    /**
++     * Test the selectTxPowerScenario HIDL method invocation with no sensor support, but with
++     * SAP and voice call support.
++     * When earpiece is active, should result in cell with near head scenario
++     * Using IWifiChip 1.2 interface
++     */
++    @Test
++    public void testEarPieceScenarios_SelectTxPowerV1_2() throws RemoteException {
++        // Create a SAR info record (with sensor and SAP support)
++        SarInfo sarInfo = new SarInfo();
++        sarInfo.sarVoiceCallSupported = true;
++        sarInfo.sarSapSupported = true;
++        sarInfo.sarSensorSupported = false;
++
++        sarInfo.isEarPieceActive = true;
++
++        // Expose the 1.2 IWifiChip.
++        mWifiVendorHal = new WifiVendorHalSpyV1_2(mHalDeviceManager, mLooper.getLooper());
++        when(mIWifiChipV12.selectTxPowerScenario_1_2(anyInt())).thenReturn(mWifiStatusSuccess);
++
++        // ON_HEAD_CELL_ON
++        assertTrue(mWifiVendorHal.startVendorHalSta());
++        assertTrue(mWifiVendorHal.selectTxPowerScenario(sarInfo));
++        verify(mIWifiChipV12).selectTxPowerScenario_1_2(
++                eq(android.hardware.wifi.V1_2.IWifiChip.TxPowerScenario.ON_HEAD_CELL_ON));
++        verify(mIWifiChipV12, never()).resetTxPowerScenario();
++        mWifiVendorHal.stopVendorHal();
++    }
++
+     /**
+      * Test the selectTxPowerScenario HIDL method invocation with sensor related scenarios
+      * to IWifiChip 1.2 interface
+-- 
+2.17.1
+

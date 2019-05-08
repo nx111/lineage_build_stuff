@@ -1,0 +1,157 @@
+From e114ce3feb7ad919a9019a31706e5013b732425a Mon Sep 17 00:00:00 2001
+From: "Kevin F. Haggerty" <haggertk@lineageos.org>
+Date: Mon, 6 May 2019 21:23:35 -0600
+Subject: [PATCH 4/5] [SQUASH][DNM] Merge tag 'android-9.0.0_r37' into
+ staging/lineage-16.0_merge-android-9.0.0_r37
+
+    Android 9.0.0 Release 37 (PQ3A.190505.002)
+
+* tag 'android-9.0.0_r37': (24 commits)
+  DO NOT MERGE: Use a weak pointer to deliver updates to AVRCP devices.
+  DO NOT MERGE Separate SDP procedure from bonding state (1/2)
+  btm_proc_smp_cback: Don't access p_dev_rec if freed
+  DO NOT MERGE btm_proc_smp_cback: Don't access p_dev_rec if freed
+  DO NOT MERGE process_l2cap_cmd: Fix OOB
+  process_l2cap_cmd: Fix OOB
+  btm_ble_multi_adv: Check data length in HCI interface
+  Do not close dump file descriptor
+  DO NOT MERGE A security fix to check buffer length in l2c_lcc_proc_pdu
+  DO NOT MERGE A security fix to check buffer length in l2c_lcc_proc_pdu
+  DO NOT MERGE A security fix to check buffer length in l2c_lcc_proc_pdu
+  Fix for Bluetooth device name is resetting to default name after reboot
+  Fix mtu assignment with correct value
+  Add OOB check in avrc_pars_browse_rsp
+  Fix buffer overflow in btif_dm_data_copy
+  Fix buffer overflow in btif_dm_data_copy
+  Fix buffer overflow in btif_dm_data_copy
+  Fix buffer overflow in btif_dm_data_copy
+  Fix potential usage of freed memory in btif_hl_proc_sdp_query_cfm
+  Fix potential usage of freed memory in btif_hl_proc_sdp_query_cfm
+  ...
+
+https://github.com/haggertk/android_system_bt/tree/lineage-16.0_merge-android-9.0.0_r37
+
+Change-Id: I4c51ba24b2af5dcd0a742204626e29d4b2093792
+---
+ bta/sys/utl.cc              |  3 ++-
+ btif/avrcp/avrcp_service.cc | 19 ++++++++++---------
+ btif/src/bluetooth.cc       |  2 --
+ profile/avrcp/device.cc     |  2 ++
+ profile/avrcp/device.h      |  6 ++++++
+ stack/avrc/avrc_api.cc      |  6 +++++-
+ 6 files changed, 25 insertions(+), 13 deletions(-)
+
+diff --git a/bta/sys/utl.cc b/bta/sys/utl.cc
+index 92318d43c..544f91e8c 100644
+--- a/bta/sys/utl.cc
++++ b/bta/sys/utl.cc
+@@ -242,7 +242,8 @@ bool utl_isintstr(const char* p_s) {
+  ******************************************************************************/
+ bool utl_isdialchar(const char d) {
+   return (((d >= '0') && (d <= '9')) || (d == '*') || (d == '+') ||
+-          (d == '#') || (d == ';') || ((d >= 'A') && (d <= 'C')) ||
++          (d == '#') || (d == ';') || (d == ',') ||
++          ((d >= 'A') && (d <= 'C')) ||
+           ((d == 'p') || (d == 'P') || (d == 'w') || (d == 'W')));
+ }
+ 
+diff --git a/btif/avrcp/avrcp_service.cc b/btif/avrcp/avrcp_service.cc
+index 8c22365b2..5a058f4af 100644
+--- a/btif/avrcp/avrcp_service.cc
++++ b/btif/avrcp/avrcp_service.cc
+@@ -346,10 +346,11 @@ void AvrcpService::SendMediaUpdate(bool track_changed, bool play_state,
+ 
+   // This function may be called on any thread, we need to make sure that the
+   // device update happens on the main thread.
+-  for (auto device : instance_->connection_handler_->GetListOfDevices()) {
+-    do_in_bta_thread(FROM_HERE, base::Bind(&Device::SendMediaUpdate,
+-                                           base::Unretained(device.get()),
+-                                           track_changed, play_state, queue));
++  for (const auto& device :
++       instance_->connection_handler_->GetListOfDevices()) {
++    do_in_bta_thread(FROM_HERE,
++                     base::Bind(&Device::SendMediaUpdate, device.get()->Get(),
++                                track_changed, play_state, queue));
+   }
+ }
+ 
+@@ -361,11 +362,11 @@ void AvrcpService::SendFolderUpdate(bool available_players,
+             << " uids=" << uids;
+ 
+   // Ensure that the update is posted to the correct thread
+-  for (auto device : instance_->connection_handler_->GetListOfDevices()) {
+-    do_in_bta_thread(
+-        FROM_HERE,
+-        base::Bind(&Device::SendFolderUpdate, base::Unretained(device.get()),
+-                   available_players, addressed_players, uids));
++  for (const auto& device :
++       instance_->connection_handler_->GetListOfDevices()) {
++    do_in_bta_thread(FROM_HERE,
++                     base::Bind(&Device::SendFolderUpdate, device.get()->Get(),
++                                available_players, addressed_players, uids));
+   }
+ }
+ 
+diff --git a/btif/src/bluetooth.cc b/btif/src/bluetooth.cc
+index dc59046c8..6e86ce780 100644
+--- a/btif/src/bluetooth.cc
++++ b/btif/src/bluetooth.cc
+@@ -326,8 +326,6 @@ static void dump(int fd, const char** arguments) {
+ #if (BTSNOOP_MEM == TRUE)
+   btif_debug_btsnoop_dump(fd);
+ #endif
+-
+-  close(fd);
+ }
+ 
+ static void dumpMetrics(std::string* output) {
+diff --git a/profile/avrcp/device.cc b/profile/avrcp/device.cc
+index 9b25fac03..7f8ecae3a 100644
+--- a/profile/avrcp/device.cc
++++ b/profile/avrcp/device.cc
+@@ -52,6 +52,8 @@ void Device::RegisterInterfaces(MediaInterface* media_interface,
+   volume_interface_ = volume_interface;
+ }
+ 
++base::WeakPtr<Device> Device::Get() { return weak_ptr_factory_.GetWeakPtr(); }
++
+ bool Device::IsActive() const {
+   return address_ == a2dp_interface_->active_peer();
+ }
+diff --git a/profile/avrcp/device.h b/profile/avrcp/device.h
+index 5ef886d26..b1f34208c 100644
+--- a/profile/avrcp/device.h
++++ b/profile/avrcp/device.h
+@@ -55,6 +55,12 @@ class Device {
+       uint16_t ctrl_mtu, uint16_t browse_mtu);
+   virtual ~Device() = default;
+ 
++  /**
++   * Gets a weak pointer to this device that is invalidated when the device is
++   * disconnected.
++   */
++  base::WeakPtr<Device> Get();
++
+   const RawAddress& GetAddress() const { return address_; };
+ 
+   /**
+diff --git a/stack/avrc/avrc_api.cc b/stack/avrc/avrc_api.cc
+index 53c25a946..e2f109a31 100644
+--- a/stack/avrc/avrc_api.cc
++++ b/stack/avrc/avrc_api.cc
+@@ -1150,7 +1150,11 @@ uint16_t AVRC_MsgReq(uint8_t handle, uint8_t label, uint8_t ctype,
+     AVRC_CO_ID_TO_BE_STREAM(p_data, AVRC_CO_METADATA);
+   } else {
+     chk_frag = false;
+-    peer_mtu = AVCT_GetBrowseMtu(handle);
++    if (p_pkt->layer_specific == AVCT_DATA_BROWSE) {
++      peer_mtu = AVCT_GetBrowseMtu(handle);
++    } else {
++      peer_mtu = AVCT_GetPeerMtu(handle);
++    }
+     if (p_pkt->len > (peer_mtu - AVCT_HDR_LEN_SINGLE)) {
+       AVRC_TRACE_ERROR(
+           "%s bigger than peer mtu (p_pkt->len(%d) > peer_mtu(%d-%d))",
+-- 
+2.17.1
+
