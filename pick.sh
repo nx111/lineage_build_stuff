@@ -990,7 +990,7 @@ function kpick_action()
                     target_script=$script_file.new
                fi
                [ ! -z $target_script -a -f $target_script ] && \
-                    sed "/^[[:space:]]*kpick[[:space:]]\{1,\}${changeNumber}\([[:space:]]\{1,\}\|$\)/d" -i $target_script
+                    sed "/^[[:space:]]*kpick[^#]\{1,\}${changeNumber}\([[:space:]]\{1,\}\|$\)/d" -i $target_script
                finish_doing=1
             elif grep -q -E "Change status is ABANDONED." $logfile; then
                [ ! -f $script_file.tmp -a "${BASH_SOURCE[0]}" = "$runfrom" ] && cp $script_file $script_file.tmp
@@ -1000,7 +1000,7 @@ function kpick_action()
                     target_script=$script_file.new
                fi
                [ ! -z $target_script -a -f $target_script ] && \
-               sed  "/^[[:space:]]*kpick[[:space:]]\{1,\}${changeNumber}\([[:space:]]\{1,\}\|$\)/d" -i $target_script
+               sed  "/^[[:space:]]*kpick[^#]\{1,\}${changeNumber}\([[:space:]]\{1,\}\|$\)/d" -i $target_script
                finish_doing=1
             elif grep -q -E "Change $changeNumber not found, skipping" $logfile; then
                [ ! -f $script_file.tmp -a "${BASH_SOURCE[0]}" = "$runfrom" ] && cp $script_file $script_file.tmp
@@ -1010,7 +1010,7 @@ function kpick_action()
                     target_script=$script_file.new
                fi
                [ ! -z $target_script -a -f $target_script ] && \
-               sed "/^[[:space:]]*kpick[[:space:]]\{1,\}${changeNumber}\([[:space:]]\{1,\}\|$\)/d" -i $target_script
+               sed "/^[[:space:]]*kpick[^#]\{1,\}${changeNumber}\([[:space:]]\{1,\}\|$\)/d" -i $target_script
                finish_doing=1
             elif [ -f $errfile ] && grep -q "could not determine the project path for" $errfile; then
                [ ! -f $script_file.tmp -a "${BASH_SOURCE[0]}" = "$runfrom" ] && cp $script_file $script_file.tmp
@@ -1020,7 +1020,7 @@ function kpick_action()
                     target_script=$script_file.new
                fi
                [ ! -z $target_script -a -f $target_script ] && \
-               sed "s/^[[:space:]]*\(kpick[[:space:]]\{1,\}${changeNumber}\([[:space:]]\{1,\}.*\|$\)\)/#\1/" -i $target_script
+               sed "s/^[[:space:]]*\(kpick[^#]\{1,\}${changeNumber}\([[:space:]]\{1,\}.*\|$\)\)/#\1/" -i $target_script
                finish_doing=1
             elif [ $pick_skiped -eq 1 ]; then
                [ ! -f $script_file.tmp -a "${BASH_SOURCE[0]}" = "$runfrom" ] && cp $script_file $script_file.tmp
@@ -1030,7 +1030,7 @@ function kpick_action()
                     target_script=$script_file.new
                fi
                [ ! -z $target_script -a -f $target_script ] && \
-              sed "s/^[[:space:]]*\(kpick[[:space:]]\{1,\}${changeNumber}\([[:space:]]\{1,\}.*\|$\)\)/#\1/" -i $target_script
+              sed "s/^[[:space:]]*\(kpick[^#]\{1,\}${changeNumber}\([[:space:]]\{1,\}.*\|$\)\)/#\1/" -i $target_script
                finish_doing=1
             fi
          fi
@@ -1043,53 +1043,67 @@ function kpick_action()
            elif [ -f $script_file.new ]; then
                 target_script=$script_file.new
            fi
-           [ ! -z $target_script -a -f $target_script ] && \
-           if [ "$last_project" != "$project" -a "${BASH_SOURCE[0]}" = "$runfrom" -a "$start_check_classification" = "1" ]; then
-               if [ "$last_project" != "" -a "$last_changeNumber" != "" ]; then
-                    [ -f $tmp_picks_info_file ] || touch $tmp_picks_info_file
-                    if ! grep -q "$project" $tmp_picks_info_file; then
-                        echo "$last_project $last_changeNumber" >>$tmp_picks_info_file
-                        last_project=$project
-                        last_changeNumber=$changeNumber
-                        if grep -iq "^[[:space:]]*#[[:space:]]*$project[[:space:]]*$" $target_script; then
-                            sed "/^[[:space:]]*kpick[[:space:]]\{1,\}${changeNumber}\([[:space:]]\{1,\}\|$\)/d" -i $target_script
-                            project_offset=$(grep -in "^[[:space:]]*#[[:space:]]*$project[[:space:]]*$" $target_script | cut -d: -f 1 | head -n 1)
-                            sed "${project_offset} akpick ${nops} \# ${subject}" -i $target_script
-                        else
-                            sed "/^[[:space:]]*kpick[[:space:]]\{1,\}${changeNumber}\([[:space:]]\{1,\}.*\|$\)/i\# ${project}" -i $target_script
-                            sed -e "s/^\([[:space:]]*\)kpick[[:space:]]\{1,\}${changeNumber}\([[:space:]]\{1,\}.*\|$\)/\1kpick ${nops} # ${subject}/g" -i $target_script
-                            sed "/^[[:space:]]*kpick[[:space:]]\{1,\}${changeNumber}\([[:space:]]\{1,\}.*\|$\)/a\\\r" -i $target_script
-                        fi
-                    else
-                        if grep -q "already picked in" $logfile; then
-                            allSameNumLines=$(dirname ${BASH_SOURCE[0]})/.duplicate_$changeNumber
-                            grep -n "^[[:space:]]*kpick[[:space:]]\{1,\}$changeNumber\([[:space:]]\{1,\}\|$\)" $target_script | cut -d: -f1 | head -n 1 > $duplicateLines
-                            local isFirst=true
-                            while read offno; do
-                                if $isFirst; then
-                                    isFirst=false
-                                    continue
-                                fi
-                                sed "${offno}d" -i $target_script
-                            done < $allSameNumLines
-                            rm -f $allSameNumLines
-                        else
-                            sed "/^[[:space:]]*kpick[[:space:]]\{1,\}${changeNumber}\([[:space:]]\{1,\}\|$\)/d" -i $target_script
-                            project_lastpick=$(grep  "$project" $tmp_picks_info_file | cut -d" " -f2)
-                            sed "/^[[:space:]]*kpick[[:space:]]\{1,\}\([[:space:]]\{1,\}.*\|$\)${project_lastpick}/a\\kpick ${nops} \# ${subject}" -i $target_script
-                            sed "s:${last_project} .*:${last_project} ${changeNumber}:g" -i $tmp_picks_info_file
-                        fi
-                    fi
+
+
+           if [ "$target_script" != "" -a -f "$target_script" \
+                   -a "${BASH_SOURCE[0]}" = "$runfrom" -a "$start_check_classification" = "1" ]; then
+               [ -f $tmp_picks_info_file ] || touch $tmp_picks_info_file
+               if ! grep -q "$project" $tmp_picks_info_file; then
+                   echo "$project $changeNumber" >>$tmp_picks_info_file
+                   last_project=$project
+                   last_changeNumber=$changeNumber
+                   if grep -iq "^[[:space:]]*#[[:space:]]*$project[[:space:]]*$" $target_script; then
+                       sed "/^[[:space:]]*kpick[^#]\{1,\}${changeNumber}\([[:space:]]\{1,\}\|$\)/d" -i $target_script
+                       project_offset=$(grep -in "^[[:space:]]*#[[:space:]]*$project[[:space:]]*$" $target_script | cut -d: -f 1 | head -n 1)
+                       sed "${project_offset} akpick ${nops} \# ${subject}" -i $target_script
+                   else
+                       sed "/^[[:space:]]*kpick[^#]\{1,\}${changeNumber}\([[:space:]]\{1,\}.*\|$\)/i\# ${project}" -i $target_script
+                       sed -e "s/^\([[:space:]]*\)kpick[^#]\{1,\}${changeNumber}\([[:space:]]\{1,\}.*\|$\)/\1kpick ${nops} # ${subject}/g" -i $target_script
+                       sed "/^[[:space:]]*kpick[^#]\{1,\}${changeNumber}\([[:space:]]\{1,\}.*\|$\)/a\\\r" -i $target_script
+                   fi
                else
-                    [ "$last_project" = "" ] && last_project=$project
-                    [ "$last_changeNumber" = "" ] && last_changeNumber=$changeNumber
-                    sed -e "s/^\([[:space:]]*\)kpick[[:space:]]\{1,\}${changeNumber}\([[:space:]]\{1,\}\|$\)/\1kpick ${nops} \# ${subject}/g" -i $target_script
-                    sed -e "s/^\([[:space:]]*\)kpick[[:space:]]\{1,\}${changeNumber}\([[:space:]]\{1,\}.*\|$\)/\1kpick ${nops} # ${subject}/g" -i $target_script
+                   if grep -q "already picked in" $logfile; then
+                       allSameNumLines=$(dirname ${BASH_SOURCE[0]})/.duplicate_$changeNumber
+                       grep -n "^[[:space:]]*kpick[^#]\{1,\}${changeNumber}\([[:space:]]\{1,\}\|$\)" $target_script | cut -d: -f1 | head -n 1 > $allSameNumLines
+                       local isFirst=true
+                       while read offno; do
+                           if $isFirst; then
+                               isFirst=false
+                               continue
+                           fi
+                           sed "${offno}d" -i $target_script
+                       done < $allSameNumLines
+                       rm -f $allSameNumLines
+                   else
+                       local commentLines=$(dirname ${BASH_SOURCE[0]})/.commentLines
+                       rm -f $commentLines
+                       local project_lastpick=$(grep  "$project" $tmp_picks_info_file | cut -d" " -f2 | head -n 1)
+                       local lastpickLineNo=$(grep -n "^[[:space:]]*kpick[^#]\{1,\}${project_lastpick}\([[:space:]]\{1,\}\|$\)" $target_script | cut -d: -f1 | head -n 1)
+                       local myLineNo=$(grep -n "^[[:space:]]*kpick[^#]\{1,\}${changeNumber}\([[:space:]]\{1,\}\|$\)" $target_script | cut -d: -f1 | head -n 1)
+                       sed -n "${lastpickLineNo},${myLineNo}p" $target_script | grep "^[[:space:]]*#" >$commentLines
+                       local projectChanged=false
+                       [ -f "$commentLines" ] && \
+                       while read commentLine; do
+                           local comment=$(echo $commentLine | sed -e "s/^[[:space:]]*#\{1,\}[[:space:]]*//" -e "s/[[:space:]]\{1,\}$//")
+                           [ "$comment" = "" ] || if grep -q "^[[:space:]]*$comment[[:space:]]*$" $topdir/.repo/project.list; then
+                               if [ "$comment" != "$project" ]; then
+                                   projectChanged=true
+                                   break;
+                               fi
+                           fi
+                       done < $commentLines
+                       rm -f $commentLines
+                       if $projectChanged; then
+                           sed "/^[[:space:]]*kpick[^#]\{1,\}${changeNumber}\([[:space:]]\{1,\}\|$\)/d" -i $target_script
+                           sed "/^[[:space:]]*kpick[^#]\{1,\}${project_lastpick}\([[:space:]]\{1,\}.*\|$\)/a\\kpick ${nops} \# ${subject}" -i $target_script
+                       else
+                           sed "s/\(^[[:space:]]*kpick[^#]\{1,\}${changeNumber}\)\([[:space:]]\{1,\}.*\|$\)/\1 \# ${subject}/" -i $target_script
+                       fi
+                       sed "s:${project} .*:${project} ${changeNumber}:g" -i $tmp_picks_info_file
+                       last_project=$project
+                       last_changeNumber=$changeNumber
+                   fi
                fi
-           else
-               sed -e "s/^\([[:space:]]*\)kpick[[:space:]]\{1,\}${changeNumber}\([[:space:]]\{1,\}.*\|$\)/\1kpick ${nops} # ${subject}/g" -i $target_script
-               sed -e "s/^\([[:space:]]*\)kpick[[:space:]]\{1,\}${changeNumber}\([[:space:]]\{1,\}.*\|$\)/\1kpick ${nops} # ${subject}/g" -i $target_script
-               last_changeNumber=$changeNumber
            fi
     fi
     rm -f $errfile $logfile
@@ -1292,6 +1306,7 @@ kpick 241858 # msm8974-common: Build Samsung LiveDisplay service
 kpick 244763 # recovery: Blank screen on init
 kpick 245305 # OMGRainbows
 kpick 247476 # recovery: wipe bootloader message from index 0 when using custom offsets
+kpick 247681 # [DNM] Squash of lineage-16.0-android-9.0.0_r37
 
 # build/make
 kpick 222742 # build: Use project pathmap for recovery
@@ -1305,7 +1320,6 @@ kpick 226443 # soong: Add additional_deps attribute for libraries and binaries
 
 # device/lineage/sepolicy
 kpick 241664 # sepolicy: Dynamically build trust policy into system/vendor
-#kpick 240542 # Revert "sepolicy: recovery: Allow (re)mounting system"
 kpick 241665 # sepolicy: Move livedisplay hal policy to dynamic
 kpick 241666 # sepolicy: Move touch hal policy to dynamic
 kpick 241667 # sepolicy: Move power hal service label to dynamic
@@ -1313,7 +1327,6 @@ kpick 241676 # sepolicy: qcom: Rename common to vendor to avoid confusion
 kpick 241677 # sepolicy: Break livedisplay hal policy into impl independent ones
 kpick 241903 # sepolicy: Label all the livedisplay service implementations
 kpick 246848 # Silence sysinit log spam
-kpick 247599 # qcom: Extend untrusted_app access to battery/power supply sysfs
 
 # device/qcom/sepolicy
 kpick 228573 # sepolicy: Add libsdm-disp-vndapis and libsdmutils to SP-HALs
@@ -1326,13 +1339,14 @@ kpick 245595 # sepolicy: added clearkey hal permissions
 
 # development
 kpick 240579 # idegen: Add functionality to set custom ipr file name
+kpick 247682 # [DNM] Squash of lineage-16.0-android-9.0.0_r37
 
 # external/ant-wireless/ant_native
 kpick 227260 # Update bt vendor callbacks array in vfs code
 kpick 227261 # Cast BT_VND_OP_ANT_USERIAL_{OPEN,CLOSE} to bt_vendor_opcode_t in vfs code
 
 # external/chromium-webview
-kpick 245252 # Update Chromium Webview to 74.0.3729.112
+kpick 245252 # Update Chromium Webview to 74.0.3729.136
 
 # external/icu
 kpick 247609 # [SQUASH][DNM] Merge tag 'android-9.0.0_r37' into staging/lineage-16.0_merge-android-9.0.0_r37
@@ -1355,6 +1369,7 @@ kpick 238931 # stagefright: Fix SurfaceMediaSource getting handle from wrong pos
 kpick 238932 # stagefright: Fix buffer handle retrieval in signalBufferReturned
 kpick 239642 # libstagefright_wfd: video encoder does not actually release MediaBufferBase when done
 kpick 244574 # audioflinger: Fix audio for WifiDisplay
+kpick 247685 # [DNM] Squash of lineage-16.0-android-9.0.0_r37
 
 # frameworks/base
 kpick 224513 # SystemUI: Disable config_keyguardUserSwitcher on sw600dp
@@ -1395,6 +1410,7 @@ kpick 244295 # base: Redo expanded volume panel for 9.x
 kpick 244318 # KeyguardHostView: Auto face unlock v2
 kpick 246850 # SystemUI: Enable and fix QS detail view, adapt layout to Pie
 kpick 247612 # [SQUASH][DNM] Merge tag 'android-9.0.0_r37' into staging/lineage-16.0_merge-android-9.0.0_r37
+kpick 247886 # Add 3 finger swipe screenshot [1/3]
 
 # frameworks/native
 kpick 224530 # Triple the available egl function pointers available to a process for certain Nvidia devices.
@@ -1402,6 +1418,7 @@ kpick 231828 # Translate pointer motion events for OneHandOperation Display Shri
 kpick 231980 # HWComposer: HWC2: allow SkipValidate to be force disabled
 kpick 237645 # sf: Add support for multiple displays
 kpick 243571 # touch response optimizations
+kpick 247687 # [DNM] Squash of lineage-16.0-android-9.0.0_r37
 
 # frameworks/opt/datetimepicker
 kpick 247614 # [SQUASH][DNM] Merge tag 'android-9.0.0_r37' into staging/lineage-16.0_merge-android-9.0.0_r37
@@ -1412,6 +1429,7 @@ kpick 247615 # [SQUASH][DNM] Merge tag 'android-9.0.0_r37' into staging/lineage-
 # frameworks/opt/telephony
 kpick 240767 # Proper supplementary service notification handling (2/5).
 kpick 244260 # Improve UiccSlot#promptForRestart dialog
+kpick 247690 # [DNM] Squash of lineage-16.0-android-9.0.0_r37
 
 # hardware/broadcom/libbt
 kpick 225155 # Broadcom BT: Add support fm/bt via v4l2.
@@ -1481,6 +1499,7 @@ kpick 239598 # hidl: livedisplay: Add binderized service implementation
 # lineage-sdk
 kpick 241779 # sdk: Change night/day mode transition behavior
 kpick 242398 # Trust: Onboarding: Listen for locale changes
+kpick 247885 # Add 3 finger swipe screenshot [2/3]
 
 # packages/apps/BasicSmsReceiver
 kpick 247620 # [SQUASH][DNM] Merge tag 'android-9.0.0_r37' into staging/lineage-16.0_merge-android-9.0.0_r37
@@ -1488,11 +1507,13 @@ kpick 247620 # [SQUASH][DNM] Merge tag 'android-9.0.0_r37' into staging/lineage-
 # packages/apps/Bluetooth
 kpick 229310 # SBC Dual Channel (SBC HD Audio) support
 kpick 229311 # Assume optional codecs are supported if were supported previously
+kpick 247695 # [DNM] Squash of lineage-16.0-android-9.0.0_r37
 #kpick 245614 # Add sendNvCustomCommandNative to fix licensed builds
 
 # packages/apps/Camera2
 kpick 224752 # Use mCameraAgentNg for getting camera info when available
 kpick 245234 # Camera2: also check for and request WRITE_EXTERNAL_STORAGE permission
+kpick 247696 # [DNM] Squash of lineage-16.0-android-9.0.0_r37
 
 # packages/apps/CarrierConfig
 kpick 247623 # [SQUASH][DNM] Merge tag 'android-9.0.0_r37' into staging/lineage-16.0_merge-android-9.0.0_r37
@@ -1560,6 +1581,8 @@ kpick 240083 # Settings: Add null checks for OemLockService
 kpick 241758 # Settings: Show root options when certain third party root is present
 kpick 244319 # Add toggle for face auto unlock (2/2)
 kpick 244843 # Settings: Add battery saving mode for location
+kpick 247884 # Add 3 finger swipe screenshot [3/3]
+kpick 247711 # [DNM] Squash of lineage-16.0-android-9.0.0_r37
 
 # packages/apps/Snap
 kpick 242496 # Snap: Fix bad grammar "Long shot not support<ed>"
@@ -1588,6 +1611,7 @@ kpick 247741 # Fix gap between notification dots and their shadows
 kpick 247742 # Update launcher grid for tablet devices.
 kpick 247743 # Fix missing callback in fallback activity to re-enable high res loader.
 kpick 247744 # Kill launcher when display size changes
+kpick 247751 # [SQUASH][DNM] Merge tag 'android-9.0.0_r37' into staging/lineage-16.0_merge-android-9.0.0_r37
 
 # packages/apps/TvSettings
 kpick 247642 # [SQUASH][DNM] Merge tag 'android-9.0.0_r37' into staging/lineage-16.0_merge-android-9.0.0_r37
@@ -1638,10 +1662,12 @@ kpick 247654 # [SQUASH][DNM] Merge tag 'android-9.0.0_r37' into staging/lineage-
 # packages/services/Telecomm
 kpick 233635 # Phone ringtone setting for Multi SIM device
 kpick 240768 # Proper supplementary service notification handling (3/5)
+kpick 247729 # [DNM] Squash of lineage-16.0-android-9.0.0_r37
 
 # packages/services/Telephony
 kpick 240769 # Proper supplementary service notification handling (4/5).
 kpick 243706 # Allow to disable the new scan API for manual network search.
+kpick 247730 # [DNM] Squash of lineage-16.0-android-9.0.0_r37
 
 # packages/wallpapers/LivePicker
 kpick 247657 # [SQUASH][DNM] Merge tag 'android-9.0.0_r37' into staging/lineage-16.0_merge-android-9.0.0_r37
@@ -1650,6 +1676,7 @@ kpick 247657 # [SQUASH][DNM] Merge tag 'android-9.0.0_r37' into staging/lineage-
 kpick 239040 # Increase maximum Bluetooth SBC codec bitrate for SBC HD
 kpick 229313 # Explicit SBC Dual Channel (SBC HD) support
 kpick 229314 # Allow using alternative (higher) SBC HD bitrates with a property
+kpick 247732 # [DNM] Squash of lineage-16.0-android-9.0.0_r37
 
 # system/core
 kpick 231716 # init: Always use libbootloader_message from bootable/recovery namespace
@@ -1659,6 +1686,7 @@ kpick 234860 # init: add install_keyring for TWRP FBE decrypt
 kpick 237141 # core: update battery mod support for P
 kpick 241757 # adb: Allow adb root when certain third party root is present
 kpick 245342 # adb: Always allow recovery use adb root in userdebug builds
+kpick 247733 # [DNM] Squash of lineage-16.0-android-9.0.0_r37
 
 # system/extras/su
 kpick 232428 # su: strlcpy is always a friend
@@ -1671,9 +1699,11 @@ kpick 232794 # NetD : Allow passing in interface names for vpn app restriction
 
 # system/security
 kpick 247660 # [SQUASH][DNM] Merge tag 'android-9.0.0_r37' into staging/lineage-16.0_merge-android-9.0.0_r37
+kpick 247734 # [DNM] Squash of lineage-16.0-android-9.0.0_r37
 
 # system/sepolicy
 kpick 243819 # sepolicy: Label tee_data_file as core_data_file_type
+kpick 247735 # [DNM] Squash of lineage-16.0-android-9.0.0_r37
 
 # system/timezone
 
@@ -1711,8 +1741,7 @@ kpick 243744 # cryptfs_hw: Support devices use metadata as key
 
 ######## topic ##########
 
-
-#kpick 247737-247744 -x
+#kpick -t lineage-16.0-android-9.0.0_r37 -x
 
 ##################################
 echo

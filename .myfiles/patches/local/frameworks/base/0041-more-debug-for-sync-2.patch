@@ -1,0 +1,167 @@
+From 436ba31f72515e70793444f506e4ce43c658984a Mon Sep 17 00:00:00 2001
+From: nx111 <NX111.AimH@gmail.com>
+Date: Thu, 28 Feb 2019 00:56:33 +0800
+Subject: [PATCH 41/42] more debug for sync [2]
+
+Change-Id: I9a44df4e1052cc992a4d3123fcd6655fa41c1ffb
+---
+ .../android/server/content/SyncManager.java   | 17 ++++++++++++++
+ .../server/content/SyncStorageEngine.java     |  6 +++++
+ .../server/job/JobSchedulerService.java       |  6 +++++
+ .../server/job/controllers/JobStatus.java     | 22 +++++++++++++++++++
+ 4 files changed, 51 insertions(+)
+
+diff --git a/services/core/java/com/android/server/content/SyncManager.java b/services/core/java/com/android/server/content/SyncManager.java
+index 132bf0bc997..6da759b9f40 100644
+--- a/services/core/java/com/android/server/content/SyncManager.java
++++ b/services/core/java/com/android/server/content/SyncManager.java
+@@ -1646,11 +1646,17 @@ public class SyncManager {
+                 .setFlags(jobFlags);
+ 
+         if (syncOperation.isPeriodic) {
++            if (isLoggable) {
++                Slog.v(TAG, "syncOperation.isPeriodic = true");
++            }
+             b.setPeriodic(syncOperation.periodMillis, syncOperation.flexMillis);
+         } else {
+             if (minDelay > 0) {
+                 b.setMinimumLatency(minDelay);
+             }
++            if (isLoggable) {
++                Slog.v(TAG, "syncOperation.isPeriodic = false");
++            }
+             getSyncStorageEngine().markPending(syncOperation.target, true);
+         }
+ 
+@@ -1663,6 +1669,10 @@ public class SyncManager {
+             DeviceIdleController.LocalService dic =
+                     LocalServices.getService(DeviceIdleController.LocalService.class);
+             if (dic != null) {
++                if (isLoggable) {
++                    Slog.v(TAG, "LocalService add PoowerSave Temp WhitelistApp");
++                }
++
+                 dic.addPowerSaveTempWhitelistApp(Process.SYSTEM_UID,
+                         syncOperation.owningPackage,
+                         mConstants.getKeyExemptionTempWhitelistDurationInSeconds() * 1000,
+@@ -1672,6 +1682,9 @@ public class SyncManager {
+         }
+ 
+         if (syncOperation.isAppStandbyExempted()) {
++            if (isLoggable) {
++                Slog.v(TAG, "syncOperation isAppStandbyExempted:true");
++            }
+             final UsageStatsManagerInternal usmi = LocalServices.getService(
+                     UsageStatsManagerInternal.class);
+             if (usmi != null) {
+@@ -1680,6 +1693,10 @@ public class SyncManager {
+             }
+         }
+ 
++        if (isLoggable) {
++            Slog.v(TAG, "scheduleAsPackage, owningPackage:" + syncOperation.owningPackage
++                + " userId:" + syncOperation.target.userId + " wakeLockName:" + syncOperation.wakeLockName());
++        }
+         getJobScheduler().scheduleAsPackage(b.build(), syncOperation.owningPackage,
+                 syncOperation.target.userId, syncOperation.wakeLockName());
+     }
+diff --git a/services/core/java/com/android/server/content/SyncStorageEngine.java b/services/core/java/com/android/server/content/SyncStorageEngine.java
+index 0a2af9ee109..f1b41970396 100644
+--- a/services/core/java/com/android/server/content/SyncStorageEngine.java
++++ b/services/core/java/com/android/server/content/SyncStorageEngine.java
+@@ -640,8 +640,14 @@ public class SyncStorageEngine {
+                     continue;
+                 }
+                 if (reports == null) {
++                    if (Log.isLoggable(TAG, Log.VERBOSE)) {
++                        Slog.v(TAG, "set reports=" + i);
++                    }
+                     reports = new ArrayList<ISyncStatusObserver>(i);
+                 }
++                if (Log.isLoggable(TAG, Log.VERBOSE)) {
++                    Slog.v(TAG, "reports.add BroadcastItem(" + i + ")");
++                }
+                 reports.add(mChangeListeners.getBroadcastItem(i));
+             }
+             mChangeListeners.finishBroadcast();
+diff --git a/services/core/java/com/android/server/job/JobSchedulerService.java b/services/core/java/com/android/server/job/JobSchedulerService.java
+index 6608cad19d6..1a4294b6070 100644
+--- a/services/core/java/com/android/server/job/JobSchedulerService.java
++++ b/services/core/java/com/android/server/job/JobSchedulerService.java
+@@ -837,6 +837,9 @@ public class JobSchedulerService extends com.android.server.SystemService
+         } catch (RemoteException e) {
+         }
+ 
++        if (Log.isLoggable(TAG, Log.VERBOSE)) { 
++            Slog.v(TAG, " scheduleAsPackae: running..."); 
++        }
+         synchronized (mLock) {
+             final JobStatus toCancel = mJobs.getJobByUidAndJobId(uId, job.getId());
+ 
+@@ -851,6 +854,9 @@ public class JobSchedulerService extends com.android.server.SystemService
+                     // exempt the entire job.
+                     toCancel.maybeAddForegroundExemption(mIsUidActivePredicate);
+ 
++                    if (Log.isLoggable(TAG, Log.VERBOSE)) { 
++                        Slog.v(TAG, " scheduleAsPackae: toCacnel Success."); 
++                    }
+                     return JobScheduler.RESULT_SUCCESS;
+                 }
+             }
+diff --git a/services/core/java/com/android/server/job/controllers/JobStatus.java b/services/core/java/com/android/server/job/controllers/JobStatus.java
+index a1e066e7264..cfb6eca8980 100644
+--- a/services/core/java/com/android/server/job/controllers/JobStatus.java
++++ b/services/core/java/com/android/server/job/controllers/JobStatus.java
+@@ -32,6 +32,7 @@ import android.os.UserHandle;
+ import android.text.format.Time;
+ import android.util.ArraySet;
+ import android.util.Pair;
++import android.util.Log;
+ import android.util.Slog;
+ import android.util.TimeUtils;
+ import android.util.proto.ProtoOutputStream;
+@@ -44,6 +45,7 @@ import com.android.server.job.JobStatusDumpProto;
+ import com.android.server.job.JobStatusShortInfoProto;
+ 
+ import java.io.PrintWriter;
++import java.io.StringWriter;
+ import java.util.ArrayList;
+ import java.util.Arrays;
+ import java.util.function.Predicate;
+@@ -946,6 +948,16 @@ public final class JobStatus {
+                 || (job.getFlags() & JobInfo.FLAG_WILL_BE_FOREGROUND) != 0;
+         final boolean notRestrictedInBg =
+                 (satisfiedConstraints & CONSTRAINT_BACKGROUND_NOT_RESTRICTED) != 0;
++        if (Log.isLoggable(TAG, Log.VERBOSE)){
++            Slog.v(TAG, "isReady: " + ((isConstraintsSatisfied() || deadlineSatisfied) && notDozing && notRestrictedInBg)
++                       + " " + job.toString());
++            Slog.v(TAG, "       isConstraintsSatisfied:" + isConstraintsSatisfied());
++            Slog.v(TAG, "       job.isPeriodic:" + job.isPeriodic()  + " hasDeadlineConstraint:" + hasDeadlineConstraint()
++                       + " satisfiedConstraints & CONSTRAINT_DEADLINE:" + (satisfiedConstraints & CONSTRAINT_DEADLINE));
++            Slog.v(TAG, "       job.getFlags:" + job.getFlags() + " satisfiedConstraints & CONSTRAINT_DEVICE_NOT_DOZING:"
++                       + (satisfiedConstraints & CONSTRAINT_DEVICE_NOT_DOZING));
++            Slog.v(TAG, "       notRestrictedInBg:" + notRestrictedInBg);
++        }
+         return (isConstraintsSatisfied() || deadlineSatisfied) && notDozing && notRestrictedInBg;
+     }
+ 
+@@ -975,6 +987,16 @@ public final class JobStatus {
+             sat |= (requiredConstraints & SOFT_OVERRIDE_CONSTRAINTS);
+         }
+ 
++        if (Log.isLoggable(TAG, Log.VERBOSE)) {
++            StringWriter out = new StringWriter();
++            PrintWriter writer = new PrintWriter(out);
++            dumpConstraints(writer, satisfiedConstraints);
++            Log.v(TAG, " isConstraintsSatisfied: sat=" + out.toString());
++            out.getBuffer().setLength(0);
++            dumpConstraints(writer, requiredConstraints);
++            Log.v(TAG, " isConstraintsSatisfied: req=" + out.toString());
++            Log.v(TAG, "(sat & req) == req : " + ((sat & req) == req));
++        }
+         return (sat & req) == req;
+     }
+ 
+-- 
+2.17.1
+
