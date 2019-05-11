@@ -1247,7 +1247,6 @@ if [ "${BASH_SOURCE[0]}" = "$runfrom" -a ! -f ${BASH_SOURCE[0]}.tmp -a $op_pick_
 
     #=========== pick changes ==========================
 
-    kpick 247604 # manifest: android-9.0.0_r35 -> android-9.0.0_r37
 
     #===================================================
 
@@ -1306,7 +1305,6 @@ kpick 241858 # msm8974-common: Build Samsung LiveDisplay service
 kpick 244763 # recovery: Blank screen on init
 kpick 245305 # OMGRainbows
 kpick 247476 # recovery: wipe bootloader message from index 0 when using custom offsets
-kpick 247681 # [DNM] Squash of lineage-16.0-android-9.0.0_r37
 
 # build/make
 kpick 222742 # build: Use project pathmap for recovery
@@ -1339,7 +1337,6 @@ kpick 245595 # sepolicy: added clearkey hal permissions
 
 # development
 kpick 240579 # idegen: Add functionality to set custom ipr file name
-kpick 247682 # [DNM] Squash of lineage-16.0-android-9.0.0_r37
 
 # external/ant-wireless/ant_native
 kpick 227260 # Update bt vendor callbacks array in vfs code
@@ -1349,13 +1346,11 @@ kpick 227261 # Cast BT_VND_OP_ANT_USERIAL_{OPEN,CLOSE} to bt_vendor_opcode_t in 
 kpick 245252 # Update Chromium Webview to 74.0.3729.136
 
 # external/icu
-kpick 247609 # [SQUASH][DNM] Merge tag 'android-9.0.0_r37' into staging/lineage-16.0_merge-android-9.0.0_r37
 
 # external/perfetto
 kpick 223413 -f # perfetto_cmd: Resolve missing O_CREAT mode
 
 # external/skia
-kpick 247610 # [SQUASH][DNM] Merge tag 'android-9.0.0_r37' into staging/lineage-16.0_merge-android-9.0.0_r37
 
 # frameworks/av
 kpick 230387 # CameraService: Support calling addStates in enumerateProviders
@@ -1369,7 +1364,6 @@ kpick 238931 # stagefright: Fix SurfaceMediaSource getting handle from wrong pos
 kpick 238932 # stagefright: Fix buffer handle retrieval in signalBufferReturned
 kpick 239642 # libstagefright_wfd: video encoder does not actually release MediaBufferBase when done
 kpick 244574 # audioflinger: Fix audio for WifiDisplay
-kpick 247685 # [DNM] Squash of lineage-16.0-android-9.0.0_r37
 
 # frameworks/base
 kpick 224513 # SystemUI: Disable config_keyguardUserSwitcher on sw600dp
@@ -1409,7 +1403,6 @@ kpick 243572 # add VSYNC scheduled flag and avoid two doFrame calls in one perio
 kpick 244295 # base: Redo expanded volume panel for 9.x
 kpick 244318 # KeyguardHostView: Auto face unlock v2
 kpick 246850 # SystemUI: Enable and fix QS detail view, adapt layout to Pie
-kpick 247612 # [SQUASH][DNM] Merge tag 'android-9.0.0_r37' into staging/lineage-16.0_merge-android-9.0.0_r37
 kpick 247886 # Add 3 finger swipe screenshot [1/3]
 
 # frameworks/native
@@ -1418,27 +1411,21 @@ kpick 231828 # Translate pointer motion events for OneHandOperation Display Shri
 kpick 231980 # HWComposer: HWC2: allow SkipValidate to be force disabled
 kpick 237645 # sf: Add support for multiple displays
 kpick 243571 # touch response optimizations
-kpick 247687 # [DNM] Squash of lineage-16.0-android-9.0.0_r37
 
 # frameworks/opt/datetimepicker
-kpick 247614 # [SQUASH][DNM] Merge tag 'android-9.0.0_r37' into staging/lineage-16.0_merge-android-9.0.0_r37
 
 # frameworks/opt/net/wifi
-kpick 247615 # [SQUASH][DNM] Merge tag 'android-9.0.0_r37' into staging/lineage-16.0_merge-android-9.0.0_r37
 
 # frameworks/opt/telephony
 kpick 240767 # Proper supplementary service notification handling (2/5).
 kpick 244260 # Improve UiccSlot#promptForRestart dialog
-kpick 247690 # [DNM] Squash of lineage-16.0-android-9.0.0_r37
 
 # hardware/broadcom/libbt
 kpick 225155 # Broadcom BT: Add support fm/bt via v4l2.
 
 # hardware/broadcom/wlan
-kpick 247617 # [SQUASH][DNM] Merge tag 'android-9.0.0_r37' into staging/lineage-16.0_merge-android-9.0.0_r37
 
 # hardware/interfaces
-kpick 247618 # [SQUASH][DNM] Merge tag 'android-9.0.0_r37' into staging/lineage-16.0_merge-android-9.0.0_r37
 
 # hardware/lineage/livedisplay
 kpick 242994 # livedisplay: sysfs: Simplify setCalibration
@@ -1447,12 +1434,14 @@ kpick 242994 # livedisplay: sysfs: Simplify setCalibration
 kpick 239927 # hardware: nxp: Restore pn547 support
 
 # hardware/qcom/audio/default
-kpick 247619 # [SQUASH][DNM] Merge tag 'android-9.0.0_r37' into staging/lineage-16.0_merge-android-9.0.0_r37
 
 # hardware/qcom/audio-caf/msm8974
 kpick 247073 # Convert GNU old-style field designator to C99 syntax
 kpick 247076 # Include stdlib.h to get explicit declaration of free()
 kpick 247079 # Remove redefinition of typedef
+#kpick 247311 # Suppress warnings about unused function parameters
+kpick 247312 # Correct sign where possible to silence -Wsign-compare
+kpick 247316 # Provide parentheses for logic operations, put initialization of struct fields in correct order
 
 # hardware/qcom/bt-caf
 kpick 240345 # qcom/bt: update bt_firmware path
@@ -1464,16 +1453,16 @@ kpick 241715 # Add kernel header dep for ipanat
 kpick 223341 # display: Always assume kernel source is present
 
 # hardware/qcom/display-caf/msm8974
-kpick 247080 # Mark unused variables with __attribute__((unused))
+#kpick 247080 # Suppress warnings about unused function parameters
 
 # hardware/qcom/fm
 kpick 236546 # fm_helium: Update FM_HCI_DIR path
 
 # hardware/qcom/media-caf/msm8974
 kpick 237154 # Add -Wno-error to compile with global -Werror.
-kpick 247074 # Mark unused function arguments with __attribute__((unused))
+kpick 247074 # Suppress warnings about unused function arguments
 kpick 247075 # Cast SIZE_OF_CORE to int inside if-comparison to get rid of compiler warning.
-kpick 247081 # Adjust format specifiers to actual variable types
+kpick 247081 # Adjust format specifiers to match actual variable types
 
 # hardware/qcom/power
 kpick 231884 # sdm670:power: Turn on/off display
@@ -1502,71 +1491,54 @@ kpick 242398 # Trust: Onboarding: Listen for locale changes
 kpick 247885 # Add 3 finger swipe screenshot [2/3]
 
 # packages/apps/BasicSmsReceiver
-kpick 247620 # [SQUASH][DNM] Merge tag 'android-9.0.0_r37' into staging/lineage-16.0_merge-android-9.0.0_r37
 
 # packages/apps/Bluetooth
 kpick 229310 # SBC Dual Channel (SBC HD Audio) support
 kpick 229311 # Assume optional codecs are supported if were supported previously
-kpick 247695 # [DNM] Squash of lineage-16.0-android-9.0.0_r37
 #kpick 245614 # Add sendNvCustomCommandNative to fix licensed builds
 
 # packages/apps/Camera2
 kpick 224752 # Use mCameraAgentNg for getting camera info when available
 kpick 245234 # Camera2: also check for and request WRITE_EXTERNAL_STORAGE permission
-kpick 247696 # [DNM] Squash of lineage-16.0-android-9.0.0_r37
 
 # packages/apps/CarrierConfig
-kpick 247623 # [SQUASH][DNM] Merge tag 'android-9.0.0_r37' into staging/lineage-16.0_merge-android-9.0.0_r37
 
 # packages/apps/CellBroadcastReceiver
-kpick 247624 # [SQUASH][DNM] Merge tag 'android-9.0.0_r37' into staging/lineage-16.0_merge-android-9.0.0_r37
 
 # packages/apps/CertInstaller
-kpick 247625 # [SQUASH][DNM] Merge tag 'android-9.0.0_r37' into staging/lineage-16.0_merge-android-9.0.0_r37
 
 # packages/apps/Contacts
-kpick 247626 # [SQUASH][DNM] Merge tag 'android-9.0.0_r37' into staging/lineage-16.0_merge-android-9.0.0_r37
 
 # packages/apps/DeskClock
-kpick 247627 # [SQUASH][DNM] Merge tag 'android-9.0.0_r37' into staging/lineage-16.0_merge-android-9.0.0_r37
 
 # packages/apps/Dialer
 kpick 240770 # Proper supplementary service notification handling (5/5).
 
 # packages/apps/DocumentsUI
-kpick 247628 # [SQUASH][DNM] Merge tag 'android-9.0.0_r37' into staging/lineage-16.0_merge-android-9.0.0_r37
 
 # packages/apps/Eleven
 
 # packages/apps/EmergencyInfo
-kpick 247629 # [SQUASH][DNM] Merge tag 'android-9.0.0_r37' into staging/lineage-16.0_merge-android-9.0.0_r37
 
 # packages/apps/ExactCalculator
-kpick 247630 # [SQUASH][DNM] Merge tag 'android-9.0.0_r37' into staging/lineage-16.0_merge-android-9.0.0_r37
 
 # packages/apps/LineageParts
 
 # packages/apps/Jelly
 
 # packages/apps/KeyChain
-kpick 247631 # [SQUASH][DNM] Merge tag 'android-9.0.0_r37' into staging/lineage-16.0_merge-android-9.0.0_r37
 
 # packages/apps/ManagedProvisioning
-kpick 247632 # [SQUASH][DNM] Merge tag 'android-9.0.0_r37' into staging/lineage-16.0_merge-android-9.0.0_r37
 
 # packages/apps/Messaging
 
 # packages/apps/Nfc
-kpick 247633 # [SQUASH][DNM] Merge tag 'android-9.0.0_r37' into staging/lineage-16.0_merge-android-9.0.0_r37
 
 # packages/apps/PackageInstaller
-kpick 247634 # [SQUASH][DNM] Merge tag 'android-9.0.0_r37' into staging/lineage-16.0_merge-android-9.0.0_r37
 
 # packages/apps/PhoneCommon
-kpick 247635 # [SQUASH][DNM] Merge tag 'android-9.0.0_r37' into staging/lineage-16.0_merge-android-9.0.0_r37
 
 # packages/apps/SafetyRegulatoryInfo
-kpick 247636 # [SQUASH][DNM] Merge tag 'android-9.0.0_r37' into staging/lineage-16.0_merge-android-9.0.0_r37
 
 # packages/apps/Settings
 kpick 235978 # Settings: Add switch for linked ring and media notification volumes
@@ -1582,7 +1554,6 @@ kpick 241758 # Settings: Show root options when certain third party root is pres
 kpick 244319 # Add toggle for face auto unlock (2/2)
 kpick 244843 # Settings: Add battery saving mode for location
 kpick 247884 # Add 3 finger swipe screenshot [3/3]
-kpick 247711 # [DNM] Squash of lineage-16.0-android-9.0.0_r37
 
 # packages/apps/Snap
 kpick 242496 # Snap: Fix bad grammar "Long shot not support<ed>"
@@ -1590,93 +1561,63 @@ kpick 243071 # Snap: allow to disable image stabilization per device
 kpick 247120 # Snap: add basic support for setting lens shading mode
 
 # packages/apps/Stk
-kpick 247638 # [SQUASH][DNM] Merge tag 'android-9.0.0_r37' into staging/lineage-16.0_merge-android-9.0.0_r37
 
 # packages/apps/StorageManager
-kpick 247639 # [SQUASH][DNM] Merge tag 'android-9.0.0_r37' into staging/lineage-16.0_merge-android-9.0.0_r37
 
 # packages/apps/Tag
-kpick 247640 # [SQUASH][DNM] Merge tag 'android-9.0.0_r37' into staging/lineage-16.0_merge-android-9.0.0_r37
 
 # packages/apps/Traceur
-kpick 247641 # [SQUASH][DNM] Merge tag 'android-9.0.0_r37' into staging/lineage-16.0_merge-android-9.0.0_r37
 
 # packages/apps/Trebuchet
 kpick 246890 # Trebuchet: use new wallpaper app
-kpick 247737 # App menu icon launching app info hides taskview menu
-kpick 247738 # Increase max distance for folder creation for tablets.
-kpick 247739 # Defer starting the high-res thumbnail loader until quick step/scrub
-kpick 247740 # Add null check before playing recents scale down anim
-kpick 247741 # Fix gap between notification dots and their shadows
-kpick 247742 # Update launcher grid for tablet devices.
-kpick 247743 # Fix missing callback in fallback activity to re-enable high res loader.
-kpick 247744 # Kill launcher when display size changes
-kpick 247751 # [SQUASH][DNM] Merge tag 'android-9.0.0_r37' into staging/lineage-16.0_merge-android-9.0.0_r37
 
 # packages/apps/TvSettings
-kpick 247642 # [SQUASH][DNM] Merge tag 'android-9.0.0_r37' into staging/lineage-16.0_merge-android-9.0.0_r37
 
 # packages/apps/Updater
 kpick 239289 # Updater: put identical code to helper method
 kpick 244176 # Updater: transfer releated to configuration code to onResume to prorerly init time format (12/24)
 
 # packages/inputmethods/LatinIME
-kpick 247643 # [SQUASH][DNM] Merge tag 'android-9.0.0_r37' into staging/lineage-16.0_merge-android-9.0.0_r37
 
 # packages/overlays/Lineage
 kpick 247243 # overlays/lineage: Remove colorControlNormal from black theme
 
 # packages/providers/BlockedNumberProvider
-kpick 247644 # [SQUASH][DNM] Merge tag 'android-9.0.0_r37' into staging/lineage-16.0_merge-android-9.0.0_r37
 
 # packages/providers/ContactsProvider
-kpick 247645 # [SQUASH][DNM] Merge tag 'android-9.0.0_r37' into staging/lineage-16.0_merge-android-9.0.0_r37
 
 # packages/providers/DownloadProvider
-kpick 247646 # [SQUASH][DNM] Merge tag 'android-9.0.0_r37' into staging/lineage-16.0_merge-android-9.0.0_r37
 
 # packages/providers/MediaProvider
-kpick 247647 # [SQUASH][DNM] Merge tag 'android-9.0.0_r37' into staging/lineage-16.0_merge-android-9.0.0_r37
 
 # packages/providers/TelephonyProvider
-kpick 247648 # [SQUASH][DNM] Merge tag 'android-9.0.0_r37' into staging/lineage-16.0_merge-android-9.0.0_r37
 
 # packages/providers/TvProvider
-kpick 247649 # [SQUASH][DNM] Merge tag 'android-9.0.0_r37' into staging/lineage-16.0_merge-android-9.0.0_r37
 
 # packages/providers/UserDictionaryProvider
-kpick 247650 # [SQUASH][DNM] Merge tag 'android-9.0.0_r37' into staging/lineage-16.0_merge-android-9.0.0_r37
 
 # packages/screensavers/Basic
-kpick 247651 # [SQUASH][DNM] Merge tag 'android-9.0.0_r37' into staging/lineage-16.0_merge-android-9.0.0_r37
 
 # packages/screensavers/PhotoTable
-kpick 247652 # [SQUASH][DNM] Merge tag 'android-9.0.0_r37' into staging/lineage-16.0_merge-android-9.0.0_r37
 
 # packages/services/BuiltInPrintService
-kpick 247653 # [SQUASH][DNM] Merge tag 'android-9.0.0_r37' into staging/lineage-16.0_merge-android-9.0.0_r37
 
 # packages/services/Mms
-kpick 247654 # [SQUASH][DNM] Merge tag 'android-9.0.0_r37' into staging/lineage-16.0_merge-android-9.0.0_r37
 
 # packages/services/Telecomm
 kpick 233635 # Phone ringtone setting for Multi SIM device
 kpick 240768 # Proper supplementary service notification handling (3/5)
-kpick 247729 # [DNM] Squash of lineage-16.0-android-9.0.0_r37
 
 # packages/services/Telephony
 kpick 240769 # Proper supplementary service notification handling (4/5).
 kpick 243706 # Allow to disable the new scan API for manual network search.
-kpick 247730 # [DNM] Squash of lineage-16.0-android-9.0.0_r37
 
 # packages/wallpapers/LivePicker
-kpick 247657 # [SQUASH][DNM] Merge tag 'android-9.0.0_r37' into staging/lineage-16.0_merge-android-9.0.0_r37
 
 # system/bt
 kpick 239040 # Increase maximum Bluetooth SBC codec bitrate for SBC HD
 kpick 229313 # Explicit SBC Dual Channel (SBC HD) support
 kpick 229314 # Allow using alternative (higher) SBC HD bitrates with a property
-kpick 247732 # [DNM] Squash of lineage-16.0-android-9.0.0_r37
 
 # system/core
 kpick 231716 # init: Always use libbootloader_message from bootable/recovery namespace
@@ -1686,7 +1627,6 @@ kpick 234860 # init: add install_keyring for TWRP FBE decrypt
 kpick 237141 # core: update battery mod support for P
 kpick 241757 # adb: Allow adb root when certain third party root is present
 kpick 245342 # adb: Always allow recovery use adb root in userdebug builds
-kpick 247733 # [DNM] Squash of lineage-16.0-android-9.0.0_r37
 
 # system/extras/su
 kpick 232428 # su: strlcpy is always a friend
@@ -1698,12 +1638,9 @@ kpick 232438 # su: Initialize windows size
 kpick 232794 # NetD : Allow passing in interface names for vpn app restriction
 
 # system/security
-kpick 247660 # [SQUASH][DNM] Merge tag 'android-9.0.0_r37' into staging/lineage-16.0_merge-android-9.0.0_r37
-kpick 247734 # [DNM] Squash of lineage-16.0-android-9.0.0_r37
 
 # system/sepolicy
 kpick 243819 # sepolicy: Label tee_data_file as core_data_file_type
-kpick 247735 # [DNM] Squash of lineage-16.0-android-9.0.0_r37
 
 # system/timezone
 
@@ -1732,6 +1669,10 @@ kpick 244672 # common: Add getcap/setcap to PRODUCT_PACKAGES
 kpick 245278 # extract_utils: Add functions to extract vendor blobs from vendor.img
 kpick 245279 # kernel: Allow devices to specify kernel toolchain root
 kpick 245280 # gms: Include turbo on arm64 targets
+
+# vendor/qcom/opensource/audio
+kpick 247915 # policy_hal: do not check MODE_IN_COMMUNICATION for voip_rx flag
+kpick 247916 # policy_hal: avoid open stereo channel output for voip_rx flag
 
 # vendor/qcom/opensource/cryptfs_hw
 kpick 243744 # cryptfs_hw: Support devices use metadata as key
