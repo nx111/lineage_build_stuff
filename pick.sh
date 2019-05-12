@@ -1048,7 +1048,7 @@ function kpick_action()
            if [ "$target_script" != "" -a -f "$target_script" \
                    -a "${BASH_SOURCE[0]}" = "$runfrom" -a "$start_check_classification" = "1" ]; then
                [ -f $tmp_picks_info_file ] || touch $tmp_picks_info_file
-               if ! grep -q "$project" $tmp_picks_info_file; then
+               if ! grep -q "^[[:space:]]*$project[[:space:]]\{1,\}" $tmp_picks_info_file; then
                    echo "$project $changeNumber" >>$tmp_picks_info_file
                    last_project=$project
                    last_changeNumber=$changeNumber
@@ -1327,8 +1327,6 @@ kpick 241903 # sepolicy: Label all the livedisplay service implementations
 kpick 246848 # Silence sysinit log spam
 
 # device/qcom/sepolicy
-kpick 228573 # sepolicy: Add libsdm-disp-vndapis and libsdmutils to SP-HALs
-kpick 228582 # sepolicy: qti_init_shell needs to read dir too
 kpick 240951 # qcom: label persist files with /(mnt/vendor)/persist instead of /mnt/vendor/persist
 kpick 244366 # sepolicy: Allow perf HAL to set mpctl props
 
@@ -1344,8 +1342,6 @@ kpick 227261 # Cast BT_VND_OP_ANT_USERIAL_{OPEN,CLOSE} to bt_vendor_opcode_t in 
 
 # external/chromium-webview
 kpick 245252 # Update Chromium Webview to 74.0.3729.136
-
-# external/icu
 
 # external/perfetto
 kpick 223413 -f # perfetto_cmd: Resolve missing O_CREAT mode
@@ -1389,8 +1385,6 @@ kpick 239520 # Reset all package signatures on boot
 kpick 240084 # ServiceRegistry: Don't throw an exception if OEM_LOCK is missing
 #kpick 240411 # Keyguard: Avoid starting FP authentication right after cancelling
 kpick 240766 # Proper supplementary service notification handling (1/5).
-kpick 241326 # SettingsLib: add action callbacks to CustomDialogPreferences
-kpick 241327 # VibratorService: Apply vibrator intensity setting.
 kpick 242737 # Skip one-shot sensors for WindowOrientationListener
 kpick 243567 # touch response optimizations.
 kpick 243568 # Optimize AbsListView to reduce click operation latency
@@ -1412,10 +1406,6 @@ kpick 231980 # HWComposer: HWC2: allow SkipValidate to be force disabled
 kpick 237645 # sf: Add support for multiple displays
 kpick 243571 # touch response optimizations
 
-# frameworks/opt/datetimepicker
-
-# frameworks/opt/net/wifi
-
 # frameworks/opt/telephony
 kpick 240767 # Proper supplementary service notification handling (2/5).
 kpick 244260 # Improve UiccSlot#promptForRestart dialog
@@ -1423,25 +1413,16 @@ kpick 244260 # Improve UiccSlot#promptForRestart dialog
 # hardware/broadcom/libbt
 kpick 225155 # Broadcom BT: Add support fm/bt via v4l2.
 
-# hardware/broadcom/wlan
-
-# hardware/interfaces
-
 # hardware/lineage/livedisplay
 kpick 242994 # livedisplay: sysfs: Simplify setCalibration
 
 # hardware/nxp/nfc
 kpick 239927 # hardware: nxp: Restore pn547 support
 
-# hardware/qcom/audio/default
-
 # hardware/qcom/audio-caf/msm8974
 kpick 247073 # Convert GNU old-style field designator to C99 syntax
 kpick 247076 # Include stdlib.h to get explicit declaration of free()
 kpick 247079 # Remove redefinition of typedef
-#kpick 247311 # Suppress warnings about unused function parameters
-kpick 247312 # Correct sign where possible to silence -Wsign-compare
-kpick 247316 # Provide parentheses for logic operations, put initialization of struct fields in correct order
 
 # hardware/qcom/bt-caf
 kpick 240345 # qcom/bt: update bt_firmware path
@@ -1452,17 +1433,15 @@ kpick 241715 # Add kernel header dep for ipanat
 # hardware/qcom/display
 kpick 223341 # display: Always assume kernel source is present
 
-# hardware/qcom/display-caf/msm8974
-#kpick 247080 # Suppress warnings about unused function parameters
-
 # hardware/qcom/fm
 kpick 236546 # fm_helium: Update FM_HCI_DIR path
 
 # hardware/qcom/media-caf/msm8974
 kpick 237154 # Add -Wno-error to compile with global -Werror.
-kpick 247074 # Suppress warnings about unused function arguments
 kpick 247075 # Cast SIZE_OF_CORE to int inside if-comparison to get rid of compiler warning.
 kpick 247081 # Adjust format specifiers to match actual variable types
+kpick 247312 # Correct sign where possible to silence -Wsign-compare
+kpick 247316 # Provide parentheses for logic operations, put initialization of struct fields in correct order
 
 # hardware/qcom/power
 kpick 231884 # sdm670:power: Turn on/off display
@@ -1490,8 +1469,6 @@ kpick 241779 # sdk: Change night/day mode transition behavior
 kpick 242398 # Trust: Onboarding: Listen for locale changes
 kpick 247885 # Add 3 finger swipe screenshot [2/3]
 
-# packages/apps/BasicSmsReceiver
-
 # packages/apps/Bluetooth
 kpick 229310 # SBC Dual Channel (SBC HD Audio) support
 kpick 229311 # Assume optional codecs are supported if were supported previously
@@ -1501,44 +1478,8 @@ kpick 229311 # Assume optional codecs are supported if were supported previously
 kpick 224752 # Use mCameraAgentNg for getting camera info when available
 kpick 245234 # Camera2: also check for and request WRITE_EXTERNAL_STORAGE permission
 
-# packages/apps/CarrierConfig
-
-# packages/apps/CellBroadcastReceiver
-
-# packages/apps/CertInstaller
-
-# packages/apps/Contacts
-
-# packages/apps/DeskClock
-
 # packages/apps/Dialer
 kpick 240770 # Proper supplementary service notification handling (5/5).
-
-# packages/apps/DocumentsUI
-
-# packages/apps/Eleven
-
-# packages/apps/EmergencyInfo
-
-# packages/apps/ExactCalculator
-
-# packages/apps/LineageParts
-
-# packages/apps/Jelly
-
-# packages/apps/KeyChain
-
-# packages/apps/ManagedProvisioning
-
-# packages/apps/Messaging
-
-# packages/apps/Nfc
-
-# packages/apps/PackageInstaller
-
-# packages/apps/PhoneCommon
-
-# packages/apps/SafetyRegulatoryInfo
 
 # packages/apps/Settings
 kpick 235978 # Settings: Add switch for linked ring and media notification volumes
@@ -1560,49 +1501,15 @@ kpick 242496 # Snap: Fix bad grammar "Long shot not support<ed>"
 kpick 243071 # Snap: allow to disable image stabilization per device
 kpick 247120 # Snap: add basic support for setting lens shading mode
 
-# packages/apps/Stk
-
-# packages/apps/StorageManager
-
-# packages/apps/Tag
-
-# packages/apps/Traceur
-
 # packages/apps/Trebuchet
 kpick 246890 # Trebuchet: use new wallpaper app
-
-# packages/apps/TvSettings
 
 # packages/apps/Updater
 kpick 239289 # Updater: put identical code to helper method
 kpick 244176 # Updater: transfer releated to configuration code to onResume to prorerly init time format (12/24)
 
-# packages/inputmethods/LatinIME
-
 # packages/overlays/Lineage
 kpick 247243 # overlays/lineage: Remove colorControlNormal from black theme
-
-# packages/providers/BlockedNumberProvider
-
-# packages/providers/ContactsProvider
-
-# packages/providers/DownloadProvider
-
-# packages/providers/MediaProvider
-
-# packages/providers/TelephonyProvider
-
-# packages/providers/TvProvider
-
-# packages/providers/UserDictionaryProvider
-
-# packages/screensavers/Basic
-
-# packages/screensavers/PhotoTable
-
-# packages/services/BuiltInPrintService
-
-# packages/services/Mms
 
 # packages/services/Telecomm
 kpick 233635 # Phone ringtone setting for Multi SIM device
@@ -1637,12 +1544,8 @@ kpick 232438 # su: Initialize windows size
 # system/netd
 kpick 232794 # NetD : Allow passing in interface names for vpn app restriction
 
-# system/security
-
 # system/sepolicy
 kpick 243819 # sepolicy: Label tee_data_file as core_data_file_type
-
-# system/timezone
 
 # system/tools/aidl
 kpick 223133 # AIDL: Add option to generate No-Op methods
@@ -1651,8 +1554,6 @@ kpick 223133 # AIDL: Add option to generate No-Op methods
 kpick 225921 # overlay: Update list of GSF/GMS activities
 kpick 225938 # roomservice: document the hell out of the current behavior of the script
 kpick 225939 # roomservice: non-depsonly: bootstrap first device repo from Hudson
-#kpick 225981 # roomservice: depsonly: do not look up device repo by name in the manifest
-#kpick 225982 # roomservice: Strip cm.{mk,dependencies} support
 kpick 229589 # lineage: Automatically set soong namespace when setting project pathmap
 kpick 229590 # lineage: Move qcom pathmap setting into "BoardConfig"
 kpick 231291 # repopick: add hashtag support
@@ -1660,7 +1561,6 @@ kpick 231981 # HWComposer: HWC2: allow SkipValidate to be force disabled
 kpick 234011 # lineage: Add media_codecs_ddp for AC3 audio
 # kpick 234859 # repopick: cmp() is not available in Python 3, define it manually **((picked at first))**
 kpick 237209 # lineage: Set default ringtone for second SIM
-#kpick 237638 # Revert "lineage: Support system-as-root A-only backuptool"
 kpick 241783 # envsetup: Fix lineagegerrit push for zsh
 kpick 242432 # RIP libhealthd.lineage
 kpick 242433 # Make custom off-mode charging screen great again
