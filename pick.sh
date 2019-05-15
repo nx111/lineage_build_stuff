@@ -1246,7 +1246,7 @@ if [ "${BASH_SOURCE[0]}" = "$runfrom" -a ! -f ${BASH_SOURCE[0]}.tmp -a $op_pick_
     [ $op_keep_manifests -ne 1 ] && reset_project_dir .repo/manifests
 
     #=========== pick changes ==========================
-
+    kpick 248358
 
     #===================================================
 
@@ -1342,6 +1342,9 @@ kpick 227261 # Cast BT_VND_OP_ANT_USERIAL_{OPEN,CLOSE} to bt_vendor_opcode_t in 
 # external/chromium-webview
 kpick 245252 # Update Chromium Webview to 74.0.3729.136
 
+# external/libpng
+kpick 248359 # Call png_image_free_function without guarding it with png_safe_execute
+
 # external/perfetto
 kpick 223413 -f # perfetto_cmd: Resolve missing O_CREAT mode
 
@@ -1431,6 +1434,9 @@ kpick 223341 # display: Always assume kernel source is present
 
 # hardware/qcom/fm
 kpick 236546 # fm_helium: Update FM_HCI_DIR path
+
+# hardware/qcom/keymaster
+kpick 248363 # keymaster: Build with BOARD_VNDK_VERSION
 
 # hardware/qcom/media-caf/msm8974
 kpick 237154 # Add -Wno-error to compile with global -Werror.
