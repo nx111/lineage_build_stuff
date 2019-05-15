@@ -1,0 +1,160 @@
+From 5a6f6e3484d776cec9008ed188491d3cddc62926 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?eray=20or=C3=A7unus?= <erayorcunus@gmail.com>
+Date: Sun, 24 Mar 2019 20:55:30 +0300
+Subject: [PATCH 11/16] Settings: Add battery saving mode for location
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+* Good ol' location modes are still there, just the UI is missing.
+  So why don't we add it?
+
+* Tested with several apps, still works.
+
+Change-Id: I5bc7950365a22675ac31e2b6ce52e199617ed038
+Signed-off-by: eray orçunus <erayorcunus@gmail.com>
+
+# Conflicts:
+#	res/values/cm_strings.xml
+---
+ res/values/cm_strings.xml                     |  4 +
+ res/xml/location_settings.xml                 |  5 ++
+ .../LocationModePreferenceController.java     | 84 +++++++++++++++++++
+ .../settings/location/LocationSettings.java   |  1 +
+ 4 files changed, 94 insertions(+)
+ create mode 100644 src/com/android/settings/location/LocationModePreferenceController.java
+
+diff --git a/res/values/cm_strings.xml b/res/values/cm_strings.xml
+index 6aaf0392cb..8efbec1865 100644
+--- a/res/values/cm_strings.xml
++++ b/res/values/cm_strings.xml
+@@ -381,4 +381,8 @@
+     <!-- Automatically dismiss lockscreen after face unlock -->
+     <string name="face_auto_unlock_title">Face auto unlock</string>
+     <string name="face_auto_unlock_summary">Dismiss lockscreen after face unlocking</string>
++
++    <!-- Battery saving mode for Location - GPS will be disabled -->
++    <string name="location_mode_battery_saving_title">Battery saving mode</string>
++    <string name="location_mode_battery_saving_summary">You can turn GPS off using this setting. As a result, your exact location will be unknown.</string>
+ </resources>
+diff --git a/res/xml/location_settings.xml b/res/xml/location_settings.xml
+index 22079bfce8..45fafa7884 100644
+--- a/res/xml/location_settings.xml
++++ b/res/xml/location_settings.xml
+@@ -20,6 +20,11 @@
+         android:title="@string/location_settings_title"
+         settings:keywords="@string/keywords_location">
+ 
++        <SwitchPreference
++            android:key="location_battery_saving_mode"
++            android:title="@string/location_mode_battery_saving_title"
++            android:summary="@string/location_mode_battery_saving_summary" />
++
+         <PreferenceCategory
+             android:key="recent_location_requests"
+             android:title="@string/location_category_recent_location_requests"/>
+diff --git a/src/com/android/settings/location/LocationModePreferenceController.java b/src/com/android/settings/location/LocationModePreferenceController.java
+new file mode 100644
+index 0000000000..e3b5105709
+--- /dev/null
++++ b/src/com/android/settings/location/LocationModePreferenceController.java
+@@ -0,0 +1,84 @@
++/*
++ * Copyright (C) 2019 The LineageOS Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++package com.android.settings.location;
++
++import android.content.Context;
++import android.provider.Settings;
++import android.support.v7.preference.Preference;
++import android.support.v7.preference.PreferenceScreen;
++import android.support.v7.preference.TwoStatePreference;
++
++import com.android.settings.R;
++import com.android.settings.SettingsActivity;
++import com.android.settingslib.core.lifecycle.Lifecycle;
++
++public class LocationModePreferenceController extends LocationBasePreferenceController
++        implements Preference.OnPreferenceChangeListener {
++
++    private static final String KEY_LOCATION_MODE = "location_battery_saving_mode";
++
++    private Preference mPreference;
++    private boolean mAvailable;
++    private int mLocationMode = Settings.Secure.LOCATION_MODE_HIGH_ACCURACY;
++
++    public LocationModePreferenceController(Context context, Lifecycle lifecycle) {
++        super(context, lifecycle);
++        mAvailable = context.getResources().getBoolean(R.bool.config_location_mode_available);
++    }
++
++    @Override
++    public String getPreferenceKey() {
++        return KEY_LOCATION_MODE;
++    }
++
++    @Override
++    public boolean isAvailable() {
++        return mAvailable;
++    }
++
++    @Override
++    public void updateState(Preference preference) {
++        ((TwoStatePreference) preference).setChecked(
++                mLocationMode == Settings.Secure.LOCATION_MODE_BATTERY_SAVING);
++
++        // Restricted user can't change the location mode, so disable the master switch. But in some
++        // corner cases, the location might still be enabled. In such case the master switch should
++        // be disabled but checked.
++        preference.setEnabled(mLocationEnabler.isEnabled(mLocationMode));
++    }
++
++    @Override
++    public void displayPreference(PreferenceScreen screen) {
++        super.displayPreference(screen);
++        mPreference = screen.findPreference(getPreferenceKey());
++    }
++
++    @Override
++    public void onLocationModeChanged(int mode, boolean restricted) {
++        mLocationMode = mode;
++        updateState(mPreference);
++    }
++
++    @Override
++    public boolean onPreferenceChange(Preference preference, Object newValue) {
++        mLocationEnabler.setLocationMode(
++                (Boolean) newValue ? Settings.Secure.LOCATION_MODE_BATTERY_SAVING :
++                Settings.Secure.LOCATION_MODE_HIGH_ACCURACY);
++        return true;
++    }
++
++}
+diff --git a/src/com/android/settings/location/LocationSettings.java b/src/com/android/settings/location/LocationSettings.java
+index 13ba8f5eb0..a0d6f41c8d 100644
+--- a/src/com/android/settings/location/LocationSettings.java
++++ b/src/com/android/settings/location/LocationSettings.java
+@@ -116,6 +116,7 @@ public class LocationSettings extends DashboardFragment {
+     private static List<AbstractPreferenceController> buildPreferenceControllers(
+             Context context, LocationSettings fragment, Lifecycle lifecycle) {
+         final List<AbstractPreferenceController> controllers = new ArrayList<>();
++        controllers.add(new LocationModePreferenceController(context, lifecycle));
+         controllers.add(new AppLocationPermissionPreferenceController(context));
+         controllers.add(new LocationForWorkPreferenceController(context, lifecycle));
+         controllers.add(
+-- 
+2.17.1
+

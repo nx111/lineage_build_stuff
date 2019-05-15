@@ -1302,7 +1302,6 @@ kpick 241858 # msm8974-common: Build Samsung LiveDisplay service
 # bionic
 
 # bootable/recovery
-kpick 244763 # recovery: Blank screen on init
 kpick 245305 # OMGRainbows
 kpick 247476 # recovery: wipe bootloader message from index 0 when using custom offsets
 
@@ -1363,9 +1362,6 @@ kpick 244574 # audioflinger: Fix audio for WifiDisplay
 
 # frameworks/base
 kpick 224513 # SystemUI: Disable config_keyguardUserSwitcher on sw600dp
-kpick 229307 # Add CHANNEL_MODE_DUAL_CHANNEL constant
-kpick 229308 # Add Dual Channel into Bluetooth Audio Channel Mode developer options menu
-kpick 229309 # Allow SBC as HD audio codec in Bluetooth device configuration
 kpick 231823 # Do not move the multi-window divider when showing IME
 kpick 231824 # Fix StatusBar icons tinting when in split screen
 kpick 231827 # Add display shrink mode
@@ -1465,13 +1461,10 @@ kpick 239597 # samsung: Add dummy lineagehw HIDL interfaces for vendor.lineage.l
 kpick 239598 # hidl: livedisplay: Add binderized service implementation
 
 # lineage-sdk
-kpick 241779 # sdk: Change night/day mode transition behavior
 kpick 242398 # Trust: Onboarding: Listen for locale changes
 kpick 247885 # Add 3 finger swipe screenshot [2/3]
 
 # packages/apps/Bluetooth
-kpick 229310 # SBC Dual Channel (SBC HD Audio) support
-kpick 229311 # Assume optional codecs are supported if were supported previously
 #kpick 245614 # Add sendNvCustomCommandNative to fix licensed builds
 
 # packages/apps/Camera2
@@ -1481,12 +1474,14 @@ kpick 245234 # Camera2: also check for and request WRITE_EXTERNAL_STORAGE permis
 # packages/apps/Dialer
 kpick 240770 # Proper supplementary service notification handling (5/5).
 
+# packages/apps/Eleven
+kpick 247541 # fix creating new playlist from "add to playlist"
+
 # packages/apps/Settings
 kpick 235978 # Settings: Add switch for linked ring and media notification volumes
 kpick 236184 # Settings: Use correct icon for ring volume
 kpick 233634 # Phone ringtone setting for Multi SIM device
 kpick 227120 # Settings: Check interfaces before enabling ADB over network
-kpick 229312 # Add Dual Channel into Bluetooth Audio Channel Mode developer options menu
 kpick 231826 # Update the white list of Data saver
 kpick 232793 # Settings: per-app VPN data restriction
 kpick 237183 # settings: hide appendix of app list for power usage.
@@ -1509,7 +1504,6 @@ kpick 239289 # Updater: put identical code to helper method
 kpick 244176 # Updater: transfer releated to configuration code to onResume to prorerly init time format (12/24)
 
 # packages/overlays/Lineage
-kpick 247243 # overlays/lineage: Remove colorControlNormal from black theme
 
 # packages/services/Telecomm
 kpick 233635 # Phone ringtone setting for Multi SIM device
@@ -1522,8 +1516,6 @@ kpick 243706 # Allow to disable the new scan API for manual network search.
 # packages/wallpapers/LivePicker
 
 # system/bt
-kpick 239040 # Increase maximum Bluetooth SBC codec bitrate for SBC HD
-kpick 229313 # Explicit SBC Dual Channel (SBC HD) support
 kpick 229314 # Allow using alternative (higher) SBC HD bitrates with a property
 
 # system/core

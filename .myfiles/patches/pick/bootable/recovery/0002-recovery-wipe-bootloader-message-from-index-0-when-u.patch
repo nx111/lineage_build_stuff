@@ -1,0 +1,46 @@
+From 9f19e6debbcecbd4a91f8e032d83e5955b2c69eb Mon Sep 17 00:00:00 2001
+From: Alessandro Astone <ales.astone@gmail.com>
+Date: Sat, 4 May 2019 20:06:48 +0200
+Subject: [PATCH 2/2] recovery: wipe bootloader message from index 0 when using
+ custom offsets
+
+ * We may use a custom offset to:
+   a) preserve data that oem wrote to the first bytes of misc
+   b) skip recovery flags written by the bootloader (e.g. --wipe_data)
+
+   For case a) one should set the offset 'x' to be at least greater than
+   the size of bootloader_message struct (2048 bytes). If this is the case,
+   then we zero out bytes x ~ x + 2047
+
+   For case b) one should set the offset to be strictly smaller than
+   the size of bootloader_message struct. If this is the case, then we
+   zero out bytes 0 ~ 2047.
+   This allows to clear any additional flag set by the bootloader,
+   that would otherwise be forgotten in misc.
+   This also guarantees that we do not involountarily wipe any data that
+   the oem may have written starting at byte 2048 (coff coff LG)
+
+Change-Id: I2d4e0702a2d8cbbef6274a87ce9499b0f69310dd
+---
+ bootloader_message/bootloader_message.cpp | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/bootloader_message/bootloader_message.cpp b/bootloader_message/bootloader_message.cpp
+index 7ebd86a5..1dd37ac1 100644
+--- a/bootloader_message/bootloader_message.cpp
++++ b/bootloader_message/bootloader_message.cpp
+@@ -164,6 +164,11 @@ bool write_bootloader_message(const bootloader_message& boot, std::string* err)
+ 
+ bool clear_bootloader_message(std::string* err) {
+   bootloader_message boot = {};
++  if (BOOTLOADER_MESSAGE_OFFSET_IN_MISC < sizeof(bootloader_message)) {
++    std::string misc_blk_device = get_misc_blk_device(err);
++    if (misc_blk_device.empty()) return false;
++    return write_misc_partition(&boot, sizeof(boot), misc_blk_device, 0 /* offset */, err);
++  }
+   return write_bootloader_message(boot, err);
+ }
+ 
+-- 
+2.17.1
+
