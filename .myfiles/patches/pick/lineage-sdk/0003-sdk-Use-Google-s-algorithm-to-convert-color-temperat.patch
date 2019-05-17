@@ -1,0 +1,71 @@
+From c42ca4e6e2dc17a569d810405f28126747974f23 Mon Sep 17 00:00:00 2001
+From: Paul Keith <javelinanddart@gmail.com>
+Date: Thu, 16 May 2019 04:37:53 +0200
+Subject: [PATCH 3/4] sdk: Use Google's algorithm to convert color temperature
+ to RGB
+
+* Google's works better than ours does
+
+Change-Id: I2bf34af6b2285bcde10ef3113e80ca7608a571bb
+---
+ sdk/src/java/lineageos/util/ColorUtils.java | 28 +++++++++++++++------
+ 1 file changed, 21 insertions(+), 7 deletions(-)
+
+diff --git a/sdk/src/java/lineageos/util/ColorUtils.java b/sdk/src/java/lineageos/util/ColorUtils.java
+index c3cec3c8..606e79e2 100644
+--- a/sdk/src/java/lineageos/util/ColorUtils.java
++++ b/sdk/src/java/lineageos/util/ColorUtils.java
+@@ -15,6 +15,8 @@
+  */
+ package lineageos.util;
+ 
++import android.app.ActivityThread;
++
+ import android.graphics.Bitmap;
+ import android.graphics.Canvas;
+ import android.graphics.Color;
+@@ -38,6 +40,18 @@ public class ColorUtils {
+         Color.BLUE, Color.MAGENTA, Color.WHITE, Color.BLACK
+     };
+ 
++    private static float[] COEFFICIENTS = new float[9];
++
++    static {
++        String[] coefficients = ActivityThread.currentApplication().getApplicationContext()
++                .getResources().getStringArray(
++                com.android.internal.R.array.config_nightDisplayColorTemperatureCoefficients);
++        for (int i = 0; i < 9 && i < coefficients.length; i++) {
++            COEFFICIENTS[i] = Float.valueOf(coefficients[i]);
++        }
++    }
++
++
+     /**
+      * Drop the alpha component from an RGBA packed int and return
+      * a non sign-extended RGB int.
+@@ -317,15 +331,15 @@ public class ColorUtils {
+      * @return array of floats representing rgb values 0->1
+      */
+     public static float[] temperatureToRGB(int degreesK) {
+-        int k = MathUtils.constrain(degreesK, 1000, 20000);
+-        float a = (k % 100) / 100.0f;
+-        int i = ((k - 1000)/ 100) * 3;
++        float[] rgb = new float[3];
+ 
+-        return new float[] { interp(i, a), interp(i+1, a), interp(i+2, a) };
+-    }
++        final float square = degreesK * degreesK;
++        for (int i = 0; i < rgb.length; i++) {
++            rgb[i] = square * COEFFICIENTS[i * 3]
++                    + degreesK * COEFFICIENTS[i * 3 + 1] + COEFFICIENTS[i * 3 + 2];
++        }
+ 
+-    private static float interp(int i, float a) {
+-        return MathUtils.lerp((float)sColorTable[i], (float)sColorTable[i+3], a);
++        return rgb;
+     }
+ 
+     /**
+-- 
+2.17.1
+

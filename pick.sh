@@ -1309,6 +1309,7 @@ kpick 247476 # recovery: wipe bootloader message from index 0 when using custom 
 kpick 222742 # build: Use project pathmap for recovery
 kpick 222760 # Add LOCAL_AIDL_FLAGS
 kpick 247066 # build: Allow mounting system properly for A-only system-as-root devices
+kpick 248466 # make: Make recoveryimage depend on BOARD_PREBUILT_DTBOIMAGE on non-A/B
 
 # build/soong
 kpick 222648 # Allow providing flex and bison binaries
@@ -1397,6 +1398,7 @@ kpick 244295 # base: Redo expanded volume panel for 9.x
 kpick 244318 # KeyguardHostView: Auto face unlock v2
 kpick 246850 # SystemUI: Enable and fix QS detail view, adapt layout to Pie
 kpick 247886 # Add 3 finger swipe screenshot [1/3]
+kpick 248460 # Keyguard: Don't listen fingerprint when prox.sensor is covered (1/2)
 
 # frameworks/native
 kpick 224530 # Triple the available egl function pointers available to a process for certain Nvidia devices.
@@ -1469,6 +1471,8 @@ kpick 239598 # hidl: livedisplay: Add binderized service implementation
 # lineage-sdk
 kpick 242398 # Trust: Onboarding: Listen for locale changes
 kpick 247885 # Add 3 finger swipe screenshot [2/3]
+kpick 248441 # sdk: Use Google's algorithm to convert color temperature to RGB
+kpick 248461 # Keyguard: Don't listen fingerprint when prox.sensor is covered (2/2)
 
 # packages/apps/Bluetooth
 #kpick 245614 # Add sendNvCustomCommandNative to fix licensed builds
@@ -1496,6 +1500,7 @@ kpick 241758 # Settings: Show root options when certain third party root is pres
 kpick 244319 # Add toggle for face auto unlock (2/2)
 kpick 244843 # Settings: Add battery saving mode for location
 kpick 247884 # Add 3 finger swipe screenshot [3/3]
+kpick 248442 # BasebandVersionDialogController: Trim duplicated baseband if needed
 
 # packages/apps/Snap
 kpick 242496 # Snap: Fix bad grammar "Long shot not support<ed>"
