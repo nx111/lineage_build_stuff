@@ -1341,7 +1341,7 @@ kpick 227260 # Update bt vendor callbacks array in vfs code
 kpick 227261 # Cast BT_VND_OP_ANT_USERIAL_{OPEN,CLOSE} to bt_vendor_opcode_t in vfs code
 
 # external/chromium-webview
-kpick 245252 # Update Chromium Webview to 74.0.3729.136
+kpick 245252 # Update Chromium Webview to 74.0.3729.157
 
 # external/libpng
 kpick 248359 # Call png_image_free_function without guarding it with png_safe_execute
@@ -1399,6 +1399,8 @@ kpick 244318 # KeyguardHostView: Auto face unlock v2
 kpick 246850 # SystemUI: Enable and fix QS detail view, adapt layout to Pie
 kpick 247886 # Add 3 finger swipe screenshot [1/3]
 kpick 248460 # Keyguard: Don't listen fingerprint when prox.sensor is covered (1/2)
+kpick 248558 # Add special roaming case for EU operators [1/3]
+kpick 248561 # Add hall support for QTI lid sensors
 
 # frameworks/native
 kpick 224530 # Triple the available egl function pointers available to a process for certain Nvidia devices.
@@ -1410,6 +1412,7 @@ kpick 243571 # touch response optimizations
 # frameworks/opt/telephony
 kpick 240767 # Proper supplementary service notification handling (2/5).
 kpick 244260 # Improve UiccSlot#promptForRestart dialog
+kpick 248559 # Add special roaming case for EU operators [2/3]
 
 # hardware/broadcom/libbt
 kpick 225155 # Broadcom BT: Add support fm/bt via v4l2.
@@ -1486,6 +1489,7 @@ kpick 240770 # Proper supplementary service notification handling (5/5).
 
 # packages/apps/Eleven
 kpick 247541 # fix creating new playlist from "add to playlist"
+kpick 248475 # Pause music on bluetooth audio device disconnect
 
 # packages/apps/Settings
 kpick 235978 # Settings: Add switch for linked ring and media notification volumes
@@ -1523,6 +1527,7 @@ kpick 240768 # Proper supplementary service notification handling (3/5)
 # packages/services/Telephony
 kpick 240769 # Proper supplementary service notification handling (4/5).
 kpick 243706 # Allow to disable the new scan API for manual network search.
+kpick 248560 # Add special roaming case for EU operators [3/3]
 
 # packages/wallpapers/LivePicker
 
@@ -1572,6 +1577,8 @@ kpick 244672 # common: Add getcap/setcap to PRODUCT_PACKAGES
 kpick 245278 # extract_utils: Add functions to extract vendor blobs from vendor.img
 kpick 245279 # kernel: Allow devices to specify kernel toolchain root
 kpick 245280 # gms: Include turbo on arm64 targets
+kpick 248465 # lineage: Rework DTBO image generation
+kpick 248512 # qcom: Add UM 4.14 platforms
 
 # vendor/qcom/opensource/audio
 kpick 247915 # policy_hal: do not check MODE_IN_COMMUNICATION for voip_rx flag

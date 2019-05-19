@@ -1,0 +1,138 @@
+From 14b412ef5d7ede25ea2b9e8469647565cb3a5b3a Mon Sep 17 00:00:00 2001
+From: blunden <blunden2@gmail.com>
+Date: Sat, 18 May 2019 17:45:40 +0200
+Subject: [PATCH 3/4] Add special roaming case for EU operators [3/3]
+
+As of 15 June 2017, mobile operators should no longer apply
+surcharges to customers travelling within the EU [1]. Add an
+extra roaming state to take into account this special case, which
+is subject to certain limitations and can't be considered equal
+to the "not roaming" case.
+
+[1] http://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:32016R2286
+
+Change-Id: I00f672aae1f7dc980a85df130e942784f0702a3a
+---
+ res/values/cm_strings.xml                     | 21 +++++++++++++++++++
+ res/xml/network_setting_fragment.xml          |  6 ++++++
+ .../android/phone/MobileNetworkSettings.java  | 17 +++++++++++++++
+ 3 files changed, 44 insertions(+)
+ create mode 100644 res/values/cm_strings.xml
+
+diff --git a/res/values/cm_strings.xml b/res/values/cm_strings.xml
+new file mode 100644
+index 000000000..ece979fe0
+--- /dev/null
++++ b/res/values/cm_strings.xml
+@@ -0,0 +1,21 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<!--
++     Copyright (C) 2019 The LineageOS Project
++
++     Licensed under the Apache License, Version 2.0 (the "License");
++     you may not use this file except in compliance with the License.
++     You may obtain a copy of the License at
++
++          http://www.apache.org/licenses/LICENSE-2.0
++
++     Unless required by applicable law or agreed to in writing, software
++     distributed under the License is distributed on an "AS IS" BASIS,
++     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++     See the License for the specific language governing permissions and
++     limitations under the License.
++-->
++<resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
++    <!-- EU Roaming -->
++    <string name="eu_roaming_title">EU Roaming</string>
++    <string name="eu_roaming_summary">Connect to data services when roaming within the EU</string>
++</resources>
+diff --git a/res/xml/network_setting_fragment.xml b/res/xml/network_setting_fragment.xml
+index d33486192..8787a6f88 100644
+--- a/res/xml/network_setting_fragment.xml
++++ b/res/xml/network_setting_fragment.xml
+@@ -32,6 +32,12 @@
+         android:summaryOn="@string/roaming_enable"
+         android:summaryOff="@string/roaming_disable"/>
+ 
++    <SwitchPreference
++        android:key="button_eu_roaming_key"
++        android:title="@string/eu_roaming_title"
++        android:persistent="false"
++        android:summary="@string/eu_roaming_summary"/>
++
+     <com.android.phone.DataUsagePreference
+         android:key="data_usage_summary"
+         android:title="@string/data_usage_title" />
+diff --git a/src/com/android/phone/MobileNetworkSettings.java b/src/com/android/phone/MobileNetworkSettings.java
+index f128f9a98..f69b662af 100644
+--- a/src/com/android/phone/MobileNetworkSettings.java
++++ b/src/com/android/phone/MobileNetworkSettings.java
+@@ -256,6 +256,7 @@ public class MobileNetworkSettings extends Activity  {
+         //String keys for preference lookup
+         private static final String BUTTON_PREFERED_NETWORK_MODE = "preferred_network_mode_key";
+         private static final String BUTTON_ROAMING_KEY = "button_roaming_key";
++        private static final String BUTTON_EU_ROAMING_KEY = "button_eu_roaming_key";
+         private static final String BUTTON_CDMA_LTE_DATA_SERVICE_KEY = "cdma_lte_data_service_key";
+         private static final String BUTTON_ENABLED_NETWORKS_KEY = "enabled_networks_key";
+         private static final String BUTTON_4G_LTE_KEY = "enhanced_4g_lte";
+@@ -299,6 +300,7 @@ public class MobileNetworkSettings extends Activity  {
+         private ListPreference mButtonPreferredNetworkMode;
+         private ListPreference mButtonEnabledNetworks;
+         private RestrictedSwitchPreference mButtonDataRoam;
++        private SwitchPreference mButtonEuRoam;
+         private SwitchPreference mButton4glte;
+         private Preference mLteDataServicePref;
+         private Preference mEuiccSettingsPref;
+@@ -502,6 +504,9 @@ public class MobileNetworkSettings extends Activity  {
+             } else if (preference == mButtonDataRoam) {
+                 // Do not disable the preference screen if the user clicks Data roaming.
+                 return true;
++            } else if (preference == mButtonEuRoam) {
++                // Do not disable the preference screen if the user clicks EU roaming
++                return true;
+             } else if (preference == mEuiccSettingsPref) {
+                 Intent intent = new Intent(EuiccManager.ACTION_MANAGE_EMBEDDED_SUBSCRIPTIONS);
+                 startActivity(intent);
+@@ -772,6 +777,8 @@ public class MobileNetworkSettings extends Activity  {
+ 
+             mButtonDataRoam = (RestrictedSwitchPreference) prefSet.findPreference(
+                     BUTTON_ROAMING_KEY);
++            mButtonEuRoam = (SwitchPreference) prefSet.findPreference(BUTTON_EU_ROAMING_KEY);
++            mButtonEuRoam.setOnPreferenceChangeListener(this);
+             mButtonPreferredNetworkMode = (ListPreference) prefSet.findPreference(
+                     BUTTON_PREFERED_NETWORK_MODE);
+             mButtonEnabledNetworks = (ListPreference) prefSet.findPreference(
+@@ -908,6 +915,7 @@ public class MobileNetworkSettings extends Activity  {
+ 
+             prefSet.addPreference(mMobileDataPref);
+             prefSet.addPreference(mButtonDataRoam);
++            prefSet.addPreference(mButtonEuRoam);
+             prefSet.addPreference(mDataUsagePref);
+ 
+             // Customized preferences needs to be initialized with subId.
+@@ -930,6 +938,11 @@ public class MobileNetworkSettings extends Activity  {
+                             UserManager.DISALLOW_DATA_ROAMING);
+                 }
+             }
++
++            mButtonEuRoam.setEnabled(mButtonDataRoam.isEnabled() && !mButtonDataRoam.isChecked());
++            boolean euRoamingEnabled = android.provider.Settings.Global.getInt(mPhone.getContext()
++                        .getContentResolver(), android.provider.Settings.Global.EU_ROAMING, 0) != 0;
++            mButtonEuRoam.setChecked(euRoamingEnabled);
+         }
+ 
+         private void updateBody() {
+@@ -1389,6 +1402,10 @@ public class MobileNetworkSettings extends Activity  {
+                             false);
+                     return true;
+                 }
++            } else if (preference == mButtonEuRoam) {
++                android.provider.Settings.Global.putInt(mPhone.getContext().getContentResolver(),
++                        android.provider.Settings.Global.EU_ROAMING,
++                        (Boolean) objValue ? 1 : 0);
+             } else if (preference == mVideoCallingPref) {
+                 // If mButton4glte is not checked, mVideoCallingPref should be disabled.
+                 // So it only makes sense to call phoneMgr.enableVideoCalling if it's checked.
+-- 
+2.17.1
+
