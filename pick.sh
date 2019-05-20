@@ -1401,6 +1401,8 @@ kpick 247886 # Add 3 finger swipe screenshot [1/3]
 kpick 248460 # Keyguard: Don't listen fingerprint when prox.sensor is covered (1/2)
 kpick 248558 # Add special roaming case for EU operators [1/3]
 kpick 248561 # Add hall support for QTI lid sensors
+kpick 248654 # Fixed auto-brightness first screen update.
+kpick 247053 # SystemUI: Fix several layout bugs
 
 # frameworks/native
 kpick 224530 # Triple the available egl function pointers available to a process for certain Nvidia devices.
@@ -1528,6 +1530,9 @@ kpick 240768 # Proper supplementary service notification handling (3/5)
 kpick 240769 # Proper supplementary service notification handling (4/5).
 kpick 243706 # Allow to disable the new scan API for manual network search.
 kpick 248560 # Add special roaming case for EU operators [3/3]
+kpick 248651 # Fix the drawable resource can't be loaded from RRO package
+kpick 248652 # Change action bar icon and text color from white to grey
+kpick 248653 # Add missing null check on start of SipIncomingCallReceiver received.
 
 # packages/wallpapers/LivePicker
 
