@@ -1044,8 +1044,10 @@ function kpick_action()
                 target_script=$script_file.new
            fi
 
-
            if [ "$target_script" != "" -a -f "$target_script" \
+                   -a "${BASH_SOURCE[0]}" = "$runfrom" -a "$start_check_classification" != "1" ]; then
+               sed "s/\(^[[:space:]]*kpick[^#]\{1,\}${changeNumber}\)\([[:space:]]\{1,\}.*\|$\)/\1 \# ${subject}/" -i $target_script
+           elif [ "$target_script" != "" -a -f "$target_script" \
                    -a "${BASH_SOURCE[0]}" = "$runfrom" -a "$start_check_classification" = "1" ]; then
                [ -f $tmp_picks_info_file ] || touch $tmp_picks_info_file
                if ! grep -q "^[[:space:]]*$project[[:space:]]\{1,\}" $tmp_picks_info_file; then
@@ -1246,8 +1248,8 @@ if [ "${BASH_SOURCE[0]}" = "$runfrom" -a ! -f ${BASH_SOURCE[0]}.tmp -a $op_pick_
     [ $op_keep_manifests -ne 1 ] && reset_project_dir .repo/manifests
 
     #=========== pick changes ==========================
-    kpick 248358
-
+    kpick 248358 # manifest: Track our own libpng
+    kpick 248665 # Sync a newer revision of hardware/google/pixel
     #===================================================
 
     patch_local local/android
@@ -1402,6 +1404,7 @@ kpick 248460 # Keyguard: Don't listen fingerprint when prox.sensor is covered (1
 kpick 248558 # Add special roaming case for EU operators [1/3]
 kpick 248561 # Add hall support for QTI lid sensors
 kpick 248654 # Fixed auto-brightness first screen update.
+kpick 248662 # Fix bugs regarding system app cannot write visible path
 kpick 247053 # SystemUI: Fix several layout bugs
 
 # frameworks/native
@@ -1512,9 +1515,14 @@ kpick 248442 # BasebandVersionDialogController: Trim duplicated baseband if need
 kpick 242496 # Snap: Fix bad grammar "Long shot not support<ed>"
 kpick 243071 # Snap: allow to disable image stabilization per device
 kpick 247120 # Snap: add basic support for setting lens shading mode
+kpick 248663 # Snap: Save SDCard photos to legacy path
+kpick 248664 # Save images properly
 
 # packages/apps/Trebuchet
 kpick 246890 # Trebuchet: use new wallpaper app
+
+# packages/apps/UnifiedEmail
+kpick 248661 # Fix notification timestamp behavior.
 
 # packages/apps/Updater
 kpick 239289 # Updater: put identical code to helper method
