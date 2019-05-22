@@ -1248,7 +1248,6 @@ if [ "${BASH_SOURCE[0]}" = "$runfrom" -a ! -f ${BASH_SOURCE[0]}.tmp -a $op_pick_
     [ $op_keep_manifests -ne 1 ] && reset_project_dir .repo/manifests
 
     #=========== pick changes ==========================
-    kpick 248358 # manifest: Track our own libpng
     kpick 248665 # Sync a newer revision of hardware/google/pixel
     #===================================================
 
@@ -1346,7 +1345,6 @@ kpick 227261 # Cast BT_VND_OP_ANT_USERIAL_{OPEN,CLOSE} to bt_vendor_opcode_t in 
 kpick 245252 # Update Chromium Webview to 74.0.3729.157
 
 # external/libpng
-kpick 248359 # Call png_image_free_function without guarding it with png_safe_execute
 
 # external/perfetto
 kpick 223413 -f # perfetto_cmd: Resolve missing O_CREAT mode
@@ -1496,6 +1494,9 @@ kpick 240770 # Proper supplementary service notification handling (5/5).
 kpick 247541 # fix creating new playlist from "add to playlist"
 kpick 248475 # Pause music on bluetooth audio device disconnect
 
+#packages/apps/Nfc
+kpick 232697 # NFCService: Add sysprop to prevent FW download during boot with NFC off.
+
 # packages/apps/Settings
 kpick 235978 # Settings: Add switch for linked ring and media notification volumes
 kpick 236184 # Settings: Use correct icon for ring volume
@@ -1593,6 +1594,8 @@ kpick 245279 # kernel: Allow devices to specify kernel toolchain root
 kpick 245280 # gms: Include turbo on arm64 targets
 kpick 248465 # lineage: Rework DTBO image generation
 kpick 248512 # qcom: Add UM 4.14 platforms
+kpick 248706 # fix /data/ssh/empty file permissions
+kpick 248707 # build: tasks: kernel: Add support for MediaTek dtbo images
 
 # vendor/qcom/opensource/audio
 kpick 247915 # policy_hal: do not check MODE_IN_COMMUNICATION for voip_rx flag
