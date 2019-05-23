@@ -1248,7 +1248,6 @@ if [ "${BASH_SOURCE[0]}" = "$runfrom" -a ! -f ${BASH_SOURCE[0]}.tmp -a $op_pick_
     [ $op_keep_manifests -ne 1 ] && reset_project_dir .repo/manifests
 
     #=========== pick changes ==========================
-    kpick 248665 # Sync a newer revision of hardware/google/pixel
     #===================================================
 
     patch_local local/android
@@ -1397,13 +1396,14 @@ kpick 243572 # add VSYNC scheduled flag and avoid two doFrame calls in one perio
 kpick 244295 # base: Redo expanded volume panel for 9.x
 kpick 244318 # KeyguardHostView: Auto face unlock v2
 kpick 246850 # SystemUI: Enable and fix QS detail view, adapt layout to Pie
+kpick 247053 # SystemUI: Fix several layout bugs
 kpick 247886 # Add 3 finger swipe screenshot [1/3]
 kpick 248460 # Keyguard: Don't listen fingerprint when prox.sensor is covered (1/2)
 kpick 248558 # Add special roaming case for EU operators [1/3]
 kpick 248561 # Add hall support for QTI lid sensors
 kpick 248654 # Fixed auto-brightness first screen update.
 kpick 248662 # Fix bugs regarding system app cannot write visible path
-kpick 247053 # SystemUI: Fix several layout bugs
+kpick 248784 # Revert "NightDisplayController: report unavailable if livedisplay feature is present"
 
 # frameworks/native
 kpick 224530 # Triple the available egl function pointers available to a process for certain Nvidia devices.
@@ -1494,6 +1494,11 @@ kpick 240770 # Proper supplementary service notification handling (5/5).
 kpick 247541 # fix creating new playlist from "add to playlist"
 kpick 248475 # Pause music on bluetooth audio device disconnect
 
+# packages/apps/LineParts
+# packages/apps/LineageParts
+kpick 248782 # livedisplay: Don't show display mode and color tempertature on HWC2
+
+
 #packages/apps/Nfc
 kpick 232697 # NFCService: Add sysprop to prevent FW download during boot with NFC off.
 
@@ -1511,6 +1516,7 @@ kpick 244319 # Add toggle for face auto unlock (2/2)
 kpick 244843 # Settings: Add battery saving mode for location
 kpick 247884 # Add 3 finger swipe screenshot [3/3]
 kpick 248442 # BasebandVersionDialogController: Trim duplicated baseband if needed
+kpick 248783 # Revert "Settings: Hide Night Mode suggestion if LiveDisplay feature is present"
 
 # packages/apps/Snap
 kpick 242496 # Snap: Fix bad grammar "Long shot not support<ed>"
