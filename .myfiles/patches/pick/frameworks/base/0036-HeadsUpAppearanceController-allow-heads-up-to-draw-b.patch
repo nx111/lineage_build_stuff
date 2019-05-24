@@ -1,0 +1,88 @@
+From 7242d78037782914a2f22d172ddb7f29accfa580 Mon Sep 17 00:00:00 2001
+From: Peter Cai <peter@typeblog.net>
+Date: Wed, 22 May 2019 13:01:01 +0800
+Subject: [PATCH 36/44] HeadsUpAppearanceController: allow heads-up to draw
+ beyond bounds
+
+On some devices with huge `rounded_corner_content_padding`, the icon of
+heads-up notifications will be clipped or even completely removed from
+view. This is caused by `HeadsUpStatusBarView` trying to align the
+heads-up icon with where the icon would be on a normal notification
+card, which would end up outside of the status bar contents view when
+`rounded_corner_content_padding` is set to beyond a certain value.
+
+This patch fixes the problem by allowing heads-up content to overflow
+the normal status bar content region when it is shown. As long as the
+rounded corner is not too huge, the aligning position of the icon should
+not be a problem of its own.
+
+The patch has already been sumitted to AOSP and cherry-picked into
+Android Q. See
+https://android-review.googlesource.com/c/platform/frameworks/base/+/967972
+for a conversation at AOSP (the patch set isn't marked as merged because
+it was cherry-picked manually into the otherwise frozen Android Q branch)
+
+Change-Id: I813f8ffc3c3bf19a7b83881f60ac5a5dd912afc0
+---
+ .../phone/HeadsUpAppearanceController.java    | 19 ++++++++++++++++++-
+ 1 file changed, 18 insertions(+), 1 deletion(-)
+
+diff --git a/packages/SystemUI/src/com/android/systemui/statusbar/phone/HeadsUpAppearanceController.java b/packages/SystemUI/src/com/android/systemui/statusbar/phone/HeadsUpAppearanceController.java
+index 727834db2ef..f92cdd6debc 100644
+--- a/packages/SystemUI/src/com/android/systemui/statusbar/phone/HeadsUpAppearanceController.java
++++ b/packages/SystemUI/src/com/android/systemui/statusbar/phone/HeadsUpAppearanceController.java
+@@ -23,6 +23,7 @@ import android.view.View;
+ import android.view.WindowInsets;
+ 
+ import com.android.internal.annotations.VisibleForTesting;
++import com.android.internal.widget.ViewClippingUtil;
+ import com.android.systemui.Dependency;
+ import com.android.systemui.R;
+ import com.android.systemui.statusbar.CrossFadeHelper;
+@@ -65,6 +66,13 @@ public class HeadsUpAppearanceController implements OnHeadsUpChangedListener,
+     private final View.OnLayoutChangeListener mStackScrollLayoutChangeListener =
+             (v, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom)
+                     -> updatePanelTranslation();
++    private final ViewClippingUtil.ClippingParameters mParentClippingParams =
++            new ViewClippingUtil.ClippingParameters() {
++                @Override
++                public boolean shouldFinish(View view) {
++                    return view.getId() == R.id.status_bar;
++                }
++            };
+     Point mPoint;
+ 
+     public HeadsUpAppearanceController(
+@@ -232,6 +240,7 @@ public class HeadsUpAppearanceController implements OnHeadsUpChangedListener,
+             mShown = isShown;
+             if (isShown) {
+                 mHeadsUpStatusBarView.setVisibility(View.VISIBLE);
++                updateParentClipping(false /* shouldClip */);
+                 CrossFadeHelper.fadeIn(mHeadsUpStatusBarView, CONTENT_FADE_DURATION /* duration */,
+                         CONTENT_FADE_DELAY /* delay */);
+                 if (!isRightClock) {
+@@ -244,12 +253,20 @@ public class HeadsUpAppearanceController implements OnHeadsUpChangedListener,
+                             CONTENT_FADE_DELAY /* delay */);
+                 }
+                 CrossFadeHelper.fadeOut(mHeadsUpStatusBarView, CONTENT_FADE_DURATION/* duration */,
+-                        0 /* delay */, () -> mHeadsUpStatusBarView.setVisibility(View.GONE));
++                        0 /* delay */, () -> {
++                            updateParentClipping(true /* shouldClip */);
++                            mHeadsUpStatusBarView.setVisibility(View.GONE);
++                        });
+ 
+             }
+         }
+     }
+ 
++    private void updateParentClipping(boolean shouldClip) {
++        ViewClippingUtil.setClippingDeactivated(
++                mHeadsUpStatusBarView, !shouldClip, mParentClippingParams); 
++    }
++
+     @VisibleForTesting
+     public boolean isShown() {
+         return mShown;
+-- 
+2.17.1
+

@@ -1287,11 +1287,9 @@ start_check_classification=1
 
 # device/samsung/klte-common
 kpick 225192 # klte-common: Align ril.h to samsung_msm8974-common P libril changes
-kpick 242366 # klte-common: Update power profile for Pie
 
 # device/samsung/msm8974-common
 kpick 235457 # msm8974-common: sepolicy: Limit execmod to specifically labeled files
-kpick 241858 # msm8974-common: Build Samsung LiveDisplay service
 
 # kernel/samsung/msm8974
 
@@ -1404,6 +1402,7 @@ kpick 248561 # Add hall support for QTI lid sensors
 kpick 248654 # Fixed auto-brightness first screen update.
 kpick 248662 # Fix bugs regarding system app cannot write visible path
 kpick 248784 # Revert "NightDisplayController: report unavailable if livedisplay feature is present"
+kpick 248801 # HeadsUpAppearanceController: allow heads-up to draw beyond bounds
 
 # frameworks/native
 kpick 224530 # Triple the available egl function pointers available to a process for certain Nvidia devices.
@@ -1471,8 +1470,6 @@ kpick 231898 # Power: Naming convention change
 
 # hardware/samsung
 kpick 231194 # power: properly initialize cluster states
-kpick 239597 # samsung: Add dummy lineagehw HIDL interfaces for vendor.lineage.livedisplay
-kpick 239598 # hidl: livedisplay: Add binderized service implementation
 
 # lineage-sdk
 kpick 242398 # Trust: Onboarding: Listen for locale changes
