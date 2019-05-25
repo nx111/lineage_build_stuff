@@ -1290,6 +1290,7 @@ kpick 225192 # klte-common: Align ril.h to samsung_msm8974-common P libril chang
 
 # device/samsung/msm8974-common
 kpick 235457 # msm8974-common: sepolicy: Limit execmod to specifically labeled files
+kpick 248813 # msm8974-common: Nuke AdvancedDisplay
 
 # kernel/samsung/msm8974
 
@@ -1470,6 +1471,9 @@ kpick 231898 # Power: Naming convention change
 
 # hardware/samsung
 kpick 231194 # power: properly initialize cluster states
+kpick 248226 # samsung: Move all to vendor
+kpick 248833 # hidl: livedisplay: Move .displaymodedefault to /data/vendor/display
+kpick 248834 # hidl: livedisplay: Restore default display mode in DisplayModes constructor
 
 # lineage-sdk
 kpick 242398 # Trust: Onboarding: Listen for locale changes
