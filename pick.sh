@@ -1296,10 +1296,6 @@ kpick 248813 # msm8974-common: Nuke AdvancedDisplay
 
 # ====== OTHERS =======
 
-# art
-
-# bionic
-
 # bootable/recovery
 kpick 245305 # OMGRainbows
 kpick 247476 # recovery: wipe bootloader message from index 0 when using custom offsets
@@ -1400,7 +1396,6 @@ kpick 247886 # Add 3 finger swipe screenshot [1/3]
 kpick 248460 # Keyguard: Don't listen fingerprint when prox.sensor is covered (1/2)
 kpick 248558 # Add special roaming case for EU operators [1/3]
 kpick 248561 # Add hall support for QTI lid sensors
-kpick 248654 # Fixed auto-brightness first screen update.
 kpick 248662 # Fix bugs regarding system app cannot write visible path
 kpick 248784 # Revert "NightDisplayController: report unavailable if livedisplay feature is present"
 kpick 248801 # HeadsUpAppearanceController: allow heads-up to draw beyond bounds
@@ -1472,8 +1467,6 @@ kpick 231898 # Power: Naming convention change
 # hardware/samsung
 kpick 231194 # power: properly initialize cluster states
 kpick 248226 # samsung: Move all to vendor
-kpick 248833 # hidl: livedisplay: Move .displaymodedefault to /data/vendor/display
-kpick 248834 # hidl: livedisplay: Restore default display mode in DisplayModes constructor
 
 # lineage-sdk
 kpick 242398 # Trust: Onboarding: Listen for locale changes
@@ -1495,7 +1488,6 @@ kpick 240770 # Proper supplementary service notification handling (5/5).
 kpick 247541 # fix creating new playlist from "add to playlist"
 kpick 248475 # Pause music on bluetooth audio device disconnect
 
-# packages/apps/LineParts
 # packages/apps/LineageParts
 kpick 248782 # livedisplay: Don't show display mode and color tempertature on HWC2
 
@@ -1546,9 +1538,6 @@ kpick 240768 # Proper supplementary service notification handling (3/5)
 kpick 240769 # Proper supplementary service notification handling (4/5).
 kpick 243706 # Allow to disable the new scan API for manual network search.
 kpick 248560 # Add special roaming case for EU operators [3/3]
-kpick 248651 # Fix the drawable resource can't be loaded from RRO package
-kpick 248652 # Change action bar icon and text color from white to grey
-kpick 248653 # Add missing null check on start of SipIncomingCallReceiver received.
 
 # packages/wallpapers/LivePicker
 
