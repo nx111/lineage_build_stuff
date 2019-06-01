@@ -1,0 +1,71 @@
+From a9dea5b9a570037af8e515acdb9a0db0a715e862 Mon Sep 17 00:00:00 2001
+From: "sangho.yoon" <sangho.yoon@lge.com>
+Date: Wed, 10 Oct 2018 17:48:22 +0900
+Subject: [PATCH 30/40] Fix bugs regarding system app cannot write visible path
+
+1. some system app by OEM can not write file to sdcard through visible
+path("/storage/[UUID]") despite it has WRITE_MEDIA_STORAGE.
+
+2. Google photo can't open and delete file which transferred from PC to
+SDcard by MTP. (http://b/116332048)
+
+Test: Check system app which has sdcard_rw permission writes file to sdcard("/storage/[UUID]").
+
+Change-Id: Id38bd7c4753a38b6c61fff512821becfbcd9215a
+Signed-off-by: Sangho Yoon <sangho.yoon@lge.com>
+---
+ data/etc/platform.xml                                         | 1 +
+ media/java/android/mtp/MtpStorage.java                        | 2 +-
+ .../java/com/android/server/pm/PackageManagerService.java     | 4 ++++
+ 3 files changed, 6 insertions(+), 1 deletion(-)
+
+diff --git a/data/etc/platform.xml b/data/etc/platform.xml
+index ab90e1b702d..5e8a07caca1 100644
+--- a/data/etc/platform.xml
++++ b/data/etc/platform.xml
+@@ -62,6 +62,7 @@
+ 
+     <permission name="android.permission.WRITE_MEDIA_STORAGE" >
+         <group gid="media_rw" />
++        <group gid="sdcard_rw" />
+     </permission>
+ 
+     <permission name="android.permission.ACCESS_MTP" >
+diff --git a/media/java/android/mtp/MtpStorage.java b/media/java/android/mtp/MtpStorage.java
+index 2625e0cc932..62bd6254c4a 100644
+--- a/media/java/android/mtp/MtpStorage.java
++++ b/media/java/android/mtp/MtpStorage.java
+@@ -35,7 +35,7 @@ public class MtpStorage {
+ 
+     public MtpStorage(StorageVolume volume, int storageId) {
+         mStorageId = storageId;
+-        mPath = volume.getInternalPath();
++        mPath = volume.getPath();
+         mDescription = volume.getDescription(null);
+         mRemovable = volume.isRemovable();
+         mMaxFileSize = volume.getMaxFileSize();
+diff --git a/services/core/java/com/android/server/pm/PackageManagerService.java b/services/core/java/com/android/server/pm/PackageManagerService.java
+index 3a48cdf3434..b6a9f587356 100644
+--- a/services/core/java/com/android/server/pm/PackageManagerService.java
++++ b/services/core/java/com/android/server/pm/PackageManagerService.java
+@@ -24,6 +24,7 @@ import static android.Manifest.permission.READ_EXTERNAL_STORAGE;
+ import static android.Manifest.permission.REQUEST_DELETE_PACKAGES;
+ import static android.Manifest.permission.SET_HARMFUL_APP_WARNINGS;
+ import static android.Manifest.permission.WRITE_EXTERNAL_STORAGE;
++import static android.Manifest.permission.WRITE_MEDIA_STORAGE;
+ import static android.content.pm.PackageManager.CERT_INPUT_RAW_X509;
+ import static android.content.pm.PackageManager.CERT_INPUT_SHA256;
+ import static android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_DEFAULT;
+@@ -21359,6 +21360,9 @@ Slog.v(TAG, ":: stepped forward, applying functor at tag " + parser.getName());
+                 if (Process.isIsolated(uid)) {
+                     return Zygote.MOUNT_EXTERNAL_NONE;
+                 }
++                if (checkUidPermission(WRITE_MEDIA_STORAGE, uid) == PERMISSION_GRANTED) {
++                    return Zygote.MOUNT_EXTERNAL_DEFAULT;
++                }
+                 if (checkUidPermission(READ_EXTERNAL_STORAGE, uid) == PERMISSION_DENIED) {
+                     return Zygote.MOUNT_EXTERNAL_DEFAULT;
+                 }
+-- 
+2.17.1
+

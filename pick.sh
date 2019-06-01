@@ -1336,7 +1336,6 @@ kpick 227260 # Update bt vendor callbacks array in vfs code
 kpick 227261 # Cast BT_VND_OP_ANT_USERIAL_{OPEN,CLOSE} to bt_vendor_opcode_t in vfs code
 
 # external/chromium-webview
-kpick 245252 # Update Chromium Webview to 74.0.3729.157
 
 # external/libpng
 
@@ -1388,16 +1387,13 @@ kpick 243568 # Optimize AbsListView to reduce click operation latency
 kpick 243569 # List View: Obtain next list item in advance
 kpick 243570 # Remove the property of touch optimization check.
 kpick 243572 # add VSYNC scheduled flag and avoid two doFrame calls in one period
-kpick 244295 # base: Redo expanded volume panel for 9.x
 kpick 244318 # KeyguardHostView: Auto face unlock v2
-kpick 246850 # SystemUI: Enable and fix QS detail view, adapt layout to Pie
-kpick 247053 # SystemUI: Fix several layout bugs
 kpick 247886 # Add 3 finger swipe screenshot [1/3]
 kpick 248460 # Keyguard: Don't listen fingerprint when prox.sensor is covered (1/2)
 kpick 248558 # Add special roaming case for EU operators [1/3]
 kpick 248561 # Add hall support for QTI lid sensors
 kpick 248662 # Fix bugs regarding system app cannot write visible path
-kpick 248784 # Revert "NightDisplayController: report unavailable if livedisplay feature is present"
+kpick 249169 # Fix overlap between operator name and heads-up notification
 kpick 248801 # HeadsUpAppearanceController: allow heads-up to draw beyond bounds
 
 # frameworks/native
@@ -1474,9 +1470,6 @@ kpick 247885 # Add 3 finger swipe screenshot [2/3]
 kpick 248441 # sdk: Use Google's algorithm to convert color temperature to RGB
 kpick 248461 # Keyguard: Don't listen fingerprint when prox.sensor is covered (2/2)
 
-# packages/apps/Bluetooth
-#kpick 245614 # Add sendNvCustomCommandNative to fix licensed builds
-
 # packages/apps/Camera2
 kpick 224752 # Use mCameraAgentNg for getting camera info when available
 kpick 245234 # Camera2: also check for and request WRITE_EXTERNAL_STORAGE permission
@@ -1485,14 +1478,13 @@ kpick 245234 # Camera2: also check for and request WRITE_EXTERNAL_STORAGE permis
 kpick 240770 # Proper supplementary service notification handling (5/5).
 
 # packages/apps/Eleven
-kpick 247541 # fix creating new playlist from "add to playlist"
 kpick 248475 # Pause music on bluetooth audio device disconnect
 
+
 # packages/apps/LineageParts
-kpick 248782 # livedisplay: Don't show display mode and color tempertature on HWC2
 
 
-#packages/apps/Nfc
+# packages/apps/Nfc
 kpick 232697 # NFCService: Add sysprop to prevent FW download during boot with NFC off.
 
 # packages/apps/Settings
@@ -1506,10 +1498,8 @@ kpick 237183 # settings: hide appendix of app list for power usage.
 kpick 240083 # Settings: Add null checks for OemLockService
 kpick 241758 # Settings: Show root options when certain third party root is present
 kpick 244319 # Add toggle for face auto unlock (2/2)
-kpick 244843 # Settings: Add battery saving mode for location
 kpick 247884 # Add 3 finger swipe screenshot [3/3]
 kpick 248442 # BasebandVersionDialogController: Trim duplicated baseband if needed
-kpick 248783 # Revert "Settings: Hide Night Mode suggestion if LiveDisplay feature is present"
 
 # packages/apps/Snap
 kpick 242496 # Snap: Fix bad grammar "Long shot not support<ed>"
@@ -1518,17 +1508,12 @@ kpick 247120 # Snap: add basic support for setting lens shading mode
 kpick 248663 # Snap: Save SDCard photos to legacy path
 kpick 248664 # Save images properly
 
-# packages/apps/Trebuchet
-kpick 246890 # Trebuchet: use new wallpaper app
-
 # packages/apps/UnifiedEmail
 kpick 248661 # Fix notification timestamp behavior.
 
 # packages/apps/Updater
 kpick 239289 # Updater: put identical code to helper method
 kpick 244176 # Updater: transfer releated to configuration code to onResume to prorerly init time format (12/24)
-
-# packages/overlays/Lineage
 
 # packages/services/Telecomm
 kpick 233635 # Phone ringtone setting for Multi SIM device
@@ -1538,8 +1523,6 @@ kpick 240768 # Proper supplementary service notification handling (3/5)
 kpick 240769 # Proper supplementary service notification handling (4/5).
 kpick 243706 # Allow to disable the new scan API for manual network search.
 kpick 248560 # Add special roaming case for EU operators [3/3]
-
-# packages/wallpapers/LivePicker
 
 # system/bt
 kpick 229314 # Allow using alternative (higher) SBC HD bitrates with a property
@@ -1561,7 +1544,6 @@ kpick 232438 # su: Initialize windows size
 
 # system/netd
 kpick 232794 # NetD : Allow passing in interface names for vpn app restriction
-kpick 248684 # Copy queries synchronously in DnsTlsSocket
 
 # system/sepolicy
 kpick 243819 # sepolicy: Label tee_data_file as core_data_file_type
