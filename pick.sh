@@ -1358,6 +1358,7 @@ kpick 239642 # libstagefright_wfd: video encoder does not actually release Media
 kpick 244574 # audioflinger: Fix audio for WifiDisplay
 
 # frameworks/base
+kpick 221716 # SystemUI: Bring back good ol' circle battery style
 kpick 224513 # SystemUI: Disable config_keyguardUserSwitcher on sw600dp
 kpick 231823 # Do not move the multi-window divider when showing IME
 kpick 231824 # Fix StatusBar icons tinting when in split screen
@@ -1370,7 +1371,6 @@ kpick 232796 # NetworkManagement : Add ability to restrict app vpn usage
 kpick 233633 # Phone ringtone setting for Multi SIM device
 kpick 233717 # [DNM][HACK] Persist user brightness model
 kpick 234649 # keyguard: Check for a null errString
-kpick 235986 # frameworks: Add unlinked ringtone and notification volumes
 #kpick 227142 # Battery: add Battery Moto Mod Support
 kpick 237142 # Battery: update mod support to P
 kpick 237143 # AudioService: Fix Audio mod volume steps
@@ -1390,11 +1390,12 @@ kpick 243572 # add VSYNC scheduled flag and avoid two doFrame calls in one perio
 kpick 244318 # KeyguardHostView: Auto face unlock v2
 kpick 247886 # Add 3 finger swipe screenshot [1/3]
 kpick 248460 # Keyguard: Don't listen fingerprint when prox.sensor is covered (1/2)
-kpick 248558 # Add special roaming case for EU operators [1/3]
+#kpick 248558 # Add special roaming case for EU operators [1/3]
 kpick 248561 # Add hall support for QTI lid sensors
 kpick 248662 # Fix bugs regarding system app cannot write visible path
 kpick 249169 # Fix overlap between operator name and heads-up notification
 kpick 248801 # HeadsUpAppearanceController: allow heads-up to draw beyond bounds
+kpick 249192 # fix ls navbar back button after launching camera.
 
 # frameworks/native
 kpick 224530 # Triple the available egl function pointers available to a process for certain Nvidia devices.
@@ -1406,7 +1407,7 @@ kpick 243571 # touch response optimizations
 # frameworks/opt/telephony
 kpick 240767 # Proper supplementary service notification handling (2/5).
 kpick 244260 # Improve UiccSlot#promptForRestart dialog
-kpick 248559 # Add special roaming case for EU operators [2/3]
+#kpick 248559 # Add special roaming case for EU operators [2/3]
 
 # hardware/broadcom/libbt
 kpick 225155 # Broadcom BT: Add support fm/bt via v4l2.
@@ -1465,6 +1466,7 @@ kpick 231194 # power: properly initialize cluster states
 kpick 248226 # samsung: Move all to vendor
 
 # lineage-sdk
+kpick 227931 # lineagesdk: Refactor battery icon options
 kpick 242398 # Trust: Onboarding: Listen for locale changes
 kpick 247885 # Add 3 finger swipe screenshot [2/3]
 kpick 248441 # sdk: Use Google's algorithm to convert color temperature to RGB
@@ -1482,14 +1484,13 @@ kpick 248475 # Pause music on bluetooth audio device disconnect
 
 
 # packages/apps/LineageParts
-
+kpick 221756 # StatusBarSettings: Hide battery preference category based on icon visibility
+kpick 227930 # LineageParts: Bring back and refactor battery icon options
 
 # packages/apps/Nfc
 kpick 232697 # NFCService: Add sysprop to prevent FW download during boot with NFC off.
 
 # packages/apps/Settings
-kpick 235978 # Settings: Add switch for linked ring and media notification volumes
-kpick 236184 # Settings: Use correct icon for ring volume
 kpick 233634 # Phone ringtone setting for Multi SIM device
 kpick 227120 # Settings: Check interfaces before enabling ADB over network
 kpick 231826 # Update the white list of Data saver
@@ -1522,7 +1523,7 @@ kpick 240768 # Proper supplementary service notification handling (3/5)
 # packages/services/Telephony
 kpick 240769 # Proper supplementary service notification handling (4/5).
 kpick 243706 # Allow to disable the new scan API for manual network search.
-kpick 248560 # Add special roaming case for EU operators [3/3]
+#kpick 248560 # Add special roaming case for EU operators [3/3]
 
 # system/bt
 kpick 229314 # Allow using alternative (higher) SBC HD bitrates with a property
@@ -1574,6 +1575,7 @@ kpick 248465 # lineage: Rework DTBO image generation
 kpick 248512 # qcom: Add UM 4.14 platforms
 kpick 248706 # fix /data/ssh/empty file permissions
 kpick 248707 # build: tasks: kernel: Add support for MediaTek dtbo images
+kpick 249190 # Update French operator SFR (and its web subsidiary RED) and MVNO's based on SFR apns
 
 # vendor/qcom/opensource/audio
 kpick 247915 # policy_hal: do not check MODE_IN_COMMUNICATION for voip_rx flag
