@@ -1358,7 +1358,6 @@ kpick 239642 # libstagefright_wfd: video encoder does not actually release Media
 kpick 244574 # audioflinger: Fix audio for WifiDisplay
 
 # frameworks/base
-kpick 221716 # SystemUI: Bring back good ol' circle battery style
 kpick 224513 # SystemUI: Disable config_keyguardUserSwitcher on sw600dp
 kpick 231823 # Do not move the multi-window divider when showing IME
 kpick 231824 # Fix StatusBar icons tinting when in split screen
@@ -1371,12 +1370,10 @@ kpick 232796 # NetworkManagement : Add ability to restrict app vpn usage
 kpick 233633 # Phone ringtone setting for Multi SIM device
 kpick 233717 # [DNM][HACK] Persist user brightness model
 kpick 234649 # keyguard: Check for a null errString
-#kpick 227142 # Battery: add Battery Moto Mod Support
 kpick 237142 # Battery: update mod support to P
 kpick 237143 # AudioService: Fix Audio mod volume steps
 kpick 239520 # Reset all package signatures on boot
 kpick 240084 # ServiceRegistry: Don't throw an exception if OEM_LOCK is missing
-#kpick 240411 # Keyguard: Avoid starting FP authentication right after cancelling
 kpick 240766 # Proper supplementary service notification handling (1/5).
 kpick 242737 # Skip one-shot sensors for WindowOrientationListener
 kpick 243567 # touch response optimizations.
@@ -1392,10 +1389,9 @@ kpick 247886 # Add 3 finger swipe screenshot [1/3]
 kpick 248460 # Keyguard: Don't listen fingerprint when prox.sensor is covered (1/2)
 #kpick 248558 # Add special roaming case for EU operators [1/3]
 kpick 248561 # Add hall support for QTI lid sensors
-kpick 248662 # Fix bugs regarding system app cannot write visible path
-kpick 249169 # Fix overlap between operator name and heads-up notification
-kpick 248801 # HeadsUpAppearanceController: allow heads-up to draw beyond bounds
+#kpick 248662 # Fix bugs regarding system app cannot write visible path
 kpick 249192 # fix ls navbar back button after launching camera.
+kpick 249207 # HeadsUpAppearanceController: allow heads-up to draw beyond bounds
 
 # frameworks/native
 kpick 224530 # Triple the available egl function pointers available to a process for certain Nvidia devices.
@@ -1466,7 +1462,6 @@ kpick 231194 # power: properly initialize cluster states
 kpick 248226 # samsung: Move all to vendor
 
 # lineage-sdk
-kpick 227931 # lineagesdk: Refactor battery icon options
 kpick 242398 # Trust: Onboarding: Listen for locale changes
 kpick 247885 # Add 3 finger swipe screenshot [2/3]
 kpick 248441 # sdk: Use Google's algorithm to convert color temperature to RGB
@@ -1484,8 +1479,7 @@ kpick 248475 # Pause music on bluetooth audio device disconnect
 
 
 # packages/apps/LineageParts
-kpick 221756 # StatusBarSettings: Hide battery preference category based on icon visibility
-kpick 227930 # LineageParts: Bring back and refactor battery icon options
+kpick 249225 # Lineage parts: Make 'Privacy Guard' icons work with dark theme
 
 # packages/apps/Nfc
 kpick 232697 # NFCService: Add sysprop to prevent FW download during boot with NFC off.
@@ -1501,13 +1495,14 @@ kpick 241758 # Settings: Show root options when certain third party root is pres
 kpick 244319 # Add toggle for face auto unlock (2/2)
 kpick 247884 # Add 3 finger swipe screenshot [3/3]
 kpick 248442 # BasebandVersionDialogController: Trim duplicated baseband if needed
+kpick 249205 # Settings: appops: Drop GET_UNINSTALLED_PACKAGES from getApplicationInfo()
 
 # packages/apps/Snap
 kpick 242496 # Snap: Fix bad grammar "Long shot not support<ed>"
 kpick 243071 # Snap: allow to disable image stabilization per device
 kpick 247120 # Snap: add basic support for setting lens shading mode
-kpick 248663 # Snap: Save SDCard photos to legacy path
-kpick 248664 # Save images properly
+#kpick 248663 # Snap: Save SDCard photos to legacy path
+#kpick 248664 # Save images properly
 
 # packages/apps/UnifiedEmail
 kpick 248661 # Fix notification timestamp behavior.
