@@ -1391,7 +1391,6 @@ kpick 248460 # Keyguard: Don't listen fingerprint when prox.sensor is covered (1
 kpick 248561 # Add hall support for QTI lid sensors
 #kpick 248662 # Fix bugs regarding system app cannot write visible path
 kpick 249192 # fix ls navbar back button after launching camera.
-kpick 249207 # HeadsUpAppearanceController: allow heads-up to draw beyond bounds
 
 # frameworks/native
 kpick 224530 # Triple the available egl function pointers available to a process for certain Nvidia devices.
@@ -1480,6 +1479,7 @@ kpick 248475 # Pause music on bluetooth audio device disconnect
 
 # packages/apps/LineageParts
 kpick 249225 # Lineage parts: Make 'Privacy Guard' icons work with dark theme
+kpick 249452 # LiveDisplaySettings: Reset preferences before hiding them from UI
 
 # packages/apps/Nfc
 kpick 232697 # NFCService: Add sysprop to prevent FW download during boot with NFC off.
@@ -1495,7 +1495,6 @@ kpick 241758 # Settings: Show root options when certain third party root is pres
 kpick 244319 # Add toggle for face auto unlock (2/2)
 kpick 247884 # Add 3 finger swipe screenshot [3/3]
 kpick 248442 # BasebandVersionDialogController: Trim duplicated baseband if needed
-kpick 249205 # Settings: appops: Drop GET_UNINSTALLED_PACKAGES from getApplicationInfo()
 
 # packages/apps/Snap
 kpick 242496 # Snap: Fix bad grammar "Long shot not support<ed>"
