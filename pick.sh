@@ -1320,6 +1320,7 @@ kpick 241676 # sepolicy: qcom: Rename common to vendor to avoid confusion
 kpick 241677 # sepolicy: Break livedisplay hal policy into impl independent ones
 kpick 241903 # sepolicy: Label all the livedisplay service implementations
 kpick 246848 # Silence sysinit log spam
+kpick 249461 # sepol: Allow Bluetooth hal to access vendor.qcom.bluetooth.soc
 
 # device/qcom/sepolicy
 kpick 240951 # qcom: label persist files with /(mnt/vendor)/persist instead of /mnt/vendor/persist
@@ -1391,6 +1392,7 @@ kpick 248460 # Keyguard: Don't listen fingerprint when prox.sensor is covered (1
 kpick 248561 # Add hall support for QTI lid sensors
 #kpick 248662 # Fix bugs regarding system app cannot write visible path
 kpick 249192 # fix ls navbar back button after launching camera.
+kpick 249463 # BatteryMeterDrawableBase: Set proper stroke when power saver is enabled
 
 # frameworks/native
 kpick 224530 # Triple the available egl function pointers available to a process for certain Nvidia devices.
