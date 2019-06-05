@@ -1396,11 +1396,10 @@ kpick 248460 # Keyguard: Don't listen fingerprint when prox.sensor is covered (1
 #kpick 248558 # Add special roaming case for EU operators [1/3]
 kpick 248561 # Add hall support for QTI lid sensors
 kpick 249192 # fix ls navbar back button after launching camera.
-kpick 249460 # SystemUI: sync dark mode with AOSP night mode too
 kpick 249463 # BatteryMeterDrawableBase: Set proper stroke when power saver is enabled
 kpick 249468 # [SQUASH][DNM] Merge tag 'android-9.0.0_r40' into staging/lineage-16.0_merge-android-9.0.0_r40
-kpick 249488 # LiveDisplayTile: Report unavailable on HWC2
 kpick 249494 # fw/b: Allow adb over network when any default network is active
+kpick 249496 # SystemUI: allow devices override audio panel location
 
 # frameworks/native
 kpick 224530 # Triple the available egl function pointers available to a process for certain Nvidia devices.
