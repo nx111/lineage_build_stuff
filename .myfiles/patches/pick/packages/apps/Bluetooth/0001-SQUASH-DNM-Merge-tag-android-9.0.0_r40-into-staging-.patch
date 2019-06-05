@@ -1,0 +1,902 @@
+From 619964c7afe6b891a4bbc8f31f8ec30c38a05178 Mon Sep 17 00:00:00 2001
+From: "Kevin F. Haggerty" <haggertk@lineageos.org>
+Date: Mon, 3 Jun 2019 18:58:32 -0600
+Subject: [PATCH] [SQUASH][DNM] Merge tag 'android-9.0.0_r40' into
+ staging/lineage-16.0_merge-android-9.0.0_r40
+
+Android 9.0.0 release 40
+
+* tag 'android-9.0.0_r40':
+  Revert "DO NOT MERGE Separate SDP procedure from bonding state (2/2)"
+  DO NOT MERGE Revert "BondStateMachine: Check for null before calling getDeviceType"
+  BondStateMachine: Check for null before calling getDeviceType
+
+https://github.com/haggertk/android_packages_apps_Bluetooth/tree/lineage-16.0_merge-android-9.0.0_r40
+
+Change-Id: Iea06980866c2df5491205c132bb7d6cb8fa8cc8f
+---
+ .../android/bluetooth/a2dp/A2dpService.java   |  26 +-
+ .../btservice/AdapterProperties.java          |   2 -
+ .../bluetooth/btservice/AdapterService.java   |  12 -
+ .../bluetooth/btservice/BondStateMachine.java |  49 +--
+ .../bluetooth/btservice/RemoteDevices.java    |   9 +-
+ .../hearingaid/HearingAidService.java         |  26 +-
+ .../android/bluetooth/hfp/HeadsetService.java |  26 +-
+ .../android/bluetooth/hid/HidHostService.java |  40 +--
+ .../bluetooth/a2dp/A2dpServiceTest.java       |   6 +-
+ .../btservice/BondStateMachineTest.java       | 315 ------------------
+ .../hearingaid/HearingAidServiceTest.java     |   6 +-
+ .../bluetooth/hfp/HeadsetServiceTest.java     |   6 +-
+ .../bluetooth/hid/HidHostServiceTest.java     |  83 -----
+ 13 files changed, 70 insertions(+), 536 deletions(-)
+ delete mode 100644 tests/unit/src/com/android/bluetooth/btservice/BondStateMachineTest.java
+
+diff --git a/src/com/android/bluetooth/a2dp/A2dpService.java b/src/com/android/bluetooth/a2dp/A2dpService.java
+index 01ecd943..361ac673 100644
+--- a/src/com/android/bluetooth/a2dp/A2dpService.java
++++ b/src/com/android/bluetooth/a2dp/A2dpService.java
+@@ -355,18 +355,24 @@ public class A2dpService extends ProfileService {
+             return false;
+         }
+         // Check priority and accept or reject the connection.
++        // Note: Logic can be simplified, but keeping it this way for readability
+         int priority = getPriority(device);
+         int bondState = mAdapterService.getBondState(device);
+-        // Allow this connection only if the device is bonded. Any attempt to connect while
+-        // bonding would potentially lead to an unauthorized connection.
+-        if (bondState != BluetoothDevice.BOND_BONDED) {
+-            Log.w(TAG, "okToConnect: return false, bondState=" + bondState);
+-            return false;
+-        } else if (priority != BluetoothProfile.PRIORITY_UNDEFINED
+-                && priority != BluetoothProfile.PRIORITY_ON
+-                && priority != BluetoothProfile.PRIORITY_AUTO_CONNECT) {
+-            // Otherwise, reject the connection if priority is not valid.
+-            Log.w(TAG, "okToConnect: return false, priority=" + priority);
++        // If priority is undefined, it is likely that service discovery has not completed and peer
++        // initiated the connection. Allow this connection only if the device is bonded or bonding
++        boolean serviceDiscoveryPending = (priority == BluetoothProfile.PRIORITY_UNDEFINED)
++                && (bondState == BluetoothDevice.BOND_BONDING
++                || bondState == BluetoothDevice.BOND_BONDED);
++        // Also allow connection when device is bonded/bonding and priority is ON/AUTO_CONNECT.
++        boolean isEnabled = (priority == BluetoothProfile.PRIORITY_ON
++                || priority == BluetoothProfile.PRIORITY_AUTO_CONNECT)
++                && (bondState == BluetoothDevice.BOND_BONDED
++                || bondState == BluetoothDevice.BOND_BONDING);
++        if (!serviceDiscoveryPending && !isEnabled) {
++            // Otherwise, reject the connection if no service discovery is pending and priority is
++            // neither PRIORITY_ON nor PRIORITY_AUTO_CONNECT
++            Log.w(TAG, "okToConnect: return false, priority=" + priority + ", bondState="
++                    + bondState);
+             return false;
+         }
+         return true;
+diff --git a/src/com/android/bluetooth/btservice/AdapterProperties.java b/src/com/android/bluetooth/btservice/AdapterProperties.java
+index 981a45ac..d594850c 100644
+--- a/src/com/android/bluetooth/btservice/AdapterProperties.java
++++ b/src/com/android/bluetooth/btservice/AdapterProperties.java
+@@ -41,7 +41,6 @@ import android.os.ParcelUuid;
+ import android.os.SystemProperties;
+ import android.os.UserHandle;
+ import android.provider.Settings.Secure;
+-import android.support.annotation.VisibleForTesting;
+ import android.util.Log;
+ import android.util.Pair;
+ import android.util.StatsLog;
+@@ -463,7 +462,6 @@ class AdapterProperties {
+ 
+     // This function shall be invoked from BondStateMachine whenever the bond
+     // state changes.
+-    @VisibleForTesting
+     void onBondStateChanged(BluetoothDevice device, int state) {
+         if (device == null) {
+             Log.w(TAG, "onBondStateChanged, device is null");
+diff --git a/src/com/android/bluetooth/btservice/AdapterService.java b/src/com/android/bluetooth/btservice/AdapterService.java
+index 9d8cde98..ad789551 100644
+--- a/src/com/android/bluetooth/btservice/AdapterService.java
++++ b/src/com/android/bluetooth/btservice/AdapterService.java
+@@ -1817,18 +1817,6 @@ public class AdapterService extends Service {
+         }
+     }
+ 
+-    /**
+-     * Update device UUID changed to {@link BondStateMachine}
+-     *
+-     * @param device remote device of interest
+-     */
+-    public void deviceUuidUpdated(BluetoothDevice device) {
+-        // Notify BondStateMachine for SDP complete / UUID changed.
+-        Message msg = mBondStateMachine.obtainMessage(BondStateMachine.UUID_UPDATE);
+-        msg.obj = device;
+-        mBondStateMachine.sendMessage(msg);
+-    }
+-
+     boolean cancelBondProcess(BluetoothDevice device) {
+         enforceCallingOrSelfPermission(BLUETOOTH_ADMIN_PERM, "Need BLUETOOTH ADMIN permission");
+         byte[] addr = Utils.getBytesFromAddress(device.getAddress());
+diff --git a/src/com/android/bluetooth/btservice/BondStateMachine.java b/src/com/android/bluetooth/btservice/BondStateMachine.java
+index e89f5e7e..13ef2ad4 100644
+--- a/src/com/android/bluetooth/btservice/BondStateMachine.java
++++ b/src/com/android/bluetooth/btservice/BondStateMachine.java
+@@ -34,13 +34,10 @@ import com.android.bluetooth.hfp.HeadsetService;
+ import com.android.bluetooth.hfpclient.HeadsetClientService;
+ import com.android.bluetooth.hid.HidHostService;
+ import com.android.bluetooth.pbapclient.PbapClientService;
+-import com.android.internal.annotations.VisibleForTesting;
+ import com.android.internal.util.State;
+ import com.android.internal.util.StateMachine;
+ 
+ import java.util.ArrayList;
+-import java.util.HashSet;
+-import java.util.Set;
+ 
+ /**
+  * This state machine handles Bluetooth Adapter State.
+@@ -60,7 +57,6 @@ final class BondStateMachine extends StateMachine {
+     static final int BONDING_STATE_CHANGE = 4;
+     static final int SSP_REQUEST = 5;
+     static final int PIN_REQUEST = 6;
+-    static final int UUID_UPDATE = 10;
+     static final int BOND_STATE_NONE = 0;
+     static final int BOND_STATE_BONDING = 1;
+     static final int BOND_STATE_BONDED = 2;
+@@ -75,8 +71,6 @@ final class BondStateMachine extends StateMachine {
+ 
+     public static final String OOBDATA = "oobdata";
+ 
+-    @VisibleForTesting Set<BluetoothDevice> mPendingBondedDevices = new HashSet<>();
+-
+     private BondStateMachine(AdapterService service, AdapterProperties prop,
+             RemoteDevices remoteDevices) {
+         super("BondStateMachine:");
+@@ -150,11 +144,7 @@ final class BondStateMachine extends StateMachine {
+                                 + state2str(newState));
+                     }
+                     break;
+-                case UUID_UPDATE:
+-                    if (mPendingBondedDevices.contains(dev)) {
+-                        sendIntent(dev, BluetoothDevice.BOND_BONDED, 0);
+-                    }
+-                    break;
++
+                 case CANCEL_BOND:
+                 default:
+                     Log.e(TAG, "Received unhandled state: " + msg.what);
+@@ -340,52 +330,17 @@ final class BondStateMachine extends StateMachine {
+         mAdapterService.sendOrderedBroadcast(intent, mAdapterService.BLUETOOTH_ADMIN_PERM);
+     }
+ 
+-    @VisibleForTesting
+-    void sendIntent(BluetoothDevice device, int newState, int reason) {
++    private void sendIntent(BluetoothDevice device, int newState, int reason) {
+         DeviceProperties devProp = mRemoteDevices.getDeviceProperties(device);
+         int oldState = BluetoothDevice.BOND_NONE;
+-        if (newState != BluetoothDevice.BOND_NONE
+-                && newState != BluetoothDevice.BOND_BONDING
+-                && newState != BluetoothDevice.BOND_BONDED) {
+-            infoLog("Invalid bond state " + newState);
+-            return;
+-        }
+         if (devProp != null) {
+             oldState = devProp.getBondState();
+         }
+-        if (mPendingBondedDevices.contains(device)) {
+-            mPendingBondedDevices.remove(device);
+-            if (oldState == BluetoothDevice.BOND_BONDED) {
+-                if (newState == BluetoothDevice.BOND_BONDING) {
+-                    mAdapterProperties.onBondStateChanged(device, newState);
+-                }
+-                oldState = BluetoothDevice.BOND_BONDING;
+-            } else {
+-                // Should not enter here.
+-                throw new IllegalArgumentException("Invalid old state " + oldState);
+-            }
+-        }
+         if (oldState == newState) {
+             return;
+         }
+-
+         mAdapterProperties.onBondStateChanged(device, newState);
+ 
+-        if ((devProp.getDeviceType() == BluetoothDevice.DEVICE_TYPE_CLASSIC
+-                || devProp.getDeviceType() == BluetoothDevice.DEVICE_TYPE_DUAL)
+-                && newState == BluetoothDevice.BOND_BONDED && devProp.getUuids() == null) {
+-            infoLog(device + " is bonded, wait for SDP complete to broadcast bonded intent");
+-            if (!mPendingBondedDevices.contains(device)) {
+-                mPendingBondedDevices.add(device);
+-            }
+-            if (oldState == BluetoothDevice.BOND_NONE) {
+-                // Broadcast NONE->BONDING for NONE->BONDED case.
+-                newState = BluetoothDevice.BOND_BONDING;
+-            } else {
+-                return;
+-            }
+-        }
+-
+         Intent intent = new Intent(BluetoothDevice.ACTION_BOND_STATE_CHANGED);
+         intent.putExtra(BluetoothDevice.EXTRA_DEVICE, device);
+         intent.putExtra(BluetoothDevice.EXTRA_BOND_STATE, newState);
+diff --git a/src/com/android/bluetooth/btservice/RemoteDevices.java b/src/com/android/bluetooth/btservice/RemoteDevices.java
+index 7525a78f..12897fea 100644
+--- a/src/com/android/bluetooth/btservice/RemoteDevices.java
++++ b/src/com/android/bluetooth/btservice/RemoteDevices.java
+@@ -177,7 +177,6 @@ final class RemoteDevices {
+         return prop.getDevice();
+     }
+ 
+-    @VisibleForTesting
+     DeviceProperties addDeviceProperties(byte[] address) {
+         synchronized (mDevices) {
+             DeviceProperties prop = new DeviceProperties();
+@@ -208,13 +207,13 @@ final class RemoteDevices {
+         private byte[] mAddress;
+         private int mBluetoothClass = BluetoothClass.Device.Major.UNCATEGORIZED;
+         private short mRssi;
++        private ParcelUuid[] mUuids;
++        private int mDeviceType;
+         private String mAlias;
++        private int mBondState;
+         private BluetoothDevice mDevice;
+         private boolean mIsBondingInitiatedLocally;
+         private int mBatteryLevel = BluetoothDevice.BATTERY_LEVEL_UNKNOWN;
+-        @VisibleForTesting int mBondState;
+-        @VisibleForTesting int mDeviceType;
+-        @VisibleForTesting ParcelUuid[] mUuids;
+ 
+         DeviceProperties() {
+             mBondState = BluetoothDevice.BOND_NONE;
+@@ -273,6 +272,7 @@ final class RemoteDevices {
+                 return mRssi;
+             }
+         }
++
+         /**
+          * @return mDeviceType
+          */
+@@ -545,7 +545,6 @@ final class RemoteDevices {
+                             }
+                             device.mUuids = newUuids;
+                             if (sAdapterService.getState() == BluetoothAdapter.STATE_ON) {
+-                                sAdapterService.deviceUuidUpdated(bdDevice);
+                                 sendUuidIntent(bdDevice);
+                             }
+                             break;
+diff --git a/src/com/android/bluetooth/hearingaid/HearingAidService.java b/src/com/android/bluetooth/hearingaid/HearingAidService.java
+index 704a3d59..b30eb62a 100644
+--- a/src/com/android/bluetooth/hearingaid/HearingAidService.java
++++ b/src/com/android/bluetooth/hearingaid/HearingAidService.java
+@@ -343,18 +343,24 @@ public class HearingAidService extends ProfileService {
+             return false;
+         }
+         // Check priority and accept or reject the connection.
++        // Note: Logic can be simplified, but keeping it this way for readability
+         int priority = getPriority(device);
+         int bondState = mAdapterService.getBondState(device);
+-        // Allow this connection only if the device is bonded. Any attempt to connect while
+-        // bonding would potentially lead to an unauthorized connection.
+-        if (bondState != BluetoothDevice.BOND_BONDED) {
+-            Log.w(TAG, "okToConnect: return false, bondState=" + bondState);
+-            return false;
+-        } else if (priority != BluetoothProfile.PRIORITY_UNDEFINED
+-                && priority != BluetoothProfile.PRIORITY_ON
+-                && priority != BluetoothProfile.PRIORITY_AUTO_CONNECT) {
+-            // Otherwise, reject the connection if priority is not valid.
+-            Log.w(TAG, "okToConnect: return false, priority=" + priority);
++        // If priority is undefined, it is likely that service discovery has not completed and peer
++        // initiated the connection. Allow this connection only if the device is bonded or bonding
++        boolean serviceDiscoveryPending = (priority == BluetoothProfile.PRIORITY_UNDEFINED)
++                && (bondState == BluetoothDevice.BOND_BONDING
++                   || bondState == BluetoothDevice.BOND_BONDED);
++        // Also allow connection when device is bonded/bonding and priority is ON/AUTO_CONNECT.
++        boolean isEnabled = (priority == BluetoothProfile.PRIORITY_ON
++                || priority == BluetoothProfile.PRIORITY_AUTO_CONNECT)
++                && (bondState == BluetoothDevice.BOND_BONDED
++                   || bondState == BluetoothDevice.BOND_BONDING);
++        if (!serviceDiscoveryPending && !isEnabled) {
++            // Otherwise, reject the connection if no service discovery is pending and priority is
++            // neither PRIORITY_ON nor PRIORITY_AUTO_CONNECT
++            Log.w(TAG, "okToConnect: return false, priority=" + priority + ", bondState="
++                    + bondState);
+             return false;
+         }
+         return true;
+diff --git a/src/com/android/bluetooth/hfp/HeadsetService.java b/src/com/android/bluetooth/hfp/HeadsetService.java
+index 6d16a6a2..2ccc1e48 100644
+--- a/src/com/android/bluetooth/hfp/HeadsetService.java
++++ b/src/com/android/bluetooth/hfp/HeadsetService.java
+@@ -1688,18 +1688,24 @@ public class HeadsetService extends ProfileService {
+             return false;
+         }
+         // Check priority and accept or reject the connection.
++        // Note: Logic can be simplified, but keeping it this way for readability
+         int priority = getPriority(device);
+         int bondState = mAdapterService.getBondState(device);
+-        // Allow this connection only if the device is bonded. Any attempt to connect while
+-        // bonding would potentially lead to an unauthorized connection.
+-        if (bondState != BluetoothDevice.BOND_BONDED) {
+-            Log.w(TAG, "okToAcceptConnection: return false, bondState=" + bondState);
+-            return false;
+-        } else if (priority != BluetoothProfile.PRIORITY_UNDEFINED
+-                && priority != BluetoothProfile.PRIORITY_ON
+-                && priority != BluetoothProfile.PRIORITY_AUTO_CONNECT) {
+-            // Otherwise, reject the connection if priority is not valid.
+-            Log.w(TAG, "okToAcceptConnection: return false, priority=" + priority);
++        // If priority is undefined, it is likely that service discovery has not completed and peer
++        // initiated the connection. Allow this connection only if the device is bonded or bonding
++        boolean serviceDiscoveryPending = (priority == BluetoothProfile.PRIORITY_UNDEFINED) && (
++                bondState == BluetoothDevice.BOND_BONDING
++                        || bondState == BluetoothDevice.BOND_BONDED);
++        // Also allow connection when device is bonded/bonding and priority is ON/AUTO_CONNECT.
++        boolean isEnabled = (priority == BluetoothProfile.PRIORITY_ON
++                || priority == BluetoothProfile.PRIORITY_AUTO_CONNECT) && (
++                bondState == BluetoothDevice.BOND_BONDED
++                        || bondState == BluetoothDevice.BOND_BONDING);
++        if (!serviceDiscoveryPending && !isEnabled) {
++            // Otherwise, reject the connection if no service discovery is pending and priority is
++            // neither PRIORITY_ON nor PRIORITY_AUTO_CONNECT
++            Log.w(TAG,
++                    "okToConnect: return false, priority=" + priority + ", bondState=" + bondState);
+             return false;
+         }
+         List<BluetoothDevice> connectingConnectedDevices =
+diff --git a/src/com/android/bluetooth/hid/HidHostService.java b/src/com/android/bluetooth/hid/HidHostService.java
+index 63f52060..ff1a608d 100644
+--- a/src/com/android/bluetooth/hid/HidHostService.java
++++ b/src/com/android/bluetooth/hid/HidHostService.java
+@@ -26,7 +26,6 @@ import android.os.Handler;
+ import android.os.Message;
+ import android.os.UserHandle;
+ import android.provider.Settings;
+-import android.support.annotation.VisibleForTesting;
+ import android.util.Log;
+ 
+ import com.android.bluetooth.BluetoothMetricsProto;
+@@ -794,41 +793,16 @@ public class HidHostService extends ProfileService {
+         }
+     }
+ 
+-    /**
+-     * Check whether can connect to a peer device.
+-     * The check considers a number of factors during the evaluation.
+-     *
+-     * @param device the peer device to connect to
+-     * @return true if connection is allowed, otherwise false
+-     */
+-    @VisibleForTesting(otherwise = VisibleForTesting.PACKAGE_PRIVATE)
+-    public boolean okToConnect(BluetoothDevice device) {
++    private boolean okToConnect(BluetoothDevice device) {
+         AdapterService adapterService = AdapterService.getAdapterService();
+-        // Check if adapter service is null.
+-        if (adapterService == null) {
+-            Log.w(TAG, "okToConnect: adapter service is null");
+-            return false;
+-        }
+-        // Check if this is an incoming connection in Quiet mode.
+-        if (adapterService.isQuietModeEnabled() && mTargetDevice == null) {
+-            Log.w(TAG, "okToConnect: return false as quiet mode enabled");
+-            return false;
+-        }
+-        // Check priority and accept or reject the connection.
+-        int priority = getPriority(device);
+-        int bondState = adapterService.getBondState(device);
+-        // Allow this connection only if the device is bonded. Any attempt to connect while
+-        // bonding would potentially lead to an unauthorized connection.
+-        if (bondState != BluetoothDevice.BOND_BONDED) {
+-            Log.w(TAG, "okToConnect: return false, bondState=" + bondState);
+-            return false;
+-        } else if (priority != BluetoothProfile.PRIORITY_UNDEFINED
+-                && priority != BluetoothProfile.PRIORITY_ON
+-                && priority != BluetoothProfile.PRIORITY_AUTO_CONNECT) {
+-            // Otherwise, reject the connection if priority is not valid.
+-            Log.w(TAG, "okToConnect: return false, priority=" + priority);
++        //check if it is inbound connection in Quiet mode, priority and Bond status
++        //to decide if its ok to allow this connection
++        if ((adapterService == null) || ((adapterService.isQuietModeEnabled()) && (mTargetDevice
++                == null)) || (BluetoothProfile.PRIORITY_OFF == getPriority(device)) || (
++                device.getBondState() == BluetoothDevice.BOND_NONE)) {
+             return false;
+         }
++
+         return true;
+     }
+ 
+diff --git a/tests/unit/src/com/android/bluetooth/a2dp/A2dpServiceTest.java b/tests/unit/src/com/android/bluetooth/a2dp/A2dpServiceTest.java
+index bef3bdb8..6b272569 100644
+--- a/tests/unit/src/com/android/bluetooth/a2dp/A2dpServiceTest.java
++++ b/tests/unit/src/com/android/bluetooth/a2dp/A2dpServiceTest.java
+@@ -296,13 +296,13 @@ public class A2dpServiceTest {
+         testOkToConnectCase(mTestDevice,
+                 BluetoothDevice.BOND_NONE, badPriorityValue, false);
+         testOkToConnectCase(mTestDevice,
+-                BluetoothDevice.BOND_BONDING, BluetoothProfile.PRIORITY_UNDEFINED, false);
++                BluetoothDevice.BOND_BONDING, BluetoothProfile.PRIORITY_UNDEFINED, true);
+         testOkToConnectCase(mTestDevice,
+                 BluetoothDevice.BOND_BONDING, BluetoothProfile.PRIORITY_OFF, false);
+         testOkToConnectCase(mTestDevice,
+-                BluetoothDevice.BOND_BONDING, BluetoothProfile.PRIORITY_ON, false);
++                BluetoothDevice.BOND_BONDING, BluetoothProfile.PRIORITY_ON, true);
+         testOkToConnectCase(mTestDevice,
+-                BluetoothDevice.BOND_BONDING, BluetoothProfile.PRIORITY_AUTO_CONNECT, false);
++                BluetoothDevice.BOND_BONDING, BluetoothProfile.PRIORITY_AUTO_CONNECT, true);
+         testOkToConnectCase(mTestDevice,
+                 BluetoothDevice.BOND_BONDING, badPriorityValue, false);
+         testOkToConnectCase(mTestDevice,
+diff --git a/tests/unit/src/com/android/bluetooth/btservice/BondStateMachineTest.java b/tests/unit/src/com/android/bluetooth/btservice/BondStateMachineTest.java
+deleted file mode 100644
+index 29585ff0..00000000
+--- a/tests/unit/src/com/android/bluetooth/btservice/BondStateMachineTest.java
++++ /dev/null
+@@ -1,315 +0,0 @@
+-/*
+- * Copyright 2018 The Android Open Source Project
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License");
+- * you may not use this file except in compliance with the License.
+- * You may obtain a copy of the License at
+- *
+- *      http://www.apache.org/licenses/LICENSE-2.0
+- *
+- * Unless required by applicable law or agreed to in writing, software
+- * distributed under the License is distributed on an "AS IS" BASIS,
+- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+- * See the License for the specific language governing permissions and
+- * limitations under the License.
+- */
+-package com.android.bluetooth.btservice;
+-
+-import static org.mockito.Mockito.*;
+-
+-import android.bluetooth.BluetoothDevice;
+-import android.content.Context;
+-import android.content.Intent;
+-import android.os.HandlerThread;
+-import android.os.ParcelUuid;
+-import android.os.UserHandle;
+-import android.support.test.InstrumentationRegistry;
+-import android.support.test.filters.MediumTest;
+-import android.support.test.runner.AndroidJUnit4;
+-
+-import com.android.bluetooth.TestUtils;
+-
+-import org.junit.After;
+-import org.junit.Assert;
+-import org.junit.Before;
+-import org.junit.Test;
+-import org.junit.runner.RunWith;
+-import org.mockito.ArgumentCaptor;
+-import org.mockito.Mock;
+-import org.mockito.MockitoAnnotations;
+-
+-@MediumTest
+-@RunWith(AndroidJUnit4.class)
+-public class BondStateMachineTest {
+-    private static final int TEST_BOND_REASON = 0;
+-    private static final byte[] TEST_BT_ADDR_BYTES = {00, 11, 22, 33, 44, 55};
+-    private static final ParcelUuid[] TEST_UUIDS =
+-            {ParcelUuid.fromString("0000111E-0000-1000-8000-00805F9B34FB")};
+-
+-    private static final int BOND_NONE = BluetoothDevice.BOND_NONE;
+-    private static final int BOND_BONDING = BluetoothDevice.BOND_BONDING;
+-    private static final int BOND_BONDED = BluetoothDevice.BOND_BONDED;
+-
+-    private AdapterProperties mAdapterProperties;
+-    private BluetoothDevice mDevice;
+-    private Context mTargetContext;
+-    private RemoteDevices mRemoteDevices;
+-    private BondStateMachine mBondStateMachine;
+-    private HandlerThread mHandlerThread;
+-    private RemoteDevices.DeviceProperties mDeviceProperties;
+-    private int mVerifyCount = 0;
+-
+-    @Mock private AdapterService mAdapterService;
+-
+-    @Before
+-    public void setUp() throws Exception {
+-        mTargetContext = InstrumentationRegistry.getTargetContext();
+-        MockitoAnnotations.initMocks(this);
+-        TestUtils.setAdapterService(mAdapterService);
+-        mHandlerThread = new HandlerThread("BondStateMachineTestHandlerThread");
+-        mHandlerThread.start();
+-
+-        mRemoteDevices = new RemoteDevices(mAdapterService, mHandlerThread.getLooper());
+-        mRemoteDevices.reset();
+-        when(mAdapterService.getResources()).thenReturn(
+-                mTargetContext.getResources());
+-        mAdapterProperties = new AdapterProperties(mAdapterService);
+-        mAdapterProperties.init(mRemoteDevices);
+-        mBondStateMachine = BondStateMachine.make(mAdapterService, mAdapterProperties,
+-                mRemoteDevices);
+-    }
+-
+-    @After
+-    public void tearDown() throws Exception {
+-        mHandlerThread.quit();
+-        TestUtils.clearAdapterService(mAdapterService);
+-    }
+-
+-    @Test
+-    public void testSendIntent() {
+-        int badBondState = 42;
+-        mVerifyCount = 0;
+-
+-        // Reset mRemoteDevices for the test.
+-        mRemoteDevices.reset();
+-        mDeviceProperties = mRemoteDevices.addDeviceProperties(TEST_BT_ADDR_BYTES);
+-        mDevice = mDeviceProperties.getDevice();
+-        Assert.assertNotNull(mDevice);
+-
+-        /* Classic / Dualmode test cases*/
+-        // Uuid not available, mPendingBondedDevice is empty.
+-        testSendIntentNoPendingDevice(BOND_NONE, BOND_NONE, BOND_NONE,
+-                false, BOND_NONE, BOND_NONE);
+-        testSendIntentNoPendingDevice(BOND_NONE, BOND_BONDING, BOND_BONDING,
+-                true, BOND_NONE, BOND_BONDING);
+-        testSendIntentNoPendingDevice(BOND_NONE, BOND_BONDED, BOND_BONDED,
+-                true, BOND_NONE, BOND_BONDING);
+-        testSendIntentNoPendingDevice(BOND_NONE, badBondState, BOND_NONE,
+-                false, BOND_NONE, BOND_NONE);
+-        testSendIntentNoPendingDevice(BOND_BONDING, BOND_NONE, BOND_NONE,
+-                true, BOND_BONDING, BOND_NONE);
+-        testSendIntentNoPendingDevice(BOND_BONDING, BOND_BONDING, BOND_BONDING,
+-                false, BOND_NONE, BOND_NONE);
+-        testSendIntentNoPendingDevice(BOND_BONDING, BOND_BONDED, BOND_BONDED,
+-                false, BOND_NONE, BOND_NONE);
+-        testSendIntentNoPendingDevice(BOND_BONDING, badBondState, BOND_BONDING,
+-                false, BOND_NONE, BOND_NONE);
+-        testSendIntentNoPendingDevice(BOND_BONDED, BOND_NONE, BOND_NONE,
+-                true, BOND_BONDED, BOND_NONE);
+-        testSendIntentNoPendingDevice(BOND_BONDED, BOND_BONDING, BOND_BONDING,
+-                true, BOND_BONDED, BOND_BONDING);
+-        testSendIntentNoPendingDevice(BOND_BONDED, BOND_BONDED, BOND_BONDED,
+-                false, BOND_NONE, BOND_NONE);
+-        testSendIntentNoPendingDevice(BOND_BONDED, badBondState, BOND_BONDED,
+-                false, BOND_NONE, BOND_NONE);
+-
+-        // Uuid not available, mPendingBondedDevice contains a remote device.
+-        testSendIntentPendingDevice(BOND_NONE, BOND_NONE, BOND_NONE,
+-                false, BOND_NONE, BOND_NONE);
+-        testSendIntentPendingDevice(BOND_NONE, BOND_BONDING, BOND_NONE,
+-                false, BOND_NONE, BOND_NONE);
+-        testSendIntentPendingDevice(BOND_NONE, BOND_BONDED, BOND_NONE,
+-                false, BOND_NONE, BOND_NONE);
+-        testSendIntentPendingDevice(BOND_NONE, badBondState, BOND_NONE,
+-                false, BOND_NONE, BOND_NONE);
+-        testSendIntentPendingDevice(BOND_BONDING, BOND_NONE, BOND_BONDING,
+-                false, BOND_NONE, BOND_NONE);
+-        testSendIntentPendingDevice(BOND_BONDING, BOND_BONDING, BOND_BONDING,
+-                false, BOND_NONE, BOND_NONE);
+-        testSendIntentPendingDevice(BOND_BONDING, BOND_BONDED, BOND_BONDING,
+-                false, BOND_NONE, BOND_NONE);
+-        testSendIntentPendingDevice(BOND_BONDING, badBondState, BOND_BONDING,
+-                false, BOND_NONE, BOND_NONE);
+-        testSendIntentPendingDevice(BOND_BONDED, BOND_NONE, BOND_NONE,
+-                true, BOND_BONDING, BOND_NONE);
+-        testSendIntentPendingDevice(BOND_BONDED, BOND_BONDING, BOND_BONDING,
+-                false, BOND_NONE, BOND_NONE);
+-        testSendIntentPendingDevice(BOND_BONDED, BOND_BONDED, BOND_BONDED,
+-                false, BOND_NONE, BOND_NONE);
+-        testSendIntentPendingDevice(BOND_BONDED, badBondState, BOND_BONDED,
+-                false, BOND_NONE, BOND_NONE);
+-
+-        // Uuid available, mPendingBondedDevice is empty.
+-        testSendIntentNoPendingDeviceWithUuid(BOND_NONE, BOND_NONE, BOND_NONE,
+-                false, BOND_NONE, BOND_NONE);
+-        testSendIntentNoPendingDeviceWithUuid(BOND_NONE, BOND_BONDING, BOND_BONDING,
+-                true, BOND_NONE, BOND_BONDING);
+-        testSendIntentNoPendingDeviceWithUuid(BOND_NONE, BOND_BONDED, BOND_BONDED,
+-                true, BOND_NONE, BOND_BONDED);
+-        testSendIntentNoPendingDeviceWithUuid(BOND_NONE, badBondState, BOND_NONE,
+-                false, BOND_NONE, BOND_NONE);
+-        testSendIntentNoPendingDeviceWithUuid(BOND_BONDING, BOND_NONE, BOND_NONE,
+-                true, BOND_BONDING, BOND_NONE);
+-        testSendIntentNoPendingDeviceWithUuid(BOND_BONDING, BOND_BONDING, BOND_BONDING,
+-                false, BOND_NONE, BOND_NONE);
+-        testSendIntentNoPendingDeviceWithUuid(BOND_BONDING, BOND_BONDED, BOND_BONDED,
+-                true, BOND_BONDING, BOND_BONDED);
+-        testSendIntentNoPendingDeviceWithUuid(BOND_BONDING, badBondState, BOND_BONDING,
+-                false, BOND_NONE, BOND_NONE);
+-        testSendIntentNoPendingDeviceWithUuid(BOND_BONDED, BOND_NONE, BOND_NONE,
+-                true, BOND_BONDED, BOND_NONE);
+-        testSendIntentNoPendingDeviceWithUuid(BOND_BONDED, BOND_BONDING, BOND_BONDING,
+-                true, BOND_BONDED, BOND_BONDING);
+-        testSendIntentNoPendingDeviceWithUuid(BOND_BONDED, BOND_BONDED, BOND_BONDED,
+-                false, BOND_NONE, BOND_NONE);
+-        testSendIntentNoPendingDeviceWithUuid(BOND_BONDED, badBondState, BOND_BONDED,
+-                false, BOND_NONE, BOND_NONE);
+-
+-        // Uuid available, mPendingBondedDevice contains a remote device.
+-        testSendIntentPendingDeviceWithUuid(BOND_NONE, BOND_NONE, BOND_NONE,
+-                false, BOND_NONE, BOND_NONE);
+-        testSendIntentPendingDeviceWithUuid(BOND_NONE, BOND_BONDING, BOND_NONE,
+-                false, BOND_NONE, BOND_NONE);
+-        testSendIntentPendingDeviceWithUuid(BOND_NONE, BOND_BONDED, BOND_NONE,
+-                false, BOND_NONE, BOND_NONE);
+-        testSendIntentPendingDeviceWithUuid(BOND_NONE, badBondState, BOND_NONE,
+-                false, BOND_NONE, BOND_NONE);
+-        testSendIntentPendingDeviceWithUuid(BOND_BONDING, BOND_NONE, BOND_BONDING,
+-                false, BOND_NONE, BOND_NONE);
+-        testSendIntentPendingDeviceWithUuid(BOND_BONDING, BOND_BONDING, BOND_BONDING,
+-                false, BOND_NONE, BOND_NONE);
+-        testSendIntentPendingDeviceWithUuid(BOND_BONDING, BOND_BONDED, BOND_BONDING,
+-                false, BOND_NONE, BOND_NONE);
+-        testSendIntentPendingDeviceWithUuid(BOND_BONDING, badBondState, BOND_BONDING,
+-                false, BOND_NONE, BOND_NONE);
+-        testSendIntentPendingDeviceWithUuid(BOND_BONDED, BOND_NONE, BOND_NONE,
+-                true, BOND_BONDING, BOND_NONE);
+-        testSendIntentPendingDeviceWithUuid(BOND_BONDED, BOND_BONDING, BOND_BONDING,
+-                false, BOND_NONE, BOND_NONE);
+-        testSendIntentPendingDeviceWithUuid(BOND_BONDED, BOND_BONDED, BOND_BONDED,
+-                true, BOND_BONDING, BOND_BONDED);
+-        testSendIntentPendingDeviceWithUuid(BOND_BONDED, badBondState, BOND_BONDED,
+-                false, BOND_NONE, BOND_NONE);
+-
+-        /* Low energy test cases */
+-        testSendIntentBle(BOND_NONE, BOND_NONE, BOND_NONE);
+-        testSendIntentBle(BOND_NONE, BOND_BONDING, BOND_BONDING);
+-        testSendIntentBle(BOND_NONE, BOND_BONDED, BOND_BONDED);
+-        testSendIntentBle(BOND_BONDING, BOND_NONE, BOND_NONE);
+-        testSendIntentBle(BOND_BONDING, BOND_BONDING, BOND_BONDING);
+-        testSendIntentBle(BOND_BONDING, BOND_BONDED, BOND_BONDED);
+-        testSendIntentBle(BOND_BONDED, BOND_NONE, BOND_NONE);
+-        testSendIntentBle(BOND_BONDED, BOND_BONDING, BOND_BONDING);
+-        testSendIntentBle(BOND_BONDED, BOND_BONDED, BOND_BONDED);
+-    }
+-
+-    private void testSendIntentCase(int oldState, int newState, int expectedNewState,
+-            boolean shouldBroadcast, int broadcastOldState, int broadcastNewState) {
+-        ArgumentCaptor<Intent> intentArgument = ArgumentCaptor.forClass(Intent.class);
+-
+-        // Setup old state before start test.
+-        mDeviceProperties.mBondState = oldState;
+-
+-        try {
+-            mBondStateMachine.sendIntent(mDevice, newState, TEST_BOND_REASON);
+-        } catch (IllegalArgumentException e) {
+-            // Do nothing.
+-        }
+-        Assert.assertEquals(expectedNewState, mDeviceProperties.getBondState());
+-
+-        // Check for bond state Intent status.
+-        if (shouldBroadcast) {
+-            verify(mAdapterService, times(++mVerifyCount)).sendBroadcastAsUser(
+-                    intentArgument.capture(), eq(UserHandle.ALL),
+-                    eq(AdapterService.BLUETOOTH_PERM));
+-            verifyBondStateChangeIntent(broadcastOldState, broadcastNewState,
+-                    intentArgument.getValue());
+-        } else {
+-            verify(mAdapterService, times(mVerifyCount)).sendBroadcastAsUser(any(Intent.class),
+-                    any(UserHandle.class), anyString());
+-        }
+-    }
+-
+-    private void testSendIntentNoPendingDeviceWithUuid(int oldState, int newState,
+-            int expectedNewState, boolean shouldBroadcast, int broadcastOldState,
+-            int broadcastNewState) {
+-        // Add dummy UUID for the device.
+-        mDeviceProperties.mUuids = TEST_UUIDS;
+-        testSendIntentNoPendingDevice(oldState, newState, expectedNewState, shouldBroadcast,
+-                broadcastOldState, broadcastNewState);
+-    }
+-
+-    private void testSendIntentPendingDeviceWithUuid(int oldState, int newState,
+-            int expectedNewState, boolean shouldBroadcast, int broadcastOldState,
+-            int broadcastNewState) {
+-        // Add dummy UUID for the device.
+-        mDeviceProperties.mUuids = TEST_UUIDS;
+-        testSendIntentPendingDevice(oldState, newState, expectedNewState, shouldBroadcast,
+-                broadcastOldState, broadcastNewState);
+-    }
+-
+-    private void testSendIntentPendingDevice(int oldState, int newState, int expectedNewState,
+-            boolean shouldBroadcast, int broadcastOldState, int broadcastNewState) {
+-        // Test for classic remote device.
+-        mDeviceProperties.mDeviceType = BluetoothDevice.DEVICE_TYPE_CLASSIC;
+-        mBondStateMachine.mPendingBondedDevices.clear();
+-        mBondStateMachine.mPendingBondedDevices.add(mDevice);
+-        testSendIntentCase(oldState, newState, expectedNewState, shouldBroadcast,
+-                broadcastOldState, broadcastNewState);
+-
+-        // Test for dual-mode remote device.
+-        mDeviceProperties.mDeviceType = BluetoothDevice.DEVICE_TYPE_DUAL;
+-        mBondStateMachine.mPendingBondedDevices.clear();
+-        mBondStateMachine.mPendingBondedDevices.add(mDevice);
+-        testSendIntentCase(oldState, newState, expectedNewState, shouldBroadcast,
+-                broadcastOldState, broadcastNewState);
+-    }
+-
+-    private void testSendIntentNoPendingDevice(int oldState, int newState, int expectedNewState,
+-            boolean shouldBroadcast, int broadcastOldState, int broadcastNewState) {
+-        // Test for classic remote device.
+-        mDeviceProperties.mDeviceType = BluetoothDevice.DEVICE_TYPE_CLASSIC;
+-        mBondStateMachine.mPendingBondedDevices.clear();
+-        testSendIntentCase(oldState, newState, expectedNewState, shouldBroadcast,
+-                broadcastOldState, broadcastNewState);
+-
+-        // Test for dual-mode remote device.
+-        mDeviceProperties.mDeviceType = BluetoothDevice.DEVICE_TYPE_DUAL;
+-        mBondStateMachine.mPendingBondedDevices.clear();
+-        testSendIntentCase(oldState, newState, expectedNewState, shouldBroadcast,
+-                broadcastOldState, broadcastNewState);
+-    }
+-
+-    private void testSendIntentBle(int oldState, int newState, int expectedNewState) {
+-        // Test for low energy remote device.
+-        mDeviceProperties.mDeviceType = BluetoothDevice.DEVICE_TYPE_LE;
+-        mBondStateMachine.mPendingBondedDevices.clear();
+-        testSendIntentCase(oldState, newState, newState, (oldState != newState),
+-                oldState, newState);
+-    }
+-
+-    private void verifyBondStateChangeIntent(int oldState, int newState, Intent intent) {
+-        Assert.assertNotNull(intent);
+-        Assert.assertEquals(BluetoothDevice.ACTION_BOND_STATE_CHANGED, intent.getAction());
+-        Assert.assertEquals(mDevice, intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE));
+-        Assert.assertEquals(newState, intent.getIntExtra(BluetoothDevice.EXTRA_BOND_STATE, -1));
+-        Assert.assertEquals(oldState, intent.getIntExtra(BluetoothDevice.EXTRA_PREVIOUS_BOND_STATE,
+-                                                          -1));
+-        if (newState == BOND_NONE) {
+-            Assert.assertEquals(TEST_BOND_REASON, intent.getIntExtra(BluetoothDevice.EXTRA_REASON,
+-                                                              -1));
+-        } else {
+-            Assert.assertEquals(-1, intent.getIntExtra(BluetoothDevice.EXTRA_REASON, -1));
+-        }
+-    }
+-}
+diff --git a/tests/unit/src/com/android/bluetooth/hearingaid/HearingAidServiceTest.java b/tests/unit/src/com/android/bluetooth/hearingaid/HearingAidServiceTest.java
+index d4a978f8..bda2c151 100644
+--- a/tests/unit/src/com/android/bluetooth/hearingaid/HearingAidServiceTest.java
++++ b/tests/unit/src/com/android/bluetooth/hearingaid/HearingAidServiceTest.java
+@@ -255,13 +255,13 @@ public class HearingAidServiceTest {
+         testOkToConnectCase(mSingleDevice,
+                 BluetoothDevice.BOND_NONE, badPriorityValue, false);
+         testOkToConnectCase(mSingleDevice,
+-                BluetoothDevice.BOND_BONDING, BluetoothProfile.PRIORITY_UNDEFINED, false);
++                BluetoothDevice.BOND_BONDING, BluetoothProfile.PRIORITY_UNDEFINED, true);
+         testOkToConnectCase(mSingleDevice,
+                 BluetoothDevice.BOND_BONDING, BluetoothProfile.PRIORITY_OFF, false);
+         testOkToConnectCase(mSingleDevice,
+-                BluetoothDevice.BOND_BONDING, BluetoothProfile.PRIORITY_ON, false);
++                BluetoothDevice.BOND_BONDING, BluetoothProfile.PRIORITY_ON, true);
+         testOkToConnectCase(mSingleDevice,
+-                BluetoothDevice.BOND_BONDING, BluetoothProfile.PRIORITY_AUTO_CONNECT, false);
++                BluetoothDevice.BOND_BONDING, BluetoothProfile.PRIORITY_AUTO_CONNECT, true);
+         testOkToConnectCase(mSingleDevice,
+                 BluetoothDevice.BOND_BONDING, badPriorityValue, false);
+         testOkToConnectCase(mSingleDevice,
+diff --git a/tests/unit/src/com/android/bluetooth/hfp/HeadsetServiceTest.java b/tests/unit/src/com/android/bluetooth/hfp/HeadsetServiceTest.java
+index e5395f25..188792d0 100644
+--- a/tests/unit/src/com/android/bluetooth/hfp/HeadsetServiceTest.java
++++ b/tests/unit/src/com/android/bluetooth/hfp/HeadsetServiceTest.java
+@@ -199,13 +199,13 @@ public class HeadsetServiceTest {
+         testOkToAcceptConnectionCase(mCurrentDevice, BluetoothDevice.BOND_NONE, badPriorityValue,
+                 false);
+         testOkToAcceptConnectionCase(mCurrentDevice, BluetoothDevice.BOND_BONDING,
+-                BluetoothProfile.PRIORITY_UNDEFINED, false);
++                BluetoothProfile.PRIORITY_UNDEFINED, true);
+         testOkToAcceptConnectionCase(mCurrentDevice, BluetoothDevice.BOND_BONDING,
+                 BluetoothProfile.PRIORITY_OFF, false);
+         testOkToAcceptConnectionCase(mCurrentDevice, BluetoothDevice.BOND_BONDING,
+-                BluetoothProfile.PRIORITY_ON, false);
++                BluetoothProfile.PRIORITY_ON, true);
+         testOkToAcceptConnectionCase(mCurrentDevice, BluetoothDevice.BOND_BONDING,
+-                BluetoothProfile.PRIORITY_AUTO_CONNECT, false);
++                BluetoothProfile.PRIORITY_AUTO_CONNECT, true);
+         testOkToAcceptConnectionCase(mCurrentDevice, BluetoothDevice.BOND_BONDING, badPriorityValue,
+                 false);
+         testOkToAcceptConnectionCase(mCurrentDevice, BluetoothDevice.BOND_BONDED,
+diff --git a/tests/unit/src/com/android/bluetooth/hid/HidHostServiceTest.java b/tests/unit/src/com/android/bluetooth/hid/HidHostServiceTest.java
+index d67a51df..349660a9 100644
+--- a/tests/unit/src/com/android/bluetooth/hid/HidHostServiceTest.java
++++ b/tests/unit/src/com/android/bluetooth/hid/HidHostServiceTest.java
+@@ -15,11 +15,7 @@
+  */
+ package com.android.bluetooth.hid;
+ 
+-import static org.mockito.Mockito.*;
+-
+ import android.bluetooth.BluetoothAdapter;
+-import android.bluetooth.BluetoothDevice;
+-import android.bluetooth.BluetoothProfile;
+ import android.content.Context;
+ import android.support.test.InstrumentationRegistry;
+ import android.support.test.filters.MediumTest;
+@@ -45,7 +41,6 @@ import org.mockito.MockitoAnnotations;
+ public class HidHostServiceTest {
+     private HidHostService mService = null;
+     private BluetoothAdapter mAdapter = null;
+-    private BluetoothDevice mTestDevice;
+     private Context mTargetContext;
+ 
+     @Rule public final ServiceTestRule mServiceRule = new ServiceTestRule();
+@@ -65,9 +60,6 @@ public class HidHostServiceTest {
+         // Try getting the Bluetooth adapter
+         mAdapter = BluetoothAdapter.getDefaultAdapter();
+         Assert.assertNotNull(mAdapter);
+-
+-        // Get a device for testing
+-        mTestDevice = TestUtils.getTestDevice(mAdapter, 0);
+     }
+ 
+     @After
+@@ -85,79 +77,4 @@ public class HidHostServiceTest {
+     public void testInitialize() {
+         Assert.assertNotNull(HidHostService.getHidHostService());
+     }
+-
+-    /**
+-     *  Test okToConnect method using various test cases
+-     */
+-    @Test
+-    public void testOkToConnect() {
+-        int badPriorityValue = 1024;
+-        int badBondState = 42;
+-        testOkToConnectCase(mTestDevice,
+-                BluetoothDevice.BOND_NONE, BluetoothProfile.PRIORITY_UNDEFINED, false);
+-        testOkToConnectCase(mTestDevice,
+-                BluetoothDevice.BOND_NONE, BluetoothProfile.PRIORITY_OFF, false);
+-        testOkToConnectCase(mTestDevice,
+-                BluetoothDevice.BOND_NONE, BluetoothProfile.PRIORITY_ON, false);
+-        testOkToConnectCase(mTestDevice,
+-                BluetoothDevice.BOND_NONE, BluetoothProfile.PRIORITY_AUTO_CONNECT, false);
+-        testOkToConnectCase(mTestDevice,
+-                BluetoothDevice.BOND_NONE, badPriorityValue, false);
+-        testOkToConnectCase(mTestDevice,
+-                BluetoothDevice.BOND_BONDING, BluetoothProfile.PRIORITY_UNDEFINED, false);
+-        testOkToConnectCase(mTestDevice,
+-                BluetoothDevice.BOND_BONDING, BluetoothProfile.PRIORITY_OFF, false);
+-        testOkToConnectCase(mTestDevice,
+-                BluetoothDevice.BOND_BONDING, BluetoothProfile.PRIORITY_ON, false);
+-        testOkToConnectCase(mTestDevice,
+-                BluetoothDevice.BOND_BONDING, BluetoothProfile.PRIORITY_AUTO_CONNECT, false);
+-        testOkToConnectCase(mTestDevice,
+-                BluetoothDevice.BOND_BONDING, badPriorityValue, false);
+-        testOkToConnectCase(mTestDevice,
+-                BluetoothDevice.BOND_BONDED, BluetoothProfile.PRIORITY_UNDEFINED, true);
+-        testOkToConnectCase(mTestDevice,
+-                BluetoothDevice.BOND_BONDED, BluetoothProfile.PRIORITY_OFF, false);
+-        testOkToConnectCase(mTestDevice,
+-                BluetoothDevice.BOND_BONDED, BluetoothProfile.PRIORITY_ON, true);
+-        testOkToConnectCase(mTestDevice,
+-                BluetoothDevice.BOND_BONDED, BluetoothProfile.PRIORITY_AUTO_CONNECT, true);
+-        testOkToConnectCase(mTestDevice,
+-                BluetoothDevice.BOND_BONDED, badPriorityValue, false);
+-        testOkToConnectCase(mTestDevice,
+-                badBondState, BluetoothProfile.PRIORITY_UNDEFINED, false);
+-        testOkToConnectCase(mTestDevice,
+-                badBondState, BluetoothProfile.PRIORITY_OFF, false);
+-        testOkToConnectCase(mTestDevice,
+-                badBondState, BluetoothProfile.PRIORITY_ON, false);
+-        testOkToConnectCase(mTestDevice,
+-                badBondState, BluetoothProfile.PRIORITY_AUTO_CONNECT, false);
+-        testOkToConnectCase(mTestDevice,
+-                badBondState, badPriorityValue, false);
+-        // Restore prirority to undefined for this test device
+-        Assert.assertTrue(mService.setPriority(
+-                mTestDevice, BluetoothProfile.PRIORITY_UNDEFINED));
+-    }
+-
+-    /**
+-     * Helper function to test okToConnect() method.
+-     *
+-     * @param device test device
+-     * @param bondState bond state value, could be invalid
+-     * @param priority value, could be invalid, coudl be invalid
+-     * @param expected expected result from okToConnect()
+-     */
+-    private void testOkToConnectCase(BluetoothDevice device, int bondState, int priority,
+-            boolean expected) {
+-        doReturn(bondState).when(mAdapterService).getBondState(device);
+-        Assert.assertTrue(mService.setPriority(device, priority));
+-
+-        // Test when the AdapterService is in non-quiet mode.
+-        doReturn(false).when(mAdapterService).isQuietModeEnabled();
+-        Assert.assertEquals(expected, mService.okToConnect(device));
+-
+-        // Test when the AdapterService is in quiet mode.
+-        doReturn(true).when(mAdapterService).isQuietModeEnabled();
+-        Assert.assertEquals(false, mService.okToConnect(device));
+-    }
+-
+ }
+-- 
+2.17.1
+

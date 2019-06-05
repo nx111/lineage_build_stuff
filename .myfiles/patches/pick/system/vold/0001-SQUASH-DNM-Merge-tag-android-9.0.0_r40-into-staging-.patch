@@ -1,0 +1,118 @@
+From ccf658e139435f87bb4bf8c8073c0d47d574e2ba Mon Sep 17 00:00:00 2001
+From: "Kevin F. Haggerty" <haggertk@lineageos.org>
+Date: Mon, 3 Jun 2019 18:51:42 -0600
+Subject: [PATCH] [SQUASH][DNM] Merge tag 'android-9.0.0_r40' into
+ staging/lineage-16.0_merge-android-9.0.0_r40
+
+Android 9.0.0 release 40
+
+* tag 'android-9.0.0_r40':
+  Fsync directories before delete key
+  Fsync directories after creating files
+
+https://github.com/haggertk/android_system_vold/tree/lineage-16.0_merge-android-9.0.0_r40
+
+Change-Id: If09755684b9ead2e01a7ef64f1d4ffde22f2982d
+---
+ Ext4Crypt.cpp  |  2 ++
+ KeyStorage.cpp |  5 +++++
+ Utils.cpp      | 19 +++++++++++++++++++
+ Utils.h        |  2 ++
+ 4 files changed, 28 insertions(+)
+
+diff --git a/Ext4Crypt.cpp b/Ext4Crypt.cpp
+index 67b7e90..68439c0 100644
+--- a/Ext4Crypt.cpp
++++ b/Ext4Crypt.cpp
+@@ -177,6 +177,7 @@ static void fixate_user_ce_key(const std::string& directory_path, const std::str
+             PLOG(WARNING) << "Unable to rename " << to_fix << " to " << current_path;
+         }
+     }
++    android::vold::FsyncDirectory(directory_path);
+ }
+ 
+ static bool read_and_fixate_user_ce_key(userid_t user_id,
+@@ -569,6 +570,7 @@ bool e4crypt_add_user_key_auth(userid_t user_id, int serial, const std::string&
+     std::string ce_key_path;
+     if (!get_ce_key_new_path(directory_path, paths, &ce_key_path)) return false;
+     if (!android::vold::storeKeyAtomically(ce_key_path, user_key_temp, auth, ce_key)) return false;
++    if (!android::vold::FsyncDirectory(directory_path)) return false;
+     return true;
+ }
+ 
+diff --git a/KeyStorage.cpp b/KeyStorage.cpp
+index 0518930..6fc7250 100644
+--- a/KeyStorage.cpp
++++ b/KeyStorage.cpp
+@@ -223,6 +223,10 @@ static KeymasterOperation begin(Keymaster& keymaster, const std::string& dir,
+             PLOG(ERROR) << "Unable to move upgraded key to location: " << kmKeyPath;
+             return KeymasterOperation();
+         }
++        if (!android::vold::FsyncDirectory(dir)) {
++            LOG(ERROR) << "Key dir sync failed: " << dir;
++            return KeymasterOperation();
++        }
+         if (!keymaster.deleteKey(kmKey)) {
+             LOG(ERROR) << "Key deletion failed during upgrade, continuing anyway: " << dir;
+         }
+@@ -480,6 +484,7 @@ bool storeKey(const std::string& dir, const KeyAuthentication& auth, const KeyBu
+         if (!encryptWithoutKeymaster(appId, key, &encryptedKey)) return false;
+     }
+     if (!writeStringToFile(encryptedKey, dir + "/" + kFn_encrypted_key)) return false;
++    if (!FsyncDirectory(dir)) return false;
+     return true;
+ }
+ 
+diff --git a/Utils.cpp b/Utils.cpp
+index 97df3f3..128cd5d 100644
+--- a/Utils.cpp
++++ b/Utils.cpp
+@@ -25,6 +25,7 @@
+ #include <android-base/properties.h>
+ #include <android-base/strings.h>
+ #include <android-base/stringprintf.h>
++#include <android-base/unique_fd.h>
+ #include <cutils/fs.h>
+ #include <logwrap/logwrap.h>
+ #include <private/android_filesystem_config.h>
+@@ -759,6 +760,24 @@ bool IsRunningInEmulator() {
+     return android::base::GetBoolProperty("ro.kernel.qemu", false);
+ }
+ 
++bool FsyncDirectory(const std::string& dirname) {
++    android::base::unique_fd fd(TEMP_FAILURE_RETRY(open(dirname.c_str(), O_RDONLY | O_CLOEXEC)));
++    if (fd == -1) {
++        PLOG(ERROR) << "Failed to open " << dirname;
++        return false;
++    }
++    if (fsync(fd) == -1) {
++        if (errno == EROFS || errno == EINVAL) {
++            PLOG(WARNING) << "Skip fsync " << dirname
++                          << " on a file system does not support synchronization";
++        } else {
++            PLOG(ERROR) << "Failed to fsync " << dirname;
++            return false;
++        }
++    }
++    return true;
++}
++
+ // TODO(118708649): fix duplication with init/util.h
+ status_t WaitForFile(const char* filename, std::chrono::nanoseconds timeout) {
+     android::base::Timer t;
+diff --git a/Utils.h b/Utils.h
+index 97291a7..9320963 100644
+--- a/Utils.h
++++ b/Utils.h
+@@ -129,6 +129,8 @@ bool WaitForFile(const std::string& filename,
+ /* Checks if Android is running in QEMU */
+ bool IsRunningInEmulator();
+ 
++bool FsyncDirectory(const std::string& dirname);
++
+ status_t WaitForFile(const char* filename, std::chrono::nanoseconds timeout);
+ 
+ }  // namespace vold
+-- 
+2.17.1
+

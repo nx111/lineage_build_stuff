@@ -1248,6 +1248,8 @@ if [ "${BASH_SOURCE[0]}" = "$runfrom" -a ! -f ${BASH_SOURCE[0]}.tmp -a $op_pick_
     [ $op_keep_manifests -ne 1 ] && reset_project_dir .repo/manifests
 
     #=========== pick changes ==========================
+    kpick 249464 # manifest: android-9.0.0_r37 -> android-9.0.0_r40
+
     #===================================================
 
     patch_local local/android
@@ -1305,6 +1307,7 @@ kpick 222742 # build: Use project pathmap for recovery
 kpick 222760 # Add LOCAL_AIDL_FLAGS
 kpick 247066 # build: Allow mounting system properly for A-only system-as-root devices
 kpick 248466 # make: Make recoveryimage depend on BOARD_PREBUILT_DTBOIMAGE on non-A/B
+kpick 249465 # [SQUASH][DNM] Merge tag 'android-9.0.0_r40' into staging/lineage-16.0_merge-android-9.0.0_r40
 
 # build/soong
 kpick 222648 # Allow providing flex and bison binaries
@@ -1321,6 +1324,7 @@ kpick 241677 # sepolicy: Break livedisplay hal policy into impl independent ones
 kpick 241903 # sepolicy: Label all the livedisplay service implementations
 kpick 246848 # Silence sysinit log spam
 kpick 249461 # sepol: Allow Bluetooth hal to access vendor.qcom.bluetooth.soc
+kpick 249482 # Revert "sepol: Label vendor.qcom.bluetooth.soc"
 
 # device/qcom/sepolicy
 kpick 240951 # qcom: label persist files with /(mnt/vendor)/persist instead of /mnt/vendor/persist
@@ -1344,6 +1348,7 @@ kpick 227261 # Cast BT_VND_OP_ANT_USERIAL_{OPEN,CLOSE} to bt_vendor_opcode_t in 
 kpick 223413 -f # perfetto_cmd: Resolve missing O_CREAT mode
 
 # external/skia
+kpick 249466 # [SQUASH][DNM] Merge tag 'android-9.0.0_r40' into staging/lineage-16.0_merge-android-9.0.0_r40
 
 # frameworks/av
 kpick 230387 # CameraService: Support calling addStates in enumerateProviders
@@ -1357,6 +1362,7 @@ kpick 238931 # stagefright: Fix SurfaceMediaSource getting handle from wrong pos
 kpick 238932 # stagefright: Fix buffer handle retrieval in signalBufferReturned
 kpick 239642 # libstagefright_wfd: video encoder does not actually release MediaBufferBase when done
 kpick 244574 # audioflinger: Fix audio for WifiDisplay
+kpick 249467 # [SQUASH][DNM] Merge tag 'android-9.0.0_r40' into staging/lineage-16.0_merge-android-9.0.0_r40
 
 # frameworks/base
 kpick 224513 # SystemUI: Disable config_keyguardUserSwitcher on sw600dp
@@ -1372,7 +1378,6 @@ kpick 233633 # Phone ringtone setting for Multi SIM device
 kpick 233717 # [DNM][HACK] Persist user brightness model
 kpick 234649 # keyguard: Check for a null errString
 kpick 237142 # Battery: update mod support to P
-kpick 237143 # AudioService: Fix Audio mod volume steps
 kpick 239520 # Reset all package signatures on boot
 kpick 240084 # ServiceRegistry: Don't throw an exception if OEM_LOCK is missing
 kpick 240766 # Proper supplementary service notification handling (1/5).
@@ -1390,9 +1395,12 @@ kpick 247886 # Add 3 finger swipe screenshot [1/3]
 kpick 248460 # Keyguard: Don't listen fingerprint when prox.sensor is covered (1/2)
 #kpick 248558 # Add special roaming case for EU operators [1/3]
 kpick 248561 # Add hall support for QTI lid sensors
-#kpick 248662 # Fix bugs regarding system app cannot write visible path
 kpick 249192 # fix ls navbar back button after launching camera.
+kpick 249460 # SystemUI: sync dark mode with AOSP night mode too
 kpick 249463 # BatteryMeterDrawableBase: Set proper stroke when power saver is enabled
+kpick 249468 # [SQUASH][DNM] Merge tag 'android-9.0.0_r40' into staging/lineage-16.0_merge-android-9.0.0_r40
+kpick 249488 # LiveDisplayTile: Report unavailable on HWC2
+kpick 249494 # fw/b: Allow adb over network when any default network is active
 
 # frameworks/native
 kpick 224530 # Triple the available egl function pointers available to a process for certain Nvidia devices.
@@ -1431,6 +1439,7 @@ kpick 223341 # display: Always assume kernel source is present
 
 # hardware/qcom/fm
 kpick 236546 # fm_helium: Update FM_HCI_DIR path
+kpick 249480 # Partially revert "fm: Fix wrong BT SOC property name"
 
 # hardware/qcom/keymaster
 kpick 248363 # keymaster: Build with BOARD_VNDK_VERSION
@@ -1467,6 +1476,10 @@ kpick 242398 # Trust: Onboarding: Listen for locale changes
 kpick 247885 # Add 3 finger swipe screenshot [2/3]
 kpick 248441 # sdk: Use Google's algorithm to convert color temperature to RGB
 kpick 248461 # Keyguard: Don't listen fingerprint when prox.sensor is covered (2/2)
+kpick 249493 # LiveDisplayService: Disable ColorTemperature when NightDisplay is available
+
+# packages/apps/Bluetooth
+kpick 249469 # [SQUASH][DNM] Merge tag 'android-9.0.0_r40' into staging/lineage-16.0_merge-android-9.0.0_r40
 
 # packages/apps/Camera2
 kpick 224752 # Use mCameraAgentNg for getting camera info when available
@@ -1481,7 +1494,6 @@ kpick 248475 # Pause music on bluetooth audio device disconnect
 
 # packages/apps/LineageParts
 kpick 249225 # Lineage parts: Make 'Privacy Guard' icons work with dark theme
-kpick 249452 # LiveDisplaySettings: Reset preferences before hiding them from UI
 
 # packages/apps/Nfc
 kpick 232697 # NFCService: Add sysprop to prevent FW download during boot with NFC off.
@@ -1502,8 +1514,6 @@ kpick 248442 # BasebandVersionDialogController: Trim duplicated baseband if need
 kpick 242496 # Snap: Fix bad grammar "Long shot not support<ed>"
 kpick 243071 # Snap: allow to disable image stabilization per device
 kpick 247120 # Snap: add basic support for setting lens shading mode
-#kpick 248663 # Snap: Save SDCard photos to legacy path
-#kpick 248664 # Save images properly
 
 # packages/apps/UnifiedEmail
 kpick 248661 # Fix notification timestamp behavior.
@@ -1523,6 +1533,7 @@ kpick 243706 # Allow to disable the new scan API for manual network search.
 
 # system/bt
 kpick 229314 # Allow using alternative (higher) SBC HD bitrates with a property
+kpick 249470 # [SQUASH][DNM] Merge tag 'android-9.0.0_r40' into staging/lineage-16.0_merge-android-9.0.0_r40
 
 # system/core
 kpick 231716 # init: Always use libbootloader_message from bootable/recovery namespace
@@ -1544,6 +1555,9 @@ kpick 232794 # NetD : Allow passing in interface names for vpn app restriction
 
 # system/sepolicy
 kpick 243819 # sepolicy: Label tee_data_file as core_data_file_type
+
+# system/vold
+kpick 249471 # [SQUASH][DNM] Merge tag 'android-9.0.0_r40' into staging/lineage-16.0_merge-android-9.0.0_r40
 
 # system/tools/aidl
 kpick 223133 # AIDL: Add option to generate No-Op methods
@@ -1572,6 +1586,7 @@ kpick 248512 # qcom: Add UM 4.14 platforms
 kpick 248706 # fix /data/ssh/empty file permissions
 kpick 248707 # build: tasks: kernel: Add support for MediaTek dtbo images
 kpick 249190 # Update French operator SFR (and its web subsidiary RED) and MVNO's based on SFR apns
+kpick 249477 # Revert "kernel: Correct CROSS_COMPILE_ARM32 toolchain"
 
 # vendor/qcom/opensource/audio
 kpick 247915 # policy_hal: do not check MODE_IN_COMMUNICATION for voip_rx flag

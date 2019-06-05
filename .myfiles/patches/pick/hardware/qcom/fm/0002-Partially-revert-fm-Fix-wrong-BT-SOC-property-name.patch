@@ -1,0 +1,178 @@
+From db96a11102ee168fe71274d50e8392d5e28ecffb Mon Sep 17 00:00:00 2001
+From: Atman <masteratman@gmail.com>
+Date: Mon, 3 Jun 2019 19:29:05 +0000
+Subject: [PATCH 2/2] Partially revert "fm: Fix wrong BT SOC property name"
+
+It makes no sense to use vendor.qcom.bluetoth.soc prop because FMApp is located in /system and after
+the vendor-system isolation, the FMApp can't read the aforementioned prop.
+
+We should be reading the vendor.bluetooth.soc prop which resides in system which
+the FMApp can actually read after the enforced isolation.
+
+A recursive grep actually confirms that the prop is being used in stock blobs.
+
+This also addresses the issue of hal_bluetooth_qti, hal_audio_default trying to read vendor.qcom.bluetooth.soc.
+
+The device is expected to declare vendor.bluetooth.soc in system.prop.
+
+This partially reverts commit 518b8c1609a0763544fc0aa268e4de57be70ef75.
+
+Change-Id: I461e63c25c241361c0a87ce23c04e16cfb7280a0
+Signed-off-by: Atman <masteratman@gmail.com>
+---
+ fmapp2/src/com/caf/fmradio/FMRadio.java |  2 +-
+ fmapp2/src/com/caf/fmradio/FMStats.java |  6 +++---
+ jni/android_hardware_fm.cpp             | 10 +++++-----
+ libfm_jni/FmRadioController.cpp         |  4 ++--
+ qcom/fmradio/FmReceiver.java            |  6 +++---
+ 5 files changed, 14 insertions(+), 14 deletions(-)
+
+diff --git a/fmapp2/src/com/caf/fmradio/FMRadio.java b/fmapp2/src/com/caf/fmradio/FMRadio.java
+index dcb4a12c..3a3be230 100644
+--- a/fmapp2/src/com/caf/fmradio/FMRadio.java
++++ b/fmapp2/src/com/caf/fmradio/FMRadio.java
+@@ -405,7 +405,7 @@ public class FMRadio extends Activity
+       if ((mERadioTextScroller == null) && (mERadioTextTV != null)) {
+           mERadioTextScroller = new ScrollerText(mERadioTextTV);
+       }
+-      mBTsoc = SystemProperties.get("vendor.qcom.bluetooth.soc");
++      mBTsoc = SystemProperties.get("vendor.bluetooth.soc");
+    }
+ 
+    protected void setDisplayvalue(){
+diff --git a/fmapp2/src/com/caf/fmradio/FMStats.java b/fmapp2/src/com/caf/fmradio/FMStats.java
+index 7b48c2a1..7ea12998 100644
+--- a/fmapp2/src/com/caf/fmradio/FMStats.java
++++ b/fmapp2/src/com/caf/fmradio/FMStats.java
+@@ -2880,7 +2880,7 @@ public class FMStats extends Activity  {
+         }
+     }
+     private void checkTransportLayer() {
+-       String chip = SystemProperties.get("vendor.qcom.bluetooth.soc","default");
++       String chip = SystemProperties.get("vendor.bluetooth.soc","default");
+        if (chip.equals("default"))
+            mIsTransportSMD = true;
+        else
+@@ -2893,7 +2893,7 @@ public class FMStats extends Activity  {
+     private boolean isCherokeeChip() {
+         Log.d(LOGTAG, "isCherokeeChip");
+ 
+-        String chip = SystemProperties.get("vendor.qcom.bluetooth.soc");
++        String chip = SystemProperties.get("vendor.bluetooth.soc");
+         if (chip.equals("cherokee"))
+             return true;
+         else
+@@ -2903,7 +2903,7 @@ public class FMStats extends Activity  {
+     private boolean isRomeChip() {
+         String chip = "";
+ 
+-        chip = SystemProperties.get("vendor.qcom.bluetooth.soc");
++        chip = SystemProperties.get("vendor.bluetooth.soc");
+         if(chip.equals("rome"))
+            return true;
+         return false;
+diff --git a/jni/android_hardware_fm.cpp b/jni/android_hardware_fm.cpp
+index c7942c5e..831ad421 100644
+--- a/jni/android_hardware_fm.cpp
++++ b/jni/android_hardware_fm.cpp
+@@ -681,7 +681,7 @@ static jint android_hardware_fmradio_FmReceiverJNI_acquireFdNative
+        return FM_JNI_FAILURE;
+     }
+ 
+-    property_get("vendor.qcom.bluetooth.soc", value, NULL);
++    property_get("vendor.bluetooth.soc", value, NULL);
+ 
+     ALOGD("BT soc is %s\n", value);
+ 
+@@ -725,7 +725,7 @@ static jint android_hardware_fmradio_FmReceiverJNI_closeFdNative
+ {
+     char value[PROPERTY_VALUE_MAX] = {'\0'};
+ 
+-    property_get("vendor.qcom.bluetooth.soc", value, NULL);
++    property_get("vendor.bluetooth.soc", value, NULL);
+ 
+     ALOGD("BT soc is %s\n", value);
+ 
+@@ -740,7 +740,7 @@ static jint android_hardware_fmradio_FmReceiverJNI_closeFdNative
+ static bool is_soc_cherokee() {
+ 
+     char value[PROPERTY_VALUE_MAX] = {'\0'};
+-    property_get("vendor.qcom.bluetooth.soc", value, NULL);
++    property_get("vendor.bluetooth.soc", value, NULL);
+     ALOGD("BT soc is %s\n", value);
+ 
+     if(strcmp(value, "cherokee") == 0)
+@@ -1211,7 +1211,7 @@ static jint android_hardware_fmradio_FmReceiverJNI_setNotchFilterNative
+     int band;
+     int err = 0;
+ 
+-    property_get("vendor.qcom.bluetooth.soc", value, NULL);
++    property_get("vendor.bluetooth.soc", value, NULL);
+ 
+     ALOGD("BT soc is %s\n", value);
+ 
+@@ -1275,7 +1275,7 @@ static jint android_hardware_fmradio_FmReceiverJNI_setAnalogModeNative
+     int i=0;
+     char value[PROPERTY_VALUE_MAX] = {'\0'};
+ 
+-    property_get("vendor.qcom.bluetooth.soc", value, NULL);
++    property_get("vendor.bluetooth.soc", value, NULL);
+ 
+     ALOGD("BT soc is %s\n", value);
+ 
+diff --git a/libfm_jni/FmRadioController.cpp b/libfm_jni/FmRadioController.cpp
+index bcfe02e6..44a3d57b 100644
+--- a/libfm_jni/FmRadioController.cpp
++++ b/libfm_jni/FmRadioController.cpp
+@@ -164,7 +164,7 @@ int FmRadioController ::Pwr_Up(int freq)
+     char value[PROPERTY_VALUE_MAX] = {'\0'};
+ 
+     ALOGI("%s,[freq=%d]\n", __func__, freq);
+-    property_get("vendor.qcom.bluetooth.soc", value, NULL);
++    property_get("vendor.bluetooth.soc", value, NULL);
+     ALOGD("BT soc is '%s'\n", value);
+     if (fd_driver < 0) {
+         ret = open_dev();
+@@ -1114,7 +1114,7 @@ void FmRadioController :: handle_enabled_event
+      ALOGI("FM handle ready Event\n");
+      FmIoctlsInterface::set_control(fd_driver,
+              V4L2_CID_PRV_AUDIO_PATH, AUDIO_DIGITAL_PATH);
+-     property_get("vendor.qcom.bluetooth.soc", value, NULL);
++     property_get("vendor.bluetooth.soc", value, NULL);
+      if (strcmp(value, "rome") != 0) {
+          FmIoctlsInterface::set_calibration(fd_driver);
+      }
+diff --git a/qcom/fmradio/FmReceiver.java b/qcom/fmradio/FmReceiver.java
+index 5c0d8ccf..78ee8c79 100644
+--- a/qcom/fmradio/FmReceiver.java
++++ b/qcom/fmradio/FmReceiver.java
+@@ -344,7 +344,7 @@ public class FmReceiver extends FmTransceiver
+    private static final int SEARCH_SINR_INT = 1;
+ 
+    public boolean isSmdTransportLayer() {
+-       String chip = SystemProperties.get("vendor.qcom.bluetooth.soc","default");
++       String chip = SystemProperties.get("vendor.bluetooth.soc","default");
+        if (chip.equals("default"))
+            return true;
+        else
+@@ -352,7 +352,7 @@ public class FmReceiver extends FmTransceiver
+    }
+ 
+    public static boolean isRomeChip() {
+-       String chip = SystemProperties.get("vendor.qcom.bluetooth.soc");
++       String chip = SystemProperties.get("vendor.bluetooth.soc");
+        if (chip.equals("rome"))
+            return true;
+        else
+@@ -360,7 +360,7 @@ public class FmReceiver extends FmTransceiver
+    }
+ 
+    public static boolean isCherokeeChip() {
+-       String chip = SystemProperties.get("vendor.qcom.bluetooth.soc");
++       String chip = SystemProperties.get("vendor.bluetooth.soc");
+        if (chip.equals("cherokee"))
+            return true;
+        else
+-- 
+2.17.1
+
