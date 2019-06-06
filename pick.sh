@@ -1295,6 +1295,7 @@ kpick 235457 # msm8974-common: sepolicy: Limit execmod to specifically labeled f
 kpick 248813 # msm8974-common: Nuke AdvancedDisplay
 
 # kernel/samsung/msm8974
+kpick 249514 # media: uvcvideo: Fix 'type' check leading to overflow
 
 # ====== OTHERS =======
 
@@ -1305,7 +1306,6 @@ kpick 247476 # recovery: wipe bootloader message from index 0 when using custom 
 # build/make
 kpick 222742 # build: Use project pathmap for recovery
 kpick 222760 # Add LOCAL_AIDL_FLAGS
-kpick 247066 # build: Allow mounting system properly for A-only system-as-root devices
 kpick 248466 # make: Make recoveryimage depend on BOARD_PREBUILT_DTBOIMAGE on non-A/B
 kpick 249465 # [SQUASH][DNM] Merge tag 'android-9.0.0_r40' into staging/lineage-16.0_merge-android-9.0.0_r40
 
@@ -1324,7 +1324,6 @@ kpick 241677 # sepolicy: Break livedisplay hal policy into impl independent ones
 kpick 241903 # sepolicy: Label all the livedisplay service implementations
 kpick 246848 # Silence sysinit log spam
 kpick 249461 # sepol: Allow Bluetooth hal to access vendor.qcom.bluetooth.soc
-kpick 249482 # Revert "sepol: Label vendor.qcom.bluetooth.soc"
 
 # device/qcom/sepolicy
 kpick 240951 # qcom: label persist files with /(mnt/vendor)/persist instead of /mnt/vendor/persist
@@ -1349,6 +1348,9 @@ kpick 223413 -f # perfetto_cmd: Resolve missing O_CREAT mode
 
 # external/skia
 kpick 249466 # [SQUASH][DNM] Merge tag 'android-9.0.0_r40' into staging/lineage-16.0_merge-android-9.0.0_r40
+
+# external/vim
+kpick 249513 # vimrc.android: Set nomodeline
 
 # frameworks/av
 kpick 230387 # CameraService: Support calling addStates in enumerateProviders
@@ -1399,7 +1401,6 @@ kpick 249192 # fix ls navbar back button after launching camera.
 kpick 249463 # BatteryMeterDrawableBase: Set proper stroke when power saver is enabled
 kpick 249468 # [SQUASH][DNM] Merge tag 'android-9.0.0_r40' into staging/lineage-16.0_merge-android-9.0.0_r40
 kpick 249494 # fw/b: Allow adb over network when any default network is active
-kpick 249496 # SystemUI: allow devices override audio panel location
 
 # frameworks/native
 kpick 224530 # Triple the available egl function pointers available to a process for certain Nvidia devices.
@@ -1438,7 +1439,6 @@ kpick 223341 # display: Always assume kernel source is present
 
 # hardware/qcom/fm
 kpick 236546 # fm_helium: Update FM_HCI_DIR path
-kpick 249480 # Partially revert "fm: Fix wrong BT SOC property name"
 
 # hardware/qcom/keymaster
 kpick 248363 # keymaster: Build with BOARD_VNDK_VERSION
@@ -1469,6 +1469,8 @@ kpick 231898 # Power: Naming convention change
 # hardware/samsung
 kpick 231194 # power: properly initialize cluster states
 kpick 248226 # samsung: Move all to vendor
+#kpick 249503
+#kpick 249504
 
 # lineage-sdk
 kpick 242398 # Trust: Onboarding: Listen for locale changes
