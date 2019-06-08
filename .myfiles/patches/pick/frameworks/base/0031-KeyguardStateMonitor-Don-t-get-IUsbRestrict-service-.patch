@@ -1,0 +1,69 @@
+From 25cfef373aacf60d3b15e59a6f83e627f69c430d Mon Sep 17 00:00:00 2001
+From: Han Wang <416810799@qq.com>
+Date: Fri, 7 Jun 2019 08:30:54 +0200
+Subject: [PATCH 31/39] KeyguardStateMonitor: Don't get IUsbRestrict service in
+ constructor
+
+ * If boot up is "too fast" and Trust HAL starts a bit slowly,
+   we may end up getting a NULL IUsbRestrict service in
+   constructor. This causes a NPE later in onShowingStateChanged().
+
+ * To avoid this, we just try to get IUsbRestrict service in
+   onShowingStateChanged(). This adds a little overhead, but prevents
+   possible crashes.
+
+Change-Id: Idc09cc1700aad8753244789a1f14ea1d5267f77c
+---
+ .../policy/keyguard/KeyguardStateMonitor.java | 22 +++++++++++++------
+ 1 file changed, 15 insertions(+), 7 deletions(-)
+
+diff --git a/services/core/java/com/android/server/policy/keyguard/KeyguardStateMonitor.java b/services/core/java/com/android/server/policy/keyguard/KeyguardStateMonitor.java
+index 8d1bb7e480b..c6d85a83f21 100644
+--- a/services/core/java/com/android/server/policy/keyguard/KeyguardStateMonitor.java
++++ b/services/core/java/com/android/server/policy/keyguard/KeyguardStateMonitor.java
+@@ -58,7 +58,7 @@ public class KeyguardStateMonitor extends IKeyguardStateCallback.Stub {
+     private final LockPatternUtils mLockPatternUtils;
+     private final StateCallback mCallback;
+ 
+-    private IUsbRestrict mUsbRestrictor;
++    private IUsbRestrict mUsbRestrictor = null;
+     private ContentResolver mContentResolver;
+ 
+     IKeystoreService mKeystoreService;
+@@ -77,12 +77,6 @@ public class KeyguardStateMonitor extends IKeyguardStateCallback.Stub {
+         } catch (RemoteException e) {
+             Slog.w(TAG, "Remote Exception", e);
+         }
+-
+-        try {
+-            mUsbRestrictor = IUsbRestrict.getService();
+-        } catch (NoSuchElementException | RemoteException ignored) {
+-            // Ignore, the hal is not available
+-        }
+     }
+ 
+     public boolean isShowing() {
+@@ -116,6 +110,20 @@ public class KeyguardStateMonitor extends IKeyguardStateCallback.Stub {
+             Slog.e(TAG, "Error informing keystore of screen lock", e);
+         }
+ 
++        if (mUsbRestrictor == null) {
++            try {
++                mUsbRestrictor = IUsbRestrict.getService();
++            } catch (NoSuchElementException | RemoteException ignored) {
++                // Ignore, the hal is not available
++                return;
++            }
++        }
++
++        if (mUsbRestrictor == null) {
++            // Return for now and retry on next time
++            return;
++        }
++
+         boolean shouldRestrictUsb = LineageSettings.Secure.getInt(mContentResolver,
+                 LineageSettings.Secure.TRUST_RESTRICT_USB_KEYGUARD, 0) == 1;
+         if (shouldRestrictUsb) {
+-- 
+2.17.1
+

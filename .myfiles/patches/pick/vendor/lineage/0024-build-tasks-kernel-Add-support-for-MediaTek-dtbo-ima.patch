@@ -1,0 +1,82 @@
+From e04e661636f7a4412db5de5a13bf44cd25b41fdc Mon Sep 17 00:00:00 2001
+From: "Christopher N. Hesse" <raymanfx@gmail.com>
+Date: Fri, 23 Nov 2018 16:20:50 +0100
+Subject: [PATCH 24/27] build: tasks: kernel: Add support for MediaTek dtbo
+ images
+
+MediaTek uses "odmdtbo.img" on recent Helio SoCs.
+
+Some MTK targets have a dtbo partition, but not vbmeta partition.
+On 15.1, this required handling in this makefile, however, on 16.0,
+since we are simply exporting the built dtbo images to the AOSP
+makefile, it will handle AVB signing on appropriate targets.
+
+There are 3 new variables introduced as part of this change:
+
+  TARGET_DTBO_IMAGE_NAME
+
+    The name of your dtbo image, mostly relevant for AVB signing.
+    This variable must be set in all cases.
+
+  TARGET_DTBO_IMAGE_TARGET
+
+    The build target (PHONY) that your kernel makefile (Android[Kernel].mk)
+    uses to build the dtbo image.
+
+  TARGET_DTBO_IMAGE_PATH
+
+    The output path to the generated dtbo image as dictated by the kernel.
+    This shall be relative to $(PRODUCT_OUT).
+
+Change-Id: I52de8cfc38c89d053daeb9f10555479d70f8ac03
+---
+ build/tasks/kernel.mk | 17 ++++++++++++++---
+ 1 file changed, 14 insertions(+), 3 deletions(-)
+
+diff --git a/build/tasks/kernel.mk b/build/tasks/kernel.mk
+index e4779a3e..7355f0b9 100644
+--- a/build/tasks/kernel.mk
++++ b/build/tasks/kernel.mk
+@@ -53,6 +53,14 @@
+ #                                          modules in root instead of vendor
+ #   NEED_KERNEL_MODULE_SYSTEM          = Optional, if true, install kernel
+ #                                          modules in system instead of vendor
++#
++#   TARGET_DTBO_IMAGE_NAME             = Device Tree Binary Overlay (DTBO) image name
++#                                          Should be 'dtbo' for most devices
++#                                          Some MediaTek devices use 'odmdtbo'
++#   TARGET_DTBO_IMAGE_TARGET           = Similar to TARGET_DTBO_IMAGE_NAME, but the full file name
++#                                          Should be 'dtbo.img' for most devices
++#                                          Some MediaTek devices use 'odmdtboimage'
++#   TARGET_DTBO_IMAGE_PATH             = Path to generated DTBO image in inline kernel build tree
+ 
+ ifneq ($(TARGET_NO_KERNEL),true)
+ 
+@@ -78,6 +86,9 @@ ifeq ($(BOARD_KERNEL_IMAGE_NAME),)
+ $(error BOARD_KERNEL_IMAGE_NAME not defined.)
+ endif
+ TARGET_PREBUILT_INT_KERNEL := $(KERNEL_OUT)/arch/$(KERNEL_ARCH)/boot/$(BOARD_KERNEL_IMAGE_NAME)
++TARGET_DTBO_IMAGE_NAME ?= dtbo
++TARGET_DTBO_IMAGE_TARGET ?= dtbo.img
++TARGET_DTBO_IMAGE_PATH ?= dtbo/arch/$(KERNEL_ARCH)/boot/$(TARGET_DTBO_IMAGE_NAME).img
+ 
+ ifneq ($(TARGET_KERNEL_ADDITIONAL_CONFIG),)
+ KERNEL_ADDITIONAL_CONFIG := $(TARGET_KERNEL_ADDITIONAL_CONFIG)
+@@ -277,11 +288,11 @@ alldefconfig:
+ 		 $(call make-kernel-target,alldefconfig)
+ 
+ ifeq ($(TARGET_NEEDS_DTBOIMAGE),true)
+-BOARD_PREBUILT_DTBOIMAGE = $(PRODUCT_OUT)/dtbo/arch/$(KERNEL_ARCH)/boot/dtbo.img
++BOARD_PREBUILT_DTBOIMAGE = $(PRODUCT_OUT)/$(TARGET_DTBO_IMAGE_PATH)
+ $(BOARD_PREBUILT_DTBOIMAGE):
+-	echo -e ${CL_GRN}"Building DTBO.img"${CL_RST}
++	echo -e ${CL_GRN}"Building $(TARGET_DTBO_IMAGE_NAME).img"${CL_RST}
+ 	$(call make-dtbo-target,$(KERNEL_DEFCONFIG))
+-	$(call make-dtbo-target,dtbo.img)
++	$(call make-dtbo-target,$(TARGET_DTBO_IMAGE_NAME))
+ endif # TARGET_NEEDS_DTBOIMAGE
+ 
+ endif # FULL_KERNEL_BUILD
+-- 
+2.17.1
+
