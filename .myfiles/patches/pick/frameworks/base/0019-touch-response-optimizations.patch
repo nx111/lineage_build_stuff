@@ -1,0 +1,408 @@
+From f34265963249c471c8a59188535722bad3cecde6 Mon Sep 17 00:00:00 2001
+From: zfu <zfu@codeaurora.org>
+Date: Thu, 1 Mar 2018 17:28:48 +0800
+Subject: [PATCH 19/37] touch response optimizations.
+
+Choreographer uses MotionType and TouchMoveCounter to do specific actions for
+first touchmove event.
+Set specific mTouchSlop for first TouchMove event in AbsListView widget.
+
+CRs-Fixed: 2006233
+Change-Id: Ic76c5875792477998f9bb6ace4d93f8cc6a10765
+---
+ core/java/android/view/Choreographer.java     | 57 ++++++++++++-
+ .../java/android/view/InputEventReceiver.java | 14 ++++
+ core/java/android/widget/AbsListView.java     | 82 ++++++++++++++++++-
+ core/jni/android_view_InputEventReceiver.cpp  | 32 +++++++-
+ 4 files changed, 180 insertions(+), 5 deletions(-)
+
+diff --git a/core/java/android/view/Choreographer.java b/core/java/android/view/Choreographer.java
+index f8cfd0da495..48099ab2f6b 100644
+--- a/core/java/android/view/Choreographer.java
++++ b/core/java/android/view/Choreographer.java
+@@ -80,6 +80,7 @@ public final class Choreographer {
+ 
+     // Prints debug messages about jank which was detected (low volume).
+     private static final boolean DEBUG_JANK = false;
++    private static final boolean OPTS_INPUT = SystemProperties.getBoolean("persist.vendor.qti.inputopts.enable",false);
+ 
+     // Prints debug messages about every frame and callback registered (high volume).
+     private static final boolean DEBUG_FRAMES = false;
+@@ -146,6 +147,11 @@ public final class Choreographer {
+     private static final int MSG_DO_SCHEDULE_VSYNC = 1;
+     private static final int MSG_DO_SCHEDULE_CALLBACK = 2;
+ 
++    private static final int MOTION_EVENT_ACTION_DOWN = 0;
++    private static final int MOTION_EVENT_ACTION_UP = 1;
++    private static final int MOTION_EVENT_ACTION_MOVE = 2;
++    private static final int MOTION_EVENT_ACTION_CANCEL = 3;
++
+     // All frame callbacks posted by applications have this token.
+     private static final Object FRAME_CALLBACK_TOKEN = new Object() {
+         public String toString() { return "FRAME_CALLBACK_TOKEN"; }
+@@ -171,7 +177,10 @@ public final class Choreographer {
+     private long mFrameIntervalNanos;
+     private boolean mDebugPrintNextFrameTimeDelta;
+     private int mFPSDivisor = 1;
+-
++    private int mTouchMoveNum = -1;
++    private int mMotionEventType = -1;
++    private boolean mConsumedMove = false;
++    private boolean mConsumedDown = false;
+     /**
+      * Contains information about the current frame for jank-tracking,
+      * mainly timings of key events along with a bit of metadata about
+@@ -269,6 +278,16 @@ public final class Choreographer {
+         return sSfThreadInstance.get();
+     }
+ 
++    /**
++     * @hide
++     */
++    public void setMotionEventInfo(int motionEventType, int touchMoveNum) {
++        synchronized(this) {
++            mTouchMoveNum = touchMoveNum;
++            mMotionEventType = motionEventType;
++        }
++    }
++
+     /**
+      * @return The Choreographer of the main thread, if it exists, or {@code null} otherwise.
+      * @hide
+@@ -593,6 +612,42 @@ public final class Choreographer {
+     private void scheduleFrameLocked(long now) {
+         if (!mFrameScheduled) {
+             mFrameScheduled = true;
++            if (OPTS_INPUT) {
++                Trace.traceBegin(Trace.TRACE_TAG_VIEW, "scheduleFrameLocked-mMotionEventType:" + mMotionEventType + " mTouchMoveNum:" + mTouchMoveNum
++                                    + " mConsumedDown:" + mConsumedDown + " mConsumedMove:" + mConsumedMove);
++                Trace.traceEnd(Trace.TRACE_TAG_VIEW);
++                synchronized(this) {
++                    switch(mMotionEventType) {
++                        case MOTION_EVENT_ACTION_DOWN:
++                            mConsumedMove = false;
++                            if (!mConsumedDown) {
++                                Message msg = mHandler.obtainMessage(MSG_DO_FRAME);
++                                msg.setAsynchronous(true);
++                                mHandler.sendMessageAtFrontOfQueue(msg);
++                                mConsumedDown = true;
++                                return;
++                            }
++                            break;
++                        case MOTION_EVENT_ACTION_MOVE:
++                            mConsumedDown = false;
++                            if ((mTouchMoveNum == 1) && !mConsumedMove) {
++                                Message msg = mHandler.obtainMessage(MSG_DO_FRAME);
++                                msg.setAsynchronous(true);
++                                mHandler.sendMessageAtFrontOfQueue(msg);
++                                mConsumedMove = true;
++                                return;
++                            }
++                            break;
++                        case MOTION_EVENT_ACTION_UP:
++                        case MOTION_EVENT_ACTION_CANCEL:
++                            mConsumedMove = false;
++                            mConsumedDown = false;
++                            break;
++                        default:
++                            break;
++                    }
++                }
++            }
+             if (USE_VSYNC) {
+                 if (DEBUG_FRAMES) {
+                     Log.d(TAG, "Scheduling next frame on vsync.");
+diff --git a/core/java/android/view/InputEventReceiver.java b/core/java/android/view/InputEventReceiver.java
+index c566a653da4..be3d9539a6c 100644
+--- a/core/java/android/view/InputEventReceiver.java
++++ b/core/java/android/view/InputEventReceiver.java
+@@ -43,6 +43,7 @@ public abstract class InputEventReceiver {
+ 
+     // Map from InputEvent sequence numbers to dispatcher sequence numbers.
+     private final SparseIntArray mSeqMap = new SparseIntArray();
++    Choreographer mChoreographer;
+ 
+     private static native long nativeInit(WeakReference<InputEventReceiver> receiver,
+             InputChannel inputChannel, MessageQueue messageQueue);
+@@ -192,6 +193,19 @@ public abstract class InputEventReceiver {
+         onBatchedInputEventPending();
+     }
+ 
++    // Called from native code.
++    @SuppressWarnings("unused")
++    private void dispatchMotionEventInfo(int motionEventType, int touchMoveNum) {
++        try {
++            if (mChoreographer == null)
++                mChoreographer = Choreographer.getInstance();
++
++            if (mChoreographer != null)
++                mChoreographer.setMotionEventInfo(motionEventType, touchMoveNum);
++        } catch (Exception e) {
++            Log.e(TAG, "cannot invoke setMotionEventInfo.");
++        }
++    }
+     public static interface Factory {
+         public InputEventReceiver createInputEventReceiver(
+                 InputChannel inputChannel, Looper looper);
+diff --git a/core/java/android/widget/AbsListView.java b/core/java/android/widget/AbsListView.java
+index 6238e169e9e..9a62b5f8abe 100644
+--- a/core/java/android/widget/AbsListView.java
++++ b/core/java/android/widget/AbsListView.java
+@@ -34,6 +34,7 @@ import android.os.Handler;
+ import android.os.Parcel;
+ import android.os.Parcelable;
+ import android.os.StrictMode;
++import android.os.SystemProperties;
+ import android.os.Trace;
+ import android.text.Editable;
+ import android.text.InputType;
+@@ -110,6 +111,10 @@ public abstract class AbsListView extends AdapterView<ListAdapter> implements Te
+ 
+     @SuppressWarnings("UnusedDeclaration")
+     private static final String TAG = "AbsListView";
++    private static final boolean OPTS_INPUT = SystemProperties.getBoolean("persist.vendor.qti.inputopts.enable",false);
++    private static final String MOVE_TOUCH_SLOP = SystemProperties.get("persist.vendor.qti.inputopts.movetouchslop","0.6");
++    private static final double TOUCH_SLOP_MIN = 0.6;
++    private static final double TOUCH_SLOP_MAX = 1.0;
+ 
+     /**
+      * Disables the transcript mode.
+@@ -738,6 +743,10 @@ public abstract class AbsListView extends AdapterView<ListAdapter> implements Te
+      */
+     private boolean mIsDetaching;
+ 
++    private boolean mIsFirstTouchMoveEvent = false;
++    private int mMoveAcceleration;
++    private int mNumTouchMoveEvent = 0;
++
+     /**
+      * Interface definition for a callback to be invoked when the list or grid
+      * has been scrolled.
+@@ -879,6 +888,20 @@ public abstract class AbsListView extends AdapterView<ListAdapter> implements Te
+         final ViewConfiguration configuration = ViewConfiguration.get(mContext);
+         mTouchSlop = configuration.getScaledTouchSlop();
+         mVerticalScrollFactor = configuration.getScaledVerticalScrollFactor();
++        if (OPTS_INPUT) {
++            double touchslopprop = Double.parseDouble(MOVE_TOUCH_SLOP);
++            if (touchslopprop > 0) {
++                if (touchslopprop < TOUCH_SLOP_MIN) {
++                    mMoveAcceleration = (int)(mTouchSlop * TOUCH_SLOP_MIN);
++                } else if ((touchslopprop >= TOUCH_SLOP_MIN) && (touchslopprop < TOUCH_SLOP_MAX)){
++                    mMoveAcceleration = (int)(mTouchSlop * touchslopprop);
++                } else {
++                    mMoveAcceleration = mTouchSlop;
++                }
++            } else {
++                mMoveAcceleration = mTouchSlop;
++            }
++        }
+         mMinimumVelocity = configuration.getScaledMinimumFlingVelocity();
+         mMaximumVelocity = configuration.getScaledMaximumFlingVelocity();
+         mOverscrollDistance = configuration.getScaledOverscrollDistance();
+@@ -3485,7 +3508,18 @@ public abstract class AbsListView extends AdapterView<ListAdapter> implements Te
+         final int deltaY = y - mMotionY;
+         final int distance = Math.abs(deltaY);
+         final boolean overscroll = mScrollY != 0;
+-        if ((overscroll || distance > mTouchSlop) &&
++        boolean isFarEnough = false;
++        if (OPTS_INPUT) {
++            if (mIsFirstTouchMoveEvent) {
++                isFarEnough = distance > mMoveAcceleration;
++            } else {
++                isFarEnough = distance > mTouchSlop;
++            }
++        } else {
++            isFarEnough = distance > mTouchSlop;
++        }
++
++        if ((overscroll || isFarEnough) &&
+                 (getNestedScrollAxes() & SCROLL_AXIS_VERTICAL) == 0) {
+             createScrollingCache();
+             if (overscroll) {
+@@ -3493,7 +3527,11 @@ public abstract class AbsListView extends AdapterView<ListAdapter> implements Te
+                 mMotionCorrection = 0;
+             } else {
+                 mTouchMode = TOUCH_MODE_SCROLL;
+-                mMotionCorrection = deltaY > 0 ? mTouchSlop : -mTouchSlop;
++                if (mIsFirstTouchMoveEvent) {
++                    mMotionCorrection = deltaY > 0 ? mMoveAcceleration : -mMoveAcceleration;
++                } else {
++                    mMotionCorrection = deltaY > 0 ? mTouchSlop : -mTouchSlop;
++                }
+             }
+             removeCallbacks(mPendingCheckForLongPress);
+             setPressed(false);
+@@ -3810,21 +3848,38 @@ public abstract class AbsListView extends AdapterView<ListAdapter> implements Te
+         switch (actionMasked) {
+             case MotionEvent.ACTION_DOWN: {
+                 onTouchDown(ev);
++                if (OPTS_INPUT) {
++                    mNumTouchMoveEvent = 0;
++                }
+                 break;
+             }
+ 
+             case MotionEvent.ACTION_MOVE: {
++                if (OPTS_INPUT) {
++                    mNumTouchMoveEvent++;
++                    if (mNumTouchMoveEvent == 1) {
++                        mIsFirstTouchMoveEvent = true;
++                    } else {
++                        mIsFirstTouchMoveEvent = false;
++                    }
++                }
+                 onTouchMove(ev, vtev);
+                 break;
+             }
+ 
+             case MotionEvent.ACTION_UP: {
+                 onTouchUp(ev);
++                if (OPTS_INPUT) {
++                    mNumTouchMoveEvent = 0;
++                }
+                 break;
+             }
+ 
+             case MotionEvent.ACTION_CANCEL: {
+                 onTouchCancel();
++                if (OPTS_INPUT) {
++                    mNumTouchMoveEvent = 0;
++                }
+                 break;
+             }
+ 
+@@ -3840,6 +3895,9 @@ public abstract class AbsListView extends AdapterView<ListAdapter> implements Te
+                     mMotionPosition = motionPosition;
+                 }
+                 mLastY = y;
++                if (OPTS_INPUT) {
++                    mNumTouchMoveEvent = 0;
++                }
+                 break;
+             }
+ 
+@@ -3861,6 +3919,9 @@ public abstract class AbsListView extends AdapterView<ListAdapter> implements Te
+                     mMotionPosition = motionPosition;
+                 }
+                 mLastY = y;
++                if (OPTS_INPUT) {
++                    mNumTouchMoveEvent = 0;
++                }
+                 break;
+             }
+         }
+@@ -4439,6 +4500,9 @@ public abstract class AbsListView extends AdapterView<ListAdapter> implements Te
+ 
+         switch (actionMasked) {
+         case MotionEvent.ACTION_DOWN: {
++            if (OPTS_INPUT) {
++                mNumTouchMoveEvent = 0;
++            }
+             int touchMode = mTouchMode;
+             if (touchMode == TOUCH_MODE_OVERFLING || touchMode == TOUCH_MODE_OVERSCROLL) {
+                 mMotionCorrection = 0;
+@@ -4473,6 +4537,14 @@ public abstract class AbsListView extends AdapterView<ListAdapter> implements Te
+         }
+ 
+         case MotionEvent.ACTION_MOVE: {
++            if (OPTS_INPUT) {
++                mNumTouchMoveEvent++;
++                if (mNumTouchMoveEvent == 1) {
++                    mIsFirstTouchMoveEvent = true;
++                } else {
++                    mIsFirstTouchMoveEvent = false;
++                }
++            }
+             switch (mTouchMode) {
+             case TOUCH_MODE_DOWN:
+                 int pointerIndex = ev.findPointerIndex(mActivePointerId);
+@@ -4493,6 +4565,9 @@ public abstract class AbsListView extends AdapterView<ListAdapter> implements Te
+ 
+         case MotionEvent.ACTION_CANCEL:
+         case MotionEvent.ACTION_UP: {
++            if (OPTS_INPUT) {
++                mNumTouchMoveEvent = 0;
++            }
+             mTouchMode = TOUCH_MODE_REST;
+             mActivePointerId = INVALID_POINTER;
+             recycleVelocityTracker();
+@@ -4502,6 +4577,9 @@ public abstract class AbsListView extends AdapterView<ListAdapter> implements Te
+         }
+ 
+         case MotionEvent.ACTION_POINTER_UP: {
++            if (OPTS_INPUT) {
++                mNumTouchMoveEvent = 0;
++            }
+             onSecondaryPointerUp(ev);
+             break;
+         }
+diff --git a/core/jni/android_view_InputEventReceiver.cpp b/core/jni/android_view_InputEventReceiver.cpp
+index 8fee7baa398..b43bcd74106 100644
+--- a/core/jni/android_view_InputEventReceiver.cpp
++++ b/core/jni/android_view_InputEventReceiver.cpp
+@@ -46,6 +46,7 @@ static struct {
+ 
+     jmethodID dispatchInputEvent;
+     jmethodID dispatchBatchedInputEventPending;
++    jmethodID dispatchMotionEventInfo;
+ } gInputEventReceiverClassInfo;
+ 
+ 
+@@ -77,6 +78,8 @@ private:
+     bool mBatchedInputEventPending;
+     int mFdEvents;
+     Vector<Finish> mFinishQueue;
++    int mLastMotionEventType = -1;
++    int mLastTouchMoveNum = -1;
+ 
+     void setFdEvents(int events);
+ 
+@@ -235,10 +238,34 @@ status_t NativeInputEventReceiver::consumeEvents(JNIEnv* env,
+     bool skipCallbacks = false;
+     for (;;) {
+         uint32_t seq;
++        int motionEventType = -1;
++        int touchMoveNum = -1;
++        bool flag = false;
++
+         InputEvent* inputEvent;
+         int32_t displayId;
+         status_t status = mInputConsumer.consume(&mInputEventFactory,
+-                consumeBatches, frameTime, &seq, &inputEvent, &displayId);
++                consumeBatches, frameTime, &seq, &inputEvent, &displayId,
++                &motionEventType, &touchMoveNum, &flag);
++
++        if (!receiverObj.get()) {
++            receiverObj.reset(jniGetReferent(env, mReceiverWeakGlobal));
++            if (!receiverObj.get()) {
++                ALOGW("channel '%s' ~ Receiver object was finalized "
++                        "without being disposed.", getInputChannelName().c_str());
++                return DEAD_OBJECT;
++            }
++        }
++
++        if (flag && ((mLastMotionEventType != motionEventType) ||
++               (mLastTouchMoveNum != touchMoveNum))) {
++           env->CallVoidMethod(receiverObj.get(),
++               gInputEventReceiverClassInfo.dispatchMotionEventInfo, motionEventType, touchMoveNum);
++           mLastMotionEventType = motionEventType;
++           mLastTouchMoveNum = touchMoveNum;
++           flag = false;
++        }
++
+         if (status) {
+             if (status == WOULD_BLOCK) {
+                 if (!skipCallbacks && !mBatchedInputEventPending
+@@ -426,7 +453,8 @@ int register_android_view_InputEventReceiver(JNIEnv* env) {
+             "dispatchInputEvent", "(ILandroid/view/InputEvent;I)V");
+     gInputEventReceiverClassInfo.dispatchBatchedInputEventPending = GetMethodIDOrDie(env,
+             gInputEventReceiverClassInfo.clazz, "dispatchBatchedInputEventPending", "()V");
+-
++    gInputEventReceiverClassInfo.dispatchMotionEventInfo = GetMethodIDOrDie(env,
++            gInputEventReceiverClassInfo.clazz, "dispatchMotionEventInfo", "(II)V");
+     return res;
+ }
+ 
+-- 
+2.17.1
+

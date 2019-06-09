@@ -1249,7 +1249,6 @@ if [ "${BASH_SOURCE[0]}" = "$runfrom" -a ! -f ${BASH_SOURCE[0]}.tmp -a $op_pick_
 
     #=========== pick changes ==========================
     kpick 247451 # Switch to our libcore fork
-    kpick 249464 # manifest: android-9.0.0_r37 -> android-9.0.0_r40
 
     #===================================================
 
@@ -1276,6 +1275,7 @@ fi       # continue pick or not
 # ==========================================================
 
 # first pick for repopick
+kpick 231291 # repopick: add hashtag support
 
 # start check classification of picking project is correct or not
 rm -f $tmp_picks_info_file
@@ -1306,7 +1306,6 @@ kpick 247476 # recovery: wipe bootloader message from index 0 when using custom 
 # build/make
 kpick 222742 # build: Use project pathmap for recovery
 kpick 222760 # Add LOCAL_AIDL_FLAGS
-kpick 249465 # [SQUASH][DNM] Merge tag 'android-9.0.0_r40' into staging/lineage-16.0_merge-android-9.0.0_r40
 
 # build/soong
 kpick 222648 # Allow providing flex and bison binaries
@@ -1342,16 +1341,19 @@ kpick 249538 # Update Chromium Webview to 75.0.3770.67
 
 # external/libpng
 
+# external/openssh
+kpick 249763 # [SQUASH][DNM] Merge tag 'refs/tags/V_8_0_P1' into lineage-16.0_v8.0p1
+kpick 249764 # openssh: Add boringssl compat functions for openssl-1.1.x API
+
 # external/perfetto
 kpick 223413 -f # perfetto_cmd: Resolve missing O_CREAT mode
 
 # external/skia
-kpick 249466 # [SQUASH][DNM] Merge tag 'android-9.0.0_r40' into staging/lineage-16.0_merge-android-9.0.0_r40
 
 # external/vim
 kpick 249512 # patch 8.1.1365: source command doesn't check for the sandbox
 kpick 249513 # vimrc.android: Set nomodeline
-kpick 249558
+kpick 249558 # [DNM] Update VIM
 
 # frameworks/av
 kpick 230387 # CameraService: Support calling addStates in enumerateProviders
@@ -1365,10 +1367,10 @@ kpick 238931 # stagefright: Fix SurfaceMediaSource getting handle from wrong pos
 kpick 238932 # stagefright: Fix buffer handle retrieval in signalBufferReturned
 kpick 239642 # libstagefright_wfd: video encoder does not actually release MediaBufferBase when done
 kpick 244574 # audioflinger: Fix audio for WifiDisplay
-kpick 249467 # [SQUASH][DNM] Merge tag 'android-9.0.0_r40' into staging/lineage-16.0_merge-android-9.0.0_r40
 
 # frameworks/base
 kpick 224513 # SystemUI: Disable config_keyguardUserSwitcher on sw600dp
+kpick 226400 # LockSettingsService: Support for separate clear key api
 kpick 231823 # Do not move the multi-window divider when showing IME
 kpick 231824 # Fix StatusBar icons tinting when in split screen
 kpick 231827 # Add display shrink mode
@@ -1397,12 +1399,9 @@ kpick 244318 # KeyguardHostView: Auto face unlock v2
 kpick 247886 # Add 3 finger swipe screenshot [1/3]
 kpick 248460 # Keyguard: Don't listen fingerprint when prox.sensor is covered (1/2)
 #kpick 248558 # Add special roaming case for EU operators [1/3]
-kpick 249192 # fix ls navbar back button after launching camera.
 kpick 249463 # BatteryMeterDrawableBase: Set proper stroke when power saver is enabled
-kpick 249468 # [SQUASH][DNM] Merge tag 'android-9.0.0_r40' into staging/lineage-16.0_merge-android-9.0.0_r40
 kpick 249494 # fw/b: Allow adb over network when any default network is active
 kpick 249496 # SystemUI: runtime configurable audio panel location
-kpick 249612 # KeyguardStateMonitor: Don't get IUsbRestrict service in constructor
 
 # frameworks/native
 kpick 224530 # Triple the available egl function pointers available to a process for certain Nvidia devices.
@@ -1411,6 +1410,9 @@ kpick 231980 # HWComposer: HWC2: allow SkipValidate to be force disabled
 kpick 237645 # sf: Add support for multiple displays
 kpick 243571 # touch response optimizations
 
+# frameworks/opt/net/wifi
+kpick 249782 # Prevent scan searching overhead
+
 # frameworks/opt/telephony
 kpick 240767 # Proper supplementary service notification handling (2/5).
 kpick 244260 # Improve UiccSlot#promptForRestart dialog
@@ -1418,6 +1420,9 @@ kpick 244260 # Improve UiccSlot#promptForRestart dialog
 
 # hardware/broadcom/libbt
 kpick 225155 # Broadcom BT: Add support fm/bt via v4l2.
+
+# hardware/interfaces
+kpick 226402 # keymasterV4_0: Tags support for FBE wrapped key.
 
 # hardware/lineage/livedisplay
 kpick 242994 # livedisplay: sysfs: Simplify setCalibration
@@ -1477,26 +1482,31 @@ kpick 242398 # Trust: Onboarding: Listen for locale changes
 kpick 247885 # Add 3 finger swipe screenshot [2/3]
 kpick 248441 # sdk: Use Google's algorithm to convert color temperature to RGB
 kpick 248461 # Keyguard: Don't listen fingerprint when prox.sensor is covered (2/2)
-kpick 249493 # LiveDisplayService: Disable ColorTemperature when NightDisplay is available
 kpick 249518 # sdk: Add volume panel left/right setting
+kpick 249712 # lineage-sdk: Disable color temperature adjustment by default
 
 # packages/apps/Bluetooth
-kpick 249469 # [SQUASH][DNM] Merge tag 'android-9.0.0_r40' into staging/lineage-16.0_merge-android-9.0.0_r40
 
 # packages/apps/Camera2
 kpick 224752 # Use mCameraAgentNg for getting camera info when available
 kpick 245234 # Camera2: also check for and request WRITE_EXTERNAL_STORAGE permission
 
+# packages/apps/DeskClock
+kpick 249781 # DeskClock: Use POWER_OFF_ALARM permission
+
 # packages/apps/Dialer
 kpick 240770 # Proper supplementary service notification handling (5/5).
+kpick 249722 # Enable or disable call recording for numerous countries via MCC.
 
 # packages/apps/Eleven
 kpick 248475 # Pause music on bluetooth audio device disconnect
 
-
 # packages/apps/LineageParts
 kpick 249225 # Lineage parts: Make 'Privacy Guard' icons work with dark theme
 kpick 249517 # LineageParts: Add volume panel left/right setting
+
+# packages/apps/Messaging
+kpick 249777 # Messaging: Handle multiple participants in custom notifications
 
 # packages/apps/Nfc
 kpick 232697 # NFCService: Add sysprop to prevent FW download during boot with NFC off.
@@ -1512,6 +1522,7 @@ kpick 241758 # Settings: Show root options when certain third party root is pres
 kpick 244319 # Add toggle for face auto unlock (2/2)
 kpick 247884 # Add 3 finger swipe screenshot [3/3]
 kpick 248442 # BasebandVersionDialogController: Trim duplicated baseband if needed
+kpick 249789 # appops: support setting for work profile apps.
 
 # packages/apps/Snap
 kpick 242496 # Snap: Fix bad grammar "Long shot not support<ed>"
@@ -1535,17 +1546,18 @@ kpick 240769 # Proper supplementary service notification handling (4/5).
 
 # system/bt
 kpick 229314 # Allow using alternative (higher) SBC HD bitrates with a property
-kpick 249470 # [SQUASH][DNM] Merge tag 'android-9.0.0_r40' into staging/lineage-16.0_merge-android-9.0.0_r40
 
 # system/core
+kpick 226120 # fs_mgr: Wrapped key support for FBE
 kpick 223500 # Add back fuse support
 kpick 231716 # init: Always use libbootloader_message from bootable/recovery namespace
 kpick 234584 # adb: Rework adb root
 kpick 234860 # init: add install_keyring for TWRP FBE decrypt
-#kpick 237140 # healthd: add Battery Moto Mod Support
+kpick 237140 # healthd: add Battery Moto Mod Support
 kpick 237141 # core: update battery mod support for P
 kpick 241757 # adb: Allow adb root when certain third party root is present
 kpick 245342 # adb: Always allow recovery use adb root in userdebug builds
+kpick 249769 # fs_mgr: Add MF_WRAPPEDKEY flag
 
 # system/extras/su
 kpick 232428 # su: strlcpy is always a friend
@@ -1560,7 +1572,10 @@ kpick 232794 # NetD : Allow passing in interface names for vpn app restriction
 kpick 243819 # sepolicy: Label tee_data_file as core_data_file_type
 
 # system/vold
-kpick 249471 # [SQUASH][DNM] Merge tag 'android-9.0.0_r40' into staging/lineage-16.0_merge-android-9.0.0_r40
+kpick 226111 # vold: Wrapped key support for FBE
+kpick 249770 # vold: Use separate flag for wrappedkey
+kpick 249771 # vold: add support for clear key
+kpick 249773 # vold: change to upgrade key if export fails
 
 # system/tools/aidl
 kpick 223133 # AIDL: Add option to generate No-Op methods
@@ -1571,10 +1586,9 @@ kpick 225938 # roomservice: document the hell out of the current behavior of the
 kpick 225939 # roomservice: non-depsonly: bootstrap first device repo from Hudson
 kpick 229589 # lineage: Automatically set soong namespace when setting project pathmap
 kpick 229590 # lineage: Move qcom pathmap setting into "BoardConfig"
-kpick 231291 # repopick: add hashtag support
+#kpick 231291 # repopick: add hashtag support
 kpick 231981 # HWComposer: HWC2: allow SkipValidate to be force disabled
 kpick 234011 # lineage: Add media_codecs_ddp for AC3 audio
-# kpick 234859 # repopick: cmp() is not available in Python 3, define it manually **((picked at first))**
 kpick 237209 # lineage: Set default ringtone for second SIM
 kpick 241783 # envsetup: Fix lineagegerrit push for zsh
 kpick 242432 # RIP libhealthd.lineage
@@ -1590,6 +1604,8 @@ kpick 248706 # fix /data/ssh/empty file permissions
 kpick 248707 # build: tasks: kernel: Add support for MediaTek dtbo images
 kpick 249190 # Update French operator SFR (and its web subsidiary RED) and MVNO's based on SFR apns
 kpick 249477 # kernel: Set correct kernel compiler prefixes for aarch64 clang
+kpick 249713 # overlay: Default NightLight mode to twilight
+kpick 249774 # remove proxy from "Vip internet" APN settings
 
 # vendor/qcom/opensource/audio
 kpick 247915 # policy_hal: do not check MODE_IN_COMMUNICATION for voip_rx flag

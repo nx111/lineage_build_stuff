@@ -1,0 +1,146 @@
+From 73301dabb5d735b109b174627f08c3d900897762 Mon Sep 17 00:00:00 2001
+From: nx111 <NX111.AimH@gmail.com>
+Date: Sun, 9 Jun 2019 22:08:52 +0800
+Subject: [PATCH 11/15] appops: support setting for work profile apps.
+
+Change-Id: Ic66a4cb31d910509cd094f77618054c36bad27cf
+---
+ .../applications/appops/AppOpsCategory.java    |  3 +++
+ .../applications/appops/AppOpsDetails.java     |  9 +++++++--
+ .../applications/appops/AppOpsState.java       | 18 ++++++++++++------
+ 3 files changed, 22 insertions(+), 8 deletions(-)
+
+diff --git a/src/com/android/settings/applications/appops/AppOpsCategory.java b/src/com/android/settings/applications/appops/AppOpsCategory.java
+index 4a80035679..c9df4f59d5 100644
+--- a/src/com/android/settings/applications/appops/AppOpsCategory.java
++++ b/src/com/android/settings/applications/appops/AppOpsCategory.java
+@@ -60,6 +60,7 @@ public class AppOpsCategory extends ListFragment implements
+     AppListAdapter mAdapter;
+ 
+     String mCurrentPkgName;
++    int mCurrentPkgUid;
+ 
+     public AppOpsCategory() {
+     }
+@@ -361,6 +362,7 @@ public class AppOpsCategory extends ListFragment implements
+         // start new fragment to display extended information
+         final Bundle args = new Bundle();
+         args.putString(AppOpsDetails.ARG_PACKAGE_NAME, mCurrentPkgName);
++        args.putInt(AppOpsDetails.ARG_PACKAGE_UID, mCurrentPkgUid);
+ 
+         new SubSettingLauncher(getContext())
+                 .setDestination(AppOpsDetails.class.getName())
+@@ -388,6 +390,7 @@ public class AppOpsCategory extends ListFragment implements
+                 entry.overridePrimaryOpMode(mode);
+             } else {
+                 mCurrentPkgName = entry.getAppEntry().getApplicationInfo().packageName;
++                mCurrentPkgUid = entry.getAppEntry().getApplicationInfo().uid;
+                 startApplicationDetailsActivity();
+             }
+         }
+diff --git a/src/com/android/settings/applications/appops/AppOpsDetails.java b/src/com/android/settings/applications/appops/AppOpsDetails.java
+index 72bc38f4a9..30e734d54d 100644
+--- a/src/com/android/settings/applications/appops/AppOpsDetails.java
++++ b/src/com/android/settings/applications/appops/AppOpsDetails.java
+@@ -30,6 +30,7 @@ import android.content.pm.PermissionInfo;
+ import android.content.res.Resources;
+ import android.graphics.drawable.Drawable;
+ import android.os.Bundle;
++import android.os.UserHandle;
+ import android.support.v14.preference.SwitchPreference;
+ import android.support.v7.preference.ListPreference;
+ import android.support.v7.preference.Preference;
+@@ -54,6 +55,7 @@ public class AppOpsDetails extends SettingsPreferenceFragment {
+     static final String TAG = "AppOpsDetails";
+ 
+     public static final String ARG_PACKAGE_NAME = "package";
++    public static final String ARG_PACKAGE_UID = "package_uid";
+     private static final String KEY_HEADER = "header";
+ 
+     private AppOpsState mState;
+@@ -163,6 +165,8 @@ public class AppOpsDetails extends SettingsPreferenceFragment {
+     private String retrieveAppEntry() {
+         final Bundle args = getArguments();
+         String packageName = (args != null) ? args.getString(ARG_PACKAGE_NAME) : null;
++        int packageUserId = (args != null) ? UserHandle.getUserId(args.getInt(ARG_PACKAGE_UID)) : 0;
++
+         if (packageName == null) {
+             Intent intent = (args == null) ?
+                     getActivity().getIntent() : (Intent) args.getParcelable("intent");
+@@ -171,9 +175,10 @@ public class AppOpsDetails extends SettingsPreferenceFragment {
+             }
+         }
+         try {
+-            mPackageInfo = mPm.getPackageInfo(packageName,
++            mPackageInfo = mPm.getPackageInfoAsUser(packageName,
+                     PackageManager.MATCH_DISABLED_COMPONENTS |
+-                    PackageManager.MATCH_ANY_USER);
++                    PackageManager.MATCH_ANY_USER,
++                    packageUserId);
+         } catch (NameNotFoundException e) {
+             Log.e(TAG, "Exception when retrieving package:" + packageName, e);
+             mPackageInfo = null;
+diff --git a/src/com/android/settings/applications/appops/AppOpsState.java b/src/com/android/settings/applications/appops/AppOpsState.java
+index 68903a359b..0317ab0e92 100644
+--- a/src/com/android/settings/applications/appops/AppOpsState.java
++++ b/src/com/android/settings/applications/appops/AppOpsState.java
+@@ -29,6 +29,7 @@ import android.content.SharedPreferences;
+ import android.graphics.drawable.Drawable;
+ import android.os.Parcel;
+ import android.os.Parcelable;
++import android.os.UserHandle;
+ import android.text.format.DateUtils;
+ import android.util.Log;
+ import android.util.SparseArray;
+@@ -602,12 +603,12 @@ public class AppOpsState {
+     }
+ 
+     private AppEntry getAppEntry(final Context context, final HashMap<String, AppEntry> appEntries,
+-            final String packageName, ApplicationInfo appInfo, boolean applyFilters) {
++            final String packageName, ApplicationInfo appInfo, int userId, boolean applyFilters) {
+ 
+         if (appInfo == null) {
+             try {
+-                appInfo = mPm.getApplicationInfo(packageName,
+-                        PackageManager.GET_DISABLED_COMPONENTS);
++                appInfo = mPm.getApplicationInfoAsUser(packageName,
++                        PackageManager.GET_DISABLED_COMPONENTS, userId);
+             } catch (PackageManager.NameNotFoundException e) {
+                 Log.w(TAG, "Unable to find info for package " + packageName);
+                 return null;
+@@ -715,7 +716,8 @@ public class AppOpsState {
+         if (pkgs != null) {
+             for (int i=0; i<pkgs.size(); i++) {
+                 AppOpsManager.PackageOps pkgOps = pkgs.get(i);
+-                AppEntry appEntry = getAppEntry(context, appEntries, pkgOps.getPackageName(), null,
++                int userId = UserHandle.getUserId(pkgOps.getUid());
++                AppEntry appEntry = getAppEntry(context, appEntries, pkgOps.getPackageName(), null, userId,
+                         applyFilters);
+                 if (appEntry == null) {
+                     continue;
+@@ -740,7 +742,7 @@ public class AppOpsState {
+         if (packageName != null) {
+             apps = new ArrayList<PackageInfo>();
+             try {
+-                PackageInfo pi = mPm.getPackageInfo(packageName, PackageManager.GET_PERMISSIONS);
++                PackageInfo pi = mPm.getPackageInfoAsUser(packageName, PackageManager.GET_PERMISSIONS, UserHandle.getUserId(uid));
+                 apps.add(pi);
+             } catch (NameNotFoundException e) {
+             }
+@@ -751,8 +753,12 @@ public class AppOpsState {
+         }
+         for (int i=0; i<apps.size(); i++) {
+             PackageInfo appInfo = apps.get(i);
++            int userId = UserHandle.getUserId(uid);
++            if (appInfo.applicationInfo != null) {
++                userId = UserHandle.getUserId(appInfo.applicationInfo.uid);
++            }
+             AppEntry appEntry = getAppEntry(context, appEntries, appInfo.packageName,
+-                    appInfo.applicationInfo, applyFilters);
++                    appInfo.applicationInfo, userId, applyFilters);
+             if (appEntry == null) {
+                 continue;
+             }
+-- 
+2.17.1
+
