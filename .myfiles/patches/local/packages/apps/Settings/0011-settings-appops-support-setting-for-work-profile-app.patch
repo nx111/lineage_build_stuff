@@ -1,20 +1,29 @@
-From 73301dabb5d735b109b174627f08c3d900897762 Mon Sep 17 00:00:00 2001
+From 88b7e5854a4a321fbf2ae067d8a29837e20537bc Mon Sep 17 00:00:00 2001
 From: nx111 <NX111.AimH@gmail.com>
 Date: Sun, 9 Jun 2019 22:08:52 +0800
-Subject: [PATCH 11/15] appops: support setting for work profile apps.
+Subject: [PATCH 11/16] settings: appops: support setting for work profile
+ apps.
 
 Change-Id: Ic66a4cb31d910509cd094f77618054c36bad27cf
 ---
- .../applications/appops/AppOpsCategory.java    |  3 +++
- .../applications/appops/AppOpsDetails.java     |  9 +++++++--
- .../applications/appops/AppOpsState.java       | 18 ++++++++++++------
- 3 files changed, 22 insertions(+), 8 deletions(-)
+ .../applications/appops/AppOpsCategory.java   |  9 +++-
+ .../applications/appops/AppOpsDetails.java    | 13 ++++--
+ .../applications/appops/AppOpsState.java      | 46 ++++++-------------
+ 3 files changed, 32 insertions(+), 36 deletions(-)
 
 diff --git a/src/com/android/settings/applications/appops/AppOpsCategory.java b/src/com/android/settings/applications/appops/AppOpsCategory.java
-index 4a80035679..c9df4f59d5 100644
+index 4a80035679..a654d01329 100644
 --- a/src/com/android/settings/applications/appops/AppOpsCategory.java
 +++ b/src/com/android/settings/applications/appops/AppOpsCategory.java
-@@ -60,6 +60,7 @@ public class AppOpsCategory extends ListFragment implements
+@@ -29,6 +29,7 @@ import android.content.pm.ActivityInfo;
+ import android.content.res.Configuration;
+ import android.content.res.Resources;
+ import android.os.Bundle;
++import android.util.IconDrawableFactory;
+ import android.view.LayoutInflater;
+ import android.view.View;
+ import android.view.ViewGroup;
+@@ -60,6 +61,7 @@ public class AppOpsCategory extends ListFragment implements
      AppListAdapter mAdapter;
  
      String mCurrentPkgName;
@@ -22,7 +31,30 @@ index 4a80035679..c9df4f59d5 100644
  
      public AppOpsCategory() {
      }
-@@ -361,6 +362,7 @@ public class AppOpsCategory extends ListFragment implements
+@@ -264,10 +266,12 @@ public class AppOpsCategory extends ListFragment implements
+         private final LayoutInflater mInflater;
+         private final AppOpsState mState;
+         private final boolean mUserControlled;
++        private final Context mContext;
+ 
+         List<AppOpEntry> mList;
+ 
+         public AppListAdapter(Context context, AppOpsState state, boolean userControlled) {
++            mContext = context;
+             mResources = context.getResources();
+             mInflater = (LayoutInflater)context.getSystemService(Context.LAYOUT_INFLATER_SERVICE);
+             mState = state;
+@@ -309,7 +313,8 @@ public class AppOpsCategory extends ListFragment implements
+ 
+             AppOpEntry item = getItem(position);
+             ((ImageView) view.findViewById(R.id.app_icon)).setImageDrawable(
+-                    item.getAppEntry().getIcon());
++                    IconDrawableFactory.newInstance(mContext)
++                        .getBadgedIcon(item.getAppEntry().getApplicationInfo()));
+             ((TextView) view.findViewById(R.id.app_name)).setText(item.getAppEntry().getLabel());
+             if (mUserControlled) {
+                 ((TextView) view.findViewById(R.id.op_name)).setText(
+@@ -361,6 +366,7 @@ public class AppOpsCategory extends ListFragment implements
          // start new fragment to display extended information
          final Bundle args = new Bundle();
          args.putString(AppOpsDetails.ARG_PACKAGE_NAME, mCurrentPkgName);
@@ -30,7 +62,7 @@ index 4a80035679..c9df4f59d5 100644
  
          new SubSettingLauncher(getContext())
                  .setDestination(AppOpsDetails.class.getName())
-@@ -388,6 +390,7 @@ public class AppOpsCategory extends ListFragment implements
+@@ -388,6 +394,7 @@ public class AppOpsCategory extends ListFragment implements
                  entry.overridePrimaryOpMode(mode);
              } else {
                  mCurrentPkgName = entry.getAppEntry().getApplicationInfo().packageName;
@@ -39,10 +71,10 @@ index 4a80035679..c9df4f59d5 100644
              }
          }
 diff --git a/src/com/android/settings/applications/appops/AppOpsDetails.java b/src/com/android/settings/applications/appops/AppOpsDetails.java
-index 72bc38f4a9..30e734d54d 100644
+index 72bc38f4a9..2f210435e8 100644
 --- a/src/com/android/settings/applications/appops/AppOpsDetails.java
 +++ b/src/com/android/settings/applications/appops/AppOpsDetails.java
-@@ -30,6 +30,7 @@ import android.content.pm.PermissionInfo;
+@@ -30,12 +30,14 @@ import android.content.pm.PermissionInfo;
  import android.content.res.Resources;
  import android.graphics.drawable.Drawable;
  import android.os.Bundle;
@@ -50,7 +82,14 @@ index 72bc38f4a9..30e734d54d 100644
  import android.support.v14.preference.SwitchPreference;
  import android.support.v7.preference.ListPreference;
  import android.support.v7.preference.Preference;
-@@ -54,6 +55,7 @@ public class AppOpsDetails extends SettingsPreferenceFragment {
+ import android.support.v7.preference.Preference.OnPreferenceChangeListener;
+ import android.support.v7.preference.PreferenceScreen;
+ import android.text.TextUtils;
++import android.util.IconDrawableFactory;
+ import android.util.Log;
+ 
+ import com.android.internal.logging.nano.MetricsProto.MetricsEvent;
+@@ -54,6 +56,7 @@ public class AppOpsDetails extends SettingsPreferenceFragment {
      static final String TAG = "AppOpsDetails";
  
      public static final String ARG_PACKAGE_NAME = "package";
@@ -58,7 +97,17 @@ index 72bc38f4a9..30e734d54d 100644
      private static final String KEY_HEADER = "header";
  
      private AppOpsState mState;
-@@ -163,6 +165,8 @@ public class AppOpsDetails extends SettingsPreferenceFragment {
+@@ -148,7 +151,8 @@ public class AppOpsDetails extends SettingsPreferenceFragment {
+         final Activity activity = getActivity();
+         final Preference pref = EntityHeaderController
+                 .newInstance(getActivity(), this /* fragment */, null /* header */)
+-                .setIcon(mPm.getApplicationIcon(appInfo))
++                .setIcon(IconDrawableFactory.newInstance(getContext())
++                        .getBadgedIcon(appInfo))
+                 .setLabel(label)
+                 .setPackageName(appInfo.packageName)
+                 .setUid(appInfo.uid)
+@@ -163,6 +167,8 @@ public class AppOpsDetails extends SettingsPreferenceFragment {
      private String retrieveAppEntry() {
          final Bundle args = getArguments();
          String packageName = (args != null) ? args.getString(ARG_PACKAGE_NAME) : null;
@@ -67,7 +116,7 @@ index 72bc38f4a9..30e734d54d 100644
          if (packageName == null) {
              Intent intent = (args == null) ?
                      getActivity().getIntent() : (Intent) args.getParcelable("intent");
-@@ -171,9 +175,10 @@ public class AppOpsDetails extends SettingsPreferenceFragment {
+@@ -171,9 +177,10 @@ public class AppOpsDetails extends SettingsPreferenceFragment {
              }
          }
          try {
@@ -81,7 +130,7 @@ index 72bc38f4a9..30e734d54d 100644
              Log.e(TAG, "Exception when retrieving package:" + packageName, e);
              mPackageInfo = null;
 diff --git a/src/com/android/settings/applications/appops/AppOpsState.java b/src/com/android/settings/applications/appops/AppOpsState.java
-index 68903a359b..0317ab0e92 100644
+index 68903a359b..e4f9f2297a 100644
 --- a/src/com/android/settings/applications/appops/AppOpsState.java
 +++ b/src/com/android/settings/applications/appops/AppOpsState.java
 @@ -29,6 +29,7 @@ import android.content.SharedPreferences;
@@ -92,7 +141,38 @@ index 68903a359b..0317ab0e92 100644
  import android.text.format.DateUtils;
  import android.util.Log;
  import android.util.SparseArray;
-@@ -602,12 +603,12 @@ public class AppOpsState {
+@@ -330,30 +331,6 @@ public class AppOpsState {
+             return mLabel;
+         }
+ 
+-        public Drawable getIcon() {
+-            if (mIcon == null) {
+-                if (mApkFile.exists()) {
+-                    mIcon = mInfo.loadIcon(mState.mPm);
+-                    return mIcon;
+-                } else {
+-                    mMounted = false;
+-                }
+-            } else if (!mMounted) {
+-                // If the app wasn't mounted but is now mounted, reload
+-                // its icon.
+-                if (mApkFile.exists()) {
+-                    mMounted = true;
+-                    mIcon = mInfo.loadIcon(mState.mPm);
+-                    return mIcon;
+-                }
+-            } else {
+-                return mIcon;
+-            }
+-
+-            return mState.mContext.getDrawable(
+-                    android.R.drawable.sym_def_app_icon);
+-        }
+-
+         @Override public String toString() {
+             return mLabel;
+         }
+@@ -602,12 +579,12 @@ public class AppOpsState {
      }
  
      private AppEntry getAppEntry(final Context context, final HashMap<String, AppEntry> appEntries,
@@ -108,7 +188,21 @@ index 68903a359b..0317ab0e92 100644
              } catch (PackageManager.NameNotFoundException e) {
                  Log.w(TAG, "Unable to find info for package " + packageName);
                  return null;
-@@ -715,7 +716,8 @@ public class AppOpsState {
+@@ -627,11 +604,11 @@ public class AppOpsState {
+             }
+         }
+ 
+-        AppEntry appEntry = appEntries.get(packageName);
++        AppEntry appEntry = appEntries.get(String.format("%d_%s", userId, packageName));
+         if (appEntry == null) {
+             appEntry = new AppEntry(this, appInfo);
+             appEntry.loadLabel(context);
+-            appEntries.put(packageName, appEntry);
++            appEntries.put(String.format("%d_%s", userId, packageName), appEntry);
+         }
+         return appEntry;
+     }
+@@ -715,7 +692,8 @@ public class AppOpsState {
          if (pkgs != null) {
              for (int i=0; i<pkgs.size(); i++) {
                  AppOpsManager.PackageOps pkgOps = pkgs.get(i);
@@ -118,7 +212,7 @@ index 68903a359b..0317ab0e92 100644
                          applyFilters);
                  if (appEntry == null) {
                      continue;
-@@ -740,7 +742,7 @@ public class AppOpsState {
+@@ -740,7 +718,7 @@ public class AppOpsState {
          if (packageName != null) {
              apps = new ArrayList<PackageInfo>();
              try {
@@ -127,7 +221,7 @@ index 68903a359b..0317ab0e92 100644
                  apps.add(pi);
              } catch (NameNotFoundException e) {
              }
-@@ -751,8 +753,12 @@ public class AppOpsState {
+@@ -751,8 +729,12 @@ public class AppOpsState {
          }
          for (int i=0; i<apps.size(); i++) {
              PackageInfo appInfo = apps.get(i);

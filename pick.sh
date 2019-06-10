@@ -1402,6 +1402,7 @@ kpick 248460 # Keyguard: Don't listen fingerprint when prox.sensor is covered (1
 kpick 249463 # BatteryMeterDrawableBase: Set proper stroke when power saver is enabled
 kpick 249494 # fw/b: Allow adb over network when any default network is active
 kpick 249496 # SystemUI: runtime configurable audio panel location
+kpick 249820 # [1/2] base: allow disable of screenshot shutter sound
 
 # frameworks/native
 kpick 224530 # Triple the available egl function pointers available to a process for certain Nvidia devices.
@@ -1522,12 +1523,14 @@ kpick 241758 # Settings: Show root options when certain third party root is pres
 kpick 244319 # Add toggle for face auto unlock (2/2)
 kpick 247884 # Add 3 finger swipe screenshot [3/3]
 kpick 248442 # BasebandVersionDialogController: Trim duplicated baseband if needed
-kpick 249789 # appops: support setting for work profile apps.
+kpick 249789 # settings: appops: support setting for work profile apps.
+kpick 249821 # [2/2] Settings: allow disable of screenshot shutter sound
 
 # packages/apps/Snap
 kpick 242496 # Snap: Fix bad grammar "Long shot not support<ed>"
 kpick 243071 # Snap: allow to disable image stabilization per device
 kpick 247120 # Snap: add basic support for setting lens shading mode
+kpick 249823 # Snap: Enable antibanding by default for API V2 as well
 
 # packages/apps/UnifiedEmail
 kpick 248661 # Fix notification timestamp behavior.
