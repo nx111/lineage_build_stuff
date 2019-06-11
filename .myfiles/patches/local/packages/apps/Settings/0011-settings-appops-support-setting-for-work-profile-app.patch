@@ -1,4 +1,4 @@
-From 5c9c5eb30a6bfb283698eee7b9c161c012d98d60 Mon Sep 17 00:00:00 2001
+From c4df50f82446ddc1667254067803a17820b9f930 Mon Sep 17 00:00:00 2001
 From: nx111 <NX111.AimH@gmail.com>
 Date: Sun, 9 Jun 2019 22:08:52 +0800
 Subject: [PATCH 11/16] settings: appops: support setting for work profile
@@ -8,11 +8,11 @@ Change-Id: Ic66a4cb31d910509cd094f77618054c36bad27cf
 ---
  .../applications/appops/AppOpsCategory.java   |  9 +++-
  .../applications/appops/AppOpsDetails.java    | 13 +++--
- .../applications/appops/AppOpsState.java      | 48 ++++++-------------
- 3 files changed, 33 insertions(+), 37 deletions(-)
+ .../applications/appops/AppOpsState.java      | 50 ++++++-------------
+ 3 files changed, 33 insertions(+), 39 deletions(-)
 
 diff --git a/src/com/android/settings/applications/appops/AppOpsCategory.java b/src/com/android/settings/applications/appops/AppOpsCategory.java
-index 4a80035679..a654d01329 100644
+index 4a80035679..86422fb656 100644
 --- a/src/com/android/settings/applications/appops/AppOpsCategory.java
 +++ b/src/com/android/settings/applications/appops/AppOpsCategory.java
 @@ -29,6 +29,7 @@ import android.content.pm.ActivityInfo;
@@ -27,7 +27,7 @@ index 4a80035679..a654d01329 100644
      AppListAdapter mAdapter;
  
      String mCurrentPkgName;
-+    int mCurrentPkgUid;
++    private int mCurrentPkgUid;
  
      public AppOpsCategory() {
      }
@@ -49,8 +49,8 @@ index 4a80035679..a654d01329 100644
              AppOpEntry item = getItem(position);
              ((ImageView) view.findViewById(R.id.app_icon)).setImageDrawable(
 -                    item.getAppEntry().getIcon());
-+                    IconDrawableFactory.newInstance(mContext)
-+                        .getBadgedIcon(item.getAppEntry().getApplicationInfo()));
++                    IconDrawableFactory.newInstance(mContext).getBadgedIcon(
++                            item.getAppEntry().getApplicationInfo()));
              ((TextView) view.findViewById(R.id.app_name)).setText(item.getAppEntry().getLabel());
              if (mUserControlled) {
                  ((TextView) view.findViewById(R.id.op_name)).setText(
@@ -130,7 +130,7 @@ index 72bc38f4a9..2f210435e8 100644
              Log.e(TAG, "Exception when retrieving package:" + packageName, e);
              mPackageInfo = null;
 diff --git a/src/com/android/settings/applications/appops/AppOpsState.java b/src/com/android/settings/applications/appops/AppOpsState.java
-index 68903a359b..cea900aa14 100644
+index 68903a359b..eeb1b2d302 100644
 --- a/src/com/android/settings/applications/appops/AppOpsState.java
 +++ b/src/com/android/settings/applications/appops/AppOpsState.java
 @@ -29,6 +29,7 @@ import android.content.SharedPreferences;
@@ -141,7 +141,27 @@ index 68903a359b..cea900aa14 100644
  import android.text.format.DateUtils;
  import android.util.Log;
  import android.util.SparseArray;
-@@ -330,30 +331,6 @@ public class AppOpsState {
+@@ -292,7 +293,6 @@ public class AppOpsState {
+      * This class holds the per-item data in our Loader.
+      */
+     public static class AppEntry {
+-        private final AppOpsState mState;
+         private final ApplicationInfo mInfo;
+         private final File mApkFile;
+         private final SparseArray<AppOpsManager.OpEntry> mOps
+@@ -300,11 +300,9 @@ public class AppOpsState {
+         private final SparseArray<AppOpEntry> mOpSwitches
+                 = new SparseArray<AppOpEntry>();
+         private String mLabel;
+-        private Drawable mIcon;
+         private boolean mMounted;
+ 
+         public AppEntry(AppOpsState state, ApplicationInfo info) {
+-            mState = state;
+             mInfo = info;
+             mApkFile = new File(info.sourceDir);
+         }
+@@ -330,30 +328,6 @@ public class AppOpsState {
              return mLabel;
          }
  
@@ -172,13 +192,11 @@ index 68903a359b..cea900aa14 100644
          @Override public String toString() {
              return mLabel;
          }
-@@ -601,13 +578,13 @@ public class AppOpsState {
-         return buildState(tpl, 0, null, RECENCY_COMPARATOR);
+@@ -602,12 +576,12 @@ public class AppOpsState {
      }
  
--    private AppEntry getAppEntry(final Context context, final HashMap<String, AppEntry> appEntries,
+     private AppEntry getAppEntry(final Context context, final HashMap<String, AppEntry> appEntries,
 -            final String packageName, ApplicationInfo appInfo, boolean applyFilters) {
-+    private AppEntry getAppEntry(final Context context, final HashMap<String,AppEntry> appEntries,
 +            final String packageName, ApplicationInfo appInfo, int userId, boolean applyFilters) {
  
          if (appInfo == null) {
@@ -190,7 +208,7 @@ index 68903a359b..cea900aa14 100644
              } catch (PackageManager.NameNotFoundException e) {
                  Log.w(TAG, "Unable to find info for package " + packageName);
                  return null;
-@@ -627,11 +604,11 @@ public class AppOpsState {
+@@ -627,11 +601,11 @@ public class AppOpsState {
              }
          }
  
@@ -200,30 +218,32 @@ index 68903a359b..cea900aa14 100644
              appEntry = new AppEntry(this, appInfo);
              appEntry.loadLabel(context);
 -            appEntries.put(packageName, appEntry);
-+            appEntries.put(String.format("%d_%s",userId, packageName), appEntry);
++            appEntries.put(String.format("%d_%s", userId, packageName), appEntry);
          }
          return appEntry;
      }
-@@ -715,7 +692,8 @@ public class AppOpsState {
+@@ -715,8 +689,9 @@ public class AppOpsState {
          if (pkgs != null) {
              for (int i=0; i<pkgs.size(); i++) {
                  AppOpsManager.PackageOps pkgOps = pkgs.get(i);
--                AppEntry appEntry = getAppEntry(context, appEntries, pkgOps.getPackageName(), null,
 +                int userId = UserHandle.getUserId(pkgOps.getUid());
-+                AppEntry appEntry = getAppEntry(context, appEntries, pkgOps.getPackageName(), null, userId,
-                         applyFilters);
+                 AppEntry appEntry = getAppEntry(context, appEntries, pkgOps.getPackageName(), null,
+-                        applyFilters);
++                        userId, applyFilters);
                  if (appEntry == null) {
                      continue;
-@@ -740,7 +718,7 @@ public class AppOpsState {
+                 }
+@@ -740,7 +715,8 @@ public class AppOpsState {
          if (packageName != null) {
              apps = new ArrayList<PackageInfo>();
              try {
 -                PackageInfo pi = mPm.getPackageInfo(packageName, PackageManager.GET_PERMISSIONS);
-+                PackageInfo pi = mPm.getPackageInfoAsUser(packageName, PackageManager.GET_PERMISSIONS, UserHandle.getUserId(uid));
++                PackageInfo pi = mPm.getPackageInfoAsUser(packageName,
++                        PackageManager.GET_PERMISSIONS, UserHandle.getUserId(uid));
                  apps.add(pi);
              } catch (NameNotFoundException e) {
              }
-@@ -751,8 +729,12 @@ public class AppOpsState {
+@@ -751,8 +727,12 @@ public class AppOpsState {
          }
          for (int i=0; i<apps.size(); i++) {
              PackageInfo appInfo = apps.get(i);

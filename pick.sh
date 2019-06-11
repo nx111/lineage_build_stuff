@@ -1295,7 +1295,6 @@ kpick 235457 # msm8974-common: sepolicy: Limit execmod to specifically labeled f
 kpick 248813 # msm8974-common: Nuke AdvancedDisplay
 
 # kernel/samsung/msm8974
-kpick 249514 # media: uvcvideo: Fix 'type' check leading to overflow
 
 # ====== OTHERS =======
 
@@ -1354,7 +1353,7 @@ kpick 223413 -f # perfetto_cmd: Resolve missing O_CREAT mode
 # external/vim
 kpick 249512 # patch 8.1.1365: source command doesn't check for the sandbox
 kpick 249513 # vimrc.android: Set nomodeline
-kpick 249558 # [DNM] Update VIM
+kpick 249558 # [DNM] Update/rebase VIM
 
 # frameworks/av
 kpick 230387 # CameraService: Support calling addStates in enumerateProviders
