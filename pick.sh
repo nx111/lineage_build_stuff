@@ -1342,7 +1342,8 @@ kpick 249538 # Update Chromium Webview to 75.0.3770.67
 # external/libpng
 
 # external/openssh
-kpick 249763 # [SQUASH][DNM] Merge tag 'refs/tags/V_8_0_P1' into lineage-16.0_v8.0p1
+kpick 249763 # [SQUASH][DNM] Merge tag 'V_8_0_P1' into lineage-16.0_v8.0p1
+kpick 249788 # openssh: Update Android build for v8.0p1
 kpick 249764 # openssh: Add boringssl compat functions for openssl-1.1.x API
 
 # external/perfetto
@@ -1399,10 +1400,9 @@ kpick 244318 # KeyguardHostView: Auto face unlock v2
 kpick 247886 # Add 3 finger swipe screenshot [1/3]
 kpick 248460 # Keyguard: Don't listen fingerprint when prox.sensor is covered (1/2)
 #kpick 248558 # Add special roaming case for EU operators [1/3]
-kpick 249463 # BatteryMeterDrawableBase: Set proper stroke when power saver is enabled
 kpick 249494 # fw/b: Allow adb over network when any default network is active
-kpick 249496 # SystemUI: runtime configurable audio panel location
 kpick 249820 # [1/2] base: allow disable of screenshot shutter sound
+kpick 249827 # SystemUI: Offset battery circle frame by [-2.0f, 0]
 
 # frameworks/native
 kpick 224530 # Triple the available egl function pointers available to a process for certain Nvidia devices.
@@ -1483,7 +1483,6 @@ kpick 242398 # Trust: Onboarding: Listen for locale changes
 kpick 247885 # Add 3 finger swipe screenshot [2/3]
 kpick 248441 # sdk: Use Google's algorithm to convert color temperature to RGB
 kpick 248461 # Keyguard: Don't listen fingerprint when prox.sensor is covered (2/2)
-kpick 249518 # sdk: Add volume panel left/right setting
 kpick 249712 # lineage-sdk: Disable color temperature adjustment by default
 
 # packages/apps/Bluetooth
@@ -1504,7 +1503,6 @@ kpick 248475 # Pause music on bluetooth audio device disconnect
 
 # packages/apps/LineageParts
 kpick 249225 # Lineage parts: Make 'Privacy Guard' icons work with dark theme
-kpick 249517 # LineageParts: Add volume panel left/right setting
 
 # packages/apps/Messaging
 kpick 249777 # Messaging: Handle multiple participants in custom notifications
@@ -1530,7 +1528,7 @@ kpick 249821 # [2/2] Settings: allow disable of screenshot shutter sound
 kpick 242496 # Snap: Fix bad grammar "Long shot not support<ed>"
 kpick 243071 # Snap: allow to disable image stabilization per device
 kpick 247120 # Snap: add basic support for setting lens shading mode
-kpick 249823 # Snap: Enable antibanding by default for API V2 as well
+kpick 249823 # Snap: Make antibanding related changes to APIV2 as well
 
 # packages/apps/UnifiedEmail
 kpick 248661 # Fix notification timestamp behavior.
