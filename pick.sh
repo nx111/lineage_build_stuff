@@ -1351,9 +1351,6 @@ kpick 223413 -f # perfetto_cmd: Resolve missing O_CREAT mode
 # external/skia
 
 # external/vim
-kpick 249512 # patch 8.1.1365: source command doesn't check for the sandbox
-kpick 249513 # vimrc.android: Set nomodeline
-kpick 249558 # [DNM] Update/rebase VIM
 
 # frameworks/av
 kpick 230387 # CameraService: Support calling addStates in enumerateProviders
@@ -1401,7 +1398,6 @@ kpick 248460 # Keyguard: Don't listen fingerprint when prox.sensor is covered (1
 #kpick 248558 # Add special roaming case for EU operators [1/3]
 kpick 249494 # fw/b: Allow adb over network when any default network is active
 kpick 249820 # [1/2] base: allow disable of screenshot shutter sound
-kpick 249827 # SystemUI: Offset battery circle frame by [-2.0f, 0]
 
 # frameworks/native
 kpick 224530 # Triple the available egl function pointers available to a process for certain Nvidia devices.
@@ -1409,6 +1405,7 @@ kpick 231828 # Translate pointer motion events for OneHandOperation Display Shri
 kpick 231980 # HWComposer: HWC2: allow SkipValidate to be force disabled
 kpick 237645 # sf: Add support for multiple displays
 kpick 243571 # touch response optimizations
+kpick 249891 # sensorservice: Fix init sequence for pre-1.1 API sensor HALs
 
 # frameworks/opt/net/wifi
 kpick 249782 # Prevent scan searching overhead
@@ -1495,7 +1492,6 @@ kpick 249781 # DeskClock: Use POWER_OFF_ALARM permission
 
 # packages/apps/Dialer
 kpick 240770 # Proper supplementary service notification handling (5/5).
-kpick 249722 # Enable or disable call recording for numerous countries via MCC.
 
 # packages/apps/Eleven
 kpick 248475 # Pause music on bluetooth audio device disconnect
@@ -1520,7 +1516,6 @@ kpick 241758 # Settings: Show root options when certain third party root is pres
 kpick 244319 # Add toggle for face auto unlock (2/2)
 kpick 247884 # Add 3 finger swipe screenshot [3/3]
 kpick 248442 # BasebandVersionDialogController: Trim duplicated baseband if needed
-kpick 249789 # settings: appops: support setting for work profile apps.
 kpick 249821 # [2/2] Settings: allow disable of screenshot shutter sound
 
 # packages/apps/Snap
