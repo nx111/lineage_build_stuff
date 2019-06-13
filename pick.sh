@@ -1405,10 +1405,8 @@ kpick 231828 # Translate pointer motion events for OneHandOperation Display Shri
 kpick 231980 # HWComposer: HWC2: allow SkipValidate to be force disabled
 kpick 237645 # sf: Add support for multiple displays
 kpick 243571 # touch response optimizations
-kpick 249891 # sensorservice: Fix init sequence for pre-1.1 API sensor HALs
 
 # frameworks/opt/net/wifi
-kpick 249782 # Prevent scan searching overhead
 
 # frameworks/opt/telephony
 kpick 240767 # Proper supplementary service notification handling (2/5).
