@@ -1518,7 +1518,6 @@ kpick 249821 # [2/2] Settings: allow disable of screenshot shutter sound
 
 # packages/apps/Snap
 kpick 242496 # Snap: Fix bad grammar "Long shot not support<ed>"
-kpick 243071 # Snap: allow to disable image stabilization per device
 kpick 247120 # Snap: add basic support for setting lens shading mode
 kpick 249823 # Snap: Make antibanding related changes to APIV2 as well
 
@@ -1571,7 +1570,6 @@ kpick 249771 # vold: add support for clear key
 kpick 249773 # vold: change to upgrade key if export fails
 
 # system/tools/aidl
-kpick 223133 # AIDL: Add option to generate No-Op methods
 
 # vendor/lineage
 kpick 225921 # overlay: Update list of GSF/GMS activities

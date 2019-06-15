@@ -2,9 +2,12 @@
 product=kltechnduo
 
 force=0
+with_su=true
 for op in $*; do
     if [ "$op" = "-prepare" ]; then
        mode="prepare";
+    elif [ "$op" = "-nosu" ]; then
+       with_su=false
     elif [ "$op" = "addonsu" ]; then
        mode="addonesu"
     elif [ "$op" = "klte" -o "$op" = "kltechnduo" -o "$op" = "kltechn" ]; then
@@ -70,11 +73,11 @@ else
 	    make  bootimage
             echo "bootimage: $nbootimg build complete."
         elif [ $force -eq 1 ]; then
-            LINEAGE_VERSION_APPEND_TIME_OF_DAY=true WITH_SU=true LC_ALL=C REMOVE_OAHL_FROM_BCP=true \
+            LINEAGE_VERSION_APPEND_TIME_OF_DAY=true WITH_SU=${with_su} LC_ALL=C \
    	    cmka bacon
             result=$?
         else
-            LINEAGE_VERSION_APPEND_TIME_OF_DAY=true WITH_SU=true LC_ALL=C REMOVE_OAHL_FROM_BCP=true \
+            LINEAGE_VERSION_APPEND_TIME_OF_DAY=true WITH_SU=${with_su} LC_ALL=C \
    	    mka bacon
             result=$?
         fi
