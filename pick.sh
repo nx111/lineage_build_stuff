@@ -1312,12 +1312,6 @@ kpick 224613 # soong: Add LOCAL_AIDL_FLAGS handling
 kpick 226443 # soong: Add additional_deps attribute for libraries and binaries
 
 # device/lineage/sepolicy
-kpick 241664 # sepolicy: Dynamically build trust policy into system/vendor
-kpick 241665 # sepolicy: Move livedisplay hal policy to dynamic
-kpick 241666 # sepolicy: Move touch hal policy to dynamic
-kpick 241667 # sepolicy: Move power hal service label to dynamic
-kpick 241676 # sepolicy: qcom: Rename common to vendor to avoid confusion
-kpick 241677 # sepolicy: Break livedisplay hal policy into impl independent ones
 kpick 241903 # sepolicy: Label all the livedisplay service implementations
 kpick 246848 # Silence sysinit log spam
 
@@ -1336,7 +1330,7 @@ kpick 227260 # Update bt vendor callbacks array in vfs code
 kpick 227261 # Cast BT_VND_OP_ANT_USERIAL_{OPEN,CLOSE} to bt_vendor_opcode_t in vfs code
 
 # external/chromium-webview
-kpick 249538 # Update Chromium Webview to 75.0.3770.67
+kpick 249538 # Update Chromium Webview to 75.0.3770.89
 
 # external/libpng
 
@@ -1367,7 +1361,6 @@ kpick 244574 # audioflinger: Fix audio for WifiDisplay
 
 # frameworks/base
 kpick 224513 # SystemUI: Disable config_keyguardUserSwitcher on sw600dp
-kpick 226400 # LockSettingsService: Support for separate clear key api
 kpick 231823 # Do not move the multi-window divider when showing IME
 kpick 231824 # Fix StatusBar icons tinting when in split screen
 kpick 231827 # Add display shrink mode
@@ -1396,7 +1389,6 @@ kpick 244318 # KeyguardHostView: Auto face unlock v2
 kpick 247886 # Add 3 finger swipe screenshot [1/3]
 kpick 248460 # Keyguard: Don't listen fingerprint when prox.sensor is covered (1/2)
 #kpick 248558 # Add special roaming case for EU operators [1/3]
-kpick 249494 # fw/b: Allow adb over network when any default network is active
 kpick 249820 # [1/2] base: allow disable of screenshot shutter sound
 
 # frameworks/native
@@ -1415,9 +1407,10 @@ kpick 244260 # Improve UiccSlot#promptForRestart dialog
 
 # hardware/broadcom/libbt
 kpick 225155 # Broadcom BT: Add support fm/bt via v4l2.
+kpick 250327 # Bluetooth: SCO configuration over PCM interface
 
 # hardware/interfaces
-kpick 226402 # keymasterV4_0: Tags support for FBE wrapped key.
+kpick 234041 # bt voice: call sco config after initializing BT firmware
 
 # hardware/lineage/livedisplay
 kpick 242994 # livedisplay: sysfs: Simplify setCalibration
@@ -1540,7 +1533,6 @@ kpick 240769 # Proper supplementary service notification handling (4/5).
 kpick 229314 # Allow using alternative (higher) SBC HD bitrates with a property
 
 # system/core
-kpick 226120 # fs_mgr: Wrapped key support for FBE
 kpick 223500 # Add back fuse support
 kpick 231716 # init: Always use libbootloader_message from bootable/recovery namespace
 kpick 234584 # adb: Rework adb root
@@ -1549,7 +1541,6 @@ kpick 237140 # healthd: add Battery Moto Mod Support
 kpick 237141 # core: update battery mod support for P
 kpick 241757 # adb: Allow adb root when certain third party root is present
 kpick 245342 # adb: Always allow recovery use adb root in userdebug builds
-kpick 249769 # fs_mgr: Add MF_WRAPPEDKEY flag
 
 # system/extras/su
 kpick 232428 # su: strlcpy is always a friend
@@ -1564,10 +1555,6 @@ kpick 232794 # NetD : Allow passing in interface names for vpn app restriction
 kpick 243819 # sepolicy: Label tee_data_file as core_data_file_type
 
 # system/vold
-kpick 226111 # vold: Wrapped key support for FBE
-kpick 249770 # vold: Use separate flag for wrappedkey
-kpick 249771 # vold: add support for clear key
-kpick 249773 # vold: change to upgrade key if export fails
 
 # system/tools/aidl
 
@@ -1584,7 +1571,6 @@ kpick 237209 # lineage: Set default ringtone for second SIM
 kpick 241783 # envsetup: Fix lineagegerrit push for zsh
 kpick 242432 # RIP libhealthd.lineage
 kpick 242433 # Make custom off-mode charging screen great again
-kpick 243809 # soong_config: Add flag for devices use metadata as FDE key
 kpick 244672 # common: Add getcap/setcap to PRODUCT_PACKAGES
 kpick 245278 # extract_utils: Add functions to extract vendor blobs from vendor.img
 kpick 245279 # kernel: Allow devices to specify kernel toolchain root
@@ -1594,7 +1580,6 @@ kpick 248512 # qcom: Add UM 4.14 platforms
 kpick 248706 # fix /data/ssh/empty file permissions
 kpick 248707 # build: tasks: kernel: Add support for MediaTek dtbo images
 kpick 249190 # Update French operator SFR (and its web subsidiary RED) and MVNO's based on SFR apns
-kpick 249477 # kernel: Set correct kernel compiler prefixes for aarch64 clang
 kpick 249713 # overlay: Default NightLight mode to twilight
 kpick 249774 # remove proxy from "Vip internet" APN settings
 
@@ -1603,7 +1588,6 @@ kpick 247915 # policy_hal: do not check MODE_IN_COMMUNICATION for voip_rx flag
 kpick 247916 # policy_hal: avoid open stereo channel output for voip_rx flag
 
 # vendor/qcom/opensource/cryptfs_hw
-kpick 243744 # cryptfs_hw: Support devices use metadata as key
 
 #-----------------------
 # translations
