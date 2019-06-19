@@ -1316,7 +1316,6 @@ kpick 241903 # sepolicy: Label all the livedisplay service implementations
 kpick 246848 # Silence sysinit log spam
 
 # device/qcom/sepolicy
-kpick 240951 # qcom: label persist files with /(mnt/vendor)/persist instead of /mnt/vendor/persist
 kpick 244366 # sepolicy: Allow perf HAL to set mpctl props
 
 # device/qcom/sepolicy-legacy
@@ -1436,7 +1435,6 @@ kpick 223341 # display: Always assume kernel source is present
 kpick 236546 # fm_helium: Update FM_HCI_DIR path
 
 # hardware/qcom/keymaster
-kpick 248363 # keymaster: Build with BOARD_VNDK_VERSION
 
 # hardware/qcom/media-caf/msm8974
 kpick 237154 # Add -Wno-error to compile with global -Werror.
@@ -1479,7 +1477,6 @@ kpick 224752 # Use mCameraAgentNg for getting camera info when available
 kpick 245234 # Camera2: also check for and request WRITE_EXTERNAL_STORAGE permission
 
 # packages/apps/DeskClock
-kpick 249781 # DeskClock: Use POWER_OFF_ALARM permission
 
 # packages/apps/Dialer
 kpick 240770 # Proper supplementary service notification handling (5/5).
@@ -1582,6 +1579,7 @@ kpick 248707 # build: tasks: kernel: Add support for MediaTek dtbo images
 kpick 249190 # Update French operator SFR (and its web subsidiary RED) and MVNO's based on SFR apns
 kpick 249713 # overlay: Default NightLight mode to twilight
 kpick 249774 # remove proxy from "Vip internet" APN settings
+kpick 250372 # lineage: partner_gms: Add minimal configuration flag
 
 # vendor/qcom/opensource/audio
 kpick 247915 # policy_hal: do not check MODE_IN_COMMUNICATION for voip_rx flag
