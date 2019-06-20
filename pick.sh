@@ -1331,8 +1331,6 @@ kpick 227261 # Cast BT_VND_OP_ANT_USERIAL_{OPEN,CLOSE} to bt_vendor_opcode_t in 
 # external/chromium-webview
 kpick 249538 # Update Chromium Webview to 75.0.3770.89
 
-# external/libpng
-
 # external/openssh
 kpick 249763 # [SQUASH][DNM] Merge tag 'V_8_0_P1' into lineage-16.0_v8.0p1
 kpick 249788 # openssh: Update Android build for v8.0p1
@@ -1340,10 +1338,6 @@ kpick 249764 # openssh: Add boringssl compat functions for openssl-1.1.x API
 
 # external/perfetto
 kpick 223413 -f # perfetto_cmd: Resolve missing O_CREAT mode
-
-# external/skia
-
-# external/vim
 
 # frameworks/av
 kpick 230387 # CameraService: Support calling addStates in enumerateProviders
@@ -1388,7 +1382,9 @@ kpick 244318 # KeyguardHostView: Auto face unlock v2
 kpick 247886 # Add 3 finger swipe screenshot [1/3]
 kpick 248460 # Keyguard: Don't listen fingerprint when prox.sensor is covered (1/2)
 #kpick 248558 # Add special roaming case for EU operators [1/3]
+kpick 248662 # Fix bugs regarding system app cannot write visible path
 kpick 249820 # [1/2] base: allow disable of screenshot shutter sound
+kpick 250513 # SystemUI: Set MobileGroup view visibility unconditionally
 
 # frameworks/native
 kpick 224530 # Triple the available egl function pointers available to a process for certain Nvidia devices.
@@ -1407,6 +1403,7 @@ kpick 244260 # Improve UiccSlot#promptForRestart dialog
 # hardware/broadcom/libbt
 kpick 225155 # Broadcom BT: Add support fm/bt via v4l2.
 kpick 250327 # Bluetooth: SCO configuration over PCM interface
+kpick 250445 # libbt: configure audio codec right after firmware
 
 # hardware/interfaces
 kpick 234041 # bt voice: call sco config after initializing BT firmware
@@ -1470,13 +1467,9 @@ kpick 248441 # sdk: Use Google's algorithm to convert color temperature to RGB
 kpick 248461 # Keyguard: Don't listen fingerprint when prox.sensor is covered (2/2)
 kpick 249712 # lineage-sdk: Disable color temperature adjustment by default
 
-# packages/apps/Bluetooth
-
 # packages/apps/Camera2
 kpick 224752 # Use mCameraAgentNg for getting camera info when available
 kpick 245234 # Camera2: also check for and request WRITE_EXTERNAL_STORAGE permission
-
-# packages/apps/DeskClock
 
 # packages/apps/Dialer
 kpick 240770 # Proper supplementary service notification handling (5/5).
@@ -1486,6 +1479,9 @@ kpick 248475 # Pause music on bluetooth audio device disconnect
 
 # packages/apps/LineageParts
 kpick 249225 # Lineage parts: Make 'Privacy Guard' icons work with dark theme
+
+# packages/apps/LockClock
+kpick 250514 # LockClock: Add some shadow to the clock widget
 
 # packages/apps/Messaging
 kpick 249777 # Messaging: Handle multiple participants in custom notifications
@@ -1509,6 +1505,7 @@ kpick 249821 # [2/2] Settings: allow disable of screenshot shutter sound
 # packages/apps/Snap
 kpick 242496 # Snap: Fix bad grammar "Long shot not support<ed>"
 kpick 247120 # Snap: add basic support for setting lens shading mode
+kpick 248663 # Snap: Save SDCard photos to legacy path
 kpick 249823 # Snap: Make antibanding related changes to APIV2 as well
 
 # packages/apps/UnifiedEmail
@@ -1551,10 +1548,6 @@ kpick 232794 # NetD : Allow passing in interface names for vpn app restriction
 # system/sepolicy
 kpick 243819 # sepolicy: Label tee_data_file as core_data_file_type
 
-# system/vold
-
-# system/tools/aidl
-
 # vendor/lineage
 kpick 225921 # overlay: Update list of GSF/GMS activities
 kpick 225938 # roomservice: document the hell out of the current behavior of the script
@@ -1579,13 +1572,12 @@ kpick 248707 # build: tasks: kernel: Add support for MediaTek dtbo images
 kpick 249190 # Update French operator SFR (and its web subsidiary RED) and MVNO's based on SFR apns
 kpick 249713 # overlay: Default NightLight mode to twilight
 kpick 249774 # remove proxy from "Vip internet" APN settings
-kpick 250372 # lineage: partner_gms: Add minimal configuration flag
+kpick 250440 # Whitelist permissions for AOSP FM radio app
 
 # vendor/qcom/opensource/audio
 kpick 247915 # policy_hal: do not check MODE_IN_COMMUNICATION for voip_rx flag
 kpick 247916 # policy_hal: avoid open stereo channel output for voip_rx flag
 
-# vendor/qcom/opensource/cryptfs_hw
 
 #-----------------------
 # translations
