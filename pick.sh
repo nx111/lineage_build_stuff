@@ -1384,7 +1384,7 @@ kpick 248460 # Keyguard: Don't listen fingerprint when prox.sensor is covered (1
 #kpick 248558 # Add special roaming case for EU operators [1/3]
 kpick 248662 # Fix bugs regarding system app cannot write visible path
 kpick 249820 # [1/2] base: allow disable of screenshot shutter sound
-kpick 250513 # SystemUI: Set MobileGroup view visibility unconditionally
+kpick 250525 # AdbOverNetworkTile: Restrict to valid transports only
 
 # frameworks/native
 kpick 224530 # Triple the available egl function pointers available to a process for certain Nvidia devices.
@@ -1491,7 +1491,7 @@ kpick 232697 # NFCService: Add sysprop to prevent FW download during boot with N
 
 # packages/apps/Settings
 kpick 233634 # Phone ringtone setting for Multi SIM device
-kpick 227120 # Settings: Check interfaces before enabling ADB over network
+kpick 227120 # Settings: Check connectivity before enabling ADB over network
 kpick 231826 # Update the white list of Data saver
 kpick 232793 # Settings: per-app VPN data restriction
 kpick 237183 # settings: hide appendix of app list for power usage.
