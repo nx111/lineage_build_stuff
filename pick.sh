@@ -1385,6 +1385,7 @@ kpick 248460 # Keyguard: Don't listen fingerprint when prox.sensor is covered (1
 kpick 248662 # Fix bugs regarding system app cannot write visible path
 kpick 249820 # [1/2] base: allow disable of screenshot shutter sound
 kpick 250525 # AdbOverNetworkTile: Restrict to valid transports only
+kpick 250560 # SystemUI: Disallow changing disabled signal icon's visibility state
 
 # frameworks/native
 kpick 224530 # Triple the available egl function pointers available to a process for certain Nvidia devices.
@@ -1473,6 +1474,12 @@ kpick 245234 # Camera2: also check for and request WRITE_EXTERNAL_STORAGE permis
 
 # packages/apps/Dialer
 kpick 240770 # Proper supplementary service notification handling (5/5).
+kpick 250551 # Add toggle for post call snackbar
+kpick 250555 # Add missing permissions to Dialer *These were in google dialer and not aosp dialer.
+kpick 250556 # Add autorecord feature
+kpick 250557 # fix npe when auto-recording is enabled
+kpick 250558 # Allow setting of full screen contact photo.
+kpick 250559 # Disable answer false touch detection by default
 
 # packages/apps/Eleven
 kpick 248475 # Pause music on bluetooth audio device disconnect
