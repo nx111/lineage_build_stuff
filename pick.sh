@@ -1329,7 +1329,7 @@ kpick 227260 # Update bt vendor callbacks array in vfs code
 kpick 227261 # Cast BT_VND_OP_ANT_USERIAL_{OPEN,CLOSE} to bt_vendor_opcode_t in vfs code
 
 # external/chromium-webview
-kpick 249538 # Update Chromium Webview to 75.0.3770.89
+kpick 249538 # Update Chromium Webview to 75.0.3770.101
 
 # external/openssh
 kpick 249763 # [SQUASH][DNM] Merge tag 'V_8_0_P1' into lineage-16.0_v8.0p1
@@ -1403,11 +1403,17 @@ kpick 244260 # Improve UiccSlot#promptForRestart dialog
 
 # hardware/broadcom/libbt
 kpick 225155 # Broadcom BT: Add support fm/bt via v4l2.
-kpick 250327 # Bluetooth: SCO configuration over PCM interface
+kpick 250327 # libbt: SCO configuration over PCM interface
 kpick 250445 # libbt: configure audio codec right after firmware
 
 # hardware/interfaces
 kpick 234041 # bt voice: call sco config after initializing BT firmware
+
+# hardware/hardware_legacy
+# hardware/libhardware_legacy
+kpick 250664 # Wifi: Add Qpower interface to libhardware_legacy
+
+kpick 250665 # wifi: Add wifi_set_latency_level() to legacy wifi hal
 
 # hardware/lineage/livedisplay
 kpick 242994 # livedisplay: sysfs: Simplify setCalibration
@@ -1458,7 +1464,6 @@ kpick 231897 # power: qcom: powerHal for sdm439 and sdm429
 kpick 231898 # Power: Naming convention change
 
 # hardware/samsung
-kpick 231194 # power: properly initialize cluster states
 kpick 248226 # samsung: Move all to vendor
 
 # lineage-sdk
@@ -1580,6 +1585,13 @@ kpick 249190 # Update French operator SFR (and its web subsidiary RED) and MVNO'
 kpick 249713 # overlay: Default NightLight mode to twilight
 kpick 249774 # remove proxy from "Vip internet" APN settings
 kpick 250440 # Whitelist permissions for AOSP FM radio app
+kpick 250605 # build: Set mode for makefiles
+kpick 250629 # build: Use ifeq/else ifeq/else construction in board config
+kpick 250630 # build: Remove unused script
+kpick 250606 # build: Reorganize inclusion of QCOM macros
+kpick 250608 # build: Separate platform macros from QCOM platform definition
+kpick 250618 # lineage: partner_gms: Automatically set minimal config on <1.7 GB System Images
+kpick 250700 # addonsu: Pass filesystem type for mounting /system_root when needed
 
 # vendor/qcom/opensource/audio
 kpick 247915 # policy_hal: do not check MODE_IN_COMMUNICATION for voip_rx flag

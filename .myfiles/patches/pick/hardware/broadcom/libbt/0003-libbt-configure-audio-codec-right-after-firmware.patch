@@ -1,4 +1,4 @@
-From ebca49bdbfe0386fdfa47080c772d8cfe97ee490 Mon Sep 17 00:00:00 2001
+From 5cacec07ac7130e719e8f18b9592f5fe5c1453b4 Mon Sep 17 00:00:00 2001
 From: z3DD3r <z3dd3r@gmail.com>
 Date: Wed, 19 Jun 2019 23:20:49 +0300
 Subject: [PATCH 3/3] libbt: configure audio codec right after firmware
@@ -8,9 +8,7 @@ Some devices has issues with audio calls due to removal of the 'pre-SCO'
 configuration step introduced in Oreo. In order to fix it we should configure
 audio codec (perform 'pre-SCO' configuration step) right after firmware upload.
 
-This fix doesn't change anything in original code and disabled by default.
 Configure vnd config for affected devices to enable this fix.
-
 Here is a list of available parameters:
 
 BTHW_FW_EXTENDED_CONFIGURATION
@@ -19,19 +17,16 @@ BTHW_FW_EXTENDED_CONFIGURATION
 BTHW_FW_EXTENDED_CONFIGURATION_SCO_CODEC
  - SCO codec. Numeric value from the sco_codec_t enum. Default is SCO_CODEC_CVSD
 
-BTHW_FW_EXTENDED_CONFIGURATION_ONLY_I2SPCM_CONFIG
- - Set only i2spcm config without WBS. TRUE/FALSE. Default is FALSE
-
 Change-Id: I068dc247b4b39010001cc124de144837c326ed03
 ---
- src/hardware.c | 382 +++++++++++++++++++++++++++++++++++++++++++++++++
- 1 file changed, 382 insertions(+)
+ src/hardware.c | 62 +++++++++++++++++++++++++++++++++++++++++++++++---
+ 1 file changed, 59 insertions(+), 3 deletions(-)
 
 diff --git a/src/hardware.c b/src/hardware.c
-index 39f5860..2417f32 100644
+index 39f5860..57a0c62 100644
 --- a/src/hardware.c
 +++ b/src/hardware.c
-@@ -67,6 +67,18 @@
+@@ -67,6 +67,14 @@
  #define BTHWDBG(param, ...) {}
  #endif
  
@@ -43,410 +38,134 @@ index 39f5860..2417f32 100644
 +#define BTHW_FW_EXTENDED_CONFIGURATION_SCO_CODEC SCO_CODEC_CVSD
 +#endif
 +
-+#ifndef BTHW_FW_EXTENDED_CONFIGURATION_ONLY_I2SPCM_CONFIG
-+#define BTHW_FW_EXTENDED_CONFIGURATION_ONLY_I2SPCM_CONFIG FALSE
-+#endif
-+
  #define FW_PATCHFILE_EXTENSION      ".hcd"
  #define FW_PATCHFILE_EXTENSION_LEN  4
  #define FW_PATCHFILE_PATH_MAXLEN    248 /* Local_Name length of return of
-@@ -277,6 +289,11 @@ static uint8_t sco_bus_wbs_clock_rate = INVALID_SCO_CLOCK_RATE;
+@@ -277,6 +285,14 @@ static uint8_t sco_bus_wbs_clock_rate = INVALID_SCO_CLOCK_RATE;
  static void hw_sco_i2spcm_config(uint16_t codec);
  static void hw_sco_i2spcm_config_from_command(void *p_mem, uint16_t codec);
  
 +/******************************************************************************
-+ **  Static function for extended configuration (configures audio codec)
-+ ******************************************************************************/
-+static void hw_config_extended_start(void);
++**  SCO configuration related functions
++******************************************************************************/
++#if (SCO_CFG_INCLUDED == TRUE)
++void hw_sco_config(void);
++static int hw_set_SCO_codec(uint16_t codec);
++#endif
 +
  /******************************************************************************
  **  Controller Initialization Static Functions
  ******************************************************************************/
-@@ -1016,7 +1033,12 @@ void hw_config_cback(void *p_mem)
+@@ -1016,7 +1032,12 @@ void hw_config_cback(void *p_mem)
              case HW_CFG_SET_BD_ADDR:
                  ALOGI("vendor lib fwcfg completed");
                  bt_vendor_cbacks->dealloc(p_buf);
 +
-+#if (BTHW_FW_EXTENDED_CONFIGURATION == TRUE)
-+                hw_config_extended_start();
++#if (SCO_CFG_INCLUDED == TRUE && BTHW_FW_EXTENDED_CONFIGURATION == TRUE)
++                hw_sco_config();
 +#else
                  bt_vendor_cbacks->fwcfg_cb(BT_VND_OP_RESULT_SUCCESS);
-+#endif // (BTHW_FW_EXTENDED_CONFIGURATION == TRUE)
++#endif
  
                  hw_cfg_cb.state = 0;
  
-@@ -1050,7 +1072,12 @@ void hw_config_cback(void *p_mem)
+@@ -1050,7 +1071,12 @@ void hw_config_cback(void *p_mem)
  
                  ALOGI("vendor lib fwcfg completed");
                  bt_vendor_cbacks->dealloc(p_buf);
 +
-+#if (BTHW_FW_EXTENDED_CONFIGURATION == TRUE)
-+                hw_config_extended_start();
++#if (SCO_CFG_INCLUDED == TRUE && BTHW_FW_EXTENDED_CONFIGURATION == TRUE)
++                hw_sco_config();
 +#else
                  bt_vendor_cbacks->fwcfg_cb(BT_VND_OP_RESULT_SUCCESS);
-+#endif // (BTHW_FW_EXTENDED_CONFIGURATION == TRUE)
++#endif
  
                  hw_cfg_cb.state = 0;
  
-@@ -1834,3 +1861,358 @@ void hw_epilog_process(void)
+@@ -1233,6 +1259,10 @@ static void hw_sco_i2spcm_cfg_cback(void *p_mem)
+     ALOGI("sco I2S/PCM config result %d [0-Success, 1-Fail]", status);
+     if (bt_vendor_cbacks)
+     {
++#if (BTHW_FW_EXTENDED_CONFIGURATION == TRUE)
++        bt_vendor_cbacks->fwcfg_cb(BT_VND_OP_RESULT_SUCCESS);
++        bt_vendor_cbacks->scocfg_cb(status);
++#endif
+         bt_vendor_cbacks->audio_state_cb(status);
      }
  }
- #endif // (HW_END_WITH_HCI_RESET == TRUE)
-+
+@@ -1480,6 +1510,15 @@ void hw_sco_config(void)
+      *  immediately with SCO_CODEC_CVSD by default.
+      */
+ 
 +#if (BTHW_FW_EXTENDED_CONFIGURATION == TRUE)
-+static void hw_config_extended_finish(uint8_t result)
-+{
-+    ALOGI("%s: extended configuration finished: 0x%x", __FUNCTION__, result);
-+
-+    if (bt_vendor_cbacks)
++    uint8_t ret_val = hw_set_SCO_codec(BTHW_FW_EXTENDED_CONFIGURATION_SCO_CODEC);
++    if (ret_val == -1 && bt_vendor_cbacks)
 +    {
 +        bt_vendor_cbacks->fwcfg_cb(BT_VND_OP_RESULT_SUCCESS);
-+        bt_vendor_cbacks->scocfg_cb(BT_VND_OP_RESULT_SUCCESS);
-+        bt_vendor_cbacks->audio_state_cb(result);
++        bt_vendor_cbacks->scocfg_cb(BT_VND_OP_RESULT_FAIL);
++        bt_vendor_cbacks->audio_state_cb(BT_VND_OP_RESULT_FAIL);
 +    }
-+}
-+
-+static void hw_config_extended_sco_i2spcm_config_cback(void *p_mem)
-+{
-+    /*
-+     Copied from 'hw_sco_i2spcm_cfg_cback' method
-+     */
-+
-+    uint8_t *p = NULL;
-+    HC_BT_HDR *p_evt_buf = (HC_BT_HDR *)p_mem;
-+
-+    uint16_t opcode;
-+    HC_BT_HDR *p_buf = NULL;
-+
-+    p = (uint8_t *)(p_evt_buf + 1) + HCI_EVT_CMD_CMPL_OPCODE;
-+    STREAM_TO_UINT16(opcode,p);
-+
-+    bt_vendor_op_result_t status = BT_VND_OP_RESULT_FAIL;
-+    if (*((uint8_t *)(p_evt_buf + 1) + HCI_EVT_CMD_CMPL_STATUS_RET_BYTE) == 0)
-+    {
-+        status = BT_VND_OP_RESULT_SUCCESS;
-+    }
-+
-+    /* Free the RX event buffer */
-+    if (bt_vendor_cbacks)
-+    {
-+        bt_vendor_cbacks->dealloc(p_evt_buf);
-+    }
-+
-+    if (status == BT_VND_OP_RESULT_SUCCESS)
-+    {
-+        if ((opcode == HCI_VSC_WRITE_I2SPCM_INTERFACE_PARAM) &&
-+            (SCO_INTERFACE_PCM == sco_bus_interface))
-+        {
-+            /* Ask a new buffer to hold WRITE_SCO_PCM_INT_PARAM command */
-+            if (bt_vendor_cbacks)
-+            {
-+                p_buf = (HC_BT_HDR *)bt_vendor_cbacks->alloc(BT_HC_HDR_SIZE +
-+                                                             HCI_CMD_PREAMBLE_SIZE +
-+                                                             SCO_PCM_PARAM_SIZE);
-+            }
-+
-+            if (p_buf)
-+            {
-+                p_buf->event = MSG_STACK_TO_HC_HCI_CMD;
-+                p_buf->offset = 0;
-+                p_buf->layer_specific = 0;
-+                p_buf->len = HCI_CMD_PREAMBLE_SIZE + SCO_PCM_PARAM_SIZE;
-+                p = (uint8_t *)(p_buf + 1);
-+
-+                UINT16_TO_STREAM(p, HCI_VSC_WRITE_SCO_PCM_INT_PARAM);
-+                *p++ = SCO_PCM_PARAM_SIZE;
-+                memcpy(p, &bt_sco_param, SCO_PCM_PARAM_SIZE);
-+                ALOGI("%s: SCO PCM configure {0x%x, 0x%x, 0x%x, 0x%x, 0x%x}",
-+                      __FUNCTION__, bt_sco_param[0], bt_sco_param[1],
-+                      bt_sco_param[2], bt_sco_param[3], bt_sco_param[4]);
-+
-+                uint8_t ret = bt_vendor_cbacks->xmit_cb(HCI_VSC_WRITE_SCO_PCM_INT_PARAM,
-+                                                        p_buf,
-+                                                        hw_config_extended_sco_i2spcm_config_cback);
-+                if (ret == FALSE)
-+                {
-+                    bt_vendor_cbacks->dealloc(p_buf);
-+                }
-+                else
-+                {
-+                    return;
-+                }
-+            }
-+            status = BT_VND_OP_RESULT_FAIL;
-+        }
-+        else if ((opcode == HCI_VSC_WRITE_SCO_PCM_INT_PARAM) &&
-+                 (SCO_INTERFACE_PCM == sco_bus_interface))
-+        {
-+            /* Ask a new buffer to hold WRITE_PCM_DATA_FORMAT_PARAM command */
-+            if (bt_vendor_cbacks)
-+            {
-+                p_buf = (HC_BT_HDR *)bt_vendor_cbacks->alloc(BT_HC_HDR_SIZE +
-+                                                             HCI_CMD_PREAMBLE_SIZE +
-+                                                             PCM_DATA_FORMAT_PARAM_SIZE);
-+            }
-+
-+            if (p_buf)
-+            {
-+                p_buf->event = MSG_STACK_TO_HC_HCI_CMD;
-+                p_buf->offset = 0;
-+                p_buf->layer_specific = 0;
-+                p_buf->len = HCI_CMD_PREAMBLE_SIZE + PCM_DATA_FORMAT_PARAM_SIZE;
-+
-+                p = (uint8_t *)(p_buf + 1);
-+                UINT16_TO_STREAM(p, HCI_VSC_WRITE_PCM_DATA_FORMAT_PARAM);
-+                *p++ = PCM_DATA_FORMAT_PARAM_SIZE;
-+                memcpy(p, &bt_pcm_data_fmt_param, PCM_DATA_FORMAT_PARAM_SIZE);
-+                ALOGI("%s: SCO PCM data format {0x%x, 0x%x, 0x%x, 0x%x, 0x%x}",
-+                      __FUNCTION__, bt_pcm_data_fmt_param[0],
-+                      bt_pcm_data_fmt_param[1], bt_pcm_data_fmt_param[2],
-+                      bt_pcm_data_fmt_param[3], bt_pcm_data_fmt_param[4]);
-+
-+                uint8_t ret = bt_vendor_cbacks->xmit_cb(HCI_VSC_WRITE_PCM_DATA_FORMAT_PARAM,
-+                                                        p_buf,
-+                                                        hw_config_extended_sco_i2spcm_config_cback);
-+                if (ret == FALSE)
-+                {
-+                    bt_vendor_cbacks->dealloc(p_buf);
-+                }
-+                else
-+                {
-+                    return;
-+                }
-+            }
-+            status = BT_VND_OP_RESULT_FAIL;
-+        }
-+    }
-+
-+    hw_config_extended_finish(status);
-+}
-+
-+static void hw_config_extended_sco_i2spcm_config(uint16_t codec)
-+{
-+    /*
-+     Copied from 'hw_sco_i2spcm_config' method.
-+     */
-+
-+    ALOGI("%s: set SCO I2S/PCM codec: 0x%x", __FUNCTION__, codec);
-+
-+    uint8_t *p = NULL;
-+    HC_BT_HDR *p_buf = NULL;
-+    uint16_t cmd_u16 = HCI_CMD_PREAMBLE_SIZE + SCO_I2SPCM_PARAM_SIZE;
-+
-+    if (bt_vendor_cbacks)
-+    {
-+        p_buf = (HC_BT_HDR *)bt_vendor_cbacks->alloc(BT_HC_HDR_SIZE +
-+                                                     cmd_u16);
-+    }
-+
-+    if (p_buf)
-+    {
-+        p_buf->event = MSG_STACK_TO_HC_HCI_CMD;
-+        p_buf->offset = 0;
-+        p_buf->layer_specific = 0;
-+        p_buf->len = cmd_u16;
-+
-+        p = (uint8_t *)(p_buf + 1);
-+
-+        UINT16_TO_STREAM(p, HCI_VSC_WRITE_I2SPCM_INTERFACE_PARAM);
-+        *p++ = SCO_I2SPCM_PARAM_SIZE;
-+        if (codec == SCO_CODEC_MSBC)
-+        {
-+            bt_sco_i2spcm_param[2] = wbs_sample_rate; /* SCO_I2SPCM_IF_SAMPLE_RATE 16K */
-+            bt_sco_i2spcm_param[3] = bt_sco_param[1] = sco_bus_wbs_clock_rate;
-+        }
-+        else
-+        {
-+            bt_sco_i2spcm_param[2] = 0; /* SCO_I2SPCM_IF_SAMPLE_RATE  8k */
-+            bt_sco_i2spcm_param[3] = bt_sco_param[1] = sco_bus_clock_rate;
-+        }
-+        memcpy(p, &bt_sco_i2spcm_param, SCO_I2SPCM_PARAM_SIZE);
-+        cmd_u16 = HCI_VSC_WRITE_I2SPCM_INTERFACE_PARAM;
-+        ALOGI("%s: I2SPCM config {0x%x, 0x%x, 0x%x, 0x%x}", __FUNCTION__,
-+              bt_sco_i2spcm_param[0], bt_sco_i2spcm_param[1],
-+              bt_sco_i2spcm_param[2], bt_sco_i2spcm_param[3]);
-+
-+        uint8_t ret = bt_vendor_cbacks->xmit_cb(cmd_u16,
-+                                                p_buf,
-+                                                hw_config_extended_sco_i2spcm_config_cback);
-+        if (ret == FALSE)
-+        {
-+            bt_vendor_cbacks->dealloc(p_buf);
-+        }
-+        else
-+        {
-+            return;
-+        }
-+    }
-+
-+    hw_config_extended_finish(BT_VND_OP_RESULT_FAIL);
-+}
-+
-+static void hw_config_extended_sco_i2spcm_config_from_command(void *p_mem, uint16_t codec)
-+{
-+    /*
-+     Copied from 'hw_sco_i2spcm_config_from_command' method.
-+     */
-+
-+    ALOGI("%s: codec: 0x%x", __FUNCTION__, codec);
-+
-+    HC_BT_HDR *p_evt_buf = (HC_BT_HDR *)p_mem;
-+    bool command_success = *((uint8_t *)(p_evt_buf + 1) + HCI_EVT_CMD_CMPL_STATUS_RET_BYTE) == 0;
-+
-+    /* Free the RX event buffer */
-+    if (bt_vendor_cbacks)
-+    {
-+        bt_vendor_cbacks->dealloc(p_evt_buf);
-+    }
-+
-+    if (command_success)
-+    {
-+        hw_config_extended_sco_i2spcm_config(codec);
-+    }
-+    else
-+    {
-+        hw_config_extended_finish(BT_VND_OP_RESULT_FAIL);
-+    }
-+}
-+
-+static void hw_config_extended_set_CVSD_codec_cback(void *p_mem)
-+{
-+    /*
-+     Copied from 'hw_set_CVSD_codec_cback' method.
-+     */
-+
-+    /* whenever update the codec enable/disable, need to update I2SPCM */
-+    ALOGI("%s: SCO I2S interface change the sample rate to 8K", __FUNCTION__);
-+    hw_config_extended_sco_i2spcm_config_from_command(p_mem, SCO_CODEC_CVSD);
-+}
-+
-+static void hw_config_extended_set_MSBC_codec_cback(void *p_mem)
-+{
-+    /*
-+     Copied from 'hw_set_MSBC_codec_cback' method.
-+     */
-+
-+    /* whenever update the codec enable/disable, need to update I2SPCM */
-+    ALOGI("%s: SCO I2S interface change the sample rate to 16K", __FUNCTION__);
-+    hw_config_extended_sco_i2spcm_config_from_command(p_mem, SCO_CODEC_MSBC);
-+}
-+
-+static void hw_config_extended_set_SCO_codec(uint16_t codec)
-+{
-+    /*
-+     Copied from 'hw_set_SCO_codec' method.
-+     */
-+
-+    ALOGI("%s: codec: 0x%x", __FUNCTION__, codec);
-+
-+    uint8_t *p = NULL;
-+    HC_BT_HDR *p_buf = NULL;
-+    tINT_CMD_CBACK p_set_SCO_codec_cback = NULL;
-+
-+    if (bt_vendor_cbacks)
-+    {
-+        p_buf = (HC_BT_HDR *)bt_vendor_cbacks->alloc(BT_HC_HDR_SIZE +
-+                                                     HCI_CMD_PREAMBLE_SIZE +
-+                                                     SCO_CODEC_PARAM_SIZE);
-+    }
-+
-+    if (p_buf)
-+    {
-+        p_buf->event = MSG_STACK_TO_HC_HCI_CMD;
-+        p_buf->offset = 0;
-+        p_buf->layer_specific = 0;
-+        p = (uint8_t *)(p_buf + 1);
-+
-+        UINT16_TO_STREAM(p, HCI_VSC_ENABLE_WBS);
-+        if (codec == SCO_CODEC_MSBC)
-+        {
-+            /* Enable mSBC */
-+            *p++ = SCO_CODEC_PARAM_SIZE; /* set the parameter size */
-+            UINT8_TO_STREAM(p, 1); /* enable */
-+            UINT16_TO_STREAM(p, codec);
-+
-+            /* set the totall size of this packet */
-+            p_buf->len = HCI_CMD_PREAMBLE_SIZE + SCO_CODEC_PARAM_SIZE;
-+
-+            p_set_SCO_codec_cback = hw_config_extended_set_MSBC_codec_cback;
-+        }
-+        else
-+        {
-+            /* Disable mSBC */
-+            *p++ = SCO_CODEC_PARAM_SIZE; /* set the parameter size */
-+            UINT8_TO_STREAM(p, 0); /* disable */
-+            UINT16_TO_STREAM(p, 0);
-+
-+            /* set the totall size of this packet */
-+            p_buf->len = HCI_CMD_PREAMBLE_SIZE + SCO_CODEC_PARAM_SIZE;
-+
-+            p_set_SCO_codec_cback = hw_config_extended_set_CVSD_codec_cback;
-+        }
-+
-+        uint8_t ret = bt_vendor_cbacks->xmit_cb(HCI_VSC_ENABLE_WBS,
-+                                                p_buf,
-+                                                p_set_SCO_codec_cback);
-+        if (ret == FALSE)
-+        {
-+            bt_vendor_cbacks->dealloc(p_buf);
-+        }
-+        else
-+        {
-+            return;
-+        }
-+    }
-+
-+    hw_config_extended_finish(BT_VND_OP_RESULT_FAIL);
-+}
-+
-+static void hw_config_extended_start(void)
-+{
-+    ALOGI("%s: extended configuration started", __FUNCTION__);
-+
-+    /*
-+     Copied from the 'hw_sco_config' method.
-+     We need to setup all required stucts before SCO codec configuration.
-+     */
-+
-+    if (SCO_INTERFACE_I2S == sco_bus_interface)
-+    {
-+        /* 'Enable' I2S mode */
-+        bt_sco_i2spcm_param[0] = 1;
-+
-+        /* set nbs clock rate as the value in SCO_I2SPCM_IF_CLOCK_RATE field */
-+        sco_bus_clock_rate = bt_sco_i2spcm_param[3];
-+    }
-+    else
-+    {
-+        /* 'Disable' I2S mode */
-+        bt_sco_i2spcm_param[0] = 0;
-+
-+        /* set nbs clock rate as the value in SCO_PCM_IF_CLOCK_RATE field */
-+        sco_bus_clock_rate = bt_sco_param[1];
-+
-+        /* sync up clock mode setting */
-+        bt_sco_i2spcm_param[1] = bt_sco_param[4];
-+    }
-+
-+    if (sco_bus_wbs_clock_rate == INVALID_SCO_CLOCK_RATE)
-+    {
-+        /* set default wbs clock rate */
-+        sco_bus_wbs_clock_rate = SCO_I2SPCM_IF_CLOCK_RATE4WBS;
-+
-+        if (sco_bus_wbs_clock_rate < sco_bus_clock_rate)
-+        {
-+            sco_bus_wbs_clock_rate = sco_bus_clock_rate;
-+        }
-+    }
-+
-+#if (BTHW_FW_EXTENDED_CONFIGURATION_ONLY_I2SPCM_CONFIG == FALSE)
-+    hw_config_extended_set_SCO_codec(BTHW_FW_EXTENDED_CONFIGURATION_SCO_CODEC);
 +#else
-+    hw_config_extended_sco_i2spcm_config(BTHW_FW_EXTENDED_CONFIGURATION_SCO_CODEC);
-+#endif // (BTHW_FW_EXTENDED_CONFIGURATION_ONLY_I2SPCM_CONFIG)
-+}
-+
-+#endif // (BTHW_FW_EXTENDED_CONFIGURATION == TRUE)
+     if (SCO_INTERFACE_I2S == sco_bus_interface) {
+         hw_sco_i2spcm_config(SCO_CODEC_CVSD);
+     }else if(SCO_INTERFACE_PCM == sco_bus_interface) {
+@@ -1490,6 +1529,7 @@ void hw_sco_config(void)
+     {
+         bt_vendor_cbacks->scocfg_cb(BT_VND_OP_RESULT_SUCCESS);
+     }
++#endif
+ }
+ 
+ static void hw_sco_i2spcm_config_from_command(void *p_mem, uint16_t codec) {
+@@ -1501,9 +1541,17 @@ static void hw_sco_i2spcm_config_from_command(void *p_mem, uint16_t codec) {
+         bt_vendor_cbacks->dealloc(p_evt_buf);
+ 
+     if (command_success)
++    {
+         hw_sco_i2spcm_config(codec);
++    }
+     else if (bt_vendor_cbacks)
++    {
++#if (BTHW_FW_EXTENDED_CONFIGURATION == TRUE)
++        bt_vendor_cbacks->fwcfg_cb(BT_VND_OP_RESULT_SUCCESS);
++        bt_vendor_cbacks->scocfg_cb(BT_VND_OP_RESULT_FAIL);
++#endif
+         bt_vendor_cbacks->audio_state_cb(BT_VND_OP_RESULT_FAIL);
++    }
+ }
+ 
+ 
+@@ -1566,7 +1614,14 @@ static void hw_sco_i2spcm_config(uint16_t codec)
+             return;
+     }
+ 
+-    bt_vendor_cbacks->audio_state_cb(BT_VND_OP_RESULT_FAIL);
++    if (bt_vendor_cbacks)
++    {
++#if (BTHW_FW_EXTENDED_CONFIGURATION == TRUE)
++        bt_vendor_cbacks->fwcfg_cb(BT_VND_OP_RESULT_SUCCESS);
++        bt_vendor_cbacks->scocfg_cb(BT_VND_OP_RESULT_FAIL);
++#endif
++        bt_vendor_cbacks->audio_state_cb(BT_VND_OP_RESULT_FAIL);
++    }
+ }
+ 
+ /*******************************************************************************
+@@ -1618,11 +1673,12 @@ static int hw_set_SCO_codec(uint16_t codec)
+         else
+         {
+             /* Disable mSBC */
+-            *p++ = (SCO_CODEC_PARAM_SIZE - 2); /* set the parameter size */
++            *p++ = SCO_CODEC_PARAM_SIZE; /* set the parameter size */
+             UINT8_TO_STREAM(p,0); /* disable */
++            UINT16_TO_STREAM(p, 0);
+ 
+             /* set the totall size of this packet */
+-            p_buf->len = HCI_CMD_PREAMBLE_SIZE + SCO_CODEC_PARAM_SIZE - 2;
++            p_buf->len = HCI_CMD_PREAMBLE_SIZE + SCO_CODEC_PARAM_SIZE;
+ 
+             p_set_SCO_codec_cback = hw_set_CVSD_codec_cback;
+             if ((codec != SCO_CODEC_CVSD) && (codec != SCO_CODEC_NONE))
 -- 
 2.17.1
 
